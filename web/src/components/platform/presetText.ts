@@ -27,8 +27,8 @@ export function presetSecretHelp(p: Pick<PlatformPreset, 'label' | 'custom'>, f:
   return p.custom ? f.help : tx(`platforms:presets.${presetKey(p)}.secretHelp.${f.key}`, f.help);
 }
 
-export type AuthType = 'none' | 'basic' | 'bearer' | 'apiKey' | 'oauth2_client_credentials' | 'token_request';
-const AUTH_TYPES: AuthType[] = ['none', 'basic', 'bearer', 'apiKey', 'oauth2_client_credentials', 'token_request'];
+export type AuthType = 'none' | 'basic' | 'bearer' | 'apiKey' | 'oauth2_client_credentials' | 'token_request' | 'jwt' | 'aws_sigv4';
+const AUTH_TYPES: AuthType[] = ['none', 'basic', 'bearer', 'apiKey', 'oauth2_client_credentials', 'token_request', 'jwt', 'aws_sigv4'];
 
 export function authLabel(type: string | undefined): string {
   const t = (type ?? 'none') as AuthType;

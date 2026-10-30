@@ -47,7 +47,9 @@
     "bearer": "Bearer token",
     "apiKey": "API key",
     "oauth2_client_credentials": "OAuth2 client credentials",
-    "token_request": "Custom login"
+    "token_request": "Custom login",
+    "jwt": "Key-pair JWT (Snowflake, service accounts)",
+    "aws_sigv4": "AWS request signing (SigV4)"
   },
   "empty": {
     "title": "No platforms yet",
@@ -213,7 +215,9 @@
       "bearer": "Static bearer token",
       "apiKey": "API key (header or query)",
       "oauth2_client_credentials": "OAuth2 client credentials",
-      "token_request": "Custom login request (token from response)"
+      "token_request": "Custom login request (token from response)",
+      "jwt": "Key-pair JWT (Snowflake, service accounts)",
+      "aws_sigv4": "AWS request signing (SigV4)"
     },
     "saved": "Platform saved",
     "notSaved": "Not saved",
@@ -239,7 +243,20 @@
     "retriesHint": "Requests that fail with 429, 502, 503, 504 or a network error are repeated with growing delays (honouring Retry-After). Empty fields use the defaults.",
     "save": "Save settings",
     "trustedOrigins": "Trusted origins",
-    "trustedOriginsHint": "Credentials are only sent to the base URL's origin. Add further origins (https://host[:port]) that belong to this platform and may receive them, e.g. a separate gateway host. Requests to other hosts are sent without credentials."
+    "trustedOriginsHint": "Credentials are only sent to the base URL's origin. Add further origins (https://host[:port]) that belong to this platform and may receive them, e.g. a separate gateway host. Requests to other hosts are sent without credentials.",
+    "jwtHint": "Steward signs a JWT with the private key (credential privateKey; encrypted keys also privateKeyPassphrase), valid for at most an hour. Claims are templates ({{vars}}); {{fingerprint}} is the public key fingerprint Snowflake expects. iat, exp and jti are set by Steward.",
+    "jwtAlg": "Algorithm",
+    "jwtLifetime": "Lifetime (seconds, at most 3600)",
+    "jwtMode": "Use",
+    "jwtModeToken": "Send the JWT as the token",
+    "jwtModeExchange": "Exchange it for an access token (RFC 7523)",
+    "jwtClaims": "Claims (iss, sub, aud …)",
+    "awsHint": "Every request to the platform is signed with the access key (credentials accessKeyId and secretAccessKey, optionally sessionToken). With a role, Steward assumes it and signs with its temporary credentials (renewed before they end).",
+    "awsRegion": "Region",
+    "awsService": "Service (signing name)",
+    "awsRoleArn": "Assume role (optional)",
+    "awsRoleArnHint": "Read-only role; the access key only needs sts:AssumeRole",
+    "awsExternalId": "External ID (optional)"
   },
   "specs": {
     "imported_one": "{{count}} operation imported",

@@ -315,7 +315,7 @@ export interface Subject {
 
 // ---------- Platforms ----------
 
-export type AuthType = 'none' | 'basic' | 'bearer' | 'apiKey' | 'oauth2_client_credentials' | 'token_request';
+export type AuthType = 'none' | 'basic' | 'bearer' | 'apiKey' | 'oauth2_client_credentials' | 'token_request' | 'jwt' | 'aws_sigv4';
 
 export interface AuthConfig {
   type: AuthType;
@@ -343,6 +343,31 @@ export interface AuthConfig {
   /** Header added to API calls; template with {{ token }} */
   headerName?: string;
   headerValue?: string;
+  /**
+   * jwt (#114): a JWT signed with the private key (secrets privateKey, privateKeyPassphrase). claims are templates
+   * (scope: vars, secrets, publicKeyFingerprint); iat, exp and jti are set by Steward. mode token: the JWT is the token
+   * (headerName/headerValue); exchange: it is sent to tokenUrl (RFC 7523 jwt-bearer) for an access token.
+   */
+  jwt?: {
+    alg?: 'RS256' | 'RS384' | 'RS512' | 'PS256' | 'ES256' | 'ES384';
+    claims?: Record<string, string>;
+    /** seconds, at most 3600 */
+    lifetimeSeconds?: number;
+    kid?: string;
+    mode?: 'token' | 'exchange';
+  };
+  /** aws_sigv4 (#114): every request signed (secrets accessKeyId, secretAccessKey, optional sessionToken); optionally as an assumed role */
+  aws?: {
+    region: string;
+    service: string;
+    roleArn?: string;
+    externalId?: string;
+    sessionName?: string;
+    /** S3: send UNSIGNED-PAYLOAD instead of the body's hash (large uploads) */
+    unsignedPayload?: boolean;
+    /** STS endpoint for assuming the role (default https://sts.<region>.amazonaws.com; GovCloud, China, VPC endpoints) */
+    stsEndpoint?: string;
+  };
 }
 
 export interface HttpOptions {

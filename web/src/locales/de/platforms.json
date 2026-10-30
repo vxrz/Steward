@@ -47,7 +47,9 @@
     "bearer": "Bearer-Token",
     "apiKey": "API-Schlüssel",
     "oauth2_client_credentials": "OAuth2 Client Credentials",
-    "token_request": "Eigene Anmeldung"
+    "token_request": "Eigene Anmeldung",
+    "jwt": "Schlüsselpaar-JWT (Snowflake, Dienstkonten)",
+    "aws_sigv4": "AWS-Anfragesignatur (SigV4)"
   },
   "empty": {
     "title": "Noch keine Plattformen",
@@ -213,7 +215,9 @@
       "bearer": "Statisches Bearer-Token",
       "apiKey": "API-Schlüssel (Header oder Query)",
       "oauth2_client_credentials": "OAuth2 Client Credentials",
-      "token_request": "Eigene Anmeldeanfrage (Token aus der Antwort)"
+      "token_request": "Eigene Anmeldeanfrage (Token aus der Antwort)",
+      "jwt": "Schlüsselpaar-JWT (Snowflake, Dienstkonten)",
+      "aws_sigv4": "AWS-Anfragesignatur (SigV4)"
     },
     "saved": "Plattform gespeichert",
     "notSaved": "Nicht gespeichert",
@@ -239,7 +243,20 @@
     "retriesHint": "Anfragen, die mit 429, 502, 503, 504 oder einem Netzwerkfehler scheitern, werden mit wachsenden Wartezeiten wiederholt (unter Beachtung von Retry-After). Leere Felder verwenden die Standardwerte.",
     "save": "Einstellungen speichern",
     "trustedOrigins": "Vertrauenswürdige Origins",
-    "trustedOriginsHint": "Zugangsdaten werden nur an den Origin der Basis-URL gesendet. Ergänzen Sie weitere Origins (https://host[:port]), die zu dieser Plattform gehören und sie erhalten dürfen, z. B. einen separaten Gateway-Host. Anfragen an andere Hosts werden ohne Zugangsdaten gesendet."
+    "trustedOriginsHint": "Zugangsdaten werden nur an den Origin der Basis-URL gesendet. Ergänzen Sie weitere Origins (https://host[:port]), die zu dieser Plattform gehören und sie erhalten dürfen, z. B. einen separaten Gateway-Host. Anfragen an andere Hosts werden ohne Zugangsdaten gesendet.",
+    "jwtHint": "Steward signiert ein JWT mit dem privaten Schlüssel (Zugangsdaten privateKey; verschlüsselte Schlüssel zusätzlich privateKeyPassphrase), gültig höchstens eine Stunde. Claims sind Vorlagen ({{vars}}); {{fingerprint}} ist der Fingerabdruck des öffentlichen Schlüssels, den Snowflake erwartet. iat, exp und jti setzt Steward.",
+    "jwtAlg": "Algorithmus",
+    "jwtLifetime": "Gültigkeit (Sekunden, höchstens 3600)",
+    "jwtMode": "Verwendung",
+    "jwtModeToken": "Das JWT als Token senden",
+    "jwtModeExchange": "Gegen ein Zugriffstoken tauschen (RFC 7523)",
+    "jwtClaims": "Claims (iss, sub, aud …)",
+    "awsHint": "Jede Anfrage an die Plattform wird mit dem Zugriffsschlüssel signiert (Zugangsdaten accessKeyId und secretAccessKey, wahlweise sessionToken). Mit einer Rolle übernimmt Steward sie und signiert mit ihren temporären Zugangsdaten (vor Ablauf erneuert).",
+    "awsRegion": "Region",
+    "awsService": "Dienst (Signaturname)",
+    "awsRoleArn": "Rolle übernehmen (optional)",
+    "awsRoleArnHint": "Rolle nur mit Leserechten; der Zugriffsschlüssel braucht nur sts:AssumeRole",
+    "awsExternalId": "Externe ID (optional)"
   },
   "specs": {
     "imported_one": "{{count}} Operation importiert",

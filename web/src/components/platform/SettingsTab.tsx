@@ -26,7 +26,7 @@ import { notifyError, notifyOk, put } from '../../api';
 import { EnvironmentInput } from '../catalogue/environments';
 import { Hint, KeyValueEditor } from '../common';
 
-const AUTH_OPTIONS: AuthType[] = ['none', 'basic', 'bearer', 'apiKey', 'oauth2_client_credentials', 'token_request'];
+const AUTH_OPTIONS: AuthType[] = ['none', 'basic', 'bearer', 'apiKey', 'oauth2_client_credentials', 'token_request', 'jwt', 'aws_sigv4'];
 
 const toStringMap = (v: Record<string, unknown> | undefined): Record<string, string> =>
   Object.fromEntries(Object.entries(v ?? {}).map(([k, x]) => [k, typeof x === 'string' ? x : JSON.stringify(x)]));
@@ -42,6 +42,10 @@ export function requiredSecrets(auth: AuthConfig | undefined): string[] {
       return ['apiKey'];
     case 'oauth2_client_credentials':
       return ['clientId', 'clientSecret'];
+    case 'jwt':
+      return ['privateKey'];
+    case 'aws_sigv4':
+      return ['accessKeyId', 'secretAccessKey'];
     case 'token_request': {
       const text = JSON.stringify(auth.request ?? {});
       return [...new Set([...text.matchAll(/secrets\.([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]!))];
@@ -78,6 +82,8 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
 
   const auth = cfg.auth ?? { type: 'none' };
   const setAuth = (patch: Partial<AuthConfig>) => setCfg({ ...cfg, auth: { ...auth, ...patch } });
+  const setJwt = (patch: Partial<NonNullable<AuthConfig['jwt']>>) => setAuth({ jwt: { ...(auth.jwt ?? {}), ...patch } });
+  const setAws = (patch: Partial<NonNullable<AuthConfig['aws']>>) => setAuth({ aws: { region: '', service: '', ...(auth.aws ?? {}), ...patch } });
   const setReq = (patch: Partial<NonNullable<AuthConfig['request']>>) => setAuth({ request: { method: 'POST', url: '', ...(auth.request ?? {}), ...patch } });
   const http = cfg.http ?? {};
   const setHttp = (patch: Partial<PlatformConfig['http']>) => setCfg({ ...cfg, http: { ...http, ...patch } });
@@ -247,6 +253,104 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
                   </Text>
                   <KeyValueEditor value={auth.extraParams} onChange={(v) => setAuth({ extraParams: v ? toStringMap(v) : undefined })} />
                 </div>
+              </>
+            )}
+            {auth.type === 'jwt' && (
+              <>
+                <Hint>{t('settings.jwtHint', { fingerprint: '{{ publicKeyFingerprint }}', vars: '{{ vars.x }}' })}</Hint>
+                <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                  <Select
+                    label={t('settings.jwtAlg')}
+                    data={['RS256', 'RS384', 'RS512', 'PS256', 'ES256', 'ES384']}
+                    value={auth.jwt?.alg ?? 'RS256'}
+                    allowDeselect={false}
+                    onChange={(v) => setJwt({ alg: (v as NonNullable<AuthConfig['jwt']>['alg']) ?? 'RS256' })}
+                  />
+                  <NumberInput
+                    label={t('settings.jwtLifetime')}
+                    min={30}
+                    max={3600}
+                    value={auth.jwt?.lifetimeSeconds ?? 3600}
+                    onChange={(v) => setJwt({ lifetimeSeconds: num(v) })}
+                  />
+                  <Select
+                    label={t('settings.jwtMode')}
+                    data={[
+                      { value: 'token', label: t('settings.jwtModeToken') },
+                      { value: 'exchange', label: t('settings.jwtModeExchange') },
+                    ]}
+                    value={auth.jwt?.mode ?? 'token'}
+                    allowDeselect={false}
+                    onChange={(v) => setJwt({ mode: (v as 'token' | 'exchange') ?? 'token' })}
+                  />
+                </SimpleGrid>
+                <div>
+                  <Text size="sm" fw={500} mb={4}>
+                    {t('settings.jwtClaims')}
+                  </Text>
+                  <KeyValueEditor value={auth.jwt?.claims} onChange={(v) => setJwt({ claims: v ? toStringMap(v) : undefined })} />
+                </div>
+                {auth.jwt?.mode === 'exchange' ? (
+                  <TextInput
+                    label={t('settings.tokenUrl')}
+                    classNames={{ input: 'mono' }}
+                    value={auth.tokenUrl ?? ''}
+                    onChange={(e) => setAuth({ tokenUrl: e.currentTarget.value })}
+                  />
+                ) : (
+                  <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                    <TextInput
+                      label={t('settings.headerName')}
+                      placeholder="Authorization"
+                      value={auth.headerName ?? ''}
+                      onChange={(e) => setAuth({ headerName: e.currentTarget.value || undefined })}
+                    />
+                    <TextInput
+                      label={t('settings.headerValue')}
+                      classNames={{ input: 'mono' }}
+                      placeholder="Bearer {{ token }}"
+                      value={auth.headerValue ?? ''}
+                      onChange={(e) => setAuth({ headerValue: e.currentTarget.value || undefined })}
+                    />
+                  </SimpleGrid>
+                )}
+              </>
+            )}
+            {auth.type === 'aws_sigv4' && (
+              <>
+                <Hint>{t('settings.awsHint')}</Hint>
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                  <TextInput
+                    label={t('settings.awsRegion')}
+                    classNames={{ input: 'mono' }}
+                    placeholder="eu-central-1"
+                    required
+                    value={auth.aws?.region ?? ''}
+                    onChange={(e) => setAws({ region: e.currentTarget.value.trim() })}
+                  />
+                  <TextInput
+                    label={t('settings.awsService')}
+                    classNames={{ input: 'mono' }}
+                    placeholder="s3"
+                    required
+                    value={auth.aws?.service ?? ''}
+                    onChange={(e) => setAws({ service: e.currentTarget.value.trim() })}
+                  />
+                  <TextInput
+                    label={t('settings.awsRoleArn')}
+                    description={t('settings.awsRoleArnHint')}
+                    classNames={{ input: 'mono' }}
+                    placeholder="arn:aws:iam::123456789012:role/steward-read"
+                    value={auth.aws?.roleArn ?? ''}
+                    onChange={(e) => setAws({ roleArn: e.currentTarget.value.trim() || undefined })}
+                  />
+                  <TextInput
+                    label={t('settings.awsExternalId')}
+                    classNames={{ input: 'mono' }}
+                    value={auth.aws?.externalId ?? ''}
+                    onChange={(e) => setAws({ externalId: e.currentTarget.value.trim() || undefined })}
+                  />
+                </SimpleGrid>
               </>
             )}
             {auth.type === 'token_request' && (

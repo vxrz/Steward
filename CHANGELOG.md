@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Platform sign-in: key-pair JWT and AWS request signing** (#114). _Key-pair JWT_ signs a short-lived JWT (RS/PS/ES algorithms, at most an hour) with the platform's private key, with templated claims and the public key fingerprint – sent as the token (Snowflake) or exchanged for an access token (RFC 7523). _AWS request signing_ signs every request with Signature Version 4 (checked against AWS's documented examples, no AWS SDK), with an access key or an assumed role (STS AssumeRole, external ID, renewed before it ends), for AWS APIs, S3 and S3-compatible storage. Both work with the connection test, _Get a new token_ and the MCP gateway ([docs/PLATFORM-SIGN-IN.md](docs/PLATFORM-SIGN-IN.md)).
+
 ## [0.2.7] - 2026-10-30
 
 Steward reads the platforms applications are built and run on. **GitHub, GitLab and Forgejo/Gitea** become connectors: repository components show the pipeline of the default branch, the latest release, open security alerts, packages, deploy keys and tokens (offered for the credentials register) and the tech stack read from Dockerfile, package.json, go.mod and similar files; a monitor check follows the pipeline, and access reviews read organisation and repository members. **Kafka** topics of applications – Confluent Cloud or any Kafka cluster, read with a read-only service account – show their settings, consumer lag and schema version; monitors check new messages, lag, stuck consumer groups and the schema; a guarded peek reads a few messages for troubleshooting. **MQTT** brokers get a monitor check for messages within a window, silent devices and connected clients, keeping only times and counts per topic. Two database migrations, both additive: `catalogue-007-component-readouts` and `ops-010-mqtt-topics`.

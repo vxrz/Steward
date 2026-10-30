@@ -247,6 +247,34 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
 
   // /mock/test/echo-headers: the request headers as JSON (tests that credentials are masked in what tools return)
   app.get('/test/echo-headers', async (req) => ({ headers: req.headers, query: req.query }));
+  // /mock/test/echo-signed: method, URL, headers and the body as the server got them (AWS SigV4 tests, #114)
+  app.all('/test/echo-signed', async (req) => ({
+    method: req.method,
+    url: req.url,
+    headers: req.headers,
+    body: typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? ''),
+  }));
+  // /mock/aws/sts: AssumeRole like AWS STS answers it (XML), for a request signed with the demo access key (#114)
+  app.post('/aws/sts', async (req, reply) => {
+    const auth = String(req.headers.authorization ?? '');
+    const form = (req.body ?? {}) as Record<string, string>;
+    if (!auth.startsWith('AWS4-HMAC-SHA256 Credential=AKIADEMOEXAMPLE/') || !/\/sts\/aws4_request/.test(auth))
+      return reply.code(403).send('<Error><Code>SignatureDoesNotMatch</Code></Error>');
+    if (form.Action !== 'AssumeRole') return reply.code(400).send('<Error><Code>InvalidAction</Code></Error>');
+    const role = String(form.RoleArn ?? '');
+    return reply
+      .type('text/xml')
+      .send(
+        `<AssumeRoleResponse><AssumeRoleResult><Credentials><AccessKeyId>ASIATEMPDEMO</AccessKeyId><SecretAccessKey>tempSecretDemo</SecretAccessKey><SessionToken>session-${role.split('/').pop()}</SessionToken><Expiration>${new Date(Date.now() + 3600_000).toISOString()}</Expiration></Credentials></AssumeRoleResult></AssumeRoleResponse>`,
+      );
+  });
+  // /mock/test/jwt-exchange: RFC 7523 jwt-bearer – answers with an access token naming the JWT's subject (#114)
+  app.post('/test/jwt-exchange', async (req, reply) => {
+    const b = (req.body ?? {}) as Record<string, string>;
+    if (b.grant_type !== 'urn:ietf:params:oauth:grant-type:jwt-bearer' || !b.assertion) return reply.code(400).send({ error: 'invalid_grant' });
+    const payload = JSON.parse(Buffer.from(String(b.assertion).split('.')[1] ?? '', 'base64url').toString('utf8') || '{}') as { sub?: string };
+    return { access_token: `exchanged-${payload.sub ?? 'nobody'}`, expires_in: 600, token_type: 'Bearer' };
+  });
   // /mock/test/echo-url[?lowerHex=1]: the request URL as the server saw it, in the body and a Link header
   // (tests that query API keys are masked in every encoding; lowerHex re-encodes %XX with lowercase hex)
   app.get('/test/echo-url', async (req, reply) => {

@@ -7,6 +7,8 @@ import { SpanKind, SpanStatusCode, injectTraceHeaders, withSpan } from '../telem
 import { logger } from '../log.js';
 import { emit } from '../events.js';
 import { guardedLookup } from './outbound.js';
+import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
+import { JWT_ALGS, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
 
 export interface HttpRequest {
   method: string;
@@ -23,6 +25,8 @@ export interface HttpRequest {
   rawText?: boolean;
   /** Return a redirect response as it is instead of following it. */
   noRedirects?: boolean;
+  /** Signs the request as it is about to be sent (AWS SigV4, #114): may add headers */
+  sign?: (r: { method: string; url: string; headers: Record<string, string>; body?: string }) => Promise<void>;
 }
 
 export interface HttpResult {
@@ -50,13 +54,13 @@ const dispatcherCache = new Map<string, { stamp: string; dispatcher: Dispatcher 
 /** The cached access token of a platform (login or OAuth2), without the token itself. */
 export function tokenInfo(platformId: string): { fetchedAt: string; expiresAt: string } | null {
   const t = tokenCache.get(platformId);
-  return t ? { fetchedAt: new Date(t.fetchedAt).toISOString(), expiresAt: new Date(t.expiresAt).toISOString() } : null;
+  return t ? { fetchedAt: new Date(t.fetchedAt).toISOString(), expiresAt: new Date(t.expiresAt).toISOString() } : awsCredentialInfo(platformId);
 }
 
 /** Whether the platform logs in for a token that Steward caches (OAuth2 client credentials or a custom login). */
 export function usesCachedToken(p: Platform): boolean {
   const type = p.config.auth?.type;
-  return type === 'oauth2_client_credentials' || type === 'token_request';
+  return type === 'oauth2_client_credentials' || type === 'token_request' || type === 'jwt' || (type === 'aws_sigv4' && !!p.config.auth?.aws?.roleArn);
 }
 
 /**
@@ -66,7 +70,9 @@ export function usesCachedToken(p: Platform): boolean {
 export async function renewToken(p: Platform, secrets: Record<string, string>, signal?: AbortSignal): Promise<{ fetchedAt: string; expiresAt: string }> {
   if (!usesCachedToken(p)) throw new Error('This platform does not log in for a token');
   tokenCache.delete(p.id);
-  await obtainAuthHeader(p, secrets, signal);
+  awsCache.delete(p.id);
+  if (p.config.auth?.type === 'aws_sigv4') await awsCredentials(p, secrets, signal);
+  else await obtainAuthHeader(p, secrets, signal);
   const info = tokenInfo(p.id);
   if (!info) throw new Error('The login did not return a token');
   return info;
@@ -74,6 +80,7 @@ export async function renewToken(p: Platform, secrets: Record<string, string>, s
 
 export function invalidatePlatformCaches(platformId: string): void {
   tokenCache.delete(platformId);
+  awsCache.delete(platformId);
   const d = dispatcherCache.get(platformId);
   if (d) {
     dispatcherCache.delete(platformId);
@@ -217,6 +224,7 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
       headers['content-type'] ??= 'text/plain';
     }
   }
+  if (req.sign) await req.sign({ method: req.method, url: req.url, headers, body });
   const timeout = AbortSignal.timeout(p.config.http?.timeoutMs ?? 60000);
   const started = Date.now();
   let res;
@@ -392,9 +400,106 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       tokenCache.set(p.id, { header, fetchedAt: now, expiresAt: now + expiresIn * 1000 });
       return header;
     }
+    case 'jwt': {
+      const cached = tokenCache.get(p.id);
+      if (cached && cached.expiresAt > Date.now() + 30000) return cached.header;
+      const cfg = auth.jwt ?? {};
+      const alg = cfg.alg ?? 'RS256';
+      if (!(JWT_ALGS as readonly string[]).includes(alg)) throw new Error(`Unsupported JWT algorithm ${alg}`);
+      const key = privateKeyOf(secrets.privateKey, secrets.privateKeyPassphrase);
+      const jwtScope = { ...scope, publicKeyFingerprint: publicKeyFingerprint(key) };
+      const claims: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(cfg.claims ?? {})) if (!['iat', 'exp', 'jti'].includes(k)) claims[k] = await renderString(String(v), jwtScope);
+      const { jwt, exp } = signJwt(key, { alg, claims, lifetimeSeconds: cfg.lifetimeSeconds, kid: cfg.kid });
+      let token = jwt;
+      let expiresAt = exp * 1000;
+      if (cfg.mode === 'exchange') {
+        if (!auth.tokenUrl) throw new Error('The token URL for the JWT exchange is not configured');
+        const url = await renderString(auth.tokenUrl, scope);
+        const form: Record<string, string> = { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt };
+        if (auth.scope) form.scope = auth.scope;
+        for (const [k, v] of Object.entries(auth.extraParams ?? {})) form[k] = await renderString(v, scope);
+        const r = await rawRequest(p, { method: 'POST', url, headers: {}, body: form, bodyType: 'form' }, signal);
+        const b = r.body as { access_token?: string; expires_in?: number } | null;
+        if (!r.ok || !b?.access_token) throw new Error(`JWT exchange POST ${where(url)} failed with HTTP ${r.status}: ${short(r.body)}`);
+        token = b.access_token;
+        expiresAt = Date.now() + Number(b.expires_in ?? 1800) * 1000;
+      }
+      const header: [string, string] = [
+        (auth.headerName || 'Authorization').toLowerCase(),
+        await renderString(auth.headerValue || 'Bearer {{ token }}', { ...scope, token }),
+      ];
+      tokenCache.set(p.id, { header, fetchedAt: Date.now(), expiresAt });
+      return header;
+    }
+    case 'aws_sigv4':
+      // signed per request (signerFor)
+      return null;
     default:
       throw new Error(`Unsupported auth type ${(auth as AuthConfig).type}`);
   }
+}
+
+// ---------- AWS SigV4 (#114) ----------
+
+const awsCache = new Map<string, AwsCredentials & { expiration: number; fetchedAt: number }>();
+
+/** The credentials requests are signed with: the platform's keys, or the role they assume (cached until shortly before it ends). */
+async function awsCredentials(p: Platform, secrets: Record<string, string>, signal?: AbortSignal): Promise<AwsCredentials> {
+  const aws = p.config.auth?.aws;
+  if (!aws?.region || !aws.service) throw new Error('AWS signing needs the region and the service (e.g. eu-central-1, s3)');
+  if (!secrets.accessKeyId || !secrets.secretAccessKey) throw new Error('Secrets "accessKeyId" and "secretAccessKey" are required');
+  const base: AwsCredentials = {
+    accessKeyId: secrets.accessKeyId,
+    secretAccessKey: secrets.secretAccessKey,
+    ...(secrets.sessionToken ? { sessionToken: secrets.sessionToken } : {}),
+  };
+  if (!aws.roleArn) return base;
+  const cached = awsCache.get(p.id);
+  if (cached && cached.expiration > Date.now() + 5 * 60_000) return cached;
+  if (!/^arn:aws[a-z-]*:iam::\d{12}:role\/[\w+=,.@/-]{1,512}$/.test(aws.roleArn))
+    throw new Error('The role ARN is not an IAM role (arn:aws:iam::123456789012:role/name)');
+  const url = aws.stsEndpoint?.trim() || `https://sts.${aws.region}.amazonaws.com/`;
+  if (!/^https:\/\//i.test(url) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(url)) throw new Error('The STS endpoint must be an https:// URL');
+  const form = new URLSearchParams({
+    Action: 'AssumeRole',
+    Version: '2011-06-15',
+    RoleArn: aws.roleArn,
+    RoleSessionName: (aws.sessionName || 'steward').replace(/[^\w+=,.@-]/g, '-').slice(0, 64),
+    DurationSeconds: '3600',
+    ...(aws.externalId ? { ExternalId: aws.externalId } : {}),
+  }).toString();
+  const r = await rawRequest(
+    p,
+    {
+      method: 'POST',
+      url,
+      headers: { 'content-type': 'application/x-www-form-urlencoded; charset=utf-8' },
+      body: form,
+      bodyType: 'text',
+      rawText: true,
+      sign: async (req) => signRequest(req, { region: aws.region, service: 'sts', credentials: base }),
+    },
+    signal,
+  );
+  const creds = typeof r.body === 'string' ? parseAssumeRole(r.body) : null;
+  if (!r.ok || !creds) throw new Error(`AssumeRole of ${aws.roleArn} failed with HTTP ${r.status}: ${short(r.body)}`);
+  awsCache.set(p.id, { ...creds, fetchedAt: Date.now() });
+  return creds;
+}
+
+/** The signer for requests to the platform's own origins (AWS SigV4); undefined for other auth types. */
+async function signerFor(p: Platform, secrets: Record<string, string>, signal?: AbortSignal): Promise<HttpRequest['sign']> {
+  const aws = p.config.auth?.aws;
+  if (p.config.auth?.type !== 'aws_sigv4' || !aws) return undefined;
+  const credentials = await awsCredentials(p, secrets, signal);
+  return async (req) => signRequest(req, { region: aws.region, service: aws.service, credentials, unsignedPayload: aws.unsignedPayload });
+}
+
+/** When the assumed role's credentials were fetched and end (like tokenInfo for logins). */
+export function awsCredentialInfo(platformId: string): { fetchedAt: string; expiresAt: string } | null {
+  const c = awsCache.get(platformId);
+  return c ? { fetchedAt: new Date(c.fetchedAt).toISOString(), expiresAt: new Date(c.expiration).toISOString() } : null;
 }
 
 /** Where a login or token request went, for error messages: origin and path, never the query (it may hold credentials). */
@@ -556,6 +661,8 @@ async function followRedirects(
   const leakValues = secretValues(secrets);
   for (let hop = 0; ; hop++) {
     const hopTrusted = await credentialsAllowed(p, secrets, url);
+    // AWS SigV4: only requests to the platform's own origins are signed
+    let sign: HttpRequest['sign'];
     const headers: Record<string, string> = {};
     if (hopTrusted) for (const [k, v] of Object.entries(p.config.http?.defaultHeaders ?? {})) headers[k.toLowerCase()] = v;
     for (const [k, v] of Object.entries(req.headers ?? {})) {
@@ -569,6 +676,7 @@ async function followRedirects(
       }
       const auth = await obtainAuthHeader(p, secrets, signal);
       if (auth && !headers[auth[0]]) headers[auth[0]] = auth[1];
+      sign = await signerFor(p, secrets, signal);
       if (p.config.auth?.type === 'apiKey' && p.config.auth.apiKeyIn === 'query' && hop === 0 && initialQuery) {
         /* the initial url already carries the query api key (buildUrl) */
       }
@@ -584,6 +692,7 @@ async function followRedirects(
         maxResponseBytes: req.maxResponseBytes,
         truncateResponseBytes: req.truncateResponseBytes,
         rawText: req.rawText,
+        sign,
       },
       signal,
       attempt,
