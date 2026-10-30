@@ -22,7 +22,10 @@ export const ENCRYPTED_COLUMNS: { table: string; id: string; column: string; fil
   { table: 'sync_sources', id: 'id', column: 'webhook_secret_enc', file: 'sync/service.ts' },
 ];
 /** Settings rows of the form {blob: <encrypted>, …}. */
-export const ENCRYPTED_SETTINGS: { key: string; file: string }[] = [{ key: 'notifications.secrets', file: 'notifications/settings.ts' }];
+export const ENCRYPTED_SETTINGS: { key: string; file: string }[] = [
+  { key: 'notifications.secrets', file: 'notifications/settings.ts' },
+  { key: 'backup.key', file: 'backup/service.ts' },
+];
 
 export const KEY_ID_SETTING = 'vault.keyId';
 

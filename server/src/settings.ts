@@ -35,6 +35,7 @@ const INTERNAL = [
   'mcp.',
   'tickets.',
   'system.',
+  'backup.',
 ];
 
 /** SM_PASSWORD_LOGIN (all | adminsOnly | none) for locked-down deployments: wins over the stored setting. */

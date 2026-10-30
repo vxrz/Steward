@@ -56,6 +56,7 @@ import { monitorRoutes } from '../monitors/routes.js';
 import { recordRoutes, uploadedFile } from '../records/routes.js';
 import { contentDisposition, downloadType } from '../records/attachments.js';
 import { catalogueRoutes } from '../catalogue/routes.js';
+import { backupRoutes } from '../backup/routes.js';
 import { ticketRoutes } from '../tickets/routes.js';
 import { dailySummaryRoutes } from '../notifications/summary-routes.js';
 import { complianceRoutes } from '../compliance/routes.js';
@@ -1511,6 +1512,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await reportScheduleRoutes(app);
   await recordRoutes(app);
   await catalogueRoutes(app);
+  await backupRoutes(app);
   await dutyRoutes(app);
   await scorecardRoutes(app);
   await syncRoutes(app);

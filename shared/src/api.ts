@@ -272,6 +272,7 @@ export const STEP_UP_ACTIONS = [
   'exportMigration',
   'applyMigration',
   'changeCiaScale',
+  'changeBackups',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 

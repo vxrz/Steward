@@ -46,13 +46,15 @@ export const mcpArgv: string[] | undefined = userArgv()[0] === 'mcp' ? userArgv(
 
 /** `steward evidence …`: offline checks of audit evidence packs (cli/evidence-verify.ts) – never opens the database. */
 export const evidenceArgv: string[] | undefined = userArgv()[0] === 'evidence' ? userArgv().slice(1) : undefined;
+/** `steward backup …`: offline decryption and checks of backups (cli/backup.ts, #117) – never opens the database. */
+export const backupArgv: string[] | undefined = userArgv()[0] === 'backup' ? userArgv().slice(1) : undefined;
 
 /** Set when the arguments are invalid; the launcher prints it and exits with status 2. */
 export let usageError: UsageError | undefined;
 
 function parse(): DesktopArgs {
   const fallback: DesktopArgs = { open: true, help: false, version: false, sendTestError: false, demo: false };
-  if (adminArgv || migrateArgv || mcpArgv || evidenceArgv) return fallback; // cli/admin.ts and mcp/bridge.ts parse their own options
+  if (adminArgv || migrateArgv || mcpArgv || evidenceArgv || backupArgv) return fallback; // cli/admin.ts and mcp/bridge.ts parse their own options
   try {
     const { values } = parseCli(userArgv(), {
       port: { type: 'string' },

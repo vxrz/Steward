@@ -38,6 +38,7 @@
     "mcp": "tsx server/src/cli/mcp.ts",
     "audit:verify-export": "tsx server/src/cli/audit-verify-export.ts",
     "evidence:verify": "tsx server/src/cli/evidence-verify.ts",
+    "backup": "tsx server/src/cli/backup.ts",
     "i18n:check": "node scripts/i18n-check.mjs",
     "i18n:literals": "node scripts/i18n-literals.mjs",
     "prepare": "husky || true"

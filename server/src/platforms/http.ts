@@ -1,3 +1,6 @@
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import { once } from 'node:events';
 import { Agent, EnvHttpProxyAgent, ProxyAgent, fetch, type Dispatcher } from 'undici';
 import { trace } from '@opentelemetry/api';
 import type { AuthConfig, Platform } from '@sm/shared';
@@ -16,7 +19,7 @@ export interface HttpRequest {
   query?: Record<string, unknown>;
   headers?: Record<string, string>;
   body?: unknown;
-  bodyType?: 'json' | 'form' | 'text';
+  bodyType?: 'json' | 'form' | 'text' | 'binary';
   /** Fail when the response body is larger (bytes); default: no limit */
   maxResponseBytes?: number;
   /** Stop reading the response body after this many bytes instead (the result is marked `truncated`). */
@@ -26,7 +29,12 @@ export interface HttpRequest {
   /** Return a redirect response as it is instead of following it. */
   noRedirects?: boolean;
   /** Signs the request as it is about to be sent (AWS SigV4, #114): may add headers */
-  sign?: (r: { method: string; url: string; headers: Record<string, string>; body?: string }) => Promise<void>;
+  sign?: (r: { method: string; url: string; headers: Record<string, string>; body?: string | Buffer }) => Promise<void>;
+  /**
+   * Write a successful (2xx) response body to this file (0600, replaced) instead of reading it into memory – large
+   * downloads such as backups (#117). The result's body is then {bytes, sha256}.
+   */
+  responseFile?: string;
 }
 
 export interface HttpResult {
@@ -206,10 +214,13 @@ async function rawRequest(p: Platform, req: HttpRequest, signal?: AbortSignal, a
 async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Promise<HttpResult> {
   const headers: Record<string, string> = { accept: 'application/json, */*;q=0.5', ...(req.headers ?? {}) };
   injectTraceHeaders(headers);
-  let body: string | undefined;
+  let body: string | Buffer | undefined;
   if (req.body !== undefined && req.body !== null && !['GET', 'HEAD'].includes(req.method)) {
-    const type = req.bodyType ?? (typeof req.body === 'string' ? 'text' : 'json');
-    if (type === 'json') {
+    const type = req.bodyType ?? (typeof req.body === 'string' ? 'text' : Buffer.isBuffer(req.body) ? 'binary' : 'json');
+    if (type === 'binary') {
+      body = Buffer.isBuffer(req.body) ? req.body : Buffer.from(String(req.body));
+      headers['content-type'] ??= 'application/octet-stream';
+    } else if (type === 'json') {
       body = JSON.stringify(req.body);
       headers['content-type'] ??= 'application/json';
     } else if (type === 'form') {
@@ -256,7 +267,9 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
   res.headers.forEach((v, k) => (resHeaders[k] = v));
   let parsed: unknown = null;
   let truncated = false;
-  if (req.method !== 'HEAD') {
+  if (req.responseFile && res.ok && req.method !== 'HEAD') {
+    parsed = await saveBody(res, req.responseFile);
+  } else if (req.method !== 'HEAD') {
     let text: string;
     if (req.truncateResponseBytes !== undefined) ({ text, truncated } = await readCapped(res, req.truncateResponseBytes));
     else if (req.maxResponseBytes) text = await readBounded(res, req.maxResponseBytes, req.url);
@@ -280,6 +293,29 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
     durationMs: Date.now() - started,
     ...(truncated ? { truncated } : {}),
   };
+}
+
+/** Streams a response body into a file (0600), hashing it on the way. */
+async function saveBody(res: Awaited<ReturnType<typeof fetch>>, file: string): Promise<{ bytes: number; sha256: string }> {
+  const hash = crypto.createHash('sha256');
+  let bytes = 0;
+  const out = fs.createWriteStream(file, { flags: 'w', mode: 0o600 });
+  try {
+    if (res.body) {
+      for await (const chunk of res.body) {
+        const b = Buffer.from(chunk as Uint8Array);
+        hash.update(b);
+        bytes += b.length;
+        if (!out.write(b)) await once(out, 'drain');
+      }
+    }
+    await new Promise<void>((resolve, reject) => out.end((e?: Error | null) => (e ? reject(e) : resolve())));
+  } catch (e) {
+    out.destroy();
+    await res.body?.cancel().catch(() => undefined);
+    throw e;
+  }
+  return { bytes, sha256: hash.digest('hex') };
 }
 
 /** Reads at most `max` bytes of a response body and cancels the rest of the download. */
@@ -692,6 +728,7 @@ async function followRedirects(
         maxResponseBytes: req.maxResponseBytes,
         truncateResponseBytes: req.truncateResponseBytes,
         rawText: req.rawText,
+        responseFile: req.responseFile,
         sign,
       },
       signal,

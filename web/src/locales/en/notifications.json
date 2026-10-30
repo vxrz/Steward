@@ -135,6 +135,12 @@
         "label": "Maintenance",
         "info": "Maintenance of something you are responsible for or own was planned, starts soon, started or ended"
       }
+    },
+    "backup": {
+      "failed": {
+        "label": "Backup failed",
+        "info": "A backup or the weekly restore test of the backups failed (administrators)"
+      }
     }
   }
 }

@@ -19,6 +19,7 @@ import { closeErrorReporting, initErrorReporting, isUnexpected, reportError } fr
 import { listPlatforms, getSecretsUnchecked } from './platforms/service.js';
 import { secretValues } from './platforms/http.js';
 import { startAuditJobs, stopAuditJobs } from './audit-anchor.js';
+import { startBackupJobs, stopBackupJobs } from './backup/service.js';
 import { removeInstanceFile, writeInstanceFile } from './instance.js';
 import { warnEmailVerifiedProviders } from './auth/sso.js';
 import { flushFailedLoginAudit } from './auth/login-audit.js';
@@ -72,6 +73,7 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   startNotificationJobs();
   startMaintenanceJobs();
   startAuditJobs();
+  startBackupJobs();
   const url = `${config.tls ? 'https' : 'http'}://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}${config.basePath}`;
   writeInstanceFile(url);
   logger.info({ url, dataDir: config.dataDir, database: db().label, demo: config.demo, tracing, errorReporting }, 'service manager started');
@@ -96,6 +98,7 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
     stopGatusScraper();
     stopReportSchedules();
     stopAuditJobs();
+    stopBackupJobs();
     flushFailedLoginAudit();
     removeInstanceFile();
     await app.close();
