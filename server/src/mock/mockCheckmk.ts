@@ -31,7 +31,7 @@ interface Service extends State {
   host_name: string;
   description: string;
   /** metric id → value at a time (ms) */
-  metrics: Record<string, (t: number) => number>;
+  metrics: Map<string, (t: number) => number>;
 }
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -61,20 +61,25 @@ function seed(): { hosts: Host[]; services: Service[] } {
         host_name: 'db01',
         description: 'Filesystem /var',
         ...st(1, 'WARN - Used: 82.0% (warn/crit at 80.0%/90.0%) - 164 GiB of 200 GiB'),
-        metrics: { fs_used_percent: varUsed },
+        metrics: new Map([['fs_used_percent', varUsed]]),
       },
-      { host_name: 'db01', description: 'CPU load', ...st(0, 'OK - 15 min load: 1.21 at 8 cores'), metrics: { load15: (t) => 1.2 + wave(t, 0.5) } },
+      {
+        host_name: 'db01',
+        description: 'CPU load',
+        ...st(0, 'OK - 15 min load: 1.21 at 8 cores'),
+        metrics: new Map([['load15', (t: number) => 1.2 + wave(t, 0.5)]]),
+      },
       {
         host_name: 'web01',
         description: 'Memory',
         ...st(0, 'OK - RAM: 54.8% - 8.8 GB of 16 GB'),
-        metrics: { mem_used_percent: (t) => 55 + wave(t, 6) },
+        metrics: new Map([['mem_used_percent', (t: number) => 55 + wave(t, 6)]]),
       },
       {
         host_name: 'web01',
         description: 'HTTPS shop',
         ...st(2, 'CRIT - HTTP 503 Service Unavailable'),
-        metrics: { response_time: (t) => 0.35 + wave(t, 0.1) },
+        metrics: new Map([['response_time', (t: number) => 0.35 + wave(t, 0.1)]]),
       },
     ],
   };
@@ -155,7 +160,8 @@ export async function mockCheckmk(app: FastifyInstance): Promise<void> {
       metric_id?: string;
     };
     const svc = data.services.find((s) => s.host_name === b.host_name && s.description === b.service_description);
-    const fn = svc?.metrics[b.metric_id ?? ''];
+    // a Map: a metric id from the request never reaches Object.prototype (constructor, __proto__ …)
+    const fn = svc?.metrics.get(String(b.metric_id ?? ''));
     if (!fn) return reply.code(404).send({ title: 'Not found', status: 404, detail: 'No such metric' });
     const ms = (v: string | number | undefined, fallback: number) => (v === undefined ? fallback : typeof v === 'number' ? v * 1000 : Date.parse(v));
     const end = Math.min(ms(b.time_range?.end, Date.now()), Date.now());
