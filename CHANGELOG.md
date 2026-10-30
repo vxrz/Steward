@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-10-30
+
+Steward follows slow signals and reads more of the monitoring around it. Every dataset metric gets a robust **trend line**: KPIs show the change of the trend and when a limit is reached at this rate, checks use `$trend` and `$daysUntil`, and the daily summary lists limits reached soon. **CheckMk** and **Prometheus** become monitor check types – the current state of a host or service, a PromQL query against WARN and CRIT levels with the worst series named – and availability objectives can take their figures from PromQL. **Kubernetes** namespaces of applications are read with a read-only service account: deployments, the images as tech stack entries for the end-of-life checks, pods that are not well and cert-manager certificates, plus a monitor check. Monitors post **Teams cards** to their own channels, and systems get their own end-of-life messages. Three database migrations, all additive: `ops-008-metric-limits`, `ops-009-prom-objective-readings` and `catalogue-006-namespace-cluster`.
+
 ### Added
 
 - **Trends and forecasts on metrics** (#145): a robust trend line (Theil–Sen, counter resets followed, too few points said plainly, stable or rough) for every dataset metric. KPIs show the change of the trend line and what it is based on, and when a limit is reached at this rate; trend widgets can draw dashed trend lines. The publish step takes `limits` and `floors` per metric, a KPI its own limit. Checks use `$trend('dataset/metric', '7d')` and `$daysUntil('dataset/metric')`; the daily summary gets a _Trends_ section (limits within 30 days, strong changes); `GET /api/v1/datasets/{key}/metrics?trend=7d` returns `trend`, `limit` and `forecast`. Migration `ops-008-metric-limits` (additive).
@@ -466,7 +470,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.5...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.6...HEAD
+[0.2.6]: https://github.com/vxrz/steward/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/vxrz/steward/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/vxrz/steward/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/vxrz/steward/compare/v0.2.2...v0.2.3

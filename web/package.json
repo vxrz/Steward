@@ -1,7 +1,7 @@
 {
   "name": "@sm/web",
   "private": true,
-  "version": "0.2.5",
+  "version": "0.2.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,7 +15,7 @@
     "@mantine/notifications": "~7.17.8",
     "@mantine/spotlight": "~7.17.8",
     "@sentry/react": "~10.75.0",
-    "@sm/shared": "0.2.5",
+    "@sm/shared": "0.2.6",
     "@tabler/icons-react": "~3.49.0",
     "@tanstack/react-query": "~5.104.1",
     "@xyflow/react": "~12.12.0",
