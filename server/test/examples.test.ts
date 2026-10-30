@@ -137,7 +137,7 @@ describe('example library', () => {
   });
 
   it('CheckMk – trend summary finds the level crossed and the series heading for CRIT', async () => {
-    // runs after "runs 78-…" above, against the mock CheckMk (server/src/mock/mockCheckmk.ts): /var on db01 grows 0.6 % a day to 82 %
+    // runs after "runs 78-…" above, against the mock CheckMk (server/src/mock/mockCheckmk.ts): /var on db01 grows 0.8 % a day to 82 %
     const d = await s.api('GET', '/datasets/checkmk.trends');
     const by = Object.fromEntries(d.rows.map((r: any) => [r.series, r]));
     expect(Object.keys(by).sort()).toEqual(['db01 / CPU load', 'db01 / Filesystem /var', 'web01 / Memory']);

@@ -50,4 +50,4 @@ The metric ids are CheckMk's (`fs_used_percent`, `mem_used_percent`, `load15`, `
 
 ## Demo and tests
 
-Demo mode adds **CheckMk (demo)**, a simulated site (`server/src/mock/mockCheckmk.ts`) with four hosts and services and a month of metric history – /var on db01 fills by about 0.6 % a day. Tests: `server/test/checkmk.test.ts` (states, shared reads, the preset, Teams cards) and the example run in `server/test/examples.test.ts`.
+Demo mode adds **CheckMk (demo)**, a simulated site (`server/src/mock/mockCheckmk.ts`) with four hosts and services and a month of metric history – /var on db01 fills by about 0.8 % a day. Tests: `server/test/checkmk.test.ts` (states, shared reads, the preset, Teams cards) and the example run in `server/test/examples.test.ts`.
