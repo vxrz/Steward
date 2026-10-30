@@ -19,6 +19,11 @@ describe('tag rules', () => {
     expect(normalizeTag('env: prod')).toBe('env=prod');
     // a colon without a space is part of the key (e.g. a role name)
     expect(normalizeTag('mdsp:core')).toBe('mdsp:core');
+    // long runs of spaces are read in linear time (no backtracking)
+    const t0 = Date.now();
+    expect(normalizeTag(`-:\t${'\t'.repeat(50_000)}x`)).toBe('-=x');
+    expect(normalizeTag(`env:${' '.repeat(50_000)}`)).toBe(`env:`);
+    expect(Date.now() - t0).toBeLessThan(500);
     expect(normalizeTag('env=')).toBe('env');
     expect(tagLabel('env=prod')).toBe('env: prod');
     expect(tagProblem('team/data=orders')).toBeNull();

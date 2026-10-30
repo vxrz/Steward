@@ -26,8 +26,12 @@ export function splitTag(tag: string): TagParts {
 /** The stored form: `key` or `key=value`, spaces around the `=` removed; also takes `key: value`. */
 export function normalizeTag(input: string): string {
   const s = input.trim();
-  const m = /^([\p{L}\p{N}._/-]+)\s*:\s+(.+)$/u.exec(s);
-  const { key, value } = m ? { key: m[1]!, value: m[2]!.trim() } : splitTag(s);
+  // `key: value` (a space after the colon), split by hand: a regex here would backtrack on long runs of spaces
+  const c = s.indexOf(':');
+  const before = c > 0 ? s.slice(0, c).trim() : '';
+  const after = c > 0 ? s.slice(c + 1) : '';
+  const colon = !!before && TAG_KEY_RE.test(before) && /^\s/.test(after) && !!after.trim();
+  const { key, value } = colon ? { key: before, value: after.trim() } : splitTag(s);
   return value ? `${key}=${value}` : key;
 }
 
