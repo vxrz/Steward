@@ -1,0 +1,19 @@
+name: CheckMk trends
+description: Slow signals from CheckMk – levels crossed, series heading for CRIT, averages and peaks. Fed daily by "CheckMk – trend summary"; alerting on raw metrics stays in CheckMk.
+refreshSeconds: 300
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **CheckMk trends** – read from CheckMk by the process *CheckMk – trend summary* (daily). Opening this page never calls CheckMk.
+      Thresholds and predictive levels stay in CheckMk; this page shows what needs a decision: levels crossed and series that reach CRIT soon at this rate.
+  - { id: series, type: kpi, title: Series followed, dataset: checkmk.trends, metric: series, width: 4 }
+  - { id: crossed, type: kpi, title: Above WARN, dataset: checkmk.trends, metric: crossed, goodWhen: down, width: 4, days: 7 }
+  - { id: trending, type: kpi, title: Heading for CRIT, dataset: checkmk.trends, metric: trending, goodWhen: down, width: 4, days: 30 }
+  - { id: status, type: status, title: Series status, dataset: checkmk.trends, width: 4 }
+  - { id: trend, type: trend, title: Crossed and heading for CRIT, dataset: checkmk.trends, metrics: [crossed, trending], days: 30, width: 8, trendLine: true }
+  - { id: problems, type: table, title: Series needing a decision, dataset: checkmk.trends, problemsOnly: true, width: 12 }
+  - { id: all, type: table, title: All series, dataset: checkmk.trends, width: 12 }
+  - { id: checks, type: checks, title: Latest summary, process: checkmk-trend-summary, width: 6 }
+  - { id: fresh, type: freshness, title: Data freshness, width: 6 }

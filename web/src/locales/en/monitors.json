@@ -179,7 +179,12 @@
       "auto": "Automatic (metrics when enabled for the platform)",
       "api": "Gatus status API",
       "metrics": "Scraped metrics"
-    }
+    },
+    "cmkHost": "Host name in CheckMk",
+    "cmkService": "Service",
+    "cmkServiceHint": "The service description exactly as in CheckMk, e.g. \"Filesystem /var\". Empty: the state of the host",
+    "cmkMaxAge": "Unknown when not checked for (s)",
+    "cmkMaxAgeHint": "Optional: the state counts as unknown when CheckMk has not checked it for this long"
   },
   "detail": {
     "template": "template",
@@ -316,7 +321,13 @@
     "onlyChecks": "Only these checks",
     "add": "Add output",
     "manageOnly": "Only the owner, administrators or users with the manage right can change outputs.",
-    "runMessages": "Messages of the runs it starts"
+    "runMessages": "Messages of the runs it starts",
+    "format": "Format",
+    "formatHint": "Teams card: an Adaptive Card per status change for a Teams channel. Pick a \"Microsoft Teams channel\" platform – it keeps the Workflows URL encrypted",
+    "formats": {
+      "json": "JSON event (Steward payload)",
+      "teams": "Teams card (Adaptive Card)"
+    }
   },
   "heartbeat": {
     "endpoint": "Heartbeat endpoint",
@@ -465,6 +476,10 @@
       "label": "Gatus endpoint",
       "help": "Status of an endpoint monitored by Gatus"
     },
+    "checkmk": {
+      "label": "CheckMk host or service",
+      "help": "Current state of a host or service in CheckMk (OK, WARN, CRIT, UNKNOWN)"
+    },
     "monitor": {
       "label": "Sub-monitor",
       "help": "The aggregated status of another monitor (evaluated on its own schedule)"
@@ -478,6 +493,7 @@
     "freshness": "Data in Insights Hub",
     "heartbeat": "Data reported by the gateway",
     "gatus": "Gatus endpoint",
+    "checkmk": "CheckMk service",
     "monitor": "Sub-monitor"
   },
   "uptime": {

@@ -82,7 +82,7 @@ const newKey = () => `card-${++keySeq}`;
 const draftOf = (def: MonitorDefinition): Draft => ({ def, keys: def.checks.map(newKey) });
 const isEmpty = (v: unknown) => v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
 /** Checks that make a call and can be tried before saving */
-const TRYABLE = new Set<CheckType>(['ping', 'tcp', 'http', 'platform', 'freshness', 'gatus']);
+const TRYABLE = new Set<CheckType>(['ping', 'tcp', 'http', 'platform', 'freshness', 'gatus', 'checkmk']);
 interface Preview {
   status: MonitorStatus;
   message: string;

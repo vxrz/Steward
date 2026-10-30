@@ -164,6 +164,18 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
                     onChange={(e) => update(i, { path: e.currentTarget.value || undefined })}
                   />
                 </Group>
+                <Select
+                  label={t('outputs.format')}
+                  description={t('outputs.formatHint')}
+                  allowDeselect={false}
+                  disabled={disabled}
+                  data={[
+                    { value: 'json', label: t('outputs.formats.json') },
+                    { value: 'teams', label: t('outputs.formats.teams') },
+                  ]}
+                  value={o.format ?? 'json'}
+                  onChange={(v) => update(i, { format: v === 'teams' ? 'teams' : undefined })}
+                />
               </>
             )}
             {o.type === 'gatus' && (

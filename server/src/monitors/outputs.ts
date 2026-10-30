@@ -17,6 +17,9 @@ import { zabbixSend } from './zabbix.js';
 import { monitorPermissions, type LoadedMonitor } from './model.js';
 import { t, type MessageKey } from '../i18n/index.js';
 import { checkMessage, monitorVisibility, redactCauses, type MonitorVisibility } from './redact.js';
+import { teamsCard, type OutgoingMessage } from '../notifications/channels.js';
+import { absoluteLink } from '../notifications/settings.js';
+import { defaultLocale } from '../notifications/service.js';
 
 /**
  * Outputs send monitor and check statuses to people and other systems.
@@ -297,7 +300,40 @@ function sendNotifications(o: Extract<OutputDef, { type: 'notification' }>, m: L
   }
 }
 
+/** At most this many Teams cards per output and evaluation (one per status change); the rest are left out. */
+const TEAMS_MAX_CARDS = 10;
+
+/** A status change as a Teams message in the default language, like the "monitor.status" notification. */
+function teamsMessage(m: LoadedMonitor, e: OutEvent): OutgoingMessage {
+  const locale = defaultLocale();
+  const where = e.level === 'monitor' ? m.name : `${m.name} › ${e.check?.name}`;
+  const causes = e.causedBy.map((c) => (c.hidden ? t(locale, 'monitor.hiddenMonitor') : c.monitorId === m.id ? c.checkName : causeText(c))).join(', ');
+  return {
+    event: 'monitor.status',
+    title: t(locale, `monitor.${e.status}` as MessageKey, { where }),
+    body: `${causes ? t(locale, 'monitor.rootCause', { causes }) + ' ' : ''}${e.message}`.slice(0, 800),
+    locale,
+    link: absoluteLink(`/monitors/${m.id}${e.check ? `?check=${encodeURIComponent(e.check.id)}` : ''}`),
+    ts: e.ts,
+    data: payload(e),
+  };
+}
+
+async function postTo(url: string, body: unknown): Promise<void> {
+  await assertOutboundAllowed(url, outboundContext());
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'user-agent': BRAND.slug },
+    body: JSON.stringify(body),
+    dispatcher: proxy,
+    signal: AbortSignal.timeout(15000),
+  });
+  await res.text().catch(() => '');
+  if (!res.ok) throw new Error(`HTTP ${res.status} from the webhook`);
+}
+
 async function sendWebhook(o: Extract<OutputDef, { type: 'webhook' }>, m: LoadedMonitor, events: OutEvent[]): Promise<void> {
+  if (o.format === 'teams') return sendTeamsCards(o, m, events);
   const body = { source: BRAND.slug, monitor: { id: m.id, key: m.key, name: m.name }, events: events.map(payload) };
   if (o.platform) {
     const { platform, secrets } = platformFor(m.owner, o.platform);
@@ -310,16 +346,34 @@ async function sendWebhook(o: Extract<OutputDef, { type: 'webhook' }>, m: Loaded
     if (!r.ok) throw new Error(`HTTP ${r.status} from "${platform.name}"`);
     return;
   }
-  await assertOutboundAllowed(o.url!, outboundContext());
-  const res = await fetch(o.url!, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'user-agent': BRAND.slug },
-    body: JSON.stringify(body),
-    dispatcher: proxy,
-    signal: AbortSignal.timeout(15000),
-  });
-  await res.text().catch(() => '');
-  if (!res.ok) throw new Error(`HTTP ${res.status} from the webhook`);
+  await postTo(o.url!, body);
+}
+
+/**
+ * Adaptive Cards to a Teams channel (#130): a "Microsoft Teams channel" platform (the Workflows URL is its credential
+ * `webhookUrl`, encrypted like every credential), another platform plus a path, or a plain URL.
+ */
+async function sendTeamsCards(o: Extract<OutputDef, { type: 'webhook' }>, m: LoadedMonitor, events: OutEvent[]): Promise<void> {
+  const cards = events.slice(0, TEAMS_MAX_CARDS).map((e) => teamsCard(teamsMessage(m, e)));
+  if (o.platform) {
+    const { platform, secrets } = platformFor(m.owner, o.platform);
+    if (platform.kind === 'teams') {
+      if (!secrets.webhookUrl) throw new Error(`Platform "${platform.name}" has no credential "webhookUrl" (the Teams Workflows URL)`);
+      for (const c of cards) await postTo(secrets.webhookUrl, c);
+      return;
+    }
+    for (const c of cards) {
+      const r = await platformRequest(
+        platform,
+        secrets,
+        { method: 'POST', url: fillPlaceholders(o.path || '/', placeholders(m, events[0]!)), body: c, bodyType: 'json' },
+        AbortSignal.timeout(15000),
+      );
+      if (!r.ok) throw new Error(`HTTP ${r.status} from "${platform.name}"`);
+    }
+    return;
+  }
+  for (const c of cards) await postTo(o.url!, c);
 }
 
 async function sendGatus(o: Extract<OutputDef, { type: 'gatus' }>, m: LoadedMonitor, events: OutEvent[]): Promise<void> {

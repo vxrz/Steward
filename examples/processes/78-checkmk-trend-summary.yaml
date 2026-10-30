@@ -1,0 +1,166 @@
+name: "CheckMk – trend summary"
+description: |
+  Follows slow signals that CheckMk itself does not decide on: reads the metric
+  history of the chosen hosts and services from CheckMk (REST API 1.0,
+  CheckMk 2.2+: metric data of a time range), and computes per series the
+  average, the peak, the latest value, the share of the time above the WARN
+  and CRIT levels you give, and a simple trend: the average of the last 7 days
+  against the 7 days before, and at this rate the days until the CRIT level
+  (empty when it is not heading for CRIT, or not within two years).
+
+  Alerting on raw metrics (thresholds, predictive levels) stays in CheckMk;
+  this process reports what needs a decision. Its checks fail when a level is
+  crossed or a series heads for CRIT within the forecast days – with "message
+  on change" in the schedule's notification policy they are sent once, with a
+  reminder while they last.
+
+  Recommended: a daily schedule at 07:00 (`0 7 * * *`) as the morning summary
+  – route "Process failed checks" to Teams – and a report schedule for the PDF
+  as evidence. Publishes `checkmk.trends` (one row per series; metrics series,
+  crossed, trending) for the "CheckMk trends" dashboard; set the dataset's
+  history to 400 days. Needs a platform of kind `checkmk` (docs/CHECKMK.md).
+tags: [checkmk, trends, capacity, report]
+connections:
+  - slot: cmk
+    kind: checkmk
+    description: CheckMk site (base URL …/<site>/check_mk/api/1.0, automation user)
+inputs:
+  - name: series
+    label: Series (host, service, metric id in CheckMk, WARN and CRIT level)
+    type: json
+    default:
+      - { host: db01, service: "Filesystem /var", metric: fs_used_percent, unit: "%", warn: 80, crit: 90 }
+      - { host: db01, service: "CPU load", metric: load15, unit: "", warn: 6, crit: 8 }
+      - { host: web01, service: "Memory", metric: mem_used_percent, unit: "%", warn: 80, crit: 90 }
+  - name: days
+    label: Time window (days)
+    type: number
+    default: 30
+  - name: forecastDays
+    label: Warn when CRIT is reached within (days)
+    type: number
+    default: 14
+steps:
+  - id: read
+    type: forEach
+    name: Metric history per series (4 in parallel)
+    items: "inputs.series"
+    as: s
+    concurrency: 4
+    maxItems: 200
+    saveAs: read
+    steps:
+      - id: metric
+        type: http
+        name: Read the metric of the time range
+        connection: cmk
+        method: POST
+        # a query sent as POST: reads only, so it also runs in dry runs
+        mutating: false
+        path: /domain-types/metric/actions/get/invoke
+        body:
+          time_range:
+            start: "{{ $fromMillis($millis() - inputs.days * 86400000) }}"
+            end: "{{ $now() }}"
+          reduce: average
+          site: "{{ conn.cmk.vars.site }}"
+          host_name: "{{ vars.s.host }}"
+          service_description: "{{ vars.s.service }}"
+          type: single_metric
+          metric_id: "{{ vars.s.metric }}"
+        onError: continue
+        saveAs: m
+      - id: summarize
+        type: set
+        name: Average, peak, levels and trend
+        values:
+          row: >-
+            {{ (
+              $vals := [vars.m.body.curves[0].rrddata[$ != null]];
+              $n := $count($vals);
+              $perDay := vars.m.body.step > 0 ? $round(86400 / vars.m.body.step) : 0;
+              $week := $perDay * 7;
+              $last := $n >= $week ? $average($vals[[($n - $week)..($n - 1)]]) : null;
+              $before := $n >= 2 * $week ? $average($vals[[($n - 2 * $week)..($n - $week - 1)]]) : null;
+              $perDayChange := $last != null and $before != null ? ($last - $before) / 7 : null;
+              $latest := $n > 0 ? $vals[-1] : null;
+              $days := $perDayChange != null and $perDayChange > 0 and $latest != null and $latest < vars.s.crit ? (vars.s.crit - $latest) / $perDayChange : null;
+              $toCrit := $days != null and $days <= 730 ? $round($days, 1) : null;
+              {
+                "series": vars.s.host & ' / ' & vars.s.service,
+                "host": vars.s.host,
+                "service": vars.s.service,
+                "metric": vars.s.metric,
+                "unit": vars.s.unit,
+                "points": $n,
+                "average": $n > 0 ? $round($average($vals), 2) : null,
+                "peak": $n > 0 ? $round($max($vals), 2) : null,
+                "latest": $latest != null ? $round($latest, 2) : null,
+                "warnPct": $n > 0 ? $round(100 * $count($vals[$ >= vars.s.warn]) / $n, 1) : null,
+                "critPct": $n > 0 ? $round(100 * $count($vals[$ >= vars.s.crit]) / $n, 1) : null,
+                "weekChangePct": $last != null and $before != null and $before != 0 ? $round(100 * ($last - $before) / $abs($before), 1) : null,
+                "daysToCrit": $toCrit,
+                "crossed": $latest != null and $latest >= vars.s.warn,
+                "error": $exists(vars.m.error) ? $string(vars.m.error) : ($n = 0 ? 'no data in the time range' : '')
+              }
+            ) }}
+  - id: evaluate
+    type: set
+    name: Crossed levels and trends
+    values:
+      rows: "{{ [vars.read.results.row] }}"
+      crossed: "{{ [vars.rows[crossed = true]] }}"
+      trending: "{{ [vars.rows[daysToCrit != null and daysToCrit <= $inputs.forecastDays]] }}"
+      missing: "{{ [vars.rows[error != '']] }}"
+  - id: publish
+    type: publish
+    name: Publish for the dashboard
+    dataset: checkmk.trends
+    title: CheckMk trends
+    rows: vars.rows
+    key: series
+    status: "error != '' ? 'unknown' : (latest >= $inputs.series[host = $$.host and service = $$.service][0].crit ? 'critical' : (crossed ? 'warning' : (daysToCrit != null and daysToCrit <= $inputs.forecastDays ? 'warning' : 'good')))"
+    statusText: "error != '' ? error : (daysToCrit != null ? 'CRIT in about ' & $round(daysToCrit) & ' days at this rate' : '')"
+    metrics:
+      series: "$count(vars.rows)"
+      crossed: "$count(vars.crossed)"
+      trending: "$count(vars.trending)"
+  - id: noneCrossed
+    type: check
+    name: No WARN or CRIT level crossed
+    severity: warning
+    condition: "$count(vars.crossed) = 0"
+    message: "{{ $count(vars.crossed) = 0 ? 'No level crossed in ' & $count(vars.rows) & ' series' : $count(vars.crossed) & ' series above WARN: ' & $join(vars.crossed.(series & ' ' & latest & unit), ', ') }}"
+    headline: "{{ $count(vars.crossed) }} of {{ $count(vars.rows) }} series above WARN"
+    value: "$count(vars.crossed)"
+    items: "vars.crossed.(series & ': ' & latest & unit & ' (peak ' & peak & unit & ')')"
+  - id: noTrend
+    type: check
+    name: No series heading for CRIT
+    severity: warning
+    condition: "$count(vars.trending) = 0"
+    message: "{{ $count(vars.trending) = 0 ? 'No series reaches CRIT within ' & inputs.forecastDays & ' days at this rate' : $join(vars.trending.(series & ': CRIT in about ' & $round(daysToCrit) & ' days'), ', ') }}"
+    headline: "{{ $count(vars.trending) }} series reach CRIT within {{ inputs.forecastDays }} days"
+    value: "$count(vars.trending)"
+    items: "vars.trending.(series & ': CRIT in about ' & $round(daysToCrit) & ' days (' & (weekChangePct > 0 ? '+' : '') & weekChangePct & ' % a week)')"
+  - id: allRead
+    type: check
+    name: All series read
+    severity: info
+    condition: "$count(vars.missing) = 0"
+    message: "{{ $count(vars.missing) = 0 ? 'All series read' : $join(vars.missing.(series & ': ' & error), '; ') }}"
+  - id: report
+    type: report
+    name: Morning summary
+    title: CheckMk trends
+    text: "Last {{ inputs.days }} days. Above WARN: {{ $count(vars.crossed) }}. Heading for CRIT within {{ inputs.forecastDays }} days: {{ $count(vars.trending) }}."
+    rows: vars.rows
+    columns:
+      - { label: Series, value: series }
+      - { label: Latest, value: "latest & unit" }
+      - { label: Average, value: "average & unit" }
+      - { label: Peak, value: "peak & unit" }
+      - { label: "Time ≥ WARN (%)", value: warnPct }
+      - { label: "Time ≥ CRIT (%)", value: critPct }
+      - { label: "Week on week (%)", value: weekChangePct }
+      - { label: Days to CRIT, value: daysToCrit }

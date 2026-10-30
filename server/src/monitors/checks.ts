@@ -10,7 +10,7 @@ import { assertAddressSafe, assertNetAllowed, assertOutboundAllowed, guardedLook
 import { outboundContext } from '../platforms/policyContext.js';
 import { BRAND } from '@sm/shared';
 import { freshnessStatus, freshnessWindowSeconds, fmtAge, statusMatcher } from './logic.js';
-import { gatusFetch, ihFetch, ihKey, SourceError } from './batch.js';
+import { checkmkFetch, checkmkServiceKey, gatusFetch, ihFetch, ihKey, SourceError } from './batch.js';
 import { CheckSetupError, platformFor } from './platforms.js';
 import { endpointState, metricsEnabled, sourceRow } from '../gatus/metrics.js';
 
@@ -504,9 +504,59 @@ async function checkGatus(c: CheckOf<'gatus'>, ctx: ExecContext): Promise<RawRes
   return { status: 'up', message: `Gatus: ${e.name} is up`, durationMs: ms };
 }
 
+// ---------- CheckMk ----------
+
+const cmkPlan = (c: CheckOf<'checkmk'>, owner: string) => ({ owner, hosts: c.service ? [] : [c.host], serviceHosts: c.service ? [c.host] : [] });
+
+export function planCheckmk(c: CheckOf<'checkmk'>, owner: string): void {
+  checkmkFetch.plan(c.platform, cmkPlan(c, owner));
+}
+
+const HOST_STATES: Record<number, { word: string; status: RawResult['status'] }> = {
+  0: { word: 'UP', status: 'up' },
+  1: { word: 'DOWN', status: 'down' },
+  2: { word: 'UNREACHABLE', status: 'unknown' },
+};
+const SERVICE_STATES: Record<number, { word: string; status: RawResult['status'] }> = {
+  0: { word: 'OK', status: 'up' },
+  1: { word: 'WARN', status: 'degraded' },
+  2: { word: 'CRIT', status: 'down' },
+  3: { word: 'UNKNOWN', status: 'unknown' },
+};
+
+/** The current state in CheckMk: OK / WARN / CRIT / UNKNOWN → up / degraded / down / unknown, the plugin output as message. */
+async function checkCheckmk(c: CheckOf<'checkmk'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  let data;
+  try {
+    data = await checkmkFetch.get(c.platform, cmkPlan(c, ctx.owner));
+  } catch (e) {
+    if (e instanceof CheckSetupError) throw e;
+    return { status: 'unknown', message: `CheckMk could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
+  }
+  const ms = Date.now() - t0;
+  const label = c.service ? `${c.host} / ${c.service}` : c.host;
+  const s = c.service ? data.services.get(checkmkServiceKey(c.host, c.service)) : data.hosts.get(c.host);
+  if (!s) return { status: 'unknown', message: `CheckMk has no ${c.service ? 'service' : 'host'} "${label}"`, durationMs: ms };
+  if (!s.checked) return { status: 'unknown', message: `CheckMk has not checked ${label} yet (pending)`, durationMs: ms };
+  if (c.maxAgeSeconds && s.lastCheck !== null) {
+    const age = Math.round((Date.now() - s.lastCheck) / 1000);
+    if (age > c.maxAgeSeconds)
+      return { status: 'unknown', message: `CheckMk last checked ${label} ${fmtAge(age)} ago (maximum ${fmtAge(c.maxAgeSeconds)})`, durationMs: ms };
+  }
+  const known = (c.service ? SERVICE_STATES : HOST_STATES)[s.state] ?? { word: `state ${s.state}`, status: 'unknown' as const };
+  const notes = [s.downtime ? 'in a CheckMk downtime' : '', s.acknowledged ? 'acknowledged in CheckMk' : ''].filter(Boolean);
+  return {
+    status: known.status,
+    message: `CheckMk: ${label} ${known.word}${s.output ? ` – ${s.output}` : ''}${notes.length ? ` (${notes.join(', ')})` : ''}`.slice(0, 500),
+    durationMs: ms,
+    value: { state: s.state, lastCheck: s.lastCheck ? new Date(s.lastCheck).toISOString() : null, downtime: s.downtime, acknowledged: s.acknowledged },
+  };
+}
+
 // ---------- dispatch ----------
 
-type Active = CheckOf<'ping'> | CheckOf<'tcp'> | CheckOf<'http'> | CheckOf<'platform'> | CheckOf<'freshness'> | CheckOf<'gatus'>;
+type Active = CheckOf<'ping'> | CheckOf<'tcp'> | CheckOf<'http'> | CheckOf<'platform'> | CheckOf<'freshness'> | CheckOf<'gatus'> | CheckOf<'checkmk'>;
 
 /** Runs an active check; heartbeat and sub-monitor checks are evaluated by the engine from stored state. */
 export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawResult> {
@@ -524,6 +574,8 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkFreshness(c, ctx);
       case 'gatus':
         return await checkGatus(c, ctx);
+      case 'checkmk':
+        return await checkCheckmk(c, ctx);
     }
   } catch (e) {
     if (e instanceof CheckSetupError) return { status: 'unknown', message: `Check could not run: ${e.message}` };

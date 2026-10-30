@@ -3700,6 +3700,7 @@
               "freshness",
               "heartbeat",
               "gatus",
+              "checkmk",
               "monitor"
             ]
           },
@@ -4112,6 +4113,7 @@
                     "freshness",
                     "heartbeat",
                     "gatus",
+                    "checkmk",
                     "monitor"
                   ]
                 },

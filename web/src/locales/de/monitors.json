@@ -179,7 +179,12 @@
       "auto": "Automatisch (Metriken, wenn für die Plattform aktiviert)",
       "api": "Status-API von Gatus",
       "metrics": "Abgerufene Metriken"
-    }
+    },
+    "cmkHost": "Hostname in CheckMk",
+    "cmkService": "Service",
+    "cmkServiceHint": "Die Service-Bezeichnung genau wie in CheckMk, z. B. „Filesystem /var“. Leer: der Zustand des Hosts",
+    "cmkMaxAge": "Unbekannt, wenn nicht geprüft seit (s)",
+    "cmkMaxAgeHint": "Optional: Der Zustand gilt als unbekannt, wenn CheckMk ihn so lange nicht geprüft hat"
   },
   "detail": {
     "template": "Vorlage",
@@ -316,7 +321,13 @@
     "onlyChecks": "Nur diese Prüfungen",
     "add": "Ausgabe hinzufügen",
     "manageOnly": "Nur der Eigentümer, Administratoren oder Benutzer mit dem Recht „Verwalten“ können Ausgaben ändern.",
-    "runMessages": "Nachrichten der gestarteten Läufe"
+    "runMessages": "Nachrichten der gestarteten Läufe",
+    "format": "Format",
+    "formatHint": "Teams-Karte: eine Adaptive Card je Statuswechsel für einen Teams-Kanal. Wählen Sie eine Plattform „Microsoft-Teams-Kanal“ – sie speichert die Workflows-URL verschlüsselt",
+    "formats": {
+      "json": "JSON-Ereignis (Steward-Format)",
+      "teams": "Teams-Karte (Adaptive Card)"
+    }
   },
   "heartbeat": {
     "endpoint": "Heartbeat-Endpunkt",
@@ -465,6 +476,10 @@
       "label": "Gatus-Endpunkt",
       "help": "Status eines von Gatus überwachten Endpunkts"
     },
+    "checkmk": {
+      "label": "CheckMk-Host oder -Service",
+      "help": "Aktueller Zustand eines Hosts oder Services in CheckMk (OK, WARN, CRIT, UNKNOWN)"
+    },
     "monitor": {
       "label": "Untermonitor",
       "help": "Der Gesamtstatus eines anderen Monitors (nach dessen eigenem Zeitplan ausgewertet)"
@@ -478,6 +493,7 @@
     "freshness": "Daten im Insights Hub",
     "heartbeat": "Vom Gateway gemeldete Daten",
     "gatus": "Gatus-Endpunkt",
+    "checkmk": "CheckMk-Service",
     "monitor": "Untermonitor"
   },
   "uptime": {

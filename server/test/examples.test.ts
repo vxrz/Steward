@@ -136,6 +136,21 @@ describe('example library', () => {
     expect(typeof by['MES frontend']['Uptime (%)']).toBe('number');
   });
 
+  it('CheckMk – trend summary finds the level crossed and the series heading for CRIT', async () => {
+    // runs after "runs 78-…" above, against the mock CheckMk (server/src/mock/mockCheckmk.ts): /var on db01 grows 0.6 % a day to 82 %
+    const d = await s.api('GET', '/datasets/checkmk.trends');
+    const by = Object.fromEntries(d.rows.map((r: any) => [r.series, r]));
+    expect(Object.keys(by).sort()).toEqual(['db01 / CPU load', 'db01 / Filesystem /var', 'web01 / Memory']);
+    const v = by['db01 / Filesystem /var'];
+    expect(v).toMatchObject({ crossed: true, _status: 'warning', error: '' });
+    expect(v.latest).toBeCloseTo(82, 0);
+    expect(v.daysToCrit).toBeGreaterThan(8);
+    expect(v.daysToCrit).toBeLessThan(18);
+    expect(v.weekChangePct).toBeGreaterThan(3);
+    expect(by['web01 / Memory']).toMatchObject({ crossed: false, daysToCrit: null, _status: 'good' });
+    expect(d.metrics).toMatchObject({ series: 3, crossed: 1, trending: 1 });
+  });
+
   it('published sensible datasets', async () => {
     const users = await s.api('GET', '/datasets/ih.users');
     expect(users.rowCount).toBe(15);

@@ -7,6 +7,7 @@ import { DEMO_OIDC } from '../mock/mockOidc.js';
 import { listProviders, saveProvider } from '../auth/sso.js';
 import { createFromTemplate, listTemplates } from '../processes/service.js';
 import { DEMO_CREDENTIALS } from '../mock/mockPlatform.js';
+import { DEMO_CHECKMK } from '../mock/mockCheckmk.js';
 import { DEMO_GATUS } from '../mock/mockGatus.js';
 import { MOCK_UTS_PROVIDER } from '../mock/mockUsage.js';
 import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
@@ -146,6 +147,19 @@ export async function setupDemo(): Promise<{
       secrets: { username: DEMO_GATUS.username, password: DEMO_GATUS.password, externalToken: DEMO_GATUS.externalToken },
     });
     addSpec(g.id, 'Gatus API', JSON.stringify(gatusOpenApiSpec(), null, 2));
+    platforms++;
+  }
+  if (!existing.has('CheckMk (demo)')) {
+    // CheckMk (#130): host and service states for monitors, metric history for the trend summary example
+    createPlatform({
+      name: 'CheckMk (demo)',
+      kind: 'checkmk',
+      environment: 'demo',
+      description: 'Simulated CheckMk site (REST API 1.0) served by the built-in mock: four hosts and services, metric history. See docs/CHECKMK.md.',
+      baseUrl: `${base}/checkmk/demo/check_mk/api/1.0`,
+      config: { auth: { type: 'bearer' }, variables: { site: 'demo' }, http: { proxy: 'none' }, testPath: '/version' },
+      secrets: { token: `${DEMO_CHECKMK.user} ${DEMO_CHECKMK.secret}` },
+    });
     platforms++;
   }
   if (!existing.has('endoflife.date (demo)')) {

@@ -13,7 +13,7 @@ import { HttpError } from '../util.js';
 type StoredConfig = Omit<NotificationSettings, 'email' | 'teams' | 'webhook'> & {
   email: Omit<NotificationSettings['email'], 'hasPassword'>;
   teams: { enabled: boolean };
-  webhook: { enabled: boolean };
+  webhook: { enabled: boolean; format?: 'json' | 'teams' };
 };
 
 export interface ChannelSecrets {
@@ -91,7 +91,7 @@ export function getNotificationSettings(): NotificationSettings {
   return {
     email: { ...c.email, hasPassword: keys.includes('smtpPassword') },
     teams: { enabled: c.teams.enabled, hasWebhookUrl: keys.includes('teamsWebhookUrl') },
-    webhook: { enabled: c.webhook.enabled, hasUrl: keys.includes('webhookUrl') },
+    webhook: { enabled: c.webhook.enabled, hasUrl: keys.includes('webhookUrl'), format: c.webhook.format ?? 'json' },
     routes: c.routes,
     baseUrl: c.baseUrl,
     allowedEmailDomains: c.allowedEmailDomains,
@@ -145,7 +145,7 @@ export function saveNotificationSettings(input: NotificationSettingsInput): Noti
       from: input.email.from.trim(),
     },
     teams: { enabled: input.teams.enabled },
-    webhook: { enabled: input.webhook.enabled },
+    webhook: { enabled: input.webhook.enabled, ...(input.webhook.format === 'teams' ? { format: 'teams' as const } : {}) },
     routes,
     baseUrl: input.baseUrl?.trim().replace(/\/+$/, '') || undefined,
     allowedEmailDomains: input.allowedEmailDomains === undefined ? storedConfig().allowedEmailDomains : normalizeEmailDomains(input.allowedEmailDomains),

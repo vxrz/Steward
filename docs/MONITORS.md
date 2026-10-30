@@ -98,6 +98,7 @@ Common fields: `id`, `name`, `description`, `intervalSeconds`, `timeoutSeconds`,
 | `freshness` | `source: insightsHub` with `platform`, `assetId`, `aspect`, `variables[]` – or `source: platform` with `platform`, `path`, `query`, `timestamp` (JSONata returning a timestamp or a list); plus the freshness fields below                                                              | The newest timestamp of every variable must be recent; the worst variable counts.                                                                                                                                                                                                                                                       |
 | `heartbeat` | freshness fields, `condition` (JSONata over the last report), `statusExpression`, `authMode` (token, hmac, either), `allowedCidrs`, `rateLimitPerMinute` (default 60)                                                                                                                   | Fed by [reports](#heartbeat-api-for-gateways). Evaluated on its interval too, so a **missing** report turns it down without any request. Before the first report: `unknown`, and `down` once the window has passed.                                                                                                                     |
 | `gatus`     | `platform` (Gatus), `endpointKey`, `maxAgeSeconds`, `degradedOnRecentFailures`                                                                                                                                                                                                          | Status of a Gatus endpoint (newest result). All Gatus checks of a cycle share one `GET /api/v1/endpoints/statuses`.                                                                                                                                                                                                                     |
+| `checkmk`   | `platform` (CheckMk), `host`, `service` (empty: the host), `maxAgeSeconds`                                                                                                                                                                                                              | The current state in CheckMk: OK / WARN / CRIT / UNKNOWN → up / degraded / down / unknown (host: UP / DOWN / UNREACHABLE → up / down / unknown), the plugin output as message; pending or not checked for `maxAgeSeconds` → unknown. All CheckMk checks of a cycle share one host and one service read ([CHECKMK.md](CHECKMK.md)).      |
 | `monitor`   | `monitor` (id or key)                                                                                                                                                                                                                                                                   | The other monitor's status (`maintenance` counts as up here); root causes are taken over.                                                                                                                                                                                                                                               |
 
 **Freshness fields.** `mode: cadence` – `expectedIntervalSeconds`, degraded after `degradedAfterMissed` missed intervals (default 2), down after `downAfterMissed` (default 4). `mode: maxAge` – for **on-change data**: down when the newest value is older than `maxAgeSeconds`, degraded after `degradedAgeSeconds` (optional).
@@ -174,7 +175,16 @@ Event `monitor.status` (in-app, and e-mail/Teams/webhook as routed under _Settin
 
 ### Webhook
 
-`POST` to `url` (no credentials in the URL) – or to `platform` + `path`, using that platform's authentication:
+`POST` to `url` (no credentials in the URL) – or to `platform` + `path`, using that platform's authentication.
+
+**Teams card** (`format: teams`): instead of the JSON below, one Adaptive Card per status change (at most 10 per evaluation), in the look of the notification settings and the default language – the same card as the _monitor status_ notification. So a monitor posts to its own Teams channel, not only to the one under _Settings → Notifications_. Create a platform of kind **Microsoft Teams channel (Workflows)** per channel and put the Workflows URL ("Post to a channel when a webhook request is received") into its credential `webhookUrl`: the URL carries its own signature, so it is stored encrypted like every credential, never shown again and never part of the monitor definition or its exports. The platform's access list decides who may post there; the outbound policy must allow the URL's host.
+
+```yaml
+outputs:
+  - { id: ops, type: webhook, format: teams, platform: 'Teams – Ops channel', include: monitor }
+```
+
+The JSON format:
 
 ```json
 {

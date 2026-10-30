@@ -139,6 +139,39 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'checkmk',
+    label: 'CheckMk (monitoring)',
+    description:
+      'CheckMk site (REST API 1.0, CheckMk 2.2+): monitors read the current state of hosts and services, processes read metric history for trend summaries. Base URL: https://<host>/<site>/check_mk/api/1.0. Create an automation user in CheckMk (Setup → Users, role "Guest user" or a read-only role is enough) and enter it with its secret, separated by a space, as the token: "automation MySecret" – it is sent as Authorization: Bearer <user> <secret>. Alerting on raw metrics stays in CheckMk. See docs/CHECKMK.md.',
+    baseUrl: 'https://checkmk.example.com/mysite/check_mk/api/1.0',
+    config: {
+      auth: { type: 'bearer' },
+      variables: { site: 'mysite' },
+      http: {},
+      testPath: '/version',
+    },
+    secretFields: [{ key: 'token', label: 'Automation user and secret', help: 'User name, a space, then the automation secret, e.g. "steward-reader 8f2…"' }],
+    docs: [
+      { title: 'CheckMk REST API', url: 'https://docs.checkmk.com/latest/en/rest_api.html' },
+      { title: 'CheckMk automation users', url: 'https://docs.checkmk.com/latest/en/wato_user.html#automation' },
+    ],
+  },
+  {
+    kind: 'teams',
+    label: 'Microsoft Teams channel (Workflows)',
+    description:
+      'A Teams channel that monitor outputs post Adaptive Cards to (format "Teams card"). In Teams: … next to the channel → Workflows → "Post to a channel when a webhook request is received", then copy the URL into the credential webhookUrl – it is stored encrypted like every credential and never shown again. The base URL is only shown; the outbound policy must allow the URL\'s host. One platform per channel; its access list decides who may post there. See docs/MONITORS.md.',
+    baseUrl: 'https://prod-00.westeurope.logic.azure.com',
+    config: { auth: { type: 'none' }, variables: {}, http: {} },
+    secretFields: [{ key: 'webhookUrl', label: 'Workflows URL', help: 'The URL of the Teams workflow "Post to a channel when a webhook request is received"' }],
+    docs: [
+      {
+        title: 'Teams Workflows: post to a channel',
+        url: 'https://support.microsoft.com/office/creating-a-workflow-from-a-channel-in-teams-242eb8f2-f328-45be-b81f-9817b51a5f0e',
+      },
+    ],
+  },
+  {
     kind: 'endoflife-date',
     label: 'endoflife.date (end-of-life dates)',
     description:

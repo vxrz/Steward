@@ -38,7 +38,7 @@ export const isProblem = (s: MonitorStatus | undefined): boolean => s === 'down'
 
 // ---------- definitions ----------
 
-export const CHECK_TYPES = ['ping', 'tcp', 'http', 'platform', 'freshness', 'heartbeat', 'gatus', 'monitor'] as const;
+export const CHECK_TYPES = ['ping', 'tcp', 'http', 'platform', 'freshness', 'heartbeat', 'gatus', 'checkmk', 'monitor'] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
 
 export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }> = {
@@ -52,6 +52,7 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   },
   heartbeat: { label: 'Heartbeat (push)', help: 'Another system (e.g. an IoT gateway) reports to Steward; missing reports turn the check down' },
   gatus: { label: 'Gatus endpoint', help: 'Status of an endpoint monitored by Gatus' },
+  checkmk: { label: 'CheckMk host or service', help: 'Current state of a host or service in CheckMk (OK, WARN, CRIT, UNKNOWN)' },
   monitor: { label: 'Sub-monitor', help: 'The aggregated status of another monitor (evaluated on its own schedule)' },
 };
 
@@ -199,6 +200,17 @@ export const checkSchema = z.discriminatedUnion('type', [
     /** api: Gatus status API; metrics: the samples Steward scraped from /metrics; auto: metrics when metrics mode is on for the platform */
     source: z.enum(['auto', 'api', 'metrics']).optional(),
   }),
+  z.object({
+    ...checkBase,
+    type: z.literal('checkmk'),
+    platform: platformRef,
+    /** CheckMk host name */
+    host: z.string().trim().min(1).max(253),
+    /** Service description, exactly as in CheckMk; empty: the state of the host */
+    service: z.string().trim().max(500).optional(),
+    /** unknown when CheckMk has not checked it for this long (optional) */
+    maxAgeSeconds: seconds(1, 365 * 86400).optional(),
+  }),
   z.object({ ...checkBase, type: z.literal('monitor'), monitor: z.string().trim().min(1).max(200) }),
 ]);
 export type CheckDef = z.output<typeof checkSchema>;
@@ -243,9 +255,11 @@ export const outputSchema = z.discriminatedUnion('type', [
     type: z.literal('webhook'),
     /** Plain URL (no credentials) … */
     url: z.string().url().optional(),
-    /** … or a platform (its authentication) plus a path */
+    /** … or a platform (its authentication) plus a path; a "Microsoft Teams channel" platform holds the Workflows URL as a credential */
     platform: platformRef.optional(),
     path: z.string().max(2000).optional(),
+    /** json: Steward's event payload (default); teams: an Adaptive Card for a Teams Workflows URL (#130) */
+    format: z.enum(['json', 'teams']).optional(),
   }),
   z.object({
     ...outputBase,

@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { config } from '../config.js';
 import { mockIdentitySpec } from './mockSpec.js';
 import { mockOidc } from './mockOidc.js';
+import { mockCheckmk } from './mockCheckmk.js';
 import { mockGatus } from './mockGatus.js';
 import { iotTimeseries, mockIotRoutes } from './mockIot.js';
 import { mockZabbix } from './mockZabbix.js';
@@ -197,6 +198,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
 
   await mockOidc(app);
   await mockGatus(app);
+  await mockCheckmk(app);
   await mockIotRoutes(app);
   await mockZabbix(app);
   await mockGit(app);

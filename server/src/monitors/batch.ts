@@ -178,7 +178,90 @@ export const gatusFetch = new SharedFetch<GatusPlan, Map<string, GatusEndpoint>>
   fetchGatus,
 );
 
+// ---------- CheckMk ----------
+
+export interface CheckmkPlan {
+  owner: string;
+  /** Hosts whose own state is needed */
+  hosts: string[];
+  /** Hosts whose services are needed */
+  serviceHosts: string[];
+}
+export interface CheckmkState {
+  /** host: 0 UP, 1 DOWN, 2 UNREACHABLE; service: 0 OK, 1 WARN, 2 CRIT, 3 UNKNOWN */
+  state: number;
+  output: string;
+  /** ms, null when never checked */
+  lastCheck: number | null;
+  checked: boolean;
+  downtime: boolean;
+  acknowledged: boolean;
+}
+export interface CheckmkData {
+  hosts: Map<string, CheckmkState>;
+  /** key: host + "\u0000" + service description */
+  services: Map<string, CheckmkState>;
+}
+export const checkmkServiceKey = (host: string, service: string) => `${host}\u0000${service}`;
+
+const CMK_COLUMNS = ['state', 'plugin_output', 'last_check', 'has_been_checked', 'scheduled_downtime_depth', 'acknowledged'];
+
+/** Livestatus filter: one of these values (CheckMk REST API `query`). */
+const anyOf = (column: string, values: string[]) =>
+  values.length === 1 ? { op: '=', left: column, right: values[0] } : { op: 'or', expr: values.map((v) => ({ op: '=', left: column, right: v })) };
+
+function cmkState(e: Record<string, unknown>): CheckmkState {
+  const last = Number(e.last_check);
+  return {
+    state: Number(e.state ?? 3),
+    output: String(e.plugin_output ?? '').slice(0, 500),
+    lastCheck: Number.isFinite(last) && last > 0 ? last * 1000 : null,
+    checked: e.has_been_checked === undefined ? true : Number(e.has_been_checked) === 1 || e.has_been_checked === true,
+    downtime: Number(e.scheduled_downtime_depth ?? 0) > 0,
+    acknowledged: Number(e.acknowledged ?? 0) === 1 || e.acknowledged === true,
+  };
+}
+
+const rowsOf = (body: unknown): Record<string, unknown>[] =>
+  Array.isArray((body as { value?: unknown })?.value)
+    ? ((body as { value: { extensions?: Record<string, unknown> }[] }).value.map((v) => v?.extensions ?? {}) as Record<string, unknown>[])
+    : [];
+
+/**
+ * At most two calls per CheckMk site and cycle (REST API 1.0, CheckMk 2.2+):
+ * `GET /domain-types/host/collections/all` for the host states and `GET /domain-types/service/collections/all` for the
+ * services of the hosts asked for, both filtered with a Livestatus query.
+ */
+async function fetchCheckmk(platformId: string, plan: CheckmkPlan): Promise<CheckmkData> {
+  const { platform, secrets } = platformFor(plan.owner, platformId);
+  const out: CheckmkData = { hosts: new Map(), services: new Map() };
+  const call = async (path: string, column: string, values: string[], extra: string[]) => {
+    const r = await platformRequest(
+      platform,
+      secrets,
+      { method: 'GET', url: path, query: { query: anyOf(column, values), columns: [...extra, ...CMK_COLUMNS] }, headers: { accept: 'application/json' } },
+      AbortSignal.timeout(30000),
+    );
+    if (!r.ok) throw new SourceError(`CheckMk answered HTTP ${r.status}${r.status === 401 ? ' (check the automation user and its secret)' : ''}`, r.status);
+    return rowsOf(r.body);
+  };
+  if (plan.hosts.length)
+    for (const e of await call('/domain-types/host/collections/all', 'name', plan.hosts, ['name'])) out.hosts.set(String(e.name), cmkState(e));
+  if (plan.serviceHosts.length)
+    for (const e of await call('/domain-types/service/collections/all', 'host_name', plan.serviceHosts, ['host_name', 'description']))
+      out.services.set(checkmkServiceKey(String(e.host_name), String(e.description)), cmkState(e));
+  return out;
+}
+
+const union = (a: string[], b: string[]) => [...new Set([...a, ...b])];
+export const checkmkFetch = new SharedFetch<CheckmkPlan, CheckmkData>(
+  (a, b) => ({ owner: a.owner, hosts: union(a.hosts, b.hosts), serviceHosts: union(a.serviceHosts, b.serviceHosts) }),
+  (have, want) => want.hosts.every((h) => have.hosts.includes(h)) && want.serviceHosts.every((h) => have.serviceHosts.includes(h)),
+  fetchCheckmk,
+);
+
 export function clearBatchCaches(): void {
   ihFetch.clear();
   gatusFetch.clear();
+  checkmkFetch.clear();
 }

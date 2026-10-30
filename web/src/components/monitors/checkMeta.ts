@@ -2,6 +2,7 @@ import {
   IconActivityHeartbeat,
   IconApi,
   IconBroadcast,
+  IconChartDots3,
   IconClockHour4,
   IconHierarchy2,
   IconNetwork,
@@ -19,6 +20,7 @@ export const CHECK_ICONS: Record<CheckType, typeof IconApi> = {
   freshness: IconClockHour4,
   heartbeat: IconActivityHeartbeat,
   gatus: IconNetwork,
+  checkmk: IconChartDots3,
   monitor: IconHierarchy2,
 };
 
@@ -31,6 +33,7 @@ const DEFAULT_NAMES: Record<CheckType, string> = {
   freshness: 'Data in Insights Hub',
   heartbeat: 'Data reported by the gateway',
   gatus: 'Gatus endpoint',
+  checkmk: 'CheckMk service',
   monitor: 'Sub-monitor',
 };
 
@@ -64,6 +67,8 @@ export function newCheck(type: CheckType, id: string): CheckDef {
       return { ...base, name, type, mode: 'cadence', expectedIntervalSeconds: 60, authMode: 'token' } as CheckDef;
     case 'gatus':
       return { ...base, name, type, platform: '', endpointKey: '' } as CheckDef;
+    case 'checkmk':
+      return { ...base, name, type, platform: '', host: '' } as CheckDef;
     case 'monitor':
       return { ...base, name, type, monitor: '' } as CheckDef;
   }

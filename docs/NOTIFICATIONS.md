@@ -105,7 +105,7 @@ _Settings → Look of e-mails and Teams messages_ (administrators) gives the mes
 - **E-mails** (every notification, the daily summary, test messages) use one layout: a header bar in the colour with logo and name, a thin strip that shows how the message reads (red: something failed, orange: something to do, green: a monitor is up again, blue: information), the text, a button and the footer. It is built from tables and inline styles, so Outlook and web mail show it, and the plain-text part is kept.
 - **The logo travels inside the e-mail** as an inline attachment (`cid:`). Mail clients block remote images, and Steward is usually not reachable from outside, so nothing is loaded from Steward. PNG and JPEG up to 512 KB; a WebP app logo is left out (many mail clients cannot show it) – upload a PNG or JPEG, or use the report logo.
 - **Teams cards** carry the name, the footer and a coloured strip with the same meaning. Adaptive Cards only know named colours (`good`, `warning`, `attention`, `accent`), not the hex colour. The logo is embedded only up to 12 KB, because Teams refuses cards over 28 KB.
-- **Generic webhooks** get the same JSON as before.
+- **Generic webhooks** get the same JSON as before – or, with the format _Teams card_ (#130), the same Adaptive Card as the Teams channel, for a second Teams or Workflows target. Monitors can post to their own Teams channels as well ([MONITORS.md](MONITORS.md#webhook)).
 - The card's **preview** shows the test message, or a failed dry run, as an e-mail and a Teams card with the unsaved settings. _Send test_ under _Notifications_ sends it with the saved ones. Changes are audited as `notifications.look_updated`; the setting moves with a [migration package](MIGRATION.md).
 
 ### Own logo

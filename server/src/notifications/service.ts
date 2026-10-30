@@ -247,7 +247,8 @@ export function notify(n: Notice): void {
   }
   if (external.includes('webhook') && secrets.webhookUrl && claimSend(`webhook:${key}`, DEDUPE_WINDOW_MS)) {
     const msg = message(fallback);
-    jobs.push({ channel: 'webhook', send: () => sendWebhook(secrets.webhookUrl!, msg) });
+    const asCard = getNotificationSettings().webhook.format === 'teams';
+    jobs.push({ channel: 'webhook', send: () => (asCard ? sendTeams(secrets.webhookUrl!, msg) : sendWebhook(secrets.webhookUrl!, msg)) });
   }
   for (const j of jobs) {
     const p = j
@@ -715,7 +716,8 @@ export async function sendTest(channel: 'email' | 'teams' | 'webhook', to: strin
       await sendTeams(secrets.teamsWebhookUrl, msg);
     } else {
       if (!secrets.webhookUrl) return { ok: false, error: 'No webhook URL is stored' };
-      await sendWebhook(secrets.webhookUrl, msg);
+      if (getNotificationSettings().webhook.format === 'teams') await sendTeams(secrets.webhookUrl, msg);
+      else await sendWebhook(secrets.webhookUrl, msg);
     }
     return { ok: true };
   } catch (err) {
