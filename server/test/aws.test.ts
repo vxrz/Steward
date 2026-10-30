@@ -55,7 +55,7 @@ describe('AWS API client', () => {
     expect(costs.byService.some((r) => r.service === 'Amazon Relational Database Service')).toBe(true);
     const users = await c.iamUsers();
     expect(users.map((u) => u.userName)).toEqual(['ci-deploy', 'backup-writer', 'old-intern']);
-    expect(users[0]!.keys[0]).toMatchObject({ accessKeyId: 'AKIADEMOCIDEPLOY0001', status: 'Active', lastService: 'ecs' });
+    expect(users[0]!.keys[0]).toMatchObject({ accessKeyId: 'AKIADEMOCIDEPLOY001', status: 'Active', lastService: 'ecs' });
     expect(users[2]!.keys[0]).toMatchObject({ status: 'Inactive', lastUsed: null, lastService: null });
   });
 
@@ -139,7 +139,7 @@ describe('cloud-account components on an AWS platform', () => {
     expect(r.costs.months).toHaveLength(6);
     expect(r.costs.months[0]).toMatchObject({ amount: 1840, currency: 'USD' });
     expect(r.users.map((u: any) => u.userName)).toEqual(['ci-deploy']);
-    expect(r.users[0].keys[0]).toMatchObject({ accessKeyId: 'AKIADEMOCIDEPLOY0001', status: 'Active', lastService: 'ecs' });
+    expect(r.users[0].keys[0]).toMatchObject({ accessKeyId: 'AKIADEMOCIDEPLOY001', status: 'Active', lastService: 'ecs' });
     // processes see it as the readout of the component
     const { db } = await import('../src/db.js');
     const cached = db().all<{ part: string }>('SELECT part FROM aws_account_cache WHERE platform_id = ? ORDER BY part', platformId);

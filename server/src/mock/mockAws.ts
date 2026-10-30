@@ -47,21 +47,21 @@ const USERS: DemoUser[] = [
     created: ago(900),
     passwordLastUsed: null,
     tags: { application: 'shop', team: 'web' },
-    keys: [{ id: 'AKIADEMOCIDEPLOY0001', status: 'Active', created: ago(410), lastUsed: ago(1), service: 'ecs' }],
+    keys: [{ id: 'AKIADEMOCIDEPLOY001', status: 'Active', created: ago(410), lastUsed: ago(1), service: 'ecs' }],
   },
   {
     name: 'backup-writer',
     created: ago(200),
     passwordLastUsed: null,
     tags: {},
-    keys: [{ id: 'AKIADEMOBACKUPW00001', status: 'Active', created: ago(35), lastUsed: ago(0), service: 's3' }],
+    keys: [{ id: 'AKIADEMOBACKUPW0001', status: 'Active', created: ago(35), lastUsed: ago(0), service: 's3' }],
   },
   {
     name: 'old-intern',
     created: ago(1200),
     passwordLastUsed: ago(700),
     tags: { application: 'crm' },
-    keys: [{ id: 'AKIADEMOOLDINTERN001', status: 'Inactive', created: ago(820), lastUsed: null, service: null }],
+    keys: [{ id: 'AKIADEMOOLDINTERN01', status: 'Inactive', created: ago(820), lastUsed: null, service: null }],
   },
 ];
 
@@ -106,8 +106,12 @@ function scope(req: FastifyRequest): { service: string; region: string } | strin
   const stamp = String(req.headers['x-amz-date'] ?? '');
   const now = new Date(`${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}T${stamp.slice(9, 11)}:${stamp.slice(11, 13)}:${stamp.slice(13, 15)}Z`);
   if (Number.isNaN(now.getTime()) || Math.abs(Date.now() - now.getTime()) > 15 * 60_000) return 'Signature expired';
-  const headers: Record<string, string> = {};
-  for (const h of m[5]!.split(';')) if (h !== 'host' && h !== 'x-amz-date') headers[h] = String(req.headers[h] ?? '');
+  const headers: Record<string, string> = Object.fromEntries(
+    m[5]!
+      .split(';')
+      .filter((h) => h !== 'host' && h !== 'x-amz-date')
+      .map((h) => [h, String(req.headers[h] ?? '')]),
+  );
   const again = { method: req.method, url: `http://${req.headers.host}${req.url}`, headers, body: typeof req.body === 'string' ? req.body : '' };
   signRequest(again, { region: m[3]!, service: m[4]!, credentials: { accessKeyId: DEMO_AWS.accessKeyId, secretAccessKey: DEMO_AWS.secretAccessKey }, now });
   return again.headers.authorization === auth

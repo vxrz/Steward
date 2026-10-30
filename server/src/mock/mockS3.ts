@@ -57,8 +57,12 @@ function signatureOk(req: FastifyRequest, body: Buffer): string | null {
   const stamp = String(req.headers['x-amz-date'] ?? '');
   const now = new Date(`${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}T${stamp.slice(9, 11)}:${stamp.slice(11, 13)}:${stamp.slice(13, 15)}Z`);
   if (Number.isNaN(now.getTime()) || Math.abs(Date.now() - now.getTime()) > 15 * 60_000) return 'x-amz-date missing or too far off';
-  const headers: Record<string, string> = {};
-  for (const h of m[4]!.split(';')) if (h !== 'host' && h !== 'x-amz-date' && h !== 'x-amz-content-sha256') headers[h] = String(req.headers[h] ?? '');
+  const headers: Record<string, string> = Object.fromEntries(
+    m[4]!
+      .split(';')
+      .filter((h) => h !== 'host' && h !== 'x-amz-date' && h !== 'x-amz-content-sha256')
+      .map((h) => [h, String(req.headers[h] ?? '')]),
+  );
   const again = { method: req.method, url: `http://${req.headers.host}${req.url}`, headers, body };
   signRequest(again, {
     region: m[3]!,
