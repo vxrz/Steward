@@ -58,7 +58,7 @@ test('define an availability objective and see the scorecard of the service', as
   await expect(panel).toContainText('No availability objectives yet');
   await panel.getByRole('button', { name: 'Add objective' }).click();
   const form = page.getByRole('dialog', { name: 'Add objective' });
-  await chooseOption(page, /^Gatus platform/, gatus.name);
+  await chooseOption(page, /^Gatus or Prometheus platform/, gatus.name);
   await chooseOption(page, /^Endpoint/, endpoint.group ? `${endpoint.group}/${endpoint.name}` : endpoint.name);
   await expect(form.getByRole('textbox', { name: /^Name/ })).toHaveValue(endpoint.name);
   await form.getByRole('textbox', { name: 'Target for 24 h' }).fill('1');
