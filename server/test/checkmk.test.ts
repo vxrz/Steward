@@ -192,6 +192,7 @@ describe('CheckMk check', () => {
       expect(got.at(-1).attachments[0].contentType).toBe('application/vnd.microsoft.card.adaptive');
       // back to the JSON event
       await s.api('PUT', '/settings/notifications', { ...base, webhook: { enabled: true, format: 'json' } });
+      expect((await s.api('GET', '/settings/notifications')).webhook).toEqual({ enabled: true, hasUrl: true });
       await s.api('POST', '/settings/notifications/test', { channel: 'webhook' });
       expect(got.at(-1)).toMatchObject({ event: expect.any(String), title: expect.any(String) });
       expect(got.at(-1).attachments).toBeUndefined();

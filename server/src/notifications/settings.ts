@@ -91,7 +91,7 @@ export function getNotificationSettings(): NotificationSettings {
   return {
     email: { ...c.email, hasPassword: keys.includes('smtpPassword') },
     teams: { enabled: c.teams.enabled, hasWebhookUrl: keys.includes('teamsWebhookUrl') },
-    webhook: { enabled: c.webhook.enabled, hasUrl: keys.includes('webhookUrl'), format: c.webhook.format ?? 'json' },
+    webhook: { enabled: c.webhook.enabled, hasUrl: keys.includes('webhookUrl'), ...(c.webhook.format === 'teams' ? { format: 'teams' as const } : {}) },
     routes: c.routes,
     baseUrl: c.baseUrl,
     allowedEmailDomains: c.allowedEmailDomains,

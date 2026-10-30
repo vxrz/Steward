@@ -652,7 +652,9 @@
     "TIMELINE_EMPTY": "Wählen Sie mindestens einen Eintrag.",
     "INCIDENT_TICKET_OPEN": "Das Ticket ist noch offen. Beginnen Sie das Review, sobald es gelöst oder geschlossen ist.",
     "USER_UNKNOWN": "Es gibt keinen Benutzer „{{name}}“. Wählen Sie einen aus der Liste – eine Administratorin oder ein Administrator kann eine Person, die sich noch nicht angemeldet hat, unter Benutzer anlegen.",
-    "TEAM_UNKNOWN": "Es gibt kein Team „{{name}}“. Wählen Sie eines aus der Liste."
+    "TEAM_UNKNOWN": "Es gibt kein Team „{{name}}“. Wählen Sie eines aus der Liste.",
+    "METRIC_REF": "Geben Sie die Kennzahl als Datensatz/Kennzahl an, z. B. ih.assets/attributes.",
+    "TREND_WINDOW": "Verwenden Sie einen Trendzeitraum wie 24h, 7d oder 30d."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

@@ -652,7 +652,9 @@
     "TIMELINE_EMPTY": "Choose at least one entry.",
     "INCIDENT_TICKET_OPEN": "The ticket is still open. Start the review once it is resolved or closed.",
     "USER_UNKNOWN": "There is no user “{{name}}”. Choose one from the list – an administrator can add a person who has not signed in yet under Users.",
-    "TEAM_UNKNOWN": "There is no team “{{name}}”. Choose one from the list."
+    "TEAM_UNKNOWN": "There is no team “{{name}}”. Choose one from the list.",
+    "METRIC_REF": "Name the metric as dataset/metric, e.g. ih.assets/attributes.",
+    "TREND_WINDOW": "Use a trend window such as 24h, 7d or 30d."
   },
   "boundary": {
     "title": "Something went wrong on this page",

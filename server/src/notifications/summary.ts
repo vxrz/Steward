@@ -494,7 +494,7 @@ function datasetReadable(processId: string): boolean {
 
 /** The first dashboard that shows the dataset, else the dashboards list. */
 function dashboardOf(key: string): string {
-  const d = db().get<{ id: string }>('SELECT id FROM dashboards WHERE definition LIKE ? ORDER BY name LIMIT 1', `%"dataset":"${key}"%`);
+  const d = db().get<{ id: string }>('SELECT id FROM dashboards WHERE lower(definition) LIKE lower(?) ORDER BY name LIMIT 1', `%"dataset":"${key}"%`);
   return d ? `/dashboards/${d.id}` : '/dashboards';
 }
 
