@@ -25,6 +25,7 @@ import {
   type MonitorSummary,
   type TemplateParam,
   isGitPlatformKind,
+  validMqttFilter,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -328,6 +329,8 @@ const PLATFORM_KIND: Partial<Record<string, string>> = {
   checkmk: 'checkmk',
   prometheus: 'prometheus',
   kubernetes: 'kubernetes',
+  kafka: 'kafka',
+  mqtt: 'mqtt',
   zabbix: 'zabbix',
 };
 
@@ -437,6 +440,10 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
     }
     if ('platform' in c && c.platform) {
       const p = resolvePlatformRef(c.platform, c.type === 'freshness' && c.source === 'insightsHub' ? 'insights-hub' : PLATFORM_KIND[c.type]);
+      if (c.type === 'mqtt' && !validMqttFilter(c.topic))
+        throw new HttpError(400, `Check "${c.id}": "${c.topic}" is no MQTT topic or pattern (+ and # only as whole levels, # last)`, 'CHECK_MQTT_TOPIC', {
+          check: c.id,
+        });
       if (c.type === 'git' && !isGitPlatformKind(p.kind))
         throw new HttpError(400, `Check "${c.id}": "${p.name}" is not a GitHub, GitLab or Forgejo/Gitea platform`, 'CHECK_GIT_PLATFORM', {
           check: c.id,

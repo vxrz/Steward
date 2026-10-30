@@ -21,13 +21,14 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery } from '@tanstack/react-query';
-import { IconEdit, IconExternalLink, IconFileImport, IconKey, IconPlus, IconRefresh, IconTrash } from '@tabler/icons-react';
+import { IconEdit, IconEye, IconExternalLink, IconFileImport, IconKey, IconPlus, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   COMPONENT_TYPES,
   GIT_PLATFORM_KINDS,
   type ApplicationComponent,
   type RepositoryKey,
+  type PeekedMessage,
   type ApplicationDetail,
   type ComponentType,
   type SbomChange,
@@ -82,6 +83,15 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
     }
   };
   const [drafting, setDrafting] = useState<CredentialDraft | null>(null);
+  const [peeking, setPeeking] = useState<ApplicationComponent | null>(null);
+  const readTopic = async (c: ApplicationComponent) => {
+    try {
+      onSaved(await post<ApplicationDetail>(`/applications/${app.id}/components/${c.id}/topic`, {}));
+      notifications.show({ color: 'green', message: t('components.topic.done', { name: c.name }) });
+    } catch (e) {
+      notifyError(e);
+    }
+  };
   const remove = async (c: ApplicationComponent) => {
     if (!(await confirmDanger({ action: 'remove', message: t('components.removeConfirm', { name: c.name }) }))) return;
     try {
@@ -158,6 +168,7 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                     {c.sbom && <SbomLine sbom={c.sbom} />}
                     {c.type === 'kubernetes-namespace' && <ClusterLine component={c} />}
                     {c.type === 'repository' && c.platformId && <RepositoryLine component={c} onRegister={editable ? setDrafting : undefined} />}
+                    {c.type === 'kafka-topic' && c.platformId && <TopicLine component={c} />}
                   </Table.Td>
                   {withEnv && (
                     <Table.Td className="nowrap">
@@ -177,6 +188,15 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                           <ActionIcon variant="subtle" aria-label={t('components.cluster.readNow', { name: c.name })} onClick={() => void readCluster(c)}>
                             <IconRefresh size={16} />
                           </ActionIcon>
+                        ) : c.type === 'kafka-topic' && c.platformId ? (
+                          <>
+                            <ActionIcon variant="subtle" aria-label={t('components.topic.readNow', { name: c.name })} onClick={() => void readTopic(c)}>
+                              <IconRefresh size={16} />
+                            </ActionIcon>
+                            <ActionIcon variant="subtle" aria-label={t('components.topic.peek', { name: c.name })} onClick={() => setPeeking(c)}>
+                              <IconEye size={16} />
+                            </ActionIcon>
+                          </>
                         ) : c.type === 'repository' && c.platformId ? (
                           <ActionIcon variant="subtle" aria-label={t('components.repository.readNow', { name: c.name })} onClick={() => void readRepository(c)}>
                             <IconRefresh size={16} />
@@ -200,6 +220,7 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
       )}
       {app.stack.length > 0 && <StackRollup app={app} />}
       {editing && <ComponentFormModal app={app} component={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
+      {peeking && <PeekModal component={peeking} onClose={() => setPeeking(null)} />}
       {drafting && <CredentialEditor initial={null} draft={drafting} onClose={() => setDrafting(null)} onSaved={() => setDrafting(null)} />}
       {importing && (
         <SbomImportModal
@@ -355,6 +376,97 @@ function RepositoryLine({ component: c, onRegister }: { component: ApplicationCo
         </Text>
       )}
     </Stack>
+  );
+}
+
+/** What Steward last read from a Kafka topic (#112): newest message, partitions, settings, consumer lag, schema. */
+function TopicLine({ component: c }: { component: ApplicationComponent }) {
+  const { t } = useTranslation('applications');
+  const r = c.topic;
+  if (!r)
+    return (
+      <Text size="xs" c="dimmed">
+        {t('components.topic.notRead')}
+      </Text>
+    );
+  const retention = r.configs['retention.ms'];
+  const days = retention && Number(retention) > 0 ? Math.round(Number(retention) / 86_400_000) : null;
+  return (
+    <Stack gap={0} data-testid="topic-readout">
+      {r.error && (
+        <Text size="xs" c="red.8">
+          {t('components.cluster.error', { error: r.error })}
+        </Text>
+      )}
+      <Text size="xs" c="dimmed">
+        {t('components.cluster.read', { date: fmtDate(r.readAt) })} ·{' '}
+        {[
+          r.lastMessageAt ? t('components.topic.newest', { date: fmtDate(r.lastMessageAt) }) : null,
+          t('components.topic.partitions', { count: r.partitions, replicas: r.replicationFactor ?? '–' }),
+          r.configs['cleanup.policy'] ? `cleanup.policy=${r.configs['cleanup.policy']}` : null,
+          days !== null ? t('components.topic.retention', { days }) : retention === '-1' ? t('components.topic.retentionForever') : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+      </Text>
+      {r.groups.length > 0 && (
+        <Text size="xs" c="dimmed">
+          {t('components.topic.groups', { groups: r.groups.map((g) => `${g.group} ${g.lag}`).join(', ') })}
+        </Text>
+      )}
+      {r.schema && (
+        <Text size="xs" c="dimmed">
+          {t('components.topic.schema', { subject: r.schema.subject, version: r.schema.version, type: r.schema.type })}
+        </Text>
+      )}
+    </Stack>
+  );
+}
+
+/** The newest messages of a topic (#112) – only where the platform allows it and for its managers; sensitive fields hidden. */
+function PeekModal({ component: c, onClose }: { component: ApplicationComponent; onClose: () => void }) {
+  const { t } = useTranslation(['applications', 'common']);
+  const [messages, setMessages] = useState<PeekedMessage[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const read = async () => {
+    setBusy(true);
+    try {
+      setMessages((await post<{ messages: PeekedMessage[] }>(`/platforms/${c.platformId}/kafka/peek`, { topic: c.name, count: 5 })).messages);
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal opened onClose={onClose} size="xl" title={t('components.topic.peekTitle', { name: c.name })}>
+      <Stack gap="sm">
+        <Alert color="yellow">{t('components.topic.peekNote')}</Alert>
+        {error && <Alert color="red">{error}</Alert>}
+        {messages?.length === 0 && <Text c="dimmed">{t('components.topic.peekEmpty')}</Text>}
+        {messages?.map((m) => (
+          <Box key={`${m.partition}:${m.offset}`}>
+            <Text size="xs" c="dimmed">
+              {t('components.topic.peekLine', { partition: m.partition, offset: m.offset, date: m.timestamp ? fmtDate(m.timestamp) : '–', key: m.key ?? '–' })}
+              {m.truncated ? ` · ${t('components.topic.truncated')}` : ''}
+            </Text>
+            <Box component="pre" className="mono" style={{ whiteSpace: 'pre-wrap', fontSize: 12, margin: 0 }}>
+              {m.value}
+            </Box>
+          </Box>
+        ))}
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            {t('common:close')}
+          </Button>
+          <Button onClick={() => void read()} loading={busy}>
+            {messages ? t('components.topic.peekAgain') : t('components.topic.peekRead')}
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
   );
 }
 
@@ -527,6 +639,11 @@ function ComponentFormModal({
     queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === 'kubernetes'),
     enabled: type === 'kubernetes-namespace',
   });
+  const kafkaPlatforms = useQuery({
+    queryKey: ['platforms', 'kafka'],
+    queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === 'kafka'),
+    enabled: type === 'kafka-topic',
+  });
   const gitPlatforms = useQuery({
     queryKey: ['platforms', 'git'],
     queryFn: async () =>
@@ -548,7 +665,7 @@ function ComponentFormModal({
       url: url.trim(),
       note,
       environment: environment.trim(),
-      ...(type === 'kubernetes-namespace' || type === 'repository' ? { platformId } : {}),
+      ...(type === 'kubernetes-namespace' || type === 'repository' || type === 'kafka-topic' ? { platformId } : {}),
       stack: stackBody(stack),
     };
     try {
@@ -606,6 +723,17 @@ function ComponentFormModal({
               onChange={setPlatformId}
               clearable
               nothingFoundMessage={t('components.cluster.noPlatforms')}
+            />
+          )}
+          {type === 'kafka-topic' && (
+            <Select
+              label={t('components.topic.platform')}
+              description={t('components.topic.platformHint')}
+              data={(kafkaPlatforms.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+              value={platformId}
+              onChange={setPlatformId}
+              clearable
+              nothingFoundMessage={t('components.topic.noPlatforms')}
             />
           )}
           {type === 'repository' && (

@@ -344,6 +344,28 @@
       "expires": "expires {{date}}",
       "register": "Add to the credentials register (you review it first)",
       "registerKey": "Add {{title}} to the credentials register"
+    },
+    "topic": {
+      "readNow": "Read the topic {{name}} now",
+      "done": "Topic {{name}} read",
+      "notRead": "Not read from Kafka yet",
+      "platform": "Kafka platform",
+      "platformHint": "The cluster of the topic; the name is then the topic name. Steward reads it every 6 hours",
+      "noPlatforms": "No Kafka platform you may use",
+      "newest": "newest message {{date}}",
+      "partitions": "{{count}} partitions × {{replicas}} replicas",
+      "retention": "retention {{days}} days",
+      "retentionForever": "kept forever",
+      "groups": "Consumer groups (lag): {{groups}}",
+      "schema": "Schema {{subject}} version {{version}} ({{type}})",
+      "peek": "Read the newest messages of {{name}}",
+      "peekTitle": "Newest messages of {{name}}",
+      "peekNote": "For troubleshooting only: at most 5 messages of 4 KB, fields that look sensitive are hidden, and every read is recorded in the audit log. Only platform managers can read, and only when the platform allows it (variable peek = on).",
+      "peekRead": "Read messages",
+      "peekAgain": "Read again",
+      "peekEmpty": "The topic has no messages",
+      "peekLine": "Partition {{partition}}, offset {{offset}}, {{date}}, key {{key}}",
+      "truncated": "cut off"
     }
   },
   "credentials": {

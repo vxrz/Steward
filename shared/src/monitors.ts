@@ -50,6 +50,8 @@ export const CHECK_TYPES = [
   'prometheus',
   'kubernetes',
   'git',
+  'kafka',
+  'mqtt',
   'monitor',
 ] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
@@ -67,6 +69,8 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   gatus: { label: 'Gatus endpoint', help: 'Status of an endpoint monitored by Gatus' },
   checkmk: { label: 'CheckMk host or service', help: 'Current state of a host or service in CheckMk (OK, WARN, CRIT, UNKNOWN)' },
   kubernetes: { label: 'Kubernetes deployments', help: 'Deployments of a namespace are ready (e.g. 3/3) and no pod is crash-looping' },
+  kafka: { label: 'Kafka topic', help: 'New messages on a topic within N minutes, the lag of a consumer group, a group that is stuck, the schema version' },
+  mqtt: { label: 'MQTT topics', help: 'Messages on an MQTT topic within N minutes, devices (topics of a pattern) that went silent, connected clients' },
   git: {
     label: 'Repository pipeline',
     help: 'The pipeline of the default branch on GitHub, GitLab or Forgejo passes; optionally few enough open security alerts',
@@ -268,6 +272,35 @@ export const checkSchema = z.discriminatedUnion('type', [
     /** degraded when more open security alerts of this severity or higher (GitHub Dependabot); unset: alerts are not checked */
     maxCritical: z.number().int().min(0).max(100000).optional(),
     maxHigh: z.number().int().min(0).max(100000).optional(),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('kafka'),
+    platform: platformRef,
+    /** The topic (#112) */
+    topic: z.string().trim().min(1).max(249),
+    /** down (or quietAs) when the newest message is older than this */
+    messagesWithinMinutes: z.number().int().min(1).max(43200).optional(),
+    quietAs: z.enum(['down', 'degraded']).default('down'),
+    /** A consumer group: degraded above maxLag, down when it is stuck (lag and no commit for stuckMinutes) */
+    group: z.string().trim().max(255).optional(),
+    maxLag: z.number().int().min(0).optional(),
+    stuckMinutes: z.number().int().min(1).max(10080).default(15),
+    /** degraded when the latest schema version of <topic>-value is another one */
+    schemaVersion: z.number().int().min(1).optional(),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('mqtt'),
+    platform: platformRef,
+    /** Topic or pattern with + and # (#113), e.g. plant/+/status */
+    topic: z.string().trim().min(1).max(500),
+    /** any: a message on any matching topic within the window; each: every topic of the pattern seen so far (silent devices) */
+    mode: z.enum(['any', 'each']).default('any'),
+    withinMinutes: z.number().int().min(1).max(43200),
+    quietAs: z.enum(['down', 'degraded']).default('down'),
+    /** degraded below this many connected clients (brokers that publish $SYS/broker/clients/connected) */
+    minClients: z.number().int().min(0).optional(),
   }),
   z.object({ ...checkBase, type: z.literal('monitor'), monitor: z.string().trim().min(1).max(200) }),
 ]);

@@ -1,5 +1,6 @@
 import type { ImageProductRule, NamespaceReadout } from './kubernetes.js';
 import type { RepositoryReadout } from './git.js';
+import type { TopicReadout } from './kafka.js';
 import type { Backlink, ItemLink, ReviewStatus, ServiceCriticality } from './records.js';
 
 /**
@@ -334,6 +335,8 @@ export interface ApplicationComponent {
   cluster?: NamespaceReadout | null;
   /** Repository (#107): what Steward last read from its Git platform (platformId: a platform of kind github, gitlab or forgejo) */
   repository?: RepositoryReadout | null;
+  /** Kafka topic (#112): what Steward last read from its Kafka platform */
+  topic?: TopicReadout | null;
   createdAt: string;
   createdBy: string;
   updatedAt: string;

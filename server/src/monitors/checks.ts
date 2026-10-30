@@ -690,6 +690,140 @@ async function checkGit(c: CheckOf<'git'>, ctx: ExecContext): Promise<RawResult>
   };
 }
 
+// ---------- Kafka ----------
+
+/** Offsets seen per topic or group (for brokers without the newest-message time, and for stuck groups): value and since when. */
+const kafkaSeen = new Map<string, { value: number; since: number }>();
+const moved = (key: string, value: number, now: number) => {
+  const prev = kafkaSeen.get(key);
+  if (!prev || prev.value !== value) kafkaSeen.set(key, { value, since: now });
+  return kafkaSeen.get(key)!;
+};
+
+const STATUS_RANK: Record<string, number> = { up: 0, degraded: 1, down: 2 };
+const worst = (a: MonitorStatus, b: MonitorStatus): MonitorStatus => ((STATUS_RANK[b] ?? 0) > (STATUS_RANK[a] ?? 0) ? b : a);
+
+/** A topic (#112): new messages within the window, a consumer group's lag and whether it is stuck, the schema version. */
+async function checkKafka(c: CheckOf<'kafka'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  if (platform.kind !== 'kafka') return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a Kafka platform` };
+  const { withKafka, kafkaError } = await import('../kafka/client.js');
+  const { assertTopic, lagOf, schemaOf } = await import('../kafka/service.js');
+  let r;
+  try {
+    assertTopic(c.topic);
+    r = await withKafka(platform, secrets, async (k) => {
+      const ends = await k.ends(c.topic);
+      if (!ends.length) return null;
+      const newest = c.messagesWithinMinutes ? await k.newest(c.topic) : null;
+      const groups = c.group ? await k.groups(c.topic, [c.group]) : [];
+      return { ends, newest, groups };
+    });
+  } catch (e) {
+    return { status: 'unknown', message: `Kafka could not be read: ${kafkaError(e)}`.slice(0, 500), durationMs: Date.now() - t0 };
+  }
+  if (!r) return { status: 'unknown', message: `Kafka: no topic "${c.topic}"`, durationMs: Date.now() - t0 };
+  const now = Date.now();
+  const parts: string[] = [];
+  let status: MonitorStatus = 'up';
+  const endOffset = r.ends.reduce((n, e) => n + e.end, 0);
+  const value: Record<string, unknown> = { endOffset };
+  if (c.messagesWithinMinutes) {
+    // the newest message's time (Kafka 3.0+), else when the end offsets last moved (known after the first window)
+    const seen = moved(`${platform.id}|${c.topic}`, endOffset, now);
+    const last = r.newest ?? (now - seen.since >= c.messagesWithinMinutes * 60_000 ? seen.since : null);
+    const age = last === null ? null : Math.round((now - last) / 60_000);
+    value.minutesSinceMessage = age;
+    if (age !== null && age > c.messagesWithinMinutes) {
+      status = worst(status, c.quietAs);
+      parts.push(`no new message for ${age} minutes (expected within ${c.messagesWithinMinutes})`);
+    } else parts.push(age === null ? 'watching for new messages' : `newest message ${age} minutes ago`);
+  }
+  if (c.group) {
+    const g = r.groups[0];
+    if (!g) return { status: 'unknown', message: `Kafka: consumer group "${c.group}" has no offsets on ${c.topic}`, durationMs: now - t0, value };
+    const lag = lagOf(r.ends, g);
+    const committed = [...g.committed.values()].reduce((n, x) => n + x, 0);
+    const seen = moved(`${platform.id}|${c.group}|${c.topic}`, committed, now);
+    value.lag = lag.lag;
+    if (lag.lag > 0 && now - seen.since >= c.stuckMinutes * 60_000) {
+      status = worst(status, 'down');
+      parts.push(`group ${c.group} stuck: lag ${lag.lag}, no commit for ${Math.round((now - seen.since) / 60_000)} minutes`);
+    } else if (c.maxLag !== undefined && lag.lag > c.maxLag) {
+      status = worst(status, 'degraded');
+      parts.push(`group ${c.group} lag ${lag.lag} (at most ${c.maxLag})`);
+    } else parts.push(`group ${c.group} lag ${lag.lag}`);
+  }
+  if (c.schemaVersion !== undefined) {
+    try {
+      const sch = await schemaOf(platform, secrets, c.topic);
+      value.schemaVersion = sch?.version ?? null;
+      if (!sch) {
+        status = worst(status, 'degraded');
+        parts.push(`no schema ${c.topic}-value`);
+      } else if (sch.version !== c.schemaVersion) {
+        status = worst(status, 'degraded');
+        parts.push(`schema version ${sch.version} (expected ${c.schemaVersion})`);
+      } else parts.push(`schema version ${sch.version}`);
+    } catch (e) {
+      parts.push(`schema not readable: ${(e as Error).message}`);
+    }
+  }
+  return { status, message: `Kafka: ${c.topic} – ${parts.join(', ') || 'topic readable'}`.slice(0, 500), durationMs: Date.now() - t0, value };
+}
+
+// ---------- MQTT ----------
+
+/** Topics of a pattern (#113), from what the broker's listener saw: any message within the window, or every topic (silent devices). */
+async function checkMqtt(c: CheckOf<'mqtt'>, ctx: ExecContext): Promise<RawResult> {
+  const { platform } = platformFor(ctx.owner, c.platform);
+  if (platform.kind !== 'mqtt') return { status: 'unknown', message: `Check could not run: "${platform.name}" is not an MQTT platform` };
+  const { mqttState } = await import('../mqtt/listener.js');
+  const st = await mqttState(platform.id, c.topic, c.minClients !== undefined);
+  if (st.error && !st.listeningSince) return { status: 'unknown', message: `MQTT: ${st.error}`.slice(0, 500) };
+  const now = Date.now();
+  const window = c.withinMinutes * 60_000;
+  const mins = (t: number) => Math.round((now - t) / 60_000);
+  const parts: string[] = [];
+  let status: MonitorStatus = 'up';
+  const value: Record<string, unknown> = { topics: st.topics.length };
+  const newest = st.topics.reduce((m, t) => Math.max(m, t.lastAt), 0);
+  const watched = st.listeningSince ? now - st.listeningSince : 0;
+  if (c.mode === 'any') {
+    if (!newest && watched < window)
+      return { status: 'unknown', message: `MQTT: ${c.topic} – watching for ${mins(st.listeningSince ?? now)} minutes, no message yet`, value };
+    if (!newest || now - newest > window) {
+      status = c.quietAs;
+      parts.push(newest ? `no message for ${mins(newest)} minutes (expected within ${c.withinMinutes})` : `no message within ${c.withinMinutes} minutes`);
+    } else parts.push(`newest message ${mins(newest)} minutes ago`);
+  } else {
+    if (!st.topics.length) return { status: 'unknown', message: `MQTT: ${c.topic} – no topic of the pattern seen yet`, value };
+    const silent = st.topics.filter((t) => now - t.lastAt > window);
+    value.silent = silent.length;
+    if (silent.length === st.topics.length) status = c.quietAs;
+    else if (silent.length) status = 'degraded';
+    parts.push(
+      silent.length
+        ? `${silent.length} of ${st.topics.length} silent for more than ${c.withinMinutes} minutes: ${silent
+            .slice(0, 5)
+            .map((t) => t.topic)
+            .join(', ')}${silent.length > 5 ? ` and ${silent.length - 5} more` : ''}`
+        : `all ${st.topics.length} topics sent within ${c.withinMinutes} minutes`,
+    );
+  }
+  if (c.minClients !== undefined) {
+    value.clients = st.clients;
+    if (st.clients === null) parts.push('connected clients unknown (the broker publishes no $SYS/broker/clients/connected)');
+    else if (st.clients < c.minClients) {
+      status = worst(status, 'degraded');
+      parts.push(`${st.clients} clients connected (at least ${c.minClients})`);
+    } else parts.push(`${st.clients} clients connected`);
+  }
+  if (st.error) parts.push(`listener: ${st.error}`);
+  return { status, message: `MQTT: ${c.topic} – ${parts.join(', ')}`.slice(0, 500), value };
+}
+
 // ---------- dispatch ----------
 
 type Active =
@@ -702,7 +836,9 @@ type Active =
   | CheckOf<'checkmk'>
   | CheckOf<'prometheus'>
   | CheckOf<'kubernetes'>
-  | CheckOf<'git'>;
+  | CheckOf<'git'>
+  | CheckOf<'kafka'>
+  | CheckOf<'mqtt'>;
 
 /** Runs an active check; heartbeat and sub-monitor checks are evaluated by the engine from stored state. */
 export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawResult> {
@@ -728,6 +864,10 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkKubernetes(c, ctx);
       case 'git':
         return await checkGit(c, ctx);
+      case 'kafka':
+        return await checkKafka(c, ctx);
+      case 'mqtt':
+        return await checkMqtt(c, ctx);
     }
   } catch (e) {
     if (e instanceof CheckSetupError) return { status: 'unknown', message: `Check could not run: ${e.message}` };

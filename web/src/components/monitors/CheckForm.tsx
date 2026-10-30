@@ -625,6 +625,160 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
           />
         </>
       )}
+      {c.type === 'kafka' && (
+        <>
+          <PlatformSelect
+            value={c.platform}
+            onChange={(v) => set({ platform: v })}
+            platforms={platforms}
+            kind="kafka"
+            disabled={disabled}
+            error={err('platform')}
+          />
+          <TextInput
+            error={err('topic')}
+            data-field="topic"
+            label={t('form.kafkaTopic')}
+            required
+            disabled={disabled}
+            value={c.topic}
+            onChange={(e) => set({ topic: e.currentTarget.value })}
+            classNames={{ input: 'mono' }}
+          />
+          <Group grow align="flex-start">
+            <NumberInput
+              error={err('messagesWithinMinutes')}
+              data-field="messagesWithinMinutes"
+              label={t('form.kafkaWithin')}
+              description={t('form.kafkaWithinHint')}
+              min={1}
+              disabled={disabled}
+              value={c.messagesWithinMinutes ?? ''}
+              onChange={(v) => set({ messagesWithinMinutes: num(v) })}
+            />
+            <Select
+              label={t('form.quietAs')}
+              data={[
+                { value: 'down', label: t('status.down') },
+                { value: 'degraded', label: t('status.degraded') },
+              ]}
+              value={c.quietAs ?? 'down'}
+              allowDeselect={false}
+              disabled={disabled}
+              onChange={(v) => v && set({ quietAs: v as 'down' | 'degraded' })}
+            />
+          </Group>
+          <Group grow align="flex-start">
+            <TextInput
+              error={err('group')}
+              data-field="group"
+              label={t('form.kafkaGroup')}
+              description={t('form.kafkaGroupHint')}
+              disabled={disabled}
+              value={c.group ?? ''}
+              onChange={(e) => set({ group: e.currentTarget.value || undefined })}
+              classNames={{ input: 'mono' }}
+            />
+            <NumberInput
+              error={err('maxLag')}
+              data-field="maxLag"
+              label={t('form.kafkaMaxLag')}
+              min={0}
+              disabled={disabled || !c.group}
+              value={c.maxLag ?? ''}
+              onChange={(v) => set({ maxLag: num(v) })}
+            />
+            <NumberInput
+              error={err('stuckMinutes')}
+              data-field="stuckMinutes"
+              label={t('form.kafkaStuck')}
+              min={1}
+              disabled={disabled || !c.group}
+              value={c.stuckMinutes ?? 15}
+              onChange={(v) => set({ stuckMinutes: num(v) ?? 15 })}
+            />
+          </Group>
+          <NumberInput
+            error={err('schemaVersion')}
+            data-field="schemaVersion"
+            label={t('form.kafkaSchema')}
+            description={t('form.kafkaSchemaHint')}
+            min={1}
+            disabled={disabled}
+            value={c.schemaVersion ?? ''}
+            onChange={(v) => set({ schemaVersion: num(v) })}
+          />
+        </>
+      )}
+      {c.type === 'mqtt' && (
+        <>
+          <PlatformSelect
+            value={c.platform}
+            onChange={(v) => set({ platform: v })}
+            platforms={platforms}
+            kind="mqtt"
+            disabled={disabled}
+            error={err('platform')}
+          />
+          <Group grow align="flex-start">
+            <TextInput
+              error={err('topic')}
+              data-field="topic"
+              label={t('form.mqttTopic')}
+              description={t('form.mqttTopicHint')}
+              required
+              disabled={disabled}
+              value={c.topic}
+              onChange={(e) => set({ topic: e.currentTarget.value })}
+              classNames={{ input: 'mono' }}
+            />
+            <Select
+              label={t('form.mqttMode')}
+              data={[
+                { value: 'any', label: t('form.mqttModeAny') },
+                { value: 'each', label: t('form.mqttModeEach') },
+              ]}
+              value={c.mode ?? 'any'}
+              allowDeselect={false}
+              disabled={disabled}
+              onChange={(v) => v && set({ mode: v as 'any' | 'each' })}
+            />
+          </Group>
+          <Group grow align="flex-start">
+            <NumberInput
+              error={err('withinMinutes')}
+              data-field="withinMinutes"
+              label={t('form.mqttWithin')}
+              required
+              min={1}
+              disabled={disabled}
+              value={c.withinMinutes}
+              onChange={(v) => set({ withinMinutes: num(v) ?? 15 })}
+            />
+            <Select
+              label={t('form.quietAs')}
+              data={[
+                { value: 'down', label: t('status.down') },
+                { value: 'degraded', label: t('status.degraded') },
+              ]}
+              value={c.quietAs ?? 'down'}
+              allowDeselect={false}
+              disabled={disabled}
+              onChange={(v) => v && set({ quietAs: v as 'down' | 'degraded' })}
+            />
+            <NumberInput
+              error={err('minClients')}
+              data-field="minClients"
+              label={t('form.mqttMinClients')}
+              description={t('form.mqttMinClientsHint')}
+              min={0}
+              disabled={disabled}
+              value={c.minClients ?? ''}
+              onChange={(v) => set({ minClients: num(v) })}
+            />
+          </Group>
+        </>
+      )}
       {c.type === 'git' && (
         <>
           <PlatformSelect

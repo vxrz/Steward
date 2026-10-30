@@ -663,7 +663,20 @@
     "COMPONENT_REPOSITORY_REQUIRED": "Choose the Git platform of the repository first.",
     "CHECK_GIT_PLATFORM": "Check \"{{check}}\": \"{{name}}\" is not a GitHub, GitLab or Forgejo/Gitea platform.",
     "ACCESS_CHECK_GIT_SOURCE": "The Git source needs a GitHub, GitLab or Forgejo/Gitea platform.",
-    "ACCESS_CHECK_GIT_READ": "The Git platform could not be read: {{detail}}"
+    "ACCESS_CHECK_GIT_READ": "The Git platform could not be read: {{detail}}",
+    "CHECK_MQTT_TOPIC": "Check \"{{check}}\": that is no MQTT topic or pattern (+ and # only as whole levels, # last).",
+    "COMPONENT_TOPIC_PLATFORM": "Choose a Kafka platform you may use.",
+    "COMPONENT_TOPIC_REQUIRED": "Choose the Kafka platform of the topic first.",
+    "KAFKA_BOOTSTRAP": "The Kafka platform names no bootstrap servers (variable bootstrap, host:port).",
+    "KAFKA_CREDENTIALS": "The Kafka platform needs an API key (username) and secret (password).",
+    "KAFKA_OAUTH": "OAUTHBEARER needs the variable tokenUrl (https) and the secrets clientId and clientSecret.",
+    "KAFKA_OAUTH_TOKEN": "The identity provider answered HTTP {{status}} without a token.",
+    "KAFKA_PEEK_FORBIDDEN": "Only who may manage the platform reads messages.",
+    "KAFKA_PEEK_OFF": "Reading messages is off for this platform (the variable peek = on turns it on).",
+    "KAFKA_READ": "Kafka could not be read: {{detail}}",
+    "KAFKA_TOPIC_NAME": "A Kafka topic name has letters, digits, \".\", \"_\" and \"-\" (at most 249).",
+    "MQTT_PLATFORM": "That is not an MQTT platform.",
+    "MQTT_URL": "The MQTT platform needs the variable url (mqtt://, mqtts://, ws:// or wss://host:port)."
   },
   "boundary": {
     "title": "Something went wrong on this page",

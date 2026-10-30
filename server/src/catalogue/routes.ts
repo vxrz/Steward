@@ -90,6 +90,17 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
     return apps.getApplication(id!);
   });
 
+  // Kafka topic (#112): read settings, offsets, consumer groups and the schema now
+  app.post('/applications/:id/components/:componentId/topic', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+    const { id, componentId } = params(req);
+    const a = apps.getApplication(id!);
+    if (!a.canEdit) throw new HttpError(403, 'Only who may change the application reads its topics now', 'FORBIDDEN');
+    if (!a.components.some((c) => c.id === componentId)) throw new HttpError(404, 'This component does not belong to the application', 'COMPONENT_NOT_FOUND');
+    const { refreshTopic } = await import('../kafka/service.js');
+    await refreshTopic(componentId!, currentUser()!.username);
+    return apps.getApplication(id!);
+  });
+
   // ---------- systems and "runs on" (#129) ----------
   app.get('/systems', async () => systems.listSystems());
   app.post('/systems', async (req) => systems.createSystem(systems.systemInput.parse(req.body)));

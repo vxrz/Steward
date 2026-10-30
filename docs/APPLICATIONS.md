@@ -68,6 +68,8 @@ A component of type **Kubernetes namespace** names its **cluster** (a platform o
 
 A component of type **Repository** can name its **Git platform** (GitHub, GitLab or Forgejo/Gitea) with the repository path as name (`acme/shop-web`): Steward reads the default branch and its pipeline, the latest release, open security alerts, packages, deploy keys and tokens (each can be added to the credentials register) and the tech stack from the repository's files (source _read from the repository files_) every 6 hours or on _Read now_ ([GIT-PLATFORMS.md](GIT-PLATFORMS.md)).
 
+A component of type **Kafka topic** can name its **Kafka platform**, with the topic name as name: Steward reads its settings, partitions, the newest message's time, the consumer groups with their lag and the schema version every 6 hours or on _Read now_; platform managers can read a few recent messages where the platform allows it ([KAFKA.md](KAFKA.md)).
+
 A component can have an **environment** (see [Systems and environments](#systems-and-environments)): one Snowflake database per stage (`ORDERS_DEV`, `ORDERS_TEST`, `ORDERS_PROD`), one Kafka topic or namespace per stage, separate cloud accounts for prod and non-prod. Leave it empty when the component serves all environments – the repository, for example; every component from before 0.2.5 is such a component. Once components have environments, the table shows them and filters by environment (a filter keeps the components of all environments).
 
 ### Tech stack

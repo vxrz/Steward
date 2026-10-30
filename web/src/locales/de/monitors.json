@@ -212,7 +212,25 @@
     "gitFailedAs": "Wenn die Pipeline fehlschlägt",
     "gitMaxCritical": "Höchstens kritische Warnungen",
     "gitMaxHigh": "Höchstens kritische und hohe Warnungen",
-    "gitAlertsHint": "GitHub Dependabot; leer: Warnungen werden nicht geprüft"
+    "gitAlertsHint": "GitHub Dependabot; leer: Warnungen werden nicht geprüft",
+    "kafkaTopic": "Topic",
+    "kafkaWithin": "Neue Nachrichten innerhalb von (Minuten)",
+    "kafkaWithinHint": "Leer: neue Nachrichten werden nicht geprüft",
+    "quietAs": "Wenn nichts kam",
+    "kafkaGroup": "Consumer-Gruppe",
+    "kafkaGroupHint": "Leer: keine Gruppe wird geprüft",
+    "kafkaMaxLag": "Höchster Rückstand (Nachrichten)",
+    "kafkaStuck": "Hängt nach (Minuten ohne Commit)",
+    "kafkaSchema": "Erwartete Schema-Version",
+    "kafkaSchemaHint": "Von <topic>-value in der Schema Registry; leer: nicht geprüft",
+    "mqttTopic": "Topic oder Muster",
+    "mqttTopicHint": "+ eine Ebene, # der Rest, z. B. plant/+/status",
+    "mqttMode": "Was ankommen muss",
+    "mqttModeAny": "Eine Nachricht auf irgendeinem passenden Topic",
+    "mqttModeEach": "Eine Nachricht auf jedem bekannten Topic (stumme Geräte)",
+    "mqttWithin": "Innerhalb von (Minuten)",
+    "mqttMinClients": "Mindestens verbundene Clients",
+    "mqttMinClientsHint": "Broker, die $SYS/broker/clients/connected veröffentlichen"
   },
   "detail": {
     "template": "Vorlage",
@@ -522,6 +540,14 @@
       "label": "Repository-Pipeline",
       "help": "Die Pipeline des Standard-Branchs auf GitHub, GitLab oder Forgejo läuft durch; wahlweise auch wenige genug offene Sicherheitswarnungen"
     },
+    "kafka": {
+      "label": "Kafka-Topic",
+      "help": "Neue Nachrichten auf einem Topic innerhalb von N Minuten, der Rückstand einer Consumer-Gruppe, eine hängende Gruppe, die Schema-Version"
+    },
+    "mqtt": {
+      "label": "MQTT-Topics",
+      "help": "Nachrichten auf einem MQTT-Topic innerhalb von N Minuten, verstummte Geräte (Topics eines Musters), verbundene Clients"
+    },
     "monitor": {
       "label": "Untermonitor",
       "help": "Der Gesamtstatus eines anderen Monitors (nach dessen eigenem Zeitplan ausgewertet)"
@@ -539,6 +565,8 @@
     "prometheus": "Prometheus-Abfrage",
     "kubernetes": "Kubernetes-Deployments",
     "git": "Repository-Pipeline",
+    "kafka": "Kafka-Topic",
+    "mqtt": "MQTT-Topics",
     "monitor": "Untermonitor"
   },
   "uptime": {

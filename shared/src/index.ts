@@ -3,6 +3,8 @@ export * from './reviews.js';
 export * from './trends.js';
 export * from './kubernetes.js';
 export * from './git.js';
+export * from './kafka.js';
+export * from './mqtt.js';
 export * from './tags.js';
 export * from './process.js';
 export * from './graph.js';

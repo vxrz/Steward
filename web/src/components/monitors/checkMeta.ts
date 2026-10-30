@@ -7,6 +7,8 @@ import {
   IconFlame,
   IconBox,
   IconGitBranch,
+  IconTopologyStar3,
+  IconAntenna,
   IconHierarchy2,
   IconNetwork,
   IconPlugConnected,
@@ -27,6 +29,8 @@ export const CHECK_ICONS: Record<CheckType, typeof IconApi> = {
   prometheus: IconFlame,
   kubernetes: IconBox,
   git: IconGitBranch,
+  kafka: IconTopologyStar3,
+  mqtt: IconAntenna,
   monitor: IconHierarchy2,
 };
 
@@ -43,6 +47,8 @@ const DEFAULT_NAMES: Record<CheckType, string> = {
   prometheus: 'Prometheus query',
   kubernetes: 'Kubernetes deployments',
   git: 'Repository pipeline',
+  kafka: 'Kafka topic',
+  mqtt: 'MQTT topics',
   monitor: 'Sub-monitor',
 };
 
@@ -84,6 +90,10 @@ export function newCheck(type: CheckType, id: string): CheckDef {
       return { ...base, name, type, platform: '', namespace: '' } as CheckDef;
     case 'git':
       return { ...base, name, type, platform: '', repository: '', failedAs: 'down' } as CheckDef;
+    case 'kafka':
+      return { ...base, name, type, platform: '', topic: '', messagesWithinMinutes: 15, quietAs: 'down', stuckMinutes: 15 } as CheckDef;
+    case 'mqtt':
+      return { ...base, name, type, platform: '', topic: '', mode: 'any', withinMinutes: 15, quietAs: 'down' } as CheckDef;
     case 'monitor':
       return { ...base, name, type, monitor: '' } as CheckDef;
   }

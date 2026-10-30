@@ -264,8 +264,11 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
     `,
   },
   {
-    // #107: a repository component names its Git platform (platform_id) and keeps what Steward last read from it
-    name: 'catalogue-007-repository-readout',
-    sql: `ALTER TABLE application_components ADD COLUMN repo_state TEXT;`,
+    // #107, #112: repository and Kafka topic components name their platform (platform_id) and keep what Steward last read
+    name: 'catalogue-007-component-readouts',
+    sql: `
+      ALTER TABLE application_components ADD COLUMN repo_state TEXT;
+      ALTER TABLE application_components ADD COLUMN topic_state TEXT;
+    `,
   },
 ];

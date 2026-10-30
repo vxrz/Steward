@@ -82,6 +82,9 @@ await build({
   legalComments: 'none',
   // Browser automation needs a separate Playwright installation; not embedded.
   external: ['playwright', 'playwright-core', 'chromium-bidi', 'electron'],
+  // the Kafka client's WebAssembly helpers read native.wasm from disk next to the module, which is not there in the
+  // executable; its "bundled" variant carries the same module inline
+  alias: { '@platformatic/wasm-utils': '@platformatic/wasm-utils/bundled' },
   define: {
     'import.meta.url': '__sm_import_meta_url',
     'import.meta.dirname': '__dirname',

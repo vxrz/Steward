@@ -246,6 +246,54 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'kafka',
+    label: 'Kafka cluster (Confluent, read-only)',
+    description:
+      'A Kafka cluster (Confluent Cloud or Platform, Apache Kafka, Redpanda, MSK, Event Hubs): application components of type "Kafka topic" name it, and Steward reads topic settings, partitions, the newest message\'s time, consumer groups and their lag, and the schema version from the Schema Registry; monitors check new messages, lag and stuck consumer groups. Variable bootstrap: the bootstrap servers (host:port, comma-separated); sasl: plain (Confluent API key), scram-sha-256, scram-sha-512, oauthbearer or none; tls: true. Credential username/password: the service account\'s API key and secret. The base URL is the Schema Registry (optional; its own key in registryKey/registrySecret). peek = on lets platform managers read a few recent messages (sensitive fields hidden, audited). See docs/KAFKA.md.',
+    baseUrl: 'https://psrc-xxxxx.europe-west3.gcp.confluent.cloud',
+    config: {
+      // basic: the Schema Registry's key (registryKey / registrySecret) – username/password are the SASL credentials
+      auth: { type: 'basic' },
+      variables: { bootstrap: 'pkc-xxxxx.europe-west3.gcp.confluent.cloud:9092', sasl: 'plain', tls: 'true', peek: 'off' },
+      http: {},
+      testPath: '/subjects',
+    },
+    secretFields: [
+      { key: 'username', label: 'API key (SASL username)', help: 'The Kafka API key of a service account with read-only rights (docs/KAFKA.md)' },
+      { key: 'password', label: 'API secret (SASL password)' },
+      { key: 'registryKey', label: 'Schema Registry API key (optional)' },
+      { key: 'registrySecret', label: 'Schema Registry API secret (optional)' },
+      { key: 'clientId', label: 'OAuth client id (sasl = oauthbearer, optional)' },
+      { key: 'clientSecret', label: 'OAuth client secret (sasl = oauthbearer, optional)' },
+    ],
+    docs: [
+      {
+        title: 'Confluent Cloud API keys',
+        url: 'https://docs.confluent.io/cloud/current/security/authenticate/workload-identities/service-accounts/api-keys/overview.html',
+      },
+      { title: 'Confluent Schema Registry API', url: 'https://docs.confluent.io/platform/current/schema-registry/develop/api.html' },
+      { title: 'Kafka ACLs', url: 'https://kafka.apache.org/documentation/#security_authz' },
+    ],
+  },
+  {
+    kind: 'mqtt',
+    label: 'MQTT broker (monitor checks)',
+    description:
+      'An MQTT broker (Mosquitto, EMQX, HiveMQ, AWS IoT, Azure Event Grid …) for monitor checks of type "MQTT topics": messages on a topic within N minutes, devices that went silent, connected clients. Steward keeps one listening connection per broker a check uses and stores only when each topic last had a message and how many – never the content. Variable url: mqtt://, mqtts://, ws:// or wss://host:port. Credentials username/password, or certificate/privateKey (PEM) for a client certificate; a private CA under the HTTP settings. See docs/MQTT.md.',
+    baseUrl: '',
+    config: { auth: { type: 'none' }, variables: { url: 'mqtts://broker.example.com:8883' }, http: {} },
+    secretFields: [
+      { key: 'username', label: 'Username' },
+      { key: 'password', label: 'Password' },
+      { key: 'certificate', label: 'Client certificate (PEM, optional)' },
+      { key: 'privateKey', label: 'Client private key (PEM, optional)' },
+    ],
+    docs: [
+      { title: 'MQTT 3.1.1 topics and wildcards', url: 'https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106' },
+      { title: 'Mosquitto $SYS topics', url: 'https://mosquitto.org/man/mosquitto-8.html' },
+    ],
+  },
+  {
     kind: 'teams',
     label: 'Microsoft Teams channel (Workflows)',
     description:

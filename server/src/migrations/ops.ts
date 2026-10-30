@@ -162,4 +162,15 @@ export const OPS_MIGRATIONS: NamedMigration[] = [
       PRIMARY KEY (platform_id, query)
     );`,
   },
+  {
+    // MQTT (#113): per broker and topic only when the last message came and how many – never their content
+    name: 'ops-010-mqtt-topics',
+    sql: `CREATE TABLE mqtt_topics (
+      platform_id TEXT NOT NULL,
+      topic TEXT NOT NULL,
+      last_at TEXT NOT NULL,
+      messages INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (platform_id, topic)
+    );`,
+  },
 ];

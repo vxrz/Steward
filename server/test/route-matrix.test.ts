@@ -190,6 +190,8 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/platforms/:id/recordings/:recId': ADMIN,
   'DELETE /api/platforms/:id/recordings/:recId': ADMIN,
   'POST /api/platforms/:id/token/renew': ADMIN,
+  // Kafka peek (#112): platform managers only, and only where the platform allows it
+  'POST /api/platforms/:id/kafka/peek': ADMIN,
   'GET /api/platforms/:id/specs': USE,
   'POST /api/platforms/:id/specs': ADMIN,
   'DELETE /api/platforms/:id/specs/:specId': ADMIN,
@@ -464,6 +466,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/applications/:id/components/:componentId/sbom': DESIGN,
   'POST /api/applications/:id/components/:componentId/cluster': DESIGN,
   'POST /api/applications/:id/components/:componentId/repository': DESIGN,
+  'POST /api/applications/:id/components/:componentId/topic': DESIGN,
   'GET /api/systems': ALL,
   'POST /api/systems': DESIGN,
   'GET /api/systems/:id': ALL,

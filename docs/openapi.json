@@ -3704,6 +3704,8 @@
               "prometheus",
               "kubernetes",
               "git",
+              "kafka",
+              "mqtt",
               "monitor"
             ]
           },
@@ -4120,6 +4122,8 @@
                     "prometheus",
                     "kubernetes",
                     "git",
+                    "kafka",
+                    "mqtt",
                     "monitor"
                   ]
                 },

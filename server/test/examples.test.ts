@@ -176,6 +176,34 @@ describe('example library', () => {
     expect(d.metrics).toMatchObject({ repositories: 2, failing: 1, critical: 0, high: 1 });
   });
 
+  it('Kafka – topic standards finds the topics not to standard and the lagging consumer', async () => {
+    // topic components read from the simulated cluster (server/src/mock/mockKafka.ts), then the process on that application
+    const kafka = platformByKind.kafka!;
+    const app = await s.api('POST', '/applications', { name: 'Shop events', owners: [] });
+    for (const name of ['orders', 'payments', 'shop-events']) {
+      const a = await s.api('POST', `/applications/${app.id}/components`, { type: 'kafka-topic', name, platformId: kafka });
+      await s.api('POST', `/applications/${app.id}/components/${a.components.find((c: any) => c.name === name).id}/topic`, {});
+    }
+    const { id: runId } = await s.api('POST', '/runs', { processId: 'kafka-topic-standards', inputs: { apps: [app.id] } });
+    expect((await finish(runId)).status).toBe('succeeded');
+    const d = await s.api('GET', '/datasets/kafka.topics');
+    const by = Object.fromEntries(d.rows.map((r: any) => [r.Topic, r]));
+    expect(by.orders).toMatchObject({
+      'Partitions × replicas': '3 × 3',
+      Retention: '7 days',
+      Schema: 'orders-value v2',
+      'Most lag': 3323,
+      'Not to standard': '–',
+      _status: 'warning',
+    });
+    expect(by.payments).toMatchObject({ Schema: 'payments-value v1', 'Not to standard': '2 partitions (at least 3)', _status: 'warning' });
+    expect(by['shop-events']).toMatchObject({ Retention: 'compacted', Schema: '–', _status: 'warning' });
+    expect(by['shop-events']['Not to standard']).toBe(
+      '1 partitions (at least 3); 1 replicas (at least 3); min.insync.replicas 1 (at least 2); no schema shop-events-value',
+    );
+    expect(d.metrics).toMatchObject({ topics: 3, violations: 2, lagging: 1, quiet: 0 });
+  });
+
   it('published sensible datasets', async () => {
     const users = await s.api('GET', '/datasets/ih.users');
     expect(users.rowCount).toBe(15);
