@@ -57,7 +57,7 @@ API (administrators): `GET`/`PUT /api/settings/theme`, `POST /api/settings/theme
 ## Footer
 
 > Made with ❤️ in Erlangen, Germany · Metropolregion Nürnberg [Franconian rake] · Designed & built by uebelacker.io with AI
-> © 2026 uebelacker.io · Open source (Apache-2.0) · GitHub · Steward 0.2.4 · About Steward
+> © 2026 uebelacker.io · Open source (Apache-2.0) · GitHub · Steward 0.2.5 · About Steward
 
 The version comes from the web build; _About Steward_ (signed-in users) opens the About page with build details, links and the third-party licences.
 

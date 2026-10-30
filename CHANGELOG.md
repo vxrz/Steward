@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-10-30
+
+The service catalogue learns what applications run on: **systems** with their own tech stack, per environment, and an ordered list of environments. Credentials can belong to applications, components and systems, owners are picked from the users and teams, and tags take a value (`env=prod`) and filter lists. **Maintenance windows** – once or repeating – keep affected monitors quiet, can pause run messages, hold back objective breach messages and tell the owners in advance, with a calendar and .ics files. **Incident reviews** record what happened with a timeline prefilled from what Steward saw, and track their measures with owners, due dates and reminders. Four database migrations, all additive: `catalogue-004-systems`, `credentials-003-belongs-to`, `catalogue-005-maintenance` and `records-005-measures`.
+
 ### Added
 
 - **Systems** (#129): servers, VMs, clusters, appliances and cloud services that applications run on, kept once under _Service management → Systems_ – with vendor or provider, CMDB link, owners, note, their own tech stack (by hand or from an SBOM) and optionally the Steward platform they are. Applications **run on** systems per environment; the application page groups them by environment, the system page lists its applications. The application's tech stack, the end-of-life messages (production first, `db01 (prod)`) and the scorecard part _Tech stack_ include systems. API v1: `/systems`, `/systems/{systemId}`, `/environments`.
@@ -19,6 +23,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 - Migration `catalogue-004-systems` (additive: tables `systems`, `system_stack`, `application_systems`, column `application_components.environment`).
 - Migration `records-005-measures` (additive: tables `record_measures`, `record_measure_reminders`).
 - Migration `catalogue-005-maintenance` (additive: tables `maintenance_windows`, `maintenance_targets`, `maintenance_notices`).
+
+### Changed
+
+- The record type of the Git sync example is now `RCA` (_Root cause analysis_): `PIR` is the key of the built-in incident review type. An installation that already has a type `PIR` (synced from Git or created by hand) keeps it; the built-in type then gets the key `IR`.
 
 ## [0.2.4] - 2026-10-29
 
@@ -449,7 +457,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/vxrz/steward/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/vxrz/steward/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/vxrz/steward/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/vxrz/steward/compare/v0.2.1...v0.2.2
