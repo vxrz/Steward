@@ -1,0 +1,4 @@
+Implementation plan
+
+1. Upload the new certificate
+2. Restart the agent
