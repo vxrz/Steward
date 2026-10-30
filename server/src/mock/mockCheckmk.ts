@@ -48,8 +48,9 @@ const wave = (t: number, amp: number) => amp * Math.sin((2 * Math.PI * (t % DAY)
 
 function seed(): { hosts: Host[]; services: Service[] } {
   const t0 = Date.now();
-  // /var on db01 fills by about 0.6 % a day: 82 % today, at 90 % (CheckMk's CRIT level) in about two weeks
-  const varUsed = (t: number) => 82 - (0.6 * (t0 - t)) / DAY + wave(t, 0.4);
+  // /var on db01 fills by about 0.8 % a day: 82 % today, at 90 % (CheckMk's CRIT level) in about 10 days – far enough
+  // from the example's 14-day warning that the daily wave cannot move it across (at 0.6 % a day it did, by time of day)
+  const varUsed = (t: number) => 82 - (0.8 * (t0 - t)) / DAY + wave(t, 0.4);
   return {
     hosts: [
       { name: 'db01', ...st(0, 'Packet received via smart PING') },
