@@ -625,6 +625,40 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
           />
         </>
       )}
+      {c.type === 'kubernetes' && (
+        <>
+          <PlatformSelect
+            value={c.platform}
+            onChange={(v) => set({ platform: v })}
+            platforms={platforms}
+            kind="kubernetes"
+            disabled={disabled}
+            error={err('platform')}
+          />
+          <Group grow align="flex-start">
+            <TextInput
+              error={err('namespace')}
+              data-field="namespace"
+              label={t('form.k8sNamespace')}
+              required
+              disabled={disabled}
+              value={c.namespace}
+              onChange={(e) => set({ namespace: e.currentTarget.value })}
+              classNames={{ input: 'mono' }}
+            />
+            <TextInput
+              error={err('deployment')}
+              data-field="deployment"
+              label={t('form.k8sDeployment')}
+              description={t('form.k8sDeploymentHint')}
+              disabled={disabled}
+              value={c.deployment ?? ''}
+              onChange={(e) => set({ deployment: e.currentTarget.value || undefined })}
+              classNames={{ input: 'mono' }}
+            />
+          </Group>
+        </>
+      )}
       {c.type === 'prometheus' && (
         <>
           <PlatformSelect

@@ -64,6 +64,8 @@ On the application page, _Components → Add component_: a **type** and a **name
 
 An application without components works as before. Within an application, a name is used once per type and environment.
 
+A component of type **Kubernetes namespace** names its **cluster** (a platform of kind Kubernetes): Steward reads its deployments, the images (into the tech stack, source _read from the cluster_), pods that are not well and cert-manager certificates every 6 hours or on _Read now_ ([KUBERNETES.md](KUBERNETES.md)).
+
 A component can have an **environment** (see [Systems and environments](#systems-and-environments)): one Snowflake database per stage (`ORDERS_DEV`, `ORDERS_TEST`, `ORDERS_PROD`), one Kafka topic or namespace per stage, separate cloud accounts for prod and non-prod. Leave it empty when the component serves all environments – the repository, for example; every component from before 0.2.5 is such a component. Once components have environments, the table shows them and filters by environment (a filter keeps the components of all environments).
 
 ### Tech stack

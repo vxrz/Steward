@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { linkInput, linkUpdate } from '../records/links.js';
 import { getPlatform } from '../platforms/service.js';
 import { HttpError } from '../util.js';
+import { currentUser } from '../auth/context.js';
 import * as apps from './applications.js';
 import * as cia from './cia.js';
 import * as comps from './components.js';
@@ -65,6 +66,17 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
   app.post('/applications/:id/components/:componentId/sbom', { bodyLimit: LARGE_BODIES.sbom.bytes }, async (req) => {
     const r = await comps.importSbom(params(req).id!, params(req).componentId!, comps.sbomInput.parse(req.body), apps.canEditApplication);
     return { preview: r.preview, application: apps.getApplication(params(req).id!) };
+  });
+
+  // Kubernetes namespace (#111): read deployments, pods and certificates now
+  app.post('/applications/:id/components/:componentId/cluster', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+    const { id, componentId } = params(req);
+    const a = apps.getApplication(id!);
+    if (!a.canEdit) throw new HttpError(403, 'Only who may change the application reads its namespaces now', 'FORBIDDEN');
+    if (!a.components.some((c) => c.id === componentId)) throw new HttpError(404, 'This component does not belong to the application', 'COMPONENT_NOT_FOUND');
+    const { refreshNamespace } = await import('./kubernetes.js');
+    await refreshNamespace(componentId!, currentUser()!.username);
+    return apps.getApplication(id!);
   });
 
   // ---------- systems and "runs on" (#129) ----------

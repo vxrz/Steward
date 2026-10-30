@@ -38,7 +38,7 @@ export const isProblem = (s: MonitorStatus | undefined): boolean => s === 'down'
 
 // ---------- definitions ----------
 
-export const CHECK_TYPES = ['ping', 'tcp', 'http', 'platform', 'freshness', 'heartbeat', 'gatus', 'checkmk', 'prometheus', 'monitor'] as const;
+export const CHECK_TYPES = ['ping', 'tcp', 'http', 'platform', 'freshness', 'heartbeat', 'gatus', 'checkmk', 'prometheus', 'kubernetes', 'monitor'] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
 
 export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }> = {
@@ -53,6 +53,7 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   heartbeat: { label: 'Heartbeat (push)', help: 'Another system (e.g. an IoT gateway) reports to Steward; missing reports turn the check down' },
   gatus: { label: 'Gatus endpoint', help: 'Status of an endpoint monitored by Gatus' },
   checkmk: { label: 'CheckMk host or service', help: 'Current state of a host or service in CheckMk (OK, WARN, CRIT, UNKNOWN)' },
+  kubernetes: { label: 'Kubernetes deployments', help: 'Deployments of a namespace are ready (e.g. 3/3) and no pod is crash-looping' },
   prometheus: { label: 'Prometheus query', help: 'A PromQL query compared with WARN and CRIT levels; with several series the worst one counts' },
   monitor: { label: 'Sub-monitor', help: 'The aggregated status of another monitor (evaluated on its own schedule)' },
 };
@@ -228,6 +229,14 @@ export const checkSchema = z.discriminatedUnion('type', [
     noData: z.enum(['unknown', 'up', 'down']).default('unknown'),
     /** shown after values, e.g. "%" */
     unit: z.string().max(20).optional(),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('kubernetes'),
+    platform: platformRef,
+    namespace: z.string().trim().min(1).max(253),
+    /** One deployment; empty: every deployment of the namespace (#111) */
+    deployment: z.string().trim().max(253).optional(),
   }),
   z.object({ ...checkBase, type: z.literal('monitor'), monitor: z.string().trim().min(1).max(200) }),
 ]);

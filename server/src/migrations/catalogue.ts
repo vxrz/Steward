@@ -255,4 +255,12 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // #111: a Kubernetes namespace component names its cluster (a platform) and keeps what Steward last read from it
+    name: 'catalogue-006-namespace-cluster',
+    sql: `
+      ALTER TABLE application_components ADD COLUMN platform_id TEXT;
+      ALTER TABLE application_components ADD COLUMN cluster_state TEXT;
+    `,
+  },
 ];

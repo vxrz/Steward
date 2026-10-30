@@ -1,0 +1,162 @@
+name: "Kubernetes – namespace health"
+description: |
+  Reads the namespaces you list from a Kubernetes cluster (read-only service
+  account, see docs/KUBERNETES.md): every deployment with ready and wanted
+  replicas and its images, the pods that are not well (crash-looping, failed,
+  many restarts) and the cert-manager certificates with their end. Checks warn
+  while a deployment is not fully ready, a pod crash-loops, or a certificate
+  ends within the warning days. Read-only.
+
+  Recommended schedule: every 15 minutes (`*/15 * * * *`), with "message on
+  change" in the schedule's notification policy. Publishes `k8s.health` (one row
+  per deployment and certificate; metrics deployments, notReady, unhealthyPods,
+  certsEnding) for the "Kubernetes" dashboard. The tech stack of the namespaces
+  (images → products, end of life) is read by Steward itself for application
+  components of type "Kubernetes namespace"; monitors use the check type
+  "Kubernetes deployments".
+tags: [kubernetes, health, certificates]
+connections:
+  - slot: k8s
+    kind: kubernetes
+    description: Kubernetes cluster (API server URL, service account token)
+inputs:
+  - name: namespaces
+    label: Namespaces
+    type: list
+    default: [shop-prod, shop-test]
+  - name: certDays
+    label: Warn when a certificate ends within (days)
+    type: number
+    default: 30
+steps:
+  - id: read
+    type: forEach
+    name: Read each namespace (3 in parallel)
+    items: "inputs.namespaces"
+    as: ns
+    concurrency: 3
+    maxItems: 100
+    saveAs: read
+    steps:
+      - id: deployments
+        type: http
+        name: Deployments
+        connection: k8s
+        method: GET
+        path: "/apis/apps/v1/namespaces/{{ $encodeUrlComponent(vars.ns) }}/deployments"
+        saveAs: deps
+      - id: pods
+        type: http
+        name: Pods
+        connection: k8s
+        method: GET
+        path: "/api/v1/namespaces/{{ $encodeUrlComponent(vars.ns) }}/pods"
+        saveAs: pods
+      - id: certificates
+        type: http
+        name: cert-manager certificates
+        connection: k8s
+        method: GET
+        path: "/apis/cert-manager.io/v1/namespaces/{{ $encodeUrlComponent(vars.ns) }}/certificates"
+        onError: continue
+        saveAs: certs
+      - id: summarize
+        type: set
+        name: Rows of the namespace
+        values:
+          rows: >-
+            {{ (
+              $ns := vars.ns;
+              $bad := [vars.pods.body.items[
+                $exists(status.containerStatuses[state.waiting.reason in ['CrashLoopBackOff', 'ImagePullBackOff', 'ErrImagePull', 'CreateContainerConfigError']])
+                or status.phase = 'Failed'
+              ].metadata.name];
+              $deps := [vars.deps.body.items.(
+                $name := metadata.name;
+                $want := $exists(spec.replicas) ? spec.replicas : 1;
+                $ready := $exists(status.readyReplicas) ? status.readyReplicas : 0;
+                $pods := [$bad[$substring($, 0, $length($name) + 1) = $name & '-']];
+                {
+                  "key": $ns & '/deployment/' & $name,
+                  "namespace": $ns,
+                  "kind": "deployment",
+                  "name": $name,
+                  "ready": $ready & '/' & $want,
+                  "detail": $join(spec.template.spec.containers.image, ', '),
+                  "unhealthyPods": $join($pods, ', '),
+                  "status": $want > 0 and $ready = 0 ? 'critical' : ($ready < $want or $count($pods) > 0 ? 'warning' : 'good'),
+                  "daysLeft": null
+                }
+              )];
+              $certs := $exists(vars.certs.error) ? [] : [vars.certs.body.items.(
+                $days := $exists(status.notAfter) ? $floor(($toMillis(status.notAfter) - $millis()) / 86400000) : null;
+                {
+                  "key": $ns & '/certificate/' & metadata.name,
+                  "namespace": $ns,
+                  "kind": "certificate",
+                  "name": metadata.name,
+                  "ready": $exists(status.conditions[type = 'Ready' and status = 'True']) ? 'ready' : 'not ready',
+                  "detail": $exists(status.notAfter) ? 'ends ' & $substring(status.notAfter, 0, 10) : 'no end date yet',
+                  "unhealthyPods": '',
+                  "status": $days != null and $days < 0 ? 'critical' : ($days != null and $days <= $inputs.certDays ? 'warning' : 'good'),
+                  "daysLeft": $days
+                }
+              )];
+              $append($deps, $certs)
+            ) }}
+          unhealthy: "{{ vars.pods.body.items[$exists(status.containerStatuses[state.waiting.reason = 'CrashLoopBackOff'])].($ns := $$.vars.ns; $ns & '/' & metadata.name) }}"
+  - id: evaluate
+    type: set
+    name: Problems
+    values:
+      rows: "{{ [vars.read.results.rows] }}"
+      notReady: "{{ [vars.rows[kind = 'deployment' and status != 'good']] }}"
+      ending: "{{ [vars.rows[kind = 'certificate' and status != 'good']] }}"
+      unhealthy: "{{ [vars.read.results.unhealthy[$type($) = 'string']] }}"
+  - id: publish
+    type: publish
+    name: Publish for the dashboard
+    dataset: k8s.health
+    title: Kubernetes namespaces
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Namespace, value: namespace }
+      - { label: Kind, value: kind }
+      - { label: Name, value: name }
+      - { label: Ready, value: ready }
+      - { label: Images or end, value: detail }
+      - { label: Pods not well, value: "unhealthyPods ? unhealthyPods : '–'" }
+    status: status
+    statusText: "kind = 'certificate' and daysLeft != null ? (daysLeft < 0 ? 'ended' : 'ends in ' & daysLeft & ' days') : (unhealthyPods ? 'pods not well: ' & unhealthyPods : '')"
+    metrics:
+      deployments: "$count(vars.rows[kind = 'deployment'])"
+      notReady: "$count(vars.notReady)"
+      unhealthyPods: "$count(vars.unhealthy)"
+      certsEnding: "$count(vars.ending)"
+  - id: allReady
+    type: check
+    name: All deployments ready
+    severity: warning
+    condition: "$count(vars.notReady) = 0"
+    message: "{{ $count(vars.notReady) = 0 ? 'All ' & $count(vars.rows[kind = 'deployment']) & ' deployments ready' : $join(vars.notReady.(namespace & '/' & name & ' ' & ready), ', ') }}"
+    headline: "{{ $count(vars.notReady) }} deployments not fully ready"
+    value: "$count(vars.notReady)"
+    items: "vars.notReady.(namespace & '/' & name & ': ' & ready & (unhealthyPods ? ' – ' & unhealthyPods : ''))"
+  - id: noCrashLoops
+    type: check
+    name: No pod crash-looping
+    severity: warning
+    condition: "$count(vars.unhealthy) = 0"
+    message: "{{ $count(vars.unhealthy) = 0 ? 'No pod crash-looping' : 'Crash-looping: ' & $join(vars.unhealthy, ', ') }}"
+    value: "$count(vars.unhealthy)"
+    items: "vars.unhealthy"
+  - id: certsOk
+    type: check
+    name: No certificate ending soon
+    severity: warning
+    condition: "$count(vars.ending) = 0"
+    message: "{{ $count(vars.ending) = 0 ? 'No certificate ends within ' & inputs.certDays & ' days' : $join(vars.ending.(namespace & '/' & name & ' ' & detail), ', ') }}"
+    headline: "{{ $count(vars.ending) }} certificates end within {{ inputs.certDays }} days"
+    value: "$count(vars.ending)"
+    items: "vars.ending.(namespace & '/' & name & ': ' & detail)"

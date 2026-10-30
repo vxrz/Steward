@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Badge, Button, Group, List, Modal, NumberInput, Select, Stack, Switch, Text, Tooltip } from '@mantine/core';
+import { Alert, Badge, Button, Group, List, Modal, NumberInput, Select, Stack, Switch, Text, Textarea, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconAlertTriangle, IconCircleCheck, IconCircleX, IconHelpCircle, IconRefresh } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -105,6 +105,7 @@ function EndOfLifeModal({ onClose }: { onClose: () => void }) {
   const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
   const [draft, setDraft] = useState<LifecycleSettings | null>(null);
   const [busy, setBusy] = useState<'save' | 'refresh' | null>(null);
+  const [imageText, setImageText] = useState<string | null>(null);
   const s = status.data;
   const settings = draft ?? s?.settings ?? null;
   const eolPlatforms = (platforms.data ?? []).filter((p) => p.kind === 'endoflife-date');
@@ -123,6 +124,7 @@ function EndOfLifeModal({ onClose }: { onClose: () => void }) {
     try {
       await put('/catalogue/lifecycle', draft);
       setDraft(null);
+      setImageText(null);
       await refreshAll();
       notifyOk(t('lifecycle.saved'));
     } catch (e) {
@@ -208,6 +210,29 @@ function EndOfLifeModal({ onClose }: { onClose: () => void }) {
             description={t('lifecycle.scorecardHint')}
             checked={settings.scorecard}
             onChange={(e) => patch({ scorecard: e.currentTarget.checked })}
+            disabled={!s.canEdit}
+          />
+          <Textarea
+            label={t('lifecycle.imageMap')}
+            description={t('lifecycle.imageMapHint')}
+            // i18n-ignore: an example line (image = product id), the same in every language
+            placeholder="ghcr.io/acme/base-node = nodejs"
+            autosize
+            minRows={2}
+            maxRows={10}
+            classNames={{ input: 'mono' }}
+            value={imageText ?? (settings.imageMap ?? []).map((r) => `${r.image} = ${r.product}`).join('\n')}
+            onChange={(e) => {
+              const text = e.currentTarget.value;
+              setImageText(text);
+              patch({
+                imageMap: text
+                  .split('\n')
+                  .map((line) => line.split('='))
+                  .filter((p) => p.length === 2 && p[0]!.trim() && p[1]!.trim())
+                  .map(([image, product]) => ({ image: image!.trim(), product: product!.trim() })),
+              });
+            }}
             disabled={!s.canEdit}
           />
           {!s.canEdit && (

@@ -151,6 +151,17 @@ describe('example library', () => {
     expect(d.metrics).toMatchObject({ series: 3, crossed: 1, trending: 1 });
   });
 
+  it('Kubernetes – namespace health finds the deployment not fully ready, the crash-looping pod and the certificate ending soon', async () => {
+    // runs after "runs 79-…" above, against the mock API server (server/src/mock/mockKubernetes.ts)
+    const d = await s.api('GET', '/datasets/k8s.health');
+    const by = Object.fromEntries(d.rows.map((r: any) => [r._key, r]));
+    expect(by['shop-prod/deployment/worker']).toMatchObject({ Ready: '1/2', 'Pods not well': 'worker-5d4b-y2', _status: 'warning' });
+    expect(by['shop-prod/deployment/web']).toMatchObject({ Ready: '3/3', _status: 'good' });
+    expect(by['shop-prod/certificate/shop-tls']).toMatchObject({ Ready: 'ready', _status: 'warning' });
+    expect(by['shop-prod/certificate/api-tls']._status).toBe('good');
+    expect(d.metrics).toMatchObject({ deployments: 5, notReady: 1, unhealthyPods: 1, certsEnding: 1 });
+  });
+
   it('published sensible datasets', async () => {
     const users = await s.api('GET', '/datasets/ih.users');
     expect(users.rowCount).toBe(15);

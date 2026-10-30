@@ -201,7 +201,10 @@
       "up": "up",
       "down": "down"
     },
-    "promUnit": "Unit (shown)"
+    "promUnit": "Unit (shown)",
+    "k8sNamespace": "Namespace",
+    "k8sDeployment": "Deployment",
+    "k8sDeploymentHint": "Empty: every deployment of the namespace"
   },
   "detail": {
     "template": "template",
@@ -503,6 +506,10 @@
       "label": "Prometheus query",
       "help": "A PromQL query compared with WARN and CRIT levels; with several series the worst one counts"
     },
+    "kubernetes": {
+      "label": "Kubernetes deployments",
+      "help": "Deployments of a namespace are ready (e.g. 3/3) and no pod is crash-looping"
+    },
     "monitor": {
       "label": "Sub-monitor",
       "help": "The aggregated status of another monitor (evaluated on its own schedule)"
@@ -518,6 +525,7 @@
     "gatus": "Gatus endpoint",
     "checkmk": "CheckMk service",
     "prometheus": "Prometheus query",
+    "kubernetes": "Kubernetes deployments",
     "monitor": "Sub-monitor"
   },
   "uptime": {

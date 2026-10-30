@@ -655,7 +655,9 @@
     "TEAM_UNKNOWN": "There is no team “{{name}}”. Choose one from the list.",
     "METRIC_REF": "Name the metric as dataset/metric, e.g. ih.assets/attributes.",
     "TREND_WINDOW": "Use a trend window such as 24h, 7d or 30d.",
-    "OBJECTIVE_PROMQL_WINDOW": "The PromQL query needs $window for the time window, e.g. avg_over_time(up{job=\"shop\"}[$window])."
+    "OBJECTIVE_PROMQL_WINDOW": "The PromQL query needs $window for the time window, e.g. avg_over_time(up{job=\"shop\"}[$window]).",
+    "COMPONENT_CLUSTER": "Choose a Kubernetes platform you may use as the cluster.",
+    "COMPONENT_CLUSTER_REQUIRED": "Choose the cluster of the namespace first."
   },
   "boundary": {
     "title": "Something went wrong on this page",

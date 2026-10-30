@@ -326,6 +326,7 @@ const PLATFORM_KIND: Partial<Record<string, string>> = {
   gatus: 'gatus',
   checkmk: 'checkmk',
   prometheus: 'prometheus',
+  kubernetes: 'kubernetes',
   zabbix: 'zabbix',
 };
 

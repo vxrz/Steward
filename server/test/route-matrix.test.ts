@@ -462,6 +462,7 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/applications/:id/components/:componentId': DESIGN,
   'POST /api/applications/:id/components/:componentId/sbom/preview': DESIGN,
   'POST /api/applications/:id/components/:componentId/sbom': DESIGN,
+  'POST /api/applications/:id/components/:componentId/cluster': DESIGN,
   'GET /api/systems': ALL,
   'POST /api/systems': DESIGN,
   'GET /api/systems/:id': ALL,

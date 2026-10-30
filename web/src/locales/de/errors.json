@@ -655,7 +655,9 @@
     "TEAM_UNKNOWN": "Es gibt kein Team „{{name}}“. Wählen Sie eines aus der Liste.",
     "METRIC_REF": "Geben Sie die Kennzahl als Datensatz/Kennzahl an, z. B. ih.assets/attributes.",
     "TREND_WINDOW": "Verwenden Sie einen Trendzeitraum wie 24h, 7d oder 30d.",
-    "OBJECTIVE_PROMQL_WINDOW": "Die PromQL-Abfrage braucht $window für den Zeitraum, z. B. avg_over_time(up{job=\"shop\"}[$window])."
+    "OBJECTIVE_PROMQL_WINDOW": "Die PromQL-Abfrage braucht $window für den Zeitraum, z. B. avg_over_time(up{job=\"shop\"}[$window]).",
+    "COMPONENT_CLUSTER": "Wählen Sie als Cluster eine Kubernetes-Plattform, die Sie nutzen dürfen.",
+    "COMPONENT_CLUSTER_REQUIRED": "Wählen Sie zuerst den Cluster des Namespace."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

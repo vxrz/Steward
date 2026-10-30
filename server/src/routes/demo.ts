@@ -8,6 +8,7 @@ import { listProviders, saveProvider } from '../auth/sso.js';
 import { createFromTemplate, listTemplates } from '../processes/service.js';
 import { DEMO_CREDENTIALS } from '../mock/mockPlatform.js';
 import { DEMO_CHECKMK } from '../mock/mockCheckmk.js';
+import { DEMO_KUBERNETES } from '../mock/mockKubernetes.js';
 import { DEMO_GATUS } from '../mock/mockGatus.js';
 import { MOCK_UTS_PROVIDER } from '../mock/mockUsage.js';
 import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
@@ -171,6 +172,19 @@ export async function setupDemo(): Promise<{
       description: 'Simulated Prometheus HTTP API served by the built-in mock (a few fixed queries). See docs/MONITORS.md.',
       baseUrl: `${base}/prometheus`,
       config: { auth: { type: 'none' }, variables: {}, http: { proxy: 'none' }, testPath: '/api/v1/status/buildinfo' },
+    });
+    platforms++;
+  }
+  if (!existing.has('Kubernetes (demo)')) {
+    // Kubernetes (#111): namespaces shop-prod and shop-test with deployments, pods and cert-manager certificates
+    createPlatform({
+      name: 'Kubernetes (demo)',
+      kind: 'kubernetes',
+      environment: 'demo',
+      description: 'Simulated Kubernetes API server (read-only service account) served by the built-in mock. See docs/KUBERNETES.md.',
+      baseUrl: `${base}/kubernetes`,
+      config: { auth: { type: 'bearer' }, variables: {}, http: { proxy: 'none' }, testPath: '/version' },
+      secrets: { token: DEMO_KUBERNETES.token },
     });
     platforms++;
   }

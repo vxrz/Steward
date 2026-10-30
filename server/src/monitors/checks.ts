@@ -11,6 +11,7 @@ import { outboundContext } from '../platforms/policyContext.js';
 import { BRAND } from '@sm/shared';
 import { freshnessStatus, freshnessWindowSeconds, fmtAge, statusMatcher } from './logic.js';
 import { promInstant, seriesName } from '../platforms/prometheus.js';
+import { readNamespace } from '../catalogue/kubernetes.js';
 import { checkmkFetch, checkmkServiceKey, gatusFetch, ihFetch, ihKey, SourceError } from './batch.js';
 import { CheckSetupError, platformFor } from './platforms.js';
 import { endpointState, metricsEnabled, sourceRow } from '../gatus/metrics.js';
@@ -599,6 +600,48 @@ async function checkPrometheus(c: CheckOf<'prometheus'>, ctx: ExecContext): Prom
   };
 }
 
+// ---------- Kubernetes ----------
+
+/** Deployments ready and no pod crash-looping (#111): none ready → down; fewer ready than wanted, or unwell pods → degraded. */
+async function checkKubernetes(c: CheckOf<'kubernetes'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  let r;
+  try {
+    r = await readNamespace(platform, secrets, c.namespace);
+  } catch (e) {
+    return { status: 'unknown', message: `Kubernetes could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
+  }
+  const ms = Date.now() - t0;
+  const deps = c.deployment ? r.deployments.filter((d) => d.name === c.deployment) : r.deployments;
+  const where = c.deployment ? `${c.namespace}/${c.deployment}` : c.namespace;
+  if (!deps.length)
+    return {
+      status: 'unknown',
+      message: c.deployment ? `Kubernetes: no deployment "${c.deployment}" in ${c.namespace}` : `Kubernetes: no deployments in ${c.namespace}`,
+      durationMs: ms,
+    };
+  const prefixes = deps.map((d) => `${d.name}-`);
+  const pods = r.unhealthyPods.filter((p) => !c.deployment || prefixes.some((x) => p.name.startsWith(x)));
+  const down = deps.filter((d) => d.desired > 0 && d.ready === 0);
+  const short = deps.filter((d) => d.ready < d.desired && !down.includes(d));
+  const parts = [
+    ...[...down, ...short].map((d) => `${d.name} ${d.ready}/${d.desired} ready`),
+    ...pods.slice(0, 3).map((p) => `pod ${p.name} ${p.reason}${p.restarts && !p.reason.includes('restarts') ? ` (${p.restarts} restarts)` : ''}`),
+  ];
+  const status = down.length ? 'down' : short.length || pods.length ? 'degraded' : 'up';
+  const message =
+    status === 'up'
+      ? `Kubernetes: ${where} – ${deps.length === 1 ? `${deps[0]!.ready}/${deps[0]!.desired} ready` : `all ${deps.length} deployments ready`}`
+      : `Kubernetes: ${where} – ${parts.join(', ')}${pods.length > 3 ? `, ${pods.length - 3} more pods` : ''}`;
+  return {
+    status,
+    message: message.slice(0, 500),
+    durationMs: ms,
+    value: { deployments: deps.map((d) => ({ name: d.name, ready: d.ready, desired: d.desired })), unhealthyPods: pods.length },
+  };
+}
+
 // ---------- dispatch ----------
 
 type Active =
@@ -609,7 +652,8 @@ type Active =
   | CheckOf<'freshness'>
   | CheckOf<'gatus'>
   | CheckOf<'checkmk'>
-  | CheckOf<'prometheus'>;
+  | CheckOf<'prometheus'>
+  | CheckOf<'kubernetes'>;
 
 /** Runs an active check; heartbeat and sub-monitor checks are evaluated by the engine from stored state. */
 export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawResult> {
@@ -631,6 +675,8 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkCheckmk(c, ctx);
       case 'prometheus':
         return await checkPrometheus(c, ctx);
+      case 'kubernetes':
+        return await checkKubernetes(c, ctx);
     }
   } catch (e) {
     if (e instanceof CheckSetupError) return { status: 'unknown', message: `Check could not run: ${e.message}` };

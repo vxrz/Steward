@@ -1,6 +1,9 @@
 import { z } from 'zod';
+// a cycle with components.ts, used only at call time
+import { requireKnownProducts } from './components.js';
 import {
   DEFAULT_LIFECYCLE_SETTINGS,
+  KUBERNETES_LIMITS,
   LIFECYCLE_LIMITS,
   isProductionEnvironment,
   type LifecycleSettings,
@@ -41,6 +44,11 @@ export const settingsInput = z
     warnDays: z.number().int().min(LIFECYCLE_LIMITS.warnDaysMin).max(LIFECYCLE_LIMITS.warnDaysMax),
     notify: z.boolean(),
     scorecard: z.boolean(),
+    /** Own images → product (#111), before the built-in list; missing: unchanged */
+    imageMap: z
+      .array(z.object({ image: z.string().trim().min(1).max(300), product: z.string().trim().min(1).max(100) }).strict())
+      .max(KUBERNETES_LIMITS.imageRules)
+      .optional(),
   })
   .strict();
 
@@ -98,7 +106,10 @@ export function saveLifecycleSettings(input: z.infer<typeof settingsInput>): Lif
       throw new HttpError(400, 'Choose a platform of kind endoflife.date', 'LIFECYCLE_PLATFORM_KIND', { id: input.platformId });
   }
   const before = lifecycleSettings();
-  writeSetting(SETTINGS_KEY, input);
+  if (input.imageMap) {
+    requireKnownProducts([...new Map(input.imageMap.map((r) => [r.product, r])).values()]);
+  }
+  writeSetting(SETTINGS_KEY, { ...input, imageMap: input.imageMap ?? before.imageMap ?? [] });
   audit({
     action: 'catalogue.lifecycle_settings_changed',
     entityType: 'settings',

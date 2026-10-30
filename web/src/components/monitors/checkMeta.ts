@@ -5,6 +5,7 @@ import {
   IconChartDots3,
   IconClockHour4,
   IconFlame,
+  IconBox,
   IconHierarchy2,
   IconNetwork,
   IconPlugConnected,
@@ -23,6 +24,7 @@ export const CHECK_ICONS: Record<CheckType, typeof IconApi> = {
   gatus: IconNetwork,
   checkmk: IconChartDots3,
   prometheus: IconFlame,
+  kubernetes: IconBox,
   monitor: IconHierarchy2,
 };
 
@@ -37,6 +39,7 @@ const DEFAULT_NAMES: Record<CheckType, string> = {
   gatus: 'Gatus endpoint',
   checkmk: 'CheckMk service',
   prometheus: 'Prometheus query',
+  kubernetes: 'Kubernetes deployments',
   monitor: 'Sub-monitor',
 };
 
@@ -74,6 +77,8 @@ export function newCheck(type: CheckType, id: string): CheckDef {
       return { ...base, name, type, platform: '', host: '' } as CheckDef;
     case 'prometheus':
       return { ...base, name, type, platform: '', query: '', direction: 'above', crit: 90, noData: 'unknown' } as CheckDef;
+    case 'kubernetes':
+      return { ...base, name, type, platform: '', namespace: '' } as CheckDef;
     case 'monitor':
       return { ...base, name, type, monitor: '' } as CheckDef;
   }

@@ -1,3 +1,4 @@
+import type { ImageProductRule, NamespaceReadout } from './kubernetes.js';
 import type { Backlink, ItemLink, ReviewStatus, ServiceCriticality } from './records.js';
 
 /**
@@ -229,8 +230,8 @@ export const COMPONENT_TYPES = [
 ] as const;
 export type ComponentType = (typeof COMPONENT_TYPES)[number];
 
-/** Where a tech stack entry comes from: entered by hand (wins over an SBOM) or read from an SBOM. */
-export const STACK_SOURCES = ['manual', 'sbom'] as const;
+/** Where a tech stack entry comes from: entered by hand (wins over the others), read from an SBOM, or from the images running in a Kubernetes namespace (#111). */
+export const STACK_SOURCES = ['manual', 'sbom', 'cluster'] as const;
 export type StackSource = (typeof STACK_SOURCES)[number];
 
 export const COMPONENT_LIMITS = {
@@ -296,6 +297,8 @@ export interface LifecycleSettings {
   notify: boolean;
   /** Count the tech stack on the scorecard (part "Tech stack") */
   scorecard: boolean;
+  /** Own container images and their product, before the built-in ones (#111) */
+  imageMap?: ImageProductRule[];
 }
 
 export const DEFAULT_LIFECYCLE_SETTINGS: LifecycleSettings = { platformId: null, warnDays: LIFECYCLE_LIMITS.defaultWarnDays, notify: true, scorecard: false };
@@ -325,6 +328,9 @@ export interface ApplicationComponent {
   stack: StackEntry[];
   /** The last SBOM import */
   sbom: { format: SbomFormat; name: string; importedAt: string; importedBy: string } | null;
+  /** Kubernetes namespace (#111): the cluster (a platform of kind kubernetes) and what Steward last read from it */
+  platformId?: string | null;
+  cluster?: NamespaceReadout | null;
   createdAt: string;
   createdBy: string;
   updatedAt: string;

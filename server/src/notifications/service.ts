@@ -653,6 +653,8 @@ export function startNotificationJobs(): void {
       .catch((err) => logger.warn({ err }, 'scorecard job failed'));
     // end of life of the tech stacks: daily refresh from endoflife.date and messages to application owners (catalogue/lifecycle.ts, idempotent)
     import('../catalogue/lifecycle.js').then((m) => m.runLifecycleJob()).catch((err) => logger.warn({ err }, 'end-of-life job failed'));
+    // Kubernetes namespaces of applications: deployments, images (tech stack), pods, certificates (#111, every 6 hours)
+    import('../catalogue/kubernetes.js').then((m) => m.runKubernetesJob()).catch((err) => logger.warn({ err }, 'Kubernetes job failed'));
     import('./summary.js').then((m) => m.runDailySummaries()).catch((err) => logger.warn({ err }, 'daily summary job failed'));
     // maintenance windows: reminders, start and end messages (catalogue/maintenance.ts, idempotent)
     import('../catalogue/maintenance.js').then((m) => m.runMaintenanceJob()).catch((err) => logger.warn({ err }, 'maintenance job failed'));

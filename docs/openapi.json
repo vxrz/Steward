@@ -3702,6 +3702,7 @@
               "gatus",
               "checkmk",
               "prometheus",
+              "kubernetes",
               "monitor"
             ]
           },
@@ -4116,6 +4117,7 @@
                     "gatus",
                     "checkmk",
                     "prometheus",
+                    "kubernetes",
                     "monitor"
                   ]
                 },
@@ -9688,7 +9690,8 @@
                         "type": "string",
                         "enum": [
                           "manual",
-                          "sbom"
+                          "sbom",
+                          "cluster"
                         ],
                         "description": "manual: entered by hand (wins over an SBOM); sbom: read from an SBOM"
                       },
@@ -10097,7 +10100,8 @@
                         "type": "string",
                         "enum": [
                           "manual",
-                          "sbom"
+                          "sbom",
+                          "cluster"
                         ],
                         "description": "manual: entered by hand (wins over an SBOM); sbom: read from an SBOM"
                       },
@@ -10627,7 +10631,8 @@
                   "type": "string",
                   "enum": [
                     "manual",
-                    "sbom"
+                    "sbom",
+                    "cluster"
                   ],
                   "description": "manual: entered by hand (wins over an SBOM); sbom: read from an SBOM"
                 },

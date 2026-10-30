@@ -201,7 +201,10 @@
       "up": "verfügbar",
       "down": "ausgefallen"
     },
-    "promUnit": "Einheit (Anzeige)"
+    "promUnit": "Einheit (Anzeige)",
+    "k8sNamespace": "Namespace",
+    "k8sDeployment": "Deployment",
+    "k8sDeploymentHint": "Leer: alle Deployments des Namespace"
   },
   "detail": {
     "template": "Vorlage",
@@ -503,6 +506,10 @@
       "label": "Prometheus-Abfrage",
       "help": "Eine PromQL-Abfrage, verglichen mit WARN- und CRIT-Schwelle; bei mehreren Serien zählt die schlechteste"
     },
+    "kubernetes": {
+      "label": "Kubernetes-Deployments",
+      "help": "Die Deployments eines Namespace sind bereit (z. B. 3/3) und kein Pod startet ständig neu"
+    },
     "monitor": {
       "label": "Untermonitor",
       "help": "Der Gesamtstatus eines anderen Monitors (nach dessen eigenem Zeitplan ausgewertet)"
@@ -518,6 +525,7 @@
     "gatus": "Gatus-Endpunkt",
     "checkmk": "CheckMk-Service",
     "prometheus": "Prometheus-Abfrage",
+    "kubernetes": "Kubernetes-Deployments",
     "monitor": "Untermonitor"
   },
   "uptime": {

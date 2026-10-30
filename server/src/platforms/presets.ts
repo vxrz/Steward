@@ -174,6 +174,21 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'kubernetes',
+    label: 'Kubernetes cluster (read-only)',
+    description:
+      'A Kubernetes API server (also OpenShift, Rancher, AKS, EKS, GKE): application components of type "Kubernetes namespace" name it, and Steward reads their deployments and images (tech stack and end of life), pods that are not well and cert-manager certificates; monitors check deployments. Use a service account with the read-only role from docs/KUBERNETES.md and put its token into the credential token. For a private CA, add it under the platform\'s HTTP settings.',
+    baseUrl: 'https://k8s-api.example.com:6443',
+    config: { auth: { type: 'bearer' }, variables: {}, http: {}, testPath: '/version' },
+    secretFields: [
+      { key: 'token', label: 'Service account token', help: 'kubectl create token steward-reader -n steward --duration=8760h, or a long-lived token secret' },
+    ],
+    docs: [
+      { title: 'Kubernetes API concepts', url: 'https://kubernetes.io/docs/reference/using-api/api-concepts/' },
+      { title: 'Service account tokens', url: 'https://kubernetes.io/docs/concepts/security/service-accounts/' },
+    ],
+  },
+  {
     kind: 'teams',
     label: 'Microsoft Teams channel (Workflows)',
     description:
