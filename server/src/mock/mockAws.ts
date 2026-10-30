@@ -38,6 +38,9 @@ interface DemoUser {
   created: string;
   passwordLastUsed: string | null;
   tags: Record<string, string>;
+  groups?: string[];
+  policies?: string[];
+  inline?: string[];
   keys: { id: string; status: string; created: string; lastUsed: string | null; service: string | null }[];
 }
 
@@ -47,6 +50,8 @@ const USERS: DemoUser[] = [
     created: ago(900),
     passwordLastUsed: null,
     tags: { application: 'shop', team: 'web' },
+    groups: ['deployers'],
+    policies: ['AmazonECS_FullAccess'],
     keys: [{ id: 'AKIADEMOCIDEPLOY001', status: 'Active', created: ago(410), lastUsed: ago(1), service: 'ecs' }],
   },
   {
@@ -54,6 +59,8 @@ const USERS: DemoUser[] = [
     created: ago(200),
     passwordLastUsed: null,
     tags: {},
+    policies: ['AmazonS3FullAccess'],
+    inline: ['backup-bucket-only'],
     keys: [{ id: 'AKIADEMOBACKUPW0001', status: 'Active', created: ago(35), lastUsed: ago(0), service: 's3' }],
   },
   {
@@ -61,6 +68,7 @@ const USERS: DemoUser[] = [
     created: ago(1200),
     passwordLastUsed: ago(700),
     tags: { application: 'crm' },
+    groups: ['developers', 'readonly'],
     keys: [{ id: 'AKIADEMOOLDINTERN01', status: 'Inactive', created: ago(820), lastUsed: null, service: null }],
   },
 ];
@@ -211,6 +219,21 @@ export async function mockAws(app: FastifyInstance): Promise<void> {
                 .map(([k, v]) => `<member><Key>${escapeXml(k)}</Key><Value>${escapeXml(v)}</Value></member>`)
                 .join('')}</Tags><IsTruncated>false</IsTruncated>`,
             );
+          }
+          if (p.Action === 'ListGroupsForUser' || p.Action === 'ListAttachedUserPolicies' || p.Action === 'ListUserPolicies') {
+            const u = USERS.find((x) => x.name === p.UserName);
+            if (!u)
+              return reply
+                .code(404)
+                .type('text/xml')
+                .send('<ErrorResponse><Error><Code>NoSuchEntity</Code><Message>no such user</Message></Error></ErrorResponse>');
+            const body =
+              p.Action === 'ListGroupsForUser'
+                ? `<Groups>${(u.groups ?? []).map((g) => `<member><GroupName>${escapeXml(g)}</GroupName></member>`).join('')}</Groups>`
+                : p.Action === 'ListAttachedUserPolicies'
+                  ? `<AttachedPolicies>${(u.policies ?? []).map((x) => `<member><PolicyName>${escapeXml(x)}</PolicyName></member>`).join('')}</AttachedPolicies>`
+                  : `<PolicyNames>${(u.inline ?? []).map((x) => `<member>${escapeXml(x)}</member>`).join('')}</PolicyNames>`;
+            return xml(reply, p.Action, `${body}<IsTruncated>false</IsTruncated>`);
           }
           if (p.Action === 'GetAccessKeyLastUsed') {
             const k = USERS.flatMap((u) => u.keys).find((x) => x.id === p.AccessKeyId);

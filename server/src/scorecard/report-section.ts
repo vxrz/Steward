@@ -8,8 +8,8 @@ import { computeScorecards, dayOf, scorecardTrend, snapshotsOf } from './scoreca
 import { listObjectiveViews, rowTargets } from './objectives.js';
 
 /**
- * "Service scorecard" section of scheduled summary reports (#86): per service the four parts of the scorecard –
- * duties, availability, documentation, protection need – each with its own status and "attention needed"; the trend
+ * "Service scorecard" section of scheduled summary reports (#86): per service the parts of the scorecard –
+ * duties, availability, documentation, protection need, tech stack (when counted), vulnerabilities (when linked) – each with its own status and "attention needed"; the trend
  * of the stored daily snapshots over the report period; and the availability objectives with their status at the end
  * of the period and the breaches that started in it. Collected with the rights of the schedule's owner (documents
  * they may not read do not count).
@@ -24,7 +24,7 @@ const MAX_ROWS = 400;
 const en = {
   title: 'Service scorecard',
   intro:
-    'Per service, each part with its own status – no weighting. Attention needed: a mandatory duty not met (last closed period or now), an availability objective below target, no released document, a review overdue or an expected document missing, or the protection need not rated.',
+    'Per service, each part with its own status – no weighting. Attention needed: a mandatory duty not met (last closed period or now), an availability objective below target, no released document, a review overdue or an expected document missing, the protection need not rated, a component past its end of life (when counted), or open critical findings or failing policy violations in Dependency-Track.',
   asOfSnapshot: 'As stored on {day} (the last day of the report period).',
   asOfLive: 'As computed when the report was made.',
   services: 'Services',
@@ -46,10 +46,14 @@ const en = {
   more: '{n} more not shown.',
   yes: 'Attention',
   no: 'OK',
-  parts: { duties: 'Duties', availability: 'Availability', documentation: 'Documentation', protection: 'Protection need', lifecycle: 'Tech stack' } as Record<
-    ScorecardPart,
-    string
-  >,
+  parts: {
+    duties: 'Duties',
+    availability: 'Availability',
+    documentation: 'Documentation',
+    protection: 'Protection need',
+    lifecycle: 'Tech stack',
+    vulnerabilities: 'Vulnerabilities',
+  } as Record<ScorecardPart, string>,
   statuses: { ok: 'OK', attention: 'Attention', pending: 'Open', none: '–', hidden: 'Hidden' } as Record<ScorecardPartStatus | 'hidden', string>,
   objectiveStatuses: { met: 'Met', below: 'Below target', noData: 'No data' } as Record<ObjectiveStatus, string>,
   windows: { h1: '1 h', h24: '24 h', d7: '7 d', d30: '30 d' } as Record<string, string>,
@@ -58,7 +62,7 @@ type Texts = typeof en;
 const de: Texts = {
   title: 'Service-Scorecard',
   intro:
-    'Je Service jeder Teil mit seinem eigenen Status – ohne Gewichtung. Handlungsbedarf: eine verpflichtende Pflicht nicht erfüllt (letzter abgeschlossener Zeitraum oder jetzt), ein Verfügbarkeitsziel unterschritten, kein freigegebenes Dokument, eine Überprüfung überfällig oder ein erwartetes Dokument fehlt, oder der Schutzbedarf ist nicht bewertet.',
+    'Je Service jeder Teil mit seinem eigenen Status – ohne Gewichtung. Handlungsbedarf: eine verpflichtende Pflicht nicht erfüllt (letzter abgeschlossener Zeitraum oder jetzt), ein Verfügbarkeitsziel unterschritten, kein freigegebenes Dokument, eine Überprüfung überfällig oder ein erwartetes Dokument fehlt, der Schutzbedarf ist nicht bewertet, eine Komponente hat ihr Lebensende überschritten (wenn gezählt) oder Dependency-Track meldet offene kritische Schwachstellen oder fehlgeschlagene Richtlinienverstöße.',
   asOfSnapshot: 'Stand vom {day} (letzter Tag des Berichtszeitraums).',
   asOfLive: 'Stand bei der Erstellung des Berichts.',
   services: 'Services',
@@ -80,7 +84,14 @@ const de: Texts = {
   more: '{n} weitere nicht angezeigt.',
   yes: 'Handlungsbedarf',
   no: 'OK',
-  parts: { duties: 'Pflichten', availability: 'Verfügbarkeit', documentation: 'Dokumentation', protection: 'Schutzbedarf', lifecycle: 'Tech-Stack' },
+  parts: {
+    duties: 'Pflichten',
+    availability: 'Verfügbarkeit',
+    documentation: 'Dokumentation',
+    protection: 'Schutzbedarf',
+    lifecycle: 'Tech-Stack',
+    vulnerabilities: 'Schwachstellen',
+  },
   statuses: { ok: 'OK', attention: 'Handlungsbedarf', pending: 'Offen', none: '–', hidden: 'Verborgen' },
   objectiveStatuses: { met: 'Erfüllt', below: 'Unterschritten', noData: 'Keine Daten' },
   windows: { h1: '1 Std.', h24: '24 Std.', d7: '7 T.', d30: '30 T.' },
@@ -141,6 +152,7 @@ function build(c: ScorecardConfig, ctx: { from: number; to: number; now: number 
         documentation: card.documentation.status,
         protection: card.protection.status,
         lifecycle: card.lifecycle.status,
+        vulnerabilities: card.vulnerabilities.status,
       },
     }));
   }
@@ -209,8 +221,10 @@ registerReportSection<ScorecardConfig, ScorecardSectionData>({
     w.paragraph(x.intro, { tone: 'muted', size: 8 });
     w.paragraph(d.asOf ? fill(x.asOfSnapshot, { day: d.asOf }) : x.asOfLive, { tone: 'muted', size: 7.4 });
     const attention = d.services.filter((s) => s.attention).length;
-    // the tech stack part only when it is counted (it is off by default; reports made before 0.2.3 have no value)
-    const parts = SCORECARD_PARTS.filter((p) => p !== 'lifecycle' || d.services.some((s) => (s.parts.lifecycle ?? 'none') !== 'none'));
+    // the tech stack part only when it is counted (it is off by default; reports made before 0.2.3 have no value), the
+    // vulnerabilities only when a service's components link Dependency-Track (older reports have no value)
+    const optional: ScorecardPart[] = ['lifecycle', 'vulnerabilities'];
+    const parts = SCORECARD_PARTS.filter((p) => !optional.includes(p) || d.services.some((s) => (s.parts[p] ?? 'none') !== 'none'));
     w.stats([
       { label: x.services, value: String(d.services.length), tone: 'default' as Tone },
       { label: x.attention, value: String(attention), tone: (attention ? 'danger' : 'success') as Tone },

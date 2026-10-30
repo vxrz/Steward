@@ -56,6 +56,9 @@ export function scorecardRowProblems(table: string, r: Record<string, unknown>):
     if (typeof r.day !== 'string' || !DAY.test(r.day)) p.push(`day "${String(r.day).slice(0, 20)}" is not YYYY-MM-DD`);
     for (const part of ['duties', 'availability', 'documentation', 'protection'])
       if (!oneOf(SCORECARD_PART_STATUSES, r[part])) p.push(`${part} "${String(r[part]).slice(0, 20)}" is not a status`);
+    // parts added later (#104, #119): packages of older versions have no value
+    for (const part of ['lifecycle', 'vulnerabilities'])
+      if (r[part] !== undefined && !oneOf(SCORECARD_PART_STATUSES, r[part])) p.push(`${part} "${String(r[part]).slice(0, 20)}" is not a status`);
     if (!flag(r.attention)) p.push('attention is not 0 or 1');
     if (!jsonArray(r.document_ids, (x) => typeof x === 'string' && x.length <= 200)) p.push('document_ids is not a list of ids');
     if (!jsonArray(r.owners, (x) => typeof x === 'string' && x.length <= 130)) p.push('owners is not a list of subjects');

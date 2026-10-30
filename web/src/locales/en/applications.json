@@ -399,6 +399,25 @@
       "failedTasks": "Failed tasks (last 24 h): {{tasks}} – {{error}}",
       "stale": "Unchanged for more than a day: {{tables}}",
       "credits": "Credits of the warehouses used, 30 days (7 days): {{warehouses}}"
+    },
+    "dtrack": {
+      "platform": "Dependency-Track",
+      "project": "Project in Dependency-Track",
+      "projectHint": "name@version, name@latest or the project's UUID",
+      "notRead": "Dependency-Track {{project}}: not read yet.",
+      "readNow": "Read the vulnerabilities of {{name}} now",
+      "done": "Vulnerabilities of {{name}} read.",
+      "counts": "{{critical}} critical, {{high}} high, {{medium}} medium, {{low}} low · policy violations: {{fail}} failing, {{warn}} warnings",
+      "finding": "{{severity}} {{id}} in {{component}} – {{fix}}",
+      "fixedIn": "fixed in {{version}}",
+      "noFix": "no fixed version known",
+      "severity": {
+        "critical": "Critical",
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low",
+        "unassigned": "Unassigned"
+      }
     }
   },
   "credentials": {

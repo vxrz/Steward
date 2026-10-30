@@ -250,7 +250,14 @@
     "snowflakeMaxAge": "Geändert innerhalb von (Minuten)",
     "snowflakeWithinHours": "Innerhalb der letzten (Stunden)",
     "snowflakeMaxCredits": "Höchstens (Credits)",
-    "snowflakeFailAs": "Wenn die Grenze nicht eingehalten wird"
+    "snowflakeFailAs": "Wenn die Grenze nicht eingehalten wird",
+    "dtrackProject": "Projekt",
+    "dtrackProjectHint": "Name@Version, Name@latest oder die UUID des Projekts in Dependency-Track",
+    "dtrackMaxCritical": "Höchstens kritische",
+    "dtrackMaxHigh": "Höchstens kritische oder hohe",
+    "dtrackMaxHighHint": "Darüber eingeschränkt; leer: hohe Befunde werden nicht geprüft",
+    "dtrackFailAs": "Wenn es zu viele sind",
+    "dtrackPolicyFail": "Ein fehlgeschlagener Richtlinienverstoß zählt wie ein kritischer Befund"
   },
   "detail": {
     "template": "Vorlage",
@@ -575,6 +582,10 @@
     "snowflake": {
       "label": "Snowflake",
       "help": "Eine Snowflake-Tabelle wurde kürzlich genug geändert, kein Task einer Datenbank ist fehlgeschlagen oder ein Warehouse blieb innerhalb seiner Credits"
+    },
+    "dependency-track": {
+      "label": "Schwachstellen (Dependency-Track)",
+      "help": "Ein Dependency-Track-Projekt hat nicht mehr offene kritische (oder hohe) Befunde als erlaubt und keinen fehlgeschlagenen Richtlinienverstoß"
     }
   },
   "newCheck": {
@@ -592,7 +603,8 @@
     "kafka": "Kafka-Topic",
     "mqtt": "MQTT-Topics",
     "monitor": "Untermonitor",
-    "snowflake": "Snowflake-Tabelle aktuell"
+    "snowflake": "Snowflake-Tabelle aktuell",
+    "dependency-track": "Keine kritischen Schwachstellen"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"

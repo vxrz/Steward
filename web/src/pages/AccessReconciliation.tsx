@@ -655,8 +655,8 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
           onChange={(v) => {
             const p = usable.find((x) => x.id === v);
             const git = !!p && (GIT_PLATFORM_KINDS as readonly string[]).includes(p.kind);
-            const snowflake = p?.kind === 'snowflake';
-            setF((x) => ({ ...x, platformId: v ?? '', source: git ? 'git' : snowflake ? 'snowflake' : p && p.kind !== 'insights-hub' ? 'dataset' : x.source }));
+            const direct = p?.kind === 'snowflake' || p?.kind === 'aws' ? (p.kind as 'snowflake' | 'aws') : null;
+            setF((x) => ({ ...x, platformId: v ?? '', source: git ? 'git' : direct ? direct : p && p.kind !== 'insights-hub' ? 'dataset' : x.source }));
           }}
         />
         <Select
@@ -669,6 +669,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
             { value: 'dataset', label: t('sources.dataset') },
             { value: 'git', label: t('sources.git') },
             { value: 'snowflake', label: t('sources.snowflake') },
+            { value: 'aws', label: t('sources.aws') },
           ]}
           value={f.source}
           onChange={(v) => up('source', (v as AccessCheck['source']) ?? 'insights-hub')}

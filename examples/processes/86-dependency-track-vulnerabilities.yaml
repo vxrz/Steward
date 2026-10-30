@@ -1,0 +1,120 @@
+name: "Dependency-Track – vulnerabilities per project"
+description: |
+  Reads the projects of a Dependency-Track portfolio (read-only API key, see
+  docs/DEPENDENCY-TRACK.md): the open findings by severity – not the suppressed
+  ones and not those analysed as not affected or false positive – and the
+  policy violations of each project. Checks warn while a project has critical
+  findings or failing policy violations. Read-only.
+
+  Recommended schedule: every 6 hours (`0 */6 * * *`), with "message on
+  change" in the schedule's notification policy. Publishes `dt.vulnerabilities`
+  (one row per project; metrics projects, critical, high, policyFail) for the
+  "Vulnerabilities" dashboard. Steward itself reads the project of each
+  application component that names one (its scorecard part "Vulnerabilities");
+  monitors use the check type "Vulnerabilities (Dependency-Track)".
+tags: [security, dependency-track, sbom]
+connections:
+  - slot: dtrack
+    kind: dependency-track
+    description: Dependency-Track API server (API key of a team with VIEW_PORTFOLIO and VIEW_VULNERABILITY)
+inputs:
+  - name: latestOnly
+    label: Only the latest version of each project
+    type: boolean
+    default: true
+steps:
+  - id: projects
+    type: http
+    name: Projects of the portfolio
+    connection: dtrack
+    method: GET
+    path: /api/v1/project
+    query: { excludeInactive: "true", pageNumber: "1", pageSize: "500" }
+    saveAs: projects
+  - id: chosen
+    type: set
+    name: Projects to read
+    values:
+      list: "{{ [vars.projects.body[inputs.latestOnly = false or isLatest = true]] }}"
+  - id: read
+    type: forEach
+    name: Read each project (4 in parallel)
+    items: "vars.list"
+    as: project
+    concurrency: 4
+    maxItems: 500
+    saveAs: read
+    steps:
+      - id: findings
+        type: http
+        name: Open findings
+        connection: dtrack
+        method: GET
+        path: "/api/v1/finding/project/{{ $encodeUrlComponent(vars.project.uuid) }}"
+        query: { suppressed: "false" }
+        saveAs: findings
+      - id: metrics
+        type: http
+        name: Policy violations
+        connection: dtrack
+        method: GET
+        path: "/api/v1/metrics/project/{{ $encodeUrlComponent(vars.project.uuid) }}/current"
+        onError: continue
+        saveAs: metrics
+      - id: summarize
+        type: set
+        name: Row of the project
+        values:
+          row: >-
+            {{ (
+              $open := [vars.findings.body[analysis.isSuppressed != true and analysis.state != 'NOT_AFFECTED' and analysis.state != 'FALSE_POSITIVE']];
+              $sev := [$open.$lowercase(vulnerability.severity)];
+              $critical := $count($sev[$ = 'critical']);
+              $high := $count($sev[$ = 'high']);
+              $fail := $exists(vars.metrics.error) ? 0 : $number(vars.metrics.body.policyViolationsFail ? vars.metrics.body.policyViolationsFail : 0);
+              {
+                "key": vars.project.uuid,
+                "project": vars.project.name & '@' & vars.project.version,
+                "findings": $critical & ' critical, ' & $high & ' high, ' & $count($sev[$ = 'medium']) & ' medium, ' & $count($sev[$ = 'low']) & ' low',
+                "policy": $exists(vars.metrics.error) ? 'not readable' : $fail & ' failing, ' & $number(vars.metrics.body.policyViolationsWarn ? vars.metrics.body.policyViolationsWarn : 0) & ' warnings',
+                "worst": $join([$open[$lowercase(vulnerability.severity) = 'critical'].(vulnerability.vulnId & ' in ' & component.name)][[0..2]], ', '),
+                "critical": $critical,
+                "high": $high,
+                "policyFail": $fail,
+                "status": $critical > 0 or $fail > 0 ? 'critical' : ($high > 0 ? 'warning' : 'good')
+              }
+            ) }}
+  - id: evaluate
+    type: set
+    name: Problems
+    values:
+      rows: "{{ [vars.read.results.row] }}"
+      exposed: "{{ [vars.rows[critical > 0 or policyFail > 0]] }}"
+  - id: publish
+    type: publish
+    name: Publish for the dashboard
+    dataset: dt.vulnerabilities
+    title: Vulnerabilities
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Project, value: project }
+      - { label: Open findings, value: findings }
+      - { label: Policy violations, value: policy }
+      - { label: Critical, value: worst }
+    status: status
+    statusText: "critical > 0 ? worst : (policyFail > 0 ? policy : '')"
+    metrics:
+      projects: "$count(vars.rows)"
+      critical: "$sum(vars.rows.critical)"
+      high: "$sum(vars.rows.high)"
+      policyFail: "$sum(vars.rows.policyFail)"
+  - id: noCritical
+    type: check
+    name: No critical findings or failing policies
+    severity: warning
+    condition: "$count(vars.exposed) = 0"
+    message: "{{ $count(vars.exposed) = 0 ? 'No project has critical findings or failing policy violations' : $join(vars.exposed.(project & ' – ' & findings & '; ' & policy), ' · ') }}"
+    headline: "{{ $count(vars.exposed) }} projects with critical findings or failing policies"
+    value: "$count(vars.exposed)"
+    items: "vars.exposed.(project & ': ' & (worst ? worst : policy))"

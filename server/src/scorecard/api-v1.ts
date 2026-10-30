@@ -58,6 +58,7 @@ const mapCard = (c: ServiceScorecard) => ({
   documentation: c.documentation,
   protection: c.protection,
   lifecycle: c.lifecycle,
+  vulnerabilities: c.vulnerabilities,
 });
 
 function found<T>(f: () => T, what: string): T {
@@ -86,7 +87,7 @@ export function scorecardApiRoutes(get: Get): void {
       tag: 'Services',
       summary: 'The service scorecard',
       description:
-        'Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – and the optional fifth, the tech stack’s end of life (`lifecycle`, status "none" unless counted), and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.',
+        'Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – the optional fifth, the tech stack’s end of life (`lifecycle`, status "none" unless counted), and the sixth, the open findings and policy violations of the components’ Dependency-Track projects (`vulnerabilities`, status "none" when no component links a project), and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.',
       response: { $ref: 'ScorecardEntry#' },
     },
     async () => {
@@ -124,7 +125,7 @@ export function scorecardApiRoutes(get: Get): void {
       operationId: 'getServiceScorecard',
       tag: 'Services',
       summary: 'The scorecard of a service',
-      description: 'Its four parts with their details, and the stored daily snapshots of the last 90 days.',
+      description: 'Its parts with their details, and the stored daily snapshots of the last 90 days.',
       params: { serviceId: 'Service id (svc_…)' },
       response: { $ref: 'ServiceScorecardEntry#' },
     },

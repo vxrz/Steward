@@ -332,6 +332,7 @@ const PLATFORM_KIND: Partial<Record<string, string>> = {
   kafka: 'kafka',
   mqtt: 'mqtt',
   snowflake: 'snowflake',
+  'dependency-track': 'dependency-track',
   zabbix: 'zabbix',
 };
 

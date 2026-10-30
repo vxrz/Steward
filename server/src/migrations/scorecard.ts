@@ -103,4 +103,9 @@ export const SCORECARD_MIGRATIONS: NamedMigration[] = [
     name: 'scorecard-003-lifecycle',
     sql: `ALTER TABLE scorecard_snapshots ADD COLUMN lifecycle TEXT NOT NULL DEFAULT 'none';`,
   },
+  {
+    // #119: the scorecard part "Vulnerabilities" (Dependency-Track); "none" for the days stored before it existed
+    name: 'scorecard-004-vulnerabilities',
+    sql: `ALTER TABLE scorecard_snapshots ADD COLUMN vulnerabilities TEXT NOT NULL DEFAULT 'none';`,
+  },
 ];

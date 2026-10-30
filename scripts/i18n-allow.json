@@ -35,6 +35,8 @@
       "Administration",
       "API history.push (7.0+)",
       "Appliance",
+      "{{severity}} {{id}} in {{component}} – {{fix}}",
+      "Dependency-Track",
       "Warehouse",
       "Snowflake",
       "Claims (iss, sub, aud …)",

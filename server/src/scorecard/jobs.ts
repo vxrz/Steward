@@ -67,8 +67,8 @@ export function snapshotScorecards(now = Date.now(), force = false): number | nu
     db().run('DELETE FROM scorecard_snapshots WHERE day = ?', day);
     for (const { card: c, documentIds } of cards) {
       db().run(
-        `INSERT INTO scorecard_snapshots (day, service_id, service_name, owners, attention, duties, availability, documentation, protection, lifecycle, document_ids, details, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO scorecard_snapshots (day, service_id, service_name, owners, attention, duties, availability, documentation, protection, lifecycle, vulnerabilities, document_ids, details, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         day,
         c.serviceId,
         c.serviceName,
@@ -79,6 +79,7 @@ export function snapshotScorecards(now = Date.now(), force = false): number | nu
         c.documentation.status,
         c.protection.status,
         c.lifecycle.status,
+        c.vulnerabilities.status,
         JSON.stringify(documentIds),
         JSON.stringify({
           duties: { mandatory: c.duties.mandatory, recommended: c.duties.recommended, optional: c.duties.optional },
@@ -91,6 +92,13 @@ export function snapshotScorecards(now = Date.now(), force = false): number | nu
           },
           protection: c.protection.dimensions.map((x) => ({ dimension: x.dimension, effective: x.effective, ok: x.ok })),
           lifecycle: { enabled: c.lifecycle.enabled, entries: c.lifecycle.entries, eol: c.lifecycle.eol, ending: c.lifecycle.ending },
+          vulnerabilities: {
+            projects: c.vulnerabilities.projects,
+            critical: c.vulnerabilities.critical,
+            high: c.vulnerabilities.high,
+            policyFail: c.vulnerabilities.policyFail,
+            stale: c.vulnerabilities.stale,
+          },
         }),
         iso(now),
       );

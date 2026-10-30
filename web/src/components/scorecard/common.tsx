@@ -22,10 +22,14 @@ import { TONE, useFieldErrors } from '../common';
 import { fmtNumber } from '../../format';
 
 /** Colours of the part statuses (the label always says the status, too). */
-/** The parts to show: "Tech stack" only while it is turned on in the end-of-life settings (#104). */
-export function shownParts(cards: Pick<ServiceScorecard, 'lifecycle'>[]): ScorecardPart[] {
+/**
+ * The parts to show: "Tech stack" only while it is turned on in the end-of-life settings (#104), "Vulnerabilities" only
+ * when a component of some service links a Dependency-Track project (#119).
+ */
+export function shownParts(cards: Pick<ServiceScorecard, 'lifecycle' | 'vulnerabilities'>[]): ScorecardPart[] {
   const lifecycle = cards.some((c) => c.lifecycle?.enabled);
-  return SCORECARD_PARTS.filter((p) => p !== 'lifecycle' || lifecycle);
+  const vulnerabilities = cards.some((c) => (c.vulnerabilities?.status ?? 'none') !== 'none');
+  return SCORECARD_PARTS.filter((p) => (p !== 'lifecycle' || lifecycle) && (p !== 'vulnerabilities' || vulnerabilities));
 }
 
 export const PART_COLORS: Record<ScorecardPartStatus | 'hidden', string> = {

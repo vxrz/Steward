@@ -53,6 +53,7 @@ export const CHECK_TYPES = [
   'kafka',
   'mqtt',
   'snowflake',
+  'dependency-track',
   'monitor',
 ] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
@@ -72,6 +73,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   kubernetes: { label: 'Kubernetes deployments', help: 'Deployments of a namespace are ready (e.g. 3/3) and no pod is crash-looping' },
   kafka: { label: 'Kafka topic', help: 'New messages on a topic within N minutes, the lag of a consumer group, a group that is stuck, the schema version' },
   mqtt: { label: 'MQTT topics', help: 'Messages on an MQTT topic within N minutes, devices (topics of a pattern) that went silent, connected clients' },
+  'dependency-track': {
+    label: 'Vulnerabilities (Dependency-Track)',
+    help: 'A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation',
+  },
   snowflake: {
     label: 'Snowflake',
     help: 'A Snowflake table changed recently enough, no task of a database failed, or a warehouse stayed within its credits',
@@ -277,6 +282,20 @@ export const checkSchema = z.discriminatedUnion('type', [
     /** degraded when more open security alerts of this severity or higher (GitHub Dependabot); unset: alerts are not checked */
     maxCritical: z.number().int().min(0).max(100000).optional(),
     maxHigh: z.number().int().min(0).max(100000).optional(),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('dependency-track'),
+    platform: platformRef,
+    /** name@version, name@latest or the project's UUID (#119) */
+    project: z.string().trim().min(3).max(360),
+    /** Down (or failAs) above this many open critical findings (default 0) */
+    maxCritical: z.number().int().min(0).max(100000).default(0),
+    /** Degraded above this many open critical or high findings; unset: high findings are not checked */
+    maxHigh: z.number().int().min(0).max(100000).optional(),
+    /** A failing policy violation counts like a critical finding (default true) */
+    policyFail: z.boolean().default(true),
+    failAs: z.enum(['down', 'degraded']).default('down'),
   }),
   z.object({
     ...checkBase,

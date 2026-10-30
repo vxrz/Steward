@@ -203,6 +203,36 @@ export const ScorecardServiceEntry = z.object({
       ),
     })
     .describe('Tech stack: end of life of the components of the service’s applications (from endoflife.date)'),
+  vulnerabilities: z
+    .object({
+      status: partStatus().describe(
+        'attention: a linked project with open critical findings or failing policy violations; pending: open high findings, a failed read or a readout older than 2 days; none: no component of the service’s applications links a Dependency-Track project (or none was read yet)',
+      ),
+      projects: z.number().int().describe('Linked Dependency-Track projects with a readout'),
+      critical: z.number().int().describe('Open critical findings'),
+      high: z.number().int().describe('Open high findings'),
+      policyFail: z.number().int().describe('Failing policy violations'),
+      stale: z.number().int().describe('Readouts that failed or are older than 2 days'),
+      items: z
+        .array(
+          z.object({
+            applicationId: z.string(),
+            applicationName: z.string(),
+            componentId: z.string(),
+            componentName: z.string(),
+            project: z.string().describe('name@version of the project read, else the project as linked'),
+            critical: z.number().int(),
+            high: z.number().int(),
+            policyFail: z.number().int(),
+            error: z.string().nullable().describe('The last read failed'),
+            readAt: ts(),
+            stale: z.boolean().describe('The readout is older than 2 days'),
+            url: z.string().nullable().describe('The project in Dependency-Track’s own UI, when its frontend URL is set'),
+          }),
+        )
+        .describe('The components that are not ok, worst first'),
+    })
+    .describe('Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects'),
 });
 
 const PartCounts = z.object({ ok: z.number().int(), attention: z.number().int(), pending: z.number().int(), none: z.number().int() });
@@ -211,7 +241,14 @@ const RollupGroup = z.object({
   key: z.string(),
   services: z.number().int(),
   attention: z.number().int(),
-  parts: z.object({ duties: PartCounts, availability: PartCounts, documentation: PartCounts, protection: PartCounts, lifecycle: PartCounts }),
+  parts: z.object({
+    duties: PartCounts,
+    availability: PartCounts,
+    documentation: PartCounts,
+    protection: PartCounts,
+    lifecycle: PartCounts,
+    vulnerabilities: PartCounts,
+  }),
 });
 
 export const ScorecardEntry = z.object({
@@ -226,7 +263,14 @@ export const ScorecardTrendEntry = z.object({
   day: z.string().describe('Local day (instance time zone), YYYY-MM-DD'),
   services: z.number().int(),
   attention: z.number().int(),
-  parts: z.object({ duties: TrendCounts, availability: TrendCounts, documentation: TrendCounts, protection: TrendCounts, lifecycle: TrendCounts }),
+  parts: z.object({
+    duties: TrendCounts,
+    availability: TrendCounts,
+    documentation: TrendCounts,
+    protection: TrendCounts,
+    lifecycle: TrendCounts,
+    vulnerabilities: TrendCounts,
+  }),
 });
 
 export const ServiceScorecardEntry = ScorecardServiceEntry.extend({
@@ -235,7 +279,14 @@ export const ServiceScorecardEntry = ScorecardServiceEntry.extend({
       z.object({
         day: z.string(),
         attention: z.boolean(),
-        parts: z.object({ duties: HistoryPart, availability: HistoryPart, documentation: HistoryPart, protection: HistoryPart, lifecycle: HistoryPart }),
+        parts: z.object({
+          duties: HistoryPart,
+          availability: HistoryPart,
+          documentation: HistoryPart,
+          protection: HistoryPart,
+          lifecycle: HistoryPart,
+          vulnerabilities: HistoryPart,
+        }),
       }),
     )
     .describe('The stored daily snapshots of the last 90 days, oldest first'),

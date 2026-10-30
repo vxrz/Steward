@@ -29,6 +29,7 @@ import { setupMonitorDemo } from '../monitors/demo.js';
 import { getSettings, updateSettings } from '../settings.js';
 import { setupComplianceDemo } from '../compliance/demo.js';
 import { DEMO_AWS } from '../mock/mockAws.js';
+import { DEMO_DTRACK } from '../mock/mockDtrack.js';
 import { DEMO_SNOWFLAKE, setSnowflakePublicKey } from '../mock/mockSnowflake.js';
 
 /** Creates demo platforms (pointing to the built-in mock) and imports all templates. */
@@ -254,6 +255,24 @@ export async function setupDemo(): Promise<{
     platforms++;
   }
   startMqttSimulator();
+  if (!existing.has('Dependency-Track (demo)')) {
+    // Dependency-Track (#119): projects shop-web 2.4.1 / 2.5.0 and crm-api 1.0.0 with findings and policy violations
+    createPlatform({
+      name: 'Dependency-Track (demo)',
+      kind: 'dependency-track',
+      environment: 'demo',
+      description: 'Simulated Dependency-Track served by the built-in mock: projects shop-web (2.4.1, 2.5.0) and crm-api. See docs/DEPENDENCY-TRACK.md.',
+      baseUrl: `${base}/dtrack`,
+      config: {
+        auth: { type: 'apiKey', apiKeyIn: 'header', apiKeyName: 'X-Api-Key' },
+        variables: {},
+        http: { proxy: 'none' },
+        testPath: '/api/v1/project?pageNumber=1&pageSize=1',
+      },
+      secrets: { apiKey: DEMO_DTRACK.apiKey },
+    });
+    platforms++;
+  }
   if (!existing.has('Snowflake (demo)')) {
     // Snowflake (#115): a key pair for the demo user – the mock knows the public key, Steward keeps the private one
     const keys = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });

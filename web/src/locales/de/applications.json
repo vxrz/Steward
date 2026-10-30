@@ -399,6 +399,25 @@
       "failedTasks": "Fehlgeschlagene Tasks (letzte 24 h): {{tasks}} – {{error}}",
       "stale": "Seit mehr als einem Tag unverändert: {{tables}}",
       "credits": "Credits der genutzten Warehouses, 30 Tage (7 Tage): {{warehouses}}"
+    },
+    "dtrack": {
+      "platform": "Dependency-Track",
+      "project": "Projekt in Dependency-Track",
+      "projectHint": "Name@Version, Name@latest oder die UUID des Projekts",
+      "notRead": "Dependency-Track {{project}}: noch nicht gelesen.",
+      "readNow": "Die Schwachstellen von {{name}} jetzt lesen",
+      "done": "Schwachstellen von {{name}} gelesen.",
+      "counts": "{{critical}} kritisch, {{high}} hoch, {{medium}} mittel, {{low}} niedrig · Richtlinienverstöße: {{fail}} fehlgeschlagen, {{warn}} Warnungen",
+      "finding": "{{severity}} {{id}} in {{component}} – {{fix}}",
+      "fixedIn": "behoben in {{version}}",
+      "noFix": "keine behobene Version bekannt",
+      "severity": {
+        "critical": "Kritisch",
+        "high": "Hoch",
+        "medium": "Mittel",
+        "low": "Niedrig",
+        "unassigned": "Nicht eingestuft"
+      }
     }
   },
   "credentials": {

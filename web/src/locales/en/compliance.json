@@ -38,7 +38,8 @@
     "insights-hub": "Insights Hub identity management",
     "dataset": "Dataset (access snapshot)",
     "git": "Git platform members (GitHub, GitLab, Forgejo)",
-    "snowflake": "Snowflake roles and grants"
+    "snowflake": "Snowflake roles and grants",
+    "aws": "AWS IAM users, groups and policies"
   },
   "rights": {
     "granted": "Granted",

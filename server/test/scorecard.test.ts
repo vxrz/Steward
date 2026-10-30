@@ -500,6 +500,12 @@ describe('no clean scorecard by archiving, no flood of messages, no silent "no d
         owners: '[1]',
       }),
     ).toEqual(['day "2026/01/01" is not YYYY-MM-DD', 'documentation "x" is not a status', 'owners is not a list of subjects']);
+    // the parts added later: no value in packages of older versions, else a status
+    const snap = { day: '2026-01-01', duties: 'ok', availability: 'ok', documentation: 'ok', protection: 'ok', attention: 0, document_ids: '[]', owners: '[]' };
+    expect(scorecardRowProblems('scorecard_snapshots', snap)).toEqual([]);
+    expect(scorecardRowProblems('scorecard_snapshots', { ...snap, lifecycle: 'none', vulnerabilities: 'bad' })).toEqual([
+      'vulnerabilities "bad" is not a status',
+    ]);
     expect(scorecardRowProblems('scorecard_rules', { dimension: 'beauty', min_level: 'High!', enabled: 1 })).toHaveLength(2);
     expect(scorecardRowProblems('objective_breaches', { started_at: '2026-01-01T00:00:00.000Z', windows: '["h24"]', end_reason: 'deleted' })).toEqual([
       'end_reason is unknown',
@@ -726,6 +732,100 @@ describe('the scorecard parts', () => {
     expect(audit).toEqual(expect.arrayContaining(['scorecard.rule_created', 'scorecard.rule_updated', 'scorecard.rule_deleted']));
   });
 
+  it('vulnerabilities (#119): from the Dependency-Track readouts of the components of the service’s applications', async () => {
+    const svc = await newService();
+    const a = await app(svc.id, fullRating);
+    await releasedDoc('Vulnerability handbook', { serviceId: svc.id });
+    const dt = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'dependency-track').id;
+    const component = async (appId: string, name: string) =>
+      (await dana('POST', `/applications/${appId}/components`, { type: 'repository', name })).components.find((x: any) => x.name === name).id as string;
+    const readout = (o: { critical?: number; high?: number; fail?: number; error?: string; at?: number; url?: string } = {}) =>
+      JSON.stringify({
+        readAt: iso(o.at ?? Date.now()),
+        error: o.error ?? null,
+        project: { uuid: '6f1f3c6e-1b1a-4c55-9a43-0d5c1d2b7e10', name: 'shop-web', version: '2.4.1', lastBomImport: null },
+        counts: { critical: o.critical ?? 0, high: o.high ?? 0, medium: 4, low: 2, unassigned: 0 },
+        policy: { fail: o.fail ?? 0, warn: 1, info: 0 },
+        riskScore: 12,
+        top: [],
+        url: o.url ?? null,
+      });
+    const link = (id: string, state: string | null, project = 'shop-web@2.4.1') =>
+      db().run('UPDATE application_components SET dt_platform_id = ?, dt_project = ?, dt_state = ? WHERE id = ?', dt, project, state, id);
+    const part = async () => (await card(vera, svc.id)).vulnerabilities;
+
+    // nothing linked, or linked but not read yet: none – the card is fine
+    let c = await card(vera, svc.id);
+    expect(c.vulnerabilities).toEqual({ status: 'none', projects: 0, critical: 0, high: 0, policyFail: 0, stale: 0, items: [] });
+    expect(c.attention).toBe(false);
+    const web = await component(a.id, 'shop-web');
+    link(web, null);
+    expect((await part()).status).toBe('none');
+    // only medium and low findings: ok
+    link(web, readout());
+    expect(await part()).toEqual({ status: 'ok', projects: 1, critical: 0, high: 0, policyFail: 0, stale: 0, items: [] });
+    // open high findings, a failed read or a readout older than 2 days: pending
+    link(web, readout({ high: 3 }));
+    c = await card(vera, svc.id);
+    expect(c.vulnerabilities).toMatchObject({ status: 'pending', high: 3, stale: 0 });
+    expect(c.vulnerabilities.items).toEqual([
+      expect.objectContaining({
+        applicationId: a.id,
+        componentId: web,
+        componentName: 'shop-web',
+        project: 'shop-web@2.4.1',
+        critical: 0,
+        high: 3,
+        policyFail: 0,
+        error: null,
+        stale: false,
+      }),
+    ]);
+    expect(c.attention).toBe(false);
+    link(web, readout({ at: Date.now() - 3 * DAY }));
+    expect(await part()).toMatchObject({ status: 'pending', stale: 1, items: [expect.objectContaining({ stale: true })] });
+    link(web, readout({ error: 'HTTP 401' }));
+    expect(await part()).toMatchObject({ status: 'pending', stale: 1, items: [expect.objectContaining({ error: 'HTTP 401', stale: false })] });
+    // open critical findings or failing policy violations: attention, and the card needs attention; worst first
+    const api = await component(a.id, 'shop-api');
+    link(api, readout({ critical: 2, url: 'https://dtrack.example/projects/1' }), 'shop-api@latest');
+    c = await card(vera, svc.id);
+    expect(c.vulnerabilities).toMatchObject({ status: 'attention', projects: 2, critical: 2, policyFail: 0, stale: 1 });
+    expect(c.vulnerabilities.items.map((i: any) => [i.componentName, i.critical, i.url])).toEqual([
+      ['shop-api', 2, 'https://dtrack.example/projects/1'],
+      ['shop-web', 0, null],
+    ]);
+    expect(c.attention).toBe(true);
+    link(api, readout({ fail: 1 }));
+    link(web, readout());
+    c = await card(vera, svc.id);
+    expect(c.vulnerabilities).toMatchObject({
+      status: 'attention',
+      critical: 0,
+      policyFail: 1,
+      items: [expect.objectContaining({ componentId: api, policyFail: 1 })],
+    });
+    expect(c.attention).toBe(true);
+    // the project as linked when the readout has none (a first read that failed)
+    link(api, JSON.stringify({ ...JSON.parse(readout({ error: 'not found' })), project: null }), 'shop-api@latest');
+    expect((await part()).items).toEqual([expect.objectContaining({ project: 'shop-api@latest', error: 'not found' })]);
+    // components of applications that are not members (or archived) do not count
+    const other = await dana('POST', '/applications', { name: `Scorecard app ${++n}`, owners: [] });
+    link(await component(other.id, 'elsewhere'), readout({ critical: 5 }));
+    expect((await part()).critical).toBe(0);
+    link(api, readout({ critical: 1 }));
+    await dana('POST', `/applications/${a.id}/archive`, { archived: true });
+    expect((await part()).status).toBe('none');
+    await dana('POST', `/applications/${a.id}/archive`, { archived: false });
+    // the daily snapshot and the history keep the part
+    jobs.snapshotScorecards(Date.now(), true);
+    expect(db().get<any>('SELECT vulnerabilities, attention FROM scorecard_snapshots WHERE day = ? AND service_id = ?', sc.dayOf(Date.now()), svc.id)).toEqual({
+      vulnerabilities: 'attention',
+      attention: 1,
+    });
+    expect((await card(vera, svc.id)).history.at(-1)).toMatchObject({ attention: true, parts: { vulnerabilities: 'attention' } });
+  });
+
   it('only what the reader may see counts and shows: documents they may not read are neither listed nor counted', async () => {
     const svc = await newService();
     const doc = await releasedDoc('Secret manual', { serviceId: svc.id });
@@ -888,7 +988,7 @@ describe('report section and public API', () => {
     expect(sc1.body.services.some((c: any) => c.serviceId === svc.id)).toBe(true);
     expect((await v1('/scorecard/trend?days=7')).status).toBe(200);
     const one = await v1(`/services/${svc.id}/scorecard`);
-    expect(one.body).toMatchObject({ serviceId: svc.id, availability: { total: 1, met: 1 } });
+    expect(one.body).toMatchObject({ serviceId: svc.id, availability: { total: 1, met: 1 }, vulnerabilities: { status: 'none', projects: 0, items: [] } });
     expect((await v1('/services/svc_nope/scorecard')).status).toBe(404);
     const list = await v1(`/objectives?serviceId=${svc.id}`);
     expect(list.body.items).toEqual([expect.objectContaining({ id: o.id, platformVisible: false, platformId: null, endpointKey: null, status: 'met' })]);

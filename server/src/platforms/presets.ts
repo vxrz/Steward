@@ -303,6 +303,27 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'dependency-track',
+    label: 'Dependency-Track (vulnerabilities, read-only)',
+    description:
+      'OWASP Dependency-Track: application components name their project there (name@version, name@latest or the UUID), and Steward reads the open findings by severity – not those analysed as not affected or false positive, nor suppressed ones –, the policy violations and the most severe findings with their fixed version and EPSS. The scorecard shows them as the part Vulnerabilities, monitors check them. Base URL: the API server; variable frontendUrl: the UI, for links. API key of a team with VIEW_PORTFOLIO, VIEW_VULNERABILITY and VIEW_POLICY_VIOLATION (docs/DEPENDENCY-TRACK.md).',
+    baseUrl: 'https://dtrack-api.example.com',
+    config: {
+      auth: { type: 'apiKey', apiKeyIn: 'header', apiKeyName: 'X-Api-Key' },
+      variables: { frontendUrl: 'https://dtrack.example.com' },
+      http: {},
+      testPath: '/api/v1/project?pageNumber=1&pageSize=1',
+    },
+    secretFields: [
+      {
+        key: 'apiKey',
+        label: 'API key',
+        help: 'Administration → Access Management → Teams: a team with VIEW_PORTFOLIO, VIEW_VULNERABILITY, VIEW_POLICY_VIOLATION',
+      },
+    ],
+    docs: [{ title: 'Dependency-Track REST API', url: 'https://docs.dependencytrack.org/integrations/rest-api/' }],
+  },
+  {
     kind: 'kafka',
     label: 'Kafka cluster (Confluent, read-only)',
     description:

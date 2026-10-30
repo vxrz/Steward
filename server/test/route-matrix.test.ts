@@ -475,6 +475,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/applications/:id/components/:componentId/topic': DESIGN,
   'POST /api/applications/:id/components/:componentId/aws': DESIGN,
   'POST /api/applications/:id/components/:componentId/snowflake': DESIGN,
+  'POST /api/applications/:id/components/:componentId/dependency-track': DESIGN,
   'GET /api/systems': ALL,
   'POST /api/systems': DESIGN,
   'GET /api/systems/:id': ALL,

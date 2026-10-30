@@ -96,6 +96,7 @@ const TRYABLE = new Set<CheckType>([
   'kafka',
   'mqtt',
   'snowflake',
+  'dependency-track',
 ]);
 interface Preview {
   status: MonitorStatus;

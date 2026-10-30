@@ -91,7 +91,7 @@ _Import SBOM_ (the import icon of a component) reads a **CycloneDX** or **SPDX**
 - A URL must be http(s), is fetched without following redirects, at most 10 MB, and the [outbound policy](SECURITY-HARDENING.md#outbound-connections) applies – allow the host under _Settings → Outbound access_ if needed. An SBOM lists at most 50,000 components.
 - The component shows the last import (format, name, who, when).
 
-Libraries and their vulnerabilities belong in Dependency-Track (a later version), not here.
+Libraries and their vulnerabilities belong in Dependency-Track: any component can name its Dependency-Track project, and Steward shows its open findings and policy violations ([DEPENDENCY-TRACK.md](DEPENDENCY-TRACK.md)).
 
 ### End of life
 

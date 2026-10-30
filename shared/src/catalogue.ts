@@ -3,6 +3,7 @@ import type { RepositoryReadout } from './git.js';
 import type { TopicReadout } from './kafka.js';
 import type { AwsReadout } from './aws.js';
 import type { SnowflakeReadout } from './snowflake.js';
+import type { DtrackLink, DtrackReadout } from './dtrack.js';
 import type { Backlink, ItemLink, ReviewStatus, ServiceCriticality } from './records.js';
 
 /**
@@ -343,6 +344,8 @@ export interface ApplicationComponent {
   aws?: AwsReadout | null;
   /** Snowflake database (#115): tables, freshness, failing tasks, warehouse credits */
   snowflake?: SnowflakeReadout | null;
+  /** Its project in Dependency-Track (#119), any component type: vulnerabilities and policy violations */
+  dependencyTrack?: (DtrackLink & { readout: DtrackReadout | null }) | null;
   createdAt: string;
   createdBy: string;
   updatedAt: string;

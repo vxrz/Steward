@@ -705,6 +705,56 @@ async function checkSnowflake(c: CheckOf<'snowflake'>, ctx: ExecContext): Promis
   }
 }
 
+// ---------- Dependency-Track ----------
+
+/** What a project had, read at most every 5 minutes per platform and project (findings change with BOM uploads, not by the minute). */
+const dtrackSeen = new Map<string, { at: number; read: Awaited<ReturnType<import('../dtrack/client.js').DtrackClient['read']>> }>();
+
+/** Open findings and policy violations of a Dependency-Track project (#119). */
+async function checkDtrack(c: CheckOf<'dependency-track'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  if (platform.kind !== 'dependency-track') return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a Dependency-Track platform` };
+  const key = `${platform.id}|${c.project}`;
+  let read;
+  try {
+    const seen = dtrackSeen.get(key);
+    if (seen && Date.now() - seen.at < 5 * 60_000) read = seen.read;
+    else {
+      const { DtrackClient } = await import('../dtrack/client.js');
+      read = await new DtrackClient(platform, secrets).read(c.project);
+      dtrackSeen.set(key, { at: Date.now(), read });
+    }
+  } catch (e) {
+    return { status: 'unknown', message: `Dependency-Track could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
+  }
+  const ms = Date.now() - t0;
+  const { counts, policy } = read;
+  const value = { critical: counts.critical, high: counts.high, medium: counts.medium, policyFail: policy.fail };
+  const where = `${read.project?.name}@${read.project?.version}`;
+  const crit = read.top
+    .filter((f) => f.severity === 'critical')
+    .slice(0, 3)
+    .map((f) => `${f.vulnId} in ${f.component}`);
+  const problems: string[] = [];
+  if (counts.critical > c.maxCritical) problems.push(`${counts.critical} critical (at most ${c.maxCritical})${crit.length ? `: ${crit.join(', ')}` : ''}`);
+  if (c.policyFail && policy.fail > 0) problems.push(`${policy.fail} failing policy violation(s)`);
+  if (problems.length) return { status: c.failAs, message: `Dependency-Track: ${where} – ${problems.join('; ')}`.slice(0, 500), durationMs: ms, value };
+  if (c.maxHigh !== undefined && counts.critical + counts.high > c.maxHigh)
+    return {
+      status: 'degraded',
+      message: `Dependency-Track: ${where} – ${counts.critical + counts.high} critical or high (at most ${c.maxHigh})`,
+      durationMs: ms,
+      value,
+    };
+  return {
+    status: 'up',
+    message: `Dependency-Track: ${where} – ${counts.critical} critical, ${counts.high} high, ${policy.fail} failing policies`,
+    durationMs: ms,
+    value,
+  };
+}
+
 // ---------- Kafka ----------
 
 /** Offsets seen per topic or group (for brokers without the newest-message time, and for stuck groups): value and since when. */
@@ -854,7 +904,8 @@ type Active =
   | CheckOf<'git'>
   | CheckOf<'kafka'>
   | CheckOf<'mqtt'>
-  | CheckOf<'snowflake'>;
+  | CheckOf<'snowflake'>
+  | CheckOf<'dependency-track'>;
 
 /** Runs an active check; heartbeat and sub-monitor checks are evaluated by the engine from stored state. */
 export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawResult> {
@@ -882,6 +933,8 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkGit(c, ctx);
       case 'snowflake':
         return await checkSnowflake(c, ctx);
+      case 'dependency-track':
+        return await checkDtrack(c, ctx);
       case 'kafka':
         return await checkKafka(c, ctx);
       case 'mqtt':
