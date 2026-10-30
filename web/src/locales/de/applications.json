@@ -387,6 +387,18 @@
       "neverUsed": "nie genutzt",
       "registerKey": "Den Zugriffsschlüssel {{id}} ins Zugangsdatenregister aufnehmen",
       "keyDescription": "Zugriffsschlüssel des IAM-Benutzers {{user}} im AWS-Konto {{account}}"
+    },
+    "snowflake": {
+      "platform": "Snowflake-Konto",
+      "platformHint": "Der Name der Komponente ist die Datenbank (z. B. SHOP): Steward liest ihre Tabellen, fehlgeschlagene Tasks und die Credits der genutzten Warehouses.",
+      "noPlatforms": "Noch keine Snowflake-Plattform – legen Sie eine unter Plattformen an.",
+      "notRead": "Noch nicht gelesen.",
+      "readNow": "Die Snowflake-Datenbank {{name}} jetzt lesen",
+      "done": "Snowflake-Datenbank {{name}} gelesen.",
+      "summary": "Konto {{account}}, {{count}} Tabellen und Views, {{size}}",
+      "failedTasks": "Fehlgeschlagene Tasks (letzte 24 h): {{tasks}} – {{error}}",
+      "stale": "Seit mehr als einem Tag unverändert: {{tables}}",
+      "credits": "Credits der genutzten Warehouses, 30 Tage (7 Tage): {{warehouses}}"
     }
   },
   "credentials": {

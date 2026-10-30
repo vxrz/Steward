@@ -20,6 +20,9 @@ import {
   type RepositoryReadout,
   type TopicReadout,
   type AwsReadout,
+  type SnowflakeReadout,
+  SNOWFLAKE_KIND,
+  SNOWFLAKE_NAME_RE,
   AWS_KIND,
   AWS_TAG_VALUE_RE,
   KAFKA_KIND,
@@ -203,6 +206,7 @@ interface ComponentRow {
   repo_state?: string | null;
   topic_state?: string | null;
   aws_state?: string | null;
+  snowflake_state?: string | null;
   created_at: string;
   created_by: string;
   updated_at: string;
@@ -272,7 +276,9 @@ function toComponent(r: ComponentRow, stack: StackEntry[]): ApplicationComponent
           ? { platformId: r.platform_id ?? null, topic: parseJson<TopicReadout | null>(r.topic_state ?? null, null) }
           : r.type === 'cloud-account'
             ? { platformId: r.platform_id ?? null, aws: parseJson<AwsReadout | null>(r.aws_state ?? null, null) }
-            : {}),
+            : r.type === 'snowflake-database'
+              ? { platformId: r.platform_id ?? null, snowflake: parseJson<SnowflakeReadout | null>(r.snowflake_state ?? null, null) }
+              : {}),
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedAt: r.updated_at,
@@ -364,7 +370,14 @@ function editableApp(appId: string, canEdit: (u: AuthUser | null, r: Pick<AppRow
  * platform of a repository (github, gitlab, forgejo, #107) – one the user may use. Other types have none.
  */
 function clusterOf(input: ComponentInput, u: AuthUser, current: string | null): string | null {
-  if (input.type !== 'kubernetes-namespace' && input.type !== 'repository' && input.type !== 'kafka-topic' && input.type !== 'cloud-account') return null;
+  if (
+    input.type !== 'kubernetes-namespace' &&
+    input.type !== 'repository' &&
+    input.type !== 'kafka-topic' &&
+    input.type !== 'cloud-account' &&
+    input.type !== 'snowflake-database'
+  )
+    return null;
   const id = input.platformId === undefined ? current : input.platformId;
   if (id && input.type === 'repository' && (!REPOSITORY_PATH_RE.test(input.name) || input.name.split('/').some((x) => x === '.' || x === '..')))
     throw new HttpError(400, 'The repository path is owner/repository (GitLab: group/project)', 'COMPONENT_REPOSITORY_PATH', { path: input.name });
@@ -379,8 +392,17 @@ function clusterOf(input: ComponentInput, u: AuthUser, current: string | null): 
         name: input.name.slice(0, 100),
       },
     );
+  if (id && input.type === 'snowflake-database' && !SNOWFLAKE_NAME_RE.test(input.name))
+    throw new HttpError(400, 'A Snowflake database name has letters, digits, _ and $ and starts with a letter or _', 'SNOWFLAKE_NAME', {
+      name: input.name.slice(0, 100),
+    });
   if (!id || id === current) return id ?? null;
   const p = db().get<{ kind: string }>('SELECT kind FROM platforms WHERE id = ?', id);
+  if (input.type === 'snowflake-database') {
+    if (p?.kind !== SNOWFLAKE_KIND || ownerProblem(u.username, id))
+      throw new HttpError(400, 'Choose a Snowflake platform you may use', 'COMPONENT_SNOWFLAKE_PLATFORM', { id });
+    return id;
+  }
   if (input.type === 'cloud-account') {
     if (p?.kind !== AWS_KIND || ownerProblem(u.username, id)) throw new HttpError(400, 'Choose an AWS platform you may use', 'COMPONENT_AWS_PLATFORM', { id });
     return id;
@@ -556,7 +578,9 @@ export function updateComponent(appId: string, componentId: string, input: Compo
   const cluster = clusterOf(input, u, cur.platform_id ?? null);
   const fields = [
     ...(['type', 'name', 'url', 'note', 'environment'] as const).filter((k) => input[k] !== (cur[k] ?? '')),
-    ...(cluster !== (cur.platform_id ?? null) ? ([input.type === 'repository' || input.type === 'cloud-account' ? 'platform' : 'cluster'] as const) : []),
+    ...(cluster !== (cur.platform_id ?? null)
+      ? ([input.type === 'repository' || input.type === 'cloud-account' || input.type === 'snowflake-database' ? 'platform' : 'cluster'] as const)
+      : []),
   ];
   db().tx(() => {
     const diff = input.stack ? writeStack(componentHolder(componentId), input.stack, u) : { added: [], changed: [], removed: [] };
@@ -945,7 +969,7 @@ export interface ApplicationInputValue {
     environment: string;
     stack: { product: string; label: string; version: string; lifecycle: StackLifecycle | null }[];
     /** What Steward last read from the component's platform: a Kubernetes namespace, a repository or a Kafka topic; null otherwise */
-    readout: NamespaceReadout | RepositoryReadout | TopicReadout | AwsReadout | null;
+    readout: NamespaceReadout | RepositoryReadout | TopicReadout | AwsReadout | SnowflakeReadout | null;
   }[];
   /** The systems the application runs on (#129), one entry per system and environment */
   systems: {
@@ -1039,7 +1063,7 @@ export function applicationInputValue(v: unknown, label: string): ApplicationInp
       environment: c.environment,
       stack: c.stack.map(plain),
       // what Steward last read from the component's platform (Kubernetes namespace, repository, Kafka topic), for checks against standards
-      readout: c.cluster ?? c.repository ?? c.topic ?? c.aws ?? null,
+      readout: c.cluster ?? c.repository ?? c.topic ?? c.aws ?? c.snowflake ?? null,
     })),
     systems: systems.map((x) => ({
       id: x.systemId,

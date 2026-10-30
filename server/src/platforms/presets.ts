@@ -268,6 +268,41 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'snowflake',
+    label: 'Snowflake (SQL API, read-only)',
+    description:
+      'A Snowflake account through the SQL API with key-pair authentication: application components of type "Snowflake database" name it and the database, and Steward reads its tables (size, last change), failing tasks and the credits of the warehouses used, from SNOWFLAKE.ACCOUNT_USAGE (up to two hours behind). Access reviews read the roles of users or who reaches a database, schema or table; monitors check the freshness of a table, failing tasks and warehouse credits. Variables: account – the account identifier as in the JWT (ORGNAME-ACCOUNTNAME or the account locator), user, role (with IMPORTED PRIVILEGES on the SNOWFLAKE database) and warehouse. Base URL https://<account identifier>.snowflakecomputing.com. See docs/SNOWFLAKE.md.',
+    baseUrl: 'https://myorg-myaccount.snowflakecomputing.com',
+    config: {
+      auth: {
+        type: 'jwt',
+        jwt: {
+          alg: 'RS256',
+          lifetimeSeconds: 3600,
+          claims: {
+            iss: "{{ $uppercase(vars.account) & '.' & $uppercase(vars.user) & '.' & publicKeyFingerprint }}",
+            sub: "{{ $uppercase(vars.account) & '.' & $uppercase(vars.user) }}",
+          },
+        },
+      },
+      variables: { account: 'MYORG-MYACCOUNT', user: 'STEWARD_READER', role: 'STEWARD_READ', warehouse: 'STEWARD_WH' },
+      http: { defaultHeaders: { 'X-Snowflake-Authorization-Token-Type': 'KEYPAIR_JWT' } },
+    },
+    secretFields: [
+      {
+        key: 'privateKey',
+        label: 'Private key (PEM, PKCS#8)',
+        help: 'openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt; give the user the public key with ALTER USER … SET RSA_PUBLIC_KEY',
+      },
+      { key: 'privateKeyPassphrase', label: 'Passphrase of the private key (optional)' },
+    ],
+    docs: [
+      { title: 'Snowflake SQL API', url: 'https://docs.snowflake.com/en/developer-guide/sql-api/index' },
+      { title: 'Key-pair authentication', url: 'https://docs.snowflake.com/en/user-guide/key-pair-auth' },
+      { title: 'ACCOUNT_USAGE views', url: 'https://docs.snowflake.com/en/sql-reference/account-usage' },
+    ],
+  },
+  {
     kind: 'kafka',
     label: 'Kafka cluster (Confluent, read-only)',
     description:

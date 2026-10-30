@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { loopbackUrl } from '../config.js';
 import { logger } from '../log.js';
 import { db } from '../db.js';
@@ -28,6 +29,7 @@ import { setupMonitorDemo } from '../monitors/demo.js';
 import { getSettings, updateSettings } from '../settings.js';
 import { setupComplianceDemo } from '../compliance/demo.js';
 import { DEMO_AWS } from '../mock/mockAws.js';
+import { DEMO_SNOWFLAKE, setSnowflakePublicKey } from '../mock/mockSnowflake.js';
 
 /** Creates demo platforms (pointing to the built-in mock) and imports all templates. */
 export const DEMO_USER_PASSWORD = 'Demo-password-1';
@@ -252,6 +254,36 @@ export async function setupDemo(): Promise<{
     platforms++;
   }
   startMqttSimulator();
+  if (!existing.has('Snowflake (demo)')) {
+    // Snowflake (#115): a key pair for the demo user – the mock knows the public key, Steward keeps the private one
+    const keys = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    setSnowflakePublicKey(keys.publicKey.export({ type: 'spki', format: 'pem' }) as string);
+    createPlatform({
+      name: 'Snowflake (demo)',
+      kind: 'snowflake',
+      environment: 'demo',
+      description:
+        'Simulated Snowflake account DEMO12345 served by the built-in mock: databases SHOP and CRM, a failing task, two warehouses. See docs/SNOWFLAKE.md.',
+      baseUrl: `${base}/snowflake`,
+      config: {
+        auth: {
+          type: 'jwt',
+          jwt: {
+            alg: 'RS256',
+            lifetimeSeconds: 3600,
+            claims: {
+              iss: "{{ $uppercase(vars.account) & '.' & $uppercase(vars.user) & '.' & publicKeyFingerprint }}",
+              sub: "{{ $uppercase(vars.account) & '.' & $uppercase(vars.user) }}",
+            },
+          },
+        },
+        variables: { ...DEMO_SNOWFLAKE },
+        http: { proxy: 'none', defaultHeaders: { 'X-Snowflake-Authorization-Token-Type': 'KEYPAIR_JWT' } },
+      },
+      secrets: { privateKey: keys.privateKey.export({ type: 'pkcs8', format: 'pem' }) as string },
+    });
+    platforms++;
+  }
   if (!existing.has('AWS (demo)')) {
     // AWS (#116): a demo account – resources tagged application=shop / crm in two regions, costs, IAM users
     createPlatform({

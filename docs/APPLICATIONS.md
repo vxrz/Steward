@@ -72,6 +72,8 @@ A component of type **Kafka topic** can name its **Kafka platform**, with the to
 
 A component of type **Cloud account** can name an **AWS platform**, with the value of the application tag as name (`shop` for `application=shop`): Steward lists the resources with the tag, their costs per month and the IAM users with the tag and the age and last use of their access keys (each key can be added to the credentials register) ([AWS.md](AWS.md)).
 
+A component of type **Snowflake database** can name a **Snowflake platform**, with the database as name: Steward reads its tables (size, last change), the tasks that failed in the last day and the credits of the warehouses used ([SNOWFLAKE.md](SNOWFLAKE.md)).
+
 A component can have an **environment** (see [Systems and environments](#systems-and-environments)): one Snowflake database per stage (`ORDERS_DEV`, `ORDERS_TEST`, `ORDERS_PROD`), one Kafka topic or namespace per stage, separate cloud accounts for prod and non-prod. Leave it empty when the component serves all environments – the repository, for example; every component from before 0.2.5 is such a component. Once components have environments, the table shows them and filters by environment (a filter keeps the components of all environments).
 
 ### Tech stack

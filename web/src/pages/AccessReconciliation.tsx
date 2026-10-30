@@ -619,7 +619,11 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
   const submit = async () => {
     setBusy(true);
     try {
-      const body = { ...f, datasetKey: f.source === 'dataset' ? f.datasetKey : null, scope: f.source === 'git' ? f.scope.trim() : null };
+      const body = {
+        ...f,
+        datasetKey: f.source === 'dataset' ? f.datasetKey : null,
+        scope: f.source === 'git' || f.source === 'snowflake' ? f.scope.trim() : null,
+      };
       const saved = check ? await put<AccessCheck>(`/compliance/access-checks/${check.id}`, body) : await post<AccessCheck>('/compliance/access-checks', body);
       await qc.invalidateQueries({ queryKey: ['access-checks'] });
       onSaved(saved);
@@ -651,7 +655,8 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
           onChange={(v) => {
             const p = usable.find((x) => x.id === v);
             const git = !!p && (GIT_PLATFORM_KINDS as readonly string[]).includes(p.kind);
-            setF((x) => ({ ...x, platformId: v ?? '', source: git ? 'git' : p && p.kind !== 'insights-hub' ? 'dataset' : x.source }));
+            const snowflake = p?.kind === 'snowflake';
+            setF((x) => ({ ...x, platformId: v ?? '', source: git ? 'git' : snowflake ? 'snowflake' : p && p.kind !== 'insights-hub' ? 'dataset' : x.source }));
           }}
         />
         <Select
@@ -663,6 +668,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
             { value: 'insights-hub', label: t('sources.insights-hub') },
             { value: 'dataset', label: t('sources.dataset') },
             { value: 'git', label: t('sources.git') },
+            { value: 'snowflake', label: t('sources.snowflake') },
           ]}
           value={f.source}
           onChange={(v) => up('source', (v as AccessCheck['source']) ?? 'insights-hub')}
@@ -675,6 +681,16 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
             value={f.scope}
             onChange={(e) => up('scope', e.currentTarget.value)}
             maxLength={300}
+            classNames={{ input: 'mono' }}
+          />
+        )}
+        {f.source === 'snowflake' && (
+          <TextInput
+            label={t('reconciliation.snowflakeScope')}
+            description={t('reconciliation.snowflakeScopeHelp')}
+            value={f.scope}
+            onChange={(e) => up('scope', e.currentTarget.value)}
+            maxLength={800}
             classNames={{ input: 'mono' }}
           />
         )}

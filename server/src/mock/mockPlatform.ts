@@ -15,6 +15,7 @@ import { mockZabbix } from './mockZabbix.js';
 import { mockGit } from './mockGit.js';
 import { mockS3 } from './mockS3.js';
 import { mockAws } from './mockAws.js';
+import { mockSnowflake } from './mockSnowflake.js';
 import { mockEndoflife } from './mockEndoflife.js';
 import { mockUsageRoutes } from './mockUsage.js';
 
@@ -216,6 +217,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   await mockGit(app);
   await mockS3(app);
   await mockAws(app);
+  await mockSnowflake(app);
   await mockEndoflife(app);
 
   app.post('/reset', async () => {

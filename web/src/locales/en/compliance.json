@@ -37,7 +37,8 @@
   "sources": {
     "insights-hub": "Insights Hub identity management",
     "dataset": "Dataset (access snapshot)",
-    "git": "Git platform members (GitHub, GitLab, Forgejo)"
+    "git": "Git platform members (GitHub, GitLab, Forgejo)",
+    "snowflake": "Snowflake roles and grants"
   },
   "rights": {
     "granted": "Granted",
@@ -242,7 +243,9 @@
     "ignoreRightsHelp": "Left out of the snapshots, e.g. a marker group of the access reviews that grants no access",
     "onlyOpen": "Only checks with open findings",
     "showAllChecks": "Show all checks",
-    "noOpenAnywhere": "None of your checks has open findings – every access change found is documented or dismissed."
+    "noOpenAnywhere": "None of your checks has open findings – every access change found is documented or dismissed.",
+    "snowflakeScope": "Database, schema or table (optional)",
+    "snowflakeScopeHelp": "Empty: every user with the roles granted to them. SHOP, SHOP.SALES or SHOP.SALES.ORDERS: every user who reaches objects there through their roles (and the roles granted to those), with the privilege. Technical users (type SERVICE) are marked."
   },
   "packs": {
     "title": "Evidence packs",

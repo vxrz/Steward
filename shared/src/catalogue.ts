@@ -2,6 +2,7 @@ import type { ImageProductRule, NamespaceReadout } from './kubernetes.js';
 import type { RepositoryReadout } from './git.js';
 import type { TopicReadout } from './kafka.js';
 import type { AwsReadout } from './aws.js';
+import type { SnowflakeReadout } from './snowflake.js';
 import type { Backlink, ItemLink, ReviewStatus, ServiceCriticality } from './records.js';
 
 /**
@@ -340,6 +341,8 @@ export interface ApplicationComponent {
   topic?: TopicReadout | null;
   /** Cloud account on an AWS platform (#116): resources with the application tag, costs, IAM keys */
   aws?: AwsReadout | null;
+  /** Snowflake database (#115): tables, freshness, failing tasks, warehouse credits */
+  snowflake?: SnowflakeReadout | null;
   createdAt: string;
   createdBy: string;
   updatedAt: string;

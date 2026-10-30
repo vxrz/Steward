@@ -230,7 +230,27 @@
     "mqttModeEach": "Eine Nachricht auf jedem bekannten Topic (stumme Geräte)",
     "mqttWithin": "Innerhalb von (Minuten)",
     "mqttMinClients": "Mindestens verbundene Clients",
-    "mqttMinClientsHint": "Broker, die $SYS/broker/clients/connected veröffentlichen"
+    "mqttMinClientsHint": "Broker, die $SYS/broker/clients/connected veröffentlichen",
+    "snowflakeMode": "Was geprüft wird",
+    "snowflakeModes": {
+      "freshness": "Eine Tabelle wurde kürzlich geändert",
+      "tasks": "Kein Task ist fehlgeschlagen",
+      "credits": "Credits eines Warehouses"
+    },
+    "snowflakeObject": {
+      "freshness": "Tabelle",
+      "tasks": "Datenbank oder Schema",
+      "credits": "Warehouse"
+    },
+    "snowflakeObjectHint": {
+      "freshness": "DATENBANK.SCHEMA.TABELLE – aus INFORMATION_SCHEMA (aktuell)",
+      "tasks": "DATENBANK oder DATENBANK.SCHEMA – aus ACCOUNT_USAGE, bis zu 45 Minuten verzögert",
+      "credits": "Der Name des Warehouses – aus ACCOUNT_USAGE, bis zu 3 Stunden verzögert"
+    },
+    "snowflakeMaxAge": "Geändert innerhalb von (Minuten)",
+    "snowflakeWithinHours": "Innerhalb der letzten (Stunden)",
+    "snowflakeMaxCredits": "Höchstens (Credits)",
+    "snowflakeFailAs": "Wenn die Grenze nicht eingehalten wird"
   },
   "detail": {
     "template": "Vorlage",
@@ -551,6 +571,10 @@
     "monitor": {
       "label": "Untermonitor",
       "help": "Der Gesamtstatus eines anderen Monitors (nach dessen eigenem Zeitplan ausgewertet)"
+    },
+    "snowflake": {
+      "label": "Snowflake",
+      "help": "Eine Snowflake-Tabelle wurde kürzlich genug geändert, kein Task einer Datenbank ist fehlgeschlagen oder ein Warehouse blieb innerhalb seiner Credits"
     }
   },
   "newCheck": {
@@ -567,7 +591,8 @@
     "git": "Repository-Pipeline",
     "kafka": "Kafka-Topic",
     "mqtt": "MQTT-Topics",
-    "monitor": "Untermonitor"
+    "monitor": "Untermonitor",
+    "snowflake": "Snowflake-Tabelle aktuell"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"

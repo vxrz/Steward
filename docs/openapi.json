@@ -3706,6 +3706,7 @@
               "git",
               "kafka",
               "mqtt",
+              "snowflake",
               "monitor"
             ]
           },
@@ -4124,6 +4125,7 @@
                     "git",
                     "kafka",
                     "mqtt",
+                    "snowflake",
                     "monitor"
                   ]
                 },
