@@ -67,6 +67,15 @@ export function tagVersion(tag: string): string | null {
   return m ? m[1]! : null;
 }
 
+/** Leading and trailing "/" removed – a loop, not a regular expression (no backtracking on long inputs). */
+function trimSlashes(s: string): string {
+  let a = 0;
+  let b = s.length;
+  while (a < b && s[a] === '/') a++;
+  while (b > a && s[b - 1] === '/') b--;
+  return s.slice(a, b);
+}
+
 /** Strips the registry and "library/" from a repository: "docker.io/library/postgres" → "postgres". */
 const shortRepository = (repository: string): string => {
   const parts = repository.toLowerCase().split('/');
@@ -91,7 +100,7 @@ export function imageProduct(ref: string, own: readonly ImageProductRule[] = [])
   const repo = shortRepository(repository);
   const full = repository.toLowerCase();
   const match = (r: ImageProductRule) => {
-    const want = r.image.toLowerCase().replace(/^\/+|\/+$/g, '');
+    const want = trimSlashes(r.image.toLowerCase());
     return full === want || repo === want || repo.endsWith(`/${want}`) || full.endsWith(`/${want}`);
   };
   const rule =

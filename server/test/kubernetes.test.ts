@@ -42,6 +42,10 @@ describe('images and products', () => {
     // the built-in list is not guessed onto other images
     expect(imageProduct('ghcr.io/acme/postgres-backup:1.0')).toBeNull();
     expect(imageProduct('ghcr.io/acme/shop-web:2.4.1')).toBeNull();
+    // a rule with many slashes is handled in linear time (CodeQL: no backtracking regular expression)
+    const t0 = Date.now();
+    expect(imageProduct('x/y:1', [{ image: `${'/'.repeat(50_000)}y${'/'.repeat(50_000)}`, product: 'nodejs' }])).toMatchObject({ product: 'nodejs' });
+    expect(Date.now() - t0).toBeLessThan(500);
     // own rules first
     expect(imageProduct('ghcr.io/acme/shop-web:2.4.1', [{ image: 'ghcr.io/acme/shop-web', product: 'nodejs' }])).toMatchObject({
       product: 'nodejs',
