@@ -57,7 +57,7 @@
     "postject": "^1.0.0-alpha.6",
     "prettier": "~3.9.9",
     "tinypool": "~2.2.0",
-    "typescript": "~5.9.3",
+    "typescript": "~7.0.2",
     "typescript-eslint": "~8.71.1"
   },
   "overrides": {
