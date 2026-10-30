@@ -42,11 +42,12 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { Backlink, Credential, CredentialEvent, CredentialList, CredentialStatus, CredentialType } from '@sm/shared';
+import type { Backlink, Credential, CredentialBelongsTo, CredentialEvent, CredentialList, CredentialStatus, CredentialType } from '@sm/shared';
 import { api, apiUrl, confirmedDownload, del, get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, FilterPanel, PageHeader, QueryState, TONE, useCreateParam } from '../components/common';
 import { CredentialEditor } from '../components/credentials/CredentialEditor';
+import { TagBadges, TagFilterChip, useTagFilter } from '../components/tags';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
@@ -105,7 +106,7 @@ export function LocationView({ c }: { c: Credential }) {
 }
 
 /** The register: sortable table on wide screens, cards on phones; a row opens the entry's drawer. */
-function CredentialTable({ items, onOpen }: { items: Credential[]; onOpen: (id: string) => void }) {
+function CredentialTable({ items, onOpen, onTag }: { items: Credential[]; onOpen: (id: string) => void; onTag: (tag: string) => void }) {
   const { t } = useTranslation(['credentials', 'common']);
   const nameButton = (c: Credential, fw = 500) => (
     <Anchor
@@ -141,11 +142,7 @@ function CredentialTable({ items, onOpen }: { items: Credential[]; onOpen: (id: 
         <>
           {nameButton(c)}
           {archivedBadge(c)}
-          {c.tags.length > 0 && (
-            <Text size="xs" c="dimmed">
-              {c.tags.join(' · ')}
-            </Text>
-          )}
+          <TagBadges tags={c.tags} onTag={onTag} />
         </>
       ),
     },
@@ -279,6 +276,7 @@ export function CredentialsPage() {
   const [role, setRole] = useState('');
   const [dueWithin, setDueWithin] = useState<number | ''>('');
   const [archived, setArchived] = useState<'exclude' | 'include' | 'only'>('exclude');
+  const [tag, setTag] = useTagFilter();
   const [debounced] = useDebouncedValue({ q, platform, owner }, 300);
   const qs = useMemo(() => {
     const u = new URLSearchParams();
@@ -290,8 +288,9 @@ export function CredentialsPage() {
     if (role) u.set('role', role);
     if (dueWithin !== '') u.set('dueWithinDays', String(dueWithin));
     if (archived !== 'exclude') u.set('archived', archived);
+    if (tag) u.set('tag', tag);
     return u.toString();
-  }, [debounced, types, statuses, role, dueWithin, archived]);
+  }, [debounced, types, statuses, role, dueWithin, archived, tag]);
   const list = useQuery({ queryKey: ['credentials', qs], queryFn: () => get<CredentialList>(`/credentials${qs ? `?${qs}` : ''}`) });
   const openId = params.get('open');
   const [editing, setEditing] = useState<Credential | 'new' | null>(null);
@@ -425,7 +424,8 @@ export function CredentialsPage() {
             {t('emptyState.text')}
           </EmptyState>
         ))}
-      {!!list.data?.items.length && <CredentialTable items={list.data.items} onOpen={open} />}
+      <TagFilterChip tag={tag} onChange={setTag} />
+      {!!list.data?.items.length && <CredentialTable items={list.data.items} onOpen={open} onTag={setTag} />}
       {openId && <CredentialDrawer id={openId} onClose={() => open(null)} onEdit={(c) => setEditing(c)} isAdmin={isAdmin} onChanged={refresh} />}
       {editing && (
         <CredentialEditor
@@ -597,6 +597,11 @@ function CredentialDrawer({
           </Paper>
 
           <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
+            {c.belongsTo && (
+              <Field label={t('fields.belongsTo')}>
+                <BelongsToLink b={c.belongsTo} />
+              </Field>
+            )}
             <Field label={t('fields.platform')}>{c.platformName ?? (c.platformText || '–')}</Field>
             <Field label={t('fields.environment')}>{c.environment || '–'}</Field>
           </SimpleGrid>
@@ -885,5 +890,20 @@ function RolesChange({ details }: { details: Record<string, unknown> }) {
         </Text>
       ))}
     </Stack>
+  );
+}
+
+/** What an entry belongs to (#143), linked: the application (also for a component) or the system. */
+function BelongsToLink({ b }: { b: CredentialBelongsTo }) {
+  const { t } = useTranslation('credentials');
+  if (!b.name) return <Text size="sm">{t('belongsGone')}</Text>;
+  const to = b.kind === 'system' ? `/systems/${b.id}` : `/applications/${b.kind === 'component' ? b.applicationId : b.id}`;
+  return (
+    <Text size="sm">
+      {t(`belongsKinds.${b.kind}`)}:{' '}
+      <Anchor component={Link} to={to} size="sm">
+        {b.kind === 'component' ? `${b.applicationName} / ${b.name}` : b.name}
+      </Anchor>
+    </Text>
   );
 }

@@ -27,6 +27,7 @@ import { getSchedule } from '../scheduler.js';
 import { evaluateDuty, type DutyRow, type Evaluated, type PeriodRow } from './evaluate.js';
 import { closeForChange, persistDuty, storeInactiveGap } from './store.js';
 import { addLocalDays, instanceTimeZone, nextPeriod, periodAt, periodOfKey } from './periods.js';
+import { assertKnownSubjects } from '../auth/subjects.js';
 
 /**
  * Service duties (#85): CRUD, the period view of a duty, exceptions with four-eyes, and the figures for the start
@@ -388,6 +389,7 @@ export function createDuty(input: DutyInputData): DutyDetail {
   if (s.archived) throw new HttpError(409, 'The service is archived', 'DUTY_SERVICE_ARCHIVED', { id: s.id });
   checkReferences(s.id, input);
   checkName(s.id, input.name);
+  assertKnownSubjects(input.owners ?? []);
   const dutyId = newId('dty_');
   const now = nowIso();
   db().tx(() => {
@@ -455,6 +457,7 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
   if (!canEditDuty(u, s)) forbid('change duties of this service', 'changeService');
   checkReferences(s.id, input);
   checkName(s.id, input.name, dutyId);
+  if (input.owners) assertKnownSubjects(input.owners, dutyOwners(cur));
   const next = {
     application_id: input.applicationId,
     name: input.name,

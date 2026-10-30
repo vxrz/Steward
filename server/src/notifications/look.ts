@@ -290,6 +290,7 @@ const WARN_EVENTS = new Set([
   'duty.due',
   'duty.exception',
   'duty.ended',
+  'measure.due',
 ]);
 
 /** How a message reads at a glance: red for failures, orange for something to do, green when a monitor is up again. */

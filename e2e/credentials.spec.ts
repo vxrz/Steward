@@ -133,3 +133,32 @@ test('roles and permissions of a credential, linked to an application', async ({
     await api.post(`/api/applications/${app.id}/archive`, { data: { archived: true } });
   }
 });
+
+test('an entry belongs to a system of the catalogue and is listed on its page (#143)', async ({ page, apiAs }) => {
+  const api = await apiAs('dana');
+  const sysName = uniq('e2e-sftp');
+  const name = uniq('E2E sftp upload');
+  const sys = (await (await api.post('/api/systems', { data: { name: sysName, kind: 'server', owners: ['user:dana'] } })).json()) as { id: string };
+  let credentialId = '';
+  try {
+    await page.goto('/credentials');
+    await page.getByRole('button', { name: 'New entry' }).click();
+    const dialog = page.getByRole('dialog', { name: 'New entry' });
+    await dialog.getByRole('textbox', { name: 'Name' }).fill(name);
+    await dialog.getByRole('textbox', { name: 'Belongs to' }).fill(sysName);
+    await page.getByRole('option', { name: sysName }).click();
+    await dialog.getByRole('textbox', { name: 'Where it is kept' }).fill('KeePass: IT-Ops.kdbx → SFTP/upload');
+    await dialog.getByRole('button', { name: 'Save' }).click();
+    await expect(dialog).toBeHidden();
+    const entries = (await (await api.get(`/api/credentials?belongs=system:${sys.id}`)).json()) as { items: { id: string; ownerSubjects: string[] }[] };
+    expect(entries.items).toHaveLength(1);
+    credentialId = entries.items[0]!.id;
+    // no owners entered: the system's owners
+    expect(entries.items[0]!.ownerSubjects).toEqual(['user:dana']);
+    await page.goto(`/systems/${sys.id}`);
+    await expect(page.getByTestId('system-credentials').getByRole('link', { name })).toBeVisible();
+  } finally {
+    if (credentialId) await (await apiAs('admin')).delete(`/api/credentials/${credentialId}`);
+    await api.delete(`/api/systems/${sys.id}`);
+  }
+});

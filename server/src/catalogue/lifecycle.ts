@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import { DEFAULT_LIFECYCLE_SETTINGS, LIFECYCLE_LIMITS, type LifecycleSettings, type LifecycleStatus, type Platform, type StackLifecycle } from '@sm/shared';
+import {
+  DEFAULT_LIFECYCLE_SETTINGS,
+  LIFECYCLE_LIMITS,
+  isProductionEnvironment,
+  type LifecycleSettings,
+  type LifecycleStatus,
+  type Platform,
+  type StackLifecycle,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser } from '../auth/context.js';
@@ -8,6 +16,7 @@ import { forbid, me, canCreateServices } from '../records/access.js';
 import { readSetting, writeSetting } from '../settings.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
 import { logger } from '../log.js';
+import { environmentList } from './environments.js';
 import { assertOutboundAllowed } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { platformRequest, resolveBaseUrl } from '../platforms/http.js';
@@ -102,16 +111,44 @@ export function saveLifecycleSettings(input: z.infer<typeof settingsInput>): Lif
 
 // ---------- the cache ----------
 
-/** Products used in a tech stack of an application that is not archived. */
+/** Products used in a tech stack of an application that is not archived, or of a system (#129). */
 function usedProducts(): string[] {
   return db()
     .all<{ product: string }>(
-      `SELECT DISTINCT cs.product FROM component_stack cs
+      `SELECT cs.product FROM component_stack cs
        JOIN application_components c ON c.id = cs.component_id
        JOIN applications a ON a.id = c.application_id
-       WHERE a.archived = 0 ORDER BY cs.product`,
+       WHERE a.archived = 0
+       UNION SELECT product FROM system_stack ORDER BY product`,
     )
     .map((r) => r.product);
+}
+
+/** One stack entry of an application (not archived): of a component, or of a system it runs on (#129). */
+export interface AppStackRow {
+  application_id: string;
+  application: string;
+  owners: string;
+  /** The component's or the system's name */
+  holder: string;
+  holder_kind: 'component' | 'system';
+  environment: string;
+  product: string;
+  version: string;
+}
+
+/** The stack entries of all applications that are not archived, components first. */
+export function appStackRows(): AppStackRow[] {
+  return db().all<AppStackRow>(
+    `SELECT a.id AS application_id, a.name AS application, a.owners, c.name AS holder, 'component' AS holder_kind, c.environment, cs.product, cs.version
+     FROM component_stack cs JOIN application_components c ON c.id = cs.component_id JOIN applications a ON a.id = c.application_id
+     WHERE a.archived = 0
+     UNION ALL
+     SELECT a.id AS application_id, a.name AS application, a.owners, s.name AS holder, 'system' AS holder_kind, l.environment, ss.product, ss.version
+     FROM system_stack ss JOIN systems s ON s.id = ss.system_id JOIN application_systems l ON l.system_id = s.id JOIN applications a ON a.id = l.application_id
+     WHERE a.archived = 0
+     ORDER BY application, holder_kind, holder, product`,
+  );
 }
 
 interface ApiRelease {
@@ -288,14 +325,7 @@ export function lifecycleOf(
 
 // ---------- messages to application owners ----------
 
-interface NoticeRow {
-  application_id: string;
-  application: string;
-  owners: string;
-  component: string;
-  product: string;
-  version: string;
-}
+type NoticeRow = AppStackRow;
 
 /**
  * Messages the owners of applications whose components reach the end of life of their release cycle: once when the
@@ -305,20 +335,19 @@ interface NoticeRow {
 export async function checkLifecycleNotices(now = Date.now()): Promise<number> {
   const s = lifecycleSettings();
   if (!s.notify) return 0;
-  const rows = db().all<NoticeRow>(
-    `SELECT a.id AS application_id, a.name AS application, a.owners, c.name AS component, cs.product, cs.version
-     FROM component_stack cs JOIN application_components c ON c.id = cs.component_id JOIN applications a ON a.id = c.application_id
-     WHERE a.archived = 0 ORDER BY a.name, c.name`,
-  );
+  const rows = appStackRows();
   const releases = releasesOf([...new Set(rows.map((r) => r.product))]);
-  // per application, product and cycle: the components concerned
-  const groups = new Map<string, { row: NoticeRow; lc: StackLifecycle; components: string[] }>();
+  const envs = environmentList();
+  // per application, product and cycle: the components and systems concerned ("db01 (prod)"), production first
+  const groups = new Map<string, { row: NoticeRow; lc: StackLifecycle; components: string[]; production: boolean }>();
   for (const r of rows) {
     const lc = lifecycleOf(r.product, r.version, releases, s.warnDays, now);
     if (!lc || !lc.cycle || (lc.state !== 'ending' && lc.state !== 'eol')) continue;
     const key = `${r.application_id}\u0000${r.product}\u0000${lc.cycle}\u0000${lc.state}`;
-    const g = groups.get(key) ?? { row: r, lc, components: [] };
-    if (!g.components.includes(r.component)) g.components.push(r.component);
+    const g = groups.get(key) ?? { row: r, lc, components: [], production: false };
+    const label = r.environment ? `${r.holder} (${r.environment})` : r.holder;
+    if (!g.components.includes(label)) g.components.push(label);
+    if (isProductionEnvironment(envs, r.environment)) g.production = true;
     groups.set(key, g);
   }
   let sent = 0;
@@ -328,7 +357,7 @@ export async function checkLifecycleNotices(now = Date.now()): Promise<number> {
   const { listUsers } = await import('../auth/users.js');
   const admins = () => listUsers().filter((u) => u.active && u.roles.includes('admin'));
   const { productLabel } = await import('./components.js');
-  for (const { row, lc, components } of groups.values()) {
+  for (const { row, lc, components, production } of [...groups.values()].sort((a, b) => Number(b.production) - Number(a.production))) {
     const claimed =
       db().run(
         'INSERT INTO eol_notices (application_id, product, cycle, kind, sent_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
@@ -353,7 +382,7 @@ export async function checkLifecycleNotices(now = Date.now()): Promise<number> {
       recipients,
       inAppKey: `stack-eol:${row.application_id}:${row.product}:${lc.cycle}:${lc.state}`,
       externalKey: `stack-eol:${row.application_id}:${row.product}:${lc.cycle}:${lc.state}`,
-      data: { applicationId: row.application_id, product: row.product, cycle: lc.cycle, state: lc.state, eolFrom: lc.eolFrom, components },
+      data: { applicationId: row.application_id, product: row.product, cycle: lc.cycle, state: lc.state, eolFrom: lc.eolFrom, components, production },
     });
     audit({
       action: 'application.eol_notice_sent',
@@ -361,7 +390,7 @@ export async function checkLifecycleNotices(now = Date.now()): Promise<number> {
       entityId: row.application_id,
       actor: 'system',
       summary: `${product} ${lc.state === 'eol' ? 'reached its end of life' : `reaches its end of life on ${lc.eolFrom}`} (application "${row.application}", ${components.join(', ')}) – message to ${recipients.map((u) => u.username).join(', ') || 'nobody'}`,
-      details: { product: row.product, cycle: lc.cycle, state: lc.state, eolFrom: lc.eolFrom, components },
+      details: { product: row.product, cycle: lc.cycle, state: lc.state, eolFrom: lc.eolFrom, components, production },
     });
     sent++;
   }

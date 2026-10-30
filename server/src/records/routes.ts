@@ -12,6 +12,7 @@ import {
   type ReviewStatus,
 } from '@sm/shared';
 import { HttpError } from '../util.js';
+import * as reviews from './reviews.js';
 import { canApproveRecords, canCreateRecords, canManageRecordTypes, me } from './access.js';
 import * as svc from './service.js';
 import * as types from './types.js';
@@ -48,7 +49,7 @@ const csv = (v: unknown): string[] | undefined =>
 const listQuery = z.object({
   type: z.string().max(64).optional(),
   status: z.string().max(400).optional(),
-  tag: z.string().max(60).optional(),
+  tag: z.string().max(161).optional(),
   q: z.string().max(200).optional(),
   owner: z.string().max(128).optional(),
   workflow: z.enum(RECORD_WORKFLOW_KEYS).optional(),
@@ -96,6 +97,33 @@ export async function uploadedFile(req: FastifyRequest, maxBytes: number): Promi
  * web UI's API. Every route checks permissions in the service layer.
  */
 export async function recordRoutes(app: FastifyInstance): Promise<void> {
+  // ---------- incident reviews (#109): measures, timeline, starting one ----------
+  const measureQuery = z.object({
+    serviceId: z.string().max(100).optional(),
+    state: z.enum(['open', 'overdue', 'done', 'all']).optional(),
+    owner: z.string().max(130).optional(),
+  });
+  const windowQuery = z.object({ from: z.string().datetime({ offset: true }), to: z.string().datetime({ offset: true }) });
+  app.get('/measures', async (req) => reviews.listOpenMeasures(measureQuery.parse(req.query)));
+  app.get('/records/:id/measures', async (req) => reviews.listMeasures(params(req).id!));
+  app.post('/records/:id/measures', async (req) => reviews.addMeasure(params(req).id!, reviews.measureInput.parse(req.body)));
+  app.put('/records/:id/measures/:measureId', async (req) =>
+    reviews.updateMeasure(params(req).id!, params(req).measureId!, reviews.measureInput.partial().strict().parse(req.body)),
+  );
+  app.delete('/records/:id/measures/:measureId', async (req) => reviews.deleteMeasure(params(req).id!, params(req).measureId!));
+  app.get('/records/:id/timeline', async (req) => {
+    const q = windowQuery.parse(req.query);
+    return reviews.timelineCandidates(params(req).id!, q.from, q.to);
+  });
+  app.post('/records/:id/timeline', async (req) => {
+    const b = windowQuery
+      .extend({ keys: z.array(z.string().max(80)).min(1).max(300) })
+      .strict()
+      .parse(req.body);
+    return reviews.addToTimeline(params(req).id!, b.from, b.to, b.keys);
+  });
+  app.post('/incident-reviews', async (req) => reviews.startReview(reviews.startInput.parse(req.body)));
+
   // ---------- meta, types ----------
   app.get('/records/meta', async (): Promise<RecordsMeta> => {
     const u = me();

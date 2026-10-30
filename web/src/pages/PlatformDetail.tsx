@@ -37,6 +37,7 @@ import { GatusMetricsTab } from '../components/platform/GatusMetricsTab';
 import { RecordingsTab } from '../components/platform/RecordingsTab';
 import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
+import { MaintenancePanel } from '../components/catalogue/maintenance';
 
 interface TokenInfo {
   fetchedAt: string;
@@ -236,6 +237,9 @@ export function PlatformDetailPage() {
           {canUse ? t('detail.useOnly') : t('detail.viewOnly')}
         </Alert>
       )}
+      <div style={{ marginBottom: 'var(--mantine-spacing-md)' }}>
+        <MaintenancePanel kind="platform" id={p.id} canPlan={canManage} />
+      </div>
       <Tabs value={tab} onChange={setTab} keepMounted={false}>
         <Tabs.List mb="md" style={{ flexWrap: 'wrap' }}>
           <Tabs.Tab value="settings" leftSection={<IconSettings size={16} />}>

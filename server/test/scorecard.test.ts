@@ -108,6 +108,8 @@ beforeAll(async () => {
   jobs = await import('../src/scorecard/jobs.js');
   sc = await import('../src/scorecard/scorecard.js');
   gatusId = (await s.api('GET', '/platforms')).find((p: any) => p.name === 'Gatus (demo)').id;
+  // owners must exist (#143)
+  for (const name of ['operations', 'night-shift']) await s.api('POST', '/teams', { name, members: [] });
   // a Gatus platform only the administrator may see
   secretGatus = (await s.api('POST', '/platforms', { name: 'Secret Gatus', kind: 'gatus', baseUrl: 'https://gatus.internal.example' })).id;
   (await import('../src/platforms/service.js')).setPlatformAccess(secretGatus, [{ subject: 'user:admin', permissions: ['manage'] }]);
@@ -126,8 +128,8 @@ describe('availability objectives', () => {
     const svc = await newService();
     const met = await objective(svc.id, { name: 'Portal' });
     expect(met.windows).toEqual([
-      { window: 'h24', target: 99, value: 99.5, status: 'met' },
-      { window: 'd30', target: 99.5, value: 99.95, status: 'met' },
+      { window: 'h24', target: 99, value: 99.5, status: 'met', plannedMinutes: 0 },
+      { window: 'd30', target: 99.5, value: 99.95, status: 'met', plannedMinutes: 0 },
     ]);
     expect(met).toMatchObject({
       status: 'met',
@@ -219,7 +221,7 @@ describe('availability objectives', () => {
     // dana reads it with its status and values, without the platform or the endpoint
     const seen = await dana('GET', `/objectives/${secret.id}`);
     expect(seen).toMatchObject({ platformVisible: false, platformId: null, platformName: null, endpointKey: null, endpointName: null, status: 'met' });
-    expect(seen.windows).toEqual([{ window: 'h24', target: 99.9, value: 100, status: 'met' }]);
+    expect(seen.windows).toEqual([{ window: 'h24', target: 99.9, value: 100, status: 'met', plannedMinutes: 0 }]);
     expect(JSON.stringify(seen)).not.toContain('core_vault');
     expect(JSON.stringify(await vera('GET', `/objectives?serviceId=${svc.id}`))).not.toContain('Secret Gatus');
     // she may change the targets (the endpoint stays), but not move it to an endpoint she cannot see
@@ -253,6 +255,26 @@ describe('availability objectives', () => {
 // ---------- sampling, history, breaches ----------
 
 describe('sampling, history and breach messages', () => {
+  it('during planned maintenance (#108): the breach is recorded without a message; the planned minutes are shown', async () => {
+    const svc = await newService(['user:olivia']);
+    gatusData(gatusId, {}, { core_flaky: { h24: 99.5 } });
+    const o = await objective(svc.id, { endpointKey: 'core_flaky', targets: { h1: null, h24: 99, d7: null, d30: null }, notify: true });
+    const now = Date.now();
+    const w = await dana('POST', '/maintenance-windows', {
+      title: 'Database upgrade',
+      startsAt: iso(now - 30 * 60000),
+      endsAt: iso(now + 30 * 60000),
+      targets: [{ kind: 'service', id: svc.id }],
+    });
+    gatusData(gatusId, { at: now }, { core_flaky: { h24: 97 } });
+    jobs.sampleObjectives(now);
+    const detail = await dana('GET', `/objectives/${o.id}`);
+    expect(detail.breach).toMatchObject({ endedAt: null, notified: false });
+    expect(db().all<any>("SELECT * FROM notifications WHERE event = 'objective.breached' AND link = ?", `/services/${svc.id}`)).toHaveLength(0);
+    expect(detail.windows[0].plannedMinutes).toBe(30);
+    await dana('POST', `/maintenance-windows/${w.id}/cancel`, {});
+  });
+
   it('samples once per hour, starts a breach below target and sends one message per breach', async () => {
     const svc = await newService(['user:olivia']);
     gatusData(gatusId, {}, { core_flaky: { h24: 99.5, d30: 99.9 } });

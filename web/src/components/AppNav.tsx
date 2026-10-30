@@ -3,13 +3,16 @@ import { Link } from 'react-router-dom';
 import { ActionIcon, Badge, Box, Collapse, Divider, Group, Indicator, NavLink, ScrollArea, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import {
+  IconApps,
   IconArrowsDiff,
-  IconCalendarTime,
   IconBrandGit,
-  IconChecklist,
+  IconCalendarCheck,
+  IconCalendarTime,
   IconChartBar,
+  IconChecklist,
   IconChevronDown,
   IconFileCertificate,
+  IconGauge,
   IconHeartRateMonitor,
   IconInbox,
   IconKey,
@@ -20,13 +23,12 @@ import {
   IconPlayerPlay,
   IconReportAnalytics,
   IconServer,
+  IconServer2,
+  IconTool,
   IconSettings,
   IconShieldCheck,
   IconSitemap,
   IconStack2,
-  IconApps,
-  IconCalendarCheck,
-  IconGauge,
   IconTicket,
   IconUserShield,
   IconUsers,
@@ -49,6 +51,8 @@ export type NavKey =
   | 'records'
   | 'services'
   | 'applications'
+  | 'systems'
+  | 'maintenance'
   | 'duties'
   | 'scorecard'
   | 'credentials'
@@ -105,6 +109,8 @@ export const NAV_GROUPS: { key: NavGroupKey | null; items: NavItemDef[] }[] = [
     items: [
       { to: '/services', key: 'services', icon: IconStack2 },
       { to: '/applications', key: 'applications', icon: IconApps },
+      { to: '/systems', key: 'systems', icon: IconServer2 },
+      { to: '/maintenance', key: 'maintenance', icon: IconTool },
       { to: '/duties', key: 'duties', icon: IconCalendarCheck },
       { to: '/scorecard', key: 'scorecard', icon: IconGauge },
       { to: '/platforms', key: 'platforms', icon: IconServer },

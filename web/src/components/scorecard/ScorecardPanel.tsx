@@ -155,12 +155,12 @@ function PartDetails({ card: c, part }: { card: ServiceScorecardDetail; part: Sc
         {l.items.length > 0 && (
           <List size="xs" spacing={0} data-testid="lifecycle-items">
             {l.items.slice(0, 10).map((i) => (
-              <List.Item key={`${i.applicationId} ${i.componentName} ${i.product}`}>
+              <List.Item key={`${i.applicationId} ${i.holder} ${i.componentName} ${i.environment} ${i.product}`}>
                 <Anchor component={Link} to={`/applications/${i.applicationId}`} size="xs">
                   {i.applicationName}
                 </Anchor>{' '}
                 {t(i.state === 'eol' ? 'lifecycle.eolItem' : 'lifecycle.endingItem', {
-                  component: i.componentName,
+                  component: i.environment ? `${i.componentName} (${i.environment})` : i.componentName,
                   product: [i.label, i.version].filter(Boolean).join(' '),
                   date: i.eolFrom ? fmtDay(i.eolFrom) : '–',
                 })}

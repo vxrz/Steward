@@ -123,6 +123,18 @@
         "label": "Tech stack end of life",
         "info": "A component of an application you own reaches the end of life of its release cycle soon (or reached it)"
       }
+    },
+    "measure": {
+      "due": {
+        "label": "Incident review measure",
+        "info": "A measure from an incident review that you own is due soon or overdue"
+      }
+    },
+    "maintenance": {
+      "announced": {
+        "label": "Maintenance",
+        "info": "Maintenance of something you are responsible for or own was planned, starts soon, started or ended"
+      }
     }
   }
 }

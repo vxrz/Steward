@@ -113,7 +113,11 @@ const SELECT = `SELECT m.*, s.status, s.since, s.root_causes, s.last_evaluated_a
 function maintenanceOf(mid: string, now = engine.monitorNow()): MaintenanceWindow | null {
   const w = engine.activeMaintenance(mid, now);
   if (!w) return null;
-  return listMaintenanceRows(mid).find((x) => x.id === w.id) ?? null;
+  const own = listMaintenanceRows(mid).find((x) => x.id === w.id);
+  if (own) return own;
+  // a maintenance window of the catalogue on one of the monitor's platforms (#108)
+  const c = w as typeof w & { starts_at?: string };
+  return { id: w.id, monitorId: mid, startsAt: c.starts_at ?? '', endsAt: w.ends_at, reason: w.reason, createdBy: '', createdAt: '', active: true };
 }
 
 function summary(r: Joined, counts: Partial<Record<MonitorStatus, number>> | undefined, canView: MonitorVisibility): MonitorSummary {

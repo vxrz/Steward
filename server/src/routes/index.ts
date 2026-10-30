@@ -79,6 +79,7 @@ import { syncRoutes } from '../sync/routes.js';
 import { startGitSync } from '../sync/engine.js';
 import { seedExamplesSource } from '../sync/service.js';
 import { currentActor, currentUser, runAs, type AuthUser } from '../auth/context.js';
+import { subjectReferences } from '../auth/subjects.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
 import * as emergency from '../auth/emergency.js';
@@ -749,6 +750,17 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requireCapability(me(), 'manageUsers', 'manage teams');
     users.deleteTeam(params(req).id!);
     return { ok: true };
+  });
+  // where a user or team is still named, before it is deactivated or deleted (#143)
+  app.get('/users/:id/references', async (req) => {
+    requireCapability(me(), 'manageUsers', 'manage users');
+    return subjectReferences('user', users.getUser(params(req).id!).username);
+  });
+  app.get('/teams/:id/references', async (req) => {
+    requireCapability(me(), 'manageUsers', 'manage teams');
+    const team = users.listTeams().find((t) => t.id === params(req).id);
+    if (!team) throw new HttpError(404, 'Team not found');
+    return subjectReferences('team', team.name);
   });
   app.get('/subjects', async (): Promise<Subject[]> => {
     // Used by access editors and assignee pickers – not needed by read-only accounts.

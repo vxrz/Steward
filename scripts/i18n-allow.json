@@ -34,10 +34,13 @@
     "de": [
       "Administration",
       "API history.push (7.0+)",
+      "Appliance",
       "Arial",
+      "Audit",
       "Branch",
       "Browser",
       "Claims:",
+      "Cluster",
       "Commit {{sha}}",
       "Container",
       "corp.example, *.corp.example",

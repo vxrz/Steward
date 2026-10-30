@@ -67,6 +67,11 @@ export interface ObjectiveWindowState {
   /** Gatus' uptime in percent (null: no data) */
   value: number | null;
   status: ObjectiveStatus;
+  /**
+   * Planned maintenance (#108) of the service or application in this window, in minutes. Gatus' figure above is not
+   * changed by it; it is shown next to it. 0 for archived objectives.
+   */
+  plannedMinutes?: number;
 }
 
 export const OBJECTIVE_BREACH_END_REASONS = ['recovered', 'archived'] as const;
@@ -278,7 +283,14 @@ export interface ScorecardProtection {
 export interface ScorecardLifecycleItem {
   applicationId: string;
   applicationName: string;
+  /** The component's or system's name */
   componentName: string;
+  /** A component of the application or a system it runs on (#129) */
+  holder: 'component' | 'system';
+  /** The environment of the component or "runs on" link ('' – all environments) */
+  environment: string;
+  /** The environment is flagged as production: listed first */
+  production: boolean;
   product: string;
   label: string;
   version: string;

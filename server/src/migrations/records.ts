@@ -255,4 +255,32 @@ export const RECORD_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // measures of incident reviews (#109): tracked with an owner and a due date; reminders are claimed per day
+    name: 'records-005-measures',
+    sql: `
+      CREATE TABLE record_measures (
+        id TEXT PRIMARY KEY,
+        record_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        owners TEXT NOT NULL DEFAULT '[]',
+        due_date TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        done_at TEXT,
+        done_by TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE INDEX record_measures_record ON record_measures(record_id);
+      CREATE INDEX record_measures_open ON record_measures(done_at, due_date);
+      CREATE TABLE record_measure_reminders (
+        measure_id TEXT NOT NULL,
+        reminder_key TEXT NOT NULL,
+        sent_at TEXT NOT NULL,
+        PRIMARY KEY (measure_id, reminder_key)
+      );
+    `,
+  },
 ];

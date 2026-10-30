@@ -20,6 +20,7 @@ import type { AuthUser, SessionMeta } from './context.js';
 import { passwordLoginMode } from '../settings.js';
 import { config } from '../config.js';
 import { aliasTarget, invalidateAliases, teamAliasTarget } from './aliases.js';
+import { rewriteTeamReferences } from './subjects.js';
 
 interface UserRow {
   id: string;
@@ -464,10 +465,14 @@ export function saveTeam(input: { name: string; description?: string; members?: 
     if (!u) throw new HttpError(400, `Unknown user "${m}"`);
     return u.id;
   });
+  const before = id ? db().get<{ name: string }>('SELECT name FROM teams WHERE id = ?', id) : undefined;
+  let moved = 0;
   db().tx(() => {
     if (id) {
       const r = db().run('UPDATE teams SET name = ?, description = ? WHERE id = ?', name, input.description ?? '', id);
       if (!r.changes) throw new HttpError(404, 'Team not found');
+      // renamed: owners, responsibles, access lists, recipients and subscribers follow (#143)
+      if (before && before.name.toLowerCase() !== name.toLowerCase()) moved = rewriteTeamReferences(before.name, name);
     } else {
       if (db().get('SELECT 1 FROM teams WHERE name = ?', name)) throw new HttpError(409, `Team "${name}" exists`);
       db().run('INSERT INTO teams (id, name, description, created_at) VALUES (?, ?, ?, ?)', tid, name, input.description ?? '', nowIso());
@@ -481,8 +486,8 @@ export function saveTeam(input: { name: string; description?: string; members?: 
       action: id ? 'team.updated' : 'team.created',
       entityType: 'team',
       entityId: tid,
-      summary: `Team "${name}" ${id ? 'updated' : 'created'}${input.members ? ` (${input.members.length} members)` : ''}`,
-      details: { members: input.members },
+      summary: `Team "${name}" ${id ? 'updated' : 'created'}${input.members ? ` (${input.members.length} members)` : ''}${before && before.name !== name ? ` – renamed from "${before.name}"${moved ? `, ${moved} references updated` : ''}` : ''}`,
+      details: { members: input.members, ...(before && before.name !== name ? { renamedFrom: before.name, referencesUpdated: moved } : {}) },
     });
   });
   return listTeams().find((t) => t.id === tid)!;
@@ -492,9 +497,17 @@ export function deleteTeam(id: string): void {
   const t = listTeams().find((x) => x.id === id);
   if (!t) throw new HttpError(404, 'Team not found');
   db().tx(() => {
+    // the team leaves owners, responsibles, access lists, recipients and subscribers (#143)
+    const removed = rewriteTeamReferences(t.name, null);
     db().run('DELETE FROM teams WHERE id = ?', id);
     invalidateAliases();
-    audit({ action: 'team.deleted', entityType: 'team', entityId: id, summary: `Team "${t.name}" deleted` });
+    audit({
+      action: 'team.deleted',
+      entityType: 'team',
+      entityId: id,
+      summary: `Team "${t.name}" deleted${removed ? ` (removed from ${removed} entries)` : ''}`,
+      details: { referencesRemoved: removed },
+    });
   });
 }
 

@@ -67,6 +67,8 @@ A **breach** starts with the first sample below target and ends with the first s
 
 With _Send a message …_ on, the service owners (administrators when it has none) get **one message per breach** – not one per sample, and at most one per objective a day: an objective that flaps between met and below target records every breach, but sends no second message within 24 hours (notification event `objective.breached`, in-app by default; route it to e-mail, Teams or a webhook in _Settings → Notifications_, see [NOTIFICATIONS.md](NOTIFICATIONS.md)).
 
+During a **maintenance window** of the service or application ([APPLICATIONS.md](APPLICATIONS.md#maintenance-windows)) a breach is still recorded, but no message is sent. The figures stay Gatus' own uptime; each window shows the planned maintenance minutes next to them (_Planned maintenance: 24 h 2 h_, `plannedMinutes` per window in the API).
+
 ## The scorecard
 
 Each part has its own status. There is **no weighting** and no score:

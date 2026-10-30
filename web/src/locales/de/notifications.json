@@ -123,6 +123,18 @@
         "label": "Supportende im Tech-Stack",
         "info": "Eine Komponente einer Anwendung, die Sie verantworten, erreicht bald das Supportende ihres Release-Zyklus (oder hat es erreicht)"
       }
+    },
+    "measure": {
+      "due": {
+        "label": "Maßnahme aus einem Incident-Review",
+        "info": "Eine Maßnahme aus einem Incident-Review, die Ihnen gehört, ist bald fällig oder überfällig"
+      }
+    },
+    "maintenance": {
+      "announced": {
+        "label": "Wartung",
+        "info": "Eine Wartung von etwas, für das Sie verantwortlich sind oder das Ihnen gehört, wurde geplant, beginnt bald, hat begonnen oder ist beendet"
+      }
     }
   }
 }

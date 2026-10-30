@@ -32,6 +32,7 @@ import {
   type ProcessVersion,
   type ValidationIssue,
 } from '@sm/shared';
+import { TagInput } from '../tags';
 import { get, notifyError, post } from '../../api';
 import { fmtDate } from '../../format';
 import { ExpressionInput } from './ExpressionInput';
@@ -72,11 +73,12 @@ export function GeneralPanel({ def, onChange }: { def: Def; onChange: SetDef }) 
         value={def.description ?? ''}
         onChange={(e) => onChange(strip({ ...def, description: e.currentTarget.value || undefined }))}
       />
-      <TagsInput
+      <TagInput
         label={t('general.tags')}
         description={t('general.tagsHint')}
         value={def.tags ?? []}
         onChange={(tags) => onChange(strip({ ...def, tags: tags.length ? tags : undefined }))}
+        max={50}
       />
     </Stack>
   );

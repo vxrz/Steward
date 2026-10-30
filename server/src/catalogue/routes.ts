@@ -7,6 +7,10 @@ import * as apps from './applications.js';
 import * as cia from './cia.js';
 import * as comps from './components.js';
 import * as lifecycle from './lifecycle.js';
+import * as systems from './systems.js';
+import * as envs from './environments.js';
+import * as maint from './maintenance.js';
+import { contentDisposition } from '../records/attachments.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { getService } from './service.js';
@@ -62,6 +66,65 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
     const r = await comps.importSbom(params(req).id!, params(req).componentId!, comps.sbomInput.parse(req.body), apps.canEditApplication);
     return { preview: r.preview, application: apps.getApplication(params(req).id!) };
   });
+
+  // ---------- systems and "runs on" (#129) ----------
+  app.get('/systems', async () => systems.listSystems());
+  app.post('/systems', async (req) => systems.createSystem(systems.systemInput.parse(req.body)));
+  app.get('/systems/:id', async (req) => systems.getSystem(params(req).id!));
+  app.put('/systems/:id', async (req) => systems.updateSystem(params(req).id!, systems.systemInput.parse(req.body)));
+  app.delete('/systems/:id', async (req) => {
+    systems.deleteSystem(params(req).id!);
+    return { ok: true };
+  });
+  app.post('/systems/:id/sbom/preview', { bodyLimit: LARGE_BODIES.sbom.bytes }, async (req) =>
+    systems.previewSystemSbom(params(req).id!, comps.sbomInput.parse(req.body)),
+  );
+  app.post('/systems/:id/sbom', { bodyLimit: LARGE_BODIES.sbom.bytes }, async (req) =>
+    systems.importSystemSbom(params(req).id!, comps.sbomInput.parse(req.body)),
+  );
+  app.post('/applications/:id/systems', async (req) => {
+    systems.linkSystem(params(req).id!, systems.systemLinkInput.parse(req.body), apps.canEditApplication);
+    return apps.getApplication(params(req).id!);
+  });
+  app.put('/applications/:id/systems/:systemLinkId', async (req) => {
+    systems.updateSystemLink(params(req).id!, params(req).systemLinkId!, systems.systemLinkUpdate.parse(req.body), apps.canEditApplication);
+    return apps.getApplication(params(req).id!);
+  });
+  app.delete('/applications/:id/systems/:systemLinkId', async (req) => {
+    systems.unlinkSystem(params(req).id!, params(req).systemLinkId!, apps.canEditApplication);
+    return apps.getApplication(params(req).id!);
+  });
+
+  // ---------- maintenance windows (#108) ----------
+  const maintenanceQuery = z.object({
+    from: z.string().datetime({ offset: true }).optional(),
+    to: z.string().datetime({ offset: true }).optional(),
+    target: z
+      .string()
+      .regex(/^(platform|system|application|service):[\w-]{1,80}$/)
+      .optional(),
+    cancelled: z.enum(['true', 'false']).optional(),
+  });
+  app.get('/maintenance-windows', async (req) => {
+    const q = maintenanceQuery.parse(req.query);
+    return maint.listMaintenance({ from: q.from, to: q.to, target: q.target, cancelled: q.cancelled === 'true' });
+  });
+  app.post('/maintenance-windows', async (req) => maint.createMaintenance(maint.maintenanceInput.parse(req.body)));
+  app.get('/maintenance-windows/:id', async (req) => maint.getMaintenance(params(req).id!));
+  app.put('/maintenance-windows/:id', async (req) => maint.updateMaintenance(params(req).id!, maint.maintenanceInput.parse(req.body)));
+  app.post('/maintenance-windows/:id/cancel', async (req) =>
+    maint.cancelMaintenance(params(req).id!, z.object({ reason: z.string().max(500).default('') }).parse(req.body ?? {}).reason),
+  );
+  app.get('/maintenance-windows/:id/ics', async (req, reply) => {
+    const f = maint.maintenanceIcs(params(req).id!);
+    reply.header('content-type', 'text/calendar; charset=utf-8');
+    reply.header('content-disposition', contentDisposition(f.name));
+    return f.body;
+  });
+
+  // ---------- environments (#129) ----------
+  app.get('/catalogue/environments', async () => envs.environmentSettings());
+  app.put('/catalogue/environments', async (req) => envs.saveEnvironments(envs.environmentsInput.parse(req.body)));
 
   // the application a platform belongs to (platform page; 404 for platforms the user may not see)
   app.get('/platforms/:id/application', async (req) => {

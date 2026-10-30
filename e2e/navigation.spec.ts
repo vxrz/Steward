@@ -24,6 +24,8 @@ test.describe('navigation (admin)', () => {
     await expect(nav.getByRole('group', { name: 'Service management' }).getByRole('link')).toHaveText([
       'Services',
       'Applications',
+      'Systems',
+      'Maintenance',
       'Duties',
       'Scorecard',
       'Platforms',

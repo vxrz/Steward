@@ -3,6 +3,8 @@ import {
   CREDENTIAL_LIMITS,
   CREDENTIAL_TYPES,
   DEFAULT_CREDENTIAL_REMINDERS,
+  tagInput,
+  tagsMatch,
   type CertificateInfo,
   type Credential,
   type CredentialDue,
@@ -31,7 +33,9 @@ import { assertEmailsAllowed } from '../notifications/domains.js';
 import { assertNoSecrets, SecretFoundError } from './secrets.js';
 import { parseCertificate, certificateBytes } from './certificates.js';
 import * as platforms from '../platforms/service.js';
+import { belongsTarget, belongsToSchema, checkBelongsTo, toBelongsTo } from './belongs.js';
 import * as processes from '../processes/service.js';
+import { assertKnownSubjects } from '../auth/subjects.js';
 
 /**
  * Credentials register: documents credentials (what, where kept, who owns them,
@@ -55,6 +59,8 @@ export interface CredentialRow {
   type: (typeof CREDENTIAL_TYPES)[number];
   platform_id: string | null;
   platform_text: string;
+  belongs_kind?: string | null;
+  belongs_id?: string | null;
   environment: string;
   description: string;
   used_by: string;
@@ -239,6 +245,7 @@ export function toCredential(r: CredentialRow, u: AuthUser | null = currentUser(
     id: r.id,
     name: r.name,
     type: r.type,
+    belongsTo: toBelongsTo(r.belongs_kind ?? null, r.belongs_id ?? null),
     platformId: r.platform_id,
     platformName: platformName(r.platform_id, u),
     platformText: r.platform_text,
@@ -318,6 +325,8 @@ const subjectSchema = z
 export const credentialInputSchema = z.object({
   name: z.string().trim().min(1).max(200),
   type: z.enum(CREDENTIAL_TYPES),
+  /** The application, component or system it belongs to (#143); missing: unchanged on update */
+  belongsTo: belongsToSchema.nullable().optional(),
   platformId: z.string().max(100).nullable().optional(),
   platformText: z.string().trim().max(200).default(''),
   environment: z.string().trim().max(100).default(''),
@@ -355,7 +364,7 @@ export const credentialInputSchema = z.object({
     .nullable()
     .optional(),
   notes: z.string().max(10000).default(''),
-  tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
+  tags: z.array(tagInput()).max(20).default([]),
   /** Upload: a public certificate (base64 of PEM/CRT/DER, or PEM text); null removes the stored metadata */
   certificate: z
     .object({ contentBase64: z.string().max(400_000).optional(), pem: z.string().max(300_000).optional() })
@@ -469,6 +478,8 @@ export interface CredentialFilter {
   tag?: string;
   /** Entries holding this role (exact, case does not matter) */
   role?: string;
+  /** Entries that belong to this item: kind:id, e.g. application:app_x (#143) */
+  belongs?: string;
   dueWithinDays?: number;
   archived?: 'exclude' | 'include' | 'only';
 }
@@ -503,6 +514,7 @@ export function listCredentials(f: CredentialFilter = {}, now = Date.now()): Cre
           c.environment,
           c.location.text,
           c.usedBy.text,
+          c.belongsTo?.name ?? '',
           ...c.tags,
           ...c.roles.flatMap((r) => [r.role, r.scope]),
           ...c.usedBy.urls.map((x) => x.label),
@@ -517,8 +529,9 @@ export function listCredentials(f: CredentialFilter = {}, now = Date.now()): Cre
     )
     .filter((c) => !f.status?.length || f.status.includes(c.status))
     .filter((c) => !owner || c.owners.some((o) => o.email.includes(owner)) || c.ownerSubjects.some((s) => s.includes(owner)))
-    .filter((c) => !f.tag || c.tags.includes(f.tag))
+    .filter((c) => tagsMatch(c.tags, f.tag))
     .filter((c) => !role || c.roles.some((r) => r.role.toLowerCase() === role))
+    .filter((c) => !f.belongs || (!!c.belongsTo && `${c.belongsTo.kind}:${c.belongsTo.id}` === f.belongs))
     .filter((c) => f.dueWithinDays === undefined || (!!c.nextDueAt && Date.parse(c.nextDueAt) <= now + f.dueWithinDays * DAY));
 }
 
@@ -532,6 +545,15 @@ export function credentialsLinkingTo(kind: string, id: string): CredentialRow[] 
   return db()
     .all<CredentialRow>("SELECT * FROM credentials WHERE lower(used_by) LIKE ? ESCAPE '\\' ORDER BY name, id", `%${likeEscape(id.toLowerCase())}%`)
     .filter((r) => parseJson<{ links?: CredentialLink[] }>(r.used_by, {}).links?.some((l) => l.kind === kind && l.id === id))
+    .filter((r) => credentialPermissions(u, r).includes('view'));
+}
+
+/** Entries the current user may see that belong to one of these items (#143). */
+export function credentialsBelongingTo(kind: string, ids: string[]): CredentialRow[] {
+  const u = currentUser();
+  if (!u || !ids.length) return [];
+  return db()
+    .all<CredentialRow>(`SELECT * FROM credentials WHERE belongs_kind = ? AND belongs_id IN (${ids.map(() => '?').join(', ')}) ORDER BY name, id`, kind, ...ids)
     .filter((r) => credentialPermissions(u, r).includes('view'));
 }
 
@@ -659,11 +681,18 @@ const emailsOf = (owners: { email: string }[]): string[] => [...new Set(owners.m
 function prepare(b: CredentialInput, before?: CredentialRow): { values: Record<string, unknown>; certificate: CertificateInfo | null | undefined } {
   secretCheck(b);
   checkPlatform(b.platformId, before?.platform_id ?? null);
+  assertKnownSubjects(b.ownerSubjects, before ? parseJson<string[]>(before.owner_subjects, []) : []);
+  checkBelongsTo(b.belongsTo, { kind: before?.belongs_kind ?? null, id: before?.belongs_id ?? null });
   // new owner addresses must have an allowed domain (stored ones stay; notify() checks them again on every send)
   const stored = new Set(before ? emailsOf(parseJson(before.owners, [])) : []);
   assertEmailsAllowed(emailsOf(b.owners).filter((e) => !stored.has(e)));
   checkGatus(b.gatus);
   const values = Object.fromEntries(Object.entries(COLUMNS).map(([col, fn]) => [col, fn(b)]));
+  // what it belongs to: missing in an update keeps it
+  const belongs =
+    b.belongsTo === undefined ? { kind: before?.belongs_kind ?? null, id: before?.belongs_id ?? null } : (b.belongsTo ?? { kind: null, id: null });
+  values.belongs_kind = belongs.kind;
+  values.belongs_id = belongs.id;
   // roles: missing in an update keeps them
   values.roles = b.roles !== undefined ? JSON.stringify(normRoles(b.roles)) : (before?.roles ?? '[]');
   let certificate: CertificateInfo | null | undefined;
@@ -682,6 +711,11 @@ export function createCredential(b: CredentialInput): Credential {
   if (!canCreateCredentials(u))
     throw new HttpError(403, 'You are not allowed to add entries to the credentials register', 'FORBIDDEN', { context: 'createCredential' });
   const { values, certificate } = prepare(b);
+  // no owners given: the owners of what it belongs to (#143)
+  if (!b.ownerSubjects.length && b.belongsTo) {
+    const owners = belongsTarget(b.belongsTo.kind, b.belongsTo.id)?.owners ?? [];
+    if (owners.length) values.owner_subjects = JSON.stringify([...new Set(owners)]);
+  }
   const id = newId('cred_');
   const now = nowIso();
   const row = {
@@ -976,6 +1010,7 @@ export function credentialsCsv(list: Credential[]): string {
     'archived',
     'updated_at',
     'updated_by',
+    'belongs_to',
   ];
   const lines = list.map((c) =>
     [
@@ -1002,6 +1037,7 @@ export function credentialsCsv(list: Credential[]): string {
       c.archived ? 'yes' : 'no',
       c.updatedAt,
       c.updatedBy,
+      c.belongsTo ? `${c.belongsTo.kind}:${c.belongsTo.applicationName ? `${c.belongsTo.applicationName} / ` : ''}${c.belongsTo.name ?? c.belongsTo.id}` : '',
     ]
       .map(csvCell)
       .join(','),

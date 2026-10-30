@@ -18,6 +18,8 @@
     "records": "Dokumente",
     "services": "Services",
     "applications": "Anwendungen",
+    "systems": "Systeme",
+    "maintenance": "Wartung",
     "gitUpdates": "Änderungen aus Git",
     "tickets": "Ticket-Referenzen",
     "controls": "Kontrollen",

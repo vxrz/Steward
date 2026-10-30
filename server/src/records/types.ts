@@ -7,6 +7,8 @@ import {
   DEFAULT_REVIEW_INTERVAL_MONTHS,
   DOCUMENT_RECORD_TYPE,
   DOCUMENT_TYPE_ID,
+  INCIDENT_RECORD_TYPE,
+  INCIDENT_TYPE_ID,
   RECORD_FIELD_KEY_RE,
   RECORD_FIELD_KINDS,
   RECORD_TYPE_KEY_RE,
@@ -88,6 +90,7 @@ export function ensureDefaultTypes(): void {
   if (seeded) return;
   ensureAccessType();
   ensureDocumentType();
+  ensureIncidentType();
   if (db().get("SELECT 1 FROM settings WHERE key = 'records.defaultTypesSeeded'")) {
     seeded = true;
     return;
@@ -164,6 +167,33 @@ function ensureDocumentType(): void {
       t.template,
       JSON.stringify(t.fields),
       t.reviewIntervalMonths ?? DEFAULT_REVIEW_INTERVAL_MONTHS,
+      now,
+      now,
+    );
+  });
+}
+
+/**
+ * The built-in type for incident reviews (PIR – Incident review, #109), also in installations created before it
+ * existed. Its id is fixed (rty_pir); administrators may archive it. The key is PIR unless an installation uses it.
+ */
+function ensureIncidentType(): void {
+  if (db().get('SELECT 1 FROM record_types WHERE id = ?', INCIDENT_TYPE_ID)) return;
+  db().tx(() => {
+    if (db().get('SELECT 1 FROM record_types WHERE id = ?', INCIDENT_TYPE_ID)) return;
+    const key = ['PIR', 'IR', 'INCR', 'PIREV'].find((k) => !db().get('SELECT 1 FROM record_types WHERE key = ?', k)) ?? 'PIRX';
+    const now = nowIso();
+    const t = INCIDENT_RECORD_TYPE;
+    db().run(
+      `INSERT INTO record_types (id, key, name, description, workflow, template, fields, review_interval_months, builtin, archived, created_at, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 1, 0, ?, ?, 'system') ON CONFLICT (id) DO NOTHING`,
+      INCIDENT_TYPE_ID,
+      key,
+      t.name,
+      t.description,
+      t.workflow,
+      t.template,
+      JSON.stringify(t.fields),
       now,
       now,
     );

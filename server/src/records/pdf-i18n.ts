@@ -1,4 +1,4 @@
-import { DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE, type RecordFieldDef, type ReportLang } from '@sm/shared';
+import { DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE, type RecordFieldDef, type ReportLang, INCIDENT_RECORD_TYPE } from '@sm/shared';
 
 /**
  * Texts of the record PDF (English and German). Like the run reports, the
@@ -280,7 +280,14 @@ export const BUILTIN_TEXTS: Partial<
   Record<ReportLang, { types: Record<string, string>; fields: Record<string, string>; options: Record<string, Record<string, string>> }>
 > = {
   de: {
-    types: { CR: 'Änderungsantrag', ADR: 'Architekturentscheidung', DR: 'Entscheidungsprotokoll', SDR: 'Sicherheitsentscheidung', DOC: 'Servicedokumentation' },
+    types: {
+      CR: 'Änderungsantrag',
+      ADR: 'Architekturentscheidung',
+      DR: 'Entscheidungsprotokoll',
+      SDR: 'Sicherheitsentscheidung',
+      DOC: 'Servicedokumentation',
+      PIR: 'Incident-Review',
+    },
     fields: {
       reason: 'Begründung',
       risk: 'Risiko',
@@ -292,12 +299,16 @@ export const BUILTIN_TEXTS: Partial<
       deciders: 'Entscheider',
       consulted: 'Konsultiert',
       informed: 'Informiert',
+      incidentStart: 'Beginn des Vorfalls',
+      incidentEnd: 'Ende des Vorfalls',
+      severity: 'Schweregrad',
+      cause: 'Ursache',
     },
-    options: { risk: { low: 'niedrig', medium: 'mittel', high: 'hoch' } },
+    options: { risk: { low: 'niedrig', medium: 'mittel', high: 'hoch' }, severity: { minor: 'gering', major: 'erheblich', critical: 'kritisch' } },
   },
 };
 
-const defaultType = (key: string) => [...DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE].find((d) => d.key === key);
+const defaultType = (key: string) => [...DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE, INCIDENT_RECORD_TYPE].find((d) => d.key === key);
 
 export function recordTexts(lang: ReportLang) {
   const cat = CATALOG[lang] ?? en;

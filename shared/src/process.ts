@@ -9,6 +9,7 @@ export const runbookRef = z
 import { stepsToGraph } from './graph.js';
 import { REPORT_LANGS } from './reports.js';
 import { boundedRecord } from './zodLimits.js';
+import { tagInput } from './tags.js';
 
 /**
  * Process definition model.
@@ -704,7 +705,7 @@ const definitionBase = {
   description: z.string().optional(),
   /** What to do when a check fails (#144): a living document (rec_…) or an http(s) URL; check steps may name their own */
   runbook: runbookRef.optional(),
-  tags: z.array(z.string()).max(50).optional(),
+  tags: z.array(tagInput()).max(50).optional(),
   connections: z.array(connectionSlotSchema).max(100).default([]),
   inputs: z.array(inputDefSchema).max(200).default([]),
   constants: boundedRecord(z.unknown(), 500).optional(),

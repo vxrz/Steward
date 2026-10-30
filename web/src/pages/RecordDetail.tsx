@@ -44,6 +44,7 @@ import {
   IconUpload,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { TagBadges } from '../components/tags';
 import {
   REPORT_LANGS,
   type ApplicationSummary,
@@ -58,6 +59,7 @@ import {
   type RecordVersion,
   type RecordsMeta,
   type SignedPdfDetails,
+  INCIDENT_TYPE_ID,
 } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, patch, post, put } from '../api';
 import { DetailState, PageHeader } from '../components/common';
@@ -71,6 +73,7 @@ import { codeText, errorText } from '../i18n/errors';
 import { fieldLabel, optionLabel } from '../components/records/builtin';
 import { confirmDanger } from '../components/confirm';
 import { DocumentChangelog, EditionBadge, EditionFields, ReviewStatusBadge } from '../components/records/DocumentPanel';
+import { MeasuresPanel, TimelineButton } from '../components/records/IncidentReview';
 
 const TABS = ['content', 'changelog', 'versions', 'links', 'attachments', 'discussion', 'pdfs'] as const;
 type Tab = (typeof TABS)[number];
@@ -168,6 +171,7 @@ export function RecordDetailPage() {
                 </Tooltip>
               );
             })}
+            {rec.typeId === INCIDENT_TYPE_ID && rec.permissions.edit && <TimelineButton rec={rec} onSaved={refresh} />}
             {rec.permissions.revise && (
               <Button size="xs" variant="default" leftSection={<IconGitBranch size={14} />} onClick={() => setRevising(true)}>
                 {doc ? t('document.newEdition') : rec.status === 'rejected' ? t('detail.rework') : t('detail.revise')}
@@ -350,20 +354,7 @@ function ContentTab({ rec }: { rec: RecordDetail }) {
               ))}
               {rec.tags.length > 0 && (
                 <Field label={t('editor.tags')}>
-                  <Group gap={4}>
-                    {rec.tags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        size="sm"
-                        variant="default"
-                        component={Link}
-                        to={`/records?tag=${encodeURIComponent(tag)}`}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                  </Group>
+                  <TagBadges size="sm" tags={rec.tags} linkTo={(tag) => `/records?tag=${encodeURIComponent(tag)}`} />
                 </Field>
               )}
             </Stack>
@@ -381,6 +372,7 @@ function ContentTab({ rec }: { rec: RecordDetail }) {
         <Text size="xs" c="dimmed" mt="md" className="mono" style={{ overflowWrap: 'anywhere' }}>
           {t('detail.contentHash', { hash: rec.contentHash })}
         </Text>
+        {rec.typeId === INCIDENT_TYPE_ID && <MeasuresPanel recordId={rec.id} />}
       </Grid.Col>
     </Grid>
   );

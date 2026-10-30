@@ -53,7 +53,16 @@
   },
   "subjects": {
     "team": "Team {{name}}",
-    "role": "Rolle: {{role}}"
+    "role": "Rolle: {{role}}",
+    "groups": {
+      "user": "Benutzer",
+      "team": "Teams",
+      "role": "Rollen",
+      "unknown": "Nicht gefunden"
+    },
+    "unknown": "{{name}} (nicht gefunden)",
+    "nothingFound": "Kein Benutzer und kein Team gefunden",
+    "placeholder": "Benutzer und Teams suchen"
   },
   "cancel": "Abbrechen",
   "save": "Speichern",
@@ -135,5 +144,25 @@
     "required": "Pflichtfeld",
     "requiredOne": "Mindestens eine Auswahl",
     "invalid": "Ungültig"
+  },
+  "tags": {
+    "hint": "Ein Schlüssel, optional mit Wert: Schlüssel eingeben, mit Tab zum Wert, mit Enter hinzufügen (z. B. env: prod oder nur pci).",
+    "key": "Tag-Schlüssel",
+    "value": "Wert (optional)",
+    "keyPlaceholder": "Schlüssel, z. B. env",
+    "valuePlaceholder": "Wert, z. B. prod",
+    "add": "Tag hinzufügen",
+    "remove": "Tag {{tag}} entfernen",
+    "tooMany": "Höchstens {{max}} Tags.",
+    "problem": {
+      "empty": "Geben Sie einen Schlüssel ein.",
+      "key": "Ein Schlüssel mit Wert besteht nur aus Buchstaben, Ziffern, . _ - und /.",
+      "long": "Der Schlüssel oder der Wert ist zu lang."
+    },
+    "filterBy": "Nur Einträge mit dem Tag {{tag}} zeigen",
+    "filtered": "Gefiltert nach Tag {{tag}}",
+    "clear": "Tag-Filter {{tag}} entfernen",
+    "anyValue": "beliebiges {{key}}",
+    "noMatch": "Nichts passt zum Tag-Filter."
   }
 }

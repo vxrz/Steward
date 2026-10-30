@@ -17,6 +17,7 @@ import {
   type LinkKind,
   type LinkTarget,
   type RecordType,
+  INCIDENT_RECORD_TYPE,
 } from '@sm/shared';
 import { get, notifyError } from '../../api';
 import { confirmDanger } from '../confirm';
@@ -30,7 +31,7 @@ export function useTypeName() {
   const { t } = useTranslation('records');
   return (type: Pick<RecordType, 'key' | 'name' | 'builtin'> | undefined | null, fallback = ''): string => {
     if (!type) return fallback;
-    const def = [...DEFAULT_RECORD_TYPES, ACCESS_RECORD_TYPE, DOCUMENT_RECORD_TYPE].find((d) => d.key === type.key);
+    const def = [...DEFAULT_RECORD_TYPES, ACCESS_RECORD_TYPE, DOCUMENT_RECORD_TYPE, INCIDENT_RECORD_TYPE].find((d) => d.key === type.key);
     if (type.builtin && def && def.name === type.name) return t(`builtinTypes.${type.key as 'CR'}`, { defaultValue: type.name });
     return type.name;
   };

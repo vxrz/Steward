@@ -481,12 +481,20 @@ function pruneResults(mid: string, cid: string): void {
 
 export function activeMaintenance(mid: string, now = clock()): { id: string; ends_at: string; reason: string } | undefined {
   const ts = iso(now);
-  return db().get<{ id: string; ends_at: string; reason: string }>(
-    'SELECT id, ends_at, reason FROM monitor_maintenance WHERE monitor_id = ? AND starts_at <= ? AND ends_at > ? ORDER BY ends_at DESC LIMIT 1',
-    mid,
-    ts,
-    ts,
+  return (
+    db().get<{ id: string; ends_at: string; reason: string }>(
+      'SELECT id, ends_at, reason FROM monitor_maintenance WHERE monitor_id = ? AND starts_at <= ? AND ends_at > ? ORDER BY ends_at DESC LIMIT 1',
+      mid,
+      ts,
+      ts,
+    ) ?? catalogueMaintenance?.(mid, now)
   );
+}
+
+/** Maintenance windows of the catalogue (#108) on a platform the monitor checks – set by catalogue/maintenance.ts. */
+let catalogueMaintenance: ((mid: string, now: number) => { id: string; starts_at: string; ends_at: string; reason: string } | undefined) | null = null;
+export function setCatalogueMaintenance(fn: typeof catalogueMaintenance): void {
+  catalogueMaintenance = fn;
 }
 
 // ---------- graph evaluation ----------

@@ -1,3 +1,6 @@
+export * from './maintenance.js';
+export * from './reviews.js';
+export * from './tags.js';
 export * from './process.js';
 export * from './graph.js';
 export * from './stepMeta.js';

@@ -23,6 +23,7 @@ import YAML from 'yaml';
 import { useTranslation } from 'react-i18next';
 import type { AuthConfig, AuthType, HttpOptions, Platform, PlatformConfig } from '@sm/shared';
 import { notifyError, notifyOk, put } from '../../api';
+import { EnvironmentInput } from '../catalogue/environments';
 import { Hint, KeyValueEditor } from '../common';
 
 const AUTH_OPTIONS: AuthType[] = ['none', 'basic', 'bearer', 'apiKey', 'oauth2_client_credentials', 'token_request'];
@@ -132,12 +133,7 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
               value={kind}
               onChange={setKind}
             />
-            <TextInput
-              label={t('settings.environment')}
-              placeholder={t('settings.environmentPlaceholder')}
-              value={environment}
-              onChange={(e) => setEnvironment(e.currentTarget.value)}
-            />
+            <EnvironmentInput label={t('settings.environment')} value={environment} onChange={setEnvironment} />
             <TextInput
               label={t('settings.baseUrl')}
               classNames={{ input: 'mono' }}

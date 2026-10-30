@@ -9,7 +9,8 @@
     "DR": "Decision record",
     "SDR": "Security decision record",
     "AC": "Access change",
-    "DOC": "Service documentation"
+    "DOC": "Service documentation",
+    "PIR": "Incident review"
   },
   "builtin": {
     "types": {
@@ -36,6 +37,10 @@
       "DOC": {
         "description": "A living document, e.g. an operations manual, an identity and access management concept or an authorization concept. Each approved edition (1.0, 1.1, 2.0) is frozen; the document is reviewed at planned intervals.",
         "template": "## Purpose and scope\n\n\n## Responsibilities\n\n- \n\n## Content\n\n\n## Related documents\n\n- \n"
+      },
+      "PIR": {
+        "description": "A post-incident review: what happened and when, the impact, the cause, what was learned and the measures that keep it from happening again (with owners and due dates). Accepted by someone other than the author.",
+        "template": "## Summary\n\n\n## Timeline\n\n\n## What went well\n\n- \n\n## What could be better\n\n- \n\n## Learnings\n\n- \n"
       }
     },
     "fields": {
@@ -46,7 +51,8 @@
         "label": "Risk"
       },
       "impact": {
-        "label": "Impact"
+        "label": "Impact",
+        "help": "Who or what was affected, and how much"
       },
       "rollbackPlan": {
         "label": "Rollback plan"
@@ -122,6 +128,19 @@
       "findingId": {
         "label": "Reconciliation finding",
         "help": "Undocumented change this entry documents after the fact"
+      },
+      "incidentStart": {
+        "label": "Incident start"
+      },
+      "incidentEnd": {
+        "label": "Incident end"
+      },
+      "severity": {
+        "label": "Severity"
+      },
+      "cause": {
+        "label": "Cause",
+        "help": "The root cause and what contributed"
       }
     },
     "options": {
@@ -145,6 +164,11 @@
         "manual": "manual",
         "run": "run",
         "reconciliation": "after the fact (reconciliation)"
+      },
+      "severity": {
+        "minor": "minor",
+        "major": "major",
+        "critical": "critical"
       }
     }
   },
@@ -634,5 +658,49 @@
       "code": "Code",
       "lifebuoy": "Lifebuoy"
     }
+  },
+  "review": {
+    "measures": "Measures",
+    "measuresHelp": "What keeps it from happening again: each with owners and a due date. The owners get reminders; overdue measures show on the service page. They stay editable after the review is accepted.",
+    "noMeasures": "No measures yet.",
+    "addMeasure": "Add measure",
+    "editMeasure": "Change measure",
+    "measureTitle": "Measure",
+    "owners": "Owners",
+    "dueDate": "Due date",
+    "note": "Note",
+    "done": "Done",
+    "markDone": "Mark done",
+    "reopen": "Reopen",
+    "overdue": "Overdue",
+    "doneBy": "Done on {{date}} by {{user}}",
+    "due": "Due {{date}}",
+    "removeMeasure": "Remove measure",
+    "removeQuestion": "Remove the measure “{{title}}”?",
+    "saved": "Measure saved",
+    "timeline": "Fill in the timeline",
+    "timelineTitle": "What Steward saw in the time window",
+    "timelineHelp": "Monitor changes, failed runs, ticket events and – for administrators and auditors – audit entries you may see. The entries you tick are copied into the text under “Timeline”.",
+    "from": "From",
+    "to": "To",
+    "load": "Show entries",
+    "none": "Nothing found in this time window.",
+    "truncated": "More entries than shown: narrow the time window.",
+    "addSelected_one": "Copy {{count}} entry",
+    "addSelected_other": "Copy {{count}} entries",
+    "selectAll": "Select all",
+    "timelineAdded": "Timeline updated",
+    "sources": {
+      "monitor": "Monitor",
+      "run": "Run",
+      "ticket": "Ticket",
+      "audit": "Audit"
+    },
+    "start": "Start incident review",
+    "startFromMonitor": "Start an incident review of this monitor",
+    "startHelp": "A new incident review with the outage's time window, linked to the monitor.",
+    "started": "Incident review started",
+    "openMeasures": "Open measures from incident reviews",
+    "openMeasuresHelp": "Measures of incident reviews linked to this service that are not done yet."
   }
 }

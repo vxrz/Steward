@@ -11,7 +11,8 @@ Open it with **Credentials** in the navigation (German: _Zugangsdaten_).
 1. _Credentials → New entry_.
 2. Enter a **name** and choose the **type**:
    API client / OAuth client, technical user / service account, password, token / API key, certificate, agent / device certificate, SSH key, other.
-3. Choose the **platform** (a platform in Steward you have a right on) or type a name, for example "Insights Hub eu1". Add the **environment** if it helps (production, test). People without a right on the linked platform do not see its name.
+3. **Belongs to** (optional): the application, component or system of the [catalogue](APPLICATIONS.md) the credential belongs to – also when the application has no platform in Steward (a technical user of a database, a certificate of a server, a key of a cloud account). A new entry without Steward owners takes the owners of what it belongs to. The application page lists the entries of the application and of its components (with the component's name), the system page those of the system.
+   Choose the **platform** (a platform in Steward you have a right on) or type a name, for example "Insights Hub eu1". Add the **environment** if it helps (production, test). People without a right on the linked platform do not see its name.
 4. **Where it is kept**: the KeePass database and the path of the entry, for example `KeePass: IT-Ops.kdbx → Insights Hub/Agents/IoT2050-17`. **Link or path** is optional:
    - an `http(s)` link opens in a new tab (for example a vault web UI);
    - `keepass://…`, `*.kdbx`, `C:\…` or `\\server\share\…` paths are shown as text with a copy button, never as a link;
@@ -103,6 +104,7 @@ All checks happen on the server; the API answers 404 for entries you may not see
 
 ## Links to services and records
 
+- An entry that **belongs to** an application, a component or a system is listed on the application page (entries of its components with the component's name) and on the system page, with status and next due date. Removing a component hands its entries to the application; a system with entries is not deleted until they are moved or archived. The list filters by it (`?belongs=application:<id>`, `component:<id>`, `system:<id>`), the search finds the name, the CSV has a `belongs_to` column.
 - An entry's **Used by** links can name catalogue services and applications. The service page shows the entry under _Linked from_, the application page under _Credentials_ (with status and next due date) – but only to people who may read the entry (viewers see only the entries they own).
 - Records and services can link to an entry (_Add link → Credential_). The link picker only offers entries you may see. For readers who may not see the entry, the link shows as "not visible", without its name.
 - The entry's detail panel lists the records and services that link to it under _Linked from_ (`GET /api/backlinks?kind=credential&id=…`).
@@ -110,13 +112,13 @@ All checks happen on the server; the API answers 404 for entries you may not see
 ## Export and API
 
 - **CSV**: _Export CSV_ exports the entries you may see, with the current filters (archived entries included unless filtered). Values that start with `=`, `+`, `-` or `@` are prefixed with `'`, so spreadsheet programs do not run them as formulas. Exports are audited (`credential.exported`).
-- **Public API** (read-only, API token, see [API.md](API.md)): `GET /api/v1/credentials` (filters `status`, `type`, `platform`, `dueWithinDays`, `archived`, `q`, `role`; paginated; entries carry `roles` and `usedBy.urls`) and `GET /api/v1/credentials/{credentialId}`. Same visibility as in the UI. Example: everything that expires or needs action within 30 days:
+- **Public API** (read-only, API token, see [API.md](API.md)): `GET /api/v1/credentials` (filters `status`, `type`, `platform`, `dueWithinDays`, `archived`, `q`, `role`, `belongs`; paginated; entries carry `belongsTo`, `roles` and `usedBy.urls`) and `GET /api/v1/credentials/{credentialId}`. Same visibility as in the UI. Example: everything that expires or needs action within 30 days:
 
   ```bash
   curl -H "Authorization: Bearer $STEWARD_TOKEN" "https://steward.corp.example/api/v1/credentials?dueWithinDays=30"
   ```
 
-- Internal API (web UI): `GET/POST /api/credentials`, `GET/PUT/DELETE /api/credentials/:id`, `POST /api/credentials/:id/rotated|reviewed|archive|restore`, `GET /api/credentials/:id/history`, `GET /api/credentials/export.csv`, `GET /api/credentials/summary`, `POST /api/credentials/certificate/parse`, `GET/PUT /api/credentials/settings`.
+- Internal API (web UI): `GET/POST /api/credentials`, `GET/PUT/DELETE /api/credentials/:id`, `POST /api/credentials/:id/rotated|reviewed|archive|restore`, `GET /api/credentials/:id/history`, `GET /api/credentials/export.csv`, `GET /api/credentials/summary`, `POST /api/credentials/certificate/parse`, `GET/PUT /api/credentials/settings`, `GET /api/credentials/belongs-targets` (what an entry can belong to).
 
 ## No secrets
 

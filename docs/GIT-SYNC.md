@@ -47,8 +47,8 @@ Example record type file:
 
 ```yaml
 kind: recordType
-key: PIR
-name: Post-incident review
+key: RCA
+name: Root cause analysis
 workflow: decision
 template: |
   ## What happened

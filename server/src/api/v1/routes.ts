@@ -9,6 +9,7 @@ import {
   DEFAULT_SCHEDULE_NOTIFY,
   DEFAULT_TRIGGER_NOTIFY,
   entryEvidence,
+  tagsMatch,
   type DatasetRow,
   type ManualTaskState,
   type ProcessPermission,
@@ -470,7 +471,7 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
       const needle = q.q?.toLowerCase();
       const list = processes
         .listProcesses()
-        .filter((p) => !q.tag || p.tags.includes(q.tag))
+        .filter((p) => tagsMatch(p.tags, q.tag))
         .filter((p) => !needle || [p.id, p.name, p.description].some((x) => x?.toLowerCase().includes(needle)));
       return paged(
         req,

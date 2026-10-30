@@ -111,6 +111,8 @@ const EXPECT: Record<string, Access> = {
   'POST /api/teams': ADMIN,
   'PUT /api/teams/:id': ADMIN,
   'DELETE /api/teams/:id': ADMIN,
+  'GET /api/users/:id/references': ADMIN,
+  'GET /api/teams/:id/references': ADMIN,
   'GET /api/subjects': ACTIVE,
   'PATCH /api/me': ALL,
   'GET /api/me/tokens': ALL,
@@ -353,6 +355,15 @@ const EXPECT: Record<string, Access> = {
   'POST /api/records/:id/comments': ACTIVE,
   'GET /api/records/:id/export': ALL,
   'POST /api/records/:id/links': RUN,
+  // incident reviews (#109): measures are kept by the review's author/owner, designers and administrators
+  'GET /api/measures': ALL,
+  'GET /api/records/:id/measures': ALL,
+  'POST /api/records/:id/measures': DESIGN,
+  'PUT /api/records/:id/measures/:measureId': DESIGN,
+  'DELETE /api/records/:id/measures/:measureId': DESIGN,
+  'GET /api/records/:id/timeline': ALL,
+  'POST /api/records/:id/timeline': RUN,
+  'POST /api/incident-reviews': RUN,
   // editing a link (label, type, note): the same people who add and remove links
   'PATCH /api/records/:id/links/:linkId': RUN,
   'DELETE /api/records/:id/links/:linkId': RUN,
@@ -451,6 +462,24 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/applications/:id/components/:componentId': DESIGN,
   'POST /api/applications/:id/components/:componentId/sbom/preview': DESIGN,
   'POST /api/applications/:id/components/:componentId/sbom': DESIGN,
+  'GET /api/systems': ALL,
+  'POST /api/systems': DESIGN,
+  'GET /api/systems/:id': ALL,
+  'PUT /api/systems/:id': DESIGN,
+  'DELETE /api/systems/:id': DESIGN,
+  'POST /api/systems/:id/sbom/preview': DESIGN,
+  'POST /api/systems/:id/sbom': DESIGN,
+  'POST /api/applications/:id/systems': DESIGN,
+  'PUT /api/applications/:id/systems/:systemLinkId': DESIGN,
+  'DELETE /api/applications/:id/systems/:systemLinkId': DESIGN,
+  'GET /api/catalogue/environments': ALL,
+  'PUT /api/catalogue/environments': ADMIN,
+  'GET /api/maintenance-windows': ALL,
+  'POST /api/maintenance-windows': DESIGN,
+  'GET /api/maintenance-windows/:id': ALL,
+  'PUT /api/maintenance-windows/:id': DESIGN,
+  'POST /api/maintenance-windows/:id/cancel': DESIGN,
+  'GET /api/maintenance-windows/:id/ics': ALL,
   'GET /api/platforms/:id/application': USE,
   'PUT /api/services/:id/applications/:applicationId': DESIGN,
   'DELETE /api/services/:id/applications/:applicationId': DESIGN,
@@ -490,6 +519,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/credentials': RUN,
   'GET /api/credentials/export.csv': ALL,
   'GET /api/credentials/summary': ALL,
+  'GET /api/credentials/belongs-targets': ALL,
   'GET /api/credentials/settings': ALL,
   'PUT /api/credentials/settings': ADMIN,
   'POST /api/credentials/certificate/parse': ALL,
@@ -573,6 +603,11 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/services/:serviceId/documents': ALL,
   'GET /api/v1/applications': ALL,
   'GET /api/v1/applications/:applicationId': ALL,
+  'GET /api/v1/systems': ALL,
+  'GET /api/v1/systems/:systemId': ALL,
+  'GET /api/v1/environments': ALL,
+  'GET /api/v1/maintenance-windows': ALL,
+  'GET /api/v1/measures': ALL,
   'GET /api/v1/applications/:applicationId/documents': ALL,
   'GET /api/v1/cia-scale': ALL,
   'GET /api/v1/duties': ALL,
@@ -765,6 +800,8 @@ function fill(url: string): string {
     .replace(/:serviceId/g, fx.service!)
     .replace(/:applicationId/g, fx.application!)
     .replace(/:componentId/g, fx.component!)
+    .replace(/:systemLinkId/g, fx.systemLink!)
+    .replace(/:systemId/g, fx.system!)
     .replace(/:dutyId/g, fx.duty!)
     .replace(/:skipId/g, fx.dutySkip!)
     .replace(/:objectiveId/g, fx.objective!)
@@ -783,6 +820,8 @@ function fill(url: string): string {
     .replace(/:attId/g, 'att_none')
     .replace(/:evidenceId/g, 'tev_none')
     .replace(/:linkId/g, url.startsWith('/api/services') ? fx.serviceLink! : url.startsWith('/api/applications') ? fx.applicationLink! : fx.recordLink!)
+    .replace(/:measureId/g, fx.measure!)
+    .replace(/^\/api\/records\/:id\/(measures|timeline)/, (_m, rest: string) => `/api/records/${fx.review}/${rest}`)
     .replace(/:id/g, () => {
       const prefix = url.split('/')[2]!;
       const map: Record<string, string> = {
@@ -803,6 +842,8 @@ function fill(url: string): string {
         'ticket-references': 'ticket',
         services: 'service',
         applications: 'application',
+        systems: 'system',
+        'maintenance-windows': 'catalogueMaintenance',
         duties: 'duty',
         objectives: 'objective',
         scorecard: url.includes('/rules/') ? 'scorecardRule' : 'service',
@@ -824,6 +865,7 @@ function fill(url: string): string {
 
 /** Query strings some routes need. */
 const QUERY: Record<string, string> = {
+  'GET /api/records/:id/timeline': '?from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z',
   'GET /api/link-targets': '?kind=record&q=',
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
   'GET /api/ticket-references/open-counts': '?kind=service',
@@ -867,6 +909,10 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/records/:id/review': { outcome: 'no_change', comment: 'x' },
   'PUT /api/records/:id/review-settings': { intervalMonths: 6 },
   'POST /api/records/:id/links': { url: 'https://cmdb.example.com/9', label: 'x' },
+  'POST /api/records/:id/measures': { title: 'Matrix measure x', owners: ['user:admin'], dueDate: '2030-01-01' },
+  'PUT /api/records/:id/measures/:measureId': { title: 'Matrix measure' },
+  'POST /api/records/:id/timeline': { from: '2026-01-01T00:00:00Z', to: '2026-01-02T00:00:00Z', keys: ['monitor:0'] },
+  'POST /api/incident-reviews': { source: 'ticket', ticketId: fx.ticket },
   'POST /api/services': { name: 'svc x', owners: [] },
   'PUT /api/services/:id': { name: 'svc x', owners: [] },
   'POST /api/services/:id/archive': { archived: true },
@@ -885,6 +931,25 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/applications/:id/components/:componentId': { type: 'other', name: 'matrix component' },
   'POST /api/applications/:id/components/:componentId/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
+  'POST /api/systems': { name: 'Matrix system x', kind: 'server' },
+  'PUT /api/systems/:id': { name: 'Matrix system', kind: 'server' },
+  'POST /api/systems/:id/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
+  'POST /api/systems/:id/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
+  'POST /api/applications/:id/systems': { systemId: fx.system, environment: 'test' },
+  'PUT /api/applications/:id/systems/:systemLinkId': { environment: 'prod' },
+  'PUT /api/catalogue/environments': { environments: [{ name: 'prod', production: true }] },
+  'POST /api/maintenance-windows': {
+    title: 'Matrix maintenance',
+    startsAt: '2030-01-01T02:00:00Z',
+    endsAt: '2030-01-01T04:00:00Z',
+    targets: [{ kind: 'service', id: fx.service }],
+  },
+  'PUT /api/maintenance-windows/:id': {
+    title: 'Matrix maintenance',
+    startsAt: '2030-01-01T02:00:00Z',
+    endsAt: '2030-01-01T04:00:00Z',
+    targets: [{ kind: 'service', id: fx.service }],
+  },
   'PUT /api/services/:id/applications/:applicationId': { role: 'primary' },
   'PUT /api/services/:id/protection-need': { availability: { level: 'high', reason: 'x' } },
   'PUT /api/catalogue/cia-scale': { mode: 'default' },
@@ -1046,6 +1111,8 @@ beforeAll(async () => {
   const monD = await a('GET', `/monitors/${mon.id}`);
   const hook = await a('POST', '/triggers', { ...TRIGGER, processId: proc.id });
   const rec = await a('POST', '/records', { type: 'CR', title: 'Matrix record', fields: { reason: 'r', risk: 'low', rollbackPlan: 'p' } });
+  const review = await a('POST', '/records', { type: 'PIR', title: 'Matrix review' });
+  const measure = (await a('POST', `/records/${review.id}/measures`, { title: 'Matrix measure', owners: ['user:admin'], dueDate: '2030-01-01' })).items[0];
   const recLink = await a('POST', `/records/${rec.id}/links`, { url: 'https://cmdb.example.com/1', label: 'CMDB' });
   const svc = await a('POST', '/services', { name: 'Matrix service', owners: [] });
   const svcLink = await a('POST', `/services/${svc.id}/links`, { url: 'https://cmdb.example.com/2', label: 'x' });
@@ -1053,6 +1120,14 @@ beforeAll(async () => {
   const appLink = await a('POST', `/applications/${application.id}/links`, { url: 'https://cmdb.example.com/3', label: 'x' });
   const component = (await a('POST', `/applications/${application.id}/components`, { type: 'repository', name: 'matrix component' })).components[0];
   await a('PUT', `/services/${svc.id}/applications/${application.id}`, { role: 'primary' });
+  const system = await a('POST', '/systems', { name: 'Matrix system', kind: 'server' });
+  const systemLink = (await a('POST', `/applications/${application.id}/systems`, { systemId: system.id, environment: 'dev' })).systems[0];
+  const catalogueMaintenance = await a('POST', '/maintenance-windows', {
+    title: 'Matrix maintenance',
+    startsAt: '2030-01-01T02:00:00Z',
+    endsAt: '2030-01-01T04:00:00Z',
+    targets: [{ kind: 'service', id: svc.id }],
+  });
   const gw = await a('POST', '/monitor-gateways', { name: 'Matrix gateway', allowedKeys: ['test.*'] });
   const team = await a('POST', '/teams', { name: 'Matrix team', members: [] });
   const report = await a('POST', `/runs/${run.id}/reports`, {});
@@ -1082,6 +1157,8 @@ beforeAll(async () => {
     schedule: (await a('GET', '/schedules'))[0].id,
     trigger: hook.trigger.id,
     record: rec.id,
+    review: review.id,
+    measure: measure.id,
     recordLink: recLink.id,
     recordType: (await a('GET', '/record-types'))[0].id,
     credential: (await a('POST', '/credentials', CREDENTIAL)).id,
@@ -1091,6 +1168,9 @@ beforeAll(async () => {
     application: application.id,
     applicationLink: appLink.id,
     component: component.id,
+    system: system.id,
+    systemLink: systemLink.id,
+    catalogueMaintenance: catalogueMaintenance.id,
     reportSchedule: (await a('POST', '/report-schedules', REPORT_SCHEDULE)).id,
     report: report.id,
     user: users.find((u: { username: string }) => u.username === 'vera').id,

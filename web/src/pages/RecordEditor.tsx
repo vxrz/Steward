@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Grid, Group, Paper, Select, Stack, Tabs, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { Alert, Button, Grid, Group, Paper, Select, Stack, Tabs, Text, TextInput, Textarea } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { RecordDetail, RecordFieldDef } from '@sm/shared';
+import { TagInput } from '../components/tags';
 import { get, notifyError, notifyOk, put } from '../api';
 import { DetailState, PageHeader } from '../components/common';
 import { MarkdownView } from '../components/records/MarkdownView';
@@ -177,14 +178,7 @@ export function RecordEditorPage() {
                   onChange={(v) => set({ fields: { ...draft.fields, [f.key]: v } })}
                 />
               ))}
-              <TagsInput
-                label={t('editor.tags')}
-                description={t('editor.tagsHelp')}
-                value={draft.tags}
-                onChange={(v) => set({ tags: v })}
-                maxTags={30}
-                clearable
-              />
+              <TagInput label={t('editor.tags')} description={t('editor.tagsHelp')} value={draft.tags} onChange={(v) => set({ tags: v })} max={30} lower />
               <TextInput
                 label={t('editor.comment')}
                 placeholder={t('editor.commentPlaceholder')}

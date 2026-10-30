@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { IconArchive, IconArchiveOff, IconEdit, IconExternalLink } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { TagBadges } from '../components/tags';
 import type { ServiceDetail } from '@sm/shared';
 import { del, get, notifyError, patch, post } from '../api';
 import { DetailState, PageHeader, subjectLabel } from '../components/common';
@@ -19,6 +20,8 @@ import { ServiceApplicationsPanel } from '../components/catalogue/ServiceApplica
 import { DutiesPanel } from '../components/duties/DutiesPanel';
 import { ScorecardPanel } from '../components/scorecard/ScorecardPanel';
 import { ObjectivesPanel } from '../components/scorecard/ObjectivesPanel';
+import { MaintenancePanel } from '../components/catalogue/maintenance';
+import { OpenMeasuresPanel } from '../components/records/IncidentReview';
 
 export function ServiceDetailPage() {
   const { t } = useTranslation(['services', 'common']);
@@ -74,6 +77,7 @@ export function ServiceDetailPage() {
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
+            <MaintenancePanel kind="service" id={s.id} canPlan={s.canEdit && !s.archived} />
             {s.description.trim() ? (
               <MarkdownView text={s.description} />
             ) : (
@@ -85,6 +89,7 @@ export function ServiceDetailPage() {
             <ServiceApplicationsPanel service={s} onSaved={refresh} />
             {!s.archived && <ScorecardPanel serviceId={s.id} />}
             <DutiesPanel serviceId={s.id} canEdit={s.canEdit && !s.archived} applications={s.applications.map((a) => ({ id: a.id, name: a.name }))} />
+            <OpenMeasuresPanel serviceId={s.id} />
             <ObjectivesPanel serviceId={s.id} canEdit={s.canEdit && !s.archived} applications={s.applications.map((a) => ({ id: a.id, name: a.name }))} />
             <ServiceDocumentsPanel service={s} documents={s.documents} />
             <LinksPanel
@@ -151,13 +156,7 @@ export function ServiceDetailPage() {
               </Field>
               {s.tags.length > 0 && (
                 <Field label={t('tags')}>
-                  <Group gap={4}>
-                    {s.tags.map((tag) => (
-                      <Badge key={tag} size="sm" variant="default">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </Group>
+                  <TagBadges size="sm" tags={s.tags} linkTo={(tag) => `/services?tag=${encodeURIComponent(tag)}`} />
                 </Field>
               )}
               <Text size="xs" c="dimmed">

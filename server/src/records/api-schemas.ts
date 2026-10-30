@@ -200,7 +200,26 @@ export const ServiceDocument = z.object({
     .describe('The applications the document applies to (its scope); empty: the whole service'),
 });
 
+export const MeasureEntry = z.object({
+  id: z.string(),
+  recordId: z.string(),
+  recordNumber: z.string().describe('The incident review, e.g. PIR-2026-0003'),
+  recordTitle: z.string(),
+  title: z.string(),
+  owners: z.array(z.string()).describe('user:<name>, team:<name>'),
+  dueDate: z.string().describe('YYYY-MM-DD'),
+  note: z.string(),
+  doneAt: ts().nullable(),
+  doneBy: z.string().nullable(),
+  overdue: z.boolean().describe('Not done and past its due date (in the instance time zone)'),
+  createdAt: ts(),
+  createdBy: z.string(),
+  updatedAt: ts(),
+  updatedBy: z.string(),
+});
+
 export const RECORD_COMPONENTS: Record<string, ZodTypeAny> = {
+  MeasureEntry,
   ServiceDocument,
   Record: Record_,
   RecordDetail,
@@ -217,12 +236,20 @@ export const RECORD_COMPONENTS: Record<string, ZodTypeAny> = {
 const limit = z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)');
 const cursor = z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)');
 
+export const MeasureListQuery = z.object({
+  limit,
+  cursor,
+  state: z.enum(['open', 'overdue', 'done', 'all']).default('open').describe('open (default), overdue, done or all'),
+  serviceId: z.string().max(100).optional().describe('Only measures of reviews linked to this service'),
+  owner: z.string().max(130).optional().describe('Only measures this subject owns, e.g. team:ops'),
+});
+
 export const RecordListQuery = z.object({
   limit,
   cursor,
   type: z.string().max(64).optional().describe('Record type key, e.g. CR or ADR'),
   status: z.array(z.string().max(40)).max(QUERY_LIST_MAX).optional().describe('Only records with these statuses (repeat the parameter)'),
-  tag: z.string().max(60).optional(),
+  tag: z.string().max(161).optional(),
   q: z.string().max(200).optional().describe('Case-insensitive search in number, title and text'),
   workflow: z.enum(RECORD_WORKFLOW_KEYS).optional().describe('Only records of types with this workflow, e.g. document'),
   reviewStatus: z.array(z.enum(REVIEW_STATUSES)).max(QUERY_LIST_MAX).optional().describe('Living documents: only these review statuses (repeat the parameter)'),

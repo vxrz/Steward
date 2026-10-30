@@ -23,6 +23,7 @@ import { currentUser, type AuthUser } from '../auth/context.js';
 import { platformPermissions } from '../auth/permissions.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canEditService, forbid, me } from '../records/access.js';
+import { plannedMinutes } from '../catalogue/maintenance.js';
 
 /**
  * Availability objectives (#86): targets for the uptime windows Gatus reports (1 h, 24 h, 7 d, 30 d; each optional)
@@ -274,6 +275,8 @@ export function objectiveState(r: ObjectiveRow, cache: ReadingCache, facts: Samp
   }
   const reading = cache.read(r.platform_id, r.endpoint_key);
   const j = judge(r, reading.values);
+  const planned = plannedMinutes(r, OBJECTIVE_WINDOW_MS, now);
+  j.windows = j.windows.map((w) => ({ ...w, plannedMinutes: planned[w.window] }));
   if (j.status !== 'noData') return { ...j, reason: null, at: reading.at, noDataSince: null, noDataTooLong: false };
   const last = facts.lastData.get(r.id);
   const since = Math.max(Date.parse(r.created_at), last ? Date.parse(last) + HOUR : 0);

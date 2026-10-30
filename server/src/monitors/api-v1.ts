@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { MONITOR_STATUS_CODE, type MonitorSummary } from '@sm/shared';
+import { tagsMatch, MONITOR_STATUS_CODE, type MonitorSummary } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { ProblemError } from '../api/v1/problem.js';
 import { decodeCursor, linkNext, pageArray, pageRows } from '../api/v1/pagination.js';
@@ -77,7 +77,7 @@ export async function monitorApiRoutes(_app: FastifyInstance, get: Get): Promise
       const list = svc
         .listMonitors({ templates: false })
         .filter((m) => !q.status?.length || q.status.includes(m.status))
-        .filter((m) => !q.tag || m.tags.includes(q.tag))
+        .filter((m) => tagsMatch(m.tags, q.tag))
         .filter((m) => !needle || m.key.includes(needle) || m.name.toLowerCase().includes(needle))
         .map(mapMonitor);
       const page = pageArray(list, (m) => [m.name.toLowerCase(), m.id], q, q);
@@ -99,7 +99,7 @@ export async function monitorApiRoutes(_app: FastifyInstance, get: Get): Promise
     },
     async (req) => {
       const q = req.query as { level: 'checks' | 'monitors'; tag?: string };
-      const list = svc.listMonitors({ templates: false }).filter((m) => m.enabled && (!q.tag || m.tags.includes(q.tag)));
+      const list = svc.listMonitors({ templates: false }).filter((m) => m.enabled && tagsMatch(m.tags, q.tag));
       if (q.level === 'monitors') {
         return { data: list.map((m) => ({ '{#MONITOR}': m.key, '{#MONITORNAME}': m.name, '{#MONITORID}': m.id })) };
       }

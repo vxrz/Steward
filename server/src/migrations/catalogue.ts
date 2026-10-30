@@ -161,4 +161,98 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // #129: systems that applications run on (servers, VMs, clusters, cloud services – shared between applications),
+    // their tech stack, the "runs on" links with an environment, and the environment of a component.
+    name: 'catalogue-004-systems',
+    sql: `
+      CREATE TABLE systems (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        vendor TEXT NOT NULL DEFAULT '',
+        cmdb_url TEXT NOT NULL DEFAULT '',
+        owners TEXT NOT NULL DEFAULT '[]',
+        note TEXT NOT NULL DEFAULT '',
+        platform_id TEXT,
+        sbom_format TEXT,
+        sbom_name TEXT,
+        sbom_imported_at TEXT,
+        sbom_imported_by TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+
+      -- one row per system and endoflife.date product (like component_stack)
+      CREATE TABLE system_stack (
+        system_id TEXT NOT NULL REFERENCES systems(id) ON DELETE CASCADE,
+        product TEXT NOT NULL,
+        version TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL,
+        sbom_ref TEXT NOT NULL DEFAULT '',
+        set_at TEXT NOT NULL,
+        set_by TEXT NOT NULL,
+        PRIMARY KEY (system_id, product)
+      );
+
+      -- an application runs on a system in an environment (one system can host several applications and environments)
+      CREATE TABLE application_systems (
+        id TEXT PRIMARY KEY,
+        application_id TEXT NOT NULL REFERENCES applications(id),
+        system_id TEXT NOT NULL REFERENCES systems(id),
+        environment TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        UNIQUE (application_id, system_id, environment)
+      );
+      CREATE INDEX application_systems_system ON application_systems(system_id);
+
+      -- empty: all environments / not specific to one (every component from before)
+      ALTER TABLE application_components ADD COLUMN environment TEXT NOT NULL DEFAULT '';
+    `,
+  },
+  {
+    // #108: maintenance windows of platforms, systems, applications and services (once or repeating), and the
+    // announcements sent for them (once per occurrence and kind)
+    name: 'catalogue-005-maintenance',
+    sql: `
+      CREATE TABLE maintenance_windows (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        starts_at TEXT NOT NULL,
+        ends_at TEXT NOT NULL,
+        recurrence TEXT,
+        time_zone TEXT NOT NULL,
+        responsible TEXT NOT NULL DEFAULT '[]',
+        change_record_id TEXT,
+        quiet_monitors INTEGER NOT NULL DEFAULT 1,
+        pause_messages INTEGER NOT NULL DEFAULT 0,
+        reminder_hours INTEGER NOT NULL DEFAULT 24,
+        cancelled_at TEXT,
+        cancelled_by TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE TABLE maintenance_targets (
+        window_id TEXT NOT NULL REFERENCES maintenance_windows(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        PRIMARY KEY (window_id, kind, target_id)
+      );
+      CREATE INDEX maintenance_targets_target ON maintenance_targets(kind, target_id);
+      CREATE TABLE maintenance_notices (
+        window_id TEXT NOT NULL,
+        occurrence_start TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        sent_at TEXT NOT NULL,
+        PRIMARY KEY (window_id, occurrence_start, kind)
+      );
+    `,
+  },
 ];

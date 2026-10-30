@@ -13,7 +13,6 @@ import {
   Stack,
   Switch,
   Tabs,
-  TagsInput,
   Text,
   TextInput,
   Textarea,
@@ -47,6 +46,7 @@ import {
   type Platform,
   type ProcessSummary,
 } from '@sm/shared';
+import { TagInput } from '../components/tags';
 import { ApiError, get, notifyError, post, put } from '../api';
 import { PageHeader } from '../components/common';
 import { MonitorGraph, NODE_H, NODE_W, autoLayout } from '../components/monitors/MonitorGraph';
@@ -529,7 +529,7 @@ export function MonitorEditorPage() {
               value={def.description}
               onChange={(e) => setDef({ ...def, description: e.currentTarget.value })}
             />
-            <TagsInput label={t('editor.tags')} value={def.tags} onChange={(v) => setDef({ ...def, tags: v })} />
+            <TagInput label={t('editor.tags')} value={def.tags} onChange={(v) => setDef({ ...def, tags: v })} />
             <Group grow align="flex-start">
               <NumberInput
                 label={t('form.interval')}

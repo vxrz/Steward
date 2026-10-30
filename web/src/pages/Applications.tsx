@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, Switch, Table, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, Switch, Table, Text, TextInput, Textarea } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { IconApps, IconPlus, IconScale, IconSearch } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { CIA_DIMENSIONS, SERVICE_CRITICALITIES, type ApplicationDetail, type ApplicationSummary, type ServiceSummary } from '@sm/shared';
+import { SubjectsInput } from '../components/SubjectsInput';
+import { CIA_DIMENSIONS, SERVICE_CRITICALITIES, tagLabel, tagsMatch, type ApplicationDetail, type ApplicationSummary, type ServiceSummary } from '@sm/shared';
+import { TagBadges, TagFilterChip, TagInput, useTagFilter } from '../components/tags';
 import { get, notifyError, post, put } from '../api';
 import { EmptyState, FilterPanel, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
@@ -44,9 +46,11 @@ export function ApplicationsPage() {
     return [...[...seen].map(([value, label]) => ({ value, label })), { value: NOT_RATED, label: t('filters.notRated') }];
   }, [scale, t]);
 
+  const [tag, setTag] = useTagFilter();
   const needle = q.trim().toLowerCase();
   const list = (apps.data ?? []).filter((a) => {
-    if (needle && ![a.name, a.vendor, ...a.tags].some((x) => x.toLowerCase().includes(needle))) return false;
+    if (needle && ![a.name, a.vendor, ...a.tags.map(tagLabel)].some((x) => x.toLowerCase().includes(needle))) return false;
+    if (!tagsMatch(a.tags, tag)) return false;
     if (service && !a.services.some((s) => s.id === service)) return false;
     if (criticality && a.criticality !== criticality) return false;
     if (protection === NOT_RATED) return CIA_DIMENSIONS.every((d) => !a.rating[d]);
@@ -118,7 +122,10 @@ export function ApplicationsPage() {
           </Group>
         </FilterPanel>
       </Group>
-      <Switch size="sm" mb="md" label={t('showArchived')} checked={archived} onChange={(e) => setArchived(e.currentTarget.checked)} />
+      <Group gap="md" mb="md">
+        <Switch size="sm" label={t('showArchived')} checked={archived} onChange={(e) => setArchived(e.currentTarget.checked)} />
+        <TagFilterChip tag={tag} onChange={setTag} />
+      </Group>
       <QueryState query={apps} />
       {apps.isSuccess && (apps.data ?? []).length === 0 && (
         <EmptyState
@@ -191,6 +198,7 @@ export function ApplicationsPage() {
                           {[a.vendor, a.version].filter(Boolean).join(' · ')}
                         </Text>
                       )}
+                      <TagBadges tags={a.tags} onTag={setTag} />
                     </Table.Td>
                     <Table.Td>
                       <RatingBadges rating={a.rating} />
@@ -238,6 +246,7 @@ export function ApplicationFormModal({ app, onClose, onSaved }: { app?: Applicat
   const [cmdbId, setCmdbId] = useState(app?.cmdb?.id ?? '');
   const [cmdbUrl, setCmdbUrl] = useState(app?.cmdb?.url ?? '');
   const [tags, setTags] = useState<string[]>(app?.tags ?? []);
+  const known = useQuery({ queryKey: ['applications', false], queryFn: () => get<ApplicationSummary[]>('/applications') });
   const [busy, setBusy] = useState(false);
   const v = useFieldErrors({ name: !name.trim() && t('common:validation.required') });
   const save = async () => {
@@ -306,7 +315,7 @@ export function ApplicationFormModal({ app, onClose, onSaved }: { app?: Applicat
             onChange={setCriticality}
             clearable
           />
-          <TagsInput label={t('owners')} description={t('ownersHelp')} value={owners} onChange={setOwners} maxTags={20} />
+          <SubjectsInput label={t('owners')} description={t('ownersHelp')} value={owners} onChange={setOwners} max={20} />
           <Text fw={600} size="sm">
             {t('cmdb')}
           </Text>
@@ -330,7 +339,7 @@ export function ApplicationFormModal({ app, onClose, onSaved }: { app?: Applicat
             onChange={(e) => setCmdbUrl(e.currentTarget.value)}
             maxLength={2000}
           />
-          <TagsInput label={t('tags')} value={tags} onChange={setTags} maxTags={30} />
+          <TagInput label={t('tags')} value={tags} onChange={setTags} max={30} lower suggestions={(known.data ?? []).flatMap((a) => a.tags)} />
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}

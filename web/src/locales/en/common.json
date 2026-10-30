@@ -53,7 +53,16 @@
   },
   "subjects": {
     "team": "Team {{name}}",
-    "role": "Role: {{role}}"
+    "role": "Role: {{role}}",
+    "groups": {
+      "user": "Users",
+      "team": "Teams",
+      "role": "Roles",
+      "unknown": "Not found"
+    },
+    "unknown": "{{name}} (not found)",
+    "nothingFound": "No user or team found",
+    "placeholder": "Search users and teams"
   },
   "cancel": "Cancel",
   "save": "Save",
@@ -135,5 +144,25 @@
     "required": "Required",
     "requiredOne": "Choose at least one",
     "invalid": "Not valid"
+  },
+  "tags": {
+    "hint": "A key, optionally with a value: type the key, Tab to the value, Enter to add (e.g. env: prod, or just pci).",
+    "key": "Tag key",
+    "value": "Value (optional)",
+    "keyPlaceholder": "Key, e.g. env",
+    "valuePlaceholder": "Value, e.g. prod",
+    "add": "Add tag",
+    "remove": "Remove tag {{tag}}",
+    "tooMany": "At most {{max}} tags.",
+    "problem": {
+      "empty": "Enter a key.",
+      "key": "A key with a value uses letters, digits, . _ - and / only.",
+      "long": "The key or the value is too long."
+    },
+    "filterBy": "Show only entries tagged {{tag}}",
+    "filtered": "Tag: {{tag}}",
+    "clear": "Clear the tag filter {{tag}}",
+    "anyValue": "any {{key}}",
+    "noMatch": "Nothing matches the tag filter."
   }
 }

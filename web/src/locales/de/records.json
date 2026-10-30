@@ -9,7 +9,8 @@
     "DR": "Entscheidungsprotokoll",
     "SDR": "Sicherheitsentscheidung",
     "AC": "Zugriffsänderung",
-    "DOC": "Servicedokumentation"
+    "DOC": "Servicedokumentation",
+    "PIR": "Incident-Review"
   },
   "builtin": {
     "types": {
@@ -36,6 +37,10 @@
       "DOC": {
         "description": "Ein lebendes Dokument, z. B. ein Betriebshandbuch, ein Identitäts- und Zugriffsmanagementkonzept oder ein Berechtigungskonzept. Jede freigegebene Fassung (1.0, 1.1, 2.0) wird eingefroren; das Dokument wird in geplanten Abständen überprüft.",
         "template": "## Zweck und Geltungsbereich\n\n\n## Verantwortlichkeiten\n\n- \n\n## Inhalt\n\n\n## Mitgeltende Dokumente\n\n- \n"
+      },
+      "PIR": {
+        "description": "Eine Nachbetrachtung eines Vorfalls: was wann geschah, die Auswirkungen, die Ursache, die Erkenntnisse und die Maßnahmen gegen eine Wiederholung (mit Verantwortlichen und Fälligkeit). Angenommen von jemand anderem als der Autorin oder dem Autor.",
+        "template": "## Zusammenfassung\n\n\n## Zeitlicher Ablauf\n\n\n## Was gut lief\n\n- \n\n## Was besser laufen kann\n\n- \n\n## Erkenntnisse\n\n- \n"
       }
     },
     "fields": {
@@ -46,7 +51,8 @@
         "label": "Risiko"
       },
       "impact": {
-        "label": "Auswirkungen"
+        "label": "Auswirkungen",
+        "help": "Wer oder was betroffen war, und wie stark"
       },
       "rollbackPlan": {
         "label": "Rückfallplan"
@@ -122,6 +128,19 @@
       "findingId": {
         "label": "Abgleich-Befund",
         "help": "Undokumentierte Änderung, die dieser Eintrag nachträglich dokumentiert"
+      },
+      "incidentStart": {
+        "label": "Beginn des Vorfalls"
+      },
+      "incidentEnd": {
+        "label": "Ende des Vorfalls"
+      },
+      "severity": {
+        "label": "Schweregrad"
+      },
+      "cause": {
+        "label": "Ursache",
+        "help": "Die Grundursache und was dazu beigetragen hat"
       }
     },
     "options": {
@@ -145,6 +164,11 @@
         "manual": "manuell",
         "run": "Ausführung",
         "reconciliation": "nachträglich (Abgleich)"
+      },
+      "severity": {
+        "minor": "gering",
+        "major": "erheblich",
+        "critical": "kritisch"
       }
     }
   },
@@ -634,5 +658,49 @@
       "code": "Code",
       "lifebuoy": "Rettungsring"
     }
+  },
+  "review": {
+    "measures": "Maßnahmen",
+    "measuresHelp": "Was eine Wiederholung verhindert: jede mit Verantwortlichen und Fälligkeit. Die Verantwortlichen werden erinnert; überfällige Maßnahmen erscheinen auf der Dienstseite. Sie bleiben änderbar, nachdem das Review angenommen wurde.",
+    "noMeasures": "Noch keine Maßnahmen.",
+    "addMeasure": "Maßnahme hinzufügen",
+    "editMeasure": "Maßnahme ändern",
+    "measureTitle": "Maßnahme",
+    "owners": "Verantwortlich",
+    "dueDate": "Fällig am",
+    "note": "Notiz",
+    "done": "Erledigt",
+    "markDone": "Als erledigt markieren",
+    "reopen": "Wieder öffnen",
+    "overdue": "Überfällig",
+    "doneBy": "Erledigt am {{date}} von {{user}}",
+    "due": "Fällig {{date}}",
+    "removeMeasure": "Maßnahme entfernen",
+    "removeQuestion": "Die Maßnahme „{{title}}“ entfernen?",
+    "saved": "Maßnahme gespeichert",
+    "timeline": "Zeitlichen Ablauf ausfüllen",
+    "timelineTitle": "Was Steward im Zeitraum gesehen hat",
+    "timelineHelp": "Monitor-Wechsel, fehlgeschlagene Läufe, Ticket-Ereignisse und – für Administratoren und Prüfer – Audit-Einträge, die Sie sehen dürfen. Die angehakten Einträge werden in den Text unter „Zeitlicher Ablauf“ kopiert.",
+    "from": "Von",
+    "to": "Bis",
+    "load": "Einträge zeigen",
+    "none": "In diesem Zeitraum wurde nichts gefunden.",
+    "truncated": "Mehr Einträge als angezeigt: grenzen Sie den Zeitraum ein.",
+    "addSelected_one": "{{count}} Eintrag kopieren",
+    "addSelected_other": "{{count}} Einträge kopieren",
+    "selectAll": "Alle auswählen",
+    "timelineAdded": "Zeitlicher Ablauf ergänzt",
+    "sources": {
+      "monitor": "Monitor",
+      "run": "Lauf",
+      "ticket": "Ticket",
+      "audit": "Audit"
+    },
+    "start": "Incident-Review beginnen",
+    "startFromMonitor": "Ein Incident-Review zu diesem Monitor beginnen",
+    "startHelp": "Ein neues Incident-Review mit dem Zeitraum des Ausfalls, verknüpft mit dem Monitor.",
+    "started": "Incident-Review begonnen",
+    "openMeasures": "Offene Maßnahmen aus Incident-Reviews",
+    "openMeasuresHelp": "Maßnahmen aus Incident-Reviews zu diesem Dienst, die noch nicht erledigt sind."
   }
 }

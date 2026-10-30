@@ -9,6 +9,7 @@ import { notifyPolicySchema } from './notifyPolicy.js';
 import { z } from 'zod';
 import type { AclEntry } from './api.js';
 import { boundedRecord } from './zodLimits.js';
+import { tagInput } from './tags.js';
 
 // ---------- statuses ----------
 
@@ -294,7 +295,7 @@ export type TemplateParam = z.output<typeof templateParamSchema>;
 export const monitorDefinitionSchema = z.object({
   name: z.string().trim().min(1).max(160),
   description: z.string().max(4000).default(''),
-  tags: z.array(z.string().max(60)).max(30).default([]),
+  tags: z.array(tagInput()).max(30).default([]),
   intervalSeconds: seconds(5, 86400).default(60),
   timeoutSeconds: seconds(1, 300).default(10),
   failuresBeforeDown: seconds(1, 20).default(2),

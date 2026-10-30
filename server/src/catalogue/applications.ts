@@ -3,6 +3,7 @@ import {
   APPLICATION_ROLES,
   CIA_DIMENSIONS,
   SERVICE_CRITICALITIES,
+  tagInput,
   type AclEntry,
   type ApplicationDetail,
   type ApplicationIntegration,
@@ -38,7 +39,9 @@ import {
 import { documentCounts, readableDocuments } from './documents.js';
 import { scopeOf } from './scope.js';
 import { componentCounts, componentsOf, stackRollup } from './components.js';
-import { credentialsLinkingTo, toCredential } from '../credentials/service.js';
+import { systemCounts, systemLinksOf } from './systems.js';
+import { credentialsBelongingTo, credentialsLinkingTo, toCredential, type CredentialRow } from '../credentials/service.js';
+import { assertKnownSubjects } from '../auth/subjects.js';
 
 /**
  * Applications of the service catalogue (#84): name, description, vendor, version, URL, owners, criticality, tags,
@@ -90,7 +93,10 @@ export const applicationInput = z
       .strict()
       .nullable()
       .default(null),
-    tags: z.array(z.string().trim().toLowerCase().min(1).max(60)).max(30).default([]),
+    tags: z
+      .array(tagInput({ lower: true }))
+      .max(30)
+      .default([]),
   })
   .strict();
 export type ApplicationInput = z.infer<typeof applicationInput>;
@@ -208,6 +214,7 @@ function toSummary(
     rating: ApplicationSummary['rating'];
     docs: { documents: number; overdue: number };
     components: number;
+    systems: number;
   },
 ): ApplicationSummary {
   return {
@@ -227,6 +234,7 @@ function toSummary(
     documentCount: x.docs.documents,
     overdueDocuments: x.docs.overdue,
     componentCount: x.components,
+    systemCount: x.systems,
     updatedAt: r.updated_at,
   };
 }
@@ -246,6 +254,7 @@ export function listApplicationEntries(o: { archived?: boolean } = {}): Applicat
   );
   const docs = documentCounts(db().all<{ item: string; record: string }>('SELECT application_id AS item, record_id AS record FROM record_applications'), u);
   const components = componentCounts();
+  const systems = systemCounts();
   return rows.map((r) => ({
     ...toSummary(r, {
       services: services.get(r.id) ?? [],
@@ -253,6 +262,7 @@ export function listApplicationEntries(o: { archived?: boolean } = {}): Applicat
       rating: ratings.get(r.id) ?? emptyRating(),
       docs: docs.get(r.id) ?? { documents: 0, overdue: 0 },
       components: components.get(r.id) ?? 0,
+      systems: systems.get(r.id) ?? 0,
     }),
     description: r.description,
     createdAt: r.created_at,
@@ -277,6 +287,7 @@ export function getApplication(id: string): ApplicationDetail {
   const integrations = integrationsOf([r.id], u).get(r.id) ?? [];
   const documents = readableDocuments(scopedRecordIds(r.id), u);
   const components = componentsOf(r.id);
+  const systems = systemLinksOf(r.id);
   return {
     ...toSummary(r, {
       services: servicesOf().get(r.id) ?? [],
@@ -284,6 +295,7 @@ export function getApplication(id: string): ApplicationDetail {
       rating: ratingsOf([r.id]).get(r.id) ?? emptyRating(),
       docs: { documents: documents.length, overdue: documents.filter((d) => d.reviewStatus === 'overdue').length },
       components: components.length,
+      systems: systems.length,
     }),
     description: r.description,
     createdAt: r.created_at,
@@ -294,13 +306,40 @@ export function getApplication(id: string): ApplicationDetail {
     backlinks: listBacklinks('application', r.id),
     documents,
     components,
-    stack: stackRollup(components),
-    credentials: credentialsLinkingTo('application', r.id)
-      .filter((c) => !c.archived)
-      .map((c) => toCredential(c, u))
-      .map((c) => ({ id: c.id, name: c.name, type: c.type, status: c.status, nextDueAt: c.nextDueAt, roles: c.roles.map((x) => x.role) })),
+    stack: stackRollup(components, systems),
+    systems,
+    credentials: applicationCredentials(r.id, components, u),
     canEdit: canEditApplication(u, r),
   };
+}
+
+/**
+ * The credentials of an application: entries that belong to it or to one of its components (#143), then entries that
+ * name it under "used by" (#125); each once, archived ones left out.
+ */
+function applicationCredentials(appId: string, components: { id: string; name: string }[], u: AuthUser): ApplicationDetail['credentials'] {
+  const compName = new Map(components.map((c) => [c.id, c.name]));
+  const rows: { r: CredentialRow; relation: 'belongsTo' | 'usedBy' }[] = [
+    ...credentialsBelongingTo('application', [appId]).map((r) => ({ r, relation: 'belongsTo' as const })),
+    ...credentialsBelongingTo('component', [...compName.keys()]).map((r) => ({ r, relation: 'belongsTo' as const })),
+    ...credentialsLinkingTo('application', appId).map((r) => ({ r, relation: 'usedBy' as const })),
+  ];
+  const seen = new Set<string>();
+  return rows
+    .filter(({ r }) => !r.archived && (seen.has(r.id) ? false : (seen.add(r.id), true)))
+    .map(({ r, relation }) => {
+      const c = toCredential(r, u);
+      return {
+        id: c.id,
+        name: c.name,
+        type: c.type,
+        status: c.status,
+        nextDueAt: c.nextDueAt,
+        roles: c.roles.map((x) => x.role),
+        relation,
+        componentName: relation === 'belongsTo' && r.belongs_kind === 'component' ? (compName.get(r.belongs_id ?? '') ?? null) : null,
+      };
+    });
 }
 
 /** The application a platform belongs to, or null (the platform page; the caller checked that the user may see the platform). */
@@ -341,6 +380,7 @@ export function createApplication(input: ApplicationInput): ApplicationDetail {
   const u = me();
   if (!canCreateServices(u)) forbid('create applications', 'createApplications');
   if (nameTaken(input.name)) throw new HttpError(409, `An application named "${input.name}" exists already`, 'APPLICATION_EXISTS', { name: input.name });
+  assertKnownSubjects(input.owners);
   const id = newId('app_');
   const now = nowIso();
   const c = columns(input);
@@ -380,6 +420,7 @@ export function updateApplication(id: string, input: ApplicationInput): Applicat
   const u = me();
   const cur = requireEditableApplication(id, 'change this application');
   if (nameTaken(input.name, id)) throw new HttpError(409, `An application named "${input.name}" exists already`, 'APPLICATION_EXISTS', { name: input.name });
+  assertKnownSubjects(input.owners, ownersOf(cur));
   const next = columns(input);
   const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (cur[k] ?? null));
   if (!changes.length) return getApplication(id);

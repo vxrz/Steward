@@ -1,12 +1,15 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { z } from 'zod';
-import { CIA_DIMENSIONS, type ApplicationRating, type ItemLink, type ServiceProtectionNeed } from '@sm/shared';
+import { CIA_DIMENSIONS, tagsMatch, type ApplicationRating, type ItemLink, type ServiceProtectionNeed } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { ProblemError } from '../api/v1/problem.js';
 import { linkNext, pageArray } from '../api/v1/pagination.js';
 import type { Op } from '../api/v1/routes.js';
 import { linkTypeByKey } from '../records/link-types.js';
-import { ApplicationDocumentsQuery, ApplicationListQuery, ServiceListQuery } from './api-schemas.js';
+import { ApplicationDocumentsQuery, ApplicationListQuery, MaintenanceListQuery, ServiceListQuery, SystemListQuery } from './api-schemas.js';
+import { listMaintenance } from './maintenance.js';
+import * as systems from './systems.js';
+import { environmentList } from './environments.js';
 import * as svc from './service.js';
 import * as apps from './applications.js';
 import { currentScale, levelLabel } from './cia.js';
@@ -111,6 +114,7 @@ const mapApplication = (a: apps.ApplicationEntry, scale: Scale) => ({
   documentCount: a.documentCount,
   overdueDocuments: a.overdueDocuments,
   componentCount: a.componentCount,
+  systemCount: a.systemCount,
   createdAt: a.createdAt,
   createdBy: a.createdBy,
   updatedAt: a.updatedAt,
@@ -164,6 +168,7 @@ export function serviceApiRoutes(get: Get): void {
       const list = svc
         .listServiceEntries({ archived: q.archived !== 'exclude' })
         .filter((s) => q.archived !== 'only' || s.archived)
+        .filter((s) => tagsMatch(s.tags, q.tag))
         .map((s) => map(s, scale, byService));
       const page = pageArray(list, (s) => [s.name.toLowerCase(), s.id], q, q);
       linkNext(req, reply, page.nextCursor);
@@ -213,6 +218,7 @@ export function serviceApiRoutes(get: Get): void {
       const list = apps
         .listApplicationEntries({ archived: q.archived !== 'exclude' })
         .filter((a) => q.archived !== 'only' || a.archived)
+        .filter((a) => tagsMatch(a.tags, q.tag))
         .map((a) => mapApplication(a, scale));
       const page = pageArray(list, (a) => [a.name.toLowerCase(), a.id], q, q);
       linkNext(req, reply, page.nextCursor);
@@ -247,6 +253,7 @@ export function serviceApiRoutes(get: Get): void {
         links: a.links.map(mapLink),
         components: a.components,
         stack: a.stack,
+        systems: a.systems,
       };
     },
   );
@@ -278,6 +285,82 @@ export function serviceApiRoutes(get: Get): void {
       linkNext(req, reply, page.nextCursor);
       return page;
     },
+  );
+
+  // ---------- systems (#129) ----------
+  get(
+    '/systems',
+    {
+      operationId: 'listSystems',
+      tag: 'Services',
+      summary: 'List systems',
+      description:
+        'The systems applications run on (servers, VMs, clusters, appliances, cloud services), ordered by name, with their tech stack, the Steward platform they are, and the applications that run on them per environment.',
+      query: SystemListQuery,
+      paginated: true,
+      response: {
+        type: 'object',
+        description: 'A page of systems',
+        required: ['items', 'nextCursor'],
+        properties: { items: { type: 'array', items: { $ref: 'SystemEntry#' } }, nextCursor: { type: ['string', 'null'] } },
+        additionalProperties: false,
+      },
+    },
+    async (req, reply) => {
+      const q = req.query as z.infer<typeof SystemListQuery>;
+      const env = q.environment?.toLowerCase();
+      const list = systems.listSystemEntries().filter((x) => env === undefined || x.environments.some((e) => e.toLowerCase() === env));
+      const page = pageArray(list, (x) => [x.name.toLowerCase(), x.id], q, q);
+      linkNext(req, reply, page.nextCursor);
+      return page;
+    },
+  );
+
+  get(
+    '/systems/:systemId',
+    {
+      operationId: 'getSystem',
+      tag: 'Services',
+      summary: 'Get a system with its tech stack and applications',
+      params: { systemId: 'System id (sys_…)' },
+      response: { $ref: 'SystemEntry#' },
+    },
+    async (req) => {
+      const { canEdit: _c, credentials: _cr, ...x } = found(() => systems.getSystem((req.params as { systemId: string }).systemId), 'System');
+      return x;
+    },
+  );
+
+  // ---------- maintenance windows (#108) ----------
+  get(
+    '/maintenance-windows',
+    {
+      operationId: 'listMaintenanceWindows',
+      tag: 'Services',
+      summary: 'Planned maintenance windows and their occurrences in a range',
+      description:
+        'Windows (once or repeating) on platforms, systems, applications and services that overlap the range, and every occurrence in it. Cancelled windows are left out. Platforms the token owner may not see are listed without a name.',
+      query: MaintenanceListQuery,
+      response: { $ref: 'MaintenanceListEntry#' },
+    },
+    async (req) => {
+      const q = req.query as z.infer<typeof MaintenanceListQuery>;
+      const l = listMaintenance({ from: q.from, to: q.to, target: q.target });
+      return { from: l.from, to: l.to, windows: l.windows.map(({ canEdit: _c, ...w }) => w), occurrences: l.occurrences };
+    },
+  );
+
+  get(
+    '/environments',
+    {
+      operationId: 'listEnvironments',
+      tag: 'Services',
+      summary: 'The environments of the catalogue',
+      description:
+        'The ordered list of environments (e.g. dev, test, prod) that platforms, "runs on" links and components use; values outside the list are possible (free text).',
+      response: { type: 'array', items: { $ref: 'EnvironmentEntry#' } },
+    },
+    async () => environmentList(),
   );
 
   get(

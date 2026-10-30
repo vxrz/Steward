@@ -93,10 +93,10 @@ checks:
     path: /api/identitymanagement/v3/Users
     query: { count: "1" }
 `,
-  'steward/record-types/pir.yaml': `kind: recordType
-key: PIR
-name: Post-incident review
-description: Lessons learned after an incident (synced from Git).
+  'steward/record-types/rca.yaml': `kind: recordType
+key: RCA
+name: Root cause analysis
+description: The cause of a problem and what we change (synced from Git).
 workflow: decision
 template: |
   ## What happened

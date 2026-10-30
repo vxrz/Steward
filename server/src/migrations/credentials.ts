@@ -66,4 +66,13 @@ export const CREDENTIAL_MIGRATIONS: NamedMigration[] = [
     name: 'credentials-002-roles',
     sql: `ALTER TABLE credentials ADD COLUMN roles TEXT NOT NULL DEFAULT '[]';`,
   },
+  {
+    // #143: a credential belongs to an application, a component or a system of the catalogue (the platform stays optional)
+    name: 'credentials-003-belongs-to',
+    sql: `
+      ALTER TABLE credentials ADD COLUMN belongs_kind TEXT;
+      ALTER TABLE credentials ADD COLUMN belongs_id TEXT;
+      CREATE INDEX credentials_belongs ON credentials(belongs_kind, belongs_id);
+    `,
+  },
 ];

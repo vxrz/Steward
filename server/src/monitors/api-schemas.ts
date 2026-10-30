@@ -103,13 +103,13 @@ export const MonitorListQuery = z.object({
   limit,
   cursor,
   status: z.array(status()).max(QUERY_LIST_MAX).optional().describe('Only monitors with these statuses (repeat the parameter)'),
-  tag: z.string().max(60).optional(),
+  tag: z.string().max(161).optional(),
   q: z.string().max(200).optional().describe('Case-insensitive search in key and name'),
 });
 
 export const MonitorDiscoveryQuery = z.object({
   level: z.enum(['checks', 'monitors']).default('checks').describe('checks: one entry per check; monitors: one per monitor'),
-  tag: z.string().max(60).optional(),
+  tag: z.string().max(161).optional(),
 });
 
 export const MonitorHistoryQuery = z.object({

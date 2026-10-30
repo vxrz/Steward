@@ -146,7 +146,7 @@ describe('fetching and staging', () => {
     expect((await s.api('GET', '/processes/git-user-count/versions'))[0].comment).toMatch(
       /^From Git: Library steward\/library steward\/processes\/git-user-count\.yaml @ [0-9a-f]{10}/,
     );
-    expect((await s.api('GET', '/record-types')).some((t: any) => t.key === 'PIR')).toBe(true);
+    expect((await s.api('GET', '/record-types')).some((t: any) => t.key === 'RCA')).toBe(true);
     const mon = (await s.api('GET', '/monitors')).find((m: any) => m.key === 'git-ih-api');
     expect(mon).toBeTruthy();
     expect((await s.api('GET', '/dashboards/git-overview')).name).toBe('Git demo overview');

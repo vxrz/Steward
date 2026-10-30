@@ -20,6 +20,8 @@ export const NOTIFICATION_EVENTS = [
   'duty.exception',
   'duty.ended',
   'objective.breached',
+  'maintenance.announced',
+  'measure.due',
   'security.emergency',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
@@ -44,6 +46,8 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'duty.exception': 'Someone asked to skip a period of a service duty you are responsible for: a second person decides',
   'duty.ended': 'Someone archived or changed a mandatory or recommended duty you are responsible for, and its current period ended without a run',
   'objective.breached': 'An availability objective of a service you are responsible for fell below its target (once per breach)',
+  'maintenance.announced': 'Maintenance of something you are responsible for or own was planned, starts soon, started or ended',
+  'measure.due': 'A measure from an incident review that you own is due soon or overdue',
   'security.emergency': 'Someone signed in with emergency access from the server command line (administrators)',
 };
 

@@ -5,11 +5,14 @@ import {
   CIA_SCALE_MODES,
   COMPONENT_TYPES,
   LIFECYCLE_STATES,
+  MAINTENANCE_FREQS,
+  MAINTENANCE_TARGET_KINDS,
   REVIEW_STATUSES,
   SBOM_FORMATS,
   SERVICE_CONTACT_ROLES,
   SERVICE_CRITICALITIES,
   STACK_SOURCES,
+  SYSTEM_KINDS,
 } from '@sm/shared';
 import { RecordLink } from '../records/api-schemas.js';
 
@@ -164,6 +167,7 @@ export const ApplicationEntry = z.object({
   documentCount: z.number().int().describe('Living documents that apply to the application and that the token owner may read'),
   overdueDocuments: z.number().int(),
   componentCount: z.number().int().describe('Components of the application (repositories, container images, Kafka topics, …)'),
+  systemCount: z.number().int().describe('"Runs on" links to systems (one per system and environment)'),
   createdAt: ts(),
   createdBy: z.string(),
   updatedAt: ts(),
@@ -197,6 +201,7 @@ export const ApplicationEntryDetail = ApplicationEntry.extend({
         name: z.string(),
         url: z.string().describe('http(s) link, or empty'),
         note: z.string(),
+        environment: z.string().describe('The environment of the component; empty: all environments / not specific to one'),
         stack: z.array(StackEntry),
         sbom: z
           .object({ format: z.enum(SBOM_FORMATS), name: z.string(), importedAt: ts(), importedBy: z.string() })
@@ -216,10 +221,72 @@ export const ApplicationEntryDetail = ApplicationEntry.extend({
         label: z.string(),
         version: z.string(),
         lifecycle: StackLifecycleEntry.nullable(),
-        components: z.array(z.object({ id: z.string(), name: z.string(), type: z.enum(COMPONENT_TYPES) })),
+        components: z.array(z.object({ id: z.string(), name: z.string(), type: z.enum(COMPONENT_TYPES), environment: z.string() })),
+        systems: z.array(z.object({ id: z.string(), name: z.string(), environment: z.string() })).describe('Systems the application runs on with this product'),
+        environments: z.array(z.string()).describe('Environments it is used in, in the order of the environment list (empty string: all environments)'),
+        production: z.boolean().describe('Used in an environment flagged as production'),
       }),
     )
-    .describe('The tech stack of all components together: one entry per product and version'),
+    .describe('The tech stack of all components and systems together: one entry per product and version'),
+  systems: z
+    .array(
+      z.object({
+        id: z.string().describe('Id of the "runs on" link'),
+        systemId: z.string(),
+        name: z.string(),
+        kind: z.enum(SYSTEM_KINDS),
+        vendor: z.string(),
+        environment: z.string().describe('Empty: all environments'),
+        note: z.string(),
+        stack: z.array(StackEntry),
+        createdAt: ts(),
+        createdBy: z.string(),
+      }),
+    )
+    .describe('The systems the application runs on, per environment (in the order of the environment list)'),
+});
+
+export const SystemEntry = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: z.enum(SYSTEM_KINDS),
+  vendor: z.string().describe('Vendor or provider (AWS, Azure, on-premises, the hoster, …)'),
+  cmdbUrl: z.string().describe('http(s) link to the CMDB entry, or empty'),
+  owners: z.array(z.string()).describe('Steward users and teams responsible: user:<name>, team:<name>'),
+  note: z.string(),
+  platform: z
+    .object({ id: z.string(), name: z.string(), environment: z.string() })
+    .nullable()
+    .describe('The Steward platform this system is; null when none or one the token owner may not see (then platformHidden)'),
+  platformHidden: z.boolean(),
+  applicationCount: z.number().int().describe('Applications that run on the system'),
+  environments: z.array(z.string()).describe('Environments of its "runs on" links, in list order'),
+  eol: z.number().int().describe('Products of its stack past their end of life'),
+  ending: z.number().int().describe('Products of its stack within the warning period'),
+  stack: z.array(StackEntry),
+  sbom: z.object({ format: z.enum(SBOM_FORMATS), name: z.string(), importedAt: ts(), importedBy: z.string() }).nullable(),
+  applications: z
+    .array(
+      z.object({
+        linkId: z.string(),
+        applicationId: z.string(),
+        applicationName: z.string(),
+        archived: z.boolean(),
+        environment: z.string(),
+        note: z.string(),
+      }),
+    )
+    .describe('Applications that run on it, per environment'),
+  createdAt: ts(),
+  createdBy: z.string(),
+  updatedAt: ts(),
+  updatedBy: z.string(),
+});
+
+export const EnvironmentEntry = z.object({
+  name: z.string(),
+  color: z.enum(CIA_COLORS).nullable(),
+  production: z.boolean().describe('Counts as production: end of life is more urgent there'),
 });
 
 export const ApplicationDocument = z.object({
@@ -258,6 +325,60 @@ export const CiaScaleEntry = z.object({
     ),
 });
 
+const MaintenanceTargetEntry = z.object({
+  kind: z.enum(MAINTENANCE_TARGET_KINDS),
+  id: z.string(),
+  name: z.string().nullable().describe('Null for a platform the token owner may not see, or something deleted'),
+});
+
+export const MaintenanceEntry = z.object({
+  id: z.string(),
+  title: z.string(),
+  note: z.string(),
+  startsAt: ts().describe('Start of the first occurrence'),
+  endsAt: ts().describe('End of the first occurrence'),
+  recurrence: z
+    .object({ freq: z.enum(MAINTENANCE_FREQS), interval: z.number().int(), until: ts().nullable() })
+    .nullable()
+    .describe('Repeats every n weeks or months (monthly on the 29th–31st: the last day of shorter months); null: once'),
+  timeZone: z.string().describe('IANA time zone the repetition keeps its wall-clock time in'),
+  responsible: z.array(z.string()).describe('user:<name>, team:<name>'),
+  targets: z.array(MaintenanceTargetEntry).describe('What it was planned for'),
+  changeRecord: z
+    .object({ id: z.string(), number: z.string(), title: z.string() })
+    .nullable()
+    .describe('The change record it belongs to (null: none or not readable)'),
+  quietMonitors: z.boolean().describe('Affected monitors show maintenance and send no alerts'),
+  pauseMessages: z.boolean().describe('Check and run messages of runs on affected platforms go to the app only'),
+  reminderHours: z.number().int(),
+  cancelledAt: ts().nullable(),
+  cancelledBy: z.string().nullable(),
+  current: z.object({ startsAt: ts(), endsAt: ts(), active: z.boolean() }).nullable().describe('The occurrence going on now, or the next one'),
+  createdAt: ts(),
+  createdBy: z.string(),
+  updatedAt: ts(),
+  updatedBy: z.string(),
+});
+
+export const MaintenanceListEntry = z.object({
+  from: ts(),
+  to: ts(),
+  windows: z.array(MaintenanceEntry),
+  occurrences: z
+    .array(z.object({ windowId: z.string(), title: z.string(), startsAt: ts(), endsAt: ts(), active: z.boolean(), targets: z.array(MaintenanceTargetEntry) }))
+    .describe('Every occurrence in the range, by start'),
+});
+
+export const MaintenanceListQuery = z.object({
+  from: ts().optional().describe('Start of the range (default: a day ago)'),
+  to: ts().optional().describe('End of the range (default: 60 days ahead; at most 400 days after from)'),
+  target: z
+    .string()
+    .regex(/^(platform|system|application|service):[\w-]{1,80}$/)
+    .optional()
+    .describe('Only windows that list or reach this item: kind:id, e.g. service:svc_…'),
+});
+
 export const SERVICE_COMPONENTS: Record<string, ZodTypeAny> = {
   ServiceEntry,
   ServiceEntryDetail,
@@ -265,12 +386,23 @@ export const SERVICE_COMPONENTS: Record<string, ZodTypeAny> = {
   ApplicationEntryDetail,
   ApplicationDocument,
   CiaScaleEntry,
+  SystemEntry,
+  EnvironmentEntry,
+  MaintenanceEntry,
+  MaintenanceListEntry,
 };
+
+export const SystemListQuery = z.object({
+  limit: z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)'),
+  cursor: z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)'),
+  environment: z.string().max(60).optional().describe('Only systems with a "runs on" link in this environment'),
+});
 
 export const ApplicationListQuery = z.object({
   limit: z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)'),
   cursor: z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)'),
   archived: z.enum(['exclude', 'include', 'only']).default('exclude').describe('Archived applications: left out (default), included, or only these'),
+  tag: z.string().max(161).optional().describe('Only entries with this tag: key (any value) or key=value'),
 });
 
 export const ApplicationDocumentsQuery = z.object({
@@ -282,4 +414,5 @@ export const ServiceListQuery = z.object({
   limit: z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)'),
   cursor: z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)'),
   archived: z.enum(['exclude', 'include', 'only']).default('exclude').describe('Archived services: left out (default), included, or only these'),
+  tag: z.string().max(161).optional().describe('Only entries with this tag: key (any value) or key=value'),
 });

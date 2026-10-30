@@ -594,7 +594,7 @@ export const PageQuery = z.object(page);
 
 export const ProcessListQuery = z.object({
   ...page,
-  tag: z.string().max(200).optional().describe('Only processes with this tag'),
+  tag: z.string().max(200).optional().describe('Only processes with this tag: key (any value) or key=value'),
   q: z.string().max(200).optional().describe('Case-insensitive search in id, name and description'),
 });
 

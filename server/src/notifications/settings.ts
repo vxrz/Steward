@@ -38,6 +38,8 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'access.undocumented',
     'document.review',
     'stack.eol',
+    'maintenance.announced',
+    'measure.due',
   ];
   // emergency access: every channel that is set up, so nobody can use it unnoticed
   return Object.fromEntries(
