@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Trends and forecasts on metrics** (#145): a robust trend line (Theil–Sen, counter resets followed, too few points said plainly, stable or rough) for every dataset metric. KPIs show the change of the trend line and what it is based on, and when a limit is reached at this rate; trend widgets can draw dashed trend lines. The publish step takes `limits` and `floors` per metric, a KPI its own limit. Checks use `$trend('dataset/metric', '7d')` and `$daysUntil('dataset/metric')`; the daily summary gets a _Trends_ section (limits within 30 days, strong changes); `GET /api/v1/datasets/{key}/metrics?trend=7d` returns `trend`, `limit` and `forecast`. Migration `ops-008-metric-limits` (additive).
+
 ## [0.2.5] - 2026-10-30
 
 The service catalogue learns what applications run on: **systems** with their own tech stack, per environment, and an ordered list of environments. Credentials can belong to applications, components and systems, owners are picked from the users and teams, and tags take a value (`env=prod`) and filter lists. **Maintenance windows** – once or repeating – keep affected monitors quiet, can pause run messages, hold back objective breach messages and tell the owners in advance, with a calendar and .ics files. **Incident reviews** record what happened with a timeline prefilled from what Steward saw, and track their measures with owners, due dates and reminders. Four database migrations, all additive: `catalogue-004-systems`, `credentials-003-belongs-to`, `catalogue-005-maintenance` and `records-005-measures`.

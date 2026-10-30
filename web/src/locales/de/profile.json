@@ -122,7 +122,8 @@
       "records": "Dokumente, die auf mich warten oder sich geändert haben",
       "reports": "Berichte für mich",
       "reviews": "Fällige Überprüfungen meiner Dokumente",
-      "duties": "Fällige oder versäumte Service-Pflichten, für die ich verantwortlich bin"
+      "duties": "Fällige oder versäumte Service-Pflichten, für die ich verantwortlich bin",
+      "trends": "Trends von Dashboard-Kennzahlen: bald erreichte Limits und starke Veränderungen"
     },
     "skipEmpty": "An Tagen ohne Neuigkeiten nichts senden",
     "save": "Speichern",

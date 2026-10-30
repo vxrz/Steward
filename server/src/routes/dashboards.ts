@@ -65,9 +65,12 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
         days: z.coerce.number().int().min(1).max(400).default(30),
         points: z.coerce.number().int().min(1).max(2000).default(200),
         source: z.string().max(4000).optional(),
+        trend: z.string().max(5).optional(),
       })
       .parse(req.query ?? {});
-    return datasets.metricSeries(meta.key, q.names ? q.names.split(',') : undefined, q.days, q.points, viewOf(req));
+    const view = viewOf(req);
+    const series = datasets.metricSeries(meta.key, q.names ? q.names.split(',') : undefined, q.days, q.points, view);
+    return datasets.withTrends(series, meta.key, q.trend, view);
   });
 
   app.delete('/datasets/:key', async (req) => {

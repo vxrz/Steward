@@ -53,6 +53,8 @@ export const STATIC_FUNCTIONS: FnHint[] = [
   { name: '$daysAgo', signature: '$daysAgo(n)', help: 'ISO timestamp n days in the past.' },
   { name: '$ts', signature: '$ts(value)', help: 'Parse a timestamp into epoch milliseconds.' },
   { name: '$uuid', signature: '$uuid()', help: 'A random UUID.' },
+  { name: '$trend', signature: "$trend('dataset/metric', '7d')", help: 'Trend of a dataset metric: change, changePct, perDay, confidence.' },
+  { name: '$daysUntil', signature: "$daysUntil('dataset/metric', limit?, '30d')", help: 'Days until the trend reaches the limit; null when not approaching.' },
   { name: '$pvar', signature: '$pvar(slot, name, default)', help: 'Platform variable of a connection slot.' },
   { name: '$secret', signature: '$secret(slot, key)', help: 'Secret of a connection slot (redacted in logs).' },
   { name: '$count', signature: '$count(array)', help: 'Number of items.' },

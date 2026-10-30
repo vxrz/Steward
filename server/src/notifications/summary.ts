@@ -12,6 +12,9 @@ import {
   type MonitorStatus,
   type ReportRecipients,
   type UserInfo,
+  LATER_SUMMARY_SECTIONS,
+  SUMMARY_FORECAST_DAYS,
+  SUMMARY_TREND_PCT,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -31,6 +34,9 @@ import { reviewsDueFor } from '../records/documents.js';
 import { dutiesDueFor } from '../duties/service.js';
 import { listTickets } from '../tickets/service.js';
 import { getRecord } from '../records/service.js';
+import { listDatasets, metricTrends } from '../dashboards/datasets.js';
+import { monitorDatasetVisible } from '../monitors/datasets.js';
+import { permissionsFor } from '../processes/service.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
 import { addInApp } from './store.js';
 import { sendEmail } from './channels.js';
@@ -111,6 +117,12 @@ export function getPrefs(userId: string): DailySummaryPrefs {
   const r = db().get<{ enabled: number; prefs: string }>('SELECT enabled, prefs FROM daily_summary_prefs WHERE user_id = ?', userId);
   if (!r) return { ...DEFAULT_DAILY_SUMMARY };
   const stored = parseJson<Partial<DailySummaryPrefs>>(r.prefs, {});
+  // a section added later (e.g. trends, #145): in it for people who had every section of the time
+  if (Array.isArray(stored.sections)) {
+    const later = Object.keys(LATER_SUMMARY_SECTIONS) as DailySummarySection[];
+    const before = DAILY_SUMMARY_SECTIONS.filter((x) => !later.includes(x));
+    if (before.every((x) => stored.sections!.includes(x))) stored.sections = [...new Set([...stored.sections, ...later])];
+  }
   const parsed = prefsSchema.safeParse({ ...DEFAULT_DAILY_SUMMARY, ...stored, enabled: !!r.enabled });
   return parsed.success ? parsed.data : { ...DEFAULT_DAILY_SUMMARY, enabled: false };
 }
@@ -428,6 +440,64 @@ function reportsSection(c: Ctx): Section {
   return { count: items.length, items };
 }
 
+/**
+ * Trends of dataset metrics (#145): metrics whose trend reaches their limit within SUMMARY_FORECAST_DAYS (or did),
+ * then the strongest stable changes over 7 days – of the datasets and sources the reader may see.
+ */
+function trendsSection(c: Ctx): Section {
+  const now = Date.parse(c.until);
+  const fmt = (n: number) => new Intl.NumberFormat(c.l, { maximumFractionDigits: 2 }).format(n);
+  const pct = (n: number) => `${n > 0 ? '+' : ''}${new Intl.NumberFormat(c.l, { maximumFractionDigits: 1 }).format(n)} %`;
+  const forecasts: (DailySummaryItem & { order: number })[] = [];
+  const strong: (DailySummaryItem & { order: number })[] = [];
+  for (const d of listDatasets()) {
+    if (!datasetReadable(d.processId)) continue;
+    const link = dashboardOf(d.key);
+    const several = d.sources.length > 1;
+    const label = (name: string, source?: string) =>
+      t(c.l, 'dailySummary.trendTitle', { dataset: d.title, metric: name, source: several && source ? ` (${source})` : '' });
+    for (const s of metricTrends(d.key, undefined, '30d', undefined, now)) {
+      const f = s.forecast;
+      if (f && (f.state === 'reached' || (f.state === 'approaching' && (f.days ?? Infinity) <= SUMMARY_FORECAST_DAYS)))
+        forecasts.push({
+          title: label(s.name, s.sourceName),
+          detail:
+            f.state === 'reached'
+              ? t(c.l, 'dailySummary.limitReached', { limit: fmt(f.limit) })
+              : t(c.l, 'dailySummary.limitIn', { limit: fmt(f.limit), count: Math.max(1, Math.round(f.days ?? 0)), date: dateOnly(c.l, f.at!, c.tz) }) +
+                (f.trend.confidence === 'rough' ? ` · ${t(c.l, 'dailySummary.trendRough')}` : ''),
+          link,
+          tone: f.state === 'reached' ? 'bad' : 'attention',
+          order: f.days ?? 0,
+        });
+    }
+    for (const s of metricTrends(d.key, undefined, '7d', undefined, now)) {
+      const tr = s.trend;
+      if (!tr || tr.confidence !== 'stable' || tr.changePct === null || Math.abs(tr.changePct) < SUMMARY_TREND_PCT) continue;
+      strong.push({
+        title: label(s.name, s.sourceName),
+        detail: t(c.l, 'dailySummary.trendDetail', { change: pct(tr.changePct), value: fmt(tr.end), points: tr.points }),
+        link,
+        tone: 'info',
+        order: -Math.abs(tr.changePct),
+      });
+    }
+  }
+  const items = [...forecasts.sort((a, b) => a.order - b.order), ...strong.sort((a, b) => a.order - b.order)].map(({ order: _o, ...x }) => x);
+  return { count: items.length, items };
+}
+
+/** May the reader see the dataset's data (as on the dashboards: the process's view right, or the monitor's)? */
+function datasetReadable(processId: string): boolean {
+  return monitorDatasetVisible(processId) ?? permissionsFor(processId).includes('view');
+}
+
+/** The first dashboard that shows the dataset, else the dashboards list. */
+function dashboardOf(key: string): string {
+  const d = db().get<{ id: string }>('SELECT id FROM dashboards WHERE definition LIKE ? ORDER BY name LIMIT 1', `%"dataset":"${key}"%`);
+  return d ? `/dashboards/${d.id}` : '/dashboards';
+}
+
 const BUILDERS: Record<DailySummarySection, (c: Ctx) => Section> = {
   runs: runsSection,
   tasks: tasksSection,
@@ -438,6 +508,7 @@ const BUILDERS: Record<DailySummarySection, (c: Ctx) => Section> = {
   reviews: reviewsSection,
   duties: dutiesSection,
   reports: reportsSection,
+  trends: trendsSection,
 };
 
 /** The summary for one user, collected with their rights. */

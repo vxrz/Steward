@@ -295,7 +295,34 @@ function WidgetForm({ widget, onClose, onSave }: { widget: DashboardWidget; onCl
                 value={w.goodWhen ?? ''}
                 onChange={(v) => set({ goodWhen: (v || undefined) as DashboardWidget['goodWhen'] })}
               />
-              <NumberInput label={t('form.compareDays')} min={1} max={365} value={w.days ?? 30} onChange={(v) => set({ days: Number(v) || undefined })} />
+              <NumberInput
+                label={t('form.trendDays')}
+                description={t('form.trendDaysHint')}
+                min={1}
+                max={365}
+                value={w.days ?? 30}
+                onChange={(v) => set({ days: Number(v) || undefined })}
+              />
+            </Group>
+            <Group grow align="flex-start">
+              <NumberInput
+                label={t('form.threshold')}
+                description={t('form.thresholdHint')}
+                value={w.threshold ?? ''}
+                onChange={(v) => set({ threshold: typeof v === 'number' ? v : undefined })}
+                allowDecimal
+              />
+              <Select
+                label={t('form.thresholdKind')}
+                data={[
+                  { value: 'upper', label: t('form.thresholdUpper') },
+                  { value: 'lower', label: t('form.thresholdLower') },
+                ]}
+                value={w.thresholdLower ? 'lower' : 'upper'}
+                allowDeselect={false}
+                disabled={w.threshold === undefined}
+                onChange={(v) => set({ thresholdLower: v === 'lower' || undefined })}
+              />
             </Group>
           </>
         )}
@@ -310,6 +337,12 @@ function WidgetForm({ widget, onClose, onSave }: { widget: DashboardWidget; onCl
               placeholder={metricNames.length ? t('form.pickMetrics') : t('form.noMetrics')}
             />
             <NumberInput label={t('form.days')} min={1} max={365} value={w.days ?? 30} onChange={(v) => set({ days: Number(v) || undefined })} />
+            <Switch
+              label={t('form.trendLine')}
+              description={t('form.trendLineHint')}
+              checked={!!w.trendLine}
+              onChange={(e) => set({ trendLine: e.currentTarget.checked || undefined })}
+            />
           </>
         )}
         {w.type === 'table' && (

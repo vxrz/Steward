@@ -79,6 +79,7 @@ export function useDataset(key: string | undefined, scope?: string[] | null) {
   });
 }
 
+/** Metric history of the last `days` days, each series with its trend over the same window (#145). */
 export function useMetrics(key: string | undefined, names: string[], days: number, scope?: string[] | null) {
   const { refreshMs } = useDashboardCtx();
   const qs = sourceQuery(scope);
@@ -86,7 +87,7 @@ export function useMetrics(key: string | undefined, names: string[], days: numbe
     queryKey: ['dataset-metrics', key, names.join(','), days, qs],
     queryFn: () =>
       get<MetricSeries[]>(
-        `/datasets/${encodeURIComponent(key!)}/metrics?days=${days}&points=200${names.length ? `&names=${encodeURIComponent(names.join(','))}` : ''}${qs ? `&${qs}` : ''}`,
+        `/datasets/${encodeURIComponent(key!)}/metrics?days=${days}&points=200&trend=${days}d${names.length ? `&names=${encodeURIComponent(names.join(','))}` : ''}${qs ? `&${qs}` : ''}`,
       ),
     enabled: !!key && names.length > 0,
     ...opts(refreshMs),

@@ -148,7 +148,16 @@
     "apply": "Übernehmen",
     "sources": "Quellen dieses Widgets",
     "sourcesHint": "Dieses Widget auf diese Quellen festlegen, unabhängig vom Filter des Dashboards",
-    "sourcesAll": "Wie der Filter des Dashboards"
+    "sourcesAll": "Wie der Filter des Dashboards",
+    "trendDays": "Trend über (Tage)",
+    "trendDaysHint": "Die angezeigte Veränderung ist die Trendlinie über diesen Zeitraum (robust gegen Ausreißer)",
+    "threshold": "Limit",
+    "thresholdHint": "Prognose, wann der Trend es erreicht; leer: das Limit der Kennzahl aus dem Prozess",
+    "thresholdKind": "Das Limit ist",
+    "thresholdUpper": "eine Obergrenze (Kontingent, Vertrag)",
+    "thresholdLower": "eine Untergrenze (z. B. freier Speicher)",
+    "trendLine": "Trendlinien zeigen",
+    "trendLineHint": "Eine gestrichelte Linie je Kennzahl: der Trend über die gewählten Tage"
   },
   "w": {
     "chart": "Diagramm",
@@ -192,7 +201,24 @@
     "unknownType": "Unbekannter Widget-Typ",
     "last": "zuletzt {{when}}",
     "expectedEvery_one": "erwartet jede Minute",
-    "expectedEvery_other": "erwartet alle {{count}} Min."
+    "expectedEvery_other": "erwartet alle {{count}} Min.",
+    "trendInDays_one": "Trend über {{count}} Tag",
+    "trendInDays_other": "Trend über {{count}} Tage",
+    "trendBasis_one": "Aus {{count}} Messpunkt über {{days}} Tage",
+    "trendBasis_other": "Aus {{count}} Messpunkten über {{days}} Tage",
+    "trendReset": "Zähler zurückgesetzt, ab dann verfolgt",
+    "confidence": {
+      "stable": "stabil",
+      "rough": "grob"
+    },
+    "forecast": {
+      "in_one": "Limit {{limit}} bei diesem Verlauf in etwa {{count}} Tag erreicht ({{date}})",
+      "in_other": "Limit {{limit}} bei diesem Verlauf in etwa {{count}} Tagen erreicht ({{date}})",
+      "reached": "Limit {{limit}} erreicht",
+      "notApproaching": "Kein Kurs auf das Limit {{limit}}",
+      "beyond": "Limit {{limit}} bei diesem Verlauf nicht innerhalb von zwei Jahren",
+      "tooFew": "Zu wenige Messpunkte für eine Prognose bis {{limit}}"
+    }
   },
   "charts": {
     "trendLabel": "Trend von {{names}}. Werte mit den Pfeiltasten ablesen.",

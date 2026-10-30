@@ -1,3 +1,4 @@
+import { trendLine } from '@sm/shared';
 import { useMemo, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { Group, Table, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useElementSize } from '@mantine/hooks';
@@ -33,7 +34,18 @@ function LineKey({ color }: { color: string }) {
 // Trend (multi-line) chart
 // ---------------------------------------------------------------------------
 
-export function TrendChart({ series, names, height = 220 }: { series: MetricSeries[]; names: string[]; height?: number }) {
+export function TrendChart({
+  series,
+  names,
+  height = 220,
+  trendLines = false,
+}: {
+  series: MetricSeries[];
+  names: string[];
+  height?: number;
+  /** A dashed trend line per series (#145; the series need `trend`) */
+  trendLines?: boolean;
+}) {
   const { t } = useTranslation('dashboards');
   const { ref, width } = useElementSize();
   const [hover, setHover] = useState<number | null>(null);
@@ -44,8 +56,9 @@ export function TrendChart({ series, names, height = 220 }: { series: MetricSeri
         name,
         color: SERIES_COLORS[i] ?? SERIES_COLORS[0]!,
         pts: (series.find((s) => s.name === name)?.points ?? []).map((p) => ({ t: Date.parse(p.ts), v: p.value })) as Pt[],
+        trend: trendLines ? (series.find((s) => s.name === name)?.trend ?? null) : null,
       })),
-    [series, names],
+    [series, names, trendLines],
   );
   const times = useMemo(() => [...new Set(lines.flatMap((l) => l.pts.map((p) => p.t)))].sort((a, b) => a - b), [lines]);
   const maxV = Math.max(0, ...lines.flatMap((l) => l.pts.map((p) => p.v)));
@@ -157,6 +170,30 @@ export function TrendChart({ series, names, height = 220 }: { series: MetricSeri
               />
             ) : null,
           )}
+          {lines.map((l) => {
+            if (!l.trend) return null;
+            // the line between the start of its window (or the first point shown) and now, kept inside the plot
+            const [a, b] = trendLine(l.trend);
+            const ta = Date.parse(a!.ts);
+            const tb = Date.parse(b!.ts);
+            const at = (t: number) => a!.value + ((b!.value - a!.value) * (t - ta)) / Math.max(1, tb - ta);
+            const from = Math.max(ta, t0);
+            const to = Math.min(tb, t1);
+            if (!(to > from)) return null;
+            const clamp = (v: number) => Math.min(top, Math.max(0, v));
+            return (
+              <path
+                key={`trend-${l.name}`}
+                d={`M${x(from).toFixed(1)},${y(clamp(at(from))).toFixed(1)}L${x(to).toFixed(1)},${y(clamp(at(to))).toFixed(1)}`}
+                fill="none"
+                stroke={l.color}
+                strokeWidth={1.5}
+                strokeDasharray="5 4"
+                opacity={0.8}
+                data-testid="trend-line"
+              />
+            );
+          })}
           {ends.map((e) => (
             <g key={e.name}>
               <circle cx={x(e.last.t)} cy={y(e.last.v)} r={4} fill={e.color} stroke="var(--viz-surface)" strokeWidth={2} />

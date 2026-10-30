@@ -248,6 +248,14 @@
           "label": "Kennzahlen (Name → Zahlenausdruck)",
           "help": "Werden für Trenddiagramme an den Verlauf angehängt"
         },
+        "limits": {
+          "label": "Obergrenzen (Kennzahl → Zahlenausdruck)",
+          "help": "Ein Kontingent oder Vertragslimit je Kennzahl: Dashboards und Prüfungen sagen voraus, wann der Trend es erreicht"
+        },
+        "floors": {
+          "label": "Untergrenzen (Kennzahl → Zahlenausdruck)",
+          "help": "Eine Untergrenze je Kennzahl, z. B. freier Speicher: Prognose, wann der Trend darauf fällt"
+        },
         "staleAfterMinutes": {
           "label": "Veraltet nach (Minuten)",
           "help": "Standard: 2,5 × das Intervall des Zeitplans, der den Lauf gestartet hat (mindestens 15 Minuten), sonst 24 Stunden"
@@ -870,7 +878,9 @@
     "type": "Typname eines Werts.",
     "base64encode": "Base64-kodieren.",
     "base64decode": "Base64-dekodieren.",
-    "encodeUrlComponent": "Wert URL-kodieren."
+    "encodeUrlComponent": "Wert URL-kodieren.",
+    "trend": "Trend einer Kennzahl eines Datensatzes: change, changePct, perDay, confidence.",
+    "daysUntil": "Tage, bis der Trend das Limit erreicht; null, wenn er sich ihm nicht nähert."
   },
   "suggest": {
     "loopItem": "aktuelles Schleifenelement",

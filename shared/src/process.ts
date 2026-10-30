@@ -304,6 +304,13 @@ export interface PublishConfig {
   statusText?: string;
   /** Metric name → numeric expression; appended to the dataset's history */
   metrics?: Record<string, string>;
+  /**
+   * Metric name → numeric expression of its upper limit (a quota, a contract), e.g. `pvar('ih', 'assetLimit', 1000)`
+   * (#145): KPI widgets, `$daysUntil` and the daily summary forecast when the trend reaches it.
+   */
+  limits?: Record<string, string>;
+  /** Metric name → numeric expression of a lower limit, reached by falling (e.g. free storage) */
+  floors?: Record<string, string>;
   /** Data counts as stale when older than this (dashboards show it); default: 2.5 × the schedule interval, else 24 h */
   staleAfterMinutes?: number;
   /** Safety limit (default 5000 rows) */
@@ -488,6 +495,8 @@ const shapes = {
     status: z.string().optional(),
     statusText: z.string().optional(),
     metrics: boundedRecord(z.string(), 100).optional(),
+    limits: boundedRecord(z.string(), 100).optional(),
+    floors: boundedRecord(z.string(), 100).optional(),
     staleAfterMinutes: z.number().int().min(1).optional(),
     maxRows: z.number().int().min(1).max(50000).optional(),
     /** The connection whose platform is the source of the rows (#142); default: the only one, else all bound platforms */

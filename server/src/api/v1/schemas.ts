@@ -444,11 +444,47 @@ export const DatasetRow = z
     'One row of the snapshot. Reserved fields: _key, _status (good | warning | serious | critical | unknown), _statusText, _source { platformId, platform, environment, run } – the platform the row was read from.',
   );
 
+const MetricLimitEntry = z
+  .object({ value: z.number(), lower: z.boolean().describe('A lower limit (a floor), reached by falling') })
+  .nullable()
+  .describe('The limit of the metric in this source, from the publish step (null: none)');
+
+const TrendEntry = z
+  .object({
+    window: z.string(),
+    points: z.number().int().describe('Points the trend is based on'),
+    from: ts(),
+    to: ts(),
+    start: z.number().describe('Value of the trend line at the start of the window'),
+    end: z.number().describe('Value of the trend line now'),
+    change: z.number(),
+    changePct: z.number().nullable().describe('Change in percent of the start; null when the start is 0'),
+    perDay: z.number(),
+    confidence: z.enum(['stable', 'rough']).describe('stable: the points stay close to the line'),
+    reset: z.boolean().describe('A counter was reset in the window; the trend follows it from then on'),
+  })
+  .nullable()
+  .describe('Theil–Sen trend over the `trend` window; null: too few points (fewer than 5, or less than a fifth of the window covered)');
+
 export const MetricSeries = z.object({
   name: z.string(),
   source: z.string().describe('The partition (source id) of the series'),
   sourceName: z.string(),
   points: z.array(z.object({ ts: ts(), value: z.number() })),
+  limit: MetricLimitEntry.optional(),
+  trend: TrendEntry.optional(),
+  forecast: z
+    .object({
+      limit: z.number(),
+      lower: z.boolean(),
+      state: z.enum(['reached', 'approaching', 'notApproaching', 'beyond']).describe('beyond: later than two years'),
+      days: z.number().nullable().describe('Days until the trend reaches the limit (approaching); 0 when reached'),
+      at: ts().nullable(),
+      trend: z.unknown().describe('The trend the forecast is based on'),
+    })
+    .nullable()
+    .optional()
+    .describe('With `trend` and a limit: when the trend reaches it'),
 });
 
 export const Dashboard = z.object({
@@ -676,6 +712,11 @@ export const MetricsQuery = z.object({
   days: z.number().int().min(1).max(400).default(30).describe('History window in days (1–400, default 30)'),
   points: z.number().int().min(2).max(2000).default(200).describe('Maximum points per series (downsampled, default 200)'),
   source: z.array(z.string().max(300)).max(QUERY_LIST_MAX).optional().describe('Only these sources (platform ids; repeat the parameter)'),
+  trend: z
+    .string()
+    .regex(/^\d{1,3}[hd]$/)
+    .optional()
+    .describe('Add the trend of each series over this window (e.g. 24h, 7d, 30d) and, for metrics with a limit, a forecast'),
 });
 
 export const AuditListQuery = z.object({

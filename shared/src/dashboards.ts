@@ -1,3 +1,4 @@
+import type { Forecast, Trend } from './trends.js';
 import { z } from 'zod';
 
 // ---------- Datasets (fed by "Publish to dashboard" nodes) ----------
@@ -56,6 +57,8 @@ export interface DatasetSource {
   dryRun: boolean;
   statusCounts: Partial<Record<DatasetStatus, number>>;
   metrics: Record<string, number>;
+  /** Limits of metrics from the publish step (#145): an upper limit, or a lower one (`lower`) reached by falling */
+  limits: Record<string, MetricLimit>;
   /** Stale after this many minutes: the publish step's setting, else 2.5 × the schedule interval (at least 15), else 24 h */
   staleAfterMinutes: number;
   /** The schedule's interval, when a schedule fed it */
@@ -76,6 +79,8 @@ export interface DatasetMeta {
   statusCounts: Partial<Record<DatasetStatus, number>>;
   /** Latest value per metric */
   metrics: Record<string, number>;
+  /** Limits of the latest source's metrics (per source in `sources`) */
+  limits: Record<string, MetricLimit>;
   staleAfterMinutes?: number;
   /** Any visible partition is stale */
   stale: boolean;
@@ -92,12 +97,24 @@ export interface MetricPoint {
   value: number;
 }
 
+export interface MetricLimit {
+  value: number;
+  /** A lower limit (a floor), reached by falling */
+  lower: boolean;
+}
+
 export interface MetricSeries {
   name: string;
   /** The partition the series belongs to (#142) */
   source?: string;
   sourceName?: string;
   points: MetricPoint[];
+  /** The metric's limit in this source (#145) */
+  limit?: MetricLimit | null;
+  /** With `trend=…`: the trend over that window (null: too few points) */
+  trend?: Trend | null;
+  /** With `trend=…` and a limit: when the trend reaches it */
+  forecast?: Forecast | null;
 }
 
 // ---------- Dashboards ----------
@@ -128,8 +145,14 @@ export const dashboardWidgetSchema = z.object({
   metrics: z.array(z.string()).max(3).optional(),
   /** kpi: which direction is good for the change indicator */
   goodWhen: z.enum(['up', 'down']).optional(),
-  /** kpi / trend: history window in days (default 30) */
+  /** kpi / trend: history window in days (default 30); the trend (#145) covers the same window */
   days: z.number().int().min(1).max(365).optional(),
+  /** kpi: a limit to forecast against (#145); default the metric's limit from the publish step */
+  threshold: z.number().finite().optional(),
+  /** kpi: the threshold is a lower limit (reached by falling) */
+  thresholdLower: z.boolean().optional(),
+  /** trend: draw a dashed trend line per series (#145) */
+  trendLine: z.boolean().optional(),
   /** table: columns to show (default all) */
   columns: z.array(z.string()).max(100).optional(),
   /** table: show only rows whose status is not good */

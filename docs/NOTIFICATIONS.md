@@ -151,7 +151,8 @@ Once a day, a short summary of what concerns you. It is **off by default**; turn
 - records waiting for your approval, and records you own that changed their status;
 - reviews of living documents you review that are due soon or overdue;
 - service duties you are responsible for that are due soon, and periods missed or failed since the last summary ([DUTIES.md](DUTIES.md));
-- scheduled reports you receive that were generated since the last summary.
+- scheduled reports you receive that were generated since the last summary;
+- **trends** of dataset metrics you may see: limits and floors the trend reaches within 30 days (soonest first), then metrics that changed by 10 % or more in 7 days with a stable trend ([README: Trends and forecasts](../README.md#dashboards)). People who had every section selected get the new section; a chosen subset stays as it was.
 
 You choose the sections, the time of day and your time zone, the days (Monday to Friday, or every day), and whether it comes in the app only or also by e-mail. With _Send nothing on days without anything to report_ you get nothing on quiet days. **Preview** shows what it would contain right now, without sending anything.
 

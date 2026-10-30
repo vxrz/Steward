@@ -403,6 +403,16 @@ export const CUSTOM_FUNCTIONS: { name: string; signature: string; help: string }
   { name: '$daysAgo', signature: '$daysAgo(n)', help: 'ISO timestamp n days in the past' },
   { name: '$uuid', signature: '$uuid()', help: 'Random UUID' },
   { name: '$ts', signature: '$ts(timestamp)', help: 'Parse a timestamp leniently into epoch millis (undefined if invalid)' },
+  {
+    name: '$trend',
+    signature: "$trend('dataset/metric', '7d')",
+    help: "Trend of a dataset metric over 24h, 7d, 30d … (of the run's source): { change, changePct, perDay, end, points, confidence }; null with too few points",
+  },
+  {
+    name: '$daysUntil',
+    signature: "$daysUntil('dataset/metric', limit?, '30d')",
+    help: "Days until the trend reaches the limit (the metric's own limit when none is given); 0 when reached, null when not approaching",
+  },
 ];
 
 export async function evalExpr(expr: string, root: unknown, bindings: Bindings = {}, opts?: EvalOptions): Promise<unknown> {
