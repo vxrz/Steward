@@ -254,12 +254,16 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   // /mock/test/echo-headers: the request headers as JSON (tests that credentials are masked in what tools return)
   app.get('/test/echo-headers', async (req) => ({ headers: req.headers, query: req.query }));
   // /mock/test/echo-signed: method, URL, headers and the body as the server got them (AWS SigV4 tests, #114)
-  app.all('/test/echo-signed', async (req) => ({
-    method: req.method,
-    url: req.url,
-    headers: req.headers,
-    body: typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? ''),
-  }));
+  app.route({
+    method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    url: '/test/echo-signed',
+    handler: async (req) => ({
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      body: typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? ''),
+    }),
+  });
   // /mock/aws/sts: AssumeRole like AWS STS answers it (XML), for a request signed with the demo access key (#114)
   app.post('/aws/sts', async (req, reply) => {
     const auth = String(req.headers.authorization ?? '');

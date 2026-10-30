@@ -57,13 +57,26 @@ export class S3Client {
   /** Uploads a file (one PUT, or multipart above SINGLE_PUT_MAX). `meta` becomes x-amz-meta-* headers. */
   async putFile(key: string, file: string, meta: Record<string, string> = {}): Promise<{ parts: number }> {
     checkKey(key);
-    const size = (await fs.promises.stat(file)).size;
+    // one handle for size and content: the file read is the file measured
+    const fh = await fs.promises.open(file, 'r');
+    try {
+      return await this.putHandle(key, fh, meta);
+    } finally {
+      await fh.close();
+    }
+  }
+
+  private async putHandle(key: string, fh: fs.promises.FileHandle, meta: Record<string, string>): Promise<{ parts: number }> {
+    const size = (await fh.stat()).size;
     const metaHeaders = Object.fromEntries(Object.entries(meta).map(([k, v]) => [`x-amz-meta-${k.toLowerCase()}`, v]));
+    const chunk = async (pos: number, len: number) => {
+      const buf = Buffer.alloc(len);
+      const { bytesRead } = await fh.read(buf, 0, len, pos);
+      if (bytesRead !== len) throw new Error('The backup file changed while it was uploaded');
+      return buf;
+    };
     if (size <= SINGLE_PUT_MAX) {
-      const r = await this.req('PUT', `/${key}`, {
-        body: await fs.promises.readFile(file),
-        headers: { 'content-type': 'application/octet-stream', ...metaHeaders },
-      });
+      const r = await this.req('PUT', `/${key}`, { body: await chunk(0, size), headers: { 'content-type': 'application/octet-stream', ...metaHeaders } });
       if (!r.ok) throw s3Error(`upload of ${key}`, r);
       return { parts: 1 };
     }
@@ -72,12 +85,9 @@ export class S3Client {
     if (!uploadId) throw s3Error(`multipart upload of ${key}`, start);
     const id = encodeURIComponent(unescapeXml(uploadId));
     const etags: string[] = [];
-    const fh = await fs.promises.open(file, 'r');
     try {
       for (let pos = 0, n = 1; pos < size; pos += PART_BYTES, n++) {
-        const buf = Buffer.alloc(Math.min(PART_BYTES, size - pos));
-        await fh.read(buf, 0, buf.length, pos);
-        const r = await this.req('PUT', `/${key}?partNumber=${n}&uploadId=${id}`, { body: buf });
+        const r = await this.req('PUT', `/${key}?partNumber=${n}&uploadId=${id}`, { body: await chunk(pos, Math.min(PART_BYTES, size - pos)) });
         if (!r.ok || !r.headers.etag) throw s3Error(`upload of part ${n} of ${key}`, r);
         etags.push(r.headers.etag);
       }
@@ -89,8 +99,6 @@ export class S3Client {
     } catch (e) {
       await this.req('DELETE', `/${key}?uploadId=${id}`).catch(() => undefined);
       throw e;
-    } finally {
-      await fh.close();
     }
   }
 
