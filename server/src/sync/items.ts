@@ -13,7 +13,7 @@ import { parseYamlDocument } from '../yaml-safe.js';
 import { db } from '../db.js';
 import { canonicalJson, HttpError, parseJson, sha256, slugify } from '../util.js';
 import { currentUser } from '../auth/context.js';
-import { capabilities, isAdmin } from '../auth/permissions.js';
+import { capabilities } from '../auth/permissions.js';
 import { findSecret } from '../credentials/secrets.js';
 import * as processes from '../processes/service.js';
 import * as dashboards from '../dashboards/service.js';

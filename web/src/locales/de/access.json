@@ -73,6 +73,38 @@
       "teamRole": "{{role}} im Team {{team}}: {{rights}}",
       "accessList": "Zugriffsliste ({{subject}}): {{rights}}"
     },
-    "save": "Zuständige Teams speichern"
+    "save": "Zuständige Teams speichern",
+    "bulk": {
+      "open": "Zuständige Teams für den ganzen Service…",
+      "title": "Zuständige Teams für den Service und was dazugehört",
+      "hint": "Umfasst den Service, seine Anwendungen, die damit verknüpften Einträge und Ticket-Referenzen sowie die Zugangsdaten, die dazugehören. Die Vorschau zeigt, wer Sichtbarkeit gewinnt oder verliert; geändert wird erst, wenn Sie es anwenden.",
+      "mode": {
+        "add": "Teams hinzufügen",
+        "set": "Genau diese",
+        "remove": "Teams entfernen"
+      },
+      "preview": "Vorschau",
+      "apply_one": "Auf {{count}} Ressource anwenden",
+      "apply_other": "Auf {{count}} Ressourcen anwenden",
+      "applied_one": "Zuständige Teams bei {{count}} Ressource geändert",
+      "applied_other": "Zuständige Teams bei {{count}} Ressourcen geändert",
+      "resource": "Ressource",
+      "teams": "Zuständige Teams",
+      "gains": "Gewinnen Sichtbarkeit",
+      "loses": "Verlieren Sichtbarkeit",
+      "unchanged": "unverändert",
+      "kinds": {
+        "process": "Prozess",
+        "platform": "Plattform",
+        "service": "Service",
+        "application": "Anwendung",
+        "system": "System",
+        "record": "Eintrag",
+        "credential": "Zugangsdaten",
+        "monitor": "Monitor",
+        "dashboard": "Dashboard",
+        "ticket": "Ticket-Referenz"
+      }
+    }
   }
 }

@@ -12,7 +12,7 @@ import {
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
-import { capabilities, isAdmin, matches } from '../auth/permissions.js';
+import { capabilities } from '../auth/permissions.js';
 import { decide } from '../auth/policy.js';
 
 /** Rows and small helpers shared by the monitor modules. */

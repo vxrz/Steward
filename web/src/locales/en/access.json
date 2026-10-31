@@ -73,6 +73,38 @@
       "teamRole": "{{role}} in team {{team}}: {{rights}}",
       "accessList": "Access list ({{subject}}): {{rights}}"
     },
-    "save": "Save owning teams"
+    "save": "Save owning teams",
+    "bulk": {
+      "open": "Owning teams for the whole service…",
+      "title": "Owning teams for the service and what belongs to it",
+      "hint": "Covers the service, its applications, the records and ticket references linked to them, and the credentials that belong to them. The preview shows who would gain or lose visibility; nothing is changed until you apply it.",
+      "mode": {
+        "add": "Add teams",
+        "set": "Set exactly",
+        "remove": "Remove teams"
+      },
+      "preview": "Preview",
+      "apply_one": "Apply to {{count}} resource",
+      "apply_other": "Apply to {{count}} resources",
+      "applied_one": "Owning teams changed on {{count}} resource",
+      "applied_other": "Owning teams changed on {{count}} resources",
+      "resource": "Resource",
+      "teams": "Owning teams",
+      "gains": "Gain visibility",
+      "loses": "Lose visibility",
+      "unchanged": "unchanged",
+      "kinds": {
+        "process": "Process",
+        "platform": "Platform",
+        "service": "Service",
+        "application": "Application",
+        "system": "System",
+        "record": "Record",
+        "credential": "Credential",
+        "monitor": "Monitor",
+        "dashboard": "Dashboard",
+        "ticket": "Ticket reference"
+      }
+    }
   }
 }
