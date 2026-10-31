@@ -4,7 +4,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
 import { config } from '../config.js';
-import { currentUser, runAs, type AuthUser } from '../auth/context.js';
+import { runAs, type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
 import { findUserByName, listUsers, toAuthUser } from '../auth/users.js';
 import * as platforms from '../platforms/service.js';
@@ -14,6 +14,7 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { ToolError, cap, defineTool, type ToolContext, type ToolDef } from './tooling.js';
 import { executeGatewayCall, writeDecision, type QueryValue } from './gateway.js';
 import { mcpRunRequests } from './config.js';
+import { me } from '../auth/access.js';
 
 /**
  * Requests of MCP clients that wait for a person in Steward (#11). A changing gateway call (POST, PUT, PATCH, DELETE)
@@ -58,11 +59,6 @@ interface Row {
 
 const same = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 const has = (u: AuthUser | null, roles: string[]) => !!u && u.roles.some((r) => roles.includes(r));
-const me = (): AuthUser => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Not signed in', 'NOT_SIGNED_IN');
-  return u;
-};
 
 /** Whether `u` may use the platform (and so see what is asked of it). */
 function usesPlatform(u: AuthUser, platformId: string | null): boolean {

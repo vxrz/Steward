@@ -4,7 +4,9 @@ import { currentUser } from '../auth/context.js';
 import { isAdmin, matches } from '../auth/permissions.js';
 import { sameIdentity } from '../auth/aliases.js';
 import { canReadAccessEntry } from '../compliance/access.js';
-import { HttpError, parseJson, type ErrorParam } from '../util.js';
+import { parseJson, type ErrorParam } from '../util.js';
+import { forbid, me } from '../auth/access.js';
+export { forbid, me };
 
 /**
  * Who may do what with records and services. Everyone who can sign in reads
@@ -88,14 +90,3 @@ export const fieldParam = (typeKey: string | undefined, f: Pick<RecordFieldDef, 
 export const canEditService = (u: AuthUser | null, owners: string[] = []): boolean =>
   has(u, SERVICE_EDITOR_ROLES) || (!!u && owners.some((s) => matches(u, s)));
 export const canCreateServices = (u: AuthUser | null = currentUser()): boolean => has(u, SERVICE_EDITOR_ROLES);
-
-export function me(): AuthUser {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-}
-
-/** 403 FORBIDDEN; `context` picks a specific translated text (errors:codes.FORBIDDEN_<context>). */
-export function forbid(what: string, context?: string): never {
-  throw new HttpError(403, `You are not allowed to ${what}`, 'FORBIDDEN', context ? { context } : undefined);
-}

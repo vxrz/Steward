@@ -9,8 +9,7 @@ import { config } from '../config.js';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { vault } from '../vault.js';
-import { currentUser, type AuthUser } from '../auth/context.js';
-import { isAdmin } from '../auth/permissions.js';
+import { type AuthUser } from '../auth/context.js';
 import { unlockThrottle } from '../auth/unlock-throttle.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { HttpError, parseJson } from '../util.js';
@@ -18,6 +17,7 @@ import { MAGIC, workDir } from './format.js';
 import { exportPackage } from './export.js';
 import { applyImport, buildPlan, mappingSchema, readPackage, type OpenedPackage } from './import.js';
 import { verifyImportedHistory } from './history.js';
+import { requireAdmin } from '../auth/access.js';
 
 /**
  * Settings → Migration (administrators, signed-in sessions only – see SESSION_ONLY_ROUTES in app.ts):
@@ -67,10 +67,9 @@ function dropStaged(id: string): void {
   staged.delete(id);
 }
 
-const me = (): AuthUser => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  if (!isAdmin(u)) throw new HttpError(403, 'Only administrators can move instances', 'FORBIDDEN');
+/** Administrators in a normal session move instances. */
+const mover = (): AuthUser => {
+  const u = requireAdmin('move instances');
   if (u.emergency) throw new HttpError(403, 'Not in an emergency access session', 'EMERGENCY_NOT_ALLOWED');
   return u;
 };
@@ -107,7 +106,7 @@ export async function migrationRoutes(app: FastifyInstance): Promise<void> {
   // ---------- export ----------
   // the master passphrase proves the vault, the step-up (auth/step-up.ts) the person
   app.post('/migration/export', { config: { rateLimit: ROUTE_LIMITS.credential, stepUp: { action: 'exportMigration', who: 'manageUsers' } } }, async (req) => {
-    const u = me();
+    const u = mover();
     const b = z.object({ passphrase: z.string().max(1024), transferPassphrase: z.string().max(1024) }).parse(req.body);
     const wait = unlockThrottle.waitSeconds();
     if (wait > 0) throw new HttpError(429, `Too many wrong passphrases – try again in ${wait} s`, 'TOO_MANY_ATTEMPTS');
@@ -138,7 +137,7 @@ export async function migrationRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/migration/exports/:id/download', async (req, reply) => {
-    const u = me();
+    const u = mover();
     sweep();
     const e = exportsReady.get(params(req).id!);
     if (!e || e.userId !== u.id) throw new HttpError(404, 'The package is gone – export again', 'MIGRATION_EXPORT_GONE');
@@ -153,7 +152,7 @@ export async function migrationRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- import ----------
   app.post('/migration/imports/upload', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req): Promise<MigrationPlan> => {
-    const u = me();
+    const u = mover();
     sweep();
     if (staged.size >= MAX_STAGED) throw new HttpError(409, 'Another package is being imported – finish or discard it first', 'MIGRATION_BUSY');
     const part = await req.file({ limits: { fileSize: MIGRATION_MAX_BYTES, files: 1, fields: 2, fieldSize: 2048 } });
@@ -192,12 +191,12 @@ export async function migrationRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/migration/imports/staged/:id', async (req): Promise<MigrationPlan> => {
-    const s = stagedFor(params(req).id!, me());
+    const s = stagedFor(params(req).id!, mover());
     return { ...buildPlan(s.pkg), id: params(req).id! };
   });
 
   app.delete('/migration/imports/staged/:id', async (req) => {
-    stagedFor(params(req).id!, me());
+    stagedFor(params(req).id!, mover());
     dropStaged(params(req).id!);
     return { ok: true };
   });
@@ -206,7 +205,7 @@ export async function migrationRoutes(app: FastifyInstance): Promise<void> {
     '/migration/imports/staged/:id/apply',
     { config: { rateLimit: ROUTE_LIMITS.heavy, stepUp: { action: 'applyMigration', who: 'manageUsers' } } },
     async (req) => {
-      const u = me();
+      const u = mover();
       const s = stagedFor(params(req).id!, u);
       const b = z.object({ mapping: mappingSchema, confirmFingerprint: z.string().min(1).max(200) }).parse(req.body);
       try {
@@ -222,19 +221,19 @@ export async function migrationRoutes(app: FastifyInstance): Promise<void> {
   );
 
   app.get('/migration/imports', async (): Promise<InstanceImport[]> => {
-    me();
+    mover();
     return db().all<Record<string, unknown>>('SELECT * FROM instance_imports ORDER BY imported_at DESC').map(importRow);
   });
 
   app.get('/migration/imports/:id', async (req) => {
-    me();
+    mover();
     const r = db().get<Record<string, unknown>>('SELECT * FROM instance_imports WHERE id = ?', params(req).id);
     if (!r) throw new HttpError(404, 'Import not found', 'MIGRATION_IMPORT_NOT_FOUND');
     return { ...importRow(r), verification: verifyImportedHistory(String(r.id)) };
   });
 
   app.get('/migration/imports/:id/history', async (req): Promise<ImportedHistoryEntry[]> => {
-    me();
+    mover();
     const q = z
       .object({
         beforeSeq: z.coerce.number().int().min(1).optional(),

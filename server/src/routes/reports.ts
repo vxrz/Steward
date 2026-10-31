@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { REPORT_LANGS, REPORT_LOGO_MAX_BYTES, type ReportRecord } from '@sm/shared';
 import { audit } from '../audit.js';
 import { verifyWithAnchors } from '../audit-anchor.js';
-import { currentUser, type AuthUser } from '../auth/context.js';
 import { capabilities, require, requireCapability } from '../auth/permissions.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
@@ -15,6 +14,7 @@ import { initAutoReports } from '../reports/auto.js';
 import { canViewScheduledReport } from '../reports/schedules.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
+import { me } from '../auth/access.js';
 
 /**
  * Archived PDF reports (mounted under /api):
@@ -29,12 +29,6 @@ import { LARGE_BODIES } from '../bodyLimits.js';
  */
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
-
-const me = (): AuthUser => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-};
 
 function requireRunView(runId: string) {
   const r = store.runRow(runId);

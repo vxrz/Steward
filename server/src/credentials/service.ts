@@ -36,6 +36,7 @@ import * as platforms from '../platforms/service.js';
 import { belongsTarget, belongsToSchema, checkBelongsTo, toBelongsTo } from './belongs.js';
 import * as processes from '../processes/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
+import { me } from '../auth/access.js';
 
 /**
  * Credentials register: documents credentials (what, where kept, who owns them,
@@ -591,12 +592,6 @@ export function addEvent(
 }
 
 // ---------- changes ----------
-
-const me = (): AuthUser => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-};
 
 const COLUMNS: Record<string, (b: CredentialInput) => unknown> = {
   name: (b) => b.name,

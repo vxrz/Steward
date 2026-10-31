@@ -1,11 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { audit } from '../audit.js';
-import { currentUser } from '../auth/context.js';
 import { HttpError } from '../util.js';
 import * as platforms from '../platforms/service.js';
 import * as gatus from './metrics.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { me } from '../auth/access.js';
 
 /**
  * Gatus metrics mode (mounted under /api):
@@ -18,12 +18,6 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
  */
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
-
-const me = () => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-};
 
 /** The platform must be a Gatus platform the user has a right on (404 otherwise, so ids cannot be probed). */
 function gatusPlatform(id: string, need?: 'use' | 'manage') {

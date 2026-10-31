@@ -4,7 +4,9 @@ import { currentUser, type AuthUser } from '../auth/context.js';
 import { isAdmin, platformPermissions } from '../auth/permissions.js';
 import { findUserByName } from '../auth/users.js';
 import { db } from '../db.js';
-import { HttpError, parseJson } from '../util.js';
+import { parseJson } from '../util.js';
+import { forbid, me } from '../auth/access.js';
+export { forbid, me };
 
 /**
  * Who may do what with the compliance features. Auditors read everything (read-only), administrators
@@ -87,14 +89,3 @@ export const canManageCatalogues = (u: AuthUser | null = currentUser()): boolean
 export const canTagControls = (u: AuthUser | null = currentUser()): boolean => has(u, ['admin', 'designer']);
 /** Evidence packs: everyone but viewers (the pack only holds what the requester may see). */
 export const canExportEvidence = (u: AuthUser | null = currentUser()): boolean => has(u, ['admin', 'designer', 'operator', 'approver', 'auditor']);
-
-export function me(): AuthUser {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-}
-
-/** 403 FORBIDDEN; `context` picks the translated text (errors:codes.FORBIDDEN_<context>). */
-export function forbid(what: string, context?: string): never {
-  throw new HttpError(403, `You are not allowed to ${what}`, 'FORBIDDEN', context ? { context } : undefined);
-}

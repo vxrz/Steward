@@ -79,7 +79,7 @@ import { startReportSchedules } from '../reports/schedules.js';
 import { syncRoutes } from '../sync/routes.js';
 import { startGitSync } from '../sync/engine.js';
 import { seedExamplesSource } from '../sync/service.js';
-import { currentActor, currentUser, runAs, type AuthUser } from '../auth/context.js';
+import { currentActor, currentUser, runAs } from '../auth/context.js';
 import { subjectReferences } from '../auth/subjects.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
@@ -94,6 +94,7 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { auditPendingUpgrades } from '../upgrades.js';
+import { me } from '../auth/access.js';
 
 let started = false;
 /** Things that need the decrypted vault: pending audit entries, scheduler, recovery of waiting runs. */
@@ -188,12 +189,6 @@ const auditQuery = z.object({
 });
 
 // ---------- helpers ----------
-
-const me = (): AuthUser => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-};
 
 /** Instance-wide counts for the getting-started checklist (administrators only). */
 function setupProgress(): DashboardSetup {

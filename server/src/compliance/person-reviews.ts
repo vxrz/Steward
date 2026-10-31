@@ -13,12 +13,13 @@ import {
 import { db } from '../db.js';
 import { likeEscape } from '../database/sql.js';
 import { audit } from '../audit.js';
-import { currentUser, type AuthUser } from '../auth/context.js';
+import { type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
 import { findUserByName } from '../auth/users.js';
 import { canonicalJson, HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { canCreateChecks, canReadCheck, identitiesOf, readsEverything, same, visiblePlatformName } from './access.js';
 import { readCheckSource } from './reconciliation.js';
+import { me } from '../auth/access.js';
 
 /**
  * Person access reviews (#118): one colleague's rights on several platforms at once – for a leaver, a mover or a
@@ -99,12 +100,6 @@ interface ItemRow {
   recheck: 'gone' | 'present' | null;
   rechecked_at: string | null;
 }
-
-const me = (): AuthUser => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Not signed in', 'NOT_SIGNED_IN');
-  return u;
-};
 
 const norm = (s: string) => s.trim().toLowerCase();
 

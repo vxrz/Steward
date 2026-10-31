@@ -17,7 +17,6 @@ import {
   type NotificationSettingsInput,
 } from '@sm/shared';
 import { HttpError, sha256 } from '../util.js';
-import { currentUser, type AuthUser } from '../auth/context.js';
 import { requireCapability } from '../auth/permissions.js';
 import { getUser, updateProfile } from '../auth/users.js';
 import { createToken, listTokens, revokeToken } from '../auth/tokens.js';
@@ -30,17 +29,9 @@ import { audit } from '../audit.js';
 import { maintenanceStatus, runCleanup } from '../maintenance.js';
 import { publicApiStatus } from '../api/v1/config.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { me, withCapability } from '../auth/access.js';
 
-const me = (): AuthUser => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-};
-const admin = (what: string): AuthUser => {
-  const u = me();
-  requireCapability(u, 'manageSettings', what);
-  return u;
-};
+const admin = (what: string) => withCapability('manageSettings', what);
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const viaToken = (req: FastifyRequest) => !!(req as unknown as { smToken?: string }).smToken;
 

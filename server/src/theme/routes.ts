@@ -5,10 +5,9 @@ import { z } from 'zod';
 import { BRAND, THEME_COLOR_SCHEMES, THEME_LOGO_MAX_BYTES, THEME_RADII } from '@sm/shared';
 import { config } from '../config.js';
 import { audit } from '../audit.js';
-import { currentUser, type AuthUser } from '../auth/context.js';
-import { requireCapability } from '../auth/permissions.js';
 import { HttpError } from '../util.js';
 import * as theme from './service.js';
+import { withCapability } from '../auth/access.js';
 
 /**
  * Theme routes (registered at the root, full paths):
@@ -22,16 +21,7 @@ import * as theme from './service.js';
  *   DELETE /api/settings/theme/logo   administrators: remove the logo
  */
 
-const me = (): AuthUser => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-};
-const admin = (what: string) => {
-  const u = me();
-  requireCapability(u, 'manageSettings', what);
-  return u;
-};
+const admin = (what: string) => withCapability('manageSettings', what);
 
 const hex = z.string().max(16);
 const themeBody = z

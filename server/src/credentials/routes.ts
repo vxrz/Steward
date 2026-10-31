@@ -2,13 +2,13 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { CERTIFICATE_MAX_BYTES, CREDENTIAL_STATUSES, type CredentialList } from '@sm/shared';
 import { audit } from '../audit.js';
-import { currentUser } from '../auth/context.js';
 import { requireCapability } from '../auth/permissions.js';
 import { HttpError } from '../util.js';
 import * as svc from './service.js';
 import { belongsTargets } from './belongs.js';
 import { parseCertificate, certificateBytes } from './certificates.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { me } from '../auth/access.js';
 
 /**
  * Credentials register (mounted under /api). Documentation only: no route
@@ -29,11 +29,6 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
  */
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
-const me = () => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-};
 
 const list = (v: unknown): string[] | undefined => {
   if (v === undefined || v === '') return undefined;
