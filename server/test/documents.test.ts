@@ -2,6 +2,14 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DOCUMENT_TYPE_ID, RECORD_WORKFLOWS } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
+/** Calendar months later (UTC), like the server: on the 29th to 31st the last day of a shorter month (31 Oct → 30 Apr). */
+function monthsLater(iso: string, months: number): Date {
+  const a = new Date(iso);
+  const d = new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth() + months, 1));
+  d.setUTCDate(Math.min(a.getUTCDate(), new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()));
+  return d;
+}
+
 /**
  * Living documents (workflow "document"): editions (1.0, 1.1, 2.0) frozen on approval, the document
  * changelog, periodic reviews with reminders, withdrawing – and that the other workflows are unchanged.
@@ -139,8 +147,7 @@ describe('editions', () => {
       contentHash: ok.frozenHash,
     });
     // the next review: 12 months after the approval
-    const next = new Date(e.approvedAt);
-    next.setUTCMonth(next.getUTCMonth() + 12);
+    const next = monthsLater(e.approvedAt, 12);
     expect(ok.document.review.nextReviewAt.slice(0, 10)).toBe(next.toISOString().slice(0, 10));
     const audit = await s.api('GET', `/audit?entityType=record&entityId=${rec.id}`);
     const approved = audit.find((a: any) => a.action === 'record.edition_approved');
@@ -307,8 +314,7 @@ describe('periodic reviews', () => {
     expect((await errorOf(dana('PUT', `/records/${pub.id}/review-settings`, { intervalMonths: 6 }))).text).toContain('reviewInterval');
     expect((await errorOf(olivia('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'olivia' }))).text).toContain('reviewOwner');
     const six = await adam('PUT', `/records/${pub.id}/review-settings`, { intervalMonths: 6 });
-    const d = new Date(approvedAt);
-    d.setUTCMonth(d.getUTCMonth() + 6);
+    const d = monthsLater(approvedAt, 6);
     expect(six.document.review).toMatchObject({ intervalMonths: 6, intervalOverride: 6, typeIntervalMonths: 12 });
     expect(six.document.review.nextReviewAt.slice(0, 10)).toBe(d.toISOString().slice(0, 10));
     // earlier than planned only, not in the past
