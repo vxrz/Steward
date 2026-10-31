@@ -193,4 +193,41 @@ export const OPS_MIGRATIONS: NamedMigration[] = [
     );
     CREATE INDEX backup_runs_started ON backup_runs(kind, started_at);`,
   },
+  {
+    // requests of MCP clients that wait for a person in Steward (#11): changing gateway calls and runs
+    name: 'ops-012-mcp-requests',
+    sql: `CREATE TABLE mcp_requests (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      status TEXT NOT NULL,
+      mode TEXT NOT NULL,
+      requested_by TEXT NOT NULL,
+      token_id TEXT NOT NULL,
+      token_name TEXT NOT NULL DEFAULT '',
+      reason TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      platform_id TEXT,
+      operation TEXT,
+      method TEXT,
+      path TEXT,
+      path_template TEXT,
+      query TEXT NOT NULL DEFAULT '{}',
+      body TEXT,
+      process_id TEXT,
+      process_name TEXT,
+      inputs TEXT NOT NULL DEFAULT '{}',
+      dry_run INTEGER NOT NULL DEFAULT 0,
+      decided_by TEXT,
+      decided_at TEXT,
+      comment TEXT NOT NULL DEFAULT '',
+      executed_at TEXT,
+      result_status INTEGER,
+      result_body TEXT,
+      run_id TEXT,
+      error TEXT
+    );
+    CREATE INDEX mcp_requests_user ON mcp_requests(requested_by, status);
+    CREATE INDEX mcp_requests_status ON mcp_requests(status, created_at);`,
+  },
 ];

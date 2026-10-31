@@ -71,6 +71,8 @@ export const SESSION_ONLY_ROUTES: ReadonlySet<string> = new Set([
   'POST /api/auth/step-up/sso',
   'POST /api/auth/step-up/sso/complete',
   'PUT /api/settings',
+  // an approval of an AI assistant's request is a person's decision in the web app (#11)
+  'POST /api/mcp-requests/:requestId/decision',
   'POST /api/vault/passphrase',
   'POST /api/vault/lock',
   // Git sync sources carry an access token and decide what may enter the installation

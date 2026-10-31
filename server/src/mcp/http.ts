@@ -10,7 +10,7 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { UserInfo } from '@sm/shared';
+import { MCP_REQUEST_LIMITS, MCP_WRITE_MODES, type McpWriteMode, type UserInfo } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
@@ -23,10 +23,22 @@ import { toAuthUser } from '../auth/users.js';
 import { TokenBucketLimiter } from '../api/v1/rateLimit.js';
 import * as platforms from '../platforms/service.js';
 import { emit } from '../events.js';
-import { MAX_REQUEST_BYTES, TOOL_TIMEOUT_MS, extraAllowedOrigins, mcpEnabled, mcpForcedOff, mcpRateLimit, mcpServerStatus, setMcpEnabled } from './config.js';
+import {
+  MAX_REQUEST_BYTES,
+  TOOL_TIMEOUT_MS,
+  extraAllowedOrigins,
+  mcpEnabled,
+  mcpForcedOff,
+  mcpRateLimit,
+  mcpServerStatus,
+  setMcpEnabled,
+  setMcpRunRequests,
+} from './config.js';
 import { PARSE_ERROR, INVALID_REQUEST, INTERNAL_ERROR, STEWARD_ERRORS, errorResponse } from './protocol.js';
 import { handleMessage } from './server.js';
 import type { McpPrincipal } from './tools.js';
+import { decide, getRequest, listRequests } from './requests.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 export const mcpLimiter = new TokenBucketLimiter();
 const REALM = 'Steward MCP';
@@ -261,8 +273,18 @@ const gatewayBody = z
       )
       .max(50)
       .optional(),
+    writes: z.enum(MCP_WRITE_MODES).optional(),
   })
   .strict();
+
+/** Turning changing calls on (or to a less strict mode) needs a recent confirmation of the session owner. */
+function writesLoosened(req: FastifyRequest): boolean {
+  const next = ((req.body ?? {}) as { writes?: McpWriteMode }).writes ?? 'off';
+  if (next === 'off') return false;
+  const id = (req.params as { id: string }).id;
+  const before = platforms.getPlatform(id).config.mcpGateway?.writes ?? 'off';
+  return before === 'off' || (before === 'fourEyes' && next === 'confirm');
+}
 
 /** Registered with prefix "/api". */
 export async function mcpRoutes(app: FastifyInstance): Promise<void> {
@@ -272,18 +294,53 @@ export async function mcpRoutes(app: FastifyInstance): Promise<void> {
   app.get('/mcp-server', async () => mcpServerStatus());
   app.put('/mcp-server', async (req) => {
     requireCapability(currentUser(), 'manageSettings', 'change the MCP settings');
-    const b = z.object({ enabled: z.boolean() }).strict().parse(req.body);
+    const b = z.object({ enabled: z.boolean().optional(), runRequests: z.boolean().optional() }).strict().parse(req.body);
     if (b.enabled && mcpForcedOff())
       throw new HttpError(409, 'SM_MCP=off turns the MCP server off on this server – remove it to turn the server on here', 'MCP_FORCED_OFF');
-    setMcpEnabled(b.enabled);
+    if (b.enabled !== undefined) setMcpEnabled(b.enabled);
+    if (b.runRequests !== undefined) setMcpRunRequests(b.runRequests);
     return mcpServerStatus();
   });
 
-  app.put('/platforms/:id/mcp-gateway', async (req) => {
-    const id = (req.params as { id: string }).id;
-    const p = platforms.getPlatform(id);
-    if (!p.permissions.length) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
-    requirePermission(p.permissions, 'manage', 'change the MCP gateway of this platform');
-    return platforms.setMcpGateway(id, gatewayBody.parse(req.body));
+  app.put(
+    '/platforms/:id/mcp-gateway',
+    {
+      config: {
+        stepUp: {
+          action: 'allowMcpWrites',
+          who: (req) => {
+            try {
+              return platforms.getPlatform((req.params as { id: string }).id).permissions.includes('manage');
+            } catch {
+              return false;
+            }
+          },
+          when: writesLoosened,
+        },
+      },
+    },
+    async (req) => {
+      const id = (req.params as { id: string }).id;
+      const p = platforms.getPlatform(id);
+      if (!p.permissions.length) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
+      requirePermission(p.permissions, 'manage', 'change the MCP gateway of this platform');
+      return platforms.setMcpGateway(id, gatewayBody.parse(req.body));
+    },
+  );
+
+  // requests of MCP clients waiting for a person (#11)
+  app.get('/mcp-requests', async (req) => {
+    const { scope } = z.object({ scope: z.enum(['mine', 'decide', 'all']).default('decide') }).parse(req.query ?? {});
+    return listRequests(scope);
   });
+  app.get('/mcp-requests/:requestId', async (req) => getRequest((req.params as { requestId: string }).requestId));
+  app.post('/mcp-requests/:requestId/decision', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) =>
+    decide(
+      (req.params as { requestId: string }).requestId,
+      z
+        .object({ approve: z.boolean(), comment: z.string().max(MCP_REQUEST_LIMITS.comment).default('') })
+        .strict()
+        .parse(req.body),
+    ),
+  );
 }

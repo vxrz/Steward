@@ -211,7 +211,16 @@ export function setMcpGateway(id: string, input: McpGatewayConfig): Platform {
   requireIntactRow(id);
   const before = getPlatform(id);
   const prefixes = [...new Set((input.allowedPathPrefixes ?? []).map((x) => x.trim()).filter(Boolean))];
-  const gateway: McpGatewayConfig = { enabled: input.enabled, ...(prefixes.length ? { allowedPathPrefixes: prefixes } : {}) };
+  // changing calls (#11) keep their mode when a client sends none; "off" is not stored
+  const writes = input.writes ?? before.config.mcpGateway?.writes ?? 'off';
+  const gateway: McpGatewayConfig = {
+    enabled: input.enabled,
+    ...(prefixes.length ? { allowedPathPrefixes: prefixes } : {}),
+    ...(writes !== 'off' ? { writes } : {}),
+  };
+  const writesText = { off: 'read-only', confirm: 'changing calls confirmed by the token owner', fourEyes: 'changing calls approved by a second person' }[
+    writes
+  ];
   const previous = before.config.mcpGateway ?? { enabled: false };
   db().tx(() => {
     db().run('UPDATE platforms SET config = ?, updated_at = ? WHERE id = ?', JSON.stringify({ ...before.config, mcpGateway: gateway }), nowIso(), id);
@@ -219,8 +228,8 @@ export function setMcpGateway(id: string, input: McpGatewayConfig): Platform {
       action: 'platform.mcp_gateway_changed',
       entityType: 'platform',
       entityId: id,
-      summary: `MCP gateway of "${before.name}" ${gateway.enabled ? 'turned on (read-only)' : 'turned off'}${prefixes.length ? ` – path prefixes: ${prefixes.join(', ')}` : ''}`,
-      details: { enabled: gateway.enabled, allowedPathPrefixes: prefixes, previous },
+      summary: `MCP gateway of "${before.name}" ${gateway.enabled ? `turned on (${writesText})` : 'turned off'}${prefixes.length ? ` – path prefixes: ${prefixes.join(', ')}` : ''}`,
+      details: { enabled: gateway.enabled, allowedPathPrefixes: prefixes, writes, previous },
     });
     sealPlatform(id);
   });

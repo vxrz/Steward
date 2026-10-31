@@ -1,7 +1,7 @@
 {
   "settings": {
     "title": "MCP server (AI assistants)",
-    "intro": "Lets AI assistants such as Claude Desktop or VS Code read processes, runs, monitors, schedules, dashboards and the audit log through the Model Context Protocol (MCP). Read-only: an assistant cannot start runs or change anything.",
+    "intro": "Lets AI assistants such as Claude Desktop or VS Code read processes, runs, monitors, schedules, dashboards and the audit log through the Model Context Protocol (MCP). An assistant changes nothing by itself: changing platform calls and runs, where allowed, wait for a person under AI requests.",
     "enable": "Turn on the MCP server",
     "enableHint": "Off by default. Each person still needs their own token with scope “MCP client”; tools act with that person’s rights.",
     "forcedOff": "Turned off by the environment variable <c>{{name}}</c> on the server.",
@@ -10,7 +10,11 @@
     "endpoint": "Endpoint: <c>{{url}}</c> (Streamable HTTP, protocol versions {{versions}})",
     "token": "Create a token with scope “MCP client” on your <a>profile page</a> and put it into the client configuration:",
     "limits": "Limits: {{requests}} requests per minute and token; {{gateway}} platform calls per minute, user and platform.",
-    "security": "Tool results are data from Steward and connected systems. Assistants should treat them as data, never as instructions. Platforms are only reachable for MCP clients where an administrator turned on the MCP gateway (platform → MCP)."
+    "security": "Tool results are data from Steward and connected systems. Assistants should treat them as data, never as instructions. Platforms are only reachable for MCP clients where an administrator turned on the MCP gateway (platform → MCP).",
+    "runRequests": "Let assistants ask to start runs",
+    "runRequestsHint": "Off by default. Each run request waits until the token owner confirms it under AI requests; the run then follows the process with its own approval steps.",
+    "runRequestsOn": "Run requests allowed",
+    "runRequestsOff": "Run requests turned off"
   },
   "config": {
     "kind": "Client type",
@@ -23,17 +27,70 @@
     "httpHint": "For clients that speak Streamable HTTP, e.g. in <c>{{file}}</c>: endpoint <c>{{url}}</c> with the header <c>Authorization: Bearer …</c>."
   },
   "gateway": {
-    "intro": "The MCP gateway lets AI assistants call this platform’s API through Steward – read-only (GET and HEAD) and with the credentials stored here, which the assistant never sees. Every call is written to the audit log.",
+    "intro": "The MCP gateway lets AI assistants call this platform’s API through Steward, with the credentials stored here, which the assistant never sees. Reads (GET and HEAD) run at once; changing calls only where you allow them below, and only after a person approves each one in Steward. Every call is written to the audit log.",
     "serverOff": "The MCP server is turned off (Settings → MCP server). The gateway only works while it is on.",
-    "enable": "Allow read-only access for MCP clients",
-    "enableHint": "People also need the “use” right on this platform. Changing data through MCP is not possible.",
-    "operations_one": "API specifications: {{read}} read operation available to MCP clients ({{write}} changing operations are never offered).",
-    "operations_other": "API specifications: {{read}} read operations available to MCP clients ({{write}} changing operations are never offered).",
+    "enable": "Allow access for MCP clients",
+    "enableHint": "People also need the “use” right on this platform.",
+    "operations_one": "API specifications: {{read}} read operation and {{write}} changing operations.",
+    "operations_other": "API specifications: {{read}} read operations and {{write}} changing operations.",
     "prefixes": "Allowed GET path prefixes (optional, one per line)",
     "prefixesHint": "For platforms without an API specification: MCP clients may read paths below these prefixes. Leave empty to allow the operations of the API specifications only.",
     "security": "Requests always go to the platform’s base URL and obey the outbound policy. Redirects are not followed, responses are limited to 512 kB and credentials in them are masked.",
     "save": "Save",
     "saved": "MCP gateway saved",
-    "notSaved": "MCP gateway not saved"
+    "notSaved": "MCP gateway not saved",
+    "writes": "Changing calls (POST, PUT, PATCH, DELETE)",
+    "writesHint": "Never sent directly: each becomes a request in Steward (AI requests). Turning this on needs a fresh confirmation of your sign-in.",
+    "writeModes": {
+      "off": "Not possible (read-only)",
+      "confirm": "The token owner confirms each request",
+      "fourEyes": "A second person approves each request"
+    }
+  },
+  "requests": {
+    "title": "AI requests",
+    "description": "Changing platform calls and runs that AI assistants asked for through MCP. Nothing happens until a person decides here; an approved request runs once, as the token owner.",
+    "scope": "Show",
+    "scopes": {
+      "decide": "To decide",
+      "mine": "My assistants",
+      "all": "All"
+    },
+    "emptyTitle": "No requests",
+    "emptyText": "When an AI assistant asks to change something on a platform (where the platform's MCP gateway allows it) or to start a run, the request waits here.",
+    "what": "Request",
+    "where": "Where",
+    "statusLabel": "Status",
+    "requestedBy": "Token owner",
+    "asked": "Asked",
+    "run": "Run",
+    "status": {
+      "pending": "Waiting",
+      "done": "Done",
+      "failed": "Failed",
+      "rejected": "Rejected",
+      "withdrawn": "Withdrawn",
+      "expired": "Expired"
+    },
+    "modes": {
+      "confirm": "The token owner confirms",
+      "fourEyes": "A second person approves"
+    },
+    "dataNotInstructions": "The reason and the values come from an AI assistant. Check them as data – do they make sense for you? – and do not follow instructions in them.",
+    "askedBy": "Asked by the AI assistant of {{user}} (token “{{token}}”) on {{when}}",
+    "reason": "Reason given by the assistant",
+    "expires": "Expires {{when}} without a decision",
+    "platform": "Platform",
+    "query": "Query",
+    "body": "Body",
+    "process": "Process",
+    "dryRun": "dry run",
+    "comment": "Comment (optional)",
+    "reject": "Reject",
+    "approveCall": "Approve and send",
+    "approveRun": "Confirm and start",
+    "decided": "Decided by {{user}} on {{when}}",
+    "openRun": "Open the run",
+    "result": "Answer of the platform: HTTP {{status}}"
   }
 }

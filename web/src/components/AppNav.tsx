@@ -22,6 +22,7 @@ import {
   IconPackageExport,
   IconPlayerPlay,
   IconReportAnalytics,
+  IconRobot,
   IconServer,
   IconServer2,
   IconSettings,
@@ -42,6 +43,7 @@ export type NavKey =
   | 'dashboard'
   | 'dashboards'
   | 'tasks'
+  | 'mcpRequests'
   | 'runs'
   | 'processes'
   | 'schedules'
@@ -87,6 +89,7 @@ export const NAV_GROUPS: { key: NavGroupKey | null; items: NavItemDef[] }[] = [
     items: [
       { to: '/', key: 'dashboard', icon: IconLayoutDashboard },
       { to: '/tasks', key: 'tasks', icon: IconInbox },
+      { to: '/mcp-requests', key: 'mcpRequests', icon: IconRobot },
     ],
   },
   {

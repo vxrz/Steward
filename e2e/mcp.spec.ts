@@ -81,10 +81,10 @@ test('platform: turn on the read-only MCP gateway (manage right), operators only
   try {
     await page.goto(`/platforms/${p.id}`);
     await page.getByRole('tab', { name: 'MCP' }).click();
-    const toggle = page.getByRole('switch', { name: 'Allow read-only access for MCP clients' });
+    const toggle = page.getByRole('switch', { name: 'Allow access for MCP clients' });
     await expect(toggle).not.toBeChecked();
     await expect(page.getByText(/0 read operations available to MCP clients/)).toBeVisible();
-    await page.getByText('Allow read-only access for MCP clients', { exact: true }).click();
+    await page.getByText('Allow access for MCP clients', { exact: true }).click();
     await expect(toggle).toBeChecked();
     await page.getByRole('textbox', { name: /Allowed GET path prefixes/ }).fill('/echo-headers');
     await page.getByRole('button', { name: 'Save' }).click();
@@ -97,8 +97,8 @@ test('platform: turn on the read-only MCP gateway (manage right), operators only
     const op = await loginAs('olivia');
     await op.goto(`/platforms/${p.id}`);
     await op.getByRole('tab', { name: 'MCP' }).click();
-    await expect(op.getByRole('switch', { name: 'Allow read-only access for MCP clients' })).toBeChecked();
-    await expect(op.getByRole('switch', { name: 'Allow read-only access for MCP clients' })).toBeDisabled();
+    await expect(op.getByRole('switch', { name: 'Allow access for MCP clients' })).toBeChecked();
+    await expect(op.getByRole('switch', { name: 'Allow access for MCP clients' })).toBeDisabled();
     await expect(op.getByRole('button', { name: 'Save' })).toHaveCount(0);
   } finally {
     await api.delete(`/api/platforms/${p.id}`);

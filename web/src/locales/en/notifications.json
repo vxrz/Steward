@@ -141,6 +141,12 @@
         "label": "Backup failed",
         "info": "A backup or the weekly restore test of the backups failed (administrators)"
       }
+    },
+    "mcp": {
+      "request": {
+        "label": "Request from an AI assistant",
+        "info": "An AI assistant asks to change something on a platform or to start a run, and you decide"
+      }
     }
   }
 }

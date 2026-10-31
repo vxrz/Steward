@@ -141,6 +141,12 @@
         "label": "Sicherung fehlgeschlagen",
         "info": "Eine Sicherung oder der wöchentliche Wiederherstellungstest der Sicherungen ist fehlgeschlagen (Administratoren)"
       }
+    },
+    "mcp": {
+      "request": {
+        "label": "Anfrage eines KI-Assistenten",
+        "info": "Ein KI-Assistent möchte etwas auf einer Plattform ändern oder eine Ausführung starten, und Sie entscheiden"
+      }
     }
   }
 }

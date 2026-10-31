@@ -57,6 +57,8 @@ const ComplianceControlsPage = page(() => import('./pages/ComplianceControls'), 
 const AccessChangesPage = page(() => import('./pages/AccessChanges'), 'AccessChangesPage');
 const AccessReconciliationPage = page(() => import('./pages/AccessReconciliation'), 'AccessReconciliationPage');
 const EvidencePacksPage = page(() => import('./pages/EvidencePacks'), 'EvidencePacksPage');
+const McpRequestsPage = page(() => import('./pages/McpRequests'), 'McpRequestsPage');
+const McpRequestDetailPage = page(() => import('./pages/McpRequests'), 'McpRequestDetailPage');
 const PersonReviewsPage = page(() => import('./pages/PersonReviews'), 'PersonReviewsPage');
 const PersonReviewDetailPage = page(() => import('./pages/PersonReviews'), 'PersonReviewDetailPage');
 const ReportsPage = page(() => import('./pages/Reports'), 'ReportsPage');
@@ -217,6 +219,8 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/dashboards" element={<DashboardsPage />} />
                 <Route path="/dashboards/:id" element={<DashboardViewPage />} />
                 <Route path="/tasks" element={<TasksPage />} />
+                <Route path="/mcp-requests" element={<McpRequestsPage />} />
+                <Route path="/mcp-requests/:id" element={<McpRequestDetailPage />} />
                 <Route path="/runs" element={<RunsPage />} />
                 <Route path="/runs/:id" element={<RunDetailPage />} />
                 <Route path="/processes" element={<ProcessesPage />} />

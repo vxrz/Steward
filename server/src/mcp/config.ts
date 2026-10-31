@@ -72,6 +72,30 @@ export function setMcpEnabled(enabled: boolean): void {
   }
 }
 
+const RUN_REQUESTS = 'mcp.runRequests';
+
+/** Assistants may ask to start runs, each confirmed by the token owner (#11, default off). */
+export function mcpRunRequests(): boolean {
+  try {
+    return readSetting<boolean>(RUN_REQUESTS, false) === true;
+  } catch {
+    return false;
+  }
+}
+
+export function setMcpRunRequests(on: boolean): void {
+  const before = mcpRunRequests();
+  writeSetting(RUN_REQUESTS, on);
+  if (before !== on)
+    audit({
+      action: 'mcp.settings_changed',
+      entityType: 'settings',
+      entityId: 'mcp',
+      summary: `Run requests from AI assistants ${on ? 'allowed (each confirmed by the token owner)' : 'turned off'}`,
+      details: { runRequests: on, previous: before },
+    });
+}
+
 /** Requests per minute and token on the MCP endpoint (SM_MCP_RATE_LIMIT, default 120). */
 export const mcpRateLimit = () => intEnv('SM_MCP_RATE_LIMIT', 120);
 /** Gateway calls per minute, user and platform (SM_MCP_GATEWAY_RATE_LIMIT, default 30). */
@@ -106,5 +130,6 @@ export function mcpServerStatus(): McpServerStatus {
     protocolVersions: SUPPORTED_VERSIONS,
     rateLimitPerMinute: mcpRateLimit(),
     gatewayRateLimitPerMinute: gatewayRateLimit(),
+    runRequests: mcpRunRequests(),
   };
 }

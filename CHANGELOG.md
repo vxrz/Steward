@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Approved writes through MCP** (#11): an AI assistant can ask for a changing platform call (POST, PUT, PATCH, DELETE) through the MCP gateway, or to start a run – it never happens when it asks. Each becomes a request under _AI requests_ that the token owner confirms or, per platform, a second person (an approver or administrator who may use the platform) approves; it then runs once, as the token owner, with the rights and settings of that moment, and expires after 24 hours otherwise. Changing calls are off per platform (turning them on needs a fresh confirmation of the sign-in), run requests are off for the instance. Decisions only with a signed-in session, new notification event _Request from an AI assistant_, every step audited, `get_operation_request` and `request_run` tools ([docs/MCP.md](docs/MCP.md#approved-writes)). Migration `ops-012-mcp-requests` (additive).
+
 ## [0.2.9] - 2026-10-31
 
 Steward reads the vulnerabilities of the software it runs and reviews one person's access across platforms at a time. **Dependency-Track** projects can be named on any application component: Steward reads their open findings and policy violations, records new critical findings in the application's history, adds the part _Vulnerabilities_ to the service scorecard and a monitor check type. **Person access reviews** collect everything one person may do across several access checks – read live, frozen, decided right by right, approved by a second person and sealed – and check later that the rights to remove are gone; approved reviews count as evidence of their access checks. AWS IAM becomes an access check source. Three database migrations, all additive: `catalogue-009-dependency-track`, `scorecard-004-vulnerabilities` and `compliance-003-person-reviews`.
