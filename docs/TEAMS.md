@@ -27,7 +27,7 @@ Everyone else does not see a team-owned resource. It answers like one that does 
 
 **Child objects follow their parent.** Components, duties, objectives and CIA ratings follow their service or application; editions, reviews, attachments and links follow their record; schedules and runs follow their process.
 
-**An application without owning teams of its own** belongs to the teams of the services it is part of. If those services belong to two teams, it belongs to both. If it is also part of a service of the whole instance, it belongs to the whole instance.
+**An application without owning teams of its own** belongs to the teams of the services it is part of. If those services belong to two teams, it belongs to both. If it is also part of a service of the whole instance, it belongs to the whole instance. To keep such an application to one team anyway, give it its own owning team: its own teams always win over the ones it would inherit from its services.
 
 **New resources** get their creator's teams, but only teams that already own something. A team that owns nothing does not use team scopes yet, so after an upgrade new resources stay the whole instance's. Administrators' new resources get no owning team.
 
