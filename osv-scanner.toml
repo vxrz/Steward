@@ -10,3 +10,13 @@ reason = "vitest/@vitest/mocker 3.x (dev only): path traversal via the mock redi
 id = "GHSA-qxg6-89mg-rqv8"
 ignoreUntil = 2027-01-31
 reason = "@vitest/mocker 3.x (dev only): code injection via unauthenticated manual mock registration on the Vitest dev server. Not shipped, no Vitest server exposed in CI. Fix needs the Vitest 4 major upgrade."
+
+[[IgnoredVulns]]
+id = "GHSA-3g3m-2fjr-6pw4"
+ignoreUntil = 2026-11-30
+reason = "glob 13.0.6 (only via @fastify/static): an aborted walk keeps reading directories. @fastify/static calls glob only with wildcard: false; Steward uses the default (wildcard: true), so glob never runs, and it would get a fixed pattern and no abort signal. The fix (14.0.2, a major) was published 2026-10-27, too new for the two-week rule; upgrade once @fastify/static moves or the release is old enough."
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2026-11-30
+reason = "minimatch 10.2.6: pattern amplification with attacker-supplied glob patterns. At runtime only reached through the glob call of @fastify/static that Steward never makes (see GHSA-3g3m-2fjr-6pw4); otherwise dev only (ESLint, typescript-eslint) with the repository's own patterns. The fix (11.0.1, a major) was published 2026-10-27, too new for the two-week rule."

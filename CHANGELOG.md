@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-10-30
+
+Steward signs in to more platforms and looks after itself. Platforms can sign in with a **key-pair JWT** (Snowflake, Google service accounts) or **AWS request signing** (SigV4, written out and checked against AWS's own examples – no AWS SDK), also as an assumed role. Steward makes **encrypted backups to S3** on a schedule: a consistent copy of the database and the data folder, encrypted with a backup passphrase that is never stored, kept by a grandfather–father–son rule and tested by a weekly restore test that decrypts and checks every file and the audit chain. **AWS accounts** show the resources, costs and IAM keys of each application by its tag; **Snowflake** accounts show databases, failing tasks and warehouse credits, feed access reviews through the role hierarchy and a monitor check. Two database migrations, both additive: `ops-011-backup-runs` and `catalogue-008-cloud-readouts`.
+
 ### Added
 
 - **Platform sign-in: key-pair JWT and AWS request signing** (#114). _Key-pair JWT_ signs a short-lived JWT (RS/PS/ES algorithms, at most an hour) with the platform's private key, with templated claims and the public key fingerprint – sent as the token (Snowflake) or exchanged for an access token (RFC 7523). _AWS request signing_ signs every request with Signature Version 4 (checked against AWS's documented examples, no AWS SDK), with an access key or an assumed role (STS AssumeRole, external ID, renewed before it ends), for AWS APIs, S3 and S3-compatible storage. Both work with the connection test, _Get a new token_ and the MCP gateway ([docs/PLATFORM-SIGN-IN.md](docs/PLATFORM-SIGN-IN.md)).
@@ -493,7 +497,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.7...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.8...HEAD
+[0.2.8]: https://github.com/vxrz/steward/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/vxrz/steward/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/vxrz/steward/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/vxrz/steward/compare/v0.2.4...v0.2.5
