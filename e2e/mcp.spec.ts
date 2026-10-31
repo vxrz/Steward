@@ -15,7 +15,7 @@ async function expectAccessible(page: Page, name: string) {
 }
 
 test('MCP server: turn it on, create an MCP token with its client configuration, connect', async ({ page }) => {
-  await page.goto('/settings');
+  await page.goto('/settings/security');
   const card = page.locator('.mantine-Card-root').filter({ has: page.getByRole('heading', { name: 'MCP server (AI assistants)' }) });
   const toggle = card.getByRole('switch', { name: 'Turn on the MCP server' });
   if (!(await toggle.isChecked())) {

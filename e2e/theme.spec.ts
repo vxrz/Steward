@@ -84,7 +84,7 @@ test.describe('custom theme (own server)', () => {
 
   test('changing the primary colour in Settings themes buttons, preview and the sign-in page', async ({ browser }) => {
     const page = await open(browser);
-    await page.goto('/settings');
+    await page.goto('/settings/appearance');
     const card = page.locator('.mantine-Card-root', { has: page.getByRole('heading', { name: 'Appearance' }) });
     await expect(card).toBeVisible();
     await card.getByRole('textbox', { name: 'Primary color' }).fill('#ffd400');
@@ -168,7 +168,7 @@ test.describe('custom theme (own server)', () => {
 
   test('reset to the Steward defaults', async ({ browser }) => {
     const page = await open(browser);
-    await page.goto('/settings');
+    await page.goto('/settings/appearance');
     const card = page.locator('.mantine-Card-root', { has: page.getByRole('heading', { name: 'Appearance' }) });
     await card.getByRole('button', { name: `Reset to ${BRAND.name} defaults` }).click();
     await confirmDialog(page, 'Reset', { title: 'Confirm reset' });

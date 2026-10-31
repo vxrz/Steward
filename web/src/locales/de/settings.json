@@ -496,5 +496,44 @@
     },
     "by": "von {{who}}",
     "scheduled": "geplant"
+  },
+  "scope": {
+    "instance": "<b>Instanzeinstellungen</b> gelten für die ganze Installation; Administratoren ändern sie.",
+    "personal": "Ihre eigenen Einstellungen (Sprache, Benachrichtigungen, Tokens) finden Sie in <a>Ihrem Profil</a>."
+  },
+  "areas": {
+    "label": "Bereiche der Einstellungen",
+    "general": {
+      "title": "Allgemein",
+      "description": "Standardsprache und Browser-Automatisierung."
+    },
+    "security": {
+      "title": "Sicherheit & Anmeldung",
+      "description": "Wie man sich anmeldet, wohin Steward Verbindungen aufbauen darf, die öffentliche API, der MCP-Server, der Tresor und Zugriffstokens."
+    },
+    "integrations": {
+      "title": "Integrationen",
+      "description": "Ticketsysteme, Git-Synchronisation, Umzug auf eine andere Instanz und die Quelle für Lebenszyklusdaten."
+    },
+    "notifications": {
+      "title": "Benachrichtigungen",
+      "description": "Kanäle und Wege, Aussehen der Nachrichten, die tägliche Zusammenfassung und Erinnerungen an Zugangsdaten."
+    },
+    "appearance": {
+      "title": "Erscheinungsbild & Branding",
+      "description": "Farben und Logo der App und der Berichte."
+    },
+    "catalogue": {
+      "title": "Katalog & Compliance",
+      "description": "Die CIA-Skala, Scorecard-Regeln, Umgebungen und Compliance-Regeln."
+    },
+    "maintenance": {
+      "title": "Wartung",
+      "description": "Wie lange Daten aufbewahrt werden, Speicher und Sicherungen."
+    }
+  },
+  "endOfLife": {
+    "title": "Supportende",
+    "hint": "Woher die Release- und Supportdaten von Produkten kommen (endoflife.date) und wie früh gewarnt wird."
   }
 }

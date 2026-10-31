@@ -26,7 +26,7 @@ test('admin configures a Git source, reviews the diff and accepts a new process 
   const sourceName = `Git library ${tag}`;
 
   // ---- configure the source (Settings → Git sync) ----
-  await page.goto('/settings');
+  await page.goto('/settings/integrations');
   await page.getByRole('link', { name: 'Manage Git sync' }).click();
   await expect(page).toHaveURL(/\/settings\/git-sync$/);
   // Steward's own example library is there, disabled, following the tag of this version

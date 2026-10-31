@@ -291,8 +291,8 @@ function OwnersTable({ overview, onPick }: { overview: ScorecardOverview; onPick
   );
 }
 
-/** The expected-document rules on the CIA rating: everyone reads them, administrators change them. */
-function RulesPanel() {
+/** The expected-document rules on the CIA rating: everyone reads them, administrators change them (also in Settings → Catalogue). */
+export function RulesPanel() {
   const { t } = useTranslation(['scorecard', 'applications']);
   const { isAdmin } = useMe();
   const qc = useQueryClient();

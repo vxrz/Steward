@@ -30,7 +30,7 @@ test('a user turns on the daily summary, previews it, and administrators see the
 
   // administrators see who subscribed (not the content)
   const admin = await loginAs('admin');
-  await admin.goto('/settings');
+  await admin.goto('/settings/notifications');
   await settle(admin);
   const row = admin.getByRole('table', { name: 'Daily summaries' }).getByRole('row').filter({ hasText: 'audrey' });
   await expect(row).toContainText('06:45');

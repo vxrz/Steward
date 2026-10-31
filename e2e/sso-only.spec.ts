@@ -59,7 +59,7 @@ test.describe('single sign-on only and emergency access (own server)', () => {
     await page.getByRole('link', { name: /Max Admin/ }).click();
     await expect(page.getByRole('button', { name: 'User menu' })).toContainText('Max Admin');
 
-    await page.goto('/settings');
+    await page.goto('/settings/security');
     const card = page.locator('.mantine-Card-root', { has: page.getByRole('heading', { name: 'Sign-in' }) });
     const none = card.getByRole('radio', { name: 'Single sign-on only' });
     await expect(none).toBeEnabled();

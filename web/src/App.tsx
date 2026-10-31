@@ -49,6 +49,7 @@ const PlatformDetailPage = page(() => import('./pages/PlatformDetail'), 'Platfor
 const AuditPage = page(() => import('./pages/Audit'), 'AuditPage');
 const UsersPage = page(() => import('./pages/Users'), 'UsersPage');
 const SettingsPage = page(() => import('./pages/Settings'), 'SettingsPage');
+const SettingsIndex = page(() => import('./pages/Settings'), 'SettingsIndex');
 const ProfilePage = page(() => import('./pages/Profile'), 'ProfilePage');
 const AboutPage = page(() => import('./pages/About'), 'AboutPage');
 const SystemStatusPage = page(() => import('./pages/SystemStatus'), 'SystemStatusPage');
@@ -274,13 +275,14 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/reports" element={<ReportsPage />} />
                 {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
                 {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
-                <Route path="/settings" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
+                <Route path="/settings" element={<SettingsIndex />} />
                 <Route path="/settings/git-sync" element={<GitSyncPage />} />
                 <Route path="/settings/migration" element={<MigrationPage />} />
                 <Route path="/settings/backups" element={<BackupsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/about" element={<AboutPage />} />
                 {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}
+                <Route path="/settings/:area" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
                 <Route
                   path="*"
                   element={
