@@ -299,7 +299,7 @@ export function timelineCandidates(recordId: string, from: string, to: string): 
   const mayView = (pid: string) => {
     if (!procs.has(pid)) {
       const p = db().get<{ owner: string | null; acl: string }>('SELECT owner, acl FROM processes WHERE id = ?', pid);
-      procs.set(pid, !!p && processPermissions(u, { owner: p.owner, acl: parseJson<AclEntry<ProcessPermission>[]>(p.acl, []) }).includes('view'));
+      procs.set(pid, !!p && processPermissions(u, { id: pid, owner: p.owner, acl: parseJson<AclEntry<ProcessPermission>[]>(p.acl, []) }).includes('view'));
     }
     return procs.get(pid)!;
   };

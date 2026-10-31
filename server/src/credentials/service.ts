@@ -235,7 +235,7 @@ const resolveLink = (l: CredentialLink): CredentialLink => {
 function platformName(id: string | null, u: AuthUser | null): string | null {
   if (!id) return null;
   const p = db().get<{ name: string; acl: string }>('SELECT name, acl FROM platforms WHERE id = ?', id);
-  return p && platformPermissions(u, { acl: parseJson(p.acl, []) }).length ? p.name : null;
+  return p && platformPermissions(u, { id, acl: parseJson(p.acl, []) }).length ? p.name : null;
 }
 
 export function toCredential(r: CredentialRow, u: AuthUser | null = currentUser(), now = Date.now(), settings = reminderSettings()): Credential {
@@ -429,7 +429,7 @@ function secretCheck(b: CredentialInput): void {
 function checkPlatform(id: string | null | undefined, unchanged: string | null): void {
   if (!id || id === unchanged) return;
   const p = db().get<{ acl: string }>('SELECT acl FROM platforms WHERE id = ?', id);
-  if (!p || !platformPermissions(currentUser(), { acl: parseJson(p.acl, []) }).length)
+  if (!p || !platformPermissions(currentUser(), { id, acl: parseJson(p.acl, []) }).length)
     throw new HttpError(400, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
 }
 

@@ -447,13 +447,25 @@ export function listTeams(): Team[] {
       name: t.name,
       description: t.description,
       createdAt: t.created_at,
-      members: db()
-        .all<{ username: string }>('SELECT u.username FROM users u JOIN team_members m ON m.user_id = u.id WHERE m.team_id = ? ORDER BY u.username', t.id)
-        .map((m) => m.username),
+      ...membersOf(t.id),
     }));
 }
 
-export function saveTeam(input: { name: string; description?: string; members?: string[] }, id?: string): Team {
+/** A team's members and the roles they have in it (#131). */
+function membersOf(teamId: string): Pick<Team, 'members' | 'memberRoles'> {
+  const rows = db().all<{ username: string; roles: string | null }>(
+    'SELECT u.username, m.roles FROM users u JOIN team_members m ON m.user_id = u.id WHERE m.team_id = ? ORDER BY u.username',
+    teamId,
+  );
+  const memberRoles: Record<string, Role[]> = {};
+  for (const r of rows) {
+    const roles = parseJson<string[]>(r.roles, []).filter((x): x is Role => (ROLES as readonly string[]).includes(x));
+    if (roles.length) memberRoles[r.username] = roles;
+  }
+  return { members: rows.map((r) => r.username), memberRoles };
+}
+
+export function saveTeam(input: { name: string; description?: string; members?: string[]; memberRoles?: Record<string, Role[]> }, id?: string): Team {
   const name = input.name.trim();
   if (!/^[\w .@-]{2,64}$/.test(name)) throw new HttpError(400, 'Team name: 2–64 characters');
   const tid = id ?? newId('team_');
@@ -478,8 +490,19 @@ export function saveTeam(input: { name: string; description?: string; members?: 
       db().run('INSERT INTO teams (id, name, description, created_at) VALUES (?, ?, ?, ?)', tid, name, input.description ?? '', nowIso());
     }
     if (input.members) {
+      // roles in the team (#131): from the request, else the ones a member already had
+      const kept = new Map(
+        db()
+          .all<{ user_id: string; roles: string | null }>('SELECT user_id, roles FROM team_members WHERE team_id = ?', tid)
+          .map((r) => [r.user_id, r.roles]),
+      );
+      const given = new Map(Object.entries(input.memberRoles ?? {}).map(([name, roles]) => [findUserByName(name)?.id, roles]));
       db().run('DELETE FROM team_members WHERE team_id = ?', tid);
-      for (const uid of memberIds) db().run('INSERT INTO team_members (team_id, user_id) VALUES (?, ?)', tid, uid);
+      for (const uid of memberIds) {
+        const roles = given.has(uid) ? given.get(uid)! : null;
+        const stored = roles ? (roles.length ? JSON.stringify([...new Set(roles)].sort()) : null) : (kept.get(uid) ?? null);
+        db().run('INSERT INTO team_members (team_id, user_id, roles) VALUES (?, ?, ?)', tid, uid, stored);
+      }
     }
     invalidateAliases();
     audit({
@@ -487,7 +510,11 @@ export function saveTeam(input: { name: string; description?: string; members?: 
       entityType: 'team',
       entityId: tid,
       summary: `Team "${name}" ${id ? 'updated' : 'created'}${input.members ? ` (${input.members.length} members)` : ''}${before && before.name !== name ? ` – renamed from "${before.name}"${moved ? `, ${moved} references updated` : ''}` : ''}`,
-      details: { members: input.members, ...(before && before.name !== name ? { renamedFrom: before.name, referencesUpdated: moved } : {}) },
+      details: {
+        members: input.members,
+        ...(input.memberRoles ? { memberRoles: input.memberRoles } : {}),
+        ...(before && before.name !== name ? { renamedFrom: before.name, referencesUpdated: moved } : {}),
+      },
     });
   });
   return listTeams().find((t) => t.id === tid)!;

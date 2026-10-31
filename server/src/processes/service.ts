@@ -55,7 +55,7 @@ function toSummary(r: ProcessRow): ProcessSummary {
     lastRun: lastRun(r.id),
     owner: r.owner,
     acl,
-    permissions: processPermissions(currentUser(), { owner: r.owner, acl }),
+    permissions: processPermissions(currentUser(), { id: r.id, owner: r.owner, acl }),
   };
 }
 
@@ -71,7 +71,7 @@ export function listProcesses(): ProcessSummary[] {
 export function permissionsFor(processId: string): ProcessPermission[] {
   const r = db().get<ProcessRow>('SELECT * FROM processes WHERE id = ?', processId);
   if (!r) return [];
-  return processPermissions(currentUser(), { owner: r.owner, acl: parseJson(r.acl, []) });
+  return processPermissions(currentUser(), { id: r.id, owner: r.owner, acl: parseJson(r.acl, []) });
 }
 
 export function setProcessAccess(id: string, input: { acl: unknown; owner?: string | null }): ProcessDetail {

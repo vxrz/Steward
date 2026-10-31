@@ -705,6 +705,13 @@ const EXPECT: Record<string, Access> = {
   'POST /api/ticket-references/:id/checked': RUN,
   'DELETE /api/ticket-references/:id': ADMIN,
 
+  // ---- team scopes (#131): owning teams of a resource and why someone has access ----
+  // whoever may see the process (the demo process has no access list); administrators set owning teams
+  'GET /api/owning-teams/:kind/:id': ALL,
+  'PUT /api/owning-teams/:kind/:id': ADMIN,
+  // own rights on what one can see; others' rights for administrators and auditors (checked in team-scopes.test.ts)
+  'GET /api/access/explain': ALL,
+
   // ---- daily summary ----
   'GET /api/me/daily-summary': ALL,
   'PUT /api/me/daily-summary': ALL,
@@ -759,6 +766,13 @@ const SESSION_ONLY = [
 const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown }> = {
   'POST /api/me/tokens': 'always',
   'POST /api/vault/passphrase': 'always',
+  // adding an owning team gives its members their roles on the resource (#131)
+  'PUT /api/owning-teams/:kind/:id': {
+    get sensitive() {
+      return { teamIds: [fx.team] };
+    },
+    harmless: { teamIds: [] as string[] },
+  },
   'POST /api/users': { sensitive: { username: 'matrix-new', roles: ['viewer'] }, harmless: { username: '!' } },
   'PUT /api/users/:id': { sensitive: { roles: ['admin'] }, harmless: {} },
   'POST /api/users/:id/reset-password': 'always',
@@ -835,6 +849,7 @@ function fill(url: string): string {
   return url
     .replace(/\*/g, 'nothing-here')
     .replace(/\/api\/platform-types\/:kind/, `/api/platform-types/${fx.platformKind}`)
+    .replace(/\/api\/owning-teams\/:kind\/:id/, `/api/owning-teams/process/${fx.process}`)
     .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : fx.platform!)
     .replace(/:specId/g, fx.spec!)
     .replace(/:docId/g, fx.doc!)
@@ -938,6 +953,7 @@ const QUERY: Record<string, string> = {
 /** Valid bodies for changing routes, so a refusal is a permission decision and not a validation error. */
 const bodies = (): Record<string, unknown> => ({
   'POST /api/runs': { processId: fx.process, dryRun: true },
+  'PUT /api/owning-teams/:kind/:id': { teamIds: [] },
   'POST /api/schedules': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
   'PUT /api/schedules/:id': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
   'POST /api/triggers': { ...TRIGGER, processId: fx.process },
@@ -1250,6 +1266,7 @@ beforeAll(async () => {
     syncUpdate,
   };
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
+  QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;
   // compliance: the demo access check with a finding, a control, an access change entry, an evidence pack
   const accessCheck = (await a('GET', '/compliance/access-checks'))[0];
   const sim = await a('POST', '/compliance/demo/simulate-change', { accessCheckId: accessCheck.id });

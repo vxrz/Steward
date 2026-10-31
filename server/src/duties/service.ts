@@ -160,7 +160,7 @@ function viewCtx(now = Date.now()): ViewCtx {
     processVisible: (pid) => {
       if (!seen.has(pid)) {
         const p = procs.get(pid);
-        seen.set(pid, !!p && processPermissions(u, { owner: p.owner, acl: parseJson(p.acl, []) }).includes('view'));
+        seen.set(pid, !!p && processPermissions(u, { id: pid, owner: p.owner, acl: parseJson(p.acl, []) }).includes('view'));
       }
       return seen.get(pid)!;
     },
@@ -367,7 +367,7 @@ function checkReferences(serviceId: string, input: DutyUpdateData): void {
     throw new HttpError(400, 'The application is not part of the service', 'DUTY_APPLICATION_NOT_IN_SERVICE', { id: input.applicationId });
   const p = db().get<{ owner: string | null; acl: string }>('SELECT owner, acl FROM processes WHERE id = ?', input.processId);
   // a process the user may not see is "unknown" to them (no probing)
-  if (!p || !processPermissions(currentUser(), { owner: p.owner, acl: parseJson(p.acl, []) }).includes('view'))
+  if (!p || !processPermissions(currentUser(), { id: input.processId, owner: p.owner, acl: parseJson(p.acl, []) }).includes('view'))
     throw new HttpError(400, `Process ${input.processId} not found`, 'DUTY_PROCESS_UNKNOWN', { id: input.processId });
   if (input.scheduleId) {
     const sch = db().get<{ process_id: string }>('SELECT process_id FROM schedules WHERE id = ?', input.scheduleId);

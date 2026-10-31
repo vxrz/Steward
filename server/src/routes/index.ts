@@ -56,6 +56,7 @@ import { monitorRoutes } from '../monitors/routes.js';
 import { recordRoutes, uploadedFile } from '../records/routes.js';
 import { contentDisposition, downloadType } from '../records/attachments.js';
 import { catalogueRoutes } from '../catalogue/routes.js';
+import { scopeRoutes } from '../auth/scope-routes.js';
 import { backupRoutes } from '../backup/routes.js';
 import { ticketRoutes } from '../tickets/routes.js';
 import { dailySummaryRoutes } from '../notifications/summary-routes.js';
@@ -263,7 +264,7 @@ const visibleProcessIds = (): Set<string> => {
   return new Set(
     db()
       .all<{ id: string; owner: string | null; acl: string }>('SELECT id, owner, acl FROM processes')
-      .filter((r) => processPermissions(user, { owner: r.owner, acl: parseJson(r.acl, []) }).includes('view'))
+      .filter((r) => processPermissions(user, { id: r.id, owner: r.owner, acl: parseJson(r.acl, []) }).includes('view'))
       .map((r) => r.id),
   );
 };
@@ -735,6 +736,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     name: z.string().max(64),
     description: z.string().max(2000).optional(),
     members: z.array(z.string().max(64)).max(5000).optional(),
+    /** roles in the team by member (#131) */
+    memberRoles: boundedRecord(z.array(z.enum(ROLES)).max(ROLES.length), 5000).optional(),
   });
   // teams are subjects of access lists: a new member gets the team's rights (auth/step-up-rules.ts)
   const teamStepUp = { stepUp: { action: 'changeTeamMembers' as const, who: 'manageUsers' as const, when: changesTeamMembers } };
@@ -1511,6 +1514,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
 
   await dashboardRoutes(app);
+  await scopeRoutes(app);
   await opsRoutes(app);
   await engineExtrasRoutes(app);
   await reportRoutes(app);

@@ -127,8 +127,8 @@ function row(id: string): SystemRow {
 }
 
 type PlatformRow = { id: string; name: string; environment: string; acl: string };
-const platformVisible = (u: AuthUser | null, p: Pick<PlatformRow, 'acl'>) =>
-  platformPermissions(u, { acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).length > 0;
+const platformVisible = (u: AuthUser | null, p: Pick<PlatformRow, 'id' | 'acl'>) =>
+  platformPermissions(u, { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).length > 0;
 
 function platformsById(): Map<string, PlatformRow> {
   return new Map(

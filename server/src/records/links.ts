@@ -98,11 +98,12 @@ registerLinkKind('monitor', {
   },
 });
 
-const platformVisible = (acl: string) => platformPermissions(currentUser(), { acl: parseJson<AclEntry<PlatformPermission>[]>(acl, []) }).length > 0;
+const platformVisible = (id: string, acl: string) =>
+  platformPermissions(currentUser(), { id, acl: parseJson<AclEntry<PlatformPermission>[]>(acl, []) }).length > 0;
 registerLinkKind('platform', {
   resolve(id) {
     const p = db().get<{ name: string; acl: string; environment: string }>('SELECT name, acl, environment FROM platforms WHERE id = ?', id);
-    if (!p || !platformVisible(p.acl)) return null;
+    if (!p || !platformVisible(id, p.acl)) return null;
     return { label: p.name, path: `/platforms/${id}`, detail: p.environment || undefined };
   },
   search(q, limit) {
@@ -111,7 +112,7 @@ registerLinkKind('platform', {
         "SELECT id, name, acl, environment FROM platforms WHERE lower(name) LIKE ? ESCAPE '\\' ORDER BY name",
         like(q),
       )
-      .filter((p) => platformVisible(p.acl))
+      .filter((p) => platformVisible(p.id, p.acl))
       .slice(0, limit)
       .map((p) => ({ kind: 'platform' as const, id: p.id, label: p.name, detail: p.environment || undefined }));
   },

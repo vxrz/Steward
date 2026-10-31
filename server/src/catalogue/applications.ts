@@ -136,15 +136,15 @@ function cmdbOf(r: ApplicationRow): ApplicationSummary['cmdb'] {
 }
 
 type PlatformRow = { id: string; name: string; kind: string; environment: string; acl: string };
-const platformRights = (u: AuthUser | null, p: Pick<PlatformRow, 'acl'>) =>
-  platformPermissions(u, { acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) });
-const platformVisible = (u: AuthUser | null, p: Pick<PlatformRow, 'acl'>) => platformRights(u, p).length > 0;
+const platformRights = (u: AuthUser | null, p: Pick<PlatformRow, 'id' | 'acl'>) =>
+  platformPermissions(u, { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) });
+const platformVisible = (u: AuthUser | null, p: Pick<PlatformRow, 'id' | 'acl'>) => platformRights(u, p).length > 0;
 /**
  * Mapping a platform to an application (or removing it) decides which application – and whose CIA rating – the
  * platform's evidence names: it needs the manage right on the platform (administrators have it everywhere), on top of
  * the right to edit the application.
  */
-const platformManaged = (u: AuthUser | null, p: Pick<PlatformRow, 'acl'>) => platformRights(u, p).includes('manage');
+const platformManaged = (u: AuthUser | null, p: Pick<PlatformRow, 'id' | 'acl'>) => platformRights(u, p).includes('manage');
 
 /** The platforms mapped to these applications, by application; platforms the user may not see are named only as not visible. */
 export function integrationsOf(appIds: string[], u: AuthUser | null = currentUser()): Map<string, ApplicationIntegration[]> {
@@ -166,7 +166,7 @@ export function integrationsOf(appIds: string[], u: AuthUser | null = currentUse
   const wanted = new Set(appIds);
   for (const r of rows) {
     if (!wanted.has(r.application_id)) continue;
-    const visible = platformVisible(u, r);
+    const visible = platformVisible(u, { id: r.platform_id, acl: r.acl });
     const i: ApplicationIntegration = visible
       ? {
           visible,
@@ -177,7 +177,7 @@ export function integrationsOf(appIds: string[], u: AuthUser | null = currentUse
           path: `/platforms/${r.platform_id}`,
           mappedAt: r.created_at,
           mappedBy: r.created_by,
-          canManage: platformManaged(u, r),
+          canManage: platformManaged(u, { id: r.platform_id, acl: r.acl }),
         }
       : { visible, platformId: null, name: '', kind: null, environment: null, path: null, mappedAt: r.created_at, mappedBy: r.created_by, canManage: false };
     out.set(r.application_id, [...(out.get(r.application_id) ?? []), i]);

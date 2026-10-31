@@ -30,14 +30,14 @@ export function platformAcl(platformId: string): { exists: boolean; name: string
 
 export function platformPerms(u: AuthUser | null, platformId: string): PlatformPermission[] {
   const p = platformAcl(platformId);
-  return p.exists ? platformPermissions(u, { acl: p.acl }) : [];
+  return p.exists ? platformPermissions(u, { id: platformId, acl: p.acl }) : [];
 }
 
 /** The platform's name, or null when the reader may not see the platform (or it does not exist). */
 export function visiblePlatformName(u: AuthUser | null, platformId: string): string | null {
   const p = platformAcl(platformId);
   if (!p.exists) return null;
-  return readsEverything(u) || platformPermissions(u, { acl: p.acl }).length > 0 ? p.name : null;
+  return readsEverything(u) || platformPermissions(u, { id: platformId, acl: p.acl }).length > 0 ? p.name : null;
 }
 
 /** Steward itself (automatic entries of runs): creates and documents records and sees every run to link it; never approves or verifies. */

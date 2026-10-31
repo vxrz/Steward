@@ -191,13 +191,25 @@ export async function exportPackage(opts: { out: string; transferPassphrase: str
       // identities (no password hashes: local passwords never move)
       const providers = new Map(listProviders().map((p) => [p.id, p.displayName]));
       const teamRows = d.all<{ id: string; name: string; description: string }>('SELECT id, name, description FROM teams ORDER BY name');
-      const members = d.all<{ team_id: string; username: string }>('SELECT m.team_id, u.username FROM team_members m JOIN users u ON u.id = m.user_id');
-      teams = teamRows.map((t) => ({
-        id: t.id,
-        name: t.name,
-        description: t.description ?? '',
-        members: members.filter((m) => m.team_id === t.id).map((m) => m.username),
-      }));
+      const members = d.all<{ team_id: string; username: string; roles: string | null }>(
+        'SELECT m.team_id, u.username, m.roles FROM team_members m JOIN users u ON u.id = m.user_id',
+      );
+      const owned = d.all<{ team_id: string; kind: string; resource_id: string }>(
+        'SELECT team_id, kind, resource_id FROM resource_teams ORDER BY kind, resource_id',
+      );
+      teams = teamRows.map((t) => {
+        const mine = members.filter((m) => m.team_id === t.id);
+        const roles = Object.fromEntries(mine.filter((m) => m.roles).map((m) => [m.username, JSON.parse(m.roles!) as string[]]));
+        return {
+          id: t.id,
+          name: t.name,
+          description: t.description ?? '',
+          members: mine.map((m) => m.username),
+          // team scopes (#131): what members may do in the team, and what the team owns
+          memberRoles: roles,
+          owns: owned.filter((o) => o.team_id === t.id).map((o) => ({ kind: o.kind, id: o.resource_id })),
+        };
+      });
       users = d
         .all<{
           id: string;

@@ -245,7 +245,7 @@ function runsSection(c: Ctx): Section & { failed: number } {
   const access = new Map(
     db()
       .all<{ id: string; owner: string | null; acl: string }>('SELECT id, owner, acl FROM processes')
-      .map((p) => [p.id, processPermissions(c.user, { owner: p.owner, acl: parseJson(p.acl, []) }).includes('view')]),
+      .map((p) => [p.id, processPermissions(c.user, { id: p.id, owner: p.owner, acl: parseJson(p.acl, []) }).includes('view')]),
   );
   const rows = db()
     .all<{ id: string; process_id: string; process_name: string; status: string; dry_run: number; started_at: string; error: string | null }>(
@@ -272,7 +272,7 @@ function tasksSection(c: Ctx): Section {
   const permsOf = (pid: string) => {
     if (!perms.has(pid)) {
       const p = db().get<{ owner: string | null; acl: string }>('SELECT owner, acl FROM processes WHERE id = ?', pid);
-      perms.set(pid, p ? processPermissions(c.user, { owner: p.owner, acl: parseJson(p.acl, []) }) : []);
+      perms.set(pid, p ? processPermissions(c.user, { id: pid, owner: p.owner, acl: parseJson(p.acl, []) }) : []);
     }
     return perms.get(pid)!;
   };

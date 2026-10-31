@@ -110,6 +110,10 @@ beforeAll(async () => {
     ],
   });
   source.processOwner = { id: p.id, owner: 'dana' };
+  // team scopes (#131): a role in the team and the team owning the process move with the team
+  const desk = (await s.api('GET', '/teams')).find((t: any) => t.name === 'Service Desk');
+  await s.api('PUT', `/teams/${desk.id}`, { name: desk.name, members: desk.members, memberRoles: { olivia: ['designer'] } });
+  await s.api('PUT', `/owning-teams/process/${p.id}`, { teamIds: [desk.id] });
   // the service catalogue (#84): an application owned by dana, rated, with a platform, part of a service, scoping a document
   const app = await s.api('POST', '/applications', { name: 'Moved application', owners: ['user:dana', 'team:service desk'] });
   await s.api('PUT', `/applications/${app.id}/rating`, { confidentiality: { level: 'very_high', justification: 'Trade secrets' } });
@@ -582,6 +586,9 @@ describe('import into SQLite through the web API', () => {
     const p = await max('GET', `/processes/${source.processOwner.id}`);
     expect(p.owner).toBe('dana@contoso.example');
     expect(p.acl.map((e: any) => e.subject)).toEqual(['user:olivia', 'team:service desk']);
+    // team scopes (#131): the process belongs to the team it was mapped to, with the member's role in it
+    expect((await max('GET', `/owning-teams/process/${source.processOwner.id}`)).teams.map((t: any) => t.name)).toEqual(['Service Desk']);
+    expect((await max('GET', '/teams')).find((t: any) => t.name === 'Service Desk').memberRoles).toEqual({ olivia: ['designer'] });
     const rec = await max('GET', `/records/${source.recordId}`);
     expect(rec.owner).toBe('dana@contoso.example');
     // applications move with their rating, integrations, services and documents; owners follow the mapping

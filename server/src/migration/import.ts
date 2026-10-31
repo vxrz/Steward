@@ -129,6 +129,12 @@ const manifestSchema = z.object({
         name: z.string().min(1).max(100),
         description: z.string().max(5000),
         members: z.array(z.string().max(100)).max(100000),
+        // team scopes (#131); missing in packages of older versions
+        memberRoles: boundedRecord(z.array(z.string().max(20)).max(10), 100000).optional(),
+        owns: z
+          .array(z.object({ kind: z.string().max(40), id: z.string().max(100) }))
+          .max(100000)
+          .optional(),
       }),
     )
     .max(10000),
@@ -1115,6 +1121,7 @@ function copyIntoTarget(
     );
     // ---- teams ----
     const teamIds = new Map<string, string>(); // source team name (lower) → team id here
+    const sourceTeams = new Map(resolved.teams.map((t) => [lower(t.source.name), t.source]));
     for (const t of resolved.teams) {
       if (t.decision.action === 'map') teamIds.set(lower(t.source.name), t.existingId!);
       else if (t.decision.action === 'create') {
@@ -1179,7 +1186,15 @@ function copyIntoTarget(
       if (u.decision.action === 'archive' || (opts.importer && id === opts.importer.id)) continue;
       for (const tn of u.source.teams) {
         const tid = teamIds.get(lower(tn));
-        if (tid) d.run('INSERT INTO team_members (team_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING', tid, id);
+        // the roles the member had in the team come along (#131)
+        const roles = sourceTeams.get(lower(tn))?.memberRoles?.[u.source.username];
+        if (tid)
+          d.run(
+            'INSERT INTO team_members (team_id, user_id, roles) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
+            tid,
+            id,
+            roles?.length ? JSON.stringify(roles) : null,
+          );
       }
     }
     // ---- content ----
@@ -1203,6 +1218,17 @@ function copyIntoTarget(
         n++;
       }
       if (n) counts[t] = n;
+    }
+    // ---- owning teams (#131): what a team owned now belongs to the team it was mapped to ----
+    const ownedTables: Record<string, string> = { process: 'processes', platform: 'platforms' };
+    for (const t of resolved.teams) {
+      const tid = teamIds.get(lower(t.source.name));
+      if (!tid) continue;
+      for (const o of t.source.owns ?? []) {
+        const table = ownedTables[o.kind];
+        if (!table || !d.get(`SELECT 1 FROM ${table} WHERE id = ?`, o.id)) continue;
+        d.run('INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING', o.kind, o.id, tid, ts);
+      }
     }
     // ---- selected settings ----
     for (const [k, v] of Object.entries(settings)) {

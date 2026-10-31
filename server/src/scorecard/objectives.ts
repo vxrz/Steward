@@ -347,7 +347,7 @@ export function platformLookup() {
       const p = rows.get(pid);
       if (!p || !u) return false;
       const k = `${u.username}\n${pid}`;
-      if (!seen.has(k)) seen.set(k, platformPermissions(u, { acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).length > 0);
+      if (!seen.has(k)) seen.set(k, platformPermissions(u, { id: pid, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).length > 0);
       return seen.get(k)!;
     },
   };

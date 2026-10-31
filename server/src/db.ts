@@ -11,6 +11,7 @@ import { describeTarget, pgDdl, PG_CREATE_NOCASE, type DatabaseTarget } from './
 import { REPORT_MIGRATIONS } from './migrations/reports.js';
 import { MONITOR_MIGRATIONS } from './migrations/monitors.js';
 import { SECURITY_MIGRATIONS } from './migrations/security.js';
+import { TEAM_MIGRATIONS } from './migrations/teams.js';
 import { CREDENTIAL_MIGRATIONS } from './migrations/credentials.js';
 import { GATUS_MIGRATIONS } from './migrations/gatus.js';
 import { REPORT_SCHEDULE_MIGRATIONS } from './migrations/report-schedules.js';
@@ -98,6 +99,7 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...DUTY_MIGRATIONS,
   ...SCORECARD_MIGRATIONS,
   ...PLATFORM_MIGRATIONS,
+  ...TEAM_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [
