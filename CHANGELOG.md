@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-10-31
+
+AI assistants can now ask for changes instead of only reading: a changing platform call or a run requested through MCP becomes a request that a person confirms – per platform by the token owner or, four-eyes, by an approver – and runs once, as its requester. **Service status pages** show colleagues outside the service team how their services are doing – from the monitors, maintenance windows, objectives and known vendor issues, without names or tickets – to a new status viewer role or through a secret link without sign-in. Dashboards get a **Vega-Lite chart widget** for the few views the built-in widgets do not cover, drawn from the widget's dataset only and without `unsafe-eval` in the Content Security Policy. Two database migrations, both additive: `ops-012-mcp-requests` and `catalogue-010-status-pages`.
+
 ### Added
 
 - **Vega-Lite chart widget** (#120): a dashboard widget `vega` draws a [Vega-Lite](https://vega.github.io/vega-lite/) spec from its dataset, for the few views the built-in widgets do not cover – with a table view, the theme's colours (schemes `steward` and `steward-status`) and a spec editor that checks as you type. Only the dataset is shown: specs that load data or images (`url`), link (`href`) or carry their own data are refused when saving. Expressions run in vega-interpreter, so the Content Security Policy stays without `unsafe-eval`, and the chart chunk is loaded only on dashboards that use it. Examples on _Edge fleet_ (devices per firmware version) and _Tenant usage_ (used share of each limit) ([README](README.md#dashboards)). New dependencies: `vega`, `vega-lite`, `vega-interpreter` (web).
@@ -516,7 +520,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.9...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.10...HEAD
+[0.2.10]: https://github.com/vxrz/steward/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/vxrz/steward/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/vxrz/steward/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/vxrz/steward/compare/v0.2.6...v0.2.7
