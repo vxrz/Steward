@@ -5,7 +5,7 @@ import { confirmDialog } from './support/helpers';
 test.use({ storageState: authFile('admin') });
 
 test('settings: notification routing, retention, maintenance status', async ({ page }) => {
-  await page.goto('/settings');
+  await page.goto('/settings/notifications');
   await expect(page.getByRole('heading', { name: 'Settings', level: 2 })).toBeVisible();
 
   // notification routing table
@@ -16,7 +16,8 @@ test('settings: notification routing, retention, maintenance status', async ({ p
   }
   await expect(routing.getByRole('checkbox', { name: /^task\.assigned: / }).first()).toBeVisible();
 
-  // maintenance status
+  // maintenance status (its own area)
+  await page.goto('/settings/maintenance');
   for (const label of ['Database', 'Evidence files', 'Runs', 'Audit entries', 'Last cleanup']) {
     await expect(page.getByRole('main').getByText(label, { exact: true })).toBeVisible();
   }
@@ -26,18 +27,21 @@ test('settings: notification routing, retention, maintenance status', async ({ p
 
   // retention: save, reload, restore
   const keepRuns = page.getByRole('textbox', { name: 'Keep runs (days)' });
-  await keepRuns.fill('400');
+  const before = await keepRuns.inputValue();
+  // Save is enabled once something changed
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  await keepRuns.fill('365');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Settings saved')).toBeVisible();
   await page.reload();
-  await expect(keepRuns).toHaveValue('400');
-  await keepRuns.fill('0');
+  await expect(keepRuns).toHaveValue('365');
+  await keepRuns.fill(before);
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Settings saved').first()).toBeVisible();
 });
 
 test('settings: allowed e-mail domains for addresses outside Steward', async ({ page }) => {
-  await page.goto('/settings');
+  await page.goto('/settings/notifications');
   const domains = page.getByRole('textbox', { name: 'Allowed e-mail domains for addresses outside Steward' });
   await expect(domains).toBeVisible();
   await domains.fill('Example.com');
@@ -71,7 +75,7 @@ test.describe('look of e-mails and Teams messages', () => {
   test.describe.configure({ mode: 'serial' });
 
   test('settings: look of e-mails and Teams messages, with a preview', async ({ page }) => {
-    await page.goto('/settings');
+    await page.goto('/settings/notifications');
     const card = page.locator('.mantine-Card-root').filter({ has: page.getByRole('heading', { name: 'Look of e-mails and Teams messages' }) });
     await expect(card).toBeVisible();
     const name = card.getByRole('textbox', { name: 'Name' });
@@ -97,7 +101,7 @@ test.describe('look of e-mails and Teams messages', () => {
   });
 
   test('settings: own notification logo, style and dry runs', async ({ page }) => {
-    await page.goto('/settings');
+    await page.goto('/settings/notifications');
     const card = page.locator('.mantine-Card-root').filter({ has: page.getByRole('heading', { name: 'Look of e-mails and Teams messages' }) });
     await expect(card).toBeVisible();
     // an own logo: choosing it shows the upload; a 1 × 1 PNG is enough

@@ -68,7 +68,8 @@
       "services": "Services",
       "records": "Dokumente",
       "credentials": "Zugangsdaten",
-      "tickets": "Ticket-Referenzen"
+      "tickets": "Ticket-Referenzen",
+      "settings": "Einstellungen"
     },
     "runBy": "Ausführung von {{actor}} · {{when}}",
     "dryRunBy": "Probelauf von {{actor}} · {{when}}",

@@ -10,7 +10,7 @@ test.describe('report branding', () => {
   test.use({ storageState: authFile('admin') });
 
   test('warns about a too light accent colour and resets the form to the defaults', async ({ page }) => {
-    await page.goto('/settings');
+    await page.goto('/settings/appearance');
     const card = page.locator('.mantine-Card-root').filter({ has: page.getByRole('heading', { name: 'Report branding' }) });
     await expect(card).toBeVisible();
     const accent = card.getByRole('textbox', { name: 'Accent colour' });

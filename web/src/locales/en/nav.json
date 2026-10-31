@@ -68,7 +68,8 @@
       "services": "Services",
       "records": "Records",
       "credentials": "Credentials",
-      "tickets": "Ticket references"
+      "tickets": "Ticket references",
+      "settings": "Settings"
     },
     "runBy": "Run by {{actor}} · {{when}}",
     "dryRunBy": "Dry run by {{actor}} · {{when}}",

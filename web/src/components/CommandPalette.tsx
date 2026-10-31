@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   IconActivity,
+  IconSettings,
   IconArrowRight,
   IconCalendarPlus,
   IconChartBar,
@@ -47,6 +48,34 @@ import { useMe } from '../auth';
 import { fmtRelative } from '../format';
 import { StatusBadge } from './common';
 import { isMac } from './HelpMenu';
+
+/** Settings the palette finds (#136): [area, translation key of its title]. */
+const SETTING_ENTRIES: [string, string][] = [
+  ['general', 'settings:language.title'],
+  ['general', 'settings:browser.title'],
+  ['security', 'settings:signIn.title'],
+  ['security', 'settings:outbound.title'],
+  ['security', 'settings:publicApi.title'],
+  ['security', 'mcp:settings.title'],
+  ['security', 'settings:vault.title'],
+  ['security', 'settings:tokens.title'],
+  ['integrations', 'tickets:settings.title'],
+  ['integrations', 'gitSync:sources.title'],
+  ['integrations', 'settings:migration.title'],
+  ['integrations', 'settings:endOfLife.title'],
+  ['notifications', 'settings:notify.title'],
+  ['notifications', 'settings:look.title'],
+  ['notifications', 'settings:dailySummary.title'],
+  ['notifications', 'credentials:settings.title'],
+  ['appearance', 'system:theme.title'],
+  ['appearance', 'reports:branding.title'],
+  ['catalogue', 'settings:compliance.title'],
+  ['catalogue', 'applications:scale.title'],
+  ['catalogue', 'scorecard:rules.title'],
+  ['catalogue', 'applications:environments.title'],
+  ['maintenance', 'settings:retention.title'],
+  ['maintenance', 'settings:backups.title'],
+];
 
 const RunDialog = lazy(() => import('./RunDialog').then((m) => ({ default: m.RunDialog })));
 
@@ -92,7 +121,7 @@ const makeFilter =
  * when searching – processes, dashboards, platforms, monitors, services, records and credentials.
  */
 export function CommandPalette({ pages }: { pages: PalettePage[] }) {
-  const { t } = useTranslation(['nav', 'common']);
+  const { t } = useTranslation(['nav', 'common', 'settings']);
   const navigate = useNavigate();
   const { caps, isAdmin, hasRole } = useMe();
   const canEditServices = isAdmin || hasRole('designer');
@@ -128,6 +157,19 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
       { to: '/profile', label: t('items.profile'), icon: IconUser },
       { to: '/about', label: t('palette.pages.about'), icon: IconInfoCircle },
     ];
+    // individual settings (#136): administrators find them by name and land in their area
+    // keys from several namespaces, listed below
+    const tx = t as unknown as (key: string) => string;
+    const settingActions: SpotlightActionData[] = caps.manageSettings
+      ? SETTING_ENTRIES.map(([area, key]) => ({
+          id: `setting:${area}:${key}`,
+          label: tx(key),
+          description: `${tx('settings:title')} · ${tx(`settings:areas.${area}.title`)}`,
+          leftSection: icon(IconSettings),
+          keywords: ['settings', tx('settings:title'), tx(`settings:areas.${area}.title`)],
+          onClick: go(`/settings/${area}`),
+        }))
+      : [];
     const pageActions: SpotlightActionData[] = [...pages, ...extraPages].map((p) => ({
       id: `page:${p.to}`,
       label: p.label,
@@ -184,6 +226,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     return [
       { group: t('palette.groups.actions'), actions: quick },
       { group: t('palette.groups.pages'), actions: pageActions },
+      { group: t('palette.groups.settings'), actions: settingActions },
       {
         group: t('palette.groups.recentRuns'),
         actions: (runs.data ?? []).slice(0, 6).map((r) => ({
@@ -301,6 +344,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
   }, [
     t,
     pages,
+    caps.manageSettings,
     caps.createProcesses,
     caps.createMonitors,
     caps.viewAudit,

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Alert, Badge, Button, Checkbox, Group, Paper, Radio, Select, Stack, Table, Text, TextInput } from '@mantine/core';
+import { ActionIcon, Alert, Badge, Button, Checkbox, Group, Paper, Radio, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -25,27 +25,35 @@ type Levels = Record<CiaDimension, CiaLevel[]>;
 const FLAG = '__flag';
 
 /** The CIA scale: everyone reads it; administrators choose the BSI default or their own levels, and map removed ones. */
-export function CiaScalePage() {
+/** The CIA scale: its own page under Applications, and a section in Settings → Catalogue & compliance (embedded). */
+export function CiaScalePage({ embedded = false }: { embedded?: boolean }) {
   const { t } = useTranslation(['applications', 'common']);
   const q = useCiaScale();
   const [editing, setEditing] = useState(false);
   const s = q.data;
   if (!s) return <DetailState query={q} back="applications" />;
+  const edit = s.canEdit && !editing && (
+    <Button size="xs" onClick={() => setEditing(true)}>
+      {t('scale.edit')}
+    </Button>
+  );
   return (
     <>
-      <PageHeader
-        back="applications"
-        title={t('scale.title')}
-        description={t('scale.description')}
-        actions={
-          s.canEdit &&
-          !editing && (
-            <Button size="xs" onClick={() => setEditing(true)}>
-              {t('scale.edit')}
-            </Button>
-          )
-        }
-      />
+      {embedded ? (
+        <Group justify="space-between" mb="xs">
+          <div>
+            <Title order={3} size="h5">
+              {t('scale.title')}
+            </Title>
+            <Text size="xs" c="dimmed">
+              {t('scale.description')}
+            </Text>
+          </div>
+          {edit}
+        </Group>
+      ) : (
+        <PageHeader back="applications" title={t('scale.title')} description={t('scale.description')} actions={edit} />
+      )}
       {editing ? (
         <ScaleEditor scale={s} onDone={() => setEditing(false)} />
       ) : (

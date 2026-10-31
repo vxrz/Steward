@@ -95,7 +95,7 @@ test.describe('as an administrator', () => {
     const api = await apiAs('admin');
     const before = await json<{ environments: unknown[] }>(await api.get('/api/catalogue/environments'));
     try {
-      await page.goto('/settings#environments');
+      await page.goto('/settings/catalogue');
       const card = page.getByTestId('environments-card');
       await expect(card.getByRole('textbox', { name: 'Name' })).toHaveCount(before.environments.length);
       await card.getByRole('button', { name: 'Add environment' }).click();

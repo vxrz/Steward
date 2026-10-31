@@ -496,5 +496,44 @@
     },
     "by": "by {{who}}",
     "scheduled": "scheduled"
+  },
+  "scope": {
+    "instance": "<b>Instance settings</b> apply to the whole installation; administrators change them.",
+    "personal": "Your own settings (language, notifications, tokens) are on <a>your profile</a>."
+  },
+  "areas": {
+    "label": "Settings areas",
+    "general": {
+      "title": "General",
+      "description": "Default language and browser automation."
+    },
+    "security": {
+      "title": "Security & sign-in",
+      "description": "How people sign in, where Steward may connect to, the public API, the MCP server, the vault and access tokens."
+    },
+    "integrations": {
+      "title": "Integrations",
+      "description": "Ticket systems, Git sync, moving to another instance and the end-of-life source."
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Channels and routes, how messages look, the daily summary and credential reminders."
+    },
+    "appearance": {
+      "title": "Appearance & branding",
+      "description": "Colours and logo of the app and of reports."
+    },
+    "catalogue": {
+      "title": "Catalogue & compliance",
+      "description": "The CIA scale, scorecard rules, environments and compliance rules."
+    },
+    "maintenance": {
+      "title": "Maintenance",
+      "description": "How long data is kept, storage and backups."
+    }
+  },
+  "endOfLife": {
+    "title": "End of life",
+    "hint": "Where release and support dates of products come from (endoflife.date), and how far ahead they warn."
   }
 }

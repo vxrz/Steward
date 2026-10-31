@@ -392,7 +392,7 @@ function reasonParts(
   const src = o.source;
   const settings = src
     ? { label: t(l, 'messageSettings.source', { kind: t(l, `kind.${src.kind}`) }), href: absoluteLink(src.settingsLink) }
-    : { label: t(l, 'messageSettings.routes'), href: absoluteLink('/settings#notifications') };
+    : { label: t(l, 'messageSettings.routes'), href: absoluteLink('/settings/notifications') };
   let reason: string;
   if (!u) reason = t(l, 'reason.channel');
   else if (src && sameName(u.username, src.owner)) reason = t(l, 'reason.sourceOwner', { kind: t(l, `kind.${src.kind}`), name: titleName(src.name) });
