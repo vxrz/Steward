@@ -60,6 +60,7 @@ import { mapValue, type NameMaps } from './refs.js';
 import { DATA_PREFIX } from './export.js';
 import { checkScaleRows } from '../catalogue/cia.js';
 import { SCORECARD_IMPORT_TABLES, scorecardTableChecker } from '../scorecard/import-checks.js';
+import { sealTeamChannel } from '../notifications/team-channels.js';
 
 /**
  * Import of a migration package (see format.ts and export.ts) into this instance:
@@ -1261,7 +1262,7 @@ function copyIntoTarget(
       let secret: string | null = null;
       if (ts0.channelSecret) {
         try {
-          secret = vault().encrypt(JSON.parse(decryptWith(pkg.secrets, ts0.channelSecret)));
+          secret = sealTeamChannel(JSON.parse(decryptWith(pkg.secrets, ts0.channelSecret)) as { url: string });
         } catch {
           throw new HttpError(400, 'A team channel cannot be read with the package key', 'MIGRATION_PACKAGE_INVALID');
         }

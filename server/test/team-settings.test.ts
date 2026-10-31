@@ -103,6 +103,15 @@ describe('team settings', () => {
     expect(received[0]).toMatchObject({ path: '/orders?key=team-secret', body: { event: 'test' } });
   });
 
+  it('keep the channel URL readable after a rotation of the data key', async () => {
+    const r = await s.api('POST', '/vault/passphrase', { current: 'correct horse battery', next: 'a new passphrase 2026', rotateDataKey: true });
+    expect(r.rotated).toBe(true);
+    received.length = 0;
+    expect(await s.api('POST', `/teams/${orders}/settings/test`)).toEqual({ ok: true });
+    expect(received[0]?.path).toBe('/orders?key=team-secret');
+    await s.api('POST', '/vault/passphrase', { current: 'a new passphrase 2026', next: 'correct horse battery', rotateDataKey: false });
+  });
+
   it('send messages about a team-owned resource to the team channel – instead of the instance channel when it says so', async () => {
     // not owned by the team yet: the instance channel, as before
     received.length = 0;

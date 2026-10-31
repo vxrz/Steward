@@ -68,6 +68,11 @@ export const teamSettingsInput = z
   })
   .strict();
 
+/** Encrypts a team channel's URL with the vault's data key (registered for key rotation in vault-rotation.ts). */
+export function sealTeamChannel(value: { url: string }): string {
+  return vault().encrypt(value);
+}
+
 function checkUrl(url: string): void {
   try {
     if (!/^https?:$/.test(new URL(url).protocol)) throw new Error();
@@ -88,7 +93,7 @@ export function saveTeamSettings(teamId: string, input: z.infer<typeof teamSetti
     if (url === undefined) secret = before?.channel_secret ?? null;
     else if (url) {
       checkUrl(url);
-      secret = vault().encrypt({ url });
+      secret = sealTeamChannel({ url });
     }
     if (channel.enabled && !secret) throw new HttpError(400, 'Team channel: enter the webhook URL', 'TEAM_CHANNEL_URL');
   }
