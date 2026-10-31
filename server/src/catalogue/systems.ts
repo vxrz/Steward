@@ -38,6 +38,7 @@ import { lifecycleSettings, releasesOf } from './lifecycle.js';
 import { byEnvironment, environmentValue } from './environments.js';
 import { credentialsBelongingTo, toCredential } from '../credentials/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
+import { assignCreatorTeams } from '../auth/policy.js';
 
 /**
  * Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on – often several
@@ -390,6 +391,7 @@ export function createSystem(input: SystemInput): SystemDetail {
       u.username,
     );
     const diff = input.stack ? writeStack(systemHolder(id), input.stack, u) : null;
+    assignCreatorTeams('system', id, currentUser());
     audit({
       action: 'system.created',
       entityType: 'system',

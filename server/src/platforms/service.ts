@@ -15,6 +15,7 @@ import { paramSchema, requestBodyInfo, resolveRef, successStatuses } from './ope
 import { currentUser } from '../auth/context.js';
 import { cleanAcl, platformPermissions } from '../auth/permissions.js';
 import { PLATFORM_PERMISSIONS, type AclEntry, type PlatformPermission } from '@sm/shared';
+import { assignCreatorTeams } from '../auth/policy.js';
 
 interface PlatformRow {
   id: string;
@@ -116,6 +117,7 @@ export function createPlatform(input: PlatformInput): Platform {
       ts,
       ts,
     );
+    assignCreatorTeams('platform', id, currentUser());
     audit({
       action: 'platform.created',
       entityType: 'platform',

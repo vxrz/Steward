@@ -3,10 +3,11 @@ import { z } from 'zod';
 import { OWNED_KINDS, type AccessExplanation, type AccessReason, type OwnedKind } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
-import { HttpError, nowIso, parseJson } from '../util.js';
+import { HttpError, parseJson } from '../util.js';
+import { canReadRecordRow } from '../records/access.js';
 import { ACCESS, me } from './access.js';
 import { capabilities, isAdmin } from './permissions.js';
-import { catalogueAccess, catalogueTeams, owningTeams, platformAccess, processAccess, type CatalogueKind } from './policy.js';
+import { catalogueAccess, catalogueTeams, owningTeams, platformAccess, processAccess, recordAccess, setOwningTeams, type CatalogueKind } from './policy.js';
 import { findUserByName, toAuthUser } from './users.js';
 import type { AuthUser } from './context.js';
 
@@ -30,15 +31,19 @@ interface ResourceRow {
   owner?: string | null;
   acl?: string;
   owners?: string;
+  type_id?: string;
+  fields?: string;
 }
 
 const CATALOGUE_TABLES = { service: 'services', application: 'applications', system: 'systems' } as const;
 const isCatalogue = (kind: OwnedKind): kind is CatalogueKind => kind in CATALOGUE_TABLES;
 
-/** The resource of a kind (any kind that can have owning teams). */
+/** The resource of a kind (any kind that can have owning teams). Records by id or number. */
 export function ownedResource(kind: OwnedKind, id: string): ResourceRow | undefined {
   if (kind === 'process') return db().get<ResourceRow>('SELECT id, name, owner, acl FROM processes WHERE id = ?', id);
   if (kind === 'platform') return db().get<ResourceRow>('SELECT id, name, acl FROM platforms WHERE id = ?', id);
+  if (kind === 'record')
+    return db().get<ResourceRow>("SELECT id, number || ' ' || title AS name, owner, type_id, fields FROM records WHERE id = ? OR number = ?", id, id);
   return db().get<ResourceRow>(`SELECT id, name, owners FROM ${CATALOGUE_TABLES[kind]} WHERE id = ?`, id);
 }
 const resource = ownedResource;
@@ -46,6 +51,13 @@ const resource = ownedResource;
 function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissions: string[]; reasons: AccessReason[] } {
   if (kind === 'process') return processAccess(u, { id: r.id, owner: r.owner ?? null, acl: parseJson(r.acl, []) });
   if (kind === 'platform') return platformAccess(u, { id: r.id, acl: parseJson(r.acl, []) });
+  if (kind === 'record') {
+    // access change entries are read more narrowly (records/access.ts)
+    if (!canReadRecordRow(u, { id: r.id, owner: r.owner ?? '', type_id: r.type_id ?? '', fields: r.fields ?? '{}' })) return { permissions: [], reasons: [] };
+    const d = recordAccess(u, { id: r.id, owner: r.owner ?? '' });
+    return { permissions: (['view', 'edit', 'approve'] as const).filter((p) => d[p]), reasons: d.reasons };
+  }
+  if (!isCatalogue(kind)) return { permissions: [], reasons: [] };
   const d = catalogueAccess(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
   return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : [])], reasons: d.reasons };
 }
@@ -56,6 +68,7 @@ const NOT_FOUND: Record<OwnedKind, [string, string]> = {
   service: ['Service not found', 'SERVICE_NOT_FOUND'],
   application: ['Application not found', 'APPLICATION_NOT_FOUND'],
   system: ['System not found', 'SYSTEM_NOT_FOUND'],
+  record: ['Record not found', 'RECORD_NOT_FOUND'],
 };
 const notFound = (kind: OwnedKind, id: string) => new HttpError(404, NOT_FOUND[kind][0], NOT_FOUND[kind][1], { id });
 
@@ -74,15 +87,15 @@ function addsTeam(req: FastifyRequest): boolean {
   const kind = kindParam.safeParse(p.kind);
   const b = teamIds.safeParse(req.body);
   if (!kind.success || !b.success) return false;
-  const before = new Set(owningTeams(kind.data, String(p.id ?? '')).map((t) => t.id));
+  const before = new Set(owningTeams(kind.data, ownedResource(kind.data, String(p.id ?? ''))?.id ?? '').map((t) => t.id));
   return b.data.teamIds.some((t) => !before.has(t));
 }
 
 export async function scopeRoutes(app: FastifyInstance): Promise<void> {
   app.get('/owning-teams/:kind/:id', async (req) => {
     const { kind, id } = params(req);
-    visible(kind, id);
-    return { teams: owningTeams(kind, id), canChange: isAdmin(me()) };
+    const r = visible(kind, id);
+    return { teams: owningTeams(kind, r.id), canChange: isAdmin(me()) };
   });
 
   app.put(
@@ -100,21 +113,19 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
       );
       const unknown = ids.find((t) => !known.has(t));
       if (unknown) throw new HttpError(400, `Unknown team "${unknown}"`, 'TEAM_NOT_FOUND', { id: unknown });
-      const before = owningTeams(kind, id);
+      const before = owningTeams(kind, r.id);
       db().tx(() => {
-        db().run('DELETE FROM resource_teams WHERE kind = ? AND resource_id = ?', kind, id);
-        const ts = nowIso();
-        for (const t of ids) db().run('INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES (?, ?, ?, ?)', kind, id, t, ts);
+        setOwningTeams(kind, r.id, ids);
         const names = ids.map((t) => known.get(t)!);
         audit({
           action: 'access.owning_teams_changed',
           entityType: kind,
-          entityId: id,
+          entityId: r.id,
           summary: `Owning teams of ${kind} "${r.name}": ${names.length ? names.join(', ') : 'none (the whole instance)'}${before.length ? ` (were: ${before.map((t) => t.name).join(', ')})` : ''}`,
           details: { before: before.map((t) => t.name), after: names },
         });
       });
-      return { teams: owningTeams(kind, id), canChange: true };
+      return { teams: owningTeams(kind, r.id), canChange: true };
     },
   );
 
@@ -131,7 +142,7 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
       who = toAuthUser(u);
     }
     const d = access(q.kind, r, who);
-    const teams = isCatalogue(q.kind) ? catalogueTeams(q.kind, q.id) : owningTeams(q.kind, q.id);
-    return { kind: q.kind, id: q.id, user: who.username, owningTeams: teams, permissions: d.permissions, reasons: d.reasons };
+    const teams = isCatalogue(q.kind) ? catalogueTeams(q.kind, r.id) : owningTeams(q.kind, r.id);
+    return { kind: q.kind, id: r.id, user: who.username, owningTeams: teams, permissions: d.permissions, reasons: d.reasons };
   });
 }

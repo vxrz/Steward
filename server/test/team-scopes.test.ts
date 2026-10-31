@@ -198,3 +198,67 @@ describe('owning teams on the service catalogue', () => {
     expect((await dave('GET', `/applications/${app}`)).canEdit).toBe(true);
   });
 });
+
+describe('owning teams on records', () => {
+  let rec: string;
+  let apo: Client; // approver, not a member
+  let ana: Client; // approver, member of Orders
+
+  beforeAll(async () => {
+    const users = await import('../src/auth/users.js');
+    users.createUser({ username: 'apo', roles: ['approver'], password: PW, mustChangePassword: false });
+    users.createUser({ username: 'ana', roles: ['approver'], password: PW, mustChangePassword: false });
+    [apo, ana] = await Promise.all(['apo', 'ana'].map((u) => s.as(u, PW)));
+    await s.api('PUT', `/teams/${orders}`, { name: 'Orders', members: ['tara', 'olaf', 'ana'], memberRoles: { olaf: ['designer'] } });
+    rec = (await s.api('POST', '/records', { type: 'ADR', title: 'Order events on Kafka' })).id;
+  });
+
+  it('change nothing while a record has none', async () => {
+    expect((await dave('GET', `/records/${rec}`)).permissions.edit).toBe(true);
+    expect((await vic('GET', `/records/${rec}`)).permissions.edit).toBe(false);
+    expect((await vic('GET', '/records')).map((x: any) => x.id)).toContain(rec);
+  });
+
+  it('show a team-owned record to its members, its owner, administrators and auditors only', async () => {
+    await s.api('PUT', `/owning-teams/record/${rec}`, { teamIds: [orders] });
+    expect((await tara('GET', `/records/${rec}`)).permissions.edit).toBe(true);
+    // a viewer with the team role designer changes it
+    expect((await olaf('GET', `/records/${rec}`)).permissions.edit).toBe(true);
+    expect((await aud('GET', `/records/${rec}`)).permissions.edit).toBe(false);
+    for (const c of [dave, vic, apo]) {
+      expect(await status(c('GET', `/records/${rec}`))).toBe(404);
+      expect((await c('GET', '/records')).map((x: any) => x.id)).not.toContain(rec);
+    }
+    expect(await status(dave('PUT', `/records/${rec}`, { title: 'x' }))).toBe(404);
+    expect(await status(dave('GET', `/owning-teams/record/${rec}`))).toBe(404);
+  });
+
+  it('let approvers approve only when they are members', async () => {
+    const accept = (r: any) => r.actions.find((a: any) => a.action === 'accept');
+    await s.api('POST', `/records/${rec}/transition`, { action: 'propose' });
+    expect(accept(await ana('GET', `/records/${rec}`))).toMatchObject({ allowed: true });
+    const why = await s.api('GET', `/access/explain?kind=record&id=${rec}&user=ana`);
+    expect(why.permissions).toEqual(['view', 'approve']);
+    expect(why.reasons).toEqual([expect.objectContaining({ source: 'teamRole', role: 'approver', team: 'Orders' })]);
+    expect((await s.api('GET', `/access/explain?kind=record&id=${rec}&user=apo`)).permissions).toEqual([]);
+  });
+
+  it('give new records their creator’s teams once the team owns something', async () => {
+    // Orders owns rec: tara's new records belong to Orders, dave's (no team) to the whole instance
+    const t = (await tara('POST', '/records', { type: 'ADR', title: 'Retry policy' })).id;
+    expect((await s.api('GET', `/owning-teams/record/${t}`)).teams).toEqual([{ id: orders, name: 'Orders' }]);
+    expect(await status(dave('GET', `/records/${t}`))).toBe(404);
+    const d = (await dave('POST', '/records', { type: 'ADR', title: 'Shared logging' })).id;
+    expect((await s.api('GET', `/owning-teams/record/${d}`)).teams).toEqual([]);
+    // a team that owns nothing: new records stay the whole instance's
+    const solo = (await s.api('POST', '/teams', { name: 'Solo', members: ['dave'] })).id;
+    const d2 = (await dave('POST', '/records', { type: 'ADR', title: 'Shared tracing' })).id;
+    expect((await s.api('GET', `/owning-teams/record/${d2}`)).teams).toEqual([]);
+    await s.api('DELETE', `/teams/${solo}`);
+  });
+
+  it('give the record back to the whole instance when removed', async () => {
+    await s.api('PUT', `/owning-teams/record/${rec}`, { teamIds: [] });
+    expect((await vic('GET', `/records/${rec}`)).id).toBe(rec);
+  });
+});

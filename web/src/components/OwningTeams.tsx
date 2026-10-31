@@ -35,7 +35,7 @@ export function OwningTeams({ kind, id, mt }: { kind: OwnedKind; id: string; mt?
     try {
       const saved = await put<OwningTeamsResponse>(`/owning-teams/${kind}/${id}`, { teamIds: value });
       qc.setQueryData(key, saved);
-      qc.invalidateQueries({ queryKey: [kind === 'process' ? 'process' : 'platform'] });
+      qc.invalidateQueries({ queryKey: [kind] });
       notifyOk(t('owning.saved'));
     } catch (e) {
       notifyError(e, t('owning.notSaved'));

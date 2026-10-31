@@ -20,7 +20,7 @@ import { requestLang } from '../reports/service.js';
 import { translator, type Translator } from '../reports/i18n.js';
 import { PRODUCT, chrome, langTag } from '../reports/common.js';
 import { HttpError, newId, nowIso, sha256 } from '../util.js';
-import { canApproveRecords, canEditRecord, forbid, me } from './access.js';
+import { canApproveRecord, canEditRecord, forbid, me } from './access.js';
 import { requireRecordRow, toAttachment, type AttachmentRow } from './model.js';
 import { getRecord, touch } from './service.js';
 import { insertAttachment, writeAttachmentFile } from './attachments.js';
@@ -490,7 +490,7 @@ export async function generateRecordPdf(
 ): Promise<RecordAttachment & { texts: string[] }> {
   const u = me();
   const row = requireRecordRow(idOrNumber);
-  if (!canEditRecord(u, row) && !canApproveRecords(u)) forbid('generate PDFs of records', 'generatePdf');
+  if (!canEditRecord(u, row) && !canApproveRecord(u, row)) forbid('generate PDFs of records', 'generatePdf');
   checkPdfLimits(row.id, 'generated', 0);
   // living documents: a frozen edition instead of the current content
   const rec = input.edition ? editionAsRecord(getRecord(row.id), input.edition) : getRecord(row.id);

@@ -23,7 +23,7 @@ import { notify, titleName } from '../notifications/service.js';
 import { reminderSettings } from '../credentials/service.js';
 import { plannedReminder } from '../credentials/reminders.js';
 import { isAdmin } from '../auth/permissions.js';
-import { RECORD_APPROVER_ROLES, RECORD_EDITOR_ROLES, canApproveRecords, canEditRecord, forbid, me, statusParam } from './access.js';
+import { RECORD_APPROVER_ROLES, RECORD_EDITOR_ROLES, canApproveRecord, canEditRecord, forbid, me, statusParam } from './access.js';
 import { requireRecordRow, type RecordRow } from './model.js';
 import { requireType, type TypeRow } from './types.js';
 import { canReviewDocument, getRecord, startRevision, withStoredFields, workflowOf } from './service.js';
@@ -321,7 +321,7 @@ function wroteDocument(user: { id: string; username: string }, r: RecordRow): bo
 export function updateReviewSettings(idOrNumber: string, input: z.infer<typeof reviewSettingsInput>): RecordDetail {
   const u = me();
   const { r, t } = requireDocument(idOrNumber);
-  const approver = canApproveRecords(u);
+  const approver = canApproveRecord(u, r);
   if (!canEditRecord(u, r) && !approver) forbid('change the review settings of this document', 'reviewSettings');
   if (r.status === 'withdrawn')
     throw new HttpError(409, `${r.number} is withdrawn: it is not reviewed any more`, 'RECORD_CLOSED', { number: r.number, status: statusParam(r.status) });

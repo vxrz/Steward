@@ -74,6 +74,7 @@ import { fieldLabel, optionLabel } from '../components/records/builtin';
 import { confirmDanger } from '../components/confirm';
 import { DocumentChangelog, EditionBadge, EditionFields, ReviewStatusBadge } from '../components/records/DocumentPanel';
 import { MeasuresPanel, TimelineButton } from '../components/records/IncidentReview';
+import { OwningTeams } from '../components/OwningTeams';
 
 const TABS = ['content', 'changelog', 'versions', 'links', 'attachments', 'discussion', 'pdfs'] as const;
 type Tab = (typeof TABS)[number];
@@ -259,6 +260,7 @@ export function RecordDetailPage() {
           <Tabs.Tab value="attachments">{t('tabs.attachments', { count: rec.attachments.filter((a) => a.kind === 'file').length })}</Tabs.Tab>
           <Tabs.Tab value="discussion">{t('tabs.discussion', { count: rec.events.length })}</Tabs.Tab>
           <Tabs.Tab value="pdfs">{t('tabs.pdfs', { count: rec.attachments.filter((a) => a.kind !== 'file').length })}</Tabs.Tab>
+          <Tabs.Tab value="access">{t('tabs.access')}</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="content">
           <ContentTab rec={rec} />
@@ -298,6 +300,9 @@ export function RecordDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="discussion">
           <DiscussionTab rec={rec} onChange={refresh} />
+        </Tabs.Panel>
+        <Tabs.Panel value="access">
+          <OwningTeams kind="record" id={rec.id} />
         </Tabs.Panel>
         <Tabs.Panel value="pdfs">
           <PdfTab rec={rec} onGenerate={() => setPdf(true)} onChange={refresh} />

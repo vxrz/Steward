@@ -20,6 +20,7 @@ import { scopesOf } from './scope.js';
 import { protectionNeedOf, protectionNeeds } from './cia.js';
 import { serviceApplications } from './applications.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
+import { assignCreatorTeams } from '../auth/policy.js';
 
 /**
  * A deliberately small service catalogue ("lightweight CMDB"): name,
@@ -289,6 +290,7 @@ export function createService(input: ServiceInput): ServiceDetail {
       now,
       u.username,
     );
+    assignCreatorTeams('service', id, currentUser());
     audit({
       action: 'service.created',
       entityType: 'service',

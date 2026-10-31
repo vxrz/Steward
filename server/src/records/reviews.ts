@@ -256,7 +256,9 @@ export function listOpenMeasures(f: MeasureFilter = {}): OpenMeasure[] {
   );
   const day = today();
   return rows
-    .filter((m) => (!ids || ids.has(m.record_id)) && canReadRecordRow(u, { type_id: m.type_id, fields: m.record_fields, owner: m.record_owner }))
+    .filter(
+      (m) => (!ids || ids.has(m.record_id)) && canReadRecordRow(u, { id: m.record_id, type_id: m.type_id, fields: m.record_fields, owner: m.record_owner }),
+    )
     .filter((m) => state !== 'overdue' || m.due_date < day)
     .filter((m) => !f.owner || parseJson<string[]>(m.owners, []).includes(f.owner.toLowerCase()))
     .map((m) => ({ ...toMeasure(m, day), recordNumber: m.number, recordTitle: m.record_title }));

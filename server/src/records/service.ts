@@ -26,7 +26,7 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit, authenticRows, importedHistoryFor } from '../audit.js';
-import { currentActor, type AuthUser } from '../auth/context.js';
+import { currentActor, type AuthUser, currentUser } from '../auth/context.js';
 import { findUserByName, getUser } from '../auth/users.js';
 import { resolveLocale, t as tr, type MessageKey } from '../i18n/index.js';
 import { getSettings } from '../settings.js';
@@ -35,7 +35,7 @@ import { canDocumentAccessOn, isSubjectOf, isSystem } from '../compliance/access
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
 import {
-  canApproveRecords,
+  canApproveRecord,
   canCommentRecord,
   canCreateRecords,
   canEditRecord,
@@ -71,6 +71,7 @@ import {
   type DocRow,
   type EditionRow,
 } from './document-model.js';
+import { assignCreatorTeams } from '../auth/policy.js';
 
 /**
  * Records: numbered, versioned documents with a workflow (change requests,
@@ -391,8 +392,8 @@ export function permissionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkfl
     revise: edit && wf.revisable.includes(r.status),
     attach: edit && draft,
     link: edit && !wf.terminal.includes(r.status),
-    generatePdf: edit || canApproveRecords(u),
-    uploadSigned: edit || canApproveRecords(u),
+    generatePdf: edit || canApproveRecord(u, r),
+    uploadSigned: edit || canApproveRecord(u, r),
     attachPlainPdf: isAdmin(u),
   };
 }
@@ -405,7 +406,7 @@ function actionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkflow): Record
     let reason: ActionReason | undefined;
     if (!u) reason = { code: 'NOT_SIGNED_IN', message: 'Not signed in' };
     else if (t.approval) {
-      if (!canApproveRecords(u)) reason = { code: 'RECORD_APPROVERS_ONLY', message: 'Only approvers and administrators can approve or reject records' };
+      if (!canApproveRecord(u, r)) reason = { code: 'RECORD_APPROVERS_ONLY', message: 'Only approvers and administrators can approve or reject records' };
       else reason = fourEyesReason(u, r, contentAuthors(r)) ?? undefined;
       // access change entries: nobody verifies a change of their own access
       if (!reason && isAccessEntry(r) && isSubjectOf(u.username, accessFields(r)))
@@ -520,7 +521,7 @@ export function supersededInfo(u: AuthUser | null, r: Pick<RecordRow, 'supersede
 export function canReviewDocument(u: AuthUser | null, r: RecordRow, d: DocRow | undefined): boolean {
   if (!u) return false;
   const same = (a: string | null | undefined) => !!a && a.toLowerCase() === u.username.toLowerCase();
-  return same(r.owner) || same(d?.review_owner) || canApproveRecords(u) || isAdmin(u);
+  return same(r.owner) || same(d?.review_owner) || canApproveRecord(u, r) || isAdmin(u);
 }
 
 /** Editions, reviews and the review status of a living document. */
@@ -549,9 +550,9 @@ export function documentInfo(u: AuthUser | null, r: RecordRow, t: TypeRow): Docu
     permissions: {
       review: !!current && ['published', 'revising'].includes(r.status) && canReviewDocument(u, r, d),
       scope: canEditRecord(u, r) && r.status !== 'withdrawn',
-      settings: (canEditRecord(u, r) || canApproveRecords(u)) && r.status !== 'withdrawn',
-      reviewOwner: canApproveRecords(u) && r.status !== 'withdrawn',
-      reviewInterval: canApproveRecords(u) && r.status !== 'withdrawn',
+      settings: (canEditRecord(u, r) || canApproveRecord(u, r)) && r.status !== 'withdrawn',
+      reviewOwner: canApproveRecord(u, r) && r.status !== 'withdrawn',
+      reviewInterval: canApproveRecord(u, r) && r.status !== 'withdrawn',
       anyInterval: isAdmin(u) && r.status !== 'withdrawn',
     },
   };
@@ -725,6 +726,7 @@ export function createRecord(input: CreateInput): RecordDetail {
       { id, revision: 1 },
       { kind: input.importMeta ? 'imported' : 'created', action: null, from_status: null, to_status: wf.initial, comment: '', content_hash: hash, version: 1 },
     );
+    assignCreatorTeams('record', id, currentUser());
     audit({
       action: input.importMeta ? 'record.imported' : 'record.created',
       entityType: 'record',

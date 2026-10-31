@@ -515,8 +515,8 @@ export function resolveTarget(kind: ControlTagKind, id: string, u: AuthUser | nu
       return t ? { label: `${t.key} – ${t.name}`, path: `/records?type=${encodeURIComponent(t.key)}` } : null;
     }
     case 'record': {
-      const r = db().get<{ number: string; title: string; type_id: string; fields: string; owner: string }>(
-        'SELECT number, title, type_id, fields, owner FROM records WHERE id = ?',
+      const r = db().get<{ id: string; number: string; title: string; type_id: string; fields: string; owner: string }>(
+        'SELECT id, number, title, type_id, fields, owner FROM records WHERE id = ?',
         id,
       );
       return r && canReadRecordRow(u, r) ? { label: `${r.number} ${r.title}`, path: `/records/${id}` } : null;

@@ -42,6 +42,7 @@ import { componentCounts, componentsOf, stackRollup } from './components.js';
 import { systemCounts, systemLinksOf } from './systems.js';
 import { credentialsBelongingTo, credentialsLinkingTo, toCredential, type CredentialRow } from '../credentials/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
+import { assignCreatorTeams } from '../auth/policy.js';
 
 /**
  * Applications of the service catalogue (#84): name, description, vendor, version, URL, owners, criticality, tags,
@@ -412,6 +413,7 @@ export function createApplication(input: ApplicationInput): ApplicationDetail {
       now,
       u.username,
     );
+    assignCreatorTeams('application', id, currentUser());
     audit({
       action: 'application.created',
       entityType: 'application',
