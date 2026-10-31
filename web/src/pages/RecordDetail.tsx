@@ -76,7 +76,7 @@ import { DocumentChangelog, EditionBadge, EditionFields, ReviewStatusBadge } fro
 import { MeasuresPanel, TimelineButton } from '../components/records/IncidentReview';
 import { OwningTeams } from '../components/OwningTeams';
 
-const TABS = ['content', 'changelog', 'versions', 'links', 'attachments', 'discussion', 'pdfs'] as const;
+const TABS = ['content', 'changelog', 'versions', 'links', 'attachments', 'discussion', 'pdfs', 'access'] as const;
 type Tab = (typeof TABS)[number];
 
 export function RecordDetailPage() {

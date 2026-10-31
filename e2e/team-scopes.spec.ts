@@ -77,7 +77,8 @@ test('a record has owning teams on its access tab; a whole service is moved with
     await api.post('/api/records', { data: { type: 'ADR', title: uniq('Tokenise cards'), links: [{ kind: 'service', id: service.id }] } }),
   );
   try {
-    await page.goto(`/records/${rec.id}?tab=access`);
+    await page.goto(`/records/${rec.id}`);
+    await page.getByRole('tab', { name: 'Access' }).click();
     await expect(page.getByText(/This record belongs to the whole instance/)).toBeVisible();
     await expectAccessible(page, 'record access tab');
 
@@ -93,7 +94,8 @@ test('a record has owning teams on its access tab; a whole service is moved with
     await expectAccessible(page, 'bulk owning teams preview');
     await dialog.getByRole('button', { name: /Apply to \d+ resources/ }).click();
     await expect(page.getByText(/Owning teams changed on \d+ resources/)).toBeVisible();
-    await page.goto(`/records/${rec.id}?tab=access`);
+    await page.goto(`/records/${rec.id}`);
+    await page.getByRole('tab', { name: 'Access' }).click();
     await expect(page.getByText(/Only members of these teams see this record/)).toBeVisible();
   } finally {
     await api.post('/api/owning-teams/bulk', { data: { service: service.id, teamIds: [] } });
