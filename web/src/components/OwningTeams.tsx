@@ -16,7 +16,7 @@ interface OwningTeamsResponse {
  * Owning teams of a process or platform (#131): members of these teams have their roles in the team on it; everyone
  * else only what the access list below gives. Administrators change them; everybody can see why they have access.
  */
-export function OwningTeams({ kind, id }: { kind: OwnedKind; id: string }) {
+export function OwningTeams({ kind, id, mt }: { kind: OwnedKind; id: string; mt?: 'md' }) {
   const { t } = useTranslation(['access', 'common']);
   const qc = useQueryClient();
   const key = ['owning-teams', kind, id];
@@ -45,7 +45,7 @@ export function OwningTeams({ kind, id }: { kind: OwnedKind; id: string }) {
   };
 
   return (
-    <Paper withBorder p="md" mb="md">
+    <Paper withBorder p="md" mb="md" mt={mt}>
       <Stack gap="xs">
         <Group justify="space-between" wrap="nowrap" align="flex-start">
           <Group gap={6}>

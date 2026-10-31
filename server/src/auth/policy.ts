@@ -126,3 +126,59 @@ export function platformDataVisible(u: AuthUser | null, p: { id: string; acl: Ac
   const mine = memberships(u);
   return teams.some((t) => mine.has(t.id));
 }
+
+// ---------- the service catalogue: services, applications, systems ----------
+
+export type CatalogueKind = 'service' | 'application' | 'system';
+/** Who may change the catalogue by instance role (as before team scopes). */
+const CATALOGUE_EDITORS: readonly Role[] = ['admin', 'designer'];
+
+/**
+ * The teams a catalogue item belongs to: its own, or – for an application without its own – those of the services
+ * it is part of (an application in services of two teams belongs to both).
+ */
+export function catalogueTeams(kind: CatalogueKind, id: string): OwningTeam[] {
+  const own = owningTeams(kind, id);
+  if (own.length || kind !== 'application') return own;
+  return db().all<OwningTeam>(
+    `SELECT DISTINCT t.id, t.name FROM service_applications sa
+       JOIN resource_teams r ON r.kind = 'service' AND r.resource_id = sa.service_id
+       JOIN teams t ON t.id = r.team_id
+     WHERE sa.application_id = ? ORDER BY t.name`,
+    id,
+  );
+}
+
+export interface CatalogueDecision {
+  view: boolean;
+  edit: boolean;
+  reasons: AccessReason[];
+}
+
+/**
+ * Seeing and changing a catalogue item. Without owning teams: everybody signed in sees it, designers, administrators
+ * and its named owners change it (as before). With owning teams: members of those teams see it and change it when
+ * they are designers there; its named owners, administrators (both: change) and auditors (see) as well.
+ */
+export function catalogueAccess(u: AuthUser | null, r: { kind: CatalogueKind; id: string; owners: string[] }): CatalogueDecision {
+  if (!u) return { view: false, edit: false, reasons: [] };
+  if (isAdmin(u)) return { view: true, edit: true, reasons: [{ source: 'admin', role: 'admin', permissions: ['view', 'edit'] }] };
+  const reasons: AccessReason[] = [];
+  const owner = r.owners.find((s) => matches(u, s));
+  if (owner) reasons.push({ source: 'accessList', subject: owner, permissions: ['view', 'edit'] });
+  const teams = catalogueTeams(r.kind, r.id);
+  if (!teams.length) {
+    for (const role of u.roles) reasons.push({ source: 'instanceRole', role, permissions: CATALOGUE_EDITORS.includes(role) ? ['view', 'edit'] : ['view'] });
+  } else {
+    if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
+    const mine = memberships(u);
+    for (const t of teams) {
+      const m = mine.get(t.id);
+      if (!m) continue;
+      for (const role of new Set([...u.roles, ...m.roles]))
+        reasons.push({ source: 'teamRole', role, team: t.name, permissions: CATALOGUE_EDITORS.includes(role) ? ['view', 'edit'] : ['view'] });
+    }
+  }
+  const granted = new Set(reasons.flatMap((x) => x.permissions));
+  return { view: granted.has('view'), edit: granted.has('edit'), reasons };
+}

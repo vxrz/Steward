@@ -105,7 +105,7 @@ function serviceRef(serviceId: string): ServiceRef {
 
 const serviceOwners = (s: ServiceRef) => parseJson<string[]>(s.owners, []);
 const dutyOwners = (d: DutyRow) => parseJson<string[]>(d.owners, []);
-export const canEditDuty = (u: AuthUser | null, s: ServiceRef): boolean => canEditService(u, serviceOwners(s));
+export const canEditDuty = (u: AuthUser | null, s: ServiceRef): boolean => canEditService(u, { kind: 'service', id: s.id, owners: serviceOwners(s) });
 const isDutyOwner = (u: AuthUser | null, d: DutyRow) => !!u && dutyOwners(d).some((x) => matches(u, x));
 const canRequestSkip = (u: AuthUser | null, d: DutyRow, s: ServiceRef) => canEditDuty(u, s) || isDutyOwner(u, d);
 /** Who is responsible when a skip is asked for: the duty's owners and the service's owners, frozen with the request. */

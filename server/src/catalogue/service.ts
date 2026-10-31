@@ -13,7 +13,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { canCreateServices, canEditService, forbid, me } from '../records/access.js';
+import { canCreateServices, canEditService, forbid, me, canViewCatalogue } from '../records/access.js';
 import { addLink, httpUrl, listBacklinks, listLinks, removeLink, targetVisible, updateLink, type LinkInput, type LinkUpdate } from '../records/links.js';
 import { documentCounts, readableDocuments } from './documents.js';
 import { scopesOf } from './scope.js';
@@ -123,6 +123,10 @@ function toSummary(
 function row(id: string): ServiceRow {
   const r = db().get<ServiceRow>('SELECT * FROM services WHERE id = ?', id);
   if (!r) throw new HttpError(404, `Service ${id} not found`, 'SERVICE_NOT_FOUND', { id });
+  // a team-owned item is unknown to those who may not see it (#131); jobs (no user) see everything
+  const u = currentUser();
+  if (u && !canViewCatalogue(u, { kind: 'service', id: r.id, owners: parseJson<string[]>(r.owners, []) }))
+    throw new HttpError(404, `Service ${id} not found`, 'SERVICE_NOT_FOUND', { id });
   return r;
 }
 
@@ -196,7 +200,9 @@ function visibleLinkCounts(serviceIds: Set<string>): Map<string, number> {
 
 function listRows(o: { archived?: boolean }): { r: ServiceRow; s: ServiceSummary }[] {
   const u = me();
-  const rows = db().all<ServiceRow>(`SELECT * FROM services${o.archived ? '' : ' WHERE archived = 0'} ORDER BY name`);
+  const rows = db()
+    .all<ServiceRow>(`SELECT * FROM services${o.archived ? '' : ' WHERE archived = 0'} ORDER BY name`)
+    .filter((r) => canViewCatalogue(u, { kind: 'service', id: r.id, owners: parseJson<string[]>(r.owners, []) }));
   const links = visibleLinkCounts(new Set(rows.map((r) => r.id)));
   const docs = serviceDocumentCounts(u);
   const needs = protectionNeeds(rows.map((r) => r.id));
@@ -250,7 +256,7 @@ export function getService(id: string): ServiceDetail {
     backlinks: listBacklinks('service', r.id),
     documents,
     applications,
-    canEdit: canEditService(u, s.owners),
+    canEdit: canEditService(u, { kind: 'service', id: r.id, owners: s.owners }),
   };
 }
 
@@ -297,7 +303,7 @@ export function createService(input: ServiceInput): ServiceDetail {
 export function updateService(id: string, input: ServiceInput): ServiceDetail {
   const u = me();
   const cur = row(id);
-  if (!canEditService(u, parseJson(cur.owners, []))) forbid('change this service', 'changeService');
+  if (!canEditService(u, { kind: 'service', id: cur.id, owners: parseJson(cur.owners, []) })) forbid('change this service', 'changeService');
   assertKnownSubjects(input.owners, parseJson<string[]>(cur.owners, []));
   if (db().get('SELECT 1 FROM services WHERE lower(name) = lower(?) AND archived = 0 AND id <> ?', input.name, id))
     throw new HttpError(409, `A service named "${input.name}" exists already`, 'SERVICE_EXISTS', { name: input.name });
@@ -344,7 +350,7 @@ export function updateService(id: string, input: ServiceInput): ServiceDetail {
 export function setArchived(id: string, archived: boolean): ServiceDetail {
   const u = me();
   const cur = row(id);
-  if (!canEditService(u, parseJson(cur.owners, []))) forbid('archive this service', 'changeService');
+  if (!canEditService(u, { kind: 'service', id: cur.id, owners: parseJson(cur.owners, []) })) forbid('archive this service', 'changeService');
   if (!!cur.archived === archived) return getService(id);
   if (!archived && db().get('SELECT 1 FROM services WHERE lower(name) = lower(?) AND archived = 0 AND id <> ?', cur.name, id)) {
     throw new HttpError(409, `A service named "${cur.name}" exists already – rename one of them first`, 'SERVICE_EXISTS', { name: cur.name });
@@ -363,18 +369,21 @@ export function setArchived(id: string, archived: boolean): ServiceDetail {
 
 export function addServiceLink(id: string, input: LinkInput) {
   const cur = row(id);
-  if (!canEditService(currentUser(), parseJson(cur.owners, []))) forbid('change the links of this service', 'changeService');
+  if (!canEditService(currentUser(), { kind: 'service', id: cur.id, owners: parseJson(cur.owners, []) }))
+    forbid('change the links of this service', 'changeService');
   return addLink('service', id, input, `service "${cur.name}"`);
 }
 
 export function updateServiceLink(id: string, linkId: string, input: LinkUpdate) {
   const cur = row(id);
-  if (!canEditService(currentUser(), parseJson(cur.owners, []))) forbid('change the links of this service', 'changeService');
+  if (!canEditService(currentUser(), { kind: 'service', id: cur.id, owners: parseJson(cur.owners, []) }))
+    forbid('change the links of this service', 'changeService');
   return updateLink('service', id, linkId, input, `service "${cur.name}"`).link;
 }
 
 export function removeServiceLink(id: string, linkId: string): void {
   const cur = row(id);
-  if (!canEditService(currentUser(), parseJson(cur.owners, []))) forbid('change the links of this service', 'changeService');
+  if (!canEditService(currentUser(), { kind: 'service', id: cur.id, owners: parseJson(cur.owners, []) }))
+    forbid('change the links of this service', 'changeService');
   removeLink('service', id, linkId, `service "${cur.name}"`);
 }

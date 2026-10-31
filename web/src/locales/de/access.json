@@ -35,11 +35,17 @@
     "none": "Keine – die ganze Instanz",
     "hintNone": {
       "process": "Dieser Prozess gehört der ganzen Instanz: Rollen und die Zugriffsliste unten bestimmen, wer was darf.",
-      "platform": "Diese Plattform gehört der ganzen Instanz: Rollen und die Zugriffsliste unten bestimmen, wer was darf."
+      "platform": "Diese Plattform gehört der ganzen Instanz: Rollen und die Zugriffsliste unten bestimmen, wer was darf.",
+      "service": "Dieser Service gehört der ganzen Instanz: alle Angemeldeten sehen ihn; Designer, Administratoren und seine Verantwortlichen ändern ihn.",
+      "application": "Diese Anwendung gehört der ganzen Instanz (oder den Teams ihrer Services): alle Angemeldeten sehen sie; Designer, Administratoren und ihre Verantwortlichen ändern sie.",
+      "system": "Dieses System gehört der ganzen Instanz: alle Angemeldeten sehen es; Designer, Administratoren und seine Verantwortlichen ändern es."
     },
     "hintOwned": {
       "process": "Mitglieder dieser Teams haben auf diesem Prozess ihre Rollen im Team. Alle anderen sehen ihn nur über die Zugriffsliste unten; Administratoren immer, Auditoren dürfen ihn ansehen.",
-      "platform": "Mitglieder dieser Teams haben auf dieser Plattform ihre Rollen im Team. Alle anderen sehen sie nur über die Zugriffsliste unten; Administratoren immer."
+      "platform": "Mitglieder dieser Teams haben auf dieser Plattform ihre Rollen im Team. Alle anderen sehen sie nur über die Zugriffsliste unten; Administratoren immer.",
+      "service": "Nur Mitglieder dieser Teams sehen diesen Service (Designer unter ihnen ändern ihn), außerdem seine Verantwortlichen, Administratoren und Auditoren.",
+      "application": "Nur Mitglieder dieser Teams sehen diese Anwendung (Designer unter ihnen ändern sie), außerdem ihre Verantwortlichen, Administratoren und Auditoren.",
+      "system": "Nur Mitglieder dieser Teams sehen dieses System (Designer unter ihnen ändern es), außerdem seine Verantwortlichen, Administratoren und Auditoren."
     },
     "saved": "Zuständige Teams gespeichert",
     "notSaved": "Zuständige Teams nicht gespeichert",

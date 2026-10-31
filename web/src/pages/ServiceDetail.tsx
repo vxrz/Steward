@@ -22,6 +22,7 @@ import { ScorecardPanel } from '../components/scorecard/ScorecardPanel';
 import { ObjectivesPanel } from '../components/scorecard/ObjectivesPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { OpenMeasuresPanel } from '../components/records/IncidentReview';
+import { OwningTeams } from '../components/OwningTeams';
 
 export function ServiceDetailPage() {
   const { t } = useTranslation(['services', 'common']);
@@ -164,6 +165,7 @@ export function ServiceDetailPage() {
               </Text>
             </Stack>
           </Paper>
+          <OwningTeams kind="service" id={s.id} mt="md" />
         </Grid.Col>
       </Grid>
       {editing && <ServiceFormModal service={s} onClose={() => setEditing(false)} onSaved={(x) => refresh(x)} />}

@@ -20,7 +20,7 @@ import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { platformPermissions } from '../auth/permissions.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { canCreateServices, canEditService, forbid, me } from '../records/access.js';
+import { canCreateServices, canEditService, forbid, me, canViewCatalogue } from '../records/access.js';
 import { addLink, httpUrl, listBacklinks, listLinks, removeLink, updateLink, type LinkInput, type LinkUpdate } from '../records/links.js';
 import { requireEditable, touch } from '../records/service.js';
 import {
@@ -118,11 +118,16 @@ export const scopeInput = z.object({ applicationIds: z.array(z.string().trim().m
 function row(id: string): ApplicationRow {
   const r = db().get<ApplicationRow>('SELECT * FROM applications WHERE id = ?', id);
   if (!r) throw new HttpError(404, `Application ${id} not found`, 'APPLICATION_NOT_FOUND', { id });
+  // a team-owned item is unknown to those who may not see it (#131); jobs (no user) see everything
+  const u = currentUser();
+  if (u && !canViewCatalogue(u, { kind: 'application', id: r.id, owners: parseJson<string[]>(r.owners, []) }))
+    throw new HttpError(404, `Application ${id} not found`, 'APPLICATION_NOT_FOUND', { id });
   return r;
 }
 
 const ownersOf = (r: Pick<ApplicationRow, 'owners'>) => parseJson<string[]>(r.owners, []);
-export const canEditApplication = (u: AuthUser | null, r: Pick<ApplicationRow, 'owners'>): boolean => canEditService(u, ownersOf(r));
+export const canEditApplication = (u: AuthUser | null, r: Pick<ApplicationRow, 'id' | 'owners'>): boolean =>
+  canEditService(u, { kind: 'application', id: r.id, owners: ownersOf(r) });
 
 function requireEditableApplication(id: string, what: string): ApplicationRow {
   const r = row(id);
@@ -244,7 +249,9 @@ export type ApplicationEntry = ApplicationSummary & Pick<ApplicationDetail, 'des
 
 export function listApplicationEntries(o: { archived?: boolean } = {}): ApplicationEntry[] {
   const u = me();
-  const rows = db().all<ApplicationRow>(`SELECT * FROM applications${o.archived ? '' : ' WHERE archived = 0'} ORDER BY name`);
+  const rows = db()
+    .all<ApplicationRow>(`SELECT * FROM applications${o.archived ? '' : ' WHERE archived = 0'} ORDER BY name`)
+    .filter((r) => canViewCatalogue(u, { kind: 'application', id: r.id, owners: parseJson<string[]>(r.owners, []) }));
   const services = servicesOf();
   const ratings = ratingsOf();
   const counts = new Map(
@@ -642,7 +649,7 @@ type ServiceRowLite = { id: string; name: string; owners: string };
 function requireEditableService(serviceId: string, what: string): ServiceRowLite {
   const s = db().get<ServiceRowLite>('SELECT id, name, owners FROM services WHERE id = ?', serviceId);
   if (!s) throw new HttpError(404, `Service ${serviceId} not found`, 'SERVICE_NOT_FOUND', { id: serviceId });
-  if (!canEditService(currentUser(), parseJson<string[]>(s.owners, []))) forbid(what, 'changeService');
+  if (!canEditService(currentUser(), { kind: 'service', id: s.id, owners: parseJson<string[]>(s.owners, []) })) forbid(what, 'changeService');
   return s;
 }
 

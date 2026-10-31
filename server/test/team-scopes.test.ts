@@ -147,3 +147,54 @@ describe('owning teams on a platform', () => {
     expect((await dave('GET', `/processes/${proc}`)).permissions).toEqual(expect.arrayContaining(['edit']));
   });
 });
+
+describe('owning teams on the service catalogue', () => {
+  let svc: string;
+  let app: string;
+  let other: string;
+
+  beforeAll(async () => {
+    svc = (await s.api('POST', '/services', { name: 'Order intake', owners: ['user:vic'] })).id;
+    app = (await s.api('POST', '/applications', { name: 'Order portal', owners: [] })).id;
+    other = (await s.api('POST', '/applications', { name: 'Shared wiki', owners: [] })).id;
+    await s.api('PUT', `/services/${svc}/applications/${app}`, { role: 'primary' });
+  });
+
+  it('change nothing while a service has none', async () => {
+    expect((await dave('GET', `/services/${svc}`)).canEdit).toBe(true);
+    expect((await aud('GET', '/services')).map((x: any) => x.id)).toContain(svc);
+  });
+
+  it('show a team-owned service to its members, owners, administrators and auditors only', async () => {
+    await s.api('PUT', `/owning-teams/service/${svc}`, { teamIds: [orders] });
+    // members: designers change it, a viewer with the team role designer as well
+    expect((await tara('GET', `/services/${svc}`)).canEdit).toBe(true);
+    expect((await olaf('GET', `/services/${svc}`)).canEdit).toBe(true);
+    // named owner (vic is a viewer outside the team): sees and changes it
+    expect((await vic('GET', `/services/${svc}`)).canEdit).toBe(true);
+    // auditors see it, without changing it
+    expect((await aud('GET', `/services/${svc}`)).canEdit).toBe(false);
+    // others: unknown, in lists, details, changes and link pickers
+    expect(await status(dave('GET', `/services/${svc}`))).toBe(404);
+    expect((await dave('GET', '/services')).map((x: any) => x.id)).not.toContain(svc);
+    expect(await status(dave('PUT', `/services/${svc}`, { name: 'x', owners: [] }))).toBe(404);
+    expect((await dave('GET', '/link-targets?kind=service&q=order')).map((x: any) => x.id)).not.toContain(svc);
+    expect((await tara('GET', '/link-targets?kind=service&q=order')).map((x: any) => x.id)).toContain(svc);
+  });
+
+  it('give an application without teams of its own to the teams of its services', async () => {
+    expect(await status(dave('GET', `/applications/${app}`))).toBe(404);
+    expect((await tara('GET', `/applications/${app}`)).canEdit).toBe(true);
+    // an application in no team-owned service stays visible
+    expect((await dave('GET', `/applications/${other}`)).name).toBe('Shared wiki');
+    const why = await s.api('GET', `/access/explain?kind=application&id=${app}&user=tara`);
+    expect(why.owningTeams.map((t: any) => t.name)).toEqual(['Orders']);
+    expect(why.reasons).toEqual([expect.objectContaining({ source: 'teamRole', team: 'Orders', permissions: ['view', 'edit'] })]);
+  });
+
+  it('give the service back to the whole instance when removed', async () => {
+    await s.api('PUT', `/owning-teams/service/${svc}`, { teamIds: [] });
+    expect((await dave('GET', `/services/${svc}`)).canEdit).toBe(true);
+    expect((await dave('GET', `/applications/${app}`)).canEdit).toBe(true);
+  });
+});

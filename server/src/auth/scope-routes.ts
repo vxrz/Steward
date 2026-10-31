@@ -1,12 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { OWNED_KINDS, type AccessExplanation, type OwnedKind } from '@sm/shared';
+import { OWNED_KINDS, type AccessExplanation, type AccessReason, type OwnedKind } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
 import { ACCESS, me } from './access.js';
 import { capabilities, isAdmin } from './permissions.js';
-import { owningTeams, platformAccess, processAccess } from './policy.js';
+import { catalogueAccess, catalogueTeams, owningTeams, platformAccess, processAccess, type CatalogueKind } from './policy.js';
 import { findUserByName, toAuthUser } from './users.js';
 import type { AuthUser } from './context.js';
 
@@ -28,25 +28,36 @@ interface ResourceRow {
   id: string;
   name: string;
   owner?: string | null;
-  acl: string;
+  acl?: string;
+  owners?: string;
 }
 
-function resource(kind: OwnedKind, id: string): ResourceRow | undefined {
-  return kind === 'process'
-    ? db().get<ResourceRow>('SELECT id, name, owner, acl FROM processes WHERE id = ?', id)
-    : db().get<ResourceRow>('SELECT id, name, acl FROM platforms WHERE id = ?', id);
+const CATALOGUE_TABLES = { service: 'services', application: 'applications', system: 'systems' } as const;
+const isCatalogue = (kind: OwnedKind): kind is CatalogueKind => kind in CATALOGUE_TABLES;
+
+/** The resource of a kind (any kind that can have owning teams). */
+export function ownedResource(kind: OwnedKind, id: string): ResourceRow | undefined {
+  if (kind === 'process') return db().get<ResourceRow>('SELECT id, name, owner, acl FROM processes WHERE id = ?', id);
+  if (kind === 'platform') return db().get<ResourceRow>('SELECT id, name, acl FROM platforms WHERE id = ?', id);
+  return db().get<ResourceRow>(`SELECT id, name, owners FROM ${CATALOGUE_TABLES[kind]} WHERE id = ?`, id);
+}
+const resource = ownedResource;
+
+function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissions: string[]; reasons: AccessReason[] } {
+  if (kind === 'process') return processAccess(u, { id: r.id, owner: r.owner ?? null, acl: parseJson(r.acl, []) });
+  if (kind === 'platform') return platformAccess(u, { id: r.id, acl: parseJson(r.acl, []) });
+  const d = catalogueAccess(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
+  return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : [])], reasons: d.reasons };
 }
 
-function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null) {
-  return kind === 'process'
-    ? processAccess(u, { id: r.id, owner: r.owner ?? null, acl: parseJson(r.acl, []) })
-    : platformAccess(u, { id: r.id, acl: parseJson(r.acl, []) });
-}
-
-const notFound = (kind: OwnedKind, id: string) =>
-  kind === 'process'
-    ? new HttpError(404, 'Process not found', 'PROCESS_NOT_FOUND', { id })
-    : new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
+const NOT_FOUND: Record<OwnedKind, [string, string]> = {
+  process: ['Process not found', 'PROCESS_NOT_FOUND'],
+  platform: ['Platform not found', 'PLATFORM_NOT_FOUND'],
+  service: ['Service not found', 'SERVICE_NOT_FOUND'],
+  application: ['Application not found', 'APPLICATION_NOT_FOUND'],
+  system: ['System not found', 'SYSTEM_NOT_FOUND'],
+};
+const notFound = (kind: OwnedKind, id: string) => new HttpError(404, NOT_FOUND[kind][0], NOT_FOUND[kind][1], { id });
 
 /** The resource, if the caller may see it (404 otherwise, like one that does not exist). */
 function visible(kind: OwnedKind, id: string): ResourceRow {
@@ -120,6 +131,7 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
       who = toAuthUser(u);
     }
     const d = access(q.kind, r, who);
-    return { kind: q.kind, id: q.id, user: who.username, owningTeams: owningTeams(q.kind, q.id), permissions: d.permissions, reasons: d.reasons };
+    const teams = isCatalogue(q.kind) ? catalogueTeams(q.kind, q.id) : owningTeams(q.kind, q.id);
+    return { kind: q.kind, id: q.id, user: who.username, owningTeams: teams, permissions: d.permissions, reasons: d.reasons };
   });
 }

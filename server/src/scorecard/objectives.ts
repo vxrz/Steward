@@ -324,7 +324,7 @@ export function serviceRef(serviceId: string): ServiceRef {
   return s;
 }
 
-export const canEdit = (u: AuthUser | null, s: ServiceRef) => canEditService(u, parseJson<string[]>(s.owners, []));
+export const canEdit = (u: AuthUser | null, s: ServiceRef) => canEditService(u, { kind: 'service', id: s.id, owners: parseJson<string[]>(s.owners, []) });
 
 interface PlatformRef {
   id: string;

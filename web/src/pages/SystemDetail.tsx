@@ -15,6 +15,7 @@ import { SbomImportModal, SbomLine, StackBadges } from '../components/catalogue/
 import { SystemFormModal } from './Systems';
 import { CatalogueCredentials } from '../components/catalogue/CatalogueCredentials';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
+import { OwningTeams } from '../components/OwningTeams';
 
 /** A system (#129): what it is, its tech stack, the platform it is, and the applications that run on it per environment. */
 export function SystemDetailPage() {
@@ -168,6 +169,7 @@ export function SystemDetailPage() {
               </Text>
             </Stack>
           </Paper>
+          <OwningTeams kind="system" id={s.id} mt="md" />
         </Grid.Col>
       </Grid>
       {editing && <SystemFormModal system={s} onClose={() => setEditing(false)} onSaved={saved} />}

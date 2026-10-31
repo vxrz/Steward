@@ -210,7 +210,7 @@ export const TEAM_ROLES = ['designer', 'operator', 'approver', 'auditor', 'viewe
 export type TeamRole = (typeof TEAM_ROLES)[number];
 
 /** Kinds of resources that can have owning teams (#131). */
-export const OWNED_KINDS = ['process', 'platform'] as const;
+export const OWNED_KINDS = ['process', 'platform', 'service', 'application', 'system'] as const;
 export type OwnedKind = (typeof OWNED_KINDS)[number];
 
 /** Why someone has a right on a resource (#131): shown in the UI and used in access reviews. */

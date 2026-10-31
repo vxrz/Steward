@@ -48,6 +48,13 @@ test('an administrator gives a team a process and a member a role in the team; o
     await expectAccessible(page, 'access explanation');
     await page.keyboard.press('Escape');
 
+    // services, applications and systems have the same panel
+    const service = await json<{ id: string }>(await api.post('/api/services', { data: { name: uniq('Team service'), owners: [] } }));
+    await page.goto(`/services/${service.id}`);
+    await expect(page.getByText('Owning teams', { exact: true })).toBeVisible();
+    await expect(page.getByText(/This service belongs to the whole instance/)).toBeVisible();
+    await api.delete(`/api/services/${service.id}`);
+
     // vera (a member) edits it, dana (a designer outside the team) does not see it
     const vera = await loginAs('vera');
     await vera.goto(`/processes/${proc.id}`);

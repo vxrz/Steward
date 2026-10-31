@@ -139,7 +139,7 @@ function mayChange(u: AuthUser, t: TargetRef): boolean {
     return !!p && platformRights(u, p).includes('manage');
   }
   const owners = ownersOf(t.kind, t.id);
-  return owners !== null && canEditService(u, owners);
+  return owners !== null && canEditService(u, { kind: t.kind, id: t.id, owners });
 }
 
 const canPlan = (u: AuthUser, targets: TargetRef[]) => canCreateServices(u) || (targets.length > 0 && targets.every((t) => mayChange(u, t)));

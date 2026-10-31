@@ -373,7 +373,7 @@ type AppRow = { id: string; name: string; owners: string; archived: number };
  * The application, when the user may change it and it is not archived. `canEdit` is the application module's
  * check (passed in to keep the two modules free of import cycles).
  */
-function editableApp(appId: string, canEdit: (u: AuthUser | null, r: Pick<AppRow, 'owners'>) => boolean, what: string): AppRow {
+function editableApp(appId: string, canEdit: (u: AuthUser | null, r: Pick<AppRow, 'id' | 'owners'>) => boolean, what: string): AppRow {
   const a = db().get<AppRow>('SELECT id, name, owners, archived FROM applications WHERE id = ?', appId);
   if (!a) throw new HttpError(404, `Application ${appId} not found`, 'APPLICATION_NOT_FOUND', { id: appId });
   if (!canEdit(currentUser(), a)) forbid(what, 'changeApplication');
@@ -542,7 +542,7 @@ export function stackOfHolder(h: StackHolder): StackEntry[] {
 
 const touchApplication = (id: string, u: AuthUser) => db().run('UPDATE applications SET updated_at = ?, updated_by = ? WHERE id = ?', nowIso(), u.username, id);
 
-type CanEdit = (u: AuthUser | null, r: Pick<AppRow, 'owners'>) => boolean;
+type CanEdit = (u: AuthUser | null, r: Pick<AppRow, 'id' | 'owners'>) => boolean;
 
 export function addComponent(appId: string, input: ComponentInput, canEdit: CanEdit): ApplicationComponent {
   const u = me();

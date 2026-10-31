@@ -1220,7 +1220,13 @@ function copyIntoTarget(
       if (n) counts[t] = n;
     }
     // ---- owning teams (#131): what a team owned now belongs to the team it was mapped to ----
-    const ownedTables: Record<string, string> = { process: 'processes', platform: 'platforms' };
+    const ownedTables: Record<string, string> = {
+      process: 'processes',
+      platform: 'platforms',
+      service: 'services',
+      application: 'applications',
+      system: 'systems',
+    };
     for (const t of resolved.teams) {
       const tid = teamIds.get(lower(t.source.name));
       if (!tid) continue;
