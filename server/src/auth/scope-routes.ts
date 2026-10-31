@@ -5,6 +5,10 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, parseJson } from '../util.js';
 import { canReadRecordRow } from '../records/access.js';
+import { credentialAccess } from '../credentials/service.js';
+import { monitorAccess } from '../monitors/model.js';
+import { dashboardAccess } from '../dashboards/service.js';
+import { ticketAccess } from '../tickets/service.js';
 import { ACCESS, me } from './access.js';
 import { capabilities, isAdmin } from './permissions.js';
 import { catalogueAccess, catalogueTeams, owningTeams, platformAccess, processAccess, recordAccess, setOwningTeams, type CatalogueKind } from './policy.js';
@@ -33,6 +37,9 @@ interface ResourceRow {
   owners?: string;
   type_id?: string;
   fields?: string;
+  owner_subjects?: string;
+  archived?: number;
+  responsible?: string;
 }
 
 const CATALOGUE_TABLES = { service: 'services', application: 'applications', system: 'systems' } as const;
@@ -44,6 +51,10 @@ export function ownedResource(kind: OwnedKind, id: string): ResourceRow | undefi
   if (kind === 'platform') return db().get<ResourceRow>('SELECT id, name, acl FROM platforms WHERE id = ?', id);
   if (kind === 'record')
     return db().get<ResourceRow>("SELECT id, number || ' ' || title AS name, owner, type_id, fields FROM records WHERE id = ? OR number = ?", id, id);
+  if (kind === 'credential') return db().get<ResourceRow>('SELECT id, name, owner_subjects, archived FROM credentials WHERE id = ?', id);
+  if (kind === 'monitor') return db().get<ResourceRow>('SELECT id, name, owner, acl FROM monitors WHERE id = ?', id);
+  if (kind === 'dashboard') return db().get<ResourceRow>('SELECT id, name, owner FROM dashboards WHERE id = ?', id);
+  if (kind === 'ticket') return db().get<ResourceRow>("SELECT id, external_number || ' ' || title AS name, responsible FROM ticket_refs WHERE id = ?", id);
   return db().get<ResourceRow>(`SELECT id, name, owners FROM ${CATALOGUE_TABLES[kind]} WHERE id = ?`, id);
 }
 const resource = ownedResource;
@@ -57,6 +68,10 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
     const d = recordAccess(u, { id: r.id, owner: r.owner ?? '' });
     return { permissions: (['view', 'edit', 'approve'] as const).filter((p) => d[p]), reasons: d.reasons };
   }
+  if (kind === 'credential') return credentialAccess(u, { id: r.id, owner_subjects: r.owner_subjects ?? '[]', archived: r.archived ?? 0 });
+  if (kind === 'monitor') return monitorAccess(u, { id: r.id, owner: r.owner ?? '', acl: parseJson(r.acl, []) });
+  if (kind === 'dashboard') return dashboardAccess(u, { id: r.id, owner: r.owner ?? null });
+  if (kind === 'ticket') return ticketAccess(u, { id: r.id, responsible: r.responsible ?? '[]' });
   if (!isCatalogue(kind)) return { permissions: [], reasons: [] };
   const d = catalogueAccess(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
   return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : [])], reasons: d.reasons };
@@ -69,6 +84,10 @@ const NOT_FOUND: Record<OwnedKind, [string, string]> = {
   application: ['Application not found', 'APPLICATION_NOT_FOUND'],
   system: ['System not found', 'SYSTEM_NOT_FOUND'],
   record: ['Record not found', 'RECORD_NOT_FOUND'],
+  credential: ['Credential not found', 'CREDENTIAL_NOT_FOUND'],
+  monitor: ['Monitor not found', 'MONITOR_NOT_FOUND'],
+  dashboard: ['Dashboard not found', 'DASHBOARD_NOT_FOUND'],
+  ticket: ['Ticket reference not found', 'TICKET_NOT_FOUND'],
 };
 const notFound = (kind: OwnedKind, id: string) => new HttpError(404, NOT_FOUND[kind][0], NOT_FOUND[kind][1], { id });
 

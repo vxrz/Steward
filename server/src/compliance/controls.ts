@@ -522,7 +522,7 @@ export function resolveTarget(kind: ControlTagKind, id: string, u: AuthUser | nu
       return r && canReadRecordRow(u, r) ? { label: `${r.number} ${r.title}`, path: `/records/${id}` } : null;
     }
     case 'monitor': {
-      const m = db().get<{ name: string; owner: string; acl: string }>('SELECT name, owner, acl FROM monitors WHERE id = ?', id);
+      const m = db().get<{ id: string; name: string; owner: string; acl: string }>('SELECT id, name, owner, acl FROM monitors WHERE id = ?', id);
       return m && permissionsOfRow(m, u).includes('view') ? { label: m.name, path: `/monitors/${id}` } : null;
     }
     case 'reportSchedule': {

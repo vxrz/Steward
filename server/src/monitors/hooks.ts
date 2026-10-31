@@ -264,7 +264,7 @@ export async function handleGatewayBatch(req: MonitorHookRequest): Promise<Monit
   const evaluations: Promise<void>[] = [];
   for (const [k, r] of latest) {
     const t = db().get<Target>(`${TARGET} WHERE c.heartbeat_key = ?`, k);
-    const monitorRow = t ? db().get<{ owner: string; acl: string }>('SELECT owner, acl FROM monitors WHERE id = ?', t.monitor_id) : undefined;
+    const monitorRow = t ? db().get<{ id: string; owner: string; acl: string }>('SELECT id, owner, acl FROM monitors WHERE id = ?', t.monitor_id) : undefined;
     if (!heartbeatCheck(t) || !monitorRow || !permissionsOfRow(monitorRow, ownerUser).includes('edit')) {
       rejected.push({
         index: list.findIndex(

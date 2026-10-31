@@ -51,6 +51,7 @@ import { TagBadges, TagFilterChip, useTagFilter } from '../components/tags';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
+import { OwningTeams } from '../components/OwningTeams';
 
 export const CREDENTIAL_TYPE_IDS: CredentialType[] = ['apiClient', 'technicalUser', 'password', 'token', 'certificate', 'agentCertificate', 'sshKey', 'other'];
 export const CREDENTIAL_STATUS_IDS: CredentialStatus[] = ['ok', 'dueSoon', 'overdue', 'expired'];
@@ -761,6 +762,7 @@ function CredentialDrawer({
               </Timeline.Item>
             ))}
           </Timeline>
+          <OwningTeams kind="credential" id={c.id} />
           <Text size="xs" c="dimmed">
             {t('detail.updated', { user: c.updatedBy, date: fmtDate(c.updatedAt) })}
           </Text>

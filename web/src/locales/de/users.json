@@ -310,7 +310,8 @@
       "authContextInvalid": "Eine Kontext-ID von c1 bis c99",
       "acrValues": "acr-Werte",
       "acrValuesHint": "Optional, durch Leerzeichen getrennt (z. B. Keycloak: gold; Okta: urn:okta:loa:2fa:any). Wird als acr_values gesendet; acr im ID-Token muss einer davon sein."
-    }
+    },
+    "teamRoles": "Rollen in diesen Teams"
   },
   "profileValues": {
     "title": "Vom Anmeldeanbieter",

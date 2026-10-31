@@ -133,10 +133,10 @@ export function monitorDatasetVisible(processId: string): boolean | undefined {
   if (id === '*') {
     return (
       db()
-        .all<{ owner: string; acl: string }>('SELECT owner, acl FROM monitors WHERE is_template = 0')
-        .every((r) => monitorPermissions(u, { owner: r.owner, acl: parseJson(r.acl, []) }).includes('view')) && !!u
+        .all<{ id: string; owner: string; acl: string }>('SELECT id, owner, acl FROM monitors WHERE is_template = 0')
+        .every((r) => monitorPermissions(u, { id: r.id, owner: r.owner, acl: parseJson(r.acl, []) }).includes('view')) && !!u
     );
   }
-  const r = db().get<{ owner: string; acl: string }>('SELECT owner, acl FROM monitors WHERE id = ?', id);
-  return !!r && monitorPermissions(u, { owner: r.owner, acl: parseJson(r.acl, []) }).includes('view');
+  const r = db().get<{ id: string; owner: string; acl: string }>('SELECT id, owner, acl FROM monitors WHERE id = ?', id);
+  return !!r && monitorPermissions(u, { id: r.id, owner: r.owner, acl: parseJson(r.acl, []) }).includes('view');
 }

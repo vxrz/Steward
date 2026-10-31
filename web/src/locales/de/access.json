@@ -39,15 +39,23 @@
       "service": "Dieser Service gehört der ganzen Instanz: alle Angemeldeten sehen ihn; Designer, Administratoren und seine Verantwortlichen ändern ihn.",
       "application": "Diese Anwendung gehört der ganzen Instanz (oder den Teams ihrer Services): alle Angemeldeten sehen sie; Designer, Administratoren und ihre Verantwortlichen ändern sie.",
       "system": "Dieses System gehört der ganzen Instanz: alle Angemeldeten sehen es; Designer, Administratoren und seine Verantwortlichen ändern es.",
-      "record": "Dieser Eintrag gehört der ganzen Instanz: alle Angemeldeten sehen ihn; Rollen und sein Eigentümer bestimmen, wer ihn ändert und genehmigt."
+      "record": "Dieser Eintrag gehört der ganzen Instanz: alle Angemeldeten sehen ihn; Rollen und sein Eigentümer bestimmen, wer ihn ändert und genehmigt.",
+      "credential": "Dieser Eintrag gehört der ganzen Instanz: Rollen und seine Eigentümer bestimmen, wer ihn sieht und ändert.",
+      "monitor": "Dieser Monitor gehört der ganzen Instanz: Rollen und seine Zugriffsliste bestimmen, wer was darf.",
+      "dashboard": "Dieses Dashboard gehört der ganzen Instanz: alle Angemeldeten sehen es; sein Eigentümer und Administratoren ändern es.",
+      "ticket": "Diese Ticket-Referenz gehört der ganzen Instanz: alle Angemeldeten sehen sie; Designer, Operatoren und ihre Verantwortlichen ändern sie."
     },
     "hintOwned": {
       "process": "Mitglieder dieser Teams haben auf diesem Prozess ihre Rollen im Team. Alle anderen sehen ihn nur über die Zugriffsliste unten; Administratoren immer, Auditoren dürfen ihn ansehen.",
       "platform": "Mitglieder dieser Teams haben auf dieser Plattform ihre Rollen im Team. Alle anderen sehen sie nur über die Zugriffsliste unten; Administratoren immer.",
-      "service": "Nur Mitglieder dieser Teams sehen diesen Service (Designer unter ihnen ändern ihn), außerdem seine Verantwortlichen, Administratoren und Auditoren.",
+      "service": "Nur Mitglieder dieser Teams sehen diesen Service (Designer unter ihnen ändern ihn), außerdem seine Eigentümer, Administratoren und Auditoren.",
       "application": "Nur Mitglieder dieser Teams sehen diese Anwendung (Designer unter ihnen ändern sie), außerdem ihre Verantwortlichen, Administratoren und Auditoren.",
-      "system": "Nur Mitglieder dieser Teams sehen dieses System (Designer unter ihnen ändern es), außerdem seine Verantwortlichen, Administratoren und Auditoren.",
-      "record": "Nur Mitglieder dieser Teams sehen diesen Eintrag (Bearbeiter und Genehmiger unter ihnen ändern und genehmigen ihn), außerdem sein Eigentümer, Administratoren und Auditoren."
+      "system": "Nur Mitglieder dieser Teams sehen dieses System (Designer unter ihnen ändern es), außerdem seine Eigentümer, Administratoren und Auditoren.",
+      "record": "Nur Mitglieder dieser Teams sehen diesen Eintrag (Bearbeiter und Genehmiger unter ihnen ändern und genehmigen ihn), außerdem sein Eigentümer, Administratoren und Auditoren.",
+      "credential": "Nur Mitglieder dieser Teams sehen diesen Eintrag (Designer und Operatoren unter ihnen ändern ihn), außerdem seine Eigentümer, Administratoren und Auditoren.",
+      "monitor": "Mitglieder dieser Teams haben auf diesem Monitor ihre Rollen im Team. Alle anderen sehen ihn nur über seine Zugriffsliste; Administratoren immer, Auditoren dürfen ihn ansehen.",
+      "dashboard": "Nur Mitglieder dieser Teams sehen dieses Dashboard, außerdem sein Eigentümer, Administratoren und Auditoren.",
+      "ticket": "Nur Mitglieder dieser Teams sehen diese Ticket-Referenz (Designer und Operatoren unter ihnen ändern sie), außerdem ihre Verantwortlichen, Administratoren und Auditoren."
     },
     "saved": "Zuständige Teams gespeichert",
     "notSaved": "Zuständige Teams nicht gespeichert",

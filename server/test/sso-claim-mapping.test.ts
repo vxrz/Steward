@@ -799,3 +799,23 @@ describe('test sign-in', () => {
     expect(result).toMatchObject({ status: 'failed', error: 'Identity provider: <b>no</b>' });
   });
 });
+
+describe('team roles from the claims (#131)', () => {
+  it('give mapped team members their roles in the team, and keep them in step', async () => {
+    const team = async () => (await s.api('GET', '/teams')).find((t: { name: string }) => t.name === 'Service Desk');
+    const withTeamRoles = (roles: string[]) => DEMO_MAPPINGS.map((m) => (m.claimValue === 'SM.Operators' ? { ...m, teamRoles: roles } : m));
+    await configure({ mappings: withTeamRoles(['designer']), syncRoles: true });
+    mock.setMockIdentity('ted', { preferred_username: 'ted@contoso.example', idToken: { roles: ['SM.Operators'] } });
+    expect((await signIn('ted')).client).toBeTruthy();
+    expect((await team()).memberRoles['ted@contoso.example']).toEqual(['designer']);
+    expect((await lastAudit('user.roles_synced')).summary).toContain('+Service Desk (designer)');
+    // the mapping no longer gives a role in the team: the next sign-in removes it, the membership stays
+    await configure({ mappings: withTeamRoles([]) });
+    mock.setMockIdentity('ted', { preferred_username: 'ted@contoso.example', idToken: { roles: ['SM.Operators'] } });
+    expect((await signIn('ted')).client).toBeTruthy();
+    const t = await team();
+    expect(t.members).toContain('ted@contoso.example');
+    expect(t.memberRoles['ted@contoso.example']).toBeUndefined();
+    await configure({ mappings: DEMO_MAPPINGS });
+  });
+});

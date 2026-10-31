@@ -40,6 +40,7 @@ import { AcknowledgeModal, CopyBlock, InstantiateModal, MaintenanceModal, Secret
 import { confirmDanger, confirmDialog } from '../components/confirm';
 import { appUrl } from '../basePath';
 import { MonitorReviewModal, useCanStartReview } from '../components/records/IncidentReview';
+import { OwningTeams } from '../components/OwningTeams';
 
 export function MonitorDetailPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -364,6 +365,7 @@ export function MonitorDetailPage() {
           </Stack>
         </Tabs.Panel>
         <Tabs.Panel value="access">
+          <OwningTeams kind="monitor" id={m.id} />
           <AccessEditor
             kind="monitor"
             acl={m.acl}

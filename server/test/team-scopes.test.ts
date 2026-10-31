@@ -262,3 +262,49 @@ describe('owning teams on records', () => {
     expect((await vic('GET', `/records/${rec}`)).id).toBe(rec);
   });
 });
+
+describe('owning teams on credentials, monitors, dashboards and ticket references', () => {
+  const items = (x: any): any[] => (Array.isArray(x) ? x : (x.items ?? x.monitors ?? x.tickets ?? x.references ?? []));
+  const kinds = [
+    { kind: 'credential', list: '/credentials', one: (id: string) => `/credentials/${id}` },
+    { kind: 'monitor', list: '/monitors', one: (id: string) => `/monitors/${id}` },
+    { kind: 'dashboard', list: '/dashboards', one: (id: string) => `/dashboards/${id}` },
+    { kind: 'ticket', list: '/ticket-references', one: (id: string) => `/ticket-references/${id}` },
+  ];
+  const ids: Record<string, string> = {};
+
+  beforeAll(async () => {
+    if (!items(await s.api('GET', '/ticket-references')).length)
+      await s.api('POST', '/ticket-references', { source: 'vendor', externalNumber: 'CS-4711', title: 'Orders slow', vendor: 'Acme', responsible: [] });
+    if (!items(await s.api('GET', '/credentials')).length)
+      await s.api('POST', '/credentials', { name: 'svc-orders', type: 'technicalUser', rotationIntervalDays: 90, belongsTo: null });
+    for (const k of kinds) {
+      const all = items(await s.api('GET', k.list));
+      // one dave sees today, without an access list
+      const pick = all.find((x: any) => !x.acl?.length && !x.isTemplate) ?? all[0];
+      expect(pick, k.kind).toBeTruthy();
+      ids[k.kind] = pick.id;
+    }
+  });
+
+  for (const k of kinds) {
+    it(`hide a team-owned ${k.kind} from everyone outside the team`, async () => {
+      const id = ids[k.kind]!;
+      expect(await status(dave('GET', k.one(id)))).toBe(200);
+      await s.api('PUT', `/owning-teams/${k.kind}/${id}`, { teamIds: [orders] });
+      try {
+        expect(await status(dave('GET', k.one(id)))).toBe(404);
+        expect(items(await dave('GET', k.list)).map((x: any) => x.id)).not.toContain(id);
+        expect(await status(tara('GET', k.one(id)))).toBe(200);
+        expect(items(await tara('GET', k.list)).map((x: any) => x.id)).toContain(id);
+        expect(await status(aud('GET', k.one(id)))).toBe(200);
+        const why = await s.api('GET', `/access/explain?kind=${k.kind}&id=${id}&user=tara`);
+        expect(why.reasons).toEqual(expect.arrayContaining([expect.objectContaining({ source: 'teamRole', team: 'Orders' })]));
+        expect((await s.api('GET', `/access/explain?kind=${k.kind}&id=${id}&user=dave`)).permissions).toEqual([]);
+      } finally {
+        await s.api('PUT', `/owning-teams/${k.kind}/${id}`, { teamIds: [] });
+      }
+      expect(await status(dave('GET', k.one(id)))).toBe(200);
+    });
+  }
+});

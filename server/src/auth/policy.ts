@@ -141,7 +141,7 @@ interface Decision<P extends string> {
  * The rights `u` has on a resource, with the reasons. `all` lists every right of the kind (in order), `defaults`
  * the rights each role gives, `owner` the user who owns the resource (processes).
  */
-function decide<P extends string>(
+export function decide<P extends string>(
   u: AuthUser | null,
   r: { kind: OwnedKind; id: string; owner?: string | null; acl: AclEntry<P>[] },
   all: readonly P[],
@@ -296,4 +296,38 @@ export function recordAccess(u: AuthUser | null, r: { id: string; owner: string 
   }
   const granted = new Set(reasons.flatMap((x) => x.permissions));
   return { view: granted.has('view'), edit: granted.has('edit'), approve: granted.has('approve'), reasons };
+}
+
+// ---------- credentials, dashboards, ticket references: their own rules while they have no owning teams ----------
+
+/**
+ * Team scope on top of a kind's own rules (#131). Without owning teams `unscoped` decides (as before). With owning
+ * teams: administrators have every right, `personal` (an owner, a responsible) keeps theirs, auditors `auditor`, and
+ * members of an owning team what their instance and team roles give (`byRole`); everyone else nothing.
+ */
+export function teamScoped<P extends string>(
+  u: AuthUser | null,
+  r: { kind: OwnedKind; id: string },
+  o: {
+    all: readonly P[];
+    byRole: (role: Role) => readonly P[];
+    personal?: { permissions: readonly P[]; subject?: string } | null;
+    auditor?: readonly P[];
+    unscoped: () => P[];
+  },
+): Decision<P> {
+  if (!u) return { permissions: [], reasons: [] };
+  if (isAdmin(u)) return { permissions: [...o.all], reasons: [{ source: 'admin', role: 'admin', permissions: [...o.all] }] };
+  const reasons: AccessReason[] = [];
+  const add = (reason: AccessReason) => reason.permissions.length && reasons.push(reason);
+  if (o.personal) add({ source: 'owner', ...(o.personal.subject ? { subject: o.personal.subject } : {}), permissions: [...o.personal.permissions] });
+  const teams = owningTeams(r.kind, r.id);
+  if (!teams.length) {
+    for (const role of u.roles) add({ source: 'instanceRole', role, permissions: [...o.byRole(role)] });
+    return { permissions: o.unscoped(), reasons };
+  }
+  if (o.auditor && u.roles.includes('auditor')) add({ source: 'auditor', role: 'auditor', permissions: [...o.auditor] });
+  for (const m of teamRoles(u, teams)) for (const role of m.roles) add({ source: 'teamRole', role, team: m.team, permissions: [...o.byRole(role)] });
+  const granted = new Set(reasons.flatMap((x) => x.permissions));
+  return { permissions: o.all.filter((x) => granted.has(x)), reasons };
 }

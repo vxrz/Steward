@@ -16,6 +16,7 @@ import { WidgetGrid } from '../components/dashboard/widgets';
 import { DashboardEditor } from '../components/dashboard/DashboardEditor';
 import { confirmDanger } from '../components/confirm';
 import '../components/dashboard/viz.css';
+import { OwningTeams } from '../components/OwningTeams';
 
 export function DashboardViewPage() {
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
@@ -196,6 +197,7 @@ export function DashboardViewPage() {
       ) : (
         <WidgetGrid widgets={def.widgets} />
       )}
+      {d.canEdit && <OwningTeams kind="dashboard" id={d.id} mt="md" />}
     </DashboardContext.Provider>
   );
 }

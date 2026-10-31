@@ -21,8 +21,8 @@ export function monitorVisibility(u: AuthUser | null = currentUser()): MonitorVi
   return (id) => {
     let v = cache.get(id);
     if (v === undefined) {
-      const r = db().get<{ owner: string; acl: string }>('SELECT owner, acl FROM monitors WHERE id = ?', id);
-      v = !!r && monitorPermissions(u, { owner: r.owner, acl: parseJson(r.acl, []) }).includes('view');
+      const r = db().get<{ id: string; owner: string; acl: string }>('SELECT id, owner, acl FROM monitors WHERE id = ?', id);
+      v = !!r && monitorPermissions(u, { id: r.id, owner: r.owner, acl: parseJson(r.acl, []) }).includes('view');
       cache.set(id, v);
     }
     return v;

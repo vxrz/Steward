@@ -266,7 +266,7 @@ function recipients(o: Extract<OutputDef, { type: 'notification' }>, m: LoadedMo
     const au = toAuthUser(u);
     const isOwner = u.username.toLowerCase() === m.owner.toLowerCase();
     if (!isOwner && !o.subscribers.some((s) => matches(au, s))) return false;
-    return monitorPermissions(au, { owner: m.owner, acl }).includes('view');
+    return monitorPermissions(au, { id: m.id, owner: m.owner, acl }).includes('view');
   });
 }
 

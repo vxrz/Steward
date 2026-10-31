@@ -10,6 +10,8 @@ import { parseYaml } from '../yaml-safe.js';
 import { currentUser } from '../auth/context.js';
 import { capabilities, isAdmin } from '../auth/permissions.js';
 import { logger } from '../log.js';
+import { assignCreatorTeams, teamScoped } from '../auth/policy.js';
+import type { AuthUser } from '../auth/context.js';
 
 interface DashRow {
   id: string;
@@ -20,11 +22,30 @@ interface DashRow {
   updated_at: string;
 }
 
-function canEdit(owner: string | null): boolean {
-  const u = currentUser();
-  if (!u) return false;
-  return isAdmin(u) || (!!owner && owner.toLowerCase() === u.username.toLowerCase());
+/**
+ * Everybody signed in sees a dashboard, its owner and administrators change it. With owning teams (#131): only
+ * members of those teams, its owner, administrators and auditors see it.
+ */
+export function dashboardAccess(u: AuthUser | null, r: Pick<DashRow, 'id' | 'owner'>) {
+  const owner = !!u && !!r.owner && r.owner.toLowerCase() === u.username.toLowerCase();
+  return teamScoped<'view' | 'edit'>(
+    u,
+    { kind: 'dashboard', id: r.id },
+    {
+      all: ['view', 'edit'],
+      byRole: () => ['view'],
+      personal: owner ? { permissions: ['view', 'edit'] } : null,
+      auditor: ['view'],
+      unscoped: () => (!u ? [] : owner || isAdmin(u) ? ['view', 'edit'] : ['view']),
+    },
+  );
 }
+const canEdit = (r: Pick<DashRow, 'id' | 'owner'>): boolean => dashboardAccess(currentUser(), r).permissions.includes('edit');
+/** Dashboards the current user may see (jobs without a user see all). */
+export const dashboardVisible = (r: Pick<DashRow, 'id' | 'owner'>): boolean => {
+  const u = currentUser();
+  return !u || dashboardAccess(u, r).permissions.includes('view');
+};
 
 function toDashboard(r: DashRow): Dashboard {
   const definition = parseJson<DashboardDefinition>(r.definition, { name: r.name, widgets: [] });
@@ -36,7 +57,7 @@ function toDashboard(r: DashRow): Dashboard {
     owner: r.owner,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
-    canEdit: canEdit(r.owner),
+    canEdit: canEdit(r),
   };
 }
 
@@ -63,12 +84,12 @@ function checked(raw: unknown): DashboardDefinition {
 }
 
 export function listDashboards(): Dashboard[] {
-  return db().all<DashRow>('SELECT * FROM dashboards ORDER BY name').map(toDashboard);
+  return db().all<DashRow>('SELECT * FROM dashboards ORDER BY name').filter(dashboardVisible).map(toDashboard);
 }
 
 export function getDashboard(id: string): Dashboard {
   const r = db().get<DashRow>('SELECT * FROM dashboards WHERE id = ?', id);
-  if (!r) throw new HttpError(404, 'Dashboard not found');
+  if (!r || !dashboardVisible(r)) throw new HttpError(404, 'Dashboard not found');
   return toDashboard(r);
 }
 
@@ -89,6 +110,7 @@ export function createDashboard(def: unknown, opts: { id?: string } = {}): Dashb
       ts,
       ts,
     );
+    assignCreatorTeams('dashboard', id, currentUser());
     audit({ action: 'dashboard.created', entityType: 'dashboard', entityId: id, summary: `Dashboard "${d.name}" created (${d.widgets.length} widgets)` });
   });
   return getDashboard(id);

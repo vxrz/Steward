@@ -310,7 +310,8 @@
       "authContextInvalid": "An authentication context id from c1 to c99",
       "acrValues": "acr values",
       "acrValuesHint": "Optional, space-separated (e.g. Keycloak: gold; Okta: urn:okta:loa:2fa:any). Sent as acr_values; the ID token's acr must be one of them."
-    }
+    },
+    "teamRoles": "Roles in these teams"
   },
   "profileValues": {
     "title": "From the sign-in provider",
