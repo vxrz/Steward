@@ -3707,6 +3707,7 @@
               "kafka",
               "mqtt",
               "snowflake",
+              "dependency-track",
               "monitor"
             ]
           },
@@ -4126,6 +4127,7 @@
                     "kafka",
                     "mqtt",
                     "snowflake",
+                    "dependency-track",
                     "monitor"
                   ]
                 },
@@ -7589,7 +7591,7 @@
             "additionalProperties": {
               "type": "integer"
             },
-            "description": "Evidence items per kind (run, record, accessChange, snapshot, finding, report, monitor)"
+            "description": "Evidence items per kind (run, record, accessChange, snapshot, finding, personReview, report, monitor)"
           }
         },
         "required": [
@@ -13558,6 +13560,124 @@
             ],
             "additionalProperties": false,
             "description": "Tech stack: end of life of the components of the service’s applications (from endoflife.date)"
+          },
+          "vulnerabilities": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: a linked project with open critical findings or failing policy violations; pending: open high findings, a failed read or a readout older than 2 days; none: no component of the service’s applications links a Dependency-Track project (or none was read yet)"
+              },
+              "projects": {
+                "type": "integer",
+                "description": "Linked Dependency-Track projects with a readout"
+              },
+              "critical": {
+                "type": "integer",
+                "description": "Open critical findings"
+              },
+              "high": {
+                "type": "integer",
+                "description": "Open high findings"
+              },
+              "policyFail": {
+                "type": "integer",
+                "description": "Failing policy violations"
+              },
+              "stale": {
+                "type": "integer",
+                "description": "Readouts that failed or are older than 2 days"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "applicationId": {
+                      "type": "string"
+                    },
+                    "applicationName": {
+                      "type": "string"
+                    },
+                    "componentId": {
+                      "type": "string"
+                    },
+                    "componentName": {
+                      "type": "string"
+                    },
+                    "project": {
+                      "type": "string",
+                      "description": "name@version of the project read, else the project as linked"
+                    },
+                    "critical": {
+                      "type": "integer"
+                    },
+                    "high": {
+                      "type": "integer"
+                    },
+                    "policyFail": {
+                      "type": "integer"
+                    },
+                    "error": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The last read failed"
+                    },
+                    "readAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    "stale": {
+                      "type": "boolean",
+                      "description": "The readout is older than 2 days"
+                    },
+                    "url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The project in Dependency-Track’s own UI, when its frontend URL is set"
+                    }
+                  },
+                  "required": [
+                    "applicationId",
+                    "applicationName",
+                    "componentId",
+                    "componentName",
+                    "project",
+                    "critical",
+                    "high",
+                    "policyFail",
+                    "error",
+                    "readAt",
+                    "stale",
+                    "url"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "The components that are not ok, worst first"
+              }
+            },
+            "required": [
+              "status",
+              "projects",
+              "critical",
+              "high",
+              "policyFail",
+              "stale",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects"
           }
         },
         "required": [
@@ -13570,7 +13690,8 @@
           "availability",
           "documentation",
           "protection",
-          "lifecycle"
+          "lifecycle",
+          "vulnerabilities"
         ],
         "additionalProperties": false
       },
@@ -14296,6 +14417,124 @@
                   ],
                   "additionalProperties": false,
                   "description": "Tech stack: end of life of the components of the service’s applications (from endoflife.date)"
+                },
+                "vulnerabilities": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none"
+                      ],
+                      "description": "attention: a linked project with open critical findings or failing policy violations; pending: open high findings, a failed read or a readout older than 2 days; none: no component of the service’s applications links a Dependency-Track project (or none was read yet)"
+                    },
+                    "projects": {
+                      "type": "integer",
+                      "description": "Linked Dependency-Track projects with a readout"
+                    },
+                    "critical": {
+                      "type": "integer",
+                      "description": "Open critical findings"
+                    },
+                    "high": {
+                      "type": "integer",
+                      "description": "Open high findings"
+                    },
+                    "policyFail": {
+                      "type": "integer",
+                      "description": "Failing policy violations"
+                    },
+                    "stale": {
+                      "type": "integer",
+                      "description": "Readouts that failed or are older than 2 days"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "applicationId": {
+                            "type": "string"
+                          },
+                          "applicationName": {
+                            "type": "string"
+                          },
+                          "componentId": {
+                            "type": "string"
+                          },
+                          "componentName": {
+                            "type": "string"
+                          },
+                          "project": {
+                            "type": "string",
+                            "description": "name@version of the project read, else the project as linked"
+                          },
+                          "critical": {
+                            "type": "integer"
+                          },
+                          "high": {
+                            "type": "integer"
+                          },
+                          "policyFail": {
+                            "type": "integer"
+                          },
+                          "error": {
+                            "type": [
+                              "null",
+                              "string"
+                            ],
+                            "description": "The last read failed"
+                          },
+                          "readAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "stale": {
+                            "type": "boolean",
+                            "description": "The readout is older than 2 days"
+                          },
+                          "url": {
+                            "type": [
+                              "null",
+                              "string"
+                            ],
+                            "description": "The project in Dependency-Track’s own UI, when its frontend URL is set"
+                          }
+                        },
+                        "required": [
+                          "applicationId",
+                          "applicationName",
+                          "componentId",
+                          "componentName",
+                          "project",
+                          "critical",
+                          "high",
+                          "policyFail",
+                          "error",
+                          "readAt",
+                          "stale",
+                          "url"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The components that are not ok, worst first"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "projects",
+                    "critical",
+                    "high",
+                    "policyFail",
+                    "stale",
+                    "items"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects"
                 }
               },
               "required": [
@@ -14308,7 +14547,8 @@
                 "availability",
                 "documentation",
                 "protection",
-                "lifecycle"
+                "lifecycle",
+                "vulnerabilities"
               ],
               "additionalProperties": false
             }
@@ -14457,6 +14697,30 @@
                           "none"
                         ],
                         "additionalProperties": false
+                      },
+                      "vulnerabilities": {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "integer"
+                          },
+                          "attention": {
+                            "type": "integer"
+                          },
+                          "pending": {
+                            "type": "integer"
+                          },
+                          "none": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "attention",
+                          "pending",
+                          "none"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -14464,7 +14728,8 @@
                       "availability",
                       "documentation",
                       "protection",
-                      "lifecycle"
+                      "lifecycle",
+                      "vulnerabilities"
                     ],
                     "additionalProperties": false
                   }
@@ -14621,6 +14886,30 @@
                             "none"
                           ],
                           "additionalProperties": false
+                        },
+                        "vulnerabilities": {
+                          "type": "object",
+                          "properties": {
+                            "ok": {
+                              "type": "integer"
+                            },
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "pending": {
+                              "type": "integer"
+                            },
+                            "none": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "ok",
+                            "attention",
+                            "pending",
+                            "none"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -14628,7 +14917,8 @@
                         "availability",
                         "documentation",
                         "protection",
-                        "lifecycle"
+                        "lifecycle",
+                        "vulnerabilities"
                       ],
                       "additionalProperties": false
                     }
@@ -14819,6 +15109,35 @@
                   "hidden"
                 ],
                 "additionalProperties": false
+              },
+              "vulnerabilities": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "integer"
+                  },
+                  "attention": {
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "type": "integer"
+                  },
+                  "none": {
+                    "type": "integer"
+                  },
+                  "hidden": {
+                    "type": "integer",
+                    "description": "Relied on documents the token owner may not read"
+                  }
+                },
+                "required": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none",
+                  "hidden"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -14826,7 +15145,8 @@
               "availability",
               "documentation",
               "protection",
-              "lifecycle"
+              "lifecycle",
+              "vulnerabilities"
             ],
             "additionalProperties": false
           }
@@ -15552,6 +15872,124 @@
             "additionalProperties": false,
             "description": "Tech stack: end of life of the components of the service’s applications (from endoflife.date)"
           },
+          "vulnerabilities": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: a linked project with open critical findings or failing policy violations; pending: open high findings, a failed read or a readout older than 2 days; none: no component of the service’s applications links a Dependency-Track project (or none was read yet)"
+              },
+              "projects": {
+                "type": "integer",
+                "description": "Linked Dependency-Track projects with a readout"
+              },
+              "critical": {
+                "type": "integer",
+                "description": "Open critical findings"
+              },
+              "high": {
+                "type": "integer",
+                "description": "Open high findings"
+              },
+              "policyFail": {
+                "type": "integer",
+                "description": "Failing policy violations"
+              },
+              "stale": {
+                "type": "integer",
+                "description": "Readouts that failed or are older than 2 days"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "applicationId": {
+                      "type": "string"
+                    },
+                    "applicationName": {
+                      "type": "string"
+                    },
+                    "componentId": {
+                      "type": "string"
+                    },
+                    "componentName": {
+                      "type": "string"
+                    },
+                    "project": {
+                      "type": "string",
+                      "description": "name@version of the project read, else the project as linked"
+                    },
+                    "critical": {
+                      "type": "integer"
+                    },
+                    "high": {
+                      "type": "integer"
+                    },
+                    "policyFail": {
+                      "type": "integer"
+                    },
+                    "error": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "The last read failed"
+                    },
+                    "readAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    "stale": {
+                      "type": "boolean",
+                      "description": "The readout is older than 2 days"
+                    },
+                    "url": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "The project in Dependency-Track’s own UI, when its frontend URL is set"
+                    }
+                  },
+                  "required": [
+                    "applicationId",
+                    "applicationName",
+                    "componentId",
+                    "componentName",
+                    "project",
+                    "critical",
+                    "high",
+                    "policyFail",
+                    "error",
+                    "readAt",
+                    "stale",
+                    "url"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "The components that are not ok, worst first"
+              }
+            },
+            "required": [
+              "status",
+              "projects",
+              "critical",
+              "high",
+              "policyFail",
+              "stale",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects"
+          },
           "history": {
             "type": "array",
             "items": {
@@ -15615,6 +16053,16 @@
                         "none",
                         "hidden"
                       ]
+                    },
+                    "vulnerabilities": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none",
+                        "hidden"
+                      ]
                     }
                   },
                   "required": [
@@ -15622,7 +16070,8 @@
                     "availability",
                     "documentation",
                     "protection",
-                    "lifecycle"
+                    "lifecycle",
+                    "vulnerabilities"
                   ],
                   "additionalProperties": false
                 }
@@ -15648,6 +16097,7 @@
           "documentation",
           "protection",
           "lifecycle",
+          "vulnerabilities",
           "history"
         ],
         "additionalProperties": false
@@ -21739,7 +22189,7 @@
         "tags": [
           "Services"
         ],
-        "description": "Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – and the optional fifth, the tech stack’s end of life (`lifecycle`, status \"none\" unless counted), and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.",
+        "description": "Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – the optional fifth, the tech stack’s end of life (`lifecycle`, status \"none\" unless counted), and the sixth, the open findings and policy violations of the components’ Dependency-Track projects (`vulnerabilities`, status \"none\" when no component links a project), and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.",
         "responses": {
           "200": {
             "description": "OK",
@@ -21875,7 +22325,7 @@
         "tags": [
           "Services"
         ],
-        "description": "Its four parts with their details, and the stored daily snapshots of the last 90 days.",
+        "description": "Its parts with their details, and the stored daily snapshots of the last 90 days.",
         "parameters": [
           {
             "schema": {

@@ -108,7 +108,7 @@ export interface AccessChange {
 export const ACCESS_SNAPSHOT_COLUMNS = { subjectId: 'subjectId', subjectName: 'subjectName', subjectType: 'subjectType', right: 'right', rights: 'rights' };
 
 /** insights-hub: its identity management; dataset: a snapshot a process publishes; git: members of an organisation, group or repository on a Git platform (#107) */
-export const ACCESS_CHECK_SOURCES = ['insights-hub', 'dataset', 'git', 'snowflake'] as const;
+export const ACCESS_CHECK_SOURCES = ['insights-hub', 'dataset', 'git', 'snowflake', 'aws'] as const;
 export type AccessCheckSource = (typeof ACCESS_CHECK_SOURCES)[number];
 
 export interface AccessSubject {
@@ -255,7 +255,7 @@ export interface Control {
   tags: ControlTag[];
 }
 
-export const EVIDENCE_KINDS = ['run', 'record', 'accessChange', 'snapshot', 'finding', 'report', 'monitor'] as const;
+export const EVIDENCE_KINDS = ['run', 'record', 'accessChange', 'snapshot', 'finding', 'personReview', 'report', 'monitor'] as const;
 export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
 
 export interface EvidenceItem {
@@ -341,3 +341,93 @@ export interface EvidencePacksMeta {
 
 /** Format of manifest.json in an evidence pack (verified by `npm run evidence:verify`). */
 export const EVIDENCE_PACK_FORMAT = 'steward-evidence-pack';
+
+// ---------- person access reviews (#118) ----------
+
+/** open: decisions being made; submitted: waiting for the second person; approved: sealed; closed: removals confirmed */
+export const PERSON_REVIEW_STATUSES = ['open', 'submitted', 'approved', 'closed'] as const;
+export type PersonReviewStatus = (typeof PERSON_REVIEW_STATUSES)[number];
+export const PERSON_REVIEW_DECISIONS = ['keep', 'remove'] as const;
+export type PersonReviewDecision = (typeof PERSON_REVIEW_DECISIONS)[number];
+
+export const PERSON_REVIEW_LIMITS = {
+  identifiers: 20,
+  checks: 30,
+  items: 2000,
+  comment: 2000,
+  title: 200,
+} as const;
+
+/** One access check (platform, source, scope) read for the review. */
+export interface PersonReviewSource {
+  checkId: string;
+  checkName: string;
+  platformId: string;
+  platformName: string | null;
+  source: AccessCheckSource;
+  scope: string | null;
+  /** live: read when the review started; snapshot: the live read failed, the check's latest snapshot was used */
+  origin: 'live' | 'snapshot' | 'failed';
+  readAt: string | null;
+  error: string | null;
+  /** Subjects of the source that matched the person */
+  matched: number;
+}
+
+export interface PersonReviewItem {
+  id: string;
+  checkId: string;
+  subjectId: string;
+  subjectName: string;
+  subjectType: string | null;
+  right: string;
+  decision: PersonReviewDecision | null;
+  comment: string;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  /** After approval: re-read – gone (removed) or present (still there) */
+  recheck: 'gone' | 'present' | null;
+  recheckedAt: string | null;
+}
+
+export interface PersonReview {
+  id: string;
+  title: string;
+  /** The Steward user reviewed (when there is one) and the name shown */
+  personUser: string | null;
+  personName: string;
+  /** E-mail addresses and user names the person goes by on the platforms (compared case-insensitively) */
+  identifiers: string[];
+  sources: PersonReviewSource[];
+  items: PersonReviewItem[];
+  status: PersonReviewStatus;
+  fourEyes: boolean;
+  createdBy: string;
+  createdAt: string;
+  submittedBy: string | null;
+  submittedAt: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  approvalComment: string;
+  closedAt: string | null;
+  /** SHA-256 over the review and its decisions, set when approved */
+  sealHash: string | null;
+  counts: { rights: number; keep: number; remove: number; open: number; gone: number; present: number };
+  /** For the reader */
+  canDecide: boolean;
+  canApprove: boolean;
+  /** Re-read the platforms to confirm the removals (approved or closed reviews) */
+  canRecheck: boolean;
+}
+
+export interface PersonReviewSummary {
+  id: string;
+  title: string;
+  personName: string;
+  status: PersonReviewStatus;
+  createdBy: string;
+  createdAt: string;
+  approvedAt: string | null;
+  counts: PersonReview['counts'];
+  platforms: number;
+}

@@ -196,6 +196,28 @@ export class AwsClient {
     return items;
   }
 
+  /**
+   * Who has what in IAM (access reviews, #118): every user with "group:NAME", "policy:NAME" (attached managed policies)
+   * and "inline:NAME". A user that never signed in to the console but has access keys counts as technical.
+   */
+  async iamAccess(maxUsers = 2000): Promise<IamAccessSubject[]> {
+    const users = (await this.iamPaged('ListUsers', {}, 'member')).slice(0, maxUsers);
+    const out: IamAccessSubject[] = [];
+    for (const u of users) {
+      const userName = unescape(xmlOne(u, 'UserName') ?? '');
+      if (!userName) continue;
+      const groups = (await this.iamPaged('ListGroupsForUser', { UserName: userName }, 'member')).map((g) => `group:${unescape(xmlOne(g, 'GroupName') ?? '')}`);
+      const attached = (await this.iamPaged('ListAttachedUserPolicies', { UserName: userName }, 'member')).map(
+        (p) => `policy:${unescape(xmlOne(p, 'PolicyName') ?? '')}`,
+      );
+      const inline = (await this.iamPaged('ListUserPolicies', { UserName: userName }, 'member')).map((p) => `inline:${unescape(p.trim())}`);
+      const keys = await this.iamPaged('ListAccessKeys', { UserName: userName }, 'member');
+      const technical = !xmlOne(u, 'PasswordLastUsed') && keys.length > 0;
+      out.push({ id: userName, name: userName, type: technical ? 'technical' : 'user', rights: [...groups, ...attached, ...inline].sort() });
+    }
+    return out;
+  }
+
   /** IAM users with their access keys: id, status, created, last used. */
   async iamUsers(maxUsers = 1000): Promise<
     {
@@ -243,6 +265,13 @@ export class AwsClient {
     }
     return out;
   }
+}
+
+export interface IamAccessSubject {
+  id: string;
+  name: string;
+  type: string;
+  rights: string[];
 }
 
 /** The parts of an ARN: arn:partition:service:region:account:resource. */

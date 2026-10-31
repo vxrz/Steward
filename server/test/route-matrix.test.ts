@@ -396,6 +396,16 @@ const EXPECT: Record<string, Access> = {
   'GET /api/compliance/access-changes/:accessChangeId': NOT_VIEWER,
   'POST /api/compliance/access-changes': RUN,
   'GET /api/compliance/reconciliation/meta': ALL,
+  'GET /api/compliance/person-reviews': ALL, // each sees the reviews they may read
+  'GET /api/compliance/person-reviews/suggest': DESIGN,
+  'POST /api/compliance/person-reviews': DESIGN,
+  // the fixture review is the administrator's: they decide; approvers and auditors read it
+  'GET /api/compliance/person-reviews/:reviewId': ['admin', 'approver', 'auditor'],
+  'PUT /api/compliance/person-reviews/:reviewId/decisions': ADMIN,
+  'POST /api/compliance/person-reviews/:reviewId/submit': ADMIN,
+  'POST /api/compliance/person-reviews/:reviewId/approval': ['admin', 'approver'],
+  'POST /api/compliance/person-reviews/:reviewId/recheck': ['admin', 'approver'],
+  'GET /api/compliance/person-reviews/:reviewId/seal': ['admin', 'approver', 'auditor'],
   'GET /api/compliance/access-checks': ALL,
   'POST /api/compliance/access-checks': DESIGN,
   'GET /api/compliance/access-checks/:accessCheckId': RECON_READ,
@@ -475,6 +485,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/applications/:id/components/:componentId/topic': DESIGN,
   'POST /api/applications/:id/components/:componentId/aws': DESIGN,
   'POST /api/applications/:id/components/:componentId/snowflake': DESIGN,
+  'POST /api/applications/:id/components/:componentId/dependency-track': DESIGN,
   'GET /api/systems': ALL,
   'POST /api/systems': DESIGN,
   'GET /api/systems/:id': ALL,
@@ -824,6 +835,7 @@ function fill(url: string): string {
     .replace(/:objectiveId/g, fx.objective!)
     .replace(/:accessChangeId/g, fx.accessChange!)
     .replace(/:accessCheckId/g, fx.accessCheck!)
+    .replace(/:reviewId/g, fx.personReview!)
     .replace(/:snapshotId/g, fx.snapshot!)
     .replace(/:findingId/g, fx.finding!)
     .replace(/:catalogueId/g, fx.catalogue!)
@@ -890,6 +902,7 @@ const QUERY: Record<string, string> = {
   'GET /api/v1/control-coverage': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
   'GET /api/compliance/tag-targets': '?kind=process&q=',
   'GET /api/compliance/tagged': '?kind=recordType&targetId=rty_ac',
+  'GET /api/compliance/person-reviews/suggest': '?user=vera',
 };
 
 /** Valid bodies for changing routes, so a refusal is a permission decision and not a validation error. */
@@ -1039,6 +1052,9 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/compliance/findings/:findingId/document': { reason: 'x' },
   'POST /api/compliance/findings/:findingId/dismiss': { comment: 'x' },
   'POST /api/compliance/demo/simulate-change': { accessCheckId: fx.accessCheck },
+  'POST /api/compliance/person-reviews': { title: 'x', personName: 'x', identifiers: ['x'], checkIds: [fx.accessCheck] },
+  'PUT /api/compliance/person-reviews/:reviewId/decisions': { decisions: [{ itemId: 'pri_none', decision: 'keep' }] },
+  'POST /api/compliance/person-reviews/:reviewId/approval': { approve: true },
   'POST /api/compliance/catalogues': { key: 'MATRIX', name: 'x' },
   'PUT /api/compliance/catalogues/:catalogueId': { name: 'x' },
   'POST /api/compliance/catalogues/import': { key: 'MATRIX2', filename: 'x.csv', content: 'ref,title\n1,x\n' },
@@ -1252,6 +1268,9 @@ beforeAll(async () => {
     control: control.id,
     accessChange: accessChange.recordId,
     pack: pack.id,
+    personReview: (
+      await a('POST', '/compliance/person-reviews', { title: 'Matrix', personName: 'Matrix', identifiers: ['matrix'], checkIds: [accessCheck.id] })
+    ).id,
   });
   for (const role of ROLES) cookies[role] = await loginCookie(s.base, USERS[role], role === 'admin' ? 'Admin-password-1' : PW);
   for (const role of ROLES) {

@@ -297,6 +297,7 @@ function validatePlatform(u: AuthUser, input: CheckInput): void {
     throw new HttpError(400, 'The Git source needs a GitHub, GitLab or Forgejo/Gitea platform', 'ACCESS_CHECK_GIT_SOURCE');
   if (input.source === 'snowflake' && p.kind !== SNOWFLAKE_KIND)
     throw new HttpError(400, 'The Snowflake source needs a Snowflake platform', 'ACCESS_CHECK_SNOWFLAKE_SOURCE');
+  if (input.source === 'aws' && p.kind !== 'aws') throw new HttpError(400, 'The AWS source needs an AWS account platform', 'ACCESS_CHECK_AWS_SOURCE');
 }
 
 export function listChecks(): AccessCheck[] {
@@ -599,6 +600,34 @@ async function collectSnowflake(c: CheckRow): Promise<{ subjects: AccessSubject[
   };
 }
 
+/** AWS (#118): the IAM users of the account with their groups and policies – read as the check's owner. */
+async function collectAws(c: CheckRow): Promise<{ subjects: AccessSubject[]; sourceRunId: null }> {
+  const owner = ownerUser(c);
+  const platform = runAs(owner, () => getPlatform(c.platform_id));
+  if (!platform.permissions.includes('use'))
+    throw new HttpError(403, `The owner ${c.owner} may not use the platform "${platform.name}"`, 'ACCESS_CHECK_OWNER', {
+      owner: c.owner,
+      context: 'platform',
+      name: platform.name,
+    });
+  if (platform.kind !== 'aws') throw new HttpError(400, 'The AWS source needs an AWS account platform', 'ACCESS_CHECK_AWS_SOURCE');
+  const { AwsClient } = await import('../aws/client.js');
+  let subjects: AccessSubject[];
+  try {
+    subjects = await new AwsClient(platform, getSecrets(c.platform_id)).iamAccess();
+  } catch (e) {
+    throw new HttpError(502, `AWS could not be read: ${(e as Error).message}`.slice(0, 500), 'ACCESS_CHECK_AWS_READ', {
+      detail: (e as Error).message.slice(0, 300),
+    });
+  }
+  if (subjects.length > LIMITS.subjects)
+    throw new HttpError(400, `The account has more than ${LIMITS.subjects} IAM users`, 'SNAPSHOT_TOO_LARGE', { max: LIMITS.subjects });
+  return {
+    subjects: normalizeSubjects(subjects.map((x) => ({ id: clip(x.id), name: clip(x.name), type: x.type, rights: x.rights.map(clip) }))),
+    sourceRunId: null,
+  };
+}
+
 /** A dataset in the access snapshot shape, published by a process (never a dry run). */
 function collectDataset(c: CheckRow): { subjects: AccessSubject[]; sourceRunId: string } {
   const d = db().get<{ rows: string; run_id: string; dry_run: number; process_id: string }>(
@@ -689,6 +718,33 @@ function snapshotData(s: SnapshotRow): AccessSubject[] {
   return src?.data ? parseJson<AccessSubject[]>(src.data, []) : [];
 }
 
+/**
+ * What an access check's source says now, without taking a snapshot (person reviews, #118): read as the check's
+ * owner; when the live read fails, the check's latest snapshot (marked).
+ */
+export async function readCheckSource(
+  checkId: string,
+): Promise<{ subjects: AccessSubject[]; origin: 'live' | 'snapshot'; takenAt: string | null; error: string | null }> {
+  const c = requireCheckRow(checkId);
+  try {
+    const got =
+      c.source === 'insights-hub'
+        ? await collectInsightsHub(c)
+        : c.source === 'git'
+          ? await collectGit(c)
+          : c.source === 'snowflake'
+            ? await collectSnowflake(c)
+            : c.source === 'aws'
+              ? await collectAws(c)
+              : collectDataset(c);
+    return { subjects: got.subjects, origin: 'live', takenAt: nowIso(), error: null };
+  } catch (e) {
+    const last = db().get<SnapshotRow>('SELECT * FROM access_snapshots WHERE check_id = ? ORDER BY seq DESC LIMIT 1', checkId);
+    if (!last) throw e;
+    return { subjects: snapshotData(last), origin: 'snapshot', takenAt: last.taken_at, error: (e as Error).message.slice(0, 300) };
+  }
+}
+
 export interface CheckRunResult {
   snapshot: AccessSnapshotSummary;
   findings: AccessFinding[];
@@ -713,7 +769,9 @@ export async function runCheck(id: string, o: { actor: string; trigger: 'schedul
             ? await collectGit(c)
             : c.source === 'snowflake'
               ? await collectSnowflake(c)
-              : collectDataset(c);
+              : c.source === 'aws'
+                ? await collectAws(c)
+                : collectDataset(c);
     } catch (e) {
       const msg = (e as Error).message.slice(0, 500);
       db().tx(() => {

@@ -24,12 +24,13 @@ import {
   IconReportAnalytics,
   IconServer,
   IconServer2,
-  IconTool,
   IconSettings,
   IconShieldCheck,
   IconSitemap,
   IconStack2,
   IconTicket,
+  IconTool,
+  IconUserSearch,
   IconUserShield,
   IconUsers,
   IconWebhook,
@@ -61,6 +62,7 @@ export type NavKey =
   | 'controls'
   | 'accessChanges'
   | 'reconciliation'
+  | 'personReviews'
   | 'evidencePacks'
   | 'audit'
   | 'users'
@@ -126,6 +128,7 @@ export const NAV_GROUPS: { key: NavGroupKey | null; items: NavItemDef[] }[] = [
       { to: '/compliance/controls', key: 'controls', icon: IconChecklist },
       { to: '/compliance/access-changes', key: 'accessChanges', icon: IconUserShield },
       { to: '/compliance/reconciliation', key: 'reconciliation', icon: IconArrowsDiff },
+      { to: '/compliance/person-reviews', key: 'personReviews', icon: IconUserSearch },
       { to: '/compliance/evidence-packs', key: 'evidencePacks', icon: IconPackageExport, cap: 'exportEvidence' },
     ],
   },

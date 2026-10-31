@@ -182,4 +182,47 @@ export const COMPLIANCE_MIGRATIONS: NamedMigration[] = [
       ${EVIDENCE_TABLES.map((t) => noDeleteTrigger('postgres', t).create).join('\n      ')}
     `,
   },
+  {
+    // person access reviews (#118): one person's rights on several platforms, decided and sealed
+    name: 'compliance-003-person-reviews',
+    sql: `
+      CREATE TABLE person_reviews (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        person_user TEXT,
+        person_name TEXT NOT NULL,
+        identifiers TEXT NOT NULL DEFAULT '[]',
+        sources TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL,
+        four_eyes INTEGER NOT NULL DEFAULT 1,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        submitted_by TEXT,
+        submitted_at TEXT,
+        approved_by TEXT,
+        approved_at TEXT,
+        approval_comment TEXT NOT NULL DEFAULT '',
+        closed_at TEXT,
+        seal_hash TEXT
+      );
+      CREATE TABLE person_review_items (
+        id TEXT PRIMARY KEY,
+        review_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        check_id TEXT NOT NULL,
+        subject_id TEXT NOT NULL,
+        subject_name TEXT NOT NULL DEFAULT '',
+        subject_type TEXT,
+        right_name TEXT NOT NULL,
+        decision TEXT,
+        comment TEXT NOT NULL DEFAULT '',
+        decided_by TEXT,
+        decided_at TEXT,
+        recheck TEXT,
+        rechecked_at TEXT
+      );
+      CREATE INDEX person_review_items_review ON person_review_items(review_id, seq);
+      CREATE INDEX person_reviews_created ON person_reviews(created_at);
+    `,
+  },
 ];

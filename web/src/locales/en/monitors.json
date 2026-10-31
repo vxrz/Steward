@@ -250,7 +250,14 @@
     "snowflakeMaxAge": "Changed within (minutes)",
     "snowflakeWithinHours": "Within the last (hours)",
     "snowflakeMaxCredits": "At most (credits)",
-    "snowflakeFailAs": "When the limit is not met"
+    "snowflakeFailAs": "When the limit is not met",
+    "dtrackProject": "Project",
+    "dtrackProjectHint": "name@version, name@latest or the project's UUID in Dependency-Track",
+    "dtrackMaxCritical": "At most critical",
+    "dtrackMaxHigh": "At most critical or high",
+    "dtrackMaxHighHint": "Degraded above; empty: high findings are not checked",
+    "dtrackFailAs": "When there are too many",
+    "dtrackPolicyFail": "A failing policy violation counts like a critical finding"
   },
   "detail": {
     "template": "template",
@@ -575,6 +582,10 @@
     "snowflake": {
       "label": "Snowflake",
       "help": "A Snowflake table changed recently enough, no task of a database failed, or a warehouse stayed within its credits"
+    },
+    "dependency-track": {
+      "label": "Vulnerabilities (Dependency-Track)",
+      "help": "A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation"
     }
   },
   "newCheck": {
@@ -592,7 +603,8 @@
     "kafka": "Kafka topic",
     "mqtt": "MQTT topics",
     "monitor": "Sub-monitor",
-    "snowflake": "Snowflake table fresh"
+    "snowflake": "Snowflake table fresh",
+    "dependency-track": "No critical vulnerabilities"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}"

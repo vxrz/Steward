@@ -6,19 +6,21 @@ Steward helps a service team keep evidence of how access to its platforms is man
 
 Recurring tasks such as the quarterly access review are tracked as **service duties**: each period is done, late, failed, missed or skipped with a four-eyes exception, and the result is stored for good – see [DUTIES.md](DUTIES.md). The **service scorecard** shows per service whether duties are met, availability objectives are on target, documentation is current (including documents expected by rules on the CIA rating, such as an authorization concept for confidentiality _high_) and the protection need is rated, with a daily snapshot for the trend – see [SCORECARD.md](SCORECARD.md).
 
-The _Compliance_ section of the sidebar has four pages:
+The _Compliance_ section of the sidebar has five pages:
 
 | Page                      | What it does                                                                                                       |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | **Controls**              | Control catalogues, the Steward items mapped to each control, and the evidence in a period. Gaps are highlighted.  |
 | **Access changes**        | Every documented grant, revocation and change of access rights – by hand, from runs, or documented after the fact. |
 | **Access reconciliation** | Snapshots of who has which access, compared with the documented access changes. Undocumented changes show up here. |
+| **Person reviews**        | Everything one person may do on several platforms, decided right by right, approved by a second person and sealed. |
 | **Evidence packs**        | Signed ZIP exports for auditors: the evidence of some controls (or a platform or service) in a period.             |
 
 - [How it maps to the standards](#how-it-maps-to-the-standards)
 - [Access change entries](#access-change-entries)
 - [Automatic entries from runs](#automatic-entries-from-runs)
 - [Access reconciliation](#access-reconciliation)
+- [Person access reviews](#person-access-reviews)
 - [Controls and coverage](#controls-and-coverage)
 - [Evidence packs](#evidence-packs)
 - [Protection needs (CIA)](#protection-needs-cia)
@@ -100,6 +102,7 @@ A **check** takes a snapshot of who has which access on a platform, on a schedul
 - **Insights Hub** (source _Insights Hub identity management_): Steward reads every user with its groups and roles from the identity management API (`{idmPath}/Users`, SCIM), with the rights of the check's owner. Credentials go only to the platform's own origins; the outbound policy applies.
 - **Any platform** (source _Dataset_): a process publishes a dataset in the access snapshot shape. The owner of the check must be allowed to view that process – checked when the check is set up and on every run (the check runs as its owner). Once a check has snapshots, its platform, source and dataset key cannot change. Recommended: one row per assignment with the columns `subjectId`, `subjectName`, `subjectType` and `right` (a row without `right` is a subject without rights). One row per subject with `rights` (a list or comma-separated text) works too. Example 16 publishes `ih.access-snapshot` this way. Data from dry runs is not used.
 - **GitHub, GitLab, Forgejo/Gitea** (source _Git_, #107): the members of an organisation or group with their role, or the collaborators of a repository (outside collaborators marked), read with the platform's token as the check's owner. The **scope** – `acme` or `acme/shop-web` (GitLab `group/project`) – cannot change once the check has snapshots ([GIT-PLATFORMS.md](GIT-PLATFORMS.md#access-reviews)).
+- **AWS IAM** (source _AWS IAM_, #118): every IAM user of the account with `group:NAME`, `policy:NAME` (attached managed policies) and `inline:NAME`; a user who never signed in to the console but has access keys is marked technical. Needs `iam:ListUsers`, `iam:ListGroupsForUser`, `iam:ListAttachedUserPolicies`, `iam:ListUserPolicies` and `iam:ListAccessKeys` ([AWS.md](AWS.md)).
 - **Snowflake** (source _Snowflake_, #115): with an empty scope every user with their roles; with `SHOP`, `SHOP.SALES` or `SHOP.SALES.ORDERS` every user who reaches objects there through their roles and the roles granted to those, with the privilege; technical users (`TYPE = SERVICE`) marked ([SNOWFLAKE.md](SNOWFLAKE.md#access-reviews)).
 
 Each snapshot is compared with the previous one. Every granted or removed right needs a documented (or verified) access change entry that counts – intact, and not documented by the subject of the change themselves (for an entry of a run: not started by the subject) – for the same platform and subject (matched by subject id or name, case-insensitive) with a _performed at_ time between the two snapshots (with one hour of tolerance on each side):
@@ -121,6 +124,26 @@ On a finding:
 _Ignored rights_ leaves rights out of the snapshots, for example the marker group the access reviews use (`mdsp_usergroup:AccessReview` in the demo). A grant of an ignored right is never reported, so only administrators set or change them; the audit log records the old and new list (as it does for the users and teams to notify).
 
 **Proof of history.** Snapshots are never changed (a database trigger refuses updates), and snapshots and findings are never deleted (another trigger). Each snapshot has the SHA-256 of its data and a chain hash over the previous snapshot of the check (`sha256(prevChainHash | check | seq | takenAt | hash)`), and is recorded with both hashes in the HMAC-chained audit log; so is every finding and every change of its status. Unchanged snapshots store no second copy of the data. _Verify history_ (tab _Snapshots_) recomputes all hashes and compares the snapshots and findings with the authentic audit entries: a snapshot or finding that was deleted in the database (also the newest one), or a finding whose status was changed there, shows up as a problem. Evidence packs contain the result. A check that has snapshots cannot be deleted – disable it instead.
+
+## Person access reviews
+
+A **person review** (#118) answers "what may this one person do, and should they?" across platforms – for a leaver, a mover, or a periodic review of a privileged person. _Compliance → Person reviews → New person review_ (designers, administrators):
+
+- **Person**: a name, and the names the person goes by on the platforms – user names and e-mail addresses, compared without regard to case. _Fill in_ takes the user name and e-mail address of a Steward user; naming the Steward user also keeps them from reviewing themselves.
+- **Access checks**: the [reconciliation checks](#access-reconciliation) to read – any source: Insights Hub, datasets, Git platforms, Snowflake, AWS IAM. Each is read **live** when the review starts, with the rights of the person starting it; if that fails, the check's latest snapshot is used and the review says so per source.
+- **Four-eyes approval** (on by default).
+
+What was found is **frozen**: one line per account and right, and a subject without rights as _(no rights)_. Later changes on the platforms do not change the review.
+
+1. The reviewer decides each right: **keep** or **remove**. A removal needs a reason. Nobody decides about their own access (matched by the Steward user and by their user name and e-mail address).
+2. **Submit**: with every right decided. Without four-eyes the review is sealed at once.
+3. With four-eyes, an **approver or administrator** who is not the reviewer and not the person reviewed **approves** (sealed) or **sends it back** with a comment (it is open again).
+4. Sealed: the SHA-256 over the review and all decisions (`sealHash`, canonical JSON) is stored and recorded in the audit log. _Verify_ recomputes it – a change in the database shows up.
+5. **Check removals** (reviewer, approver, administrator): Steward reads the platforms again, marks each right to remove as _removed_ or _still there_, and closes the review when every one of them is gone. Kept rights are not checked again. Each check is in the audit log.
+
+Approved and closed reviews are **evidence** of the access checks they read: mapped to a control through the check, they count in _Controls_ and land in evidence packs as `person-reviews/<id>.json` (with the seal verification at the time of the export).
+
+Who reads a review: administrators, auditors, approvers and the person who started it. Limits: 20 names, 30 checks and 2000 rights per review.
 
 ## Controls and coverage
 
@@ -241,6 +264,8 @@ The default scale is the BSI one (normal, high, very high). Administrators can d
 | Set or change ignored rights                   | admin                                                                                                  |
 | Map items to controls                          | designer, admin (remove: only items they may see)                                                      |
 | Edit and import catalogues                     | admin                                                                                                  |
+| Start person reviews, decide, submit           | designer, admin (decide and submit: the reviewer or an admin) – never about their own access           |
+| Approve or send back a person review           | approver, admin – not the reviewer, not the person reviewed                                            |
 | Create evidence packs                          | everyone but viewers; download: the creator, auditors, administrators                                  |
 
 ## API

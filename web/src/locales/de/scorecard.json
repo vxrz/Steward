@@ -28,7 +28,8 @@
     "availability": "Verfügbarkeit",
     "documentation": "Dokumentation",
     "protection": "Schutzbedarf",
-    "lifecycle": "Tech-Stack"
+    "lifecycle": "Tech-Stack",
+    "vulnerabilities": "Schwachstellen"
   },
   "windows": {
     "h1": "1 Std.",
@@ -174,5 +175,16 @@
     "summary": "{{entries}} Einträge im Tech-Stack: {{eol}} nach dem Supportende, {{ending}} enden bald",
     "eolItem": "{{component}}: {{product}} – Supportende seit {{date}}",
     "endingItem": "{{component}}: {{product}} – Supportende am {{date}}"
+  },
+  "vulnerabilities": {
+    "none": "Keine Komponente in den Anwendungen des Service ist mit einem Dependency-Track-Projekt verknüpft.",
+    "summary_one": "{{count}} Projekt: {{critical}} kritisch, {{high}} hoch, {{policyFail}} fehlgeschlagene Richtlinienverstöße",
+    "summary_other": "{{count}} Projekte: {{critical}} kritisch, {{high}} hoch, {{policyFail}} fehlgeschlagene Richtlinienverstöße",
+    "stale_one": "{{count}} Abfrage fehlgeschlagen oder älter als 2 Tage",
+    "stale_other": "{{count}} Abfragen fehlgeschlagen oder älter als 2 Tage",
+    "item": "{{component}} ({{project}}): {{critical}} kritisch, {{high}} hoch, {{policyFail}} fehlgeschlagene Richtlinienverstöße",
+    "error": "Abfrage fehlgeschlagen: {{error}}",
+    "readAt": "zuletzt gelesen am {{date}}",
+    "open": "In Dependency-Track öffnen"
   }
 }

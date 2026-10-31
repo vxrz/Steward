@@ -42,6 +42,12 @@ export function setSnowflakeTableAge(name: string, hours: number): void {
   if (t) t.altered = hours * H;
 }
 
+/** For tests: the roles granted to a demo user (a grant revoked in Snowflake). */
+export function setSnowflakeUserRoles(user: string, roles: string[]): void {
+  for (let i = USER_ROLES.length - 1; i >= 0; i--) if (USER_ROLES[i]![0] === user) USER_ROLES.splice(i, 1);
+  for (const r of roles) USER_ROLES.push([user, r]);
+}
+
 const TASKS = [
   {
     database: 'SHOP',

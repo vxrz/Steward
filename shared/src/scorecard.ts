@@ -9,8 +9,8 @@ import type { ReviewStatus, ServiceCriticality } from './records.js';
  * 30 d; each optional). The values are Gatus' own uptime figures, which Steward reads once an hour when a Gatus
  * platform's metrics mode has "read Gatus' uptime figures" on – no service hours, no calculation of its own.
  *
- * The scorecard shows, per service, four parts side by side – duties, availability, documentation, protection need –
- * each with its own status. There is no weighting: "attention needed" when any part needs attention.
+ * The scorecard shows, per service, its parts side by side – duties, availability, documentation, protection need, and
+ * the tech stack (#104) and vulnerabilities (#119) – each with its own status. There is no weighting: "attention needed" when any part needs attention.
  */
 
 /** The windows of Gatus' uptime API (/api/v1/endpoints/{key}/uptimes/{1h|24h|7d|30d}). */
@@ -55,6 +55,8 @@ export const SCORECARD_LIMITS = {
   /** Expected-document rules */
   rules: 100,
   note: 500,
+  /** A Dependency-Track readout older than this is stale: the part "Vulnerabilities" is pending (#119) */
+  vulnerabilityStaleDays: 2,
 } as const;
 
 export type ObjectiveTargets = Record<ObjectiveWindow, number | null>;
@@ -149,8 +151,12 @@ export interface ObjectiveDetail extends ObjectiveSummary {
 
 // ---------- scorecard ----------
 
-/** lifecycle: the tech stack's end of life (#104) – counted only when turned on (LifecycleSettings.scorecard), else "none". */
-export const SCORECARD_PARTS = ['duties', 'availability', 'documentation', 'protection', 'lifecycle'] as const;
+/**
+ * lifecycle: the tech stack's end of life (#104) – counted only when turned on (LifecycleSettings.scorecard), else "none".
+ * vulnerabilities: Dependency-Track's findings and policy violations of the applications' components (#119) – "none"
+ * when no component links a Dependency-Track project.
+ */
+export const SCORECARD_PARTS = ['duties', 'availability', 'documentation', 'protection', 'lifecycle', 'vulnerabilities'] as const;
 export type ScorecardPart = (typeof SCORECARD_PARTS)[number];
 
 /**
@@ -312,6 +318,46 @@ export interface ScorecardLifecycle {
   items: ScorecardLifecycleItem[];
 }
 
+/** A component whose Dependency-Track project is not ok. */
+export interface ScorecardVulnerabilityItem {
+  applicationId: string;
+  applicationName: string;
+  componentId: string;
+  componentName: string;
+  /** "name@version" of the project read, else the project as linked */
+  project: string;
+  /** Open findings */
+  critical: number;
+  high: number;
+  /** Failing policy violations */
+  policyFail: number;
+  /** The last read failed */
+  error: string | null;
+  readAt: string;
+  /** The readout is older than SCORECARD_LIMITS.vulnerabilityStaleDays */
+  stale: boolean;
+  /** The project in Dependency-Track's own UI, when its frontend URL is set */
+  url: string | null;
+}
+
+export interface ScorecardVulnerabilities {
+  /**
+   * attention: a linked project with open critical findings or failing policy violations; pending: open high findings,
+   * a read that failed or a readout older than SCORECARD_LIMITS.vulnerabilityStaleDays; none: no component of the
+   * service's applications links a Dependency-Track project (or none was read yet)
+   */
+  status: ScorecardPartStatus;
+  /** Linked projects with a readout */
+  projects: number;
+  critical: number;
+  high: number;
+  policyFail: number;
+  /** Readouts that failed or are older than SCORECARD_LIMITS.vulnerabilityStaleDays */
+  stale: number;
+  /** The components that are not ok, worst first */
+  items: ScorecardVulnerabilityItem[];
+}
+
 export interface ServiceScorecard {
   serviceId: string;
   serviceName: string;
@@ -324,6 +370,7 @@ export interface ServiceScorecard {
   documentation: ScorecardDocumentation;
   protection: ScorecardProtection;
   lifecycle: ScorecardLifecycle;
+  vulnerabilities: ScorecardVulnerabilities;
 }
 
 export type ScorecardPartCounts = Record<ScorecardPartStatus, number>;

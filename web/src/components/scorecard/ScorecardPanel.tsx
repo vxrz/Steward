@@ -9,7 +9,7 @@ import { QueryState } from '../common';
 import { useLevel } from '../catalogue/cia';
 import { AttentionBadge, PART_COLORS, PartBadge, shownParts } from './common';
 
-/** The scorecard of one service (service page): four parts side by side, each with its own status, and the stored days. */
+/** The scorecard of one service (service page): its parts side by side, each with its own status, and the stored days. */
 export function ScorecardPanel({ serviceId }: { serviceId: string }) {
   const { t } = useTranslation('scorecard');
   const q = useQuery({
@@ -164,6 +164,43 @@ function PartDetails({ card: c, part }: { card: ServiceScorecardDetail; part: Sc
                   product: [i.label, i.version].filter(Boolean).join(' '),
                   date: i.eolFrom ? fmtDay(i.eolFrom) : '–',
                 })}
+              </List.Item>
+            ))}
+          </List>
+        )}
+      </Stack>
+    );
+  }
+  if (part === 'vulnerabilities') {
+    const v = c.vulnerabilities;
+    if (!v.projects)
+      return (
+        <Text size="xs" c="dimmed">
+          {t('vulnerabilities.none')}
+        </Text>
+      );
+    return (
+      <Stack gap={2}>
+        <Text size="xs">{t('vulnerabilities.summary', { count: v.projects, critical: v.critical, high: v.high, policyFail: v.policyFail })}</Text>
+        {v.stale > 0 && <Text size="xs">{t('vulnerabilities.stale', { count: v.stale })}</Text>}
+        {v.items.length > 0 && (
+          <List size="xs" spacing={0} data-testid="vulnerability-items">
+            {v.items.slice(0, 10).map((i) => (
+              <List.Item key={i.componentId}>
+                <Anchor component={Link} to={`/applications/${i.applicationId}`} size="xs">
+                  {i.applicationName}
+                </Anchor>{' '}
+                {t('vulnerabilities.item', { component: i.componentName, project: i.project, critical: i.critical, high: i.high, policyFail: i.policyFail })}
+                {i.error ? ` – ${t('vulnerabilities.error', { error: i.error })}` : ''}
+                {i.stale ? ` – ${t('vulnerabilities.readAt', { date: fmtDate(i.readAt) })}` : ''}
+                {i.url && (
+                  <>
+                    {' '}
+                    <Anchor href={i.url} target="_blank" rel="noopener noreferrer" size="xs">
+                      {t('vulnerabilities.open')}
+                    </Anchor>
+                  </>
+                )}
               </List.Item>
             ))}
           </List>

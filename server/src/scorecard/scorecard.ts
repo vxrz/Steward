@@ -20,6 +20,10 @@ import {
   type ScorecardPartStatus,
   type ScorecardLifecycle,
   type ScorecardLifecycleItem,
+  type ScorecardVulnerabilities,
+  type ScorecardVulnerabilityItem,
+  SCORECARD_LIMITS,
+  type DtrackReadout,
   type ScorecardProtection,
   type ScorecardRollupGroup,
   type ScorecardTrendPoint,
@@ -56,7 +60,7 @@ import { environmentList } from '../catalogue/environments.js';
 import { productLabel } from '../catalogue/components.js';
 
 /**
- * The service scorecard (#86): per service four parts, each with its own status – no weighting.
+ * The service scorecard (#86): per service its parts, each with its own status – no weighting.
  *
  *   - Duties (#85): from the stored duty periods (the duty job keeps them): a mandatory duty is met when its last
  *     closed period was done, late or skipped and its current period is done, late or skipped; "open" while the
@@ -68,6 +72,9 @@ import { productLabel } from '../catalogue/components.js';
  *     is released, a review is overdue, or a document expected by a rule on the CIA rating is missing.
  *   - Protection need (#84): attention when it is not rated – no applications, a dimension without a level,
  *     applications not rated or not counted (re-rating after a scale change), or the stored scale is not valid.
+ *   - Tech stack (#104, optional): attention when a component is past its end of life.
+ *   - Vulnerabilities (#119): from the Dependency-Track readouts of the applications' components – attention on open
+ *     critical findings or failing policy violations; pending on open high findings, a failed or a stale read.
  *
  * "Attention needed": any part needs attention. Everything is computed for a reader: documents they may not read
  * neither count nor show (nothing else on the scorecard is restricted – services, duties and objective statuses are
@@ -483,6 +490,72 @@ function lifecyclePart(d: Data, serviceId: string, ctx: LifecycleCtx, now: numbe
   return { status: !entries ? 'none' : eol ? 'attention' : ending ? 'pending' : 'ok', enabled: true, entries, eol, ending, items };
 }
 
+// ---------- vulnerabilities (Dependency-Track, #119) ----------
+
+interface DtrackComponentRow {
+  id: string;
+  application_id: string;
+  name: string;
+  dt_project: string;
+  dt_state: string;
+}
+
+/** The components (of the members, not archived) that link a Dependency-Track project and were read, per application. */
+function vulnerabilityCtx(d: Data): Map<string, DtrackComponentRow[]> {
+  const apps = new Set([...d.members.values()].flat());
+  const out = new Map<string, DtrackComponentRow[]>();
+  if (!apps.size) return out;
+  for (const r of db().all<DtrackComponentRow>(
+    `SELECT id, application_id, name, dt_project, dt_state FROM application_components
+     WHERE dt_platform_id IS NOT NULL AND dt_project IS NOT NULL AND dt_state IS NOT NULL ORDER BY name, id`,
+  ))
+    if (apps.has(r.application_id)) out.set(r.application_id, [...(out.get(r.application_id) ?? []), r]);
+  return out;
+}
+
+/** Attention on open critical findings or failing policy violations; pending on open high findings, a failed or stale read. */
+function vulnerabilitiesPart(d: Data, serviceId: string, ctx: Map<string, DtrackComponentRow[]>, now: number): ScorecardVulnerabilities {
+  const items: ScorecardVulnerabilityItem[] = [];
+  let projects = 0;
+  let critical = 0;
+  let high = 0;
+  let policyFail = 0;
+  let stale = 0;
+  for (const appId of d.members.get(serviceId) ?? []) {
+    for (const c of ctx.get(appId) ?? []) {
+      const r = parseJson<DtrackReadout | null>(c.dt_state, null);
+      if (!r || !r.readAt) continue;
+      projects++;
+      const crit = r.counts?.critical ?? 0;
+      const hi = r.counts?.high ?? 0;
+      const fail = r.policy?.fail ?? 0;
+      const old = now - Date.parse(r.readAt) > SCORECARD_LIMITS.vulnerabilityStaleDays * 86400000;
+      critical += crit;
+      high += hi;
+      policyFail += fail;
+      if (r.error || old) stale++;
+      if (crit || hi || fail || r.error || old)
+        items.push({
+          applicationId: appId,
+          applicationName: d.appNames.get(appId) ?? appId,
+          componentId: c.id,
+          componentName: c.name,
+          project: r.project ? `${r.project.name}@${r.project.version}` : c.dt_project,
+          critical: crit,
+          high: hi,
+          policyFail: fail,
+          error: r.error ?? null,
+          readAt: r.readAt,
+          stale: old,
+          url: r.url ?? null,
+        });
+    }
+  }
+  items.sort((a, b) => b.critical - a.critical || b.policyFail - a.policyFail || b.high - a.high || a.applicationName.localeCompare(b.applicationName));
+  const status: ScorecardPartStatus = !projects ? 'none' : critical || policyFail ? 'attention' : high || stale ? 'pending' : 'ok';
+  return { status, projects, critical, high, policyFail, stale, items };
+}
+
 // ---------- scorecards ----------
 
 export interface Computed {
@@ -502,24 +575,27 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
   const docs = docCtx(d, viewer);
   const needs = protectionNeeds(d.services.map((s) => s.id));
   const lc = lifecycleCtx(d);
+  const vc = vulnerabilityCtx(d);
   return d.services.map((s) => {
     const duties = dutiesPart(d, s.id);
     const availability = availabilityPart(d, s.id, oc);
     const { ids, ...documentation } = documentationPart(d, s.id, docs);
     const protection = protectionPart(needs.get(s.id)!, (d.members.get(s.id) ?? []).length);
     const lifecycle = lifecyclePart(d, s.id, lc, now);
+    const vulnerabilities = vulnerabilitiesPart(d, s.id, vc, now);
     return {
       card: {
         serviceId: s.id,
         serviceName: s.name,
         owners: parseJson<string[]>(s.owners, []),
         criticality: (s.criticality as ServiceCriticality | null) ?? null,
-        attention: [duties, availability, documentation, protection, lifecycle].some((p) => p.status === 'attention'),
+        attention: [duties, availability, documentation, protection, lifecycle, vulnerabilities].some((p) => p.status === 'attention'),
         duties,
         availability,
         documentation,
         protection,
         lifecycle,
+        vulnerabilities,
       },
       documentIds: ids,
     };
@@ -572,6 +648,7 @@ export interface SnapshotRow {
   documentation: ScorecardPartStatus;
   protection: ScorecardPartStatus;
   lifecycle?: ScorecardPartStatus;
+  vulnerabilities?: ScorecardPartStatus;
   document_ids: string;
   details: string;
   updated_at: string;
@@ -601,6 +678,7 @@ function pointOf(r: SnapshotRow, readable: boolean): ServiceScorecardHistoryPoin
     documentation: readable ? r.documentation : ('hidden' as const),
     protection: r.protection,
     lifecycle: r.lifecycle ?? 'none',
+    vulnerabilities: r.vulnerabilities ?? 'none',
   };
   return { day: r.day, attention: SCORECARD_PARTS.some((p) => parts[p] === 'attention'), parts };
 }

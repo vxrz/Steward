@@ -21,12 +21,13 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery } from '@tanstack/react-query';
-import { IconEdit, IconEye, IconExternalLink, IconFileImport, IconKey, IconPlus, IconRefresh, IconTrash } from '@tabler/icons-react';
+import { IconEdit, IconEye, IconExternalLink, IconFileImport, IconKey, IconPlus, IconRefresh, IconShieldCheck, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   AWS_KIND,
   AWS_LIMITS,
   SNOWFLAKE_KIND,
+  DTRACK_KIND,
   COMPONENT_TYPES,
   GIT_PLATFORM_KINDS,
   type AwsAccessKey,
@@ -99,6 +100,14 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
     try {
       onSaved(await post<ApplicationDetail>(`/applications/${app.id}/components/${c.id}/snowflake`, {}));
       notifications.show({ color: 'green', message: t('components.snowflake.done', { name: c.name }) });
+    } catch (e) {
+      notifyError(e);
+    }
+  };
+  const readDtrack = async (c: ApplicationComponent) => {
+    try {
+      onSaved(await post<ApplicationDetail>(`/applications/${app.id}/components/${c.id}/dependency-track`, {}));
+      notifications.show({ color: 'green', message: t('components.dtrack.done', { name: c.name }) });
     } catch (e) {
       notifyError(e);
     }
@@ -191,6 +200,7 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                     {c.type === 'repository' && c.platformId && <RepositoryLine component={c} onRegister={editable ? setDrafting : undefined} />}
                     {c.type === 'kafka-topic' && c.platformId && <TopicLine component={c} />}
                     {c.type === 'snowflake-database' && c.platformId && <SnowflakeLine component={c} />}
+                    {c.dependencyTrack && <DtrackLine component={c} />}
                     {c.type === 'cloud-account' && c.platformId && <AwsLine component={c} onRegister={editable ? setDrafting : undefined} />}
                   </Table.Td>
                   {withEnv && (
@@ -235,6 +245,11 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                         ) : (
                           <ActionIcon variant="subtle" aria-label={t('components.sbom.import', { name: c.name })} onClick={() => setImporting(c)}>
                             <IconFileImport size={16} />
+                          </ActionIcon>
+                        )}
+                        {c.dependencyTrack && (
+                          <ActionIcon variant="subtle" aria-label={t('components.dtrack.readNow', { name: c.name })} onClick={() => void readDtrack(c)}>
+                            <IconShieldCheck size={16} />
                           </ActionIcon>
                         )}
                         <ActionIcon variant="subtle" color="red" aria-label={t('components.remove', { name: c.name })} onClick={() => void remove(c)}>
@@ -411,6 +426,55 @@ function RepositoryLine({ component: c, onRegister }: { component: ApplicationCo
 }
 
 const DAY = 86_400_000;
+
+/** What Steward last read from the component's Dependency-Track project (#119): open findings, policy violations, the worst findings. */
+function DtrackLine({ component: c }: { component: ApplicationComponent }) {
+  const { t } = useTranslation('applications');
+  const link = c.dependencyTrack!;
+  const r = link.readout;
+  if (!r)
+    return (
+      <Text size="xs" c="dimmed">
+        {t('components.dtrack.notRead', { project: link.project })}
+      </Text>
+    );
+  const bad = r.counts.critical > 0 || r.policy.fail > 0;
+  const project = r.project ? `${r.project.name}@${r.project.version}` : link.project;
+  return (
+    <Stack gap={0} data-testid="dtrack-readout">
+      {r.error && (
+        <Text size="xs" c="red.8">
+          {t('components.cluster.error', { error: r.error })}
+        </Text>
+      )}
+      <Text size="xs" c={bad ? 'red.8' : r.counts.high ? 'orange.8' : 'dimmed'}>
+        {r.url ? (
+          <Anchor size="xs" href={r.url} target="_blank" rel="noreferrer">
+            {project}
+          </Anchor>
+        ) : (
+          project
+        )}
+        {': '}
+        {t('components.dtrack.counts', { ...r.counts, fail: r.policy.fail, warn: r.policy.warn })} · {t('components.cluster.read', { date: fmtDate(r.readAt) })}
+      </Text>
+      {r.top
+        .filter((f) => f.severity === 'critical' || f.severity === 'high')
+        .slice(0, 5)
+        .map((f) => (
+          <Text key={`${f.vulnId}-${f.component}`} size="xs" c={f.severity === 'critical' ? 'red.8' : 'orange.8'}>
+            {t('components.dtrack.finding', {
+              id: f.vulnId,
+              severity: t(`components.dtrack.severity.${f.severity}`),
+              component: `${f.component} ${f.version}`.trim(),
+              fix: f.fixedIn ? t('components.dtrack.fixedIn', { version: f.fixedIn }) : t('components.dtrack.noFix'),
+            })}
+            {f.epss !== null ? ` · EPSS ${fmtNumber(f.epss * 100, { maximumFractionDigits: 1 })} %` : ''}
+          </Text>
+        ))}
+    </Stack>
+  );
+}
 
 /** What Steward last read for a Snowflake database (#115): tables and their last change, failing tasks, warehouse credits. */
 function SnowflakeLine({ component: c }: { component: ApplicationComponent }) {
@@ -824,6 +888,12 @@ function ComponentFormModal({
     queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === SNOWFLAKE_KIND),
     enabled: type === 'snowflake-database',
   });
+  const [dtPlatform, setDtPlatform] = useState<string | null>(component?.dependencyTrack?.platformId ?? null);
+  const [dtProject, setDtProject] = useState(component?.dependencyTrack?.project ?? '');
+  const dtPlatforms = useQuery({
+    queryKey: ['platforms', 'dependency-track'],
+    queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === DTRACK_KIND),
+  });
   const awsPlatforms = useQuery({
     queryKey: ['platforms', 'aws'],
     queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === AWS_KIND),
@@ -854,6 +924,7 @@ function ComponentFormModal({
         ? { platformId }
         : {}),
       stack: stackBody(stack),
+      dependencyTrack: dtPlatform && dtProject.trim() ? { platformId: dtPlatform, project: dtProject.trim() } : null,
     };
     try {
       onSaved(
@@ -955,6 +1026,25 @@ function ComponentFormModal({
               clearable
               nothingFoundMessage={t('components.repository.noPlatforms')}
             />
+          )}
+          {(dtPlatforms.data ?? []).length > 0 && (
+            <Group grow align="flex-start">
+              <Select
+                label={t('components.dtrack.platform')}
+                data={(dtPlatforms.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+                value={dtPlatform}
+                onChange={setDtPlatform}
+                clearable
+              />
+              <TextInput
+                label={t('components.dtrack.project')}
+                description={t('components.dtrack.projectHint')}
+                value={dtProject}
+                onChange={(e) => setDtProject(e.currentTarget.value)}
+                disabled={!dtPlatform}
+                classNames={{ input: 'mono' }}
+              />
+            </Group>
           )}
           <TextInput label={t('components.url')} placeholder="https://" value={url} onChange={(e) => setUrl(e.currentTarget.value)} error={v.error('url')} />
           <Textarea label={t('components.note')} autosize minRows={1} maxRows={4} value={note} onChange={(e) => setNote(e.currentTarget.value)} />

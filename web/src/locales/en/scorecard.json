@@ -28,7 +28,8 @@
     "availability": "Availability",
     "documentation": "Documentation",
     "protection": "Protection need",
-    "lifecycle": "Tech stack"
+    "lifecycle": "Tech stack",
+    "vulnerabilities": "Vulnerabilities"
   },
   "windows": {
     "h1": "1 h",
@@ -174,5 +175,16 @@
     "summary": "{{entries}} tech-stack entries: {{eol}} past their end of life, {{ending}} ending soon",
     "eolItem": "{{component}}: {{product}} – end of life since {{date}}",
     "endingItem": "{{component}}: {{product}} – end of life on {{date}}"
+  },
+  "vulnerabilities": {
+    "none": "No component of the service's applications links a Dependency-Track project.",
+    "summary_one": "{{count}} project: {{critical}} critical, {{high}} high, {{policyFail}} failing policy violations",
+    "summary_other": "{{count}} projects: {{critical}} critical, {{high}} high, {{policyFail}} failing policy violations",
+    "stale_one": "{{count}} readout failed or older than 2 days",
+    "stale_other": "{{count}} readouts failed or older than 2 days",
+    "item": "{{component}} ({{project}}): {{critical}} critical, {{high}} high, {{policyFail}} failing policy violations",
+    "error": "read failed: {{error}}",
+    "readAt": "last read {{date}}",
+    "open": "Open in Dependency-Track"
   }
 }

@@ -21,6 +21,9 @@ import {
   type TopicReadout,
   type AwsReadout,
   type SnowflakeReadout,
+  type DtrackReadout,
+  DTRACK_KIND,
+  DTRACK_PROJECT_RE,
   SNOWFLAKE_KIND,
   SNOWFLAKE_NAME_RE,
   AWS_KIND,
@@ -172,6 +175,12 @@ export const componentInput = z
     platformId: z.string().trim().min(1).max(100).nullable().optional(),
     /** The whole stack of the component (missing: unchanged). Entries that keep product and version keep their source; others count as entered by hand. */
     stack: z.array(stackEntryInput).max(COMPONENT_LIMITS.stackPerComponent).optional(),
+    /** Its Dependency-Track project (#119), any type: name@version, name@latest or the UUID (missing: unchanged, null: none) */
+    dependencyTrack: z
+      .object({ platformId: z.string().trim().min(1).max(100), project: z.string().trim().min(3).max(360) })
+      .strict()
+      .nullable()
+      .optional(),
   })
   .strict();
 export type ComponentInput = z.infer<typeof componentInput>;
@@ -206,6 +215,9 @@ interface ComponentRow {
   repo_state?: string | null;
   topic_state?: string | null;
   aws_state?: string | null;
+  dt_platform_id?: string | null;
+  dt_project?: string | null;
+  dt_state?: string | null;
   snowflake_state?: string | null;
   created_at: string;
   created_by: string;
@@ -279,6 +291,10 @@ function toComponent(r: ComponentRow, stack: StackEntry[]): ApplicationComponent
             : r.type === 'snowflake-database'
               ? { platformId: r.platform_id ?? null, snowflake: parseJson<SnowflakeReadout | null>(r.snowflake_state ?? null, null) }
               : {}),
+    dependencyTrack:
+      r.dt_platform_id && r.dt_project
+        ? { platformId: r.dt_platform_id, project: r.dt_project, readout: parseJson<DtrackReadout | null>(r.dt_state ?? null, null) }
+        : null,
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedAt: r.updated_at,
@@ -422,6 +438,27 @@ function clusterOf(input: ComponentInput, u: AuthUser, current: string | null): 
   return id;
 }
 
+/** The Dependency-Track link of a component: checked (platform kind, may use it, project reference) or null. */
+function dtrackOf(
+  input: ComponentInput,
+  u: AuthUser,
+  current: { platformId: string | null; project: string | null },
+): { platformId: string | null; project: string | null } {
+  if (input.dependencyTrack === undefined) return current;
+  if (input.dependencyTrack === null) return { platformId: null, project: null };
+  const { platformId, project } = input.dependencyTrack;
+  if (!DTRACK_PROJECT_RE.test(project))
+    throw new HttpError(400, 'The Dependency-Track project is name@version, name@latest or its UUID', 'COMPONENT_DTRACK_PROJECT', {
+      project: project.slice(0, 100),
+    });
+  if (platformId !== current.platformId) {
+    const p = db().get<{ kind: string }>('SELECT kind FROM platforms WHERE id = ?', platformId);
+    if (p?.kind !== DTRACK_KIND || ownerProblem(u.username, platformId))
+      throw new HttpError(400, 'Choose a Dependency-Track platform you may use', 'COMPONENT_DTRACK_PLATFORM', { id: platformId });
+  }
+  return { platformId, project };
+}
+
 function componentRow(appId: string, componentId: string): ComponentRow {
   const r = db().get<ComponentRow>('SELECT * FROM application_components WHERE id = ? AND application_id = ?', componentId, appId);
   if (!r) throw new HttpError(404, 'This component does not belong to the application', 'COMPONENT_NOT_FOUND', { id: componentId });
@@ -527,12 +564,13 @@ export function addComponent(appId: string, input: ComponentInput, canEdit: CanE
     throw new HttpError(409, `The application has a ${input.type} "${input.name}" already`, 'COMPONENT_EXISTS', { name: input.name });
   if (input.stack) requireKnownProducts(input.stack);
   const cluster = clusterOf(input, u, null);
+  const dt = dtrackOf(input, u, { platformId: null, project: null });
   const id = newId('cmp_');
   const now = nowIso();
   db().tx(() => {
     db().run(
-      `INSERT INTO application_components (id, application_id, type, name, url, note, environment, platform_id, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO application_components (id, application_id, type, name, url, note, environment, platform_id, dt_platform_id, dt_project, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       appId,
       input.type,
@@ -541,6 +579,8 @@ export function addComponent(appId: string, input: ComponentInput, canEdit: CanE
       input.note,
       input.environment,
       cluster,
+      dt.platformId,
+      dt.project,
       now,
       u.username,
       now,
@@ -576,24 +616,31 @@ export function updateComponent(appId: string, componentId: string, input: Compo
     throw new HttpError(409, `The application has a ${input.type} "${input.name}" already`, 'COMPONENT_EXISTS', { name: input.name });
   if (input.stack) requireKnownProducts(input.stack);
   const cluster = clusterOf(input, u, cur.platform_id ?? null);
+  const curDt = { platformId: cur.dt_platform_id ?? null, project: cur.dt_project ?? null };
+  const dt = dtrackOf(input, u, curDt);
+  const dtChanged = dt.platformId !== curDt.platformId || dt.project !== curDt.project;
   const fields = [
     ...(['type', 'name', 'url', 'note', 'environment'] as const).filter((k) => input[k] !== (cur[k] ?? '')),
     ...(cluster !== (cur.platform_id ?? null)
       ? ([input.type === 'repository' || input.type === 'cloud-account' || input.type === 'snowflake-database' ? 'platform' : 'cluster'] as const)
       : []),
+    ...(dtChanged ? (['dependencyTrack'] as const) : []),
   ];
   db().tx(() => {
     const diff = input.stack ? writeStack(componentHolder(componentId), input.stack, u) : { added: [], changed: [], removed: [] };
     const stackChanged = diff.added.length + diff.changed.length + diff.removed.length > 0;
     if (!fields.length && !stackChanged) return;
     db().run(
-      'UPDATE application_components SET type = ?, name = ?, url = ?, note = ?, environment = ?, platform_id = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      `UPDATE application_components SET type = ?, name = ?, url = ?, note = ?, environment = ?, platform_id = ?, dt_platform_id = ?, dt_project = ?,
+       ${dtChanged ? 'dt_state = NULL,' : ''} updated_at = ?, updated_by = ? WHERE id = ?`,
       input.type,
       input.name,
       input.url,
       input.note,
       input.environment,
       cluster,
+      dt.platformId,
+      dt.project,
       nowIso(),
       u.username,
       componentId,

@@ -288,4 +288,13 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // Dependency-Track (#119): the project of a component (any type) and what was read from it
+    name: 'catalogue-009-dependency-track',
+    sql: `
+      ALTER TABLE application_components ADD COLUMN dt_platform_id TEXT;
+      ALTER TABLE application_components ADD COLUMN dt_project TEXT;
+      ALTER TABLE application_components ADD COLUMN dt_state TEXT;
+    `,
+  },
 ];

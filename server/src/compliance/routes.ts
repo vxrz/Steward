@@ -22,6 +22,7 @@ import { HttpError, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
 import { contentDisposition } from '../records/attachments.js';
 import { canReadRecordRow } from '../records/access.js';
+import * as pr from './person-reviews.js';
 import { canCreateChecks, canManageCatalogues, canReadCheck, canTagControls, me, readsEverything, same } from './access.js';
 import { accessChangeInput, createAccessChange, getAccessChange, listAccessChanges } from './access-changes.js';
 import { createRunEntries } from './run-entries.js';
@@ -94,6 +95,29 @@ export async function complianceRoutes(app: FastifyInstance): Promise<void> {
     demo: config.demo,
     sources: [...ACCESS_CHECK_SOURCES],
   }));
+  // ---------- person access reviews (#118) ----------
+  app.get('/compliance/person-reviews', async () => pr.listReviews());
+  app.get('/compliance/person-reviews/suggest', async (req) => {
+    const { user } = z.object({ user: z.string().trim().min(1).max(128) }).parse(req.query ?? {});
+    if (!canCreateChecks(me())) throw new HttpError(403, 'Only designers and administrators start person reviews', 'FORBIDDEN');
+    return pr.suggestIdentifiers(user);
+  });
+  app.post('/compliance/person-reviews', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => pr.createReview(pr.reviewInput.parse(req.body)));
+  app.get('/compliance/person-reviews/:reviewId', async (req) => pr.getReview(params(req).reviewId!));
+  app.put('/compliance/person-reviews/:reviewId/decisions', async (req) => pr.decide(params(req).reviewId!, pr.decisionsInput.parse(req.body)));
+  app.post('/compliance/person-reviews/:reviewId/submit', async (req) => pr.submit(params(req).reviewId!));
+  app.post('/compliance/person-reviews/:reviewId/approval', async (req) =>
+    pr.approve(
+      params(req).reviewId!,
+      z
+        .object({ approve: z.boolean(), comment: z.string().max(2000).default('') })
+        .strict()
+        .parse(req.body),
+    ),
+  );
+  app.post('/compliance/person-reviews/:reviewId/recheck', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => pr.recheck(params(req).reviewId!));
+  app.get('/compliance/person-reviews/:reviewId/seal', async (req) => pr.verifySeal(params(req).reviewId!));
+
   app.get('/compliance/access-checks', async () => rec.listChecks());
   app.post('/compliance/access-checks', async (req) => rec.createCheck(rec.checkInput.parse(req.body)));
   app.get('/compliance/access-checks/:accessCheckId', async (req) => rec.getCheck(params(req).accessCheckId!));

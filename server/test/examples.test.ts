@@ -176,6 +176,19 @@ describe('example library', () => {
     expect(d.metrics).toMatchObject({ repositories: 2, failing: 1, critical: 0, high: 1 });
   });
 
+  it('Dependency-Track – vulnerabilities per project counts only open findings', async () => {
+    // runs after "runs 86-…" above, against the mock Dependency-Track (server/src/mock/mockDtrack.ts): the latest versions only
+    const d = await s.api('GET', '/datasets/dt.vulnerabilities');
+    const by = Object.fromEntries(d.rows.map((r: any) => [r.Project, r]));
+    expect(Object.keys(by).sort()).toEqual(['crm-api@1.0.0', 'shop-web@2.5.0']);
+    expect(by['shop-web@2.5.0']).toMatchObject({
+      'Open findings': '0 critical, 0 high, 1 medium, 0 low',
+      'Policy violations': '0 failing, 1 warnings',
+      _status: 'good',
+    });
+    expect(d.metrics).toMatchObject({ projects: 2, critical: 0, high: 0, policyFail: 0 });
+  });
+
   it('Kafka – topic standards finds the topics not to standard and the lagging consumer', async () => {
     // topic components read from the simulated cluster (server/src/mock/mockKafka.ts), then the process on that application
     const kafka = platformByKind.kafka!;
