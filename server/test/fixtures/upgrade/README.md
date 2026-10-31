@@ -4,18 +4,20 @@ Each folder holds a Steward data folder written by a released version, used by
 `server/test/upgrade.test.ts` to check that the current version upgrades it (see
 [docs/TESTING.md](../../../../docs/TESTING.md#upgrade-tests)).
 
-| Folder    | Written by         | Made                                         |
-| --------- | ------------------ | -------------------------------------------- |
-| `v0.1.0/` | v0.1.0 (`8306c7a`) | 2026-10-23, demo data plus the content below |
-| `v0.2.0/` | v0.2.0 (`3e229f1`) | 2026-10-26, demo data plus the content below |
-| `v0.2.1/` | v0.2.1 (`a8c1a40`) | 2026-10-27, demo data plus the content below |
-| `v0.2.2/` | v0.2.2 (`a251063`) | 2026-10-28, demo data plus the content below |
-| `v0.2.3/` | v0.2.3 (`626abd0`) | 2026-10-28, demo data plus the content below |
-| `v0.2.4/` | v0.2.4 (`f5e3f20`) | 2026-10-29, demo data plus the content below |
-| `v0.2.5/` | v0.2.5 (`e29426c`) | 2026-10-30, demo data plus the content below |
-| `v0.2.6/` | v0.2.6 (`7812a1d`) | 2026-10-30, demo data plus the content below |
-| `v0.2.7/` | v0.2.7 (`ffedab8`) | 2026-10-30, demo data plus the content below |
-| `v0.2.8/` | v0.2.8 (`bf76265`) | 2026-10-31, demo data plus the content below |
+| Folder     | Written by          | Made                                         |
+| ---------- | ------------------- | -------------------------------------------- |
+| `v0.1.0/`  | v0.1.0 (`8306c7a`)  | 2026-10-23, demo data plus the content below |
+| `v0.2.0/`  | v0.2.0 (`3e229f1`)  | 2026-10-26, demo data plus the content below |
+| `v0.2.1/`  | v0.2.1 (`a8c1a40`)  | 2026-10-27, demo data plus the content below |
+| `v0.2.2/`  | v0.2.2 (`a251063`)  | 2026-10-28, demo data plus the content below |
+| `v0.2.3/`  | v0.2.3 (`626abd0`)  | 2026-10-28, demo data plus the content below |
+| `v0.2.4/`  | v0.2.4 (`f5e3f20`)  | 2026-10-29, demo data plus the content below |
+| `v0.2.5/`  | v0.2.5 (`e29426c`)  | 2026-10-30, demo data plus the content below |
+| `v0.2.6/`  | v0.2.6 (`7812a1d`)  | 2026-10-30, demo data plus the content below |
+| `v0.2.7/`  | v0.2.7 (`ffedab8`)  | 2026-10-30, demo data plus the content below |
+| `v0.2.8/`  | v0.2.8 (`bf76265`)  | 2026-10-31, demo data plus the content below |
+| `v0.2.9/`  | v0.2.9 (`40275c9`)  | 2026-10-31, demo data plus the content below |
+| `v0.2.10/` | v0.2.10 (`f23bf21`) | 2026-10-31, demo data plus the content below |
 
 **Nothing here is secret.** The vault (`datadir/vault.json`), the installation's Ed25519 signing
 key and HMAC audit key wrapped in it, and the encrypted platform credentials in the database are

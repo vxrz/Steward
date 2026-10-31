@@ -38,14 +38,24 @@
       "platform": "This platform belongs to the whole instance: roles and the access list below decide who may do what.",
       "service": "This service belongs to the whole instance: everybody signed in sees it; designers, administrators and its owners change it.",
       "application": "This application belongs to the whole instance (or to the teams of its services): everybody signed in sees it; designers, administrators and its owners change it.",
-      "system": "This system belongs to the whole instance: everybody signed in sees it; designers, administrators and its owners change it."
+      "system": "This system belongs to the whole instance: everybody signed in sees it; designers, administrators and its owners change it.",
+      "record": "This record belongs to the whole instance: everybody signed in sees it; roles and its owner decide who changes and approves it.",
+      "credential": "This entry belongs to the whole instance: roles and its owners decide who sees and changes it.",
+      "monitor": "This monitor belongs to the whole instance: roles and its access list decide who may do what.",
+      "dashboard": "This dashboard belongs to the whole instance: everybody signed in sees it; its owner and administrators change it.",
+      "ticket": "This ticket reference belongs to the whole instance: everybody signed in sees it; designers, operators and its responsibles change it."
     },
     "hintOwned": {
       "process": "Members of these teams have their roles in the team on this process. Everyone else sees it only through the access list below; administrators always, auditors may view.",
       "platform": "Members of these teams have their roles in the team on this platform. Everyone else sees it only through the access list below; administrators always.",
       "service": "Only members of these teams see this service (designers among them change it), besides its owners, administrators and auditors.",
       "application": "Only members of these teams see this application (designers among them change it), besides its owners, administrators and auditors.",
-      "system": "Only members of these teams see this system (designers among them change it), besides its owners, administrators and auditors."
+      "system": "Only members of these teams see this system (designers among them change it), besides its owners, administrators and auditors.",
+      "record": "Only members of these teams see this record (editors and approvers among them change and approve it), besides its owner, administrators and auditors.",
+      "credential": "Only members of these teams see this entry (designers and operators among them change it), besides its owners, administrators and auditors.",
+      "monitor": "Members of these teams have their roles in the team on this monitor. Everyone else sees it only through its access list; administrators always, auditors may view.",
+      "dashboard": "Only members of these teams see this dashboard, besides its owner, administrators and auditors.",
+      "ticket": "Only members of these teams see this ticket reference (designers and operators among them change it), besides its responsibles, administrators and auditors."
     },
     "saved": "Owning teams saved",
     "notSaved": "Owning teams not saved",
@@ -63,6 +73,38 @@
       "teamRole": "{{role}} in team {{team}}: {{rights}}",
       "accessList": "Access list ({{subject}}): {{rights}}"
     },
-    "save": "Save owning teams"
+    "save": "Save owning teams",
+    "bulk": {
+      "open": "Owning teams for the whole service…",
+      "title": "Owning teams for the service and what belongs to it",
+      "hint": "Covers the service, its applications, the records and ticket references linked to them, and the credentials that belong to them. The preview shows who would gain or lose visibility; nothing is changed until you apply it.",
+      "mode": {
+        "add": "Add teams",
+        "set": "Set exactly",
+        "remove": "Remove teams"
+      },
+      "preview": "Preview",
+      "apply_one": "Apply to {{count}} resource",
+      "apply_other": "Apply to {{count}} resources",
+      "applied_one": "Owning teams changed on {{count}} resource",
+      "applied_other": "Owning teams changed on {{count}} resources",
+      "resource": "Resource",
+      "teams": "Owning teams",
+      "gains": "Gain visibility",
+      "loses": "Lose visibility",
+      "unchanged": "unchanged",
+      "kinds": {
+        "process": "Process",
+        "platform": "Platform",
+        "service": "Service",
+        "application": "Application",
+        "system": "System",
+        "record": "Record",
+        "credential": "Credential",
+        "monitor": "Monitor",
+        "dashboard": "Dashboard",
+        "ticket": "Ticket reference"
+      }
+    }
   }
 }

@@ -20,7 +20,7 @@ import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { platformPermissions } from '../auth/permissions.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { canCreateServices, canEditService, forbid, me, canViewCatalogue } from '../records/access.js';
+import { canCreateServices, canEditService, forbid, me, canViewCatalogue, catalogueVisibleNow } from '../records/access.js';
 import { addLink, httpUrl, listBacklinks, listLinks, removeLink, updateLink, type LinkInput, type LinkUpdate } from '../records/links.js';
 import { requireEditable, touch } from '../records/service.js';
 import {
@@ -42,6 +42,7 @@ import { componentCounts, componentsOf, stackRollup } from './components.js';
 import { systemCounts, systemLinksOf } from './systems.js';
 import { credentialsBelongingTo, credentialsLinkingTo, toCredential, type CredentialRow } from '../credentials/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
+import { assignCreatorTeams } from '../auth/policy.js';
 
 /**
  * Applications of the service catalogue (#84): name, description, vendor, version, URL, owners, criticality, tags,
@@ -194,9 +195,12 @@ type MemberRow = { service_id: string; application_id: string; role: string | nu
 
 function servicesOf(): Map<string, ApplicationServiceRef[]> {
   const out = new Map<string, ApplicationServiceRef[]>();
-  for (const r of db().all<MemberRow & { name: string; archived: number }>(
-    'SELECT sa.*, s.name, s.archived FROM service_applications sa JOIN services s ON s.id = sa.service_id ORDER BY s.name',
-  )) {
+  // services the reader may not see are left out (#131)
+  for (const r of db()
+    .all<MemberRow & { name: string; archived: number; owners: string }>(
+      'SELECT sa.*, s.name, s.archived, s.owners FROM service_applications sa JOIN services s ON s.id = sa.service_id ORDER BY s.name',
+    )
+    .filter((x) => catalogueVisibleNow('service', { id: x.service_id, owners: x.owners }))) {
     out.set(r.application_id, [
       ...(out.get(r.application_id) ?? []),
       { id: r.service_id, name: r.name, archived: !!r.archived, role: (r.role as ApplicationRole | null) ?? null, roleText: r.role_text },
@@ -352,11 +356,11 @@ function applicationCredentials(appId: string, components: { id: string; name: s
 /** The application a platform belongs to, or null (the platform page; the caller checked that the user may see the platform). */
 export function applicationOfPlatform(platformId: string): { id: string; name: string; archived: boolean } | null {
   me();
-  const a = db().get<{ id: string; name: string; archived: number }>(
-    'SELECT a.id, a.name, a.archived FROM application_platforms ap JOIN applications a ON a.id = ap.application_id WHERE ap.platform_id = ?',
+  const a = db().get<{ id: string; name: string; archived: number; owners: string }>(
+    'SELECT a.id, a.name, a.archived, a.owners FROM application_platforms ap JOIN applications a ON a.id = ap.application_id WHERE ap.platform_id = ?',
     platformId,
   );
-  return a ? { id: a.id, name: a.name, archived: !!a.archived } : null;
+  return a && catalogueVisibleNow('application', a) ? { id: a.id, name: a.name, archived: !!a.archived } : null;
 }
 
 // ---------- changing ----------
@@ -412,6 +416,7 @@ export function createApplication(input: ApplicationInput): ApplicationDetail {
       now,
       u.username,
     );
+    assignCreatorTeams('application', id, currentUser());
     audit({
       action: 'application.created',
       entityType: 'application',
@@ -552,10 +557,12 @@ export function addApplicationPlatform(id: string, platformId: string): Applicat
   // only platforms the user can see (no probing for ids of hidden platforms)
   if (!p || !platformVisible(u, p)) throw new HttpError(404, `Platform ${platformId} not found`, 'PLATFORM_NOT_FOUND', { id: platformId });
   if (!platformManaged(u, p)) forbid('map this platform to an application (you need the manage right on the platform)', 'mapPlatform');
-  const mapped = db().get<{ id: string; name: string }>(
-    'SELECT a.id, a.name FROM application_platforms ap JOIN applications a ON a.id = ap.application_id WHERE ap.platform_id = ?',
+  const found = db().get<{ id: string; name: string; owners: string }>(
+    'SELECT a.id, a.name, a.owners FROM application_platforms ap JOIN applications a ON a.id = ap.application_id WHERE ap.platform_id = ?',
     platformId,
   );
+  // the name of an application the user may not see stays hidden (#131)
+  const mapped = found && { id: found.id, name: catalogueVisibleNow('application', found) ? found.name : 'another application' };
   if (mapped?.id === id) return getApplication(id);
   if (mapped)
     throw new HttpError(409, `Platform "${p.name}" belongs to application "${mapped.name}" already – remove it there first`, 'PLATFORM_MAPPED', {
@@ -624,10 +631,13 @@ export function removeApplicationLink(id: string, linkId: string): void {
 
 /** The applications of a service with their role, rating and integrations. */
 export function serviceApplications(serviceId: string, u: AuthUser | null = currentUser()): ServiceApplication[] {
-  const rows = db().all<MemberRow & { name: string; archived: number; criticality: string | null }>(
-    'SELECT sa.*, a.name, a.archived, a.criticality FROM service_applications sa JOIN applications a ON a.id = sa.application_id WHERE sa.service_id = ? ORDER BY a.name',
-    serviceId,
-  );
+  // applications the reader may not see (another team's) are left out (#131)
+  const rows = db()
+    .all<MemberRow & { name: string; archived: number; criticality: string | null; owners: string }>(
+      'SELECT sa.*, a.name, a.archived, a.criticality, a.owners FROM service_applications sa JOIN applications a ON a.id = sa.application_id WHERE sa.service_id = ? ORDER BY a.name',
+      serviceId,
+    )
+    .filter((r) => !u || canViewCatalogue(u, { kind: 'application', id: r.application_id, owners: parseJson<string[]>(r.owners, []) }));
   const ids = rows.map((r) => r.application_id);
   const ratings = ratingsOf(ids);
   const integrations = integrationsOf(ids, u);

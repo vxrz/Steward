@@ -308,6 +308,24 @@ describe.each(versions)('upgrade from %s', (version) => {
     expect(r).toMatchObject({ ok: true, signatureOk: true });
   });
 
+  it("keeps every resource the whole instance's: a demo user sees what they saw before (#131)", async () => {
+    const user = client();
+    await user('POST', '/auth/login', { username: m.approver, password: m.demoPassword });
+    const ids = (x: any) => (Array.isArray(x) ? x : (x.items ?? [])).map((y: any) => y.id).sort();
+    // visible to everyone signed in before team scopes: the same for the approver as for the administrator
+    for (const url of ['/services', '/applications', '/systems', '/dashboards', '/ticket-references'])
+      expect(ids(await user('GET', url)), url).toEqual(ids(await admin('GET', url)));
+    const records = (x: any[]) =>
+      x
+        .filter((r) => r.type !== 'AC' && r.typeKey !== 'AC')
+        .map((r) => r.id)
+        .sort();
+    expect(records(await user('GET', '/records'))).toEqual(records(await admin('GET', '/records')));
+    // and nothing is owned by a team after the upgrade
+    for (const id of ids(await admin('GET', '/services'))) expect((await admin('GET', `/owning-teams/service/${id}`)).teams).toEqual([]);
+    expect((await admin('GET', '/teams')).every((t: any) => !Object.keys(t.memberRoles ?? {}).length)).toBe(true);
+  });
+
   it('keeps the audit log valid after working on the upgraded data', async () => {
     expect((await admin('GET', '/audit/verify')).ok).toBe(true);
   });

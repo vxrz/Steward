@@ -22,7 +22,7 @@ import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { platformPermissions } from '../auth/permissions.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { canEditService, forbid, me } from '../records/access.js';
+import { canEditService, catalogueVisibleNow, forbid, me } from '../records/access.js';
 import { plannedMinutes } from '../catalogue/maintenance.js';
 
 /**
@@ -314,13 +314,16 @@ export function objectiveState(r: ObjectiveRow, cache: ReadingCache, facts: Samp
 
 export function objectiveRow(objectiveId: string): ObjectiveRow {
   const r = db().get<ObjectiveRow>('SELECT * FROM availability_objectives WHERE id = ?', objectiveId);
-  if (!r) throw new HttpError(404, `Objective ${objectiveId} not found`, 'OBJECTIVE_NOT_FOUND', { id: objectiveId });
+  // an objective of a service the reader may not see is unknown to them (#131)
+  const svc = r && db().get<{ id: string; owners: string }>('SELECT id, owners FROM services WHERE id = ?', r.service_id);
+  if (!r || (svc && !catalogueVisibleNow('service', svc)))
+    throw new HttpError(404, `Objective ${objectiveId} not found`, 'OBJECTIVE_NOT_FOUND', { id: objectiveId });
   return r;
 }
 
 export function serviceRef(serviceId: string): ServiceRef {
   const s = db().get<ServiceRef>('SELECT id, name, owners, archived FROM services WHERE id = ?', serviceId);
-  if (!s) throw new HttpError(404, `Service ${serviceId} not found`, 'SERVICE_NOT_FOUND', { id: serviceId });
+  if (!s || !catalogueVisibleNow('service', s)) throw new HttpError(404, `Service ${serviceId} not found`, 'SERVICE_NOT_FOUND', { id: serviceId });
   return s;
 }
 
@@ -389,11 +392,14 @@ function viewCtx(now: number): ViewCtx {
     services: new Map(
       db()
         .all<ServiceRef>('SELECT id, name, owners, archived FROM services')
+        // services the reader may see (#131)
+        .filter((s) => catalogueVisibleNow('service', s))
         .map((s) => [s.id, s]),
     ),
     apps: new Map(
       db()
-        .all<{ id: string; name: string }>('SELECT id, name FROM applications')
+        .all<{ id: string; name: string; owners: string }>('SELECT id, name, owners FROM applications')
+        .filter((a) => catalogueVisibleNow('application', a))
         .map((a) => [a.id, a.name]),
     ),
     breaches: new Map(

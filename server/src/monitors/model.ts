@@ -12,7 +12,8 @@ import {
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
-import { capabilities, isAdmin, matches } from '../auth/permissions.js';
+import { capabilities } from '../auth/permissions.js';
+import { decide } from '../auth/policy.js';
 
 /** Rows and small helpers shared by the monitor modules. */
 
@@ -156,21 +157,23 @@ export const MONITOR_DEFAULTS: Record<Role, MonitorPermission[]> = {
   status: [],
 };
 
-/** Same model as processes: role defaults, or the access list when it has entries; admins and the owner keep everything. */
-export function monitorPermissions(u: AuthUser | null, m: { owner: string; acl: AclEntry<MonitorPermission>[] }): MonitorPermission[] {
-  if (!u) return [];
-  if (isAdmin(u) || m.owner.toLowerCase() === u.username.toLowerCase()) return [...MONITOR_PERMISSIONS];
-  const out = new Set<MonitorPermission>();
-  if (u.roles.includes('auditor')) out.add('view');
-  if (!m.acl.length) for (const r of u.roles) MONITOR_DEFAULTS[r]?.forEach((x) => out.add(x));
-  else for (const e of m.acl) if (matches(u, e.subject)) e.permissions.forEach((x) => out.add(x));
+/**
+ * Same model as processes: role defaults, or the access list when it has entries; admins and the owner keep everything.
+ * With owning teams (#131) members of those teams have their roles in the team, everyone else only the access list.
+ */
+export function monitorAccess(u: AuthUser | null, m: { id: string; owner: string; acl: AclEntry<MonitorPermission>[] }) {
+  const d = decide(u, { kind: 'monitor', ...m }, MONITOR_PERMISSIONS, MONITOR_DEFAULTS, 'view');
+  const out = new Set(d.permissions);
   if (out.has('manage')) ['edit', 'acknowledge'].forEach((x) => out.add(x as MonitorPermission));
   if (out.size) out.add('view');
-  return MONITOR_PERMISSIONS.filter((x) => out.has(x));
+  return { permissions: MONITOR_PERMISSIONS.filter((x) => out.has(x)), reasons: d.reasons };
 }
 
-export const permissionsOfRow = (r: Pick<MonitorRow, 'owner' | 'acl'>, u: AuthUser | null = currentUser()): MonitorPermission[] =>
-  monitorPermissions(u, { owner: r.owner, acl: parseJson(r.acl, []) });
+export const monitorPermissions = (u: AuthUser | null, m: { id: string; owner: string; acl: AclEntry<MonitorPermission>[] }): MonitorPermission[] =>
+  monitorAccess(u, m).permissions;
+
+export const permissionsOfRow = (r: Pick<MonitorRow, 'id' | 'owner' | 'acl'>, u: AuthUser | null = currentUser()): MonitorPermission[] =>
+  monitorPermissions(u, { id: r.id, owner: r.owner, acl: parseJson(r.acl, []) });
 
 /** Designers and administrators create monitors and gateways. */
 export const canCreateMonitors = (u: AuthUser | null = currentUser()): boolean => capabilities(u).createMonitors;

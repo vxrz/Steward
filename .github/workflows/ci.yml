@@ -41,7 +41,8 @@ jobs:
     # Node.js 24 (LTS) is the primary version (.nvmrc, Dockerfile, desktop executable); 26 (Current) is tested as well
     name: build-test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # the suite takes 20-30 minutes on a hosted runner (more fixtures, slower runners): room to finish, a hang still ends
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -79,7 +80,8 @@ jobs:
   test-postgres:
     # The same test suite on PostgreSQL (every test server gets its own schema)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # the suite takes 20-30 minutes on a hosted runner (more fixtures, slower runners): room to finish, a hang still ends
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:16

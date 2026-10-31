@@ -30,7 +30,7 @@ import { getRecord } from '../records/service.js';
 import { renderRecordPdf } from '../records/pdf.js';
 import { editionAsRecord } from '../records/documents.js';
 import { attachmentFile, attachmentRows, type RecordRow } from '../records/model.js';
-import { canReadRecordRow } from '../records/access.js';
+import { canReadRecordRow, canViewCatalogue } from '../records/access.js';
 import { getService } from '../catalogue/service.js';
 import { platformCatalogue, serviceCatalogue } from '../catalogue/evidence.js';
 import { csvCell } from '../audit-export.js';
@@ -93,8 +93,9 @@ const canSeePack = (u: AuthUser | null, r: Pick<PackRow, 'created_by'>) => !!u &
 function scopeLabel(scope: EvidencePackScope, u: AuthUser | null): string {
   if (scope.platformId) return `Platform: ${visiblePlatformName(u, scope.platformId) ?? scope.platformId}`;
   if (scope.serviceId) {
-    const s = db().get<{ name: string }>('SELECT name FROM services WHERE id = ?', scope.serviceId);
-    return `Service: ${s?.name ?? scope.serviceId}`;
+    const s = db().get<{ id: string; name: string; owners: string }>('SELECT id, name, owners FROM services WHERE id = ?', scope.serviceId);
+    const visible = s && (!u || canViewCatalogue(u, { kind: 'service', id: s.id, owners: parseJson<string[]>(s.owners, []) }));
+    return `Service: ${visible ? s.name : scope.serviceId}`;
   }
   const refs = (scope.controlIds ?? []).map((id) => {
     const c = db().get<{ ref: string; key: string }>(

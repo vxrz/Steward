@@ -14,6 +14,7 @@ import { TicketForm } from '../components/tickets/TicketForm';
 import { fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { useCanStartReview, useStartReview } from '../components/records/IncidentReview';
+import { OwningTeams } from '../components/OwningTeams';
 
 export function TicketDetailPage() {
   const { t } = useTranslation(['tickets', 'records', 'common']);
@@ -218,6 +219,7 @@ export function TicketDetailPage() {
               </Text>
             </Stack>
           </Paper>
+          <OwningTeams kind="ticket" id={x.id} mt="md" />
         </Grid.Col>
       </Grid>
       {editing && (

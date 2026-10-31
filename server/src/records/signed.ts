@@ -3,7 +3,7 @@ import { db } from '../db.js';
 import { audit, authenticRows, importedSourceOf } from '../audit.js';
 import { isAdmin } from '../auth/permissions.js';
 import { HttpError, newId, parseJson, sha256 } from '../util.js';
-import { canApproveRecords, canEditRecord, forbid, me } from './access.js';
+import { canApproveRecord, canEditRecord, forbid, me } from './access.js';
 import { attachmentRows, requireRecordRow, toAttachment, type AttachmentRow, type RecordRow } from './model.js';
 import { touch, workflowOf } from './service.js';
 import { requireType } from './types.js';
@@ -312,7 +312,7 @@ export function uploadSignedPdf(
 ): RecordAttachment & { check: Omit<SignedCheck, 'generated'> } {
   const u = me();
   const r = requireRecordRow(recordId);
-  if (!canEditRecord(u, r) && !canApproveRecords(u)) forbid('upload signed PDFs', 'uploadSigned');
+  if (!canEditRecord(u, r) && !canApproveRecord(u, r)) forbid('upload signed PDFs', 'uploadSigned');
   if (o.plain && !isAdmin(u)) forbid('attach unverified PDFs', 'attachPlainPdf');
   if (data.length > MAX_ATTACHMENT_BYTES)
     throw new HttpError(413, `The file is too large (at most ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB)`, 'FILE_TOO_LARGE', {

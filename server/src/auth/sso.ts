@@ -36,7 +36,7 @@ import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { checkMac, configMac } from '../integrity.js';
 import { readSetting, writeSetting } from '../settings.js';
 import { createSession, getUser, listTeams, listUsers, type CreatedSession } from './users.js';
-import { BRAND } from '@sm/shared';
+import { BRAND, TEAM_ROLES } from '@sm/shared';
 import { config as appConfig } from '../config.js';
 import { aliasTarget } from './aliases.js';
 import {
@@ -89,6 +89,7 @@ const providerSchema = z.object({
         claimValue: z.string().min(1).max(500),
         roles: z.array(z.enum(ROLES)).max(ROLES.length).default([]),
         teams: z.array(z.string().max(64)).max(100).default([]),
+        teamRoles: z.array(z.enum(TEAM_ROLES)).max(TEAM_ROLES.length).default([]),
       }),
     )
     .max(500)
@@ -852,6 +853,8 @@ interface Decision {
   mappedRoles: Role[];
   managedTeams: Set<string>;
   wantedTeams: Set<string>;
+  /** Roles in each wanted team (lower-case team name → roles), from the matched mappings */
+  wantedTeamRoles: Map<string, Role[]>;
 }
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
@@ -895,6 +898,12 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
   const mappedRoles = [...new Set([...p.defaultRoles, ...matched.flatMap((m) => m.roles)])] as Role[];
   const managedTeams = new Set(p.mappings.flatMap((m) => m.teams.map((t) => t.toLowerCase())));
   const wantedTeams = new Set(matched.flatMap((m) => m.teams.map((t) => t.toLowerCase())));
+  const wantedTeamRoles = new Map<string, Role[]>();
+  for (const m of matched)
+    for (const t of m.teams) {
+      const key = t.toLowerCase();
+      wantedTeamRoles.set(key, [...new Set([...(wantedTeamRoles.get(key) ?? []), ...(m.teamRoles ?? [])])].sort() as Role[]);
+    }
   const teamNames = listTeams()
     .filter((t) => wantedTeams.has(t.name.toLowerCase()))
     .map((t) => t.name);
@@ -917,7 +926,7 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
     teams: teamNames,
     notes,
   };
-  const d: Decision = { preview, key: keys.key, subKey: keys.subKey, mappedRoles, managedTeams, wantedTeams };
+  const d: Decision = { preview, key: keys.key, subKey: keys.subKey, mappedRoles, managedTeams, wantedTeams, wantedTeamRoles };
   const refuse = (refusal: { code: string; message: string; params?: ErrorParams }): Decision => {
     preview.outcome = 'refuse';
     preview.refusal = refusal;
@@ -1216,7 +1225,7 @@ function provisionUser(p: SsoProvider, claims: Claims): UserInfo {
     );
     if (created || p.syncRoles) {
       const user = getUser(userId);
-      syncRolesAndTeams(p, user.id, user.username, user.roles, d.mappedRoles, d.managedTeams, d.wantedTeams);
+      syncRolesAndTeams(p, user.id, user.username, user.roles, d.mappedRoles, d.managedTeams, d.wantedTeams, d.wantedTeamRoles);
     }
   });
   return getUser(userId);
@@ -1230,6 +1239,7 @@ function syncRolesAndTeams(
   wanted: Role[],
   managedTeams: Set<string>,
   wantedTeams: Set<string>,
+  wantedTeamRoles: Map<string, Role[]>,
 ) {
   const roles = [...wanted];
   if (current.includes('admin') && !roles.includes('admin')) {
@@ -1245,9 +1255,19 @@ function syncRolesAndTeams(
     const key = t.name.toLowerCase();
     if (!managedTeams.has(key)) continue;
     const member = t.members.some((m) => m.toLowerCase() === username.toLowerCase());
+    // roles in the team: as the mappings say (#131); none stored when they give none
+    const roles = wantedTeamRoles.get(key) ?? [];
+    const stored = roles.length ? JSON.stringify(roles) : null;
     if (wantedTeams.has(key) && !member) {
-      db().run('INSERT INTO team_members (team_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING', t.id, userId);
-      teamChanges.push(`+${t.name}`);
+      db().run('INSERT INTO team_members (team_id, user_id, roles) VALUES (?, ?, ?) ON CONFLICT DO NOTHING', t.id, userId, stored);
+      teamChanges.push(`+${t.name}${roles.length ? ` (${roles.join(',')})` : ''}`);
+    } else if (wantedTeams.has(key) && member) {
+      const was = db().get<{ roles: string | null }>('SELECT roles FROM team_members WHERE team_id = ? AND user_id = ?', t.id, userId)?.roles ?? null;
+      const before = (was ? parseJson<string[]>(was, []) : []).sort().join(',');
+      if (before !== roles.join(',')) {
+        db().run('UPDATE team_members SET roles = ? WHERE team_id = ? AND user_id = ?', stored, t.id, userId);
+        teamChanges.push(`${t.name} roles ${before || '–'} → ${roles.join(',') || '–'}`);
+      }
     } else if (!wantedTeams.has(key) && member) {
       db().run('DELETE FROM team_members WHERE team_id = ? AND user_id = ?', t.id, userId);
       teamChanges.push(`-${t.name}`);

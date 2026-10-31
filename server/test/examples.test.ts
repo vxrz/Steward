@@ -153,7 +153,8 @@ describe('example library', () => {
     expect(Object.keys(by).sort()).toEqual(['db01 / CPU load', 'db01 / Filesystem /var', 'web01 / Memory']);
     const v = by['db01 / Filesystem /var'];
     expect(v).toMatchObject({ crossed: true, _status: 'warning', error: '' });
-    expect(v.latest).toBeCloseTo(82, 0);
+    // 82 % plus the mock's daily wave (at most ±0.52, depending on the time of day)
+    expect(Math.abs(v.latest - 82)).toBeLessThanOrEqual(0.6);
     expect(v.daysToCrit).toBeGreaterThan(8);
     expect(v.daysToCrit).toBeLessThan(18);
     expect(v.weekChangePct).toBeGreaterThan(3);

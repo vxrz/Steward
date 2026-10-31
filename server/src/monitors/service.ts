@@ -60,6 +60,7 @@ import { checkExpressions, parseDefinitionInput, validateTemplate } from './vali
 import * as engine from './engine.js';
 import { checkMessage, monitorVisibility, redactCauses, redactDefinition, rootCauseMessage, type MonitorVisibility } from './redact.js';
 import { me } from '../auth/access.js';
+import { assignCreatorTeams } from '../auth/policy.js';
 
 /**
  * Monitor management: create, edit, delete, access, heartbeat secrets,
@@ -697,6 +698,7 @@ export async function createMonitor(
       u.username,
     );
     if (def) secrets = syncCheckRows(id, key, def, null);
+    assignCreatorTeams('monitor', id, currentUser());
     audit({
       action: input.isTemplate ? 'monitor.template_created' : 'monitor.created',
       entityType: 'monitor',

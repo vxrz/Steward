@@ -26,7 +26,7 @@ import { isAdmin, matches, platformPermissions } from '../auth/permissions.js';
 import { monitorPermissions } from '../monitors/model.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
-import { canReadRecords } from '../records/access.js';
+import { canReadRecords, catalogueVisibleNow } from '../records/access.js';
 import { readSetting, writeSetting } from '../settings.js';
 import { setCertificateExpiryHook } from '../gatus/metrics.js';
 import { assertEmailsAllowed } from '../notifications/domains.js';
@@ -37,6 +37,7 @@ import { belongsTarget, belongsToSchema, checkBelongsTo, toBelongsTo } from './b
 import * as processes from '../processes/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { me } from '../auth/access.js';
+import { assignCreatorTeams, teamScoped } from '../auth/policy.js';
 
 /**
  * Credentials register: documents credentials (what, where kept, who owns them,
@@ -126,14 +127,37 @@ export function saveReminderSettings(input: z.infer<typeof reminderSettingsSchem
 
 export const isOwner = (u: AuthUser, r: Pick<CredentialRow, 'owner_subjects'>): boolean => parseJson<string[]>(r.owner_subjects, []).some((s) => matches(u, s));
 
-export function credentialPermissions(u: AuthUser | null, r: Pick<CredentialRow, 'owner_subjects' | 'archived'>): CredentialPermission[] {
-  if (!u) return [];
-  const out = new Set<CredentialPermission>();
-  const owner = isOwner(u, r);
-  if (owner || u.roles.some((x) => READ_ROLES.includes(x))) out.add('view');
-  if ((owner || u.roles.some((x) => EDIT_ROLES.includes(x))) && !r.archived) out.add('edit');
-  if (isAdmin(u)) ['view', 'edit', 'archive', 'delete'].forEach((p) => out.add(p as CredentialPermission));
-  return (['view', 'edit', 'archive', 'delete'] as const).filter((p) => out.has(p));
+export function credentialPermissions(u: AuthUser | null, r: Pick<CredentialRow, 'id' | 'owner_subjects' | 'archived'>): CredentialPermission[] {
+  return credentialAccess(u, r).permissions;
+}
+
+/** Who may see and change an entry, and why (#131: members of its owning teams only, when it has some). */
+export function credentialAccess(u: AuthUser | null, r: Pick<CredentialRow, 'id' | 'owner_subjects' | 'archived'>) {
+  const ALL = ['view', 'edit', 'archive', 'delete'] as const;
+  const owner = !!u && isOwner(u, r);
+  const byRole = (role: string): CredentialPermission[] => [
+    ...(READ_ROLES.includes(role) ? (['view'] as const) : []),
+    ...(EDIT_ROLES.includes(role) ? (['edit'] as const) : []),
+  ];
+  const d = teamScoped<CredentialPermission>(
+    u,
+    { kind: 'credential', id: r.id },
+    {
+      all: ALL,
+      byRole,
+      personal: owner ? { permissions: ['view', 'edit'] } : null,
+      auditor: ['view'],
+      unscoped: () => {
+        if (!u) return [];
+        const out = new Set<CredentialPermission>([...(owner ? (['view', 'edit'] as const) : []), ...u.roles.flatMap(byRole)]);
+        if (isAdmin(u)) ALL.forEach((p) => out.add(p));
+        return ALL.filter((p) => out.has(p));
+      },
+    },
+  );
+  // archived entries are not changed any more, except by administrators (as before)
+  if (r.archived && !isAdmin(u)) d.permissions = d.permissions.filter((p) => p !== 'edit');
+  return d;
 }
 
 export const canCreateCredentials = (u: AuthUser | null = currentUser()): boolean => !!u && u.roles.some((x) => EDIT_ROLES.includes(x));
@@ -201,21 +225,23 @@ registerCredentialLinkKind('platform', (id) => {
   }
 });
 registerCredentialLinkKind('monitor', (id) => {
-  const r = db().get<{ name: string; owner: string; acl: string }>('SELECT name, owner, acl FROM monitors WHERE id = ? OR key = ?', id, id);
+  const r = db().get<{ id: string; name: string; owner: string; acl: string }>('SELECT id, name, owner, acl FROM monitors WHERE id = ? OR key = ?', id, id);
   if (!r) return null;
-  return monitorPermissions(currentUser(), { owner: r.owner, acl: parseJson(r.acl, []) }).includes('view' as MonitorPermission) ? r.name : null;
+  return monitorPermissions(currentUser(), { id: r.id, owner: r.owner, acl: parseJson(r.acl, []) }).includes('view' as MonitorPermission) ? r.name : null;
 });
 
 // Catalogue services: the catalogue's read rule (records/access.ts).
 registerCredentialLinkKind('service', (id) => {
   if (!canReadRecords()) return null;
-  return db().get<{ name: string }>('SELECT name FROM services WHERE id = ?', id)?.name ?? null;
+  const r = db().get<{ id: string; name: string; owners: string }>('SELECT id, name, owners FROM services WHERE id = ?', id);
+  return r && catalogueVisibleNow('service', r) ? r.name : null;
 });
 
 // Catalogue applications: read like services (#125)
 registerCredentialLinkKind('application', (id) => {
   if (!canReadRecords()) return null;
-  return db().get<{ name: string }>('SELECT name FROM applications WHERE id = ?', id)?.name ?? null;
+  const r = db().get<{ id: string; name: string; owners: string }>('SELECT id, name, owners FROM applications WHERE id = ?', id);
+  return r && catalogueVisibleNow('application', r) ? r.name : null;
 });
 
 const resolveLink = (l: CredentialLink): CredentialLink => {
@@ -734,6 +760,7 @@ export function createCredential(b: CredentialInput): Credential {
     recordRoles(id, b.name, u.username, [], parseJson<CredentialRole[]>(String(values.roles), []), b.rolesComment);
     if (certificate)
       addEvent(id, 'certificate', u.username, '', { fingerprint256: certificate.fingerprint256, notAfter: certificate.notAfter, subject: certificate.subject });
+    assignCreatorTeams('credential', id, currentUser());
     audit({
       action: 'credential.created',
       entityType: 'credential',

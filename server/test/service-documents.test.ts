@@ -14,8 +14,8 @@ vi.mock('../src/records/access.js', async (importOriginal) => {
   const m = await importOriginal<typeof import('../src/records/access.js')>();
   return {
     ...m,
-    canReadRecordRow: (u: { username: string } | null, r: { id?: string; type_id: string; fields: string; owner: string }) =>
-      !(u && r.id && hidden.get(u.username)?.has(r.id)) && m.canReadRecordRow(u as never, r),
+    canReadRecordRow: (u: { username: string } | null, r: { id: string; type_id: string; fields: string; owner: string }) =>
+      !(u && hidden.get(u.username)?.has(r.id)) && m.canReadRecordRow(u as never, r),
   };
 });
 

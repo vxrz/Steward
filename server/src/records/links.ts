@@ -11,6 +11,7 @@ import { credentialPermissions, credentialsLinkingTo, type CredentialRow } from 
 import { canReadRecordRow, canViewCatalogue } from './access.js';
 import { checkLinkType, linkTypeByKey, linkTypeKey } from './link-types.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
+import { dashboardVisible } from '../dashboards/service.js';
 
 /**
  * Generic links from a record or service to an internal item ({ kind, id })
@@ -120,12 +121,17 @@ registerLinkKind('platform', {
 
 registerLinkKind('dashboard', {
   resolve(id) {
-    const d = db().get<{ name: string }>('SELECT name FROM dashboards WHERE id = ?', id);
-    return d ? { label: d.name, path: `/dashboards/${id}` } : null;
+    const d = db().get<{ id: string; name: string; owner: string | null }>('SELECT id, name, owner FROM dashboards WHERE id = ?', id);
+    return d && dashboardVisible(d) ? { label: d.name, path: `/dashboards/${id}` } : null;
   },
   search(q, limit) {
     return db()
-      .all<{ id: string; name: string }>("SELECT id, name FROM dashboards WHERE lower(name) LIKE ? ESCAPE '\\' ORDER BY name LIMIT ?", like(q), limit)
+      .all<{ id: string; name: string; owner: string | null }>(
+        "SELECT id, name, owner FROM dashboards WHERE lower(name) LIKE ? ESCAPE '\\' ORDER BY name LIMIT 500",
+        like(q),
+      )
+      .filter(dashboardVisible)
+      .slice(0, limit)
       .map((d) => ({ kind: 'dashboard' as const, id: d.id, label: d.name }));
   },
 });

@@ -13,13 +13,14 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { canCreateServices, canEditService, forbid, me, canViewCatalogue } from '../records/access.js';
+import { canCreateServices, canEditService, forbid, me, canViewCatalogue, catalogueVisibleNow } from '../records/access.js';
 import { addLink, httpUrl, listBacklinks, listLinks, removeLink, targetVisible, updateLink, type LinkInput, type LinkUpdate } from '../records/links.js';
 import { documentCounts, readableDocuments } from './documents.js';
 import { scopesOf } from './scope.js';
 import { protectionNeedOf, protectionNeeds } from './cia.js';
 import { serviceApplications } from './applications.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
+import { assignCreatorTeams } from '../auth/policy.js';
 
 /**
  * A deliberately small service catalogue ("lightweight CMDB"): name,
@@ -206,11 +207,12 @@ function listRows(o: { archived?: boolean }): { r: ServiceRow; s: ServiceSummary
   const links = visibleLinkCounts(new Set(rows.map((r) => r.id)));
   const docs = serviceDocumentCounts(u);
   const needs = protectionNeeds(rows.map((r) => r.id));
-  const apps = new Map(
-    db()
-      .all<{ id: string; n: number }>('SELECT service_id AS id, COUNT(*) AS n FROM service_applications GROUP BY service_id')
-      .map((x) => [x.id, Number(x.n)]),
-  );
+  // applications the reader may see (#131)
+  const apps = new Map<string, number>();
+  for (const x of db().all<{ service_id: string; application_id: string; owners: string }>(
+    'SELECT sa.service_id, sa.application_id, a.owners FROM service_applications sa JOIN applications a ON a.id = sa.application_id',
+  ))
+    if (catalogueVisibleNow('application', { id: x.application_id, owners: x.owners })) apps.set(x.service_id, (apps.get(x.service_id) ?? 0) + 1);
   return rows.map((r) => ({
     r,
     s: toSummary(r, links.get(r.id) ?? 0, docs.get(r.id) ?? { documents: 0, overdue: 0 }, { count: apps.get(r.id) ?? 0, need: needs.get(r.id)! }),
@@ -289,6 +291,7 @@ export function createService(input: ServiceInput): ServiceDetail {
       now,
       u.username,
     );
+    assignCreatorTeams('service', id, currentUser());
     audit({
       action: 'service.created',
       entityType: 'service',

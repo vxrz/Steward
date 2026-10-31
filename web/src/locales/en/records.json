@@ -244,7 +244,8 @@
     "attachments": "Attachments ({{count}})",
     "discussion": "Approvals & comments ({{count}})",
     "pdfs": "PDF & signatures ({{count}})",
-    "changelog": "Changelog ({{count}})"
+    "changelog": "Changelog ({{count}})",
+    "access": "Access"
   },
   "detail": {
     "owner": "Owner {{owner}}",

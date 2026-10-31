@@ -709,6 +709,7 @@ const EXPECT: Record<string, Access> = {
   // whoever may see the process (the demo process has no access list); administrators set owning teams
   'GET /api/owning-teams/:kind/:id': ALL,
   'PUT /api/owning-teams/:kind/:id': ADMIN,
+  'POST /api/owning-teams/bulk': ADMIN,
   // own rights on what one can see; others' rights for administrators and auditors (checked in team-scopes.test.ts)
   'GET /api/access/explain': ALL,
 
@@ -772,6 +773,15 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
       return { teamIds: [fx.team] };
     },
     harmless: { teamIds: [] as string[] },
+  },
+  'POST /api/owning-teams/bulk': {
+    get sensitive() {
+      return { teamIds: [fx.team], resources: [{ kind: 'process', id: fx.process }] };
+    },
+    // a preview changes nothing
+    get harmless() {
+      return { teamIds: [fx.team], resources: [{ kind: 'process', id: fx.process }], preview: true };
+    },
   },
   'POST /api/users': { sensitive: { username: 'matrix-new', roles: ['viewer'] }, harmless: { username: '!' } },
   'PUT /api/users/:id': { sensitive: { roles: ['admin'] }, harmless: {} },
@@ -954,6 +964,7 @@ const QUERY: Record<string, string> = {
 const bodies = (): Record<string, unknown> => ({
   'POST /api/runs': { processId: fx.process, dryRun: true },
   'PUT /api/owning-teams/:kind/:id': { teamIds: [] },
+  'POST /api/owning-teams/bulk': { teamIds: [], resources: [] },
   'POST /api/schedules': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
   'PUT /api/schedules/:id': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
   'POST /api/triggers': { ...TRIGGER, processId: fx.process },

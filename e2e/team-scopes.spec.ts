@@ -67,3 +67,39 @@ test('an administrator gives a team a process and a member a role in the team; o
     await api.delete(`/api/teams/${team.id}`);
   }
 });
+
+test('a record has owning teams on its access tab; a whole service is moved with a preview', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const teamName = uniq('Payments');
+  const team = await json<{ id: string }>(await api.post('/api/teams', { data: { name: teamName, members: ['vera'] } }));
+  const service = await json<{ id: string }>(await api.post('/api/services', { data: { name: uniq('Card payments'), owners: [] } }));
+  const rec = await json<{ id: string }>(
+    await api.post('/api/records', { data: { type: 'ADR', title: uniq('Tokenise cards'), links: [{ kind: 'service', id: service.id }] } }),
+  );
+  try {
+    await page.goto(`/records/${rec.id}`);
+    await page.getByRole('tab', { name: 'Access' }).click();
+    await expect(page.getByText(/This record belongs to the whole instance/)).toBeVisible();
+    await expectAccessible(page, 'record access tab');
+
+    await page.goto(`/services/${service.id}`);
+    await page.getByRole('button', { name: 'Owning teams for the whole service…' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Owning teams for the service and what belongs to it' });
+    await dialog.getByRole('textbox', { name: 'Teams' }).fill(teamName, { force: true });
+    await page.getByRole('option', { name: teamName }).click();
+    await dialog.getByText(/Covers the service/).click(); // closes the dropdown
+    await dialog.getByRole('button', { name: 'Preview' }).click();
+    await expect(dialog.getByRole('cell', { name: /Tokenise cards/ })).toBeVisible();
+    await expect(dialog.getByRole('cell', { name: new RegExp(`→ ${teamName}`) }).first()).toBeVisible();
+    await expectAccessible(page, 'bulk owning teams preview');
+    await dialog.getByRole('button', { name: /Apply to \d+ resources/ }).click();
+    await expect(page.getByText(/Owning teams changed on \d+ resources/)).toBeVisible();
+    await page.goto(`/records/${rec.id}`);
+    await page.getByRole('tab', { name: 'Access' }).click();
+    await expect(page.getByText(/Only members of these teams see this record/)).toBeVisible();
+  } finally {
+    await api.post('/api/owning-teams/bulk', { data: { service: service.id, teamIds: [] } });
+    await api.delete(`/api/services/${service.id}`);
+    await api.delete(`/api/teams/${team.id}`);
+  }
+});

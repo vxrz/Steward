@@ -38,7 +38,7 @@ import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
-import { forbid, me } from '../records/access.js';
+import { forbid, me, catalogueVisibleNow } from '../records/access.js';
 import { httpUrl } from '../records/links.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { assetPath } from '../reports/pdf/assets.js';
@@ -1069,7 +1069,7 @@ export function applicationsInputValue(v: unknown, label: string): ApplicationIn
 /**
  * Resolves an input of type application: an application id, its name (case does not matter – portable between
  * installations, e.g. in Git), or the value of an earlier run (an object with the id). Archived applications are
- * refused. Everyone who may start the run may read applications, so no further check.
+ * refused. Applications the one who starts the run may not see (another team's, #131) are not found.
  */
 export function applicationInputValue(v: unknown, label: string): ApplicationInputValue {
   const given = typeof v === 'string' ? v.trim() : typeof obj(v)?.id === 'string' ? String(obj(v)!.id) : '';
@@ -1083,7 +1083,8 @@ export function applicationInputValue(v: unknown, label: string): ApplicationInp
       'SELECT id, name, criticality, owners, tags, url, archived FROM applications WHERE lower(name) = lower(?) AND archived = 0',
       given,
     );
-  if (!a)
+  // an application the starter may not see is unknown (#131)
+  if (!a || !catalogueVisibleNow('application', a))
     throw new HttpError(400, `Input "${label}": application "${given.slice(0, 160)}" not found`, 'INPUT_APPLICATION_NOT_FOUND', {
       input: label,
       name: given.slice(0, 160),

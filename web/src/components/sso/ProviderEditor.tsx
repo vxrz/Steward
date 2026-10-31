@@ -25,6 +25,7 @@ import { IconChevronDown, IconChevronRight, IconExternalLink, IconPlus, IconPlug
 import {
   BRAND,
   ROLES,
+  TEAM_ROLES,
   SSO_PRESETS,
   SSO_DOMAIN,
   SSO_PRESET_INFO,
@@ -82,6 +83,7 @@ function presetForm(preset: SsoPreset, buttonLabel: string): ProviderForm {
 }
 
 const roleOptions = () => ROLES.map((r) => ({ value: r, label: i18n.t(`common:roles.${r}`) }));
+const teamRoleOptions = () => TEAM_ROLES.map((r) => ({ value: r, label: i18n.t(`common:roles.${r}`) }));
 
 export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoProvider | null; onClose: () => void; onSaved: () => void }) {
   const { t } = useTranslation(['users', 'common', 'auth']);
@@ -403,13 +405,14 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                 <Table.Th miw={160}>{t('provider.claimValue', { claim: form.groupsClaim || 'claim' })}</Table.Th>
                 <Table.Th miw={180}>{t('table.roles')}</Table.Th>
                 <Table.Th miw={160}>{t('table.teams')}</Table.Th>
+                <Table.Th miw={160}>{t('provider.teamRoles')}</Table.Th>
                 <Table.Th w={36} />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {form.mappings.length === 0 && (
                 <Table.Tr>
-                  <Table.Td colSpan={4}>
+                  <Table.Td colSpan={5}>
                     <Text size="xs" c="dimmed">
                       {t('provider.noMappings')}
                     </Text>
@@ -450,6 +453,17 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                     />
                   </Table.Td>
                   <Table.Td>
+                    <MultiSelect
+                      size="xs"
+                      aria-label={t('provider.teamRoles')}
+                      data={teamRoleOptions()}
+                      value={m.teamRoles ?? []}
+                      onChange={(v) => setMapping(i, { teamRoles: v as Role[] })}
+                      disabled={!m.teams.length}
+                      comboboxProps={{ withinPortal: true }}
+                    />
+                  </Table.Td>
+                  <Table.Td>
                     <ActionIcon
                       variant="subtle"
                       color="red"
@@ -474,7 +488,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
             size="xs"
             variant="light"
             leftSection={<IconPlus size={14} />}
-            onClick={() => set('mappings', [...form.mappings, { claimValue: '', roles: [], teams: [] }])}
+            onClick={() => set('mappings', [...form.mappings, { claimValue: '', roles: [], teams: [], teamRoles: [] }])}
           >
             {t('provider.addMapping')}
           </Button>

@@ -19,6 +19,7 @@ import { cleanAcl, processPermissions } from '../auth/permissions.js';
 import { PROCESS_PERMISSIONS, type AclEntry, type ProcessPermission } from '@sm/shared';
 import { HttpError, MAX_DEFINITION_TEXT, canonicalJson, nowIso, parseJson, sha256, slugify } from '../util.js';
 import { parseYaml } from '../yaml-safe.js';
+import { assignCreatorTeams } from '../auth/policy.js';
 
 interface ProcessRow {
   id: string;
@@ -143,6 +144,7 @@ export function createProcess(def: unknown, opts: { id?: string; comment?: strin
       opts.comment ?? 'Created',
       ts,
     );
+    assignCreatorTeams('process', id, currentUser());
     audit({
       action: 'process.created',
       entityType: 'process',

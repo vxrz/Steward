@@ -18,7 +18,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { platformPermissions } from '../auth/permissions.js';
-import { canCreateServices, canEditService, forbid, me, canViewCatalogue } from '../records/access.js';
+import { canCreateServices, canEditService, forbid, me, canViewCatalogue, catalogueVisibleNow } from '../records/access.js';
 import { httpUrl } from '../records/links.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import {
@@ -38,6 +38,7 @@ import { lifecycleSettings, releasesOf } from './lifecycle.js';
 import { byEnvironment, environmentValue } from './environments.js';
 import { credentialsBelongingTo, toCredential } from '../credentials/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
+import { assignCreatorTeams } from '../auth/policy.js';
 
 /**
  * Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on – often several
@@ -190,13 +191,16 @@ const sbomOf = (r: SystemRow): SystemDetail['sbom'] =>
 /** A system with its stack, SBOM, creation and applications (the public API's list and the detail page). */
 export type SystemEntry = Omit<SystemDetail, 'canEdit' | 'credentials'>;
 
-type AppRef = { id: string; name: string; archived: number };
+type AppRef = { id: string; name: string; archived: number; owners: string };
+/** The applications the reader may see (#131), by id. */
 const appsById = () =>
   new Map(
     db()
-      .all<AppRef>('SELECT id, name, archived FROM applications')
+      .all<AppRef>('SELECT id, name, archived, owners FROM applications')
+      .filter((a) => catalogueVisibleNow('application', a))
       .map((a) => [a.id, a]),
   );
+const systemVisible = (r: { id: string; owners: string }) => catalogueVisibleNow('system', r);
 
 function toEntryOf(
   r: SystemRow,
@@ -205,6 +209,8 @@ function toEntryOf(
   ctx: { platforms: Map<string, PlatformRow>; apps: Map<string, AppRef>; u: AuthUser | null },
 ): SystemEntry {
   const { platforms, apps, u } = ctx;
+  // applications the reader may not see are left out (#131)
+  links = links.filter((l) => apps.has(l.application_id));
   const applications: SystemApplicationRef[] = byEnvironment(
     links.map((l) => ({
       linkId: l.id,
@@ -254,10 +260,12 @@ export function systemsForProcess(): {
 }[] {
   const stacks = stacksOf();
   const links = linksBySystem();
+  const apps = appsById();
   return db()
     .all<SystemRow>('SELECT * FROM systems ORDER BY name')
+    .filter(systemVisible)
     .map((r) => {
-      const l = links.get(r.id) ?? [];
+      const l = (links.get(r.id) ?? []).filter((x) => apps.has(x.application_id));
       return {
         id: r.id,
         name: r.name,
@@ -275,9 +283,11 @@ export function listSystems(): SystemSummary[] {
   const stacks = stacksOf();
   const links = linksBySystem();
   const platforms = platformsById();
+  const apps = appsById();
   return db()
     .all<SystemRow>('SELECT * FROM systems ORDER BY name')
-    .map((r) => toSummary(r, { stack: stacks.get(r.id) ?? [], links: links.get(r.id) ?? [], platforms, u }));
+    .filter(systemVisible)
+    .map((r) => toSummary(r, { stack: stacks.get(r.id) ?? [], links: (links.get(r.id) ?? []).filter((l) => apps.has(l.application_id)), platforms, u }));
 }
 
 /** The credentials register entries that belong to a system (#143), archived ones left out. */
@@ -310,10 +320,12 @@ export function getSystem(id: string): SystemDetail {
 
 /** The systems an application runs on, with their stacks, in environment order. */
 export function systemLinksOf(appId: string): ApplicationSystemLink[] {
-  const rows = db().all<LinkRow & { name: string; kind: string; vendor: string }>(
-    `SELECT l.*, s.name, s.kind, s.vendor FROM application_systems l JOIN systems s ON s.id = l.system_id WHERE l.application_id = ?`,
-    appId,
-  );
+  const rows = db()
+    .all<LinkRow & { name: string; kind: string; vendor: string; owners: string }>(
+      `SELECT l.*, s.name, s.kind, s.vendor, s.owners FROM application_systems l JOIN systems s ON s.id = l.system_id WHERE l.application_id = ?`,
+      appId,
+    )
+    .filter((r) => systemVisible({ id: r.system_id, owners: r.owners }));
   const stacks = stacksOf([...new Set(rows.map((r) => r.system_id))]);
   return byEnvironment(
     rows.map((r) => ({
@@ -390,6 +402,7 @@ export function createSystem(input: SystemInput): SystemDetail {
       u.username,
     );
     const diff = input.stack ? writeStack(systemHolder(id), input.stack, u) : null;
+    assignCreatorTeams('system', id, currentUser());
     audit({
       action: 'system.created',
       entityType: 'system',

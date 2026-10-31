@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Badge, Button, Group, List, Modal, MultiSelect, Paper, Select, Stack, Text } from '@mantine/core';
+import { Badge, Button, Group, List, Modal, MultiSelect, Paper, SegmentedControl, Select, Stack, Table, Text } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconHelpCircle, IconUsersGroup } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { AccessExplanation, AccessReason, OwnedKind, Team, UserInfo } from '@sm/shared';
-import { get, notifyError, notifyOk, put } from '../api';
+import { get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
 
 interface OwningTeamsResponse {
@@ -35,7 +35,7 @@ export function OwningTeams({ kind, id, mt }: { kind: OwnedKind; id: string; mt?
     try {
       const saved = await put<OwningTeamsResponse>(`/owning-teams/${kind}/${id}`, { teamIds: value });
       qc.setQueryData(key, saved);
-      qc.invalidateQueries({ queryKey: [kind === 'process' ? 'process' : 'platform'] });
+      qc.invalidateQueries({ queryKey: [kind] });
       notifyOk(t('owning.saved'));
     } catch (e) {
       notifyError(e, t('owning.notSaved'));
@@ -59,6 +59,7 @@ export function OwningTeams({ kind, id, mt }: { kind: OwnedKind; id: string; mt?
         <Text size="sm" c="dimmed">
           {current.length ? t(`owning.hintOwned.${kind}`) : t(`owning.hintNone.${kind}`)}
         </Text>
+        {canChange && kind === 'service' && <ServiceBulkTeams serviceId={id} onDone={() => qc.invalidateQueries({ queryKey: key })} />}
         {canChange ? (
           <Group align="flex-end" wrap="wrap">
             <MultiSelect
@@ -161,4 +162,104 @@ function reasonText(t: ReturnType<typeof useTranslation<['access', 'common']>>['
     default:
       return t('owning.reason.accessList', { subject: r.subject, rights });
   }
+}
+
+interface BulkResult {
+  applied: boolean;
+  changed: number;
+  resources: { kind: OwnedKind; id: string; name: string; before: string[]; after: string[]; changed: boolean; gains: string[]; loses: string[] }[];
+}
+
+/** Owning teams for a service and everything that belongs to it, with a preview of who gains or loses visibility. */
+function ServiceBulkTeams({ serviceId, onDone }: { serviceId: string; onDone: () => void }) {
+  const { t } = useTranslation(['access', 'common']);
+  const [open, setOpen] = useState(false);
+  const [teamIds, setTeamIds] = useState<string[]>([]);
+  const [mode, setMode] = useState<'set' | 'add' | 'remove'>('add');
+  const [preview, setPreview] = useState<BulkResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const teams = useQuery({ queryKey: ['teams'], queryFn: () => get<Team[]>('/teams'), enabled: open });
+  const run = async (dryRun: boolean) => {
+    setBusy(true);
+    try {
+      const r = await post<BulkResult>('/owning-teams/bulk', { service: serviceId, teamIds, mode, preview: dryRun });
+      if (dryRun) setPreview(r);
+      else {
+        notifyOk(t('owning.bulk.applied', { count: r.changed }));
+        setOpen(false);
+        setPreview(null);
+        onDone();
+      }
+    } catch (e) {
+      notifyError(e, t('owning.notSaved'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const names = (x: string[]) => (x.length ? x.join(', ') : t('owning.none'));
+  return (
+    <>
+      <Group>
+        <Button size="xs" variant="light" onClick={() => setOpen(true)}>
+          {t('owning.bulk.open')}
+        </Button>
+      </Group>
+      {open && (
+        <Modal opened onClose={() => setOpen(false)} title={t('owning.bulk.title')} size="xl">
+          <Stack gap="sm">
+            <Text size="sm" c="dimmed">
+              {t('owning.bulk.hint')}
+            </Text>
+            <SegmentedControl
+              value={mode}
+              onChange={(v) => (setMode(v as typeof mode), setPreview(null))}
+              data={(['add', 'set', 'remove'] as const).map((m) => ({ value: m, label: t(`owning.bulk.mode.${m}`) }))}
+            />
+            <MultiSelect
+              label={t('owning.label')}
+              data={(teams.data ?? []).map((x) => ({ value: x.id, label: x.name }))}
+              value={teamIds}
+              onChange={(v) => (setTeamIds(v), setPreview(null))}
+              searchable
+            />
+            <Group>
+              <Button variant="default" onClick={() => run(true)} loading={busy && !preview}>
+                {t('owning.bulk.preview')}
+              </Button>
+              <Button onClick={() => run(false)} loading={busy && !!preview} disabled={!preview || !preview.changed}>
+                {t('owning.bulk.apply', { count: preview?.changed ?? 0 })}
+              </Button>
+            </Group>
+            {preview && (
+              <Table fz="sm" withTableBorder verticalSpacing={4}>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>{t('owning.bulk.resource')}</Table.Th>
+                    <Table.Th>{t('owning.bulk.teams')}</Table.Th>
+                    <Table.Th>{t('owning.bulk.gains')}</Table.Th>
+                    <Table.Th>{t('owning.bulk.loses')}</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {preview.resources.map((r) => (
+                    <Table.Tr key={`${r.kind}:${r.id}`} style={{ opacity: r.changed ? 1 : 0.6 }}>
+                      <Table.Td>
+                        <Text size="xs" c="dimmed">
+                          {t(`owning.bulk.kinds.${r.kind}`)}
+                        </Text>
+                        {r.name}
+                      </Table.Td>
+                      <Table.Td>{r.changed ? `${names(r.before)} → ${names(r.after)}` : t('owning.bulk.unchanged')}</Table.Td>
+                      <Table.Td>{r.gains.join(', ') || '–'}</Table.Td>
+                      <Table.Td c={r.loses.length ? 'red' : undefined}>{r.loses.join(', ') || '–'}</Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            )}
+          </Stack>
+        </Modal>
+      )}
+    </>
+  );
 }

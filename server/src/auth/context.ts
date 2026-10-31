@@ -26,10 +26,15 @@ export interface SessionMeta {
 interface RequestStore {
   user: AuthUser | null;
   ip?: string;
+  /** Owning teams of all resources, read once per request (auth/policy.ts) */
+  teamIndex?: Map<string, { id: string; name: string }[]>;
 }
 
 /** Per-request context so services can attribute audit entries to the signed-in user. */
 export const requestContext = new AsyncLocalStorage<RequestStore>();
+
+/** The store of the current request (or job run), if there is one. */
+export const currentStore = (): RequestStore | undefined => requestContext.getStore();
 
 export function currentUser(): AuthUser | null {
   return requestContext.getStore()?.user ?? null;

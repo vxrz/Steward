@@ -26,6 +26,7 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
 import { addLink, httpUrl, listLinks, removeLink, targetVisible } from '../records/links.js';
 import { me } from '../auth/access.js';
+import { assignCreatorTeams, teamScoped } from '../auth/policy.js';
 
 /**
  * Ticket references: Steward documents that a ticket exists in another system
@@ -134,13 +135,35 @@ export const isResponsible = (u: AuthUser | null, r: Pick<TicketRow, 'responsibl
   !!u && parseJson<string[]>(r.responsible, []).some((s) => matches(u, s));
 export const canCreateTickets = (u: AuthUser | null = currentUser()): boolean => isEditorRole(u);
 
-export function ticketPermissions(u: AuthUser | null, r: Pick<TicketRow, 'responsible'>): TicketPermission[] {
-  if (!u) return [];
-  const out: TicketPermission[] = [];
-  if (isEditorRole(u) || isResponsible(u, r)) out.push('edit');
-  if (isAdmin(u)) out.push('delete');
-  return out;
+export function ticketPermissions(u: AuthUser | null, r: Pick<TicketRow, 'id' | 'responsible'>): TicketPermission[] {
+  return ticketAccess(u, r).permissions.filter((p): p is TicketPermission => p !== 'view');
 }
+
+/**
+ * Everybody signed in sees a ticket reference; editors by role and its responsibles change it, administrators delete
+ * it. With owning teams (#131): members of those teams, its responsibles, administrators and auditors only.
+ */
+export function ticketAccess(u: AuthUser | null, r: Pick<TicketRow, 'id' | 'responsible'>) {
+  const responsible = isResponsible(u, r);
+  const byRole = (role: string): ('view' | 'edit')[] => (TICKET_EDITOR_ROLES.includes(role) ? ['view', 'edit'] : ['view']);
+  return teamScoped<'view' | 'edit' | 'delete'>(
+    u,
+    { kind: 'ticket', id: r.id },
+    {
+      all: ['view', 'edit', 'delete'],
+      byRole,
+      personal: responsible ? { permissions: ['view', 'edit'] } : null,
+      auditor: ['view'],
+      unscoped: () => (!u ? [] : ['view', ...(isEditorRole(u) || responsible ? (['edit'] as const) : []), ...(isAdmin(u) ? (['delete'] as const) : [])]),
+    },
+  );
+}
+
+/** Ticket references the current user may see (jobs without a user see all). */
+export const ticketVisible = (r: Pick<TicketRow, 'id' | 'responsible'>): boolean => {
+  const u = currentUser();
+  return !u || ticketAccess(u, r).permissions.includes('view');
+};
 
 // ---------- mapping ----------
 
@@ -278,7 +301,7 @@ function resolvedFor(
 
 export function ticketRow(id: string): TicketRow {
   const r = db().get<TicketRow>('SELECT * FROM ticket_refs WHERE id = ?', id);
-  if (!r) throw new HttpError(404, `Ticket reference ${id} not found`, 'TICKET_NOT_FOUND');
+  if (!r || !ticketVisible(r)) throw new HttpError(404, `Ticket reference ${id} not found`, 'TICKET_NOT_FOUND');
   return r;
 }
 
@@ -370,7 +393,9 @@ export function listTickets(f: TicketFilter = {}, now = Date.now()): TicketRefer
     where.push(w.sql);
     params.push(...w.params);
   }
-  let rows = db().all<TicketRow>(`SELECT * FROM ticket_refs ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY opened_at DESC, id`, ...params);
+  let rows = db()
+    .all<TicketRow>(`SELECT * FROM ticket_refs ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY opened_at DESC, id`, ...params)
+    .filter(ticketVisible);
   if (f.link) {
     const i = f.link.indexOf(':');
     const kind = f.link.slice(0, i);
@@ -388,9 +413,10 @@ export function listTickets(f: TicketFilter = {}, now = Date.now()): TicketRefer
   return rows.map((r) => toTicket(r, u, now, settings, links.get(r.id)));
 }
 
-/** Whether a user may read a ticket reference (the same rule as GET /ticket-references/:id: signed in, and it exists). */
+/** Whether a user may read a ticket reference (the same rule as GET /ticket-references/:id). */
 export function ticketReadable(u: AuthUser | null, id: string): boolean {
-  return !!u && !!db().get<{ id: string }>('SELECT id FROM ticket_refs WHERE id = ?', id);
+  const r = db().get<Pick<TicketRow, 'id' | 'responsible'>>('SELECT id, responsible FROM ticket_refs WHERE id = ?', id);
+  return !!u && !!r && ticketAccess(u, r).permissions.includes('view');
 }
 
 export function getTicket(id: string): TicketDetail {
@@ -447,17 +473,21 @@ export function addTicketEvent(
 export function vendorAttention(now = Date.now()): { open: number; oldestDays: number | null } {
   me();
   const w = waitingOnVendorSql(ticketSettings());
-  const r = db().get<{ n: number; oldest: string | null }>(`SELECT COUNT(*) AS n, MIN(opened_at) AS oldest FROM ticket_refs WHERE ${w.sql}`, ...w.params);
-  const open = Number(r?.n ?? 0);
-  return { open, oldestDays: open && r?.oldest ? ageDays({ opened_at: r.oldest, resolved_at: null }, now) : null };
+  const rows = db()
+    .all<Pick<TicketRow, 'id' | 'responsible' | 'opened_at'>>(`SELECT id, responsible, opened_at FROM ticket_refs WHERE ${w.sql}`, ...w.params)
+    .filter(ticketVisible);
+  const open = rows.length;
+  const oldest = rows.reduce<string | null>((m, r) => (!m || r.opened_at < m ? r.opened_at : m), null);
+  return { open, oldestDays: open && oldest ? ageDays({ opened_at: oldest, resolved_at: null }, now) : null };
 }
 
 export function vendorSuggestions(): string[] {
   me();
-  return db()
-    .all<{ vendor: string }>("SELECT DISTINCT vendor FROM ticket_refs WHERE vendor <> '' ORDER BY vendor")
-    .map((r) => r.vendor)
-    .slice(0, 200);
+  const vendors = db()
+    .all<Pick<TicketRow, 'id' | 'responsible' | 'vendor'>>("SELECT id, responsible, vendor FROM ticket_refs WHERE vendor <> '' ORDER BY vendor")
+    .filter(ticketVisible)
+    .map((r) => r.vendor);
+  return [...new Set(vendors)].slice(0, 200);
 }
 
 /** Open tickets per affected item of a kind, e.g. open vendor tickets per service (only items the user may see). */
@@ -465,11 +495,13 @@ export function openCounts(kind: string, vendorOnly: boolean): Record<string, nu
   me();
   const settings = ticketSettings();
   const vendorSources = new Set(settings.sources.filter((s) => s.vendor).map((s) => s.key));
-  const rows = db().all<{ to_id: string; source: string }>(
-    `SELECT l.to_id, t.source FROM item_links l JOIN ticket_refs t ON t.id = l.from_id
+  const rows = db()
+    .all<{ to_id: string; source: string; id: string; responsible: string }>(
+      `SELECT l.to_id, t.source, t.id, t.responsible FROM item_links l JOIN ticket_refs t ON t.id = l.from_id
      WHERE l.from_kind = 'ticket' AND l.to_kind = ? AND t.status IN ('open', 'waitingVendor', 'waitingUs')`,
-    kind,
-  );
+      kind,
+    )
+    .filter(ticketVisible);
   const out: Record<string, number> = {};
   const visible = new Map<string, boolean>();
   for (const r of rows) {
@@ -547,6 +579,7 @@ export function createTicket(b: TicketInput): TicketDetail {
       u.username,
     );
     addTicketEvent(id, 'created', u.username, { to: b.status, comment: b.comment, details: { source: b.source, number: b.externalNumber } });
+    assignCreatorTeams('ticket', id, currentUser());
     audit({
       action: 'ticket.created',
       entityType: 'ticket',
