@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import { BRAND } from '@sm/shared';
 import { config } from './config.js';
 import { proofOf, verifyInstanceAt } from './instance-proof.js';
+import { ACCESS } from './auth/access.js';
 
 export { proofOf };
 
@@ -69,7 +70,7 @@ export function verifyInstance(url: string, dataDir = config.dataDir, timeoutMs 
 }
 
 export async function instanceRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/instance', async (req, reply) => {
+  app.get('/instance', { config: { access: ACCESS.public } }, async (req, reply) => {
     const challenge = String((req.query as { challenge?: string }).challenge ?? '');
     if (!current) return reply.code(404).send({ error: 'Not available' });
     if (!/^[0-9a-f]{32,128}$/.test(challenge)) return reply.code(400).send({ error: 'challenge: 32–128 hex characters' });

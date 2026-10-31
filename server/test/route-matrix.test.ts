@@ -90,15 +90,16 @@ const EXPECT: Record<string, Access> = {
   'GET /api/migration/imports/:id/history': ADMIN,
   'GET /api/auth/oidc/:id/start': PUBLIC,
   'GET /api/auth/oidc/callback': PUBLIC,
-  'POST /api/auth/logout': ALL,
+  // their own sign-in, password and confirmations: every signed-in person, a status viewer too
+  'POST /api/auth/logout': EVERYONE,
   'GET /api/auth/me': EVERYONE,
-  'POST /api/auth/password': ALL,
+  'POST /api/auth/password': EVERYONE,
   // step-up re-authentication (auth/step-up.ts): every signed-in session confirms its own owner
   'GET /api/auth/step-up': EVERYONE,
-  'POST /api/auth/step-up': ALL,
+  'POST /api/auth/step-up': EVERYONE,
   'DELETE /api/auth/step-up': EVERYONE,
-  'POST /api/auth/step-up/sso': ALL,
-  'POST /api/auth/step-up/sso/complete': ALL,
+  'POST /api/auth/step-up/sso': EVERYONE,
+  'POST /api/auth/step-up/sso/complete': EVERYONE,
   'GET /api/about': ALL,
   'GET /api/system/status': ADMIN_AUDITOR,
   'GET /api/system/update-notice': ADMIN,
@@ -1462,8 +1463,9 @@ describe('route permission matrix', () => {
   it('keeps identity, vault and sign-in settings to signed-in sessions (no API tokens)', async () => {
     const b = bodies();
     const problems: string[] = [];
-    const { SESSION_ONLY_ROUTES } = await import('../src/app.js');
-    expect([...SESSION_ONLY_ROUTES].sort()).toEqual([...SESSION_ONLY].sort());
+    const { routeAccess } = await import('../src/app.js');
+    const declared = Object.entries(routeAccess(s.app)).filter(([, a]) => a.auth === 'session');
+    expect(declared.map(([k]) => k).sort(), 'routes declaring config.access.auth "session"').toEqual([...SESSION_ONLY].sort());
     for (const k of SESSION_ONLY) {
       expect(EXPECT[k], k).toBeDefined();
       const [method, url] = k.split(' ') as [string, string];
@@ -1472,4 +1474,61 @@ describe('route permission matrix', () => {
     }
     expect(problems).toEqual([]);
   });
+  it('declares on each route the access this table expects (#16)', async () => {
+    const { routeAccess } = await import('../src/app.js');
+    const declared = routeAccess(s.app);
+    const problems: string[] = [];
+    for (const r of routes) {
+      const k = key(r);
+      const want = EXPECT[k];
+      const a = declared[k];
+      if (!a || want === undefined) continue;
+      // the public API (/api/v1) authenticates itself; its open parts (health, OpenAPI) count as public above
+      if (a.auth !== 'api' && (want === PUBLIC) !== (a.auth === 'public')) problems.push(`${k}: declared ${a.auth}, expected ${String(want)}`);
+      if (want === HOOK && a.auth !== 'hook' && a.auth !== 'api') problems.push(`${k}: declared ${a.auth}, expected hook`);
+      if (!Array.isArray(want) || a.auth === 'api') continue;
+      // a status viewer reaches exactly the routes that say so
+      if (want.includes('status') !== a.statusViewer) problems.push(`${k}: statusViewer ${a.statusViewer}, expected ${want.includes('status')}`);
+      // declared roles may not shut out a role the table lets in
+      if (a.roles) for (const role of want) if (!a.roles.includes(role)) problems.push(`${k}: declares roles ${a.roles.join(',')} but ${role} is allowed`);
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it('refuses callers by the declared access before reading the body (#16)', async () => {
+    const { routeAccess } = await import('../src/app.js');
+    const declared = routeAccess(s.app);
+    // a body that cannot be parsed: answered 400 if it were read first
+    const send = async (headers: Record<string, string>, method: string, url: string) => {
+      const res = await fetch(s.base + fill(url), {
+        method,
+        headers: { 'x-sm-client': '1', 'content-type': 'application/json', ...headers },
+        body: '{"broken":',
+      });
+      await res.arrayBuffer();
+      return res.status;
+    };
+    const problems: string[] = [];
+    let checked = 0;
+    for (const r of routes) {
+      const a = declared[key(r)];
+      if (!a || r.method === 'GET' || r.method === 'DELETE' || a.auth === 'api' || a.auth === 'public' || a.auth === 'hook') continue;
+      const anonymous = await send({}, r.method, r.url);
+      // 429: the address has used up its refusals (rateLimits.ts) – refused before the body as well
+      if (anonymous !== 401 && anonymous !== 429) problems.push(`${key(r)} anonymous: ${anonymous}`);
+      if (a.roles && !a.roles.includes('designer')) {
+        const status = await send(authHeaders(cookies.designer), r.method, r.url);
+        if (status !== 403) problems.push(`${key(r)} as designer: ${status}`);
+        checked++;
+      }
+      if (a.auth === 'session') {
+        const status = await send({ authorization: `Bearer ${fullAdminToken}` }, r.method, r.url);
+        if (status !== 403) problems.push(`${key(r)} API token: ${status}`);
+      }
+      const asStatus = await send(authHeaders(cookies.status), r.method, r.url);
+      if (!a.statusViewer && asStatus !== 403) problems.push(`${key(r)} as status viewer: ${asStatus}`);
+    }
+    expect(checked, 'routes with declared roles were tried').toBeGreaterThan(20);
+    expect(problems).toEqual([]);
+  }, 120_000);
 });

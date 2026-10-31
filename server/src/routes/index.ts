@@ -94,7 +94,7 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { auditPendingUpgrades } from '../upgrades.js';
-import { me } from '../auth/access.js';
+import { ACCESS, me } from '../auth/access.js';
 
 let started = false;
 /** Things that need the decrypted vault: pending audit entries, scheduler, recovery of waiting runs. */
@@ -325,7 +325,7 @@ const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // ---------- health, auth & vault ----------
-  app.get('/health', async () => ({ ok: true, version: config.version }));
+  app.get('/health', { config: { access: ACCESS.public } }, async () => ({ ok: true, version: config.version }));
 
   const status = async (): Promise<AuthStatus> => ({
     initialized: vault().initialized,
@@ -338,13 +338,13 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     version: config.version,
     browserAvailable: await browserAvailable(),
   });
-  app.get('/auth/status', status);
-  app.get('/vault/status', async () => {
+  app.get('/auth/status', { config: { access: ACCESS.public } }, status);
+  app.get('/vault/status', { config: { access: ACCESS.public } }, async () => {
     const s = await status();
     return { ...s, operator: s.me?.user.displayName };
   });
 
-  app.post('/auth/setup', { config: { rateLimit: ROUTE_LIMITS.credential } }, async (req, reply) => {
+  app.post('/auth/setup', { config: { access: ACCESS.public, rateLimit: ROUTE_LIMITS.credential } }, async (req, reply) => {
     const b = z
       .object({
         passphrase: z.string().min(1).max(1024),
@@ -369,7 +369,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Small body limit: reachable without signing in (and every failure is audited, see login-audit.ts).
-  app.post('/auth/login', { bodyLimit: 16 * 1024 }, async (req, reply) => {
+  app.post('/auth/login', { config: { access: ACCESS.public }, bodyLimit: 16 * 1024 }, async (req, reply) => {
     const b = z.object({ username: z.string().max(256), password: z.string().max(1024) }).parse(req.body);
     const { user, ...session } = await users.login(b.username.trim(), b.password, { ip: req.ip, userAgent: req.headers['user-agent'] });
     reply.header('set-cookie', sessionCookie(session.token));
@@ -378,7 +378,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Emergency access (break-glass, see auth/emergency.ts): the one-time code from `steward admin emergency-access`.
-  app.post('/auth/emergency', { bodyLimit: 4 * 1024, config: { rateLimit: ROUTE_LIMITS.credential } }, async (req, reply) => {
+  app.post('/auth/emergency', { bodyLimit: 4 * 1024, config: { access: ACCESS.public, rateLimit: ROUTE_LIMITS.credential } }, async (req, reply) => {
     const b = z.object({ code: z.string().max(200) }).parse(req.body);
     const { user, ...session } = emergency.signInWithCode(b.code.trim(), { ip: req.ip, userAgent: req.headers['user-agent'] });
     reply.header('set-cookie', sessionCookie(session.token));
@@ -386,7 +386,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return { user: { ...user, mustChangePassword: false }, capabilities: capabilities(users.toAuthUser(user)) } satisfies Me;
   });
   // The same command while Steward runs: a grant signed with the vault's key, from this machine only.
-  app.post('/auth/emergency/grant', { bodyLimit: 8 * 1024, config: { rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
+  app.post('/auth/emergency/grant', { bodyLimit: 8 * 1024, config: { access: ACCESS.public, rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
     const b = z
       .object({
         grant: z.object({
@@ -496,21 +496,21 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     );
   }
 
-  // ---------- step-up re-authentication (auth/step-up.ts): sessions only, see SESSION_ONLY_ROUTES ----------
-  app.get('/auth/step-up', async () => stepUp.stepUpStatus(stepUp.requireSession(me())));
+  // ---------- step-up re-authentication (auth/step-up.ts): sessions only (config.access) ----------
+  app.get('/auth/step-up', { config: { access: ACCESS.session } }, async () => stepUp.stepUpStatus(stepUp.requireSession(me())));
   // the password again: limited and counted like a sign-in
-  app.post('/auth/step-up', { bodyLimit: 16 * 1024, config: { rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
+  app.post('/auth/step-up', { bodyLimit: 16 * 1024, config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
     const b = z.object({ password: z.string().max(1024) }).parse(req.body);
     return stepUp.passwordStepUp(stepUp.requireSession(me()), b.password, req.ip);
   });
-  app.delete('/auth/step-up', async () => {
+  app.delete('/auth/step-up', { config: { access: ACCESS.session } }, async () => {
     const u = stepUp.requireSession(me());
     stepUp.endStepUp(u);
     return stepUp.stepUpStatus({ ...u, session: { ...u.session, stepUpAt: null, stepUpMethod: null } });
   });
   // a fresh sign-in at the session's provider (prompt=login, max_age=0), in a popup or this window
   // (no secret is checked here: the provider checks the person; the ticket is 256 random bits)
-  app.post('/auth/step-up/sso', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+  app.post('/auth/step-up/sso', { config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const u = stepUp.requireSession(me());
     if (u.session.method !== 'sso') throw new HttpError(400, 'This session was not opened with single sign-on', 'STEP_UP_METHOD', { method: u.session.method });
     const b = z
@@ -523,41 +523,41 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       .parse(req.body ?? {});
     return sso.startStepUp({ id: u.id, sessionId: u.session.id }, sso.redirectUriFor(req), b);
   });
-  app.post('/auth/step-up/sso/complete', { bodyLimit: 4 * 1024, config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+  app.post('/auth/step-up/sso/complete', { bodyLimit: 4 * 1024, config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const b = z.object({ ticket: z.string().max(100) }).parse(req.body);
     return stepUp.redeemStepUpTicket(stepUp.requireSession(me()), b.ticket);
   });
 
-  app.get('/sso/providers', async () => {
+  app.get('/sso/providers', { config: { access: ACCESS.admin } }, async () => {
     requireCapability(me(), 'manageUsers', 'manage single sign-on');
     return sso.listProviders();
   });
-  app.post('/sso/providers', { config: { stepUp: { action: 'addSsoProvider', who: 'manageUsers' } } }, async (req) => {
+  app.post('/sso/providers', { config: { access: ACCESS.adminSession, stepUp: { action: 'addSsoProvider', who: 'manageUsers' } } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage single sign-on');
     return sso.saveProvider(req.body as never);
   });
-  app.put('/sso/providers/:id', { config: { stepUp: { action: 'changeSsoProvider', who: 'manageUsers' } } }, async (req) => {
+  app.put('/sso/providers/:id', { config: { access: ACCESS.adminSession, stepUp: { action: 'changeSsoProvider', who: 'manageUsers' } } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage single sign-on');
     sso.getProvider(params(req).id!);
     return sso.saveProvider(req.body as never, params(req).id);
   });
-  app.delete('/sso/providers/:id', { config: { stepUp: { action: 'deleteSsoProvider', who: 'manageUsers' } } }, async (req) => {
+  app.delete('/sso/providers/:id', { config: { access: ACCESS.adminSession, stepUp: { action: 'deleteSsoProvider', who: 'manageUsers' } } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage single sign-on');
     sso.deleteProvider(params(req).id!);
     return { ok: true };
   });
-  app.post('/sso/discover', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+  app.post('/sso/discover', { config: { access: ACCESS.admin, rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage single sign-on');
     return sso.discover(z.object({ issuer: z.string().url() }).parse(req.body).issuer);
   });
   app.get('/sso/redirect-uri', async (req) => ({ redirectUri: sso.redirectUriFor(req) }));
   /** Test sign-in: the administrator signs in once through the provider and sees the claims – nothing signs in or changes. */
-  app.post('/sso/providers/:id/test-sign-in', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+  app.post('/sso/providers/:id/test-sign-in', { config: { access: ACCESS.adminSession, rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'test single sign-on');
     const u = me();
     return sso.startTestSignIn(params(req).id!, { id: u.id, username: u.username }, sso.redirectUriFor(req));
   });
-  app.post('/sso/test-sign-ins/:id', async (req) => {
+  app.post('/sso/test-sign-ins/:id', { config: { access: ACCESS.adminSession } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'test single sign-on');
     const b = z.object({ config: z.unknown().optional() }).parse(req.body ?? {});
     return sso.testResult(params(req).id!, me().id, b.config);
@@ -601,7 +601,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // Master passphrase change (administrators; needs the current passphrase). rotateDataKey re-encrypts every secret.
   app.post(
     '/vault/passphrase',
-    { config: { rateLimit: ROUTE_LIMITS.credential, stepUp: { action: 'changeVaultPassphrase', who: 'manageSettings' } } },
+    { config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.credential, stepUp: { action: 'changeVaultPassphrase', who: 'manageSettings' } } },
     async (req) => {
       if (!isAdmin(me())) throw new HttpError(403, 'Only administrators can change the master passphrase');
       const b = z.object({ current: z.string().max(1024), next: z.string().max(1024), rotateDataKey: z.boolean().default(true) }).parse(req.body);
@@ -633,7 +633,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return { ...i, passphraseMinLength: 12, signingPublicKeyPem: i.signingPublicKey ? publicKeyPem(i.signingPublicKey) : null };
   });
 
-  app.post('/vault/lock', async () => {
+  app.post('/vault/lock', { config: { access: ACCESS.session } }, async () => {
     if (!isAdmin(me())) throw new HttpError(403, 'Only administrators can lock the vault');
     if (vault().unlocked) {
       audit({ action: 'vault.locked', entityType: 'vault', summary: `Vault locked by ${me().username}` });
@@ -646,11 +646,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- users & teams ----------
-  app.get('/users', async () => {
+  app.get('/users', { config: { access: ACCESS.admin } }, async () => {
     requireCapability(me(), 'manageUsers', 'manage users');
     return users.listUsers();
   });
-  app.post('/users', { config: { stepUp: { action: 'createUser', who: 'manageUsers', when: grantsRoles } } }, async (req) => {
+  app.post('/users', { config: { access: ACCESS.adminSession, stepUp: { action: 'createUser', who: 'manageUsers', when: grantsRoles } } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage users');
     const b = z
       .object({
@@ -689,41 +689,45 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     if (!enabled.length) throw new HttpError(400, 'Enable a single sign-on provider first', 'SSO_PROVIDER_REQUIRED');
     throw new HttpError(400, 'Choose the single sign-on provider the account signs in with', 'SSO_PROVIDER_CHOICE_REQUIRED');
   }
-  app.put('/users/:id', { config: { stepUp: { action: 'changeAccount', who: 'manageUsers', when: changesAccess } } }, async (req) => {
-    requireCapability(me(), 'manageUsers', 'manage users');
-    const b = z
-      .object({
-        displayName: z.string().max(100).optional(),
-        firstName: z.string().max(100).optional(),
-        lastName: z.string().max(100).optional(),
-        email: z.string().max(254).optional(),
-        roles: z.array(z.enum(ROLES)).max(ROLES.length).optional(),
-        active: z.boolean().optional(),
-        /** Bind a local account to a single sign-on provider (removes its password) */
-        provider: z.string().max(100).optional(),
-      })
-      .parse(req.body);
-    const { provider, ...patch } = b;
-    const id = params(req).id!;
-    // one transaction: a binding is not kept when the rest of the change is refused
-    return db().tx(() => {
-      if (provider) {
-        const p = claimingProvider(provider);
-        users.bindToProvider(id, p.id, p.displayName);
-      }
-      return Object.keys(patch).length || !provider ? users.updateUser(id, patch) : users.getUser(id);
-    });
-  });
+  app.put(
+    '/users/:id',
+    { config: { access: ACCESS.adminSession, stepUp: { action: 'changeAccount', who: 'manageUsers', when: changesAccess } } },
+    async (req) => {
+      requireCapability(me(), 'manageUsers', 'manage users');
+      const b = z
+        .object({
+          displayName: z.string().max(100).optional(),
+          firstName: z.string().max(100).optional(),
+          lastName: z.string().max(100).optional(),
+          email: z.string().max(254).optional(),
+          roles: z.array(z.enum(ROLES)).max(ROLES.length).optional(),
+          active: z.boolean().optional(),
+          /** Bind a local account to a single sign-on provider (removes its password) */
+          provider: z.string().max(100).optional(),
+        })
+        .parse(req.body);
+      const { provider, ...patch } = b;
+      const id = params(req).id!;
+      // one transaction: a binding is not kept when the rest of the change is refused
+      return db().tx(() => {
+        if (provider) {
+          const p = claimingProvider(provider);
+          users.bindToProvider(id, p.id, p.displayName);
+        }
+        return Object.keys(patch).length || !provider ? users.updateUser(id, patch) : users.getUser(id);
+      });
+    },
+  );
   // a temporary password lets the administrator sign in as that person
   app.post(
     '/users/:id/reset-password',
-    { config: { rateLimit: ROUTE_LIMITS.credential, stepUp: { action: 'resetPassword', who: 'manageUsers' } } },
+    { config: { access: ACCESS.adminSession, rateLimit: ROUTE_LIMITS.credential, stepUp: { action: 'resetPassword', who: 'manageUsers' } } },
     async (req) => {
       requireCapability(me(), 'manageUsers', 'manage users');
       return { temporaryPassword: users.resetPassword(params(req).id!) };
     },
   );
-  app.get('/teams', async () => {
+  app.get('/teams', { config: { access: ACCESS.admin } }, async () => {
     requireCapability(me(), 'manageUsers', 'view teams');
     return users.listTeams();
   });
@@ -734,25 +738,25 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
   // teams are subjects of access lists: a new member gets the team's rights (auth/step-up-rules.ts)
   const teamStepUp = { stepUp: { action: 'changeTeamMembers' as const, who: 'manageUsers' as const, when: changesTeamMembers } };
-  app.post('/teams', { config: teamStepUp }, async (req) => {
+  app.post('/teams', { config: { ...teamStepUp, access: ACCESS.adminSession } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage teams');
     return users.saveTeam(teamBody.parse(req.body));
   });
-  app.put('/teams/:id', { config: teamStepUp }, async (req) => {
+  app.put('/teams/:id', { config: { ...teamStepUp, access: ACCESS.adminSession } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage teams');
     return users.saveTeam(teamBody.parse(req.body), params(req).id);
   });
-  app.delete('/teams/:id', async (req) => {
+  app.delete('/teams/:id', { config: { access: ACCESS.adminSession } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage teams');
     users.deleteTeam(params(req).id!);
     return { ok: true };
   });
   // where a user or team is still named, before it is deactivated or deleted (#143)
-  app.get('/users/:id/references', async (req) => {
+  app.get('/users/:id/references', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage users');
     return subjectReferences('user', users.getUser(params(req).id!).username);
   });
-  app.get('/teams/:id/references', async (req) => {
+  app.get('/teams/:id/references', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage teams');
     const team = users.listTeams().find((t) => t.id === params(req).id);
     if (!team) throw new HttpError(404, 'Team not found');
@@ -773,62 +777,68 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   ];
 
   // ---------- settings ----------
-  app.get('/settings', async () => {
+  app.get('/settings', { config: { access: ACCESS.admin } }, async () => {
     requireCapability(me(), 'manageSettings', 'view settings');
     return getSettings();
   });
-  app.put('/settings', { config: { stepUp: { action: 'changeSignInSettings', who: 'manageSettings', when: changesSignInOrOutbound } } }, async (req) => {
-    requireCapability(me(), 'manageSettings', 'change settings');
-    const b = z
-      .object({
-        passwordLogin: z.enum(PASSWORD_LOGIN_MODES).optional(),
-        browserHeadless: z.boolean().optional(),
-        browserTimeoutMs: z.number().int().min(1000).optional(),
-        retentionRunDays: z.number().int().min(0).max(3650).optional(),
-        retentionNotificationDays: z.number().int().min(1).max(3650).optional(),
-        defaultLocale: z.enum(LOCALE_CODES).optional(),
-        retentionMonitorDays: z.number().int().min(1).max(3650).optional(),
-        apiDocs: z.enum(API_DOCS_MODES).optional(),
-        outboundPolicy: z.enum(OUTBOUND_POLICIES).optional(),
-        outboundAllowList: z
-          .array(
-            z
-              .string()
-              .trim()
-              .min(1)
-              .max(255)
-              .refine((e) => !allowListEntryProblem(e), { message: 'Use an origin (https://host[:port]), a host or *.host (optional :port), or an IPv4 CIDR' }),
-          )
-          .max(200)
-          .optional(),
-        findingDismissFourEyes: z.boolean().optional(),
-      })
-      .parse(req.body);
-    const before = passwordLoginMode();
-    const envLogin = passwordLoginFromEnv();
-    if (b.passwordLogin !== undefined && envLogin) {
-      // SM_PASSWORD_LOGIN decides; the stored value is not touched (the UI shows the field read-only)
-      if (b.passwordLogin !== envLogin && b.passwordLogin !== before)
-        throw new HttpError(409, `Password sign-in is set by SM_PASSWORD_LOGIN=${envLogin} on the server`, 'PASSWORD_LOGIN_FROM_ENV', { value: envLogin });
-      delete b.passwordLogin;
-    }
-    if (b.passwordLogin === 'adminsOnly' && !sso.publicProviders().length)
-      throw new HttpError(400, 'Enable a single sign-on provider before turning off password sign-in', 'SSO_PROVIDER_REQUIRED');
-    if (b.passwordLogin === 'none' && before !== 'none') requireSsoOnlyPossible();
-    const s = updateSettings(b);
-    const ended =
-      b.passwordLogin && b.passwordLogin !== before ? users.endPasswordSessions(b.passwordLogin, readCookie(req.headers.cookie, SESSION_COOKIE)) : 0;
-    audit({
-      action: 'settings.updated',
-      entityType: 'settings',
-      summary:
-        b.passwordLogin && b.passwordLogin !== before
-          ? `Settings updated: password sign-in ${before} → ${b.passwordLogin}${ended ? ` (${ended} password session(s) signed out)` : ''}`
-          : 'Settings updated',
-      details: { ...b, ...(ended ? { sessionsEnded: ended } : {}) },
-    });
-    return s;
-  });
+  app.put(
+    '/settings',
+    { config: { access: ACCESS.adminSession, stepUp: { action: 'changeSignInSettings', who: 'manageSettings', when: changesSignInOrOutbound } } },
+    async (req) => {
+      requireCapability(me(), 'manageSettings', 'change settings');
+      const b = z
+        .object({
+          passwordLogin: z.enum(PASSWORD_LOGIN_MODES).optional(),
+          browserHeadless: z.boolean().optional(),
+          browserTimeoutMs: z.number().int().min(1000).optional(),
+          retentionRunDays: z.number().int().min(0).max(3650).optional(),
+          retentionNotificationDays: z.number().int().min(1).max(3650).optional(),
+          defaultLocale: z.enum(LOCALE_CODES).optional(),
+          retentionMonitorDays: z.number().int().min(1).max(3650).optional(),
+          apiDocs: z.enum(API_DOCS_MODES).optional(),
+          outboundPolicy: z.enum(OUTBOUND_POLICIES).optional(),
+          outboundAllowList: z
+            .array(
+              z
+                .string()
+                .trim()
+                .min(1)
+                .max(255)
+                .refine((e) => !allowListEntryProblem(e), {
+                  message: 'Use an origin (https://host[:port]), a host or *.host (optional :port), or an IPv4 CIDR',
+                }),
+            )
+            .max(200)
+            .optional(),
+          findingDismissFourEyes: z.boolean().optional(),
+        })
+        .parse(req.body);
+      const before = passwordLoginMode();
+      const envLogin = passwordLoginFromEnv();
+      if (b.passwordLogin !== undefined && envLogin) {
+        // SM_PASSWORD_LOGIN decides; the stored value is not touched (the UI shows the field read-only)
+        if (b.passwordLogin !== envLogin && b.passwordLogin !== before)
+          throw new HttpError(409, `Password sign-in is set by SM_PASSWORD_LOGIN=${envLogin} on the server`, 'PASSWORD_LOGIN_FROM_ENV', { value: envLogin });
+        delete b.passwordLogin;
+      }
+      if (b.passwordLogin === 'adminsOnly' && !sso.publicProviders().length)
+        throw new HttpError(400, 'Enable a single sign-on provider before turning off password sign-in', 'SSO_PROVIDER_REQUIRED');
+      if (b.passwordLogin === 'none' && before !== 'none') requireSsoOnlyPossible();
+      const s = updateSettings(b);
+      const ended =
+        b.passwordLogin && b.passwordLogin !== before ? users.endPasswordSessions(b.passwordLogin, readCookie(req.headers.cookie, SESSION_COOKIE)) : 0;
+      audit({
+        action: 'settings.updated',
+        entityType: 'settings',
+        summary:
+          b.passwordLogin && b.passwordLogin !== before
+            ? `Settings updated: password sign-in ${before} → ${b.passwordLogin}${ended ? ` (${ended} password session(s) signed out)` : ''}`
+            : 'Settings updated',
+        details: { ...b, ...(ended ? { sessionsEnded: ended } : {}) },
+      });
+      return s;
+    },
+  );
 
   /**
    * Single sign-on only is allowed once it cannot lock everyone out: an enabled provider exists and the administrator
@@ -849,7 +859,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- platforms ----------
   app.get('/platform-presets', async () => connectors.listPresets());
-  app.post('/platform-types', async (req) => {
+  app.post('/platform-types', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'createPlatforms', 'create connector types');
     const b = z
       .object({
@@ -864,7 +874,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
   app.post(
     '/platform-types/import',
-    { config: { rateLimit: ROUTE_LIMITS.heavy, smBodyShape: IMPORT_BODY_SHAPE }, bodyLimit: LARGE_BODIES.exports.bytes },
+    { config: { access: ACCESS.admin, rateLimit: ROUTE_LIMITS.heavy, smBodyShape: IMPORT_BODY_SHAPE }, bodyLimit: LARGE_BODIES.exports.bytes },
     async (req) => {
       requireCapability(me(), 'createPlatforms', 'import connector types');
       return connectors.importType(z.object({ package: z.any() }).parse(req.body).package);
@@ -875,14 +885,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     reply.header('content-disposition', `attachment; filename="connector-${pkg.kind}.json"`);
     return pkg;
   });
-  app.delete('/platform-types/:kind', async (req) => {
+  app.delete('/platform-types/:kind', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'createPlatforms', 'delete connector types');
     connectors.deleteType(params(req).kind!);
     return { ok: true };
   });
   // Platforms (names, base URLs, docs) are only visible to users with some permission on them.
   app.get('/platforms', async () => platforms.listPlatforms().filter((p) => p.permissions.length > 0));
-  app.post('/platforms', async (req) => {
+  app.post('/platforms', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'createPlatforms', 'add platforms');
     return connectors.createPlatformFromType(platformBody.extend({ typeKind: z.string().optional() }).parse(req.body));
   });
@@ -901,7 +911,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
   // Connection settings changed outside the application (configuration integrity): an administrator reviews and confirms them.
-  app.post('/platforms/:id/confirm-config', async (req) => {
+  app.post('/platforms/:id/confirm-config', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'createPlatforms', 'confirm platform settings');
     requirePlatform(params(req).id!, 'manage', 'confirm the settings of this platform');
     confirmPlatformConfig(params(req).id!);
@@ -1404,7 +1414,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return anchoringStatus();
   });
   // where the signed checkpoints go (the evidence that the log was not changed)
-  app.put('/audit/anchoring', { config: { stepUp: { action: 'changeAuditAnchoring', who: 'manageSettings' } } }, async (req) => {
+  app.put('/audit/anchoring', { config: { access: ACCESS.admin, stepUp: { action: 'changeAuditAnchoring', who: 'manageSettings' } } }, async (req) => {
     requireCapability(me(), 'manageSettings', 'change the audit anchoring');
     const b = z
       .object({ emailRecipients: z.array(z.string().max(200)).max(20), emailIntervalHours: z.number().int().min(1).max(168).optional() })

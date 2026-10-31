@@ -8,7 +8,7 @@ import * as svc from './service.js';
 import { belongsTargets } from './belongs.js';
 import { parseCertificate, certificateBytes } from './certificates.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
-import { me } from '../auth/access.js';
+import { ACCESS, me } from '../auth/access.js';
 
 /**
  * Credentials register (mounted under /api). Documentation only: no route
@@ -99,7 +99,7 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
     return svc.reminderSettings();
   });
 
-  app.put('/credentials/settings', async (req) => {
+  app.put('/credentials/settings', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'manageSettings', 'change the credential reminder settings');
     return svc.saveReminderSettings(svc.reminderSettingsSchema.parse(req.body ?? {}));
   });

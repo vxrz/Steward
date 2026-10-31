@@ -17,10 +17,10 @@ import { MAGIC, workDir } from './format.js';
 import { exportPackage } from './export.js';
 import { applyImport, buildPlan, mappingSchema, readPackage, type OpenedPackage } from './import.js';
 import { verifyImportedHistory } from './history.js';
-import { requireAdmin } from '../auth/access.js';
+import { ACCESS, requireAdmin } from '../auth/access.js';
 
 /**
- * Settings → Migration (administrators, signed-in sessions only – see SESSION_ONLY_ROUTES in app.ts):
+ * Settings → Migration (administrators, signed-in sessions only – config.access, see auth/access.ts):
  *
  *   POST   /api/migration/export                  build a package (master passphrase as a re-check + transfer passphrase)
  *   GET    /api/migration/exports/:id/download    the package, once, within 30 minutes
@@ -105,38 +105,42 @@ function importRow(r: Record<string, unknown>): InstanceImport {
 export async function migrationRoutes(app: FastifyInstance): Promise<void> {
   // ---------- export ----------
   // the master passphrase proves the vault, the step-up (auth/step-up.ts) the person
-  app.post('/migration/export', { config: { rateLimit: ROUTE_LIMITS.credential, stepUp: { action: 'exportMigration', who: 'manageUsers' } } }, async (req) => {
-    const u = mover();
-    const b = z.object({ passphrase: z.string().max(1024), transferPassphrase: z.string().max(1024) }).parse(req.body);
-    const wait = unlockThrottle.waitSeconds();
-    if (wait > 0) throw new HttpError(429, `Too many wrong passphrases – try again in ${wait} s`, 'TOO_MANY_ATTEMPTS');
-    // the package carries every credential: the master passphrase is asked again (works for single sign-on administrators too)
-    if (!(await vault().verifyPassphrase(b.passphrase))) {
-      const n = unlockThrottle.failed();
-      audit({
-        action: 'instance.export_refused',
-        entityType: 'instance',
-        summary: `Migration export by ${u.username} refused: wrong master passphrase (attempt ${n})`,
-      });
-      throw new HttpError(400, 'The master passphrase is wrong', 'WRONG_PASSPHRASE');
-    }
-    unlockThrottle.succeeded();
-    sweep();
-    const dir = workDir(config.dataDir);
-    const name = `steward-${new Date().toISOString().slice(0, 10)}.smig`;
-    const file = path.join(dir, name);
-    try {
-      const r = await exportPackage({ out: file, transferPassphrase: b.transferPassphrase });
-      const id = crypto.randomUUID();
-      exportsReady.set(id, { file, dir, userId: u.id, at: Date.now(), name });
-      return { ...r, downloadId: id, filename: name };
-    } catch (e) {
-      fs.rmSync(dir, { recursive: true, force: true });
-      throw e;
-    }
-  });
+  app.post(
+    '/migration/export',
+    { config: { access: ACCESS.adminSession, rateLimit: ROUTE_LIMITS.credential, stepUp: { action: 'exportMigration', who: 'manageUsers' } } },
+    async (req) => {
+      const u = mover();
+      const b = z.object({ passphrase: z.string().max(1024), transferPassphrase: z.string().max(1024) }).parse(req.body);
+      const wait = unlockThrottle.waitSeconds();
+      if (wait > 0) throw new HttpError(429, `Too many wrong passphrases – try again in ${wait} s`, 'TOO_MANY_ATTEMPTS');
+      // the package carries every credential: the master passphrase is asked again (works for single sign-on administrators too)
+      if (!(await vault().verifyPassphrase(b.passphrase))) {
+        const n = unlockThrottle.failed();
+        audit({
+          action: 'instance.export_refused',
+          entityType: 'instance',
+          summary: `Migration export by ${u.username} refused: wrong master passphrase (attempt ${n})`,
+        });
+        throw new HttpError(400, 'The master passphrase is wrong', 'WRONG_PASSPHRASE');
+      }
+      unlockThrottle.succeeded();
+      sweep();
+      const dir = workDir(config.dataDir);
+      const name = `steward-${new Date().toISOString().slice(0, 10)}.smig`;
+      const file = path.join(dir, name);
+      try {
+        const r = await exportPackage({ out: file, transferPassphrase: b.transferPassphrase });
+        const id = crypto.randomUUID();
+        exportsReady.set(id, { file, dir, userId: u.id, at: Date.now(), name });
+        return { ...r, downloadId: id, filename: name };
+      } catch (e) {
+        fs.rmSync(dir, { recursive: true, force: true });
+        throw e;
+      }
+    },
+  );
 
-  app.get('/migration/exports/:id/download', async (req, reply) => {
+  app.get('/migration/exports/:id/download', { config: { access: ACCESS.adminSession } }, async (req, reply) => {
     const u = mover();
     sweep();
     const e = exportsReady.get(params(req).id!);
@@ -151,7 +155,7 @@ export async function migrationRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- import ----------
-  app.post('/migration/imports/upload', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req): Promise<MigrationPlan> => {
+  app.post('/migration/imports/upload', { config: { access: ACCESS.adminSession, rateLimit: ROUTE_LIMITS.heavy } }, async (req): Promise<MigrationPlan> => {
     const u = mover();
     sweep();
     if (staged.size >= MAX_STAGED) throw new HttpError(409, 'Another package is being imported – finish or discard it first', 'MIGRATION_BUSY');
@@ -190,12 +194,12 @@ export async function migrationRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  app.get('/migration/imports/staged/:id', async (req): Promise<MigrationPlan> => {
+  app.get('/migration/imports/staged/:id', { config: { access: ACCESS.session } }, async (req): Promise<MigrationPlan> => {
     const s = stagedFor(params(req).id!, mover());
     return { ...buildPlan(s.pkg), id: params(req).id! };
   });
 
-  app.delete('/migration/imports/staged/:id', async (req) => {
+  app.delete('/migration/imports/staged/:id', { config: { access: ACCESS.session } }, async (req) => {
     stagedFor(params(req).id!, mover());
     dropStaged(params(req).id!);
     return { ok: true };
@@ -203,7 +207,7 @@ export async function migrationRoutes(app: FastifyInstance): Promise<void> {
 
   app.post(
     '/migration/imports/staged/:id/apply',
-    { config: { rateLimit: ROUTE_LIMITS.heavy, stepUp: { action: 'applyMigration', who: 'manageUsers' } } },
+    { config: { access: ACCESS.adminSession, rateLimit: ROUTE_LIMITS.heavy, stepUp: { action: 'applyMigration', who: 'manageUsers' } } },
     async (req) => {
       const u = mover();
       const s = stagedFor(params(req).id!, u);
@@ -220,19 +224,19 @@ export async function migrationRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  app.get('/migration/imports', async (): Promise<InstanceImport[]> => {
+  app.get('/migration/imports', { config: { access: ACCESS.adminSession } }, async (): Promise<InstanceImport[]> => {
     mover();
     return db().all<Record<string, unknown>>('SELECT * FROM instance_imports ORDER BY imported_at DESC').map(importRow);
   });
 
-  app.get('/migration/imports/:id', async (req) => {
+  app.get('/migration/imports/:id', { config: { access: ACCESS.adminSession } }, async (req) => {
     mover();
     const r = db().get<Record<string, unknown>>('SELECT * FROM instance_imports WHERE id = ?', params(req).id);
     if (!r) throw new HttpError(404, 'Import not found', 'MIGRATION_IMPORT_NOT_FOUND');
     return { ...importRow(r), verification: verifyImportedHistory(String(r.id)) };
   });
 
-  app.get('/migration/imports/:id/history', async (req): Promise<ImportedHistoryEntry[]> => {
+  app.get('/migration/imports/:id/history', { config: { access: ACCESS.adminSession } }, async (req): Promise<ImportedHistoryEntry[]> => {
     mover();
     const q = z
       .object({

@@ -7,7 +7,7 @@ import { config } from '../config.js';
 import { audit } from '../audit.js';
 import { HttpError } from '../util.js';
 import * as theme from './service.js';
-import { withCapability } from '../auth/access.js';
+import { ACCESS, withCapability } from '../auth/access.js';
 
 /**
  * Theme routes (registered at the root, full paths):
@@ -102,7 +102,7 @@ async function readUpload(req: FastifyRequest): Promise<Buffer> {
 
 export async function themeRoutes(app: FastifyInstance): Promise<void> {
   // ---------- public ----------
-  app.get('/api/theme', async (req, reply) => {
+  app.get('/api/theme', { config: { access: ACCESS.public } }, async (req, reply) => {
     const body = JSON.stringify(theme.publicTheme());
     const etag = theme.etagOf(body);
     // cacheable, but always revalidated: a theme change reaches every browser on its next poll
@@ -112,7 +112,7 @@ export async function themeRoutes(app: FastifyInstance): Promise<void> {
     return reply.type('application/json; charset=utf-8').send(body);
   });
 
-  app.get('/api/theme/logo', async (req, reply) => {
+  app.get('/api/theme/logo', { config: { access: ACCESS.public } }, async (req, reply) => {
     const l = theme.logoFile();
     if (!l) throw new HttpError(404, 'No logo configured');
     const etag = `"${l.sha256.slice(0, 32)}"`;
@@ -137,12 +137,12 @@ export async function themeRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- administrators ----------
-  app.get('/api/settings/theme', async () => {
+  app.get('/api/settings/theme', { config: { access: ACCESS.admin } }, async () => {
     admin('view the theme settings');
     return theme.getThemeSettings();
   });
 
-  app.put('/api/settings/theme', async (req) => {
+  app.put('/api/settings/theme', { config: { access: ACCESS.admin } }, async (req) => {
     const u = admin('change the theme');
     const b = themeBody.parse(req.body ?? {});
     const { settings, changed } = theme.updateTheme(b, u.username);
@@ -158,7 +158,7 @@ export async function themeRoutes(app: FastifyInstance): Promise<void> {
     return settings;
   });
 
-  app.post('/api/settings/theme/reset', async () => {
+  app.post('/api/settings/theme/reset', { config: { access: ACCESS.admin } }, async () => {
     admin('change the theme');
     const before = theme.getThemeSettings();
     const after = theme.resetTheme();
@@ -181,7 +181,7 @@ export async function themeRoutes(app: FastifyInstance): Promise<void> {
     return after;
   });
 
-  app.post('/api/settings/theme/logo', async (req) => {
+  app.post('/api/settings/theme/logo', { config: { access: ACCESS.admin } }, async (req) => {
     admin('change the theme');
     const data = await readUpload(req);
     const after = theme.setLogo(data);
@@ -195,7 +195,7 @@ export async function themeRoutes(app: FastifyInstance): Promise<void> {
     return after;
   });
 
-  app.delete('/api/settings/theme/logo', async () => {
+  app.delete('/api/settings/theme/logo', { config: { access: ACCESS.admin } }, async () => {
     admin('change the theme');
     const before = theme.getThemeSettings();
     const after = theme.removeLogo();

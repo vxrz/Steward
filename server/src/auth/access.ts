@@ -23,7 +23,9 @@ export type RouteAuth =
   /** signed in, by session or API token (the default) */
   | 'user'
   /** signed in with a session in the web app; API tokens are refused, whatever their scope */
-  | 'session';
+  | 'session'
+  /** own authentication by API token: the public API (/api/v1) and the MCP endpoint (resolved, never declared) */
+  | 'api';
 
 export interface RouteAccess {
   auth?: RouteAuth;
@@ -39,12 +41,18 @@ declare module 'fastify' {
   }
 }
 
-/** Route config shorthands. */
-export const PUBLIC: { access: RouteAccess } = { access: { auth: 'public' } };
-export const HOOK: { access: RouteAccess } = { access: { auth: 'hook' } };
-export const SESSION: { access: RouteAccess } = { access: { auth: 'session' } };
-export const ADMIN_ONLY: { access: RouteAccess } = { access: { roles: ['admin'] } };
-export const ADMIN_SESSION: { access: RouteAccess } = { access: { auth: 'session', roles: ['admin'] } };
+/** A route's access with the defaults filled in (app.ts resolveAccess). */
+export type ResolvedAccess = RouteAccess & { auth: RouteAuth; statusViewer: boolean };
+
+/** Shorthands for `config: { access: … }`. */
+export const ACCESS = {
+  public: { auth: 'public' },
+  hook: { auth: 'hook' },
+  session: { auth: 'session' },
+  admin: { roles: ['admin'] },
+  adminSession: { auth: 'session', roles: ['admin'] },
+  statusViewer: { statusViewer: true },
+} as const satisfies Record<string, RouteAccess>;
 
 /** The signed-in user; 401 NOT_SIGNED_IN otherwise. */
 export function me(): AuthUser {

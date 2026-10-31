@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Route access is declared on the route and checked before the body is read** (#16): whether a route is public, a webhook, for signed-in sessions only (no API tokens), for certain roles, or open to status viewers is now part of the route's configuration instead of lists in `app.ts`. One check reads it for every request, before the request body is parsed, so a caller who may not use a route gets 401/403 without their upload or JSON being read. 65 administrator-only routes (settings, users, teams, single sign-on, backups, migration, theme, report branding, notification settings) now refuse other roles this way. The sign-in check (`me()`) and `forbid()` exist once, in `server/src/auth/access.ts`, instead of in 17 modules. The route permission test compares the declarations with its table. Status viewers may log out, change their password and confirm their sign-in, as they could before.
+
 ## [0.2.10] - 2026-10-31
 
 AI assistants can now ask for changes instead of only reading: a changing platform call or a run requested through MCP becomes a request that a person confirms – per platform by the token owner or, four-eyes, by an approver – and runs once, as its requester. **Service status pages** show colleagues outside the service team how their services are doing – from the monitors, maintenance windows, objectives and known vendor issues, without names or tickets – to a new status viewer role or through a secret link without sign-in. Dashboards get a **Vega-Lite chart widget** for the few views the built-in widgets do not cover, drawn from the widget's dataset only and without `unsafe-eval` in the Content Security Policy. Two database migrations, both additive: `ops-012-mcp-requests` and `catalogue-010-status-pages`.
