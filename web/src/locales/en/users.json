@@ -344,5 +344,43 @@
       "duty_skips": "Duty exceptions",
       "scorecard_snapshots": "Scorecard history"
     }
+  },
+  "teamSettings": {
+    "open": "Settings of team {{name}}",
+    "title": "Settings of team {{name}}",
+    "channel": "Channel for the team's messages",
+    "channelHint": "Messages about resources this team owns (runs of its processes, its monitors, credentials, documents, duties …) that the notification routes send to Teams or a webhook.",
+    "inherited": "Instance default",
+    "overrides": "Overrides the instance default",
+    "usesInstance": "The team uses the instance channel (Settings → Notifications).",
+    "usesInstanceNone": "The team uses the instance channel, which has no Teams or webhook URL yet.",
+    "useOwn": "Use an own channel",
+    "instanceLink": "Instance channel",
+    "enabled": "Send to this channel",
+    "format": "Format",
+    "formats": {
+      "teams": "Teams card (Workflow or incoming webhook)",
+      "json": "JSON webhook"
+    },
+    "url": "URL",
+    "urlHint": "The URL of the Teams Workflow or webhook. It is stored encrypted and not shown again.",
+    "urlStored": "A URL is stored. Enter a new one to replace it.",
+    "mode": "Instance channel",
+    "modes": {
+      "also": "Also post there",
+      "instead": "Not there (instead)"
+    },
+    "modeHints": {
+      "also": "Messages go to this channel and to the instance channel.",
+      "instead": "Messages go only here – the instance channel is left out when every owning team of the resource has its own channel that says so."
+    },
+    "backToDefault": "Back to the instance default",
+    "test": "Send a test message",
+    "testSent": "Test message sent",
+    "testFailed": "Test message not sent",
+    "saved": "Team settings saved",
+    "notSaved": "Team settings not saved",
+    "resetDone": "The team uses the instance channel again",
+    "readOnly": "Administrators change team settings."
   }
 }

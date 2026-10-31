@@ -15,6 +15,7 @@ export const NOT_MOVED: Record<string, string> = {
   teams: 'mapped: every source team becomes a team of the target or is dropped',
   team_members: 'follows the identity mapping',
   resource_teams: 'follows the identity mapping: carried with its team (owns) and given to the team it is mapped to',
+  team_settings: 'follows the identity mapping: carried with its team (settings, the channel URL with the package key)',
   sessions: 're-issued on the target (everyone signs in again)',
   api_tokens: 're-issued on the target (API and MCP tokens)',
   emergency_access_grants: 'instance-specific (emergency access is granted on the target server)',

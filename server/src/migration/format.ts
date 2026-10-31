@@ -63,6 +63,8 @@ export interface PackageTeam {
   memberRoles?: Record<string, string[]>;
   /** Resources the team owns (#131; missing in older packages) */
   owns?: { kind: string; id: string }[];
+  /** The team's settings (#136; missing in older packages): its own channel, the URL encrypted with the package key */
+  settings?: { channel: { enabled: boolean; format: 'teams' | 'json'; mode: 'also' | 'instead' } | null; channelSecret?: string };
 }
 
 export interface Manifest {

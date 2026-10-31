@@ -3,6 +3,7 @@ import {
   type AclEntry,
   type Locale,
   type NotificationEvent,
+  type OwnedKind,
   type NotificationLookInput,
   type NotificationLookPreview,
   type ProcessPermission,
@@ -25,6 +26,7 @@ import { dryRunDelivery, isDryRun, logoDataUrl, lookProblems, resolveLook } from
 import { getSettings } from '../settings.js';
 import { formatDateTime, resolveLocale, t } from '../i18n/index.js';
 import { allowedDomainRules, domainAllowed } from './domains.js';
+import { teamChannelUrl, teamChannelsFor, teamsOf } from './team-channels.js';
 
 /** Same event + entity within this window → no second e-mail/Teams/webhook message (and no second in-app entry for the same key). */
 export const DEDUPE_WINDOW_MS = 60 * 60000;
@@ -68,6 +70,8 @@ export interface Notice {
   source?: RunSource | null;
   /** The run the message is about: during a maintenance window with "pause messages" on its platforms it goes to the app only (#108) */
   runId?: string;
+  /** The resource the message is about: its owning teams' own channels get it too (#136). A run's process otherwise. */
+  about?: { kind: OwnedKind; id: string };
 }
 
 /** Set by the maintenance module (no import cycle): does a maintenance window pause the messages of this run? */
@@ -193,8 +197,12 @@ export function notify(n: Notice): void {
   }
   // a dry run is a test: with "in the app only" it never reaches a mailbox, Teams or a webhook
   if (isDryRun(n.data) && dryRunDelivery() === 'inAppOnly') return;
-  const external = channels.filter((c) => c !== 'inApp' && settings[c].enabled);
-  if (!external.length) return;
+  let external = channels.filter((c) => c !== 'inApp' && settings[c].enabled);
+  // the owning teams' own channels (#136): for messages routed to a channel (Teams or webhook)
+  const toChannel = channels.includes('teams') || channels.includes('webhook');
+  const teamChannels = toChannel ? teamChannelsFor(teamsOf(n.about, n.runId)) : { channels: [], skipInstance: false };
+  if (teamChannels.skipInstance) external = external.filter((c) => c !== 'teams' && c !== 'webhook');
+  if (!external.length && !teamChannels.channels.length) return;
   if (!vault().unlocked) {
     logger.warn({ event: n.event }, 'notification not sent: the vault is locked');
     return;
@@ -250,6 +258,11 @@ export function notify(n: Notice): void {
     const asCard = getNotificationSettings().webhook.format === 'teams';
     jobs.push({ channel: 'webhook', send: () => (asCard ? sendTeams(secrets.webhookUrl!, msg) : sendWebhook(secrets.webhookUrl!, msg)) });
   }
+  for (const c of teamChannels.channels) {
+    if (!claimSend(`team:${c.team.id}:${key}`, DEDUPE_WINDOW_MS)) continue;
+    const msg = message(fallback);
+    jobs.push({ channel: `team:${c.team.name}`, send: () => (c.format === 'teams' ? sendTeams(c.url, msg) : sendWebhook(c.url, msg)) });
+  }
   for (const j of jobs) {
     const p = j
       .send()
@@ -278,6 +291,7 @@ export function onTaskCreated(e: DomainEvents['task.created']): void {
     link: `/runs/${e.runId}`,
     recipients: taskRecipients(e),
     source: sourceOfRun(e.runId),
+    about: { kind: 'process', id: e.processId },
     inAppKey: `task:${e.taskId}`,
     externalKey: `task:${e.taskId}`,
     data: {
@@ -303,6 +317,7 @@ export function onVerificationNeeded(e: DomainEvents['task.verification_needed']
     link: `/runs/${e.runId}`,
     recipients: verifierRecipients(e.taskId),
     source: sourceOfRun(e.runId),
+    about: { kind: 'process', id: e.processId },
     inAppKey: `task-verify:${e.taskId}:${round}`,
     externalKey: `task-verify:${e.taskId}:${round}`,
     data: {
@@ -329,6 +344,7 @@ export function onTaskReturned(e: DomainEvents['task.returned']): void {
     }),
     link: `/runs/${e.runId}`,
     recipients: completer ? [completer] : [],
+    about: { kind: 'process', id: e.processId },
     inAppKey: `task-returned:${e.taskId}:${round}`,
     externalKey: `task-returned:${e.taskId}:${round}`,
     data: { taskId: e.taskId, runId: e.runId, processId: e.processId, processName: e.processName, rejectedBy: e.rejectedBy, returned: true, dryRun: e.dryRun },
@@ -714,6 +730,22 @@ export function previewLook(draft: Partial<NotificationLookInput>, sample: 'test
   const msg = sample === 'dryRun' ? dryRunSample() : testMessage(look.name);
   const mail = emailContent(msg, look, look.logo ? logoDataUrl(look.logo) : undefined);
   return { subject: mail.subject, html: mail.html, teams: teamsCard(msg, look) };
+}
+
+/** Sends a test message to a team's own channel (#136). */
+export async function sendTeamTest(teamId: string): Promise<{ ok: boolean; error?: string }> {
+  const url = teamChannelUrl(teamId);
+  if (!url) return { ok: false, error: 'No URL is stored for this team' };
+  const r = db().get<{ channel: string | null }>('SELECT channel FROM team_settings WHERE team_id = ?', teamId);
+  const format = parseJson<{ format?: string } | null>(r?.channel, null)?.format ?? 'teams';
+  try {
+    const msg = testMessage(resolveLook().name);
+    if (format === 'teams') await sendTeams(url, msg);
+    else await sendWebhook(url, msg);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || String(err) };
+  }
 }
 
 /** Sends a test message on one channel (ignores routes and de-duplication). */

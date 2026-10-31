@@ -962,6 +962,7 @@ function notifyFindings(c: CheckRow, findings: FindingRow[]): void {
     }),
     link: `/compliance/reconciliation?check=${encodeURIComponent(c.id)}`,
     recipients: users,
+    about: { kind: 'platform', id: c.platform_id },
     inAppKey: `access-check:${c.id}:${findings[0]!.snapshot_id}`,
     externalKey: `access-check:${c.id}`,
     data: { checkId: c.id, snapshotId: findings[0]!.snapshot_id, findings: findings.length },

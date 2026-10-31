@@ -24,7 +24,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconCheck, IconCopy, IconEdit, IconKey, IconPlus, IconTrash, IconUsersGroup } from '@tabler/icons-react';
+import { IconCheck, IconCopy, IconEdit, IconKey, IconPlus, IconSettings, IconTrash, IconUsersGroup } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { ROLES, ROLE_INFO, TEAM_ROLES, type AuthStatus, type Role, type Team, type UserInfo } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
@@ -34,6 +34,7 @@ import { useMe } from '../auth';
 import { SsoSection, useSsoProviders } from '../components/sso/SsoSection';
 import i18n from '../i18n';
 import { ProfileValues } from '../components/users/ProfileValues';
+import { TeamSettingsModal } from '../components/users/TeamSettingsModal';
 import { confirmDanger, confirmDialog } from '../components/confirm';
 
 const ROLE_COLORS: Record<Role, string> = {
@@ -105,6 +106,7 @@ export function UsersPage() {
   const teams = useQuery({ queryKey: ['teams'], queryFn: () => get<Team[]>('/teams') });
   const [editing, setEditing] = useState<UserInfo | 'new' | null>(null);
   const [teamEdit, setTeamEdit] = useState<Team | 'new' | null>(null);
+  const [teamSettings, setTeamSettings] = useState<Team | null>(null);
   const [temp, setTemp] = useState<{ username: string; password: string } | null>(null);
   const sso = useSsoProviders();
   const ssoName = (source: string) => sso.data?.find((p) => p.id === source)?.displayName ?? source;
@@ -261,6 +263,9 @@ export function UsersPage() {
                   <ActionIcon variant="subtle" onClick={() => setTeamEdit(team)} aria-label={t('teams.edit', { name: team.name })}>
                     <IconEdit size={16} />
                   </ActionIcon>
+                  <ActionIcon variant="subtle" onClick={() => setTeamSettings(team)} aria-label={t('teamSettings.open', { name: team.name })}>
+                    <IconSettings size={16} />
+                  </ActionIcon>
                   <ActionIcon
                     variant="subtle"
                     color="red"
@@ -331,6 +336,7 @@ export function UsersPage() {
           }}
         />
       )}
+      {teamSettings && <TeamSettingsModal team={teamSettings} onClose={() => setTeamSettings(null)} />}
       {teamEdit && (
         <TeamModal
           team={teamEdit === 'new' ? null : teamEdit}

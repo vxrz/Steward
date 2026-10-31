@@ -21,6 +21,8 @@ import {
   type Role,
   type TeamDecision,
   type UserDecision,
+  TEAM_CHANNEL_FORMATS,
+  TEAM_CHANNEL_MODES,
 } from '@sm/shared';
 import { config } from '../config.js';
 import { Db, db, namedMigrations, coreMigrations } from '../db.js';
@@ -134,6 +136,16 @@ const manifestSchema = z.object({
         owns: z
           .array(z.object({ kind: z.string().max(40), id: z.string().max(100) }))
           .max(100000)
+          .optional(),
+        // team settings (#136); missing in packages of older versions
+        settings: z
+          .object({
+            channel: z
+              .object({ enabled: z.boolean(), format: z.enum(TEAM_CHANNEL_FORMATS), mode: z.enum(TEAM_CHANNEL_MODES) })
+              .strict()
+              .nullable(),
+            channelSecret: z.string().max(20000).optional(),
+          })
           .optional(),
       }),
     )
@@ -1226,6 +1238,11 @@ function copyIntoTarget(
       service: 'services',
       application: 'applications',
       system: 'systems',
+      record: 'records',
+      credential: 'credentials',
+      monitor: 'monitors',
+      dashboard: 'dashboards',
+      ticket: 'ticket_refs',
     };
     for (const t of resolved.teams) {
       const tid = teamIds.get(lower(t.source.name));
@@ -1235,6 +1252,30 @@ function copyIntoTarget(
         if (!table || !d.get(`SELECT 1 FROM ${table} WHERE id = ?`, o.id)) continue;
         d.run('INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING', o.kind, o.id, tid, ts);
       }
+    }
+    // ---- team settings (#136): with the team they were mapped to; the URL from the package key to this vault ----
+    for (const t of resolved.teams) {
+      const tid = teamIds.get(lower(t.source.name));
+      const ts0 = t.source.settings;
+      if (!tid || !ts0) continue;
+      let secret: string | null = null;
+      if (ts0.channelSecret) {
+        try {
+          secret = vault().encrypt(JSON.parse(decryptWith(pkg.secrets, ts0.channelSecret)));
+        } catch {
+          throw new HttpError(400, 'A team channel cannot be read with the package key', 'MIGRATION_PACKAGE_INVALID');
+        }
+      }
+      d.run(
+        `INSERT INTO team_settings (team_id, channel, channel_secret, updated_at, updated_by) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (team_id) DO UPDATE SET channel = excluded.channel, channel_secret = excluded.channel_secret,
+           updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+        tid,
+        ts0.channel ? JSON.stringify(ts0.channel) : null,
+        secret,
+        ts,
+        'migration',
+      );
     }
     // ---- selected settings ----
     for (const [k, v] of Object.entries(settings)) {

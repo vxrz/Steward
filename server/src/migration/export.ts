@@ -197,6 +197,18 @@ export async function exportPackage(opts: { out: string; transferPassphrase: str
       const owned = d.all<{ team_id: string; kind: string; resource_id: string }>(
         'SELECT team_id, kind, resource_id FROM resource_teams ORDER BY kind, resource_id',
       );
+      // team settings (#136): the team's own channel, its URL with the package key (like other credentials)
+      const teamSettings = new Map(
+        d
+          .all<{ team_id: string; channel: string | null; channel_secret: string | null }>('SELECT team_id, channel, channel_secret FROM team_settings')
+          .map((r) => [
+            r.team_id,
+            {
+              channel: r.channel ? (JSON.parse(r.channel) as NonNullable<PackageTeam['settings']>['channel']) : null,
+              ...(r.channel_secret ? { channelSecret: encryptWith(keys.secrets, JSON.stringify(vault().decrypt(r.channel_secret))) } : {}),
+            },
+          ]),
+      );
       teams = teamRows.map((t) => {
         const mine = members.filter((m) => m.team_id === t.id);
         const roles = Object.fromEntries(mine.filter((m) => m.roles).map((m) => [m.username, JSON.parse(m.roles!) as string[]]));
@@ -208,6 +220,7 @@ export async function exportPackage(opts: { out: string; transferPassphrase: str
           // team scopes (#131): what members may do in the team, and what the team owns
           memberRoles: roles,
           owns: owned.filter((o) => o.team_id === t.id).map((o) => ({ kind: o.kind, id: o.resource_id })),
+          ...(teamSettings.has(t.id) ? { settings: teamSettings.get(t.id) } : {}),
         };
       });
       users = d

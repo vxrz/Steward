@@ -92,6 +92,7 @@ export function checkTicketReminders(now = Date.now()): number {
         text: (l) => text(l, r, plan.days),
         link: `/tickets/${encodeURIComponent(r.id)}`,
         recipients: users,
+        about: { kind: 'ticket', id: r.id },
         inAppKey: `ticket:${r.id}:${plan.key}`,
         externalKey: `ticket:${r.id}:${plan.key}`,
         data: { ticketId: r.id, number: r.external_number, source: r.source, status: r.status, daysUnchecked: plan.days },

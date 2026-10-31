@@ -344,5 +344,43 @@
       "duty_skips": "Ausnahmen von Pflichten",
       "scorecard_snapshots": "Scorecard-Verlauf"
     }
+  },
+  "teamSettings": {
+    "open": "Einstellungen des Teams {{name}}",
+    "title": "Einstellungen des Teams {{name}}",
+    "channel": "Kanal für die Nachrichten des Teams",
+    "channelHint": "Nachrichten zu Ressourcen, für die dieses Team zuständig ist (Ausführungen seiner Prozesse, seine Monitore, Zugangsdaten, Dokumente, Pflichten …), die die Benachrichtigungswege an Teams oder einen Webhook senden.",
+    "inherited": "Standard der Instanz",
+    "overrides": "Überschreibt den Standard der Instanz",
+    "usesInstance": "Das Team nutzt den Kanal der Instanz (Einstellungen → Benachrichtigungen).",
+    "usesInstanceNone": "Das Team nutzt den Kanal der Instanz, der noch keine Teams- oder Webhook-URL hat.",
+    "useOwn": "Eigenen Kanal verwenden",
+    "instanceLink": "Kanal der Instanz",
+    "enabled": "An diesen Kanal senden",
+    "format": "Format",
+    "formats": {
+      "teams": "Teams-Karte (Workflow oder eingehender Webhook)",
+      "json": "JSON-Webhook"
+    },
+    "url": "URL",
+    "urlHint": "Die URL des Teams-Workflows oder Webhooks. Sie wird verschlüsselt gespeichert und nicht wieder angezeigt.",
+    "urlStored": "Eine URL ist gespeichert. Geben Sie eine neue ein, um sie zu ersetzen.",
+    "mode": "Kanal der Instanz",
+    "modes": {
+      "also": "Auch dorthin senden",
+      "instead": "Nicht dorthin (stattdessen)"
+    },
+    "modeHints": {
+      "also": "Nachrichten gehen an diesen Kanal und an den Kanal der Instanz.",
+      "instead": "Nachrichten gehen nur hierher – der Kanal der Instanz entfällt, wenn alle zuständigen Teams der Ressource einen eigenen Kanal haben, der das so festlegt."
+    },
+    "backToDefault": "Zurück zum Standard der Instanz",
+    "test": "Testnachricht senden",
+    "testSent": "Testnachricht gesendet",
+    "testFailed": "Testnachricht nicht gesendet",
+    "saved": "Team-Einstellungen gespeichert",
+    "notSaved": "Team-Einstellungen nicht gespeichert",
+    "resetDone": "Das Team nutzt wieder den Kanal der Instanz",
+    "readOnly": "Administratoren ändern die Einstellungen von Teams."
   }
 }

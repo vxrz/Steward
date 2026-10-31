@@ -58,6 +58,7 @@ import { recordRoutes, uploadedFile } from '../records/routes.js';
 import { contentDisposition, downloadType } from '../records/attachments.js';
 import { catalogueRoutes } from '../catalogue/routes.js';
 import { scopeRoutes } from '../auth/scope-routes.js';
+import * as teamChannels from '../notifications/team-channels.js';
 import { backupRoutes } from '../backup/routes.js';
 import { ticketRoutes } from '../tickets/routes.js';
 import { dailySummaryRoutes } from '../notifications/summary-routes.js';
@@ -754,6 +755,16 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requireCapability(me(), 'manageUsers', 'manage teams');
     users.deleteTeam(params(req).id!);
     return { ok: true };
+  });
+  // team settings (#136): members and administrators read them, administrators change them
+  app.get('/teams/:id/settings', async (req) => teamChannels.getTeamSettings(params(req).id!, me()));
+  app.put('/teams/:id/settings', { config: { access: ACCESS.adminSession } }, async (req) =>
+    teamChannels.saveTeamSettings(params(req).id!, teamChannels.teamSettingsInput.parse(req.body), me()),
+  );
+  app.post('/teams/:id/settings/test', { config: { access: ACCESS.adminSession } }, async (req) => {
+    teamChannels.getTeamSettings(params(req).id!, me());
+    const { sendTeamTest } = await import('../notifications/service.js');
+    return sendTeamTest(params(req).id!);
   });
   // where a user or team is still named, before it is deactivated or deleted (#143)
   app.get('/users/:id/references', { config: { access: ACCESS.admin } }, async (req) => {
