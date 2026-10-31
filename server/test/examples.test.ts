@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { dashboardDefinitionSchema, isMutating, validateProcess, type ProcessDefinition } from '@sm/shared';
+import { dashboardDefinitionSchema, dashboardWidgetSchema, isMutating, validateProcess, type ProcessDefinition } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 const EXAMPLES = path.resolve(__dirname, '..', '..', 'examples');
@@ -91,8 +91,18 @@ describe('example library', () => {
   });
 
   it.each(dashboardFiles)('dashboard %s is valid', (f) => {
-    const r = dashboardDefinitionSchema.safeParse(YAML.parse(fs.readFileSync(path.join(EXAMPLES, 'dashboards', f), 'utf8')));
+    const raw = YAML.parse(fs.readFileSync(path.join(EXAMPLES, 'dashboards', f), 'utf8'));
+    const r = dashboardDefinitionSchema.safeParse(raw);
     expect(r.success).toBe(true);
+    // unknown keys are dropped quietly; in a { … } line a comma in an unquoted title starts a new key
+    const known = new Set(Object.keys(dashboardWidgetSchema.shape));
+    expect(
+      raw.widgets.flatMap((w: Record<string, unknown>) =>
+        Object.keys(w)
+          .filter((k) => !known.has(k))
+          .map((k) => `${w.id}: ${k}`),
+      ),
+    ).toEqual([]);
   });
 
   it('demo setup creates dashboards, schedules and runs the feeders', async () => {

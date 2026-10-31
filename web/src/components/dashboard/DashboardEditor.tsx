@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActionIcon,
   Alert,
+  Anchor,
   Autocomplete,
   Badge,
   Button,
@@ -24,6 +25,7 @@ import { IconArrowDown, IconArrowUp, IconEdit, IconPlus, IconTrash } from '@tabl
 import YAML from 'yaml';
 import { useTranslation } from 'react-i18next';
 import {
+  VEGA_EXAMPLE_SPEC,
   WIDGET_INFO,
   WIDGET_TYPES,
   dashboardDefinitionSchema,
@@ -32,6 +34,7 @@ import {
   type DatasetMeta,
   type ProcessSummary,
   type WidgetType,
+  vegaSpecProblem,
 } from '@sm/shared';
 import { get } from '../../api';
 import { defaultWidth } from './widgets';
@@ -50,6 +53,7 @@ function newWidget(type: WidgetType, existing: DashboardWidget[]): DashboardWidg
   // Default texts in the UI language – they become part of the dashboard like anything typed.
   if (type === 'markdown') w.text = i18n.t('dashboards:editor.defaultNotes');
   if (type === 'freshness') w.title = widgetLabel('freshness');
+  if (type === 'vega') w.spec = structuredClone(VEGA_EXAMPLE_SPEC);
   return w;
 }
 
@@ -227,11 +231,26 @@ function WidgetForm({ widget, onClose, onSave }: { widget: DashboardWidget; onCl
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const [w, setW] = useState<DashboardWidget>(widget);
   const set = (patch: Partial<DashboardWidget>) => setW((x) => ({ ...x, ...patch }));
+  // vega: the spec is edited as JSON text and taken over when it parses and is allowed (#120)
+  const [specText, setSpecText] = useState(() => JSON.stringify(widget.spec ?? {}, null, 2));
+  const specError = useMemo(() => {
+    if (w.type !== 'vega') return null;
+    let spec: unknown;
+    try {
+      spec = JSON.parse(specText);
+    } catch (e) {
+      return t('form.specJson', { error: (e as Error).message });
+    }
+    return vegaSpecProblem(spec);
+  }, [w.type, specText, t]);
+  useEffect(() => {
+    if (w.type === 'vega' && !specError) setW((x) => ({ ...x, spec: JSON.parse(specText) as Record<string, unknown> }));
+  }, [w.type, specText, specError]);
   const datasets = useQuery({ queryKey: ['datasets'], queryFn: () => get<DatasetMeta[]>('/datasets') });
   const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes'), enabled: w.type === 'checks' });
   const meta = datasets.data?.find((d) => d.key === w.dataset);
   const metricNames = Object.keys(meta?.metrics ?? {});
-  const usesDataset = ['kpi', 'trend', 'status', 'table'].includes(w.type);
+  const usesDataset = ['kpi', 'trend', 'status', 'table', 'vega'].includes(w.type);
 
   return (
     <Modal opened onClose={onClose} title={t('form.title', { type: widgetLabel(w.type) })} size="lg">
@@ -373,11 +392,33 @@ function WidgetForm({ widget, onClose, onSave }: { widget: DashboardWidget; onCl
         {w.type === 'markdown' && (
           <Textarea label={t('form.text')} autosize minRows={4} value={w.text ?? ''} onChange={(e) => set({ text: e.currentTarget.value })} />
         )}
+        {w.type === 'vega' && (
+          <Textarea
+            label={t('form.spec')}
+            description={
+              <>
+                {t('form.specHint')}{' '}
+                <Anchor href="https://vega.github.io/vega-lite/docs/" target="_blank" rel="noopener noreferrer" size="xs">
+                  {t('form.specDocs')}
+                </Anchor>
+              </>
+            }
+            classNames={{ input: 'mono' }}
+            autosize
+            minRows={10}
+            maxRows={24}
+            value={specText}
+            onChange={(e) => setSpecText(e.currentTarget.value)}
+            error={specError}
+          />
+        )}
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={() => onSave(w)}>{t('form.apply')}</Button>
+          <Button onClick={() => onSave(w)} disabled={!!specError}>
+            {t('form.apply')}
+          </Button>
         </Group>
       </Stack>
     </Modal>

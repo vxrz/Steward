@@ -1,5 +1,6 @@
 import type { Forecast, Trend } from './trends.js';
 import { z } from 'zod';
+import { vegaSpecProblem } from './vega.js';
 
 // ---------- Datasets (fed by "Publish to dashboard" nodes) ----------
 
@@ -119,7 +120,7 @@ export interface MetricSeries {
 
 // ---------- Dashboards ----------
 
-export const WIDGET_TYPES = ['kpi', 'trend', 'status', 'table', 'checks', 'freshness', 'markdown'] as const;
+export const WIDGET_TYPES = ['kpi', 'trend', 'status', 'table', 'checks', 'freshness', 'markdown', 'vega'] as const;
 export type WidgetType = (typeof WIDGET_TYPES)[number];
 
 export const WIDGET_INFO: Record<WidgetType, string> = {
@@ -130,41 +131,50 @@ export const WIDGET_INFO: Record<WidgetType, string> = {
   checks: 'Check results of the latest run of a process',
   freshness: 'Age of every dataset on this dashboard and the next scheduled refresh',
   markdown: 'Free text (markdown subset)',
+  vega: 'Chart from a Vega-Lite spec on a dataset, for views the other widgets do not cover',
 };
 
-export const dashboardWidgetSchema = z.object({
-  id: z.string().min(1),
-  type: z.enum(WIDGET_TYPES),
-  title: z.string().optional(),
-  /** Width in 12ths of the row (3 = quarter, 6 = half, 12 = full) */
-  width: z.number().int().min(2).max(12).optional(),
-  dataset: z.string().optional(),
-  /** kpi: metric name, or "_rows" for the row count */
-  metric: z.string().optional(),
-  /** trend: metric names (max 3) */
-  metrics: z.array(z.string()).max(3).optional(),
-  /** kpi: which direction is good for the change indicator */
-  goodWhen: z.enum(['up', 'down']).optional(),
-  /** kpi / trend: history window in days (default 30); the trend (#145) covers the same window */
-  days: z.number().int().min(1).max(365).optional(),
-  /** kpi: a limit to forecast against (#145); default the metric's limit from the publish step */
-  threshold: z.number().finite().optional(),
-  /** kpi: the threshold is a lower limit (reached by falling) */
-  thresholdLower: z.boolean().optional(),
-  /** trend: draw a dashed trend line per series (#145) */
-  trendLine: z.boolean().optional(),
-  /** table: columns to show (default all) */
-  columns: z.array(z.string()).max(100).optional(),
-  /** table: show only rows whose status is not good */
-  problemsOnly: z.boolean().optional(),
-  limit: z.number().int().min(1).max(5000).optional(),
-  /** checks: process id */
-  process: z.string().optional(),
-  /** markdown */
-  text: z.string().optional(),
-  /** Only these sources (platform ids), whatever the dashboard's source filter says (#142) */
-  source: z.array(z.string().max(300)).max(50).optional(),
-});
+export const dashboardWidgetSchema = z
+  .object({
+    id: z.string().min(1),
+    type: z.enum(WIDGET_TYPES),
+    title: z.string().optional(),
+    /** Width in 12ths of the row (3 = quarter, 6 = half, 12 = full) */
+    width: z.number().int().min(2).max(12).optional(),
+    dataset: z.string().optional(),
+    /** kpi: metric name, or "_rows" for the row count */
+    metric: z.string().optional(),
+    /** trend: metric names (max 3) */
+    metrics: z.array(z.string()).max(3).optional(),
+    /** kpi: which direction is good for the change indicator */
+    goodWhen: z.enum(['up', 'down']).optional(),
+    /** kpi / trend: history window in days (default 30); the trend (#145) covers the same window */
+    days: z.number().int().min(1).max(365).optional(),
+    /** kpi: a limit to forecast against (#145); default the metric's limit from the publish step */
+    threshold: z.number().finite().optional(),
+    /** kpi: the threshold is a lower limit (reached by falling) */
+    thresholdLower: z.boolean().optional(),
+    /** trend: draw a dashed trend line per series (#145) */
+    trendLine: z.boolean().optional(),
+    /** table: columns to show (default all) */
+    columns: z.array(z.string()).max(100).optional(),
+    /** table: show only rows whose status is not good */
+    problemsOnly: z.boolean().optional(),
+    limit: z.number().int().min(1).max(5000).optional(),
+    /** checks: process id */
+    process: z.string().optional(),
+    /** markdown */
+    text: z.string().optional(),
+    /** Only these sources (platform ids), whatever the dashboard's source filter says (#142) */
+    source: z.array(z.string().max(300)).max(50).optional(),
+    /** vega: a Vega-Lite spec (#120); its data is the dataset's rows, see vegaSpecProblem() */
+    spec: z.record(z.string(), z.unknown()).optional(),
+  })
+  .superRefine((w, ctx) => {
+    if (w.type !== 'vega') return;
+    const problem = w.spec ? vegaSpecProblem(w.spec) : 'A Vega-Lite widget needs a spec';
+    if (problem) ctx.addIssue({ code: 'custom', path: ['spec'], message: problem });
+  });
 export type DashboardWidget = z.infer<typeof dashboardWidgetSchema>;
 
 export const dashboardDefinitionSchema = z.object({

@@ -237,12 +237,22 @@ Tokens from `oauth2_client_credentials` and `token_request` are kept in memory u
    - `table`: rows with status, search and a problems-only filter;
    - `checks`: the latest checks of a process;
    - `freshness`;
-   - `markdown`.
+   - `markdown`;
+   - `vega`: a chart from a [Vega-Lite](https://vega.github.io/vega-lite/) spec, for the few views the others do not cover (below).
 5. **Sources.** When a dashboard's data comes from several sources, a _Sources_ filter appears (part of the URL, remembered per person); every widget follows it, or pins its own sources in the editor. Tables get a _Source_ column, trends one line per source, KPIs a value per source. `GET /api/v1/datasets/{key}/rows` and `…/metrics` take `source` (repeat it) and return `_source` and `source` per series.
 6. **Refresh.** _Refresh data_ re-runs the feeding processes with the inputs of their last run, provided you have run rights.
 7. **Trends and forecasts.** A KPI shows the change of the **trend line** over its days instead of first point → latest value, with what it is based on ("Based on 28 points over 30 days · stable"). Give the publish step `limits` (an upper limit per metric: a quota, a contract) or `floors` (a lower limit: free storage), or a KPI its own _Limit_, and the KPI says when the trend reaches it at this rate ("Limit 1,130 reached in about 23 days (Nov 22)"). A trend widget can draw dashed trend lines. Details below.
 
 **How the trend is computed.** A robust straight line through the points of the window (Theil–Sen: the median of the slopes between all pairs of points), so one outlier or a gap does not tilt it. A counter that was reset (it drops by more than half of its range while it otherwise only rises, e.g. a monthly quota) is followed from its last reset. Fewer than 5 points, or points covering less than a fifth of the window, give no trend: _too few points for a forecast_. The trend is _stable_ when the points stay close to the line (their median distance is under a quarter of the change), else _rough_. A forecast says _reached_, _in about N days_, _not heading for the limit_ (flat or moving away), or _not within two years_. The same math runs on the server and in the browser ([`shared/src/trends.ts`](shared/src/trends.ts)). `GET /api/v1/datasets/{key}/metrics?trend=7d` returns `trend`, `limit` and `forecast` per series; checks use `$trend` and `$daysUntil` (below), the daily summary a _Trends_ section ([docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#daily-summary)).
+
+**Vega-Lite charts.** A `vega` widget draws its `spec` (Vega-Lite JSON, or YAML in the dashboard file) from the widget's dataset – nothing else:
+
+- The data is the dataset's rows under the name `dataset` (at most 5,000), with the publish step's column labels as fields, plus `_status`, `_statusText` and `_source` (the platform's name). Leave `data` out, or write `{ name: dataset }` (e.g. in a layer).
+- Refused when saving, from the editor, YAML, bundles and Git sync alike: `url` anywhere (no loading data or images), `href` (no links), `values` or other inline data, `datasets`, full Vega specs, specs over 64 kB.
+- In the browser, expressions run in [vega-interpreter](https://github.com/vega/vega/tree/main/packages/vega-interpreter) instead of being compiled to code, so the Content Security Policy keeps `script-src 'self'` without `unsafe-eval`, and the chart's loader refuses every request. Vega is loaded only on dashboards that have such a widget.
+- Colours, fonts and lines follow the light or dark theme. The schemes `steward` (series colours) and `steward-status` (good, warning, serious, critical, unknown – give that `domain`) can be used in `scale.scheme`; the spec's own `config` wins.
+- _Chart / Table_ switches to a table of the fields the chart encodes, as for the other charts; the spec's `description` (default: the title) labels the chart for screen readers.
+- Examples: _Devices per firmware version_ on _Edge fleet_ and _Used share of each limit_ on _Tenant usage_.
 
 Who can see what: a dataset is visible to everyone who may view the process that publishes it. A partition is left out – from rows, counts, metrics, the API and MCP, without a hint – when one of its platforms has an access list that does not include the reader; administrators and auditors see all. Platforms without an access list keep their data visible to everyone who sees the dataset. (A separate "view data" right on platforms is planned with team permissions in 0.3.0.)
 

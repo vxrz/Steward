@@ -97,6 +97,10 @@
     "markdown": {
       "label": "Text",
       "info": "Freier Text (Markdown-Teilmenge)"
+    },
+    "vega": {
+      "label": "Vega-Lite-Diagramm",
+      "info": "Diagramm aus einer Vega-Lite-Spezifikation zu einem Datensatz, für Ansichten, die die anderen Widgets nicht abdecken"
     }
   },
   "editor": {
@@ -157,7 +161,11 @@
     "thresholdUpper": "eine Obergrenze (Kontingent, Vertrag)",
     "thresholdLower": "eine Untergrenze (z. B. freier Speicher)",
     "trendLine": "Trendlinien zeigen",
-    "trendLineHint": "Eine gestrichelte Linie je Kennzahl: der Trend über die gewählten Tage"
+    "trendLineHint": "Eine gestrichelte Linie je Kennzahl: der Trend über die gewählten Tage",
+    "spec": "Vega-Lite-Spezifikation (JSON)",
+    "specHint": "Die Daten sind die Zeilen des Datensatzes (Name „dataset“); Daten nachladen, Links und Bilder sind nicht erlaubt. Die Farbschemata „steward“ und „steward-status“ folgen dem Design.",
+    "specJson": "Kein gültiges JSON: {{error}}",
+    "specDocs": "Vega-Lite-Dokumentation"
   },
   "w": {
     "chart": "Diagramm",
@@ -218,7 +226,8 @@
       "notApproaching": "Kein Kurs auf das Limit {{limit}}",
       "beyond": "Limit {{limit}} bei diesem Verlauf nicht innerhalb von zwei Jahren",
       "tooFew": "Zu wenige Messpunkte für eine Prognose bis {{limit}}"
-    }
+    },
+    "chartError": "Das Diagramm konnte nicht gezeichnet werden: {{error}}"
   },
   "charts": {
     "trendLabel": "Trend von {{names}}. Werte mit den Pfeiltasten ablesen.",

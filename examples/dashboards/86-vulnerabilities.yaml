@@ -13,16 +13,13 @@ widgets:
   - { id: high, type: kpi, title: High findings, dataset: dt.vulnerabilities, metric: high, goodWhen: down, width: 3 }
   - { id: policy, type: kpi, title: Failing policy violations, dataset: dt.vulnerabilities, metric: policyFail, goodWhen: down, width: 3 }
   - { id: status, type: status, title: By state, dataset: dt.vulnerabilities, width: 4 }
-  - {
-      id: trend,
-      type: trend,
-      title: Critical,
-      high and failing policies,
-      dataset: dt.vulnerabilities,
-      metrics: [critical, high, policyFail],
-      days: 30,
-      width: 8,
-    }
+  - id: trend
+    type: trend
+    title: "Critical, high and failing policies"
+    dataset: dt.vulnerabilities
+    metrics: [critical, high, policyFail]
+    days: 30
+    width: 8
   - { id: problems, type: table, title: Needing attention, dataset: dt.vulnerabilities, problemsOnly: true, width: 12 }
   - { id: all, type: table, title: All projects, dataset: dt.vulnerabilities, width: 12 }
   - { id: checks, type: checks, title: Latest read-out, process: dependency-track-vulnerabilities, width: 6 }

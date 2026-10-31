@@ -97,6 +97,10 @@
     "markdown": {
       "label": "Text",
       "info": "Free text (markdown subset)"
+    },
+    "vega": {
+      "label": "Vega-Lite chart",
+      "info": "Chart from a Vega-Lite spec on a dataset, for views the other widgets do not cover"
     }
   },
   "editor": {
@@ -157,7 +161,11 @@
     "thresholdUpper": "an upper limit (quota, contract)",
     "thresholdLower": "a lower limit (e.g. free space)",
     "trendLine": "Show trend lines",
-    "trendLineHint": "A dashed line per metric: the trend over the chosen days"
+    "trendLineHint": "A dashed line per metric: the trend over the chosen days",
+    "spec": "Vega-Lite spec (JSON)",
+    "specHint": "The data is the dataset’s rows (name “dataset”); loading data, links and images are not allowed. Colour schemes “steward” and “steward-status” follow the theme.",
+    "specJson": "Not valid JSON: {{error}}",
+    "specDocs": "Vega-Lite documentation"
   },
   "w": {
     "chart": "Chart",
@@ -218,7 +226,8 @@
       "notApproaching": "Not heading for the limit {{limit}}",
       "beyond": "Limit {{limit}} not within two years at this rate",
       "tooFew": "Too few points for a forecast to {{limit}}"
-    }
+    },
+    "chartError": "The chart could not be drawn: {{error}}"
   },
   "charts": {
     "trendLabel": "Trend of {{names}}. Use the arrow keys to read values.",

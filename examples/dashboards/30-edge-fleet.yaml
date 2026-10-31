@@ -14,6 +14,26 @@ widgets:
   - { id: trend, type: trend, title: Online vs. offline, dataset: iem.devices, metrics: [online, offline], days: 30, width: 6 }
   - { id: devices, type: table, title: All devices, dataset: iem.devices, width: 12 }
   - { id: firmware, type: table, title: Firmware updates needed, dataset: iem.firmware, problemsOnly: true, width: 6 }
+  - id: firmwareChart
+    type: vega
+    title: Devices per firmware version
+    dataset: iem.firmware
+    width: 6
+    spec:
+      description: Number of devices per firmware version, coloured by whether the version meets the minimum.
+      mark: { type: bar, cornerRadiusEnd: 2 }
+      encoding:
+        x: { field: Firmware, type: ordinal, title: Firmware, sort: ascending, axis: { labelAngle: 0 } }
+        y: { aggregate: count, type: quantitative, title: Devices }
+        color:
+          field: _status
+          type: nominal
+          title: State
+          scale: { domain: [good, warning, serious, critical, unknown], scheme: steward-status }
+          legend: null
+        tooltip:
+          - { field: Firmware }
+          - { aggregate: count, type: quantitative, title: Devices }
   - { id: appVersions, type: table, title: Outdated applications, dataset: iem.app-compliance, problemsOnly: true, width: 6 }
   - { id: catalog, type: table, title: Application catalog, dataset: iem.apps, width: 6 }
-  - { id: fresh, type: freshness, width: 6 }
+  - { id: fresh, type: freshness, width: 12 }

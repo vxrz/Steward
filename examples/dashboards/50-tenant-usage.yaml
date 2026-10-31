@@ -22,16 +22,42 @@ widgets:
       width: 8,
     }
   - { id: status, type: status, title: Figures by level, dataset: ih.usage, width: 4 }
-  - {
-      id: trendCounts,
-      type: trend,
-      title: Users,
-      assets and agents over time (%),
-      dataset: ih.usage,
-      metrics: [usersPercent, assetsPercent, agentsPercent],
-      days: 90,
-      width: 6,
-    }
+  - id: usageChart
+    type: vega
+    title: Used share of each limit
+    dataset: ih.usage
+    width: 12
+    spec:
+      description: Used share of each licensed limit per figure, coloured by level; the dashed line marks 100 %.
+      height: 180
+      transform:
+        - { calculate: "toNumber(datum['Used (%)'])", as: used }
+        - { filter: "isValid(datum.used) && isFinite(datum.used)" }
+      layer:
+        - mark: { type: bar, cornerRadiusEnd: 2 }
+          encoding:
+            y: { field: Figure, type: nominal, sort: "-x", title: null }
+            x: { field: used, type: quantitative, title: "Used (%)" }
+            color:
+              field: _status
+              type: nominal
+              scale: { domain: [good, warning, serious, critical, unknown], scheme: steward-status }
+              legend: null
+            tooltip:
+              - { field: Figure }
+              - { field: Used }
+              - { field: Limit }
+              - { field: used, type: quantitative, title: "Used (%)", format: ".0f" }
+        - transform: [{ aggregate: [{ op: count, as: n }] }]
+          mark: { type: rule, strokeDash: [4, 3] }
+          encoding: { x: { datum: 100 } }
+  - id: trendCounts
+    type: trend
+    title: "Users, assets and agents over time (%)"
+    dataset: ih.usage
+    metrics: [usersPercent, assetsPercent, agentsPercent]
+    days: 90
+    width: 6
   - { id: trendAttributes, type: trend, title: Asset attributes and KPI over time, dataset: ih.usage, metrics: [attributes, kpi], days: 90, width: 6 }
   - { id: problems, type: table, title: Figures above the warning level or not read, dataset: ih.usage, problemsOnly: true, width: 12 }
   - { id: all, type: table, title: All figures, dataset: ih.usage, width: 12 }

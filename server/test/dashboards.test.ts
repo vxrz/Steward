@@ -104,6 +104,34 @@ describe('datasets & dashboards', () => {
     await expect(s.api('POST', '/dashboards', { text: 'name: x\nwidgets:\n  - { id: a, type: nope }' })).rejects.toThrow(/400/);
   });
 
+  it('takes Vega-Lite widgets whose spec shows only the dataset (#120)', async () => {
+    const board = (spec: unknown) => ({ definition: { name: 'Vega board', widgets: [{ id: 'v1', type: 'vega', dataset: 'test.users', spec }] } });
+    const spec = {
+      description: 'Users per status',
+      transform: [{ calculate: "toNumber(datum['Logins'])", as: 'n' }],
+      layer: [{ data: { name: 'dataset' }, mark: 'bar', encoding: { x: { field: '_status', type: 'nominal' }, y: { aggregate: 'count' } } }],
+    };
+    const d = await s.api('POST', '/dashboards', board(spec));
+    expect(d.definition.widgets[0]).toMatchObject({ type: 'vega', spec });
+    await s.api('DELETE', `/dashboards/${d.id}`);
+    const refused = async (bad: unknown, why: RegExp) => {
+      const e = await s.api('POST', '/dashboards', board(bad)).catch((x: Error) => x);
+      expect(String(e)).toMatch(/400/);
+      expect(String(e)).toMatch(why);
+    };
+    await refused(undefined, /needs a spec/);
+    await refused({ data: { url: 'https://example.com/x.json' }, mark: 'bar' }, /data comes from the widget's dataset/);
+    await refused({ data: { values: [{ a: 1 }] }, mark: 'bar' }, /data comes from the widget's dataset/);
+    await refused({ mark: 'image', encoding: { url: { field: 'x' } } }, /encoding\.url: .*not allowed/);
+    await refused({ mark: 'bar', encoding: { href: { field: 'link' } } }, /encoding\.href/);
+    await refused({ layer: [{ mark: { type: 'point', href: 'https://example.com' } }] }, /layer\.0\.mark\.href/);
+    await refused({ datasets: { other: [] }, mark: 'bar' }, /datasets/);
+    await refused({ $schema: 'https://vega.github.io/schema/vega/v6.json', marks: [] }, /Only Vega-Lite/);
+    await refused({ mark: 'bar', description: 'x'.repeat(70_000) }, /larger than 64 kB/);
+    // the same rules for YAML text, Git sync and bundles: they all parse with the same schema
+    await expect(s.api('POST', '/dashboards', { text: 'name: y\nwidgets:\n  - { id: a, type: vega, spec: { data: { url: x } } }' })).rejects.toThrow(/400/);
+  });
+
   it('exports and imports bundles', async () => {
     const bundle = await s.api('GET', `/bundle/export?processes=${processId}&dashboards=${dashId}`);
     expect(bundle.processes).toHaveLength(1);

@@ -8,8 +8,13 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Vega-Lite chart widget** (#120): a dashboard widget `vega` draws a [Vega-Lite](https://vega.github.io/vega-lite/) spec from its dataset, for the few views the built-in widgets do not cover – with a table view, the theme's colours (schemes `steward` and `steward-status`) and a spec editor that checks as you type. Only the dataset is shown: specs that load data or images (`url`), link (`href`) or carry their own data are refused when saving. Expressions run in vega-interpreter, so the Content Security Policy stays without `unsafe-eval`, and the chart chunk is loaded only on dashboards that use it. Examples on _Edge fleet_ (devices per firmware version) and _Tenant usage_ (used share of each limit) ([README](README.md#dashboards)). New dependencies: `vega`, `vega-lite`, `vega-interpreter` (web).
 - **Service status pages** (#26): read-only pages for people outside the service team – per service the state from its linked monitors (counts only, no names), planned and running maintenance, known issues with vendors (the vendor and since when, never the ticket) and optionally the availability objectives, plus a notice. A new role _status_ (status viewer) sees nothing but the status pages, enforced once on the server for every route. A page can get a secret link without sign-in, stored as a hash, kept in the URL fragment so no log sees it, revocable and audited ([docs/STATUS-PAGES.md](docs/STATUS-PAGES.md)). Migration `catalogue-010-status-pages` (additive).
 - **Approved writes through MCP** (#11): an AI assistant can ask for a changing platform call (POST, PUT, PATCH, DELETE) through the MCP gateway, or to start a run – it never happens when it asks. Each becomes a request under _AI requests_ that the token owner confirms or, per platform, a second person (an approver or administrator who may use the platform) approves; it then runs once, as the token owner, with the rights and settings of that moment, and expires after 24 hours otherwise. Changing calls are off per platform (turning them on needs a fresh confirmation of the sign-in), run requests are off for the instance. Decisions only with a signed-in session, new notification event _Request from an AI assistant_, every step audited, `get_operation_request` and `request_run` tools ([docs/MCP.md](docs/MCP.md#approved-writes)). Migration `ops-012-mcp-requests` (additive).
+
+### Fixed
+
+- Two example dashboard titles lost the text after their comma (_Users, assets and agents over time (%)_ on _Tenant usage_, _Critical, high and failing policies_ on _Vulnerabilities_); a test now catches unknown widget keys in the examples.
 
 ## [0.2.9] - 2026-10-31
 
