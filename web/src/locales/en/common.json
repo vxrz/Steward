@@ -35,7 +35,8 @@
     "operator": "operator",
     "approver": "approver",
     "auditor": "auditor",
-    "viewer": "viewer"
+    "viewer": "viewer",
+    "status": "status viewer"
   },
   "roleInfo": {
     "admin": "Everything: users, teams, platforms and credentials, settings, all processes",
@@ -43,7 +44,8 @@
     "operator": "Run and schedule processes (unless restricted)",
     "approver": "Decide approvals and user tasks",
     "auditor": "Read-only access to all processes, runs, protocols and the audit log",
-    "viewer": "Read-only access to processes and their runs (unless restricted)"
+    "viewer": "Read-only access to processes and their runs (unless restricted)",
+    "status": "Only the service status pages – none of the other pages, processes, platforms or data"
   },
   "loading": "Loading…",
   "severity": {

@@ -171,6 +171,7 @@ While you model a process, the platform is often not reachable yet, or you do no
 | approver | Decide approvals and user tasks.                                                                      |
 | auditor  | Read-only access to everything, including the audit log and all protocols.                            |
 | viewer   | Read processes and their runs.                                                                        |
+| status   | Only the service status pages ([docs/STATUS-PAGES.md](docs/STATUS-PAGES.md)) – nothing else.          |
 
 - **Process access list.** Rights are `view`, `run` (start, schedule, make selection decisions), `edit`, `approve` and `manage` (change access, archive). An empty list means the role defaults apply. As soon as entries exist, only the listed `user:…`, `team:…` or `role:…` subjects get the listed rights. Admins and the process owner (its creator) always keep full rights.
 - **Platform access list.** Rights are `use` (bind it in runs; read-only explorer calls) and `manage` (configuration, credentials, access, write calls in the explorer). Use this to restrict e.g. the production tenant to one team.

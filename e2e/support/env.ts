@@ -15,6 +15,7 @@ export const USERS = {
   adam: { username: 'adam', password: DEMO_PASSWORD, displayName: 'Adam Approver' },
   audrey: { username: 'audrey', password: DEMO_PASSWORD, displayName: 'Audrey Auditor' },
   vera: { username: 'vera', password: DEMO_PASSWORD, displayName: 'Vera Viewer' },
+  stella: { username: 'stella', password: DEMO_PASSWORD, displayName: 'Stella Status' },
 } as const;
 export type UserKey = keyof typeof USERS;
 

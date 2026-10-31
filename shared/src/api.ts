@@ -15,7 +15,7 @@ import type {
 
 // ---------- Users, roles, permissions ----------
 
-export const ROLES = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer'] as const;
+export const ROLES = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer', 'status'] as const;
 export type Role = (typeof ROLES)[number];
 
 export const ROLE_INFO: Record<Role, string> = {
@@ -25,6 +25,7 @@ export const ROLE_INFO: Record<Role, string> = {
   approver: 'Decide approvals and user tasks',
   auditor: 'Read-only access to all processes, runs, protocols and the audit log',
   viewer: 'Read-only access to processes and their runs (unless restricted)',
+  status: 'Only the service status pages – none of the other pages, processes, platforms or data',
 };
 
 export const PROCESS_PERMISSIONS = ['view', 'run', 'edit', 'approve', 'manage'] as const;

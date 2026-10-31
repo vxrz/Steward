@@ -674,6 +674,8 @@
     "CHECK_MQTT_TOPIC": "Check \"{{check}}\": that is no MQTT topic or pattern (+ and # only as whole levels, # last).",
     "COMPONENT_TOPIC_PLATFORM": "Choose a Kafka platform you may use.",
     "COMPONENT_TOPIC_REQUIRED": "Choose the Kafka platform of the topic first.",
+    "STATUS_PAGE_NOT_FOUND": "Status page {{id}} not found.",
+    "STATUS_VIEWER_ONLY": "Status viewers only see the status pages.",
     "MCP_REQUEST_NOT_FOUND": "Request {{id}} not found.",
     "MCP_REQUEST_DECIDE": "The request is no longer open, or you may not decide it.",
     "MCP_REQUEST_APPROVE": "Only the token owner confirms this request – or, with four-eyes, an approver or administrator other than the token owner who may use the platform.",

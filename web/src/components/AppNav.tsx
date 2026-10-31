@@ -6,6 +6,7 @@ import {
   IconApps,
   IconArrowsDiff,
   IconBrandGit,
+  IconBroadcast,
   IconCalendarCheck,
   IconCalendarTime,
   IconChartBar,
@@ -56,6 +57,7 @@ export type NavKey =
   | 'applications'
   | 'systems'
   | 'maintenance'
+  | 'statusPages'
   | 'duties'
   | 'scorecard'
   | 'credentials'
@@ -116,6 +118,7 @@ export const NAV_GROUPS: { key: NavGroupKey | null; items: NavItemDef[] }[] = [
       { to: '/applications', key: 'applications', icon: IconApps },
       { to: '/systems', key: 'systems', icon: IconServer2 },
       { to: '/maintenance', key: 'maintenance', icon: IconTool },
+      { to: '/status-pages', key: 'statusPages', icon: IconBroadcast },
       { to: '/duties', key: 'duties', icon: IconCalendarCheck },
       { to: '/scorecard', key: 'scorecard', icon: IconGauge },
       { to: '/platforms', key: 'platforms', icon: IconServer },

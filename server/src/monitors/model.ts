@@ -153,6 +153,7 @@ export const MONITOR_DEFAULTS: Record<Role, MonitorPermission[]> = {
   approver: ['view'],
   auditor: ['view'],
   viewer: ['view'],
+  status: [],
 };
 
 /** Same model as processes: role defaults, or the access list when it has entries; admins and the owner keep everything. */

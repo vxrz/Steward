@@ -35,7 +35,8 @@
     "operator": "Operator",
     "approver": "Freigeber",
     "auditor": "Prüfer",
-    "viewer": "Betrachter"
+    "viewer": "Betrachter",
+    "status": "Statusbetrachter"
   },
   "roleInfo": {
     "admin": "Alles: Benutzer, Teams, Plattformen und Zugangsdaten, Einstellungen, alle Prozesse",
@@ -43,7 +44,8 @@
     "operator": "Prozesse ausführen und planen (sofern nicht eingeschränkt)",
     "approver": "Über Freigaben und Benutzeraufgaben entscheiden",
     "auditor": "Lesezugriff auf alle Prozesse, Ausführungen, Protokolle und das Audit-Log",
-    "viewer": "Lesezugriff auf Prozesse und ihre Ausführungen (sofern nicht eingeschränkt)"
+    "viewer": "Lesezugriff auf Prozesse und ihre Ausführungen (sofern nicht eingeschränkt)",
+    "status": "Nur die Statusseiten der Services – keine anderen Seiten, Prozesse, Plattformen oder Daten"
   },
   "loading": "Wird geladen…",
   "severity": {

@@ -40,6 +40,7 @@ const DEMO_USERS: { username: string; displayName: string; roles: Role[] }[] = [
   { username: 'adam', displayName: 'Adam Approver', roles: ['approver'] },
   { username: 'audrey', displayName: 'Audrey Auditor', roles: ['auditor'] },
   { username: 'vera', displayName: 'Vera Viewer', roles: ['viewer'] },
+  { username: 'stella', displayName: 'Stella Status', roles: ['status'] },
 ];
 
 /**
