@@ -58,6 +58,24 @@ export function owningTeams(kind: OwnedKind, id: string): OwningTeam[] {
   return store.teamIndex.get(`${kind}:${id}`) ?? [];
 }
 
+/**
+ * Run `fn` as if the owning teams were `next` (a preview of a change): only this request sees it, nothing is stored.
+ */
+export function withOwningTeams<T>(next: (index: Map<string, OwningTeam[]>) => void, fn: () => T): T {
+  const store = currentStore();
+  if (!store) throw new Error('withOwningTeams needs a request');
+  owningTeams('process', ''); // reads the index
+  const saved = store.teamIndex!;
+  const copy = new Map([...saved].map(([k, v]) => [k, [...v]]));
+  next(copy);
+  store.teamIndex = copy;
+  try {
+    return fn();
+  } finally {
+    store.teamIndex = saved;
+  }
+}
+
 /** Forget the owning teams read in this request (after changing them). */
 export function teamsChanged(): void {
   const store = currentStore();
@@ -214,13 +232,10 @@ const CATALOGUE_EDITORS: readonly Role[] = ['admin', 'designer'];
 export function catalogueTeams(kind: CatalogueKind, id: string): OwningTeam[] {
   const own = owningTeams(kind, id);
   if (own.length || kind !== 'application') return own;
-  return db().all<OwningTeam>(
-    `SELECT DISTINCT t.id, t.name FROM service_applications sa
-       JOIN resource_teams r ON r.kind = 'service' AND r.resource_id = sa.service_id
-       JOIN teams t ON t.id = r.team_id
-     WHERE sa.application_id = ? ORDER BY t.name`,
-    id,
-  );
+  const byId = new Map<string, OwningTeam>();
+  for (const r of db().all<{ service_id: string }>('SELECT service_id FROM service_applications WHERE application_id = ?', id))
+    for (const t of owningTeams('service', r.service_id)) byId.set(t.id, t);
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export interface CatalogueDecision {

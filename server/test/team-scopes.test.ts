@@ -308,3 +308,49 @@ describe('owning teams on credentials, monitors, dashboards and ticket reference
     });
   }
 });
+
+describe('owning teams in bulk', () => {
+  let svc: string;
+  let app: string;
+  let doc: string;
+
+  beforeAll(async () => {
+    svc = (await s.api('POST', '/services', { name: 'Payments', owners: [] })).id;
+    app = (await s.api('POST', '/applications', { name: 'Payment gateway', owners: [] })).id;
+    await s.api('PUT', `/services/${svc}/applications/${app}`, { role: 'primary' });
+    doc = (await s.api('POST', '/records', { type: 'ADR', title: 'Card tokens', links: [{ kind: 'service', id: svc }] })).id;
+  });
+
+  it('preview all resources of a service: who gains and who loses visibility, nothing changed', async () => {
+    const r = await s.api('POST', '/owning-teams/bulk', { service: svc, teamIds: [orders], preview: true });
+    expect(r.applied).toBe(false);
+    const byId = new Map(r.resources.map((x: any) => [x.id, x]));
+    expect([...byId.keys()]).toEqual(expect.arrayContaining([svc, app, doc]));
+    const service: any = byId.get(svc);
+    expect(service).toMatchObject({ kind: 'service', before: [], after: ['Orders'], changed: true, gains: [] });
+    expect(service.loses).toEqual(expect.arrayContaining(['dave', 'vic']));
+    expect(service.loses).not.toContain('tara');
+    expect(service.loses).not.toContain('aud');
+    expect((await s.api('GET', `/owning-teams/service/${svc}`)).teams).toEqual([]);
+    expect((await dave('GET', `/services/${svc}`)).id).toBe(svc);
+  });
+
+  it('apply, audited per resource, and take teams away again', async () => {
+    await expect(tara('POST', '/owning-teams/bulk', { service: svc, teamIds: [orders] })).rejects.toThrow(/403/);
+    const r = await s.api('POST', '/owning-teams/bulk', { service: svc, teamIds: [orders] });
+    expect(r).toMatchObject({ applied: true });
+    expect(r.changed).toBeGreaterThanOrEqual(3);
+    for (const [kind, id] of [
+      ['service', svc],
+      ['application', app],
+      ['record', doc],
+    ])
+      expect((await s.api('GET', `/owning-teams/${kind}/${id}`)).teams).toEqual([{ id: orders, name: 'Orders' }]);
+    expect(await status(dave('GET', `/records/${doc}`))).toBe(404);
+    const audit = await s.api('GET', `/audit?action=access.owning_teams_changed&limit=5`);
+    expect(audit.some((a: any) => a.entityId === doc && a.summary.includes('bulk change'))).toBe(true);
+    const back = await s.api('POST', '/owning-teams/bulk', { service: svc, teamIds: [orders], mode: 'remove' });
+    expect(back.resources.find((x: any) => x.id === doc)).toMatchObject({ before: ['Orders'], after: [], gains: expect.arrayContaining(['dave']) });
+    expect((await dave('GET', `/records/${doc}`)).id).toBe(doc);
+  });
+});
