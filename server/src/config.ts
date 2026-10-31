@@ -84,7 +84,7 @@ function envInt(name: string, fallback: number, min: number, max: number): numbe
 const { basePath, publicUrl } = resolveBasePath(process.env);
 
 export const config = {
-  version: '0.2.9',
+  version: '0.2.10',
   host: process.env.SM_HOST ?? '127.0.0.1',
   port: Number(process.env.SM_PORT ?? 4310),
   dataDir,
