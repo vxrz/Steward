@@ -83,7 +83,7 @@ test('platform: turn on the read-only MCP gateway (manage right), operators only
     await page.getByRole('tab', { name: 'MCP' }).click();
     const toggle = page.getByRole('switch', { name: 'Allow access for MCP clients' });
     await expect(toggle).not.toBeChecked();
-    await expect(page.getByText(/0 read operations available to MCP clients/)).toBeVisible();
+    await expect(page.getByText(/0 read operations and \d+ changing operations/)).toBeVisible();
     await page.getByText('Allow access for MCP clients', { exact: true }).click();
     await expect(toggle).toBeChecked();
     await page.getByRole('textbox', { name: /Allowed GET path prefixes/ }).fill('/echo-headers');

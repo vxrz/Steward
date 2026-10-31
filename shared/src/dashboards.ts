@@ -1,6 +1,7 @@
 import type { Forecast, Trend } from './trends.js';
 import { z } from 'zod';
 import { vegaSpecProblem } from './vega.js';
+import { boundedRecord } from './zodLimits.js';
 
 // ---------- Datasets (fed by "Publish to dashboard" nodes) ----------
 
@@ -168,7 +169,7 @@ export const dashboardWidgetSchema = z
     /** Only these sources (platform ids), whatever the dashboard's source filter says (#142) */
     source: z.array(z.string().max(300)).max(50).optional(),
     /** vega: a Vega-Lite spec (#120); its data is the dataset's rows, see vegaSpecProblem() */
-    spec: z.record(z.string(), z.unknown()).optional(),
+    spec: boundedRecord(z.unknown(), 100).optional(),
   })
   .superRefine((w, ctx) => {
     if (w.type !== 'vega') return;
