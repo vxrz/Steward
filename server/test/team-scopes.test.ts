@@ -354,3 +354,59 @@ describe('owning teams in bulk', () => {
     expect((await dave('GET', `/records/${doc}`)).id).toBe(doc);
   });
 });
+
+describe('team-owned items are left out everywhere else', () => {
+  it('scorecard, duties, systems, application pages and ticket vendors', async () => {
+    const duty = (await s.api('GET', '/duties'))[0];
+    const svcId: string = duty?.serviceId ?? duty?.service?.id ?? (await s.api('POST', '/services', { name: 'Orders platform', owners: [] })).id;
+    const sys = (await s.api('POST', '/systems', { name: 'Orders DB host', kind: 'server', owners: [] })).id;
+    const app = (await s.api('POST', '/applications', { name: 'Shared portal', owners: [] })).id;
+    await s.api('PUT', `/services/${svcId}/applications/${app}`, { role: 'primary' });
+    // also part of a service of the whole instance: stays visible to everyone
+    const open = (await s.api('POST', '/services', { name: 'Intranet', owners: [] })).id;
+    await s.api('PUT', `/services/${open}/applications/${app}`, { role: 'primary' });
+    const ticket = (
+      await s.api('POST', '/ticket-references', {
+        source: 'vendor',
+        externalNumber: 'CS-9001',
+        title: 'Hidden case',
+        vendor: 'Hidden Vendor GmbH',
+        responsible: [],
+      })
+    ).id;
+    await s.api('POST', '/owning-teams/bulk', {
+      teamIds: [orders],
+      resources: [
+        { kind: 'service', id: svcId },
+        { kind: 'system', id: sys },
+        { kind: 'ticket', id: ticket },
+      ],
+    });
+    try {
+      const ids = (x: any[]) => x.map((y) => y.id ?? y.serviceId);
+      expect(ids((await dave('GET', '/scorecard')).services)).not.toContain(svcId);
+      expect(ids((await tara('GET', '/scorecard')).services)).toContain(svcId);
+      expect(await status(dave('GET', `/scorecard/services/${svcId}`))).toBe(404);
+      if (duty) {
+        expect(ids(await dave('GET', '/duties'))).not.toContain(duty.id);
+        expect(await status(dave('GET', `/duties/${duty.id}`))).toBe(404);
+      }
+      expect(ids(await dave('GET', '/systems'))).not.toContain(sys);
+      expect(ids(await tara('GET', '/systems'))).toContain(sys);
+      // the shared application stays visible, without the team's service
+      const shared = await dave('GET', `/applications/${app}`);
+      expect(JSON.stringify(shared)).not.toContain(svcId);
+      expect(await dave('GET', '/ticket-references/vendors')).not.toContain('Hidden Vendor GmbH');
+      expect(await tara('GET', '/ticket-references/vendors')).toContain('Hidden Vendor GmbH');
+    } finally {
+      await s.api('POST', '/owning-teams/bulk', {
+        teamIds: [],
+        resources: [
+          { kind: 'service', id: svcId },
+          { kind: 'system', id: sys },
+          { kind: 'ticket', id: ticket },
+        ],
+      });
+    }
+  });
+});

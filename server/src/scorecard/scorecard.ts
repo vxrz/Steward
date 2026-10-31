@@ -38,7 +38,7 @@ import { db } from '../db.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { matches } from '../auth/permissions.js';
 import { HttpError, parseJson } from '../util.js';
-import { canReadRecordRow, me } from '../records/access.js';
+import { canReadRecordRow, canViewCatalogue, me } from '../records/access.js';
 import { documentStates } from '../records/document-model.js';
 import { documentRows } from '../catalogue/documents.js';
 import { currentScale, protectionNeeds, ratingsOf } from '../catalogue/cia.js';
@@ -150,10 +150,14 @@ function archivedAtOf(ids: string[]): Map<string, string> {
   return out;
 }
 
-function load(serviceIds: string[] | undefined, now: number): Data {
+function load(serviceIds: string[] | undefined, now: number, viewer: AuthUser | null): Data {
+  // services and applications the viewer may see (#131); jobs (snapshots, no viewer) see all
+  const sees = (kind: 'service' | 'application', r: { id: string; owners: string }) =>
+    !viewer || canViewCatalogue(viewer, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
   const services = db()
     .all<ServiceRow>('SELECT id, name, owners, criticality, archived FROM services WHERE archived = 0 ORDER BY name, id')
-    .filter((s) => !serviceIds || serviceIds.includes(s.id));
+    .filter((s) => !serviceIds || serviceIds.includes(s.id))
+    .filter((s) => sees('service', s));
   const ids = new Set(services.map((s) => s.id));
   const group = <T>(rows: T[], key: (r: T) => string) => {
     const m = new Map<string, T[]>();
@@ -185,10 +189,11 @@ function load(serviceIds: string[] | undefined, now: number): Data {
   for (const r of db().all<PeriodRef>('SELECT duty_id, period_key, status, period_end FROM duty_periods WHERE closed_at IS NULL'))
     open.set(`${r.duty_id}\n${r.period_key}`, r);
   const members = new Map<string, string[]>();
-  for (const m of db().all<{ service_id: string; application_id: string }>(
-    'SELECT sa.service_id, sa.application_id FROM service_applications sa JOIN applications a ON a.id = sa.application_id WHERE a.archived = 0',
+  for (const m of db().all<{ service_id: string; application_id: string; owners: string }>(
+    'SELECT sa.service_id, sa.application_id, a.owners FROM service_applications sa JOIN applications a ON a.id = sa.application_id WHERE a.archived = 0',
   ))
-    if (ids.has(m.service_id)) members.set(m.service_id, [...(members.get(m.service_id) ?? []), m.application_id]);
+    if (ids.has(m.service_id) && sees('application', { id: m.application_id, owners: m.owners }))
+      members.set(m.service_id, [...(members.get(m.service_id) ?? []), m.application_id]);
   const linked = new Map<string, Set<string>>();
   for (const l of db().all<{ item: string; record: string }>(
     `SELECT to_id AS item, from_id AS record FROM item_links WHERE from_kind = 'record' AND to_kind = 'service'
@@ -215,7 +220,8 @@ function load(serviceIds: string[] | undefined, now: number): Data {
     dutyArchivedAt,
     appNames: new Map(
       db()
-        .all<{ id: string; name: string }>('SELECT id, name FROM applications')
+        .all<{ id: string; name: string; owners: string }>('SELECT id, name, owners FROM applications')
+        .filter((a) => sees('application', a))
         .map((a) => [a.id, a.name]),
     ),
     members,
@@ -569,7 +575,7 @@ export interface Computed {
  * particular reader (every document counts) – the daily snapshot.
  */
 export function computeScorecards(serviceIds: string[] | undefined, viewer: AuthUser | null, now = Date.now()): Computed[] {
-  const d = load(serviceIds, now);
+  const d = load(serviceIds, now, viewer);
   if (!d.services.length) return [];
   const oc: ObjCtx = { cache: readingCache(now), facts: sampleFacts(), platforms: platformLookup(), viewer };
   const docs = docCtx(d, viewer);
@@ -684,6 +690,16 @@ function pointOf(r: SnapshotRow, readable: boolean): ServiceScorecardHistoryPoin
 }
 
 const DAY = 86400000;
+/** The services `u` may see now (#131): stored scorecards of the others are left out. */
+function visibleServices(u: AuthUser): Set<string> {
+  return new Set(
+    db()
+      .all<{ id: string; owners: string }>('SELECT id, owners FROM services')
+      .filter((x) => canViewCatalogue(u, { kind: 'service', id: x.id, owners: parseJson<string[]>(x.owners, []) }))
+      .map((x) => x.id),
+  );
+}
+
 const sinceDay = (days: number, now: number) => dayOf(now - Math.max(1, Math.min(days, 730)) * DAY);
 
 /** The rollup per stored day (oldest first), optionally of the services one owner had that day. */
@@ -692,10 +708,12 @@ export function scorecardTrend(
   now = Date.now(),
 ): ScorecardTrendPoint[] {
   const u = me();
+  const visible = visibleServices(u);
   const from = o.from ?? sinceDay(o.days ?? 90, now);
   const rows = db()
     .all<SnapshotRow>(`SELECT * FROM scorecard_snapshots WHERE day >= ?${o.to ? ' AND day <= ?' : ''} ORDER BY day, service_id`, from, ...(o.to ? [o.to] : []))
     .filter((r) => {
+      if (!visible.has(r.service_id)) return false;
       if (o.serviceIds && !o.serviceIds.includes(r.service_id)) return false;
       if (!o.owner) return true;
       const owners = parseJson<string[]>(r.owners, []);
@@ -720,6 +738,7 @@ export function scorecardTrend(
 
 export function serviceHistory(serviceId: string, days = 90, now = Date.now()): ServiceScorecardHistoryPoint[] {
   const u = me();
+  if (!visibleServices(u).has(serviceId)) return [];
   const rows = db().all<SnapshotRow>('SELECT * FROM scorecard_snapshots WHERE service_id = ? AND day >= ? ORDER BY day', serviceId, sinceDay(days, now));
   const readable = snapshotReader(u, rows);
   return rows.map((r) => pointOf(r, readable(r)));
@@ -728,15 +747,19 @@ export function serviceHistory(serviceId: string, days = 90, now = Date.now()): 
 /** The stored scorecards of one day (reports for a period that has ended), for the reader. */
 export function snapshotsOf(day: string): { serviceName: string; serviceId: string; point: ServiceScorecardHistoryPoint }[] {
   const u = me();
-  const rows = db().all<SnapshotRow>('SELECT * FROM scorecard_snapshots WHERE day = ? ORDER BY service_name, service_id', day);
+  const visible = visibleServices(u);
+  const rows = db()
+    .all<SnapshotRow>('SELECT * FROM scorecard_snapshots WHERE day = ? ORDER BY service_name, service_id', day)
+    .filter((r) => visible.has(r.service_id));
   const readable = snapshotReader(u, rows);
   return rows.map((r) => ({ serviceId: r.service_id, serviceName: r.service_name, point: pointOf(r, readable(r)) }));
 }
 
 export function serviceScorecard(serviceId: string, now = Date.now()): ServiceScorecardDetail {
   const u = me();
-  const s = db().get<{ id: string; archived: number }>('SELECT id, archived FROM services WHERE id = ?', serviceId);
-  if (!s) throw new HttpError(404, `Service ${serviceId} not found`, 'SERVICE_NOT_FOUND', { id: serviceId });
+  const s = db().get<{ id: string; archived: number; owners: string }>('SELECT id, archived, owners FROM services WHERE id = ?', serviceId);
+  if (!s || !canViewCatalogue(u, { kind: 'service', id: s.id, owners: parseJson<string[]>(s.owners, []) }))
+    throw new HttpError(404, `Service ${serviceId} not found`, 'SERVICE_NOT_FOUND', { id: serviceId });
   if (s.archived) throw new HttpError(409, 'The service is archived: it has no scorecard', 'SCORECARD_SERVICE_ARCHIVED', { id: serviceId });
   const card = computeScorecards([serviceId], u, now)[0]!.card;
   return { ...card, history: serviceHistory(serviceId, 90, now) };
@@ -759,6 +782,7 @@ export function scorecardAttention(now = Date.now()): { attention: number; servi
   const all = seesAll(u);
   const active = db()
     .all<{ id: string; owners: string }>('SELECT id, owners FROM services WHERE archived = 0')
+    .filter((s) => canViewCatalogue(u, { kind: 'service', id: s.id, owners: parseJson<string[]>(s.owners, []) }))
     .filter((s) => all || parseJson<string[]>(s.owners, []).some((o) => matches(u, o)));
   if (!all && !active.length) return null;
   const ids = new Set(active.map((s) => s.id));

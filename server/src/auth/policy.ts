@@ -227,14 +227,19 @@ const CATALOGUE_EDITORS: readonly Role[] = ['admin', 'designer'];
 
 /**
  * The teams a catalogue item belongs to: its own, or – for an application without its own – those of the services
- * it is part of (an application in services of two teams belongs to both).
+ * it is part of (an application in services of two teams belongs to both; one that is also part of a service of the
+ * whole instance belongs to the whole instance).
  */
 export function catalogueTeams(kind: CatalogueKind, id: string): OwningTeam[] {
   const own = owningTeams(kind, id);
   if (own.length || kind !== 'application') return own;
   const byId = new Map<string, OwningTeam>();
-  for (const r of db().all<{ service_id: string }>('SELECT service_id FROM service_applications WHERE application_id = ?', id))
-    for (const t of owningTeams('service', r.service_id)) byId.set(t.id, t);
+  for (const r of db().all<{ service_id: string }>('SELECT service_id FROM service_applications WHERE application_id = ?', id)) {
+    const teams = owningTeams('service', r.service_id);
+    // also part of a service of the whole instance: the application is the whole instance's as well
+    if (!teams.length) return [];
+    for (const t of teams) byId.set(t.id, t);
+  }
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 

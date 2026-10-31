@@ -22,6 +22,7 @@ import { validateMonitorFile } from '../monitors/validation.js';
 import { canCreateMonitors, monitorRow, permissionsOfRow } from '../monitors/model.js';
 import * as recordTypes from '../records/types.js';
 import { canManageRecordTypes } from '../records/access.js';
+import { dashboardVisible, dashboardAccess } from '../dashboards/service.js';
 
 /**
  * The four kinds of items a Git sync source can bring in, in the formats Steward already
@@ -289,10 +290,13 @@ export function canView(kind: SyncKind, entityId: string): boolean {
       return processes.permissionsFor(entityId).includes('view');
     }
     case 'monitor': {
-      const r = db().get<Parameters<typeof permissionsOfRow>[0]>('SELECT owner, acl FROM monitors WHERE id = ?', entityId);
+      const r = db().get<Parameters<typeof permissionsOfRow>[0]>('SELECT id, owner, acl FROM monitors WHERE id = ?', entityId);
       return !r || permissionsOfRow(r).includes('view');
     }
-    case 'dashboard':
+    case 'dashboard': {
+      const r = db().get<{ id: string; owner: string | null }>('SELECT id, owner FROM dashboards WHERE id = ?', entityId);
+      return !r || dashboardVisible(r);
+    }
     case 'recordType':
       return true;
   }
@@ -308,8 +312,8 @@ export function canDecide(kind: SyncKind, entityId: string | null): boolean {
       return local ? processes.permissionsFor(local.id).includes('edit') : capabilities(u).createProcesses;
     case 'dashboard': {
       if (!local) return capabilities(u).createProcesses;
-      const owner = db().get<{ owner: string | null }>('SELECT owner FROM dashboards WHERE id = ?', local.id)?.owner;
-      return isAdmin(u) || (!!owner && owner.toLowerCase() === u.username.toLowerCase());
+      const r = db().get<{ id: string; owner: string | null }>('SELECT id, owner FROM dashboards WHERE id = ?', local.id);
+      return !!r && dashboardAccess(u, r).permissions.includes('edit');
     }
     case 'monitor': {
       if (!local) return canCreateMonitors(u);

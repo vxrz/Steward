@@ -26,7 +26,7 @@ import { isAdmin, matches, platformPermissions } from '../auth/permissions.js';
 import { monitorPermissions } from '../monitors/model.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
-import { canReadRecords } from '../records/access.js';
+import { canReadRecords, catalogueVisibleNow } from '../records/access.js';
 import { readSetting, writeSetting } from '../settings.js';
 import { setCertificateExpiryHook } from '../gatus/metrics.js';
 import { assertEmailsAllowed } from '../notifications/domains.js';
@@ -233,13 +233,15 @@ registerCredentialLinkKind('monitor', (id) => {
 // Catalogue services: the catalogue's read rule (records/access.ts).
 registerCredentialLinkKind('service', (id) => {
   if (!canReadRecords()) return null;
-  return db().get<{ name: string }>('SELECT name FROM services WHERE id = ?', id)?.name ?? null;
+  const r = db().get<{ id: string; name: string; owners: string }>('SELECT id, name, owners FROM services WHERE id = ?', id);
+  return r && catalogueVisibleNow('service', r) ? r.name : null;
 });
 
 // Catalogue applications: read like services (#125)
 registerCredentialLinkKind('application', (id) => {
   if (!canReadRecords()) return null;
-  return db().get<{ name: string }>('SELECT name FROM applications WHERE id = ?', id)?.name ?? null;
+  const r = db().get<{ id: string; name: string; owners: string }>('SELECT id, name, owners FROM applications WHERE id = ?', id);
+  return r && catalogueVisibleNow('application', r) ? r.name : null;
 });
 
 const resolveLink = (l: CredentialLink): CredentialLink => {

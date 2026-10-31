@@ -413,9 +413,10 @@ export function listTickets(f: TicketFilter = {}, now = Date.now()): TicketRefer
   return rows.map((r) => toTicket(r, u, now, settings, links.get(r.id)));
 }
 
-/** Whether a user may read a ticket reference (the same rule as GET /ticket-references/:id: signed in, and it exists). */
+/** Whether a user may read a ticket reference (the same rule as GET /ticket-references/:id). */
 export function ticketReadable(u: AuthUser | null, id: string): boolean {
-  return !!u && !!db().get<{ id: string }>('SELECT id FROM ticket_refs WHERE id = ?', id);
+  const r = db().get<Pick<TicketRow, 'id' | 'responsible'>>('SELECT id, responsible FROM ticket_refs WHERE id = ?', id);
+  return !!u && !!r && ticketAccess(u, r).permissions.includes('view');
 }
 
 export function getTicket(id: string): TicketDetail {
@@ -472,17 +473,21 @@ export function addTicketEvent(
 export function vendorAttention(now = Date.now()): { open: number; oldestDays: number | null } {
   me();
   const w = waitingOnVendorSql(ticketSettings());
-  const r = db().get<{ n: number; oldest: string | null }>(`SELECT COUNT(*) AS n, MIN(opened_at) AS oldest FROM ticket_refs WHERE ${w.sql}`, ...w.params);
-  const open = Number(r?.n ?? 0);
-  return { open, oldestDays: open && r?.oldest ? ageDays({ opened_at: r.oldest, resolved_at: null }, now) : null };
+  const rows = db()
+    .all<Pick<TicketRow, 'id' | 'responsible' | 'opened_at'>>(`SELECT id, responsible, opened_at FROM ticket_refs WHERE ${w.sql}`, ...w.params)
+    .filter(ticketVisible);
+  const open = rows.length;
+  const oldest = rows.reduce<string | null>((m, r) => (!m || r.opened_at < m ? r.opened_at : m), null);
+  return { open, oldestDays: open && oldest ? ageDays({ opened_at: oldest, resolved_at: null }, now) : null };
 }
 
 export function vendorSuggestions(): string[] {
   me();
-  return db()
-    .all<{ vendor: string }>("SELECT DISTINCT vendor FROM ticket_refs WHERE vendor <> '' ORDER BY vendor")
-    .map((r) => r.vendor)
-    .slice(0, 200);
+  const vendors = db()
+    .all<Pick<TicketRow, 'id' | 'responsible' | 'vendor'>>("SELECT id, responsible, vendor FROM ticket_refs WHERE vendor <> '' ORDER BY vendor")
+    .filter(ticketVisible)
+    .map((r) => r.vendor);
+  return [...new Set(vendors)].slice(0, 200);
 }
 
 /** Open tickets per affected item of a kind, e.g. open vendor tickets per service (only items the user may see). */
@@ -490,11 +495,13 @@ export function openCounts(kind: string, vendorOnly: boolean): Record<string, nu
   me();
   const settings = ticketSettings();
   const vendorSources = new Set(settings.sources.filter((s) => s.vendor).map((s) => s.key));
-  const rows = db().all<{ to_id: string; source: string }>(
-    `SELECT l.to_id, t.source FROM item_links l JOIN ticket_refs t ON t.id = l.from_id
+  const rows = db()
+    .all<{ to_id: string; source: string; id: string; responsible: string }>(
+      `SELECT l.to_id, t.source, t.id, t.responsible FROM item_links l JOIN ticket_refs t ON t.id = l.from_id
      WHERE l.from_kind = 'ticket' AND l.to_kind = ? AND t.status IN ('open', 'waitingVendor', 'waitingUs')`,
-    kind,
-  );
+      kind,
+    )
+    .filter(ticketVisible);
   const out: Record<string, number> = {};
   const visible = new Map<string, boolean>();
   for (const r of rows) {

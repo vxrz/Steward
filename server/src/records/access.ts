@@ -100,3 +100,14 @@ export const canEditService = (u: AuthUser | null, r: { kind: CatalogueKind; id:
 /** Seeing a service, application or system (#131): without owning teams everybody signed in. */
 export const canViewCatalogue = (u: AuthUser | null, r: { kind: CatalogueKind; id: string; owners: string[] }): boolean => catalogueAccess(u, r).view;
 export const canCreateServices = (u: AuthUser | null = currentUser()): boolean => has(u, SERVICE_EDITOR_ROLES);
+
+/**
+ * Whether the current reader may see a catalogue item (#131); jobs without a reader see everything. For lists and
+ * names shown elsewhere (a service's applications, an application's services, systems, scorecard, duties …).
+ */
+export function catalogueVisibleNow(kind: CatalogueKind, r: { id: string; owners?: string | string[] | null }): boolean {
+  const u = currentUser();
+  if (!u) return true;
+  const owners = Array.isArray(r.owners) ? r.owners : parseJson<string[]>(r.owners ?? '[]', []);
+  return canViewCatalogue(u, { kind, id: r.id, owners });
+}

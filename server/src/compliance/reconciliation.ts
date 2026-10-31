@@ -48,6 +48,7 @@ import {
   visiblePlatformName,
 } from './access.js';
 import { createAccessChange, documentedEntries, minus, recordCounts, uniqueRights } from './access-changes.js';
+import { canReadRecordRow } from '../records/access.js';
 
 /**
  * Access reconciliation: a check takes a snapshot of who has which access on a platform (Insights
@@ -1138,7 +1139,14 @@ function findingRowsOf(f: { checkId?: string; platformId?: string; snapshotId?: 
 function toFinding(f: FindingRow, u: AuthUser | null, c?: CheckRow): AccessFinding {
   const check = c ?? checkRow(f.check_id);
   const status = effectiveStatus(f);
-  const rec = f.record_id ? db().get<{ number: string }>('SELECT number FROM records WHERE id = ?', f.record_id) : undefined;
+  const found = f.record_id
+    ? db().get<{ id: string; number: string; type_id: string; fields: string; owner: string }>(
+        'SELECT id, number, type_id, fields, owner FROM records WHERE id = ?',
+        f.record_id,
+      )
+    : undefined;
+  // the number of a record the reader may not see stays hidden (#131)
+  const rec = found && (!u || canReadRecordRow(u, found)) ? found : undefined;
   return {
     id: f.id,
     checkId: f.check_id,

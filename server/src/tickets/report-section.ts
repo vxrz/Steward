@@ -5,6 +5,9 @@ import { currentUser } from '../auth/context.js';
 import { registerReportSection } from '../reports/sections.js';
 import type { CellInput, Tone } from '../reports/pdf/engine.js';
 import { ticketSettings } from './service.js';
+import { ticketVisible } from './service.js';
+import { canViewCatalogue } from '../records/access.js';
+import { parseJson } from '../util.js';
 
 /**
  * "Ticket references" section of scheduled summary reports: tickets open at
@@ -125,6 +128,7 @@ interface Row {
   status: TicketStatus;
   opened_at: string;
   resolved_at: string | null;
+  responsible: string;
 }
 
 const openStatus = (s: TicketStatus): TicketStatus => (isTicketOpen(s) ? s : 'open');
@@ -146,15 +150,18 @@ function build(c: TicketsConfig, ctx: { from: number; to: number; now: number })
   const toIso = new Date(ctx.to).toISOString();
   const rows = db()
     .all<Row>(
-      'SELECT id, source, external_number, title, vendor, status, opened_at, resolved_at FROM ticket_refs WHERE opened_at < ? ORDER BY opened_at, id',
+      'SELECT id, source, external_number, title, vendor, status, opened_at, resolved_at, responsible FROM ticket_refs WHERE opened_at < ? ORDER BY opened_at, id',
       toIso,
     )
-    .filter((r) => !c.sources || c.sources.includes(r.source));
+    .filter((r) => !c.sources || c.sources.includes(r.source))
+    .filter((r) => ticketVisible(r));
   if (!rows.length) return out;
   const services = new Map<string, string[]>();
-  for (const l of db().all<{ from_id: string; name: string }>(
-    "SELECT l.from_id, s.name FROM item_links l JOIN services s ON s.id = l.to_id WHERE l.from_kind = 'ticket' AND l.to_kind = 'service' ORDER BY s.name",
-  ))
+  for (const l of db()
+    .all<{ from_id: string; name: string; id: string; owners: string }>(
+      "SELECT l.from_id, s.name, s.id, s.owners FROM item_links l JOIN services s ON s.id = l.to_id WHERE l.from_kind = 'ticket' AND l.to_kind = 'service' ORDER BY s.name",
+    )
+    .filter((x) => canViewCatalogue(currentUser(), { kind: 'service', id: x.id, owners: parseJson<string[]>(x.owners, []) })))
     services.set(l.from_id, [...(services.get(l.from_id) ?? []), l.name]);
 
   // the status at the end of the period: the newest status event up to then

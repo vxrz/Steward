@@ -43,6 +43,7 @@ import { sendEmail } from './channels.js';
 import { resolveLook } from './look.js';
 import { domainAllowed } from './domains.js';
 import { userLocale } from './service.js';
+import { dashboardVisible } from '../dashboards/service.js';
 
 /**
  * Optional daily summary per user (off by default, turned on in the profile).
@@ -492,9 +493,14 @@ function datasetReadable(processId: string): boolean {
   return monitorDatasetVisible(processId) ?? permissionsFor(processId).includes('view');
 }
 
-/** The first dashboard that shows the dataset, else the dashboards list. */
+/** The first dashboard the reader may see that shows the dataset, else the dashboards list. */
 function dashboardOf(key: string): string {
-  const d = db().get<{ id: string }>('SELECT id FROM dashboards WHERE lower(definition) LIKE lower(?) ORDER BY name LIMIT 1', `%"dataset":"${key}"%`);
+  const d = db()
+    .all<{ id: string; owner: string | null }>(
+      'SELECT id, owner FROM dashboards WHERE lower(definition) LIKE lower(?) ORDER BY name LIMIT 50',
+      `%"dataset":"${key}"%`,
+    )
+    .find(dashboardVisible);
   return d ? `/dashboards/${d.id}` : '/dashboards';
 }
 

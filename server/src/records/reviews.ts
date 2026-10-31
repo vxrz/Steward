@@ -26,6 +26,7 @@ import { instanceTimeZone, localDate } from '../duties/periods.js';
 import { canReadRecordRow, me } from './access.js';
 import { createRecord, getRecord, updateRecord } from './service.js';
 import { addLink } from './links.js';
+import { ticketVisible } from '../tickets/service.js';
 
 /**
  * Incident reviews (#109): the measures of a review (owners, due dates, reminders, overdue on the service page), the
@@ -329,7 +330,7 @@ export function timelineCandidates(recordId: string, from: string, to: string): 
       link: `/runs/${r.id}`,
     });
   }
-  // ticket references are readable by everyone signed in
+  // ticket references the reader may see (#131)
   for (const e of db().all<{
     id: number;
     ticket_id: string;
@@ -340,12 +341,14 @@ export function timelineCandidates(recordId: string, from: string, to: string): 
     comment: string;
     external_number: string;
     title: string;
+    responsible: string;
   }>(
-    `SELECT e.id, e.ticket_id, e.ts, e.kind, e.from_status, e.to_status, e.comment, t.external_number, t.title FROM ticket_ref_events e
+    `SELECT e.id, e.ticket_id, e.ts, e.kind, e.from_status, e.to_status, e.comment, t.external_number, t.title, t.responsible FROM ticket_ref_events e
      JOIN ticket_refs t ON t.id = e.ticket_id WHERE e.kind IN ('created', 'status') AND e.ts >= ? AND e.ts < ? ORDER BY e.ts LIMIT 2000`,
     w.from,
     w.to,
   )) {
+    if (!ticketVisible({ id: e.ticket_id, responsible: e.responsible })) continue;
     const what = e.kind === 'created' ? 'opened' : `${e.from_status ?? '–'} → ${e.to_status ?? '–'}`;
     items.push({
       key: `ticket:${e.id}`,

@@ -2,6 +2,7 @@ import { byDimension, type ApplicationRating, type CiaDimension } from '@sm/shar
 import { db } from '../db.js';
 import { currentScale, levelLabel, protectionNeedOf, ratingsOf } from './cia.js';
 import { serviceApplications } from './applications.js';
+import { catalogueVisibleNow } from '../records/access.js';
 
 /**
  * The protection need in evidence packs: for a service, its effective protection need per dimension (derived with
@@ -113,11 +114,11 @@ export function serviceCatalogue(serviceId: string): PackCatalogue | null {
 
 export function platformCatalogue(platformId: string): PackCatalogue {
   const scale = currentScale();
-  const a = db().get<{ id: string; name: string; archived: number }>(
-    'SELECT a.id, a.name, a.archived FROM application_platforms ap JOIN applications a ON a.id = ap.application_id WHERE ap.platform_id = ?',
+  const a = db().get<{ id: string; name: string; archived: number; owners: string }>(
+    'SELECT a.id, a.name, a.archived, a.owners FROM application_platforms ap JOIN applications a ON a.id = ap.application_id WHERE ap.platform_id = ?',
     platformId,
   );
-  if (!a) return { scale: { mode: scale.mode, invalid: !!scale.storedInvalid }, application: null };
+  if (!a || !catalogueVisibleNow('application', a)) return { scale: { mode: scale.mode, invalid: !!scale.storedInvalid }, application: null };
   const r = ratingsOf([a.id]).get(a.id)!;
   return {
     scale: { mode: scale.mode, invalid: !!scale.storedInvalid },

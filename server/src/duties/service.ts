@@ -22,7 +22,7 @@ import { logger } from '../log.js';
 import { t, type MessageKey } from '../i18n/index.js';
 import { notify, titleName } from '../notifications/service.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { canEditService, forbid, me } from '../records/access.js';
+import { canEditService, catalogueVisibleNow, forbid, me } from '../records/access.js';
 import { getSchedule } from '../scheduler.js';
 import { evaluateDuty, type DutyRow, type Evaluated, type PeriodRow } from './evaluate.js';
 import { closeForChange, persistDuty, storeInactiveGap } from './store.js';
@@ -93,13 +93,15 @@ interface ServiceRef {
 
 export function dutyRow(dutyId: string): DutyRow {
   const r = db().get<DutyRow>('SELECT * FROM service_duties WHERE id = ?', dutyId);
-  if (!r) throw new HttpError(404, `Duty ${dutyId} not found`, 'DUTY_NOT_FOUND', { id: dutyId });
+  // a duty of a service the reader may not see is unknown to them (#131)
+  const svc = r && db().get<{ id: string; owners: string }>('SELECT id, owners FROM services WHERE id = ?', r.service_id);
+  if (!r || (svc && !catalogueVisibleNow('service', svc))) throw new HttpError(404, `Duty ${dutyId} not found`, 'DUTY_NOT_FOUND', { id: dutyId });
   return r;
 }
 
 function serviceRef(serviceId: string): ServiceRef {
   const s = db().get<ServiceRef>('SELECT id, name, owners, archived FROM services WHERE id = ?', serviceId);
-  if (!s) throw new HttpError(404, `Service ${serviceId} not found`, 'SERVICE_NOT_FOUND', { id: serviceId });
+  if (!s || !catalogueVisibleNow('service', s)) throw new HttpError(404, `Service ${serviceId} not found`, 'SERVICE_NOT_FOUND', { id: serviceId });
   return s;
 }
 
@@ -303,7 +305,8 @@ function build(d: DutyRow, s: ServiceRef, c: ViewCtx, appName: string | null): B
 const appNames = () =>
   new Map(
     db()
-      .all<{ id: string; name: string }>('SELECT id, name FROM applications')
+      .all<{ id: string; name: string; owners: string }>('SELECT id, name, owners FROM applications')
+      .filter((a) => catalogueVisibleNow('application', a))
       .map((a) => [a.id, a.name]),
   );
 
@@ -320,6 +323,8 @@ export function listDutyViews(f: DutyFilter = {}, now = Date.now()): Built[] {
   const services = new Map(
     db()
       .all<ServiceRef>('SELECT id, name, owners, archived FROM services')
+      // services the reader may see (#131)
+      .filter((s) => catalogueVisibleNow('service', s))
       .map((s) => [s.id, s]),
   );
   const names = appNames();
