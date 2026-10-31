@@ -26,6 +26,8 @@ export interface ToolDef<S extends ZodTypeAny = ZodTypeAny> {
   visible?: (ctx: ToolContext) => boolean;
   /** Platform gateway tools: open world (they reach another system), audited per call. */
   gateway?: boolean;
+  /** The tool can create a request in Steward that a person decides (#11): not read-only, not idempotent */
+  asks?: boolean;
   handler: (args: z.infer<S>, ctx: ToolContext) => Promise<unknown> | unknown;
 }
 

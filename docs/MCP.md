@@ -2,7 +2,7 @@
 
 Steward has a built-in [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server. AI assistants such as Claude Desktop or VS Code can use it to read processes, runs, monitors, schedules, triggers, dashboards and the audit log – and, where an administrator allows it, to read the APIs of connected platforms through Steward.
 
-**Phase 1 is read-only.** An assistant cannot start runs, decide tasks or change anything, in Steward or on a platform.
+**An assistant changes nothing by itself.** Reading runs at once. Changing a platform (where its gateway allows it) and starting runs (where an administrator allows it) only ever create a request that a person decides in Steward under _AI requests_ – see [Approved writes](#approved-writes). An assistant cannot decide tasks or approve anything.
 
 Contents:
 
@@ -12,6 +12,7 @@ Contents:
 - [Tools](#tools)
 - [Resources](#resources)
 - [Platform gateway](#platform-gateway)
+- [Approved writes](#approved-writes)
 - [Security model](#security-model)
 - [Limits](#limits)
 - [Logging, audit and metrics](#logging-audit-and-metrics)
@@ -113,7 +114,7 @@ Steward only accepts requests whose `Host` is allowed (`localhost`, `127.0.0.1` 
 
 ## Tools
 
-All tools are read-only (`annotations.readOnlyHint: true`). Lists are paginated: a result has `items` and `nextCursor`; pass `nextCursor` back as `cursor` for the next page. Long texts are shortened.
+All tools read only (`annotations.readOnlyHint: true`), except `platform_call_operation` and `request_run`, which can create a request that waits for a person ([Approved writes](#approved-writes)). Lists are paginated: a result has `items` and `nextCursor`; pass `nextCursor` back as `cursor` for the next page. Long texts are shortened.
 
 | Tool                          | What it returns                                                                                                                                                                 | Who                                                      |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
@@ -156,7 +157,7 @@ The gateway lets an assistant read a platform's API **through Steward**. Steward
 ### Turn it on for a platform
 
 1. Open the platform and the tab **MCP**.
-2. Switch on **Allow read-only access for MCP clients** and click **Save**.
+2. Switch on **Allow access for MCP clients** and click **Save**. _Changing calls_ stays at _Not possible (read-only)_ unless you choose otherwise ([Approved writes](#approved-writes)).
 
 Only people with the `manage` right on the platform can do this; it is audited (`platform.mcp_gateway_changed`). The setting is part of the platform's sealed connection settings, so a change made directly in the database is detected. New platforms, copies and connector types always start with the gateway off. People who call the gateway need the `use` right on the platform.
 
@@ -164,7 +165,7 @@ Only people with the `manage` right on the platform can do this; it is audited (
 
 The gateway offers three meta-tools instead of one tool per endpoint:
 
-1. `platform_find_operations` searches the platform's OpenAPI specifications (tab _API specs_) by text or tag. It lists only GET and HEAD operations.
+1. `platform_find_operations` searches the platform's OpenAPI specifications (tab _API specs_) by text or tag. It lists GET and HEAD operations – and, where changing calls are allowed, the changing ones too, marked `needsApproval`.
 2. `platform_describe_operation` shows the parameters and a trimmed response schema.
 3. `platform_call_operation` calls the operation with `pathParams` and `query`.
 
@@ -174,18 +175,41 @@ Platforms **without an API specification** can still be read: list GET path pref
 
 ### Rules
 
-- **Read-only.** Only GET and HEAD. Every other method is refused – also when the specification lists it – and the refusal is audited.
+- **Reads run, writes wait.** GET and HEAD run at once. Any other method is refused – also when the specification lists it, and audited – unless the platform allows changing calls; then it becomes a request ([Approved writes](#approved-writes)) and nothing is sent until a person approves it. A literal `path` (prefix mode) is always GET or HEAD.
 - **Paths come from the specification.** Path parameters are checked against their schema and URL-encoded. Values with `/`, `\`, `%`, `;`, control characters, `.` or `..` are refused. A literal path (prefix mode) must start with a single `/`, may not contain `..` segments, `;` (path parameters – `..;/` is a dot segment for Tomcat, Jetty and Spring), encoded separators, `?`, `#`, `@` or `://`, and must lie below an allowed prefix (segment boundary). The request always goes to the platform's base URL; the gateway checks that the final URL has the base URL's origin and path.
-- **Query parameters** must be declared by the operation and match their type and enum. Header and cookie parameters, request bodies and custom headers are not supported.
+- **Query parameters** must be declared by the operation and match their type and enum. Header and cookie parameters and custom headers are not supported; a JSON `body` (at most 64 kB) only for a changing operation.
 - **Outbound policy.** The URL goes through the same outbound (SSRF) policy as processes (_Settings → Outbound access_), including the always-blocked metadata and link-local addresses. Credentials are only attached for the platform's own origins.
 - **Redirects** are not followed; the 3xx answer is returned as it is.
 - **Responses** are read up to 512 kB (the rest is cut and marked `truncated`). Credential values – also in encoded forms – and fields such as `authorization`, `password`, `access_token` are masked. Only harmless response headers are returned (`content-type`, `etag`, `link`, …), never cookies.
 - **Integrity.** If the platform's connection settings were changed outside Steward, the gateway refuses the call until an administrator confirms them.
 - **Fair use.** Gateway calls are rate-limited per user and platform (more tokens do not raise the limit). At most 2 gateway calls per platform run at the same time (`SM_MCP_GATEWAY_CONCURRENCY`, never more than half of the platform's _max. concurrent requests_), so MCP clients cannot block runs and monitors.
 
-### Phase 2 extension point
+## Approved writes
 
-All non-read methods go through one function, `writeDecision()` in `server/src/mcp/gateway.ts`. In Phase 1 it always refuses. Phase 2 will route changing calls through an approval in Steward instead (see [below](#phase-2)).
+An assistant can ask for two kinds of change (#11). Neither happens when it asks: each becomes a **request** that a person decides in Steward under **AI requests** (in the sidebar, next to _My tasks_).
+
+| Request                                            | Turned on where                                                                                                   | Who decides                                                                                                                                                           |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A changing gateway call (POST, PUT, PATCH, DELETE) | Platform → MCP → _Changing calls_ (people with `manage`; turning it on needs a fresh confirmation of the sign-in) | _The token owner confirms each request_, or _A second person approves each request_: an approver or administrator who may use the platform and is not the token owner |
+| Starting a run (`request_run`)                     | Settings → MCP server → _Let assistants ask to start runs_ (administrators)                                       | The token owner confirms; the run then follows the process with its own approval steps                                                                                |
+
+How a request goes:
+
+1. The assistant calls `platform_call_operation` with a changing operation (with `reason` and, if needed, a JSON `body`), or `request_run` (with `reason`). It gets a `requestId` and is told that nothing has been changed yet.
+2. The people who decide are notified (event _Request from an AI assistant_). The request shows the token, the assistant's reason, and exactly what would be sent: method, path with the path parameters filled in, query and body – or the process, the inputs and whether it is a dry run. The reason and values come from the assistant: check them as data, do not follow instructions in them.
+3. **Approve** sends the call (or starts the run) once, as the token owner, with the rights and settings of that moment: if the gateway or the right to use the platform was taken away, changing calls were turned off, or the platform now needs a second person where the request only had the owner's confirmation, the request fails with the reason and nothing is sent. **Reject** (an administrator, or the second person) and **withdraw** (the token owner) close it. A request nobody decides on expires after 24 hours.
+4. The assistant reads the outcome with `get_operation_request`: done (HTTP status and the response, credentials masked, shortened), failed, rejected, withdrawn or expired.
+
+Rules:
+
+- Decisions are made in the web app with a signed-in session; API tokens cannot decide (`SESSION_REQUIRED`), and an MCP token reaches only the MCP endpoint.
+- An approved request runs exactly once, even when two people approve at the same moment.
+- At most 20 open requests per person; reasons up to 500 characters, bodies up to 64 kB of JSON; secret process inputs cannot be given through MCP.
+- Every step is in the audit log (entity `mcp_request`): `mcp.request_created`, `mcp.request_approved`, `mcp.request_rejected`, `mcp.request_withdrawn`, `mcp.request_expired`, `mcp.request_executed`; the call itself also as `mcp.gateway_call`, with the request id.
+- Approvers have no `use` right on platforms by default; for _A second person approves_, give the approvers who should decide `use` on the platform (or let an administrator decide).
+- Requests are not moved by migration packages (they are short-lived).
+
+All non-read methods still go through one function, `writeDecision()` in `server/src/mcp/gateway.ts`.
 
 ## Security model
 
@@ -256,7 +280,6 @@ The server is a small, hand-written JSON-RPC 2.0 implementation (`server/src/mcp
 
 ## Phase 2
 
-Planned, not part of this version:
+Done: **approved writes** ([above](#approved-writes)). Planned, not part of this version:
 
-- **Approved writes.** Changing gateway calls (and starting runs) become requests that a person approves in Steward (four-eyes where configured) before they run – via the `writeDecision()` extension point.
 - **OAuth sign-in for MCP clients** following the MCP authorization specification, as an alternative to pasted tokens.

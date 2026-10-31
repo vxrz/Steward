@@ -6,6 +6,7 @@ import {
   IconApps,
   IconArrowsDiff,
   IconBrandGit,
+  IconBroadcast,
   IconCalendarCheck,
   IconCalendarTime,
   IconChartBar,
@@ -22,6 +23,7 @@ import {
   IconPackageExport,
   IconPlayerPlay,
   IconReportAnalytics,
+  IconRobot,
   IconServer,
   IconServer2,
   IconSettings,
@@ -42,6 +44,7 @@ export type NavKey =
   | 'dashboard'
   | 'dashboards'
   | 'tasks'
+  | 'mcpRequests'
   | 'runs'
   | 'processes'
   | 'schedules'
@@ -54,6 +57,7 @@ export type NavKey =
   | 'applications'
   | 'systems'
   | 'maintenance'
+  | 'statusPages'
   | 'duties'
   | 'scorecard'
   | 'credentials'
@@ -87,6 +91,7 @@ export const NAV_GROUPS: { key: NavGroupKey | null; items: NavItemDef[] }[] = [
     items: [
       { to: '/', key: 'dashboard', icon: IconLayoutDashboard },
       { to: '/tasks', key: 'tasks', icon: IconInbox },
+      { to: '/mcp-requests', key: 'mcpRequests', icon: IconRobot },
     ],
   },
   {
@@ -113,6 +118,7 @@ export const NAV_GROUPS: { key: NavGroupKey | null; items: NavItemDef[] }[] = [
       { to: '/applications', key: 'applications', icon: IconApps },
       { to: '/systems', key: 'systems', icon: IconServer2 },
       { to: '/maintenance', key: 'maintenance', icon: IconTool },
+      { to: '/status-pages', key: 'statusPages', icon: IconBroadcast },
       { to: '/duties', key: 'duties', icon: IconCalendarCheck },
       { to: '/scorecard', key: 'scorecard', icon: IconGauge },
       { to: '/platforms', key: 'platforms', icon: IconServer },

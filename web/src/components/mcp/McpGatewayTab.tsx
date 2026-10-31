@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Group, Stack, Switch, Text, Textarea } from '@mantine/core';
+import { Alert, Button, Group, Select, Stack, Switch, Text, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconInfoCircle } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { ApiOperation, Platform } from '@sm/shared';
+import { MCP_WRITE_MODES, type ApiOperation, type McpWriteMode, type Platform } from '@sm/shared';
 import { get, notifyError, notifyOk, put } from '../../api';
 import { useMcpServer } from './McpClientConfig';
 
@@ -16,11 +16,13 @@ export function McpGatewayTab({ platform, readOnly }: { platform: Platform; read
   const current = platform.config.mcpGateway;
   const [enabled, setEnabled] = useState(!!current?.enabled);
   const [prefixes, setPrefixes] = useState((current?.allowedPathPrefixes ?? []).join('\n'));
+  const [writes, setWrites] = useState<McpWriteMode>(current?.writes ?? 'off');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     setEnabled(!!current?.enabled);
     setPrefixes((current?.allowedPathPrefixes ?? []).join('\n'));
-  }, [current?.enabled, current?.allowedPathPrefixes]);
+    setWrites(current?.writes ?? 'off');
+  }, [current?.enabled, current?.allowedPathPrefixes, current?.writes]);
   const readOps = (ops.data ?? []).filter((o) => o.method === 'GET' || o.method === 'HEAD').length;
   const writeOps = (ops.data ?? []).length - readOps;
   const save = async () => {
@@ -28,6 +30,7 @@ export function McpGatewayTab({ platform, readOnly }: { platform: Platform; read
     try {
       await put(`/platforms/${platform.id}/mcp-gateway`, {
         enabled,
+        writes,
         allowedPathPrefixes: prefixes
           .split('\n')
           .map((x) => x.trim())
@@ -57,6 +60,16 @@ export function McpGatewayTab({ platform, readOnly }: { platform: Platform; read
         onChange={(e) => setEnabled(e.currentTarget.checked)}
       />
       <Text size="sm">{ops.data ? t('gateway.operations', { count: readOps, read: readOps, write: writeOps }) : null}</Text>
+      <Select
+        label={t('gateway.writes')}
+        description={t('gateway.writesHint')}
+        allowDeselect={false}
+        data={MCP_WRITE_MODES.map((m) => ({ value: m, label: t(`gateway.writeModes.${m}`) }))}
+        value={writes}
+        onChange={(v) => setWrites((v as McpWriteMode) ?? 'off')}
+        disabled={readOnly || busy || !enabled}
+        maw={480}
+      />
       <Textarea
         label={t('gateway.prefixes')}
         description={t('gateway.prefixesHint')}

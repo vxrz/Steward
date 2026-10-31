@@ -57,6 +57,8 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     ['users & teams', '/users'],
     ['audit log', '/audit'],
     ['profile', '/profile'],
+    ['AI requests', '/mcp-requests'],
+    ['status pages', '/status-pages'],
   ];
   for (const [name, path] of PAGES) {
     test(name, async ({ page }) => {

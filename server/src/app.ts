@@ -33,6 +33,7 @@ import { BARE_BASE, injectBaseHref, OUTSIDE_BASE, stripBasePath, withBasePath } 
 /** Reachable without signing in. */
 const PUBLIC_PATHS = [
   '/api/health',
+  '/api/public/status-page',
   '/api/instance',
   '/api/auth/status',
   '/api/auth/login',
@@ -71,6 +72,8 @@ export const SESSION_ONLY_ROUTES: ReadonlySet<string> = new Set([
   'POST /api/auth/step-up/sso',
   'POST /api/auth/step-up/sso/complete',
   'PUT /api/settings',
+  // an approval of an AI assistant's request is a person's decision in the web app (#11)
+  'POST /api/mcp-requests/:requestId/decision',
   'POST /api/vault/passphrase',
   'POST /api/vault/lock',
   // Git sync sources carry an access token and decide what may enter the installation
@@ -93,6 +96,13 @@ export const SESSION_ONLY_ROUTES: ReadonlySet<string> = new Set([
 const HOOKS_PREFIX = '/api/hooks/';
 /** Reachable while the vault is locked (for signed-in users). */
 const LOCKED_OK = ['/api/auth/', '/api/vault/'];
+
+/**
+ * A status viewer (#26: role "status" and no other role) reaches the status pages and their own sign-in – nothing else.
+ * Checked here once, for every route, so a route that forgets a role check cannot leak to them.
+ */
+export const STATUS_VIEWER_ROUTES: ReadonlySet<string> = new Set(['GET /api/status-pages', 'GET /api/status-pages/:pageId/view']);
+const statusOnly = (roles: readonly string[]) => roles.length > 0 && roles.every((r) => r === 'status');
 
 /**
  * Content Security Policy for the SPA (Mantine injects inline styles, hence 'unsafe-inline' for styles only).
@@ -380,6 +390,9 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       }
       if (!vault().unlocked && !LOCKED_OK.some((p) => url.startsWith(p))) {
         return void reply.code(423).send({ error: 'The vault is locked – an administrator has to unlock it', code: 'VAULT_LOCKED' });
+      }
+      if (statusOnly(user.roles) && !url.startsWith('/api/auth/') && !STATUS_VIEWER_ROUTES.has(`${req.method} ${url}`)) {
+        return void reply.code(403).send({ error: 'Status viewers only see the status pages', code: 'STATUS_VIEWER_ONLY' });
       }
     }
     (req as unknown as { smUser?: string }).smUser = user?.username;

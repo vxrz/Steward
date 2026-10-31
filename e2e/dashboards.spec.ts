@@ -56,4 +56,27 @@ test.describe('dashboards', () => {
     // every widget has data (ih.privileged is only filled once a privileged access review ran)
     await expect(page.getByText(/^No data in (?!ih\.privileged)/)).toHaveCount(0);
   });
+  test('Vega-Lite widgets draw from the dataset only, with a table twin (#120)', async ({ page }) => {
+    const requests: string[] = [];
+    page.on('request', (r) => requests.push(r.url()));
+    await page.goto('/dashboards/edge-fleet');
+    const chart = widget(page, 'Devices per firmware version');
+    // drawn as SVG by the on-demand chart chunk; the fixtures fail the test on any console error, CSP violations included
+    const svg = chart.locator('.vega-chart svg');
+    await expect(svg).toBeVisible();
+    await expect(svg.locator('path').first()).toBeAttached();
+    // named by the spec's description for screen readers
+    await expect(chart.locator('.vega-chart[role="graphics-document"]')).toHaveAttribute('aria-label', /^Number of devices per firmware version/);
+    await chart.getByText('Table', { exact: true }).click();
+    await expect(chart.getByRole('columnheader', { name: 'Firmware' })).toBeVisible();
+    await expect(chart.getByRole('table').getByRole('row').nth(1)).toBeVisible();
+    await chart.getByText('Chart', { exact: true }).click();
+    await expect(svg).toBeVisible();
+    // nothing but the app's own origin was asked for anything
+    const origin = new URL(page.url()).origin;
+    expect(requests.filter((u) => !u.startsWith(origin) && !u.startsWith('data:'))).toEqual([]);
+
+    await page.goto('/dashboards/tenant-usage');
+    await expect(widget(page, 'Used share of each limit').locator('.vega-chart svg')).toBeVisible();
+  });
 });

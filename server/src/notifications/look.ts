@@ -281,6 +281,7 @@ export const isDryRun = (data?: Record<string, unknown>): boolean => data?.dryRu
 const BAD_EVENTS = new Set(['run.failed', 'check.failed', 'duty.missed', 'objective.breached', 'security.emergency', 'access.undocumented', 'backup.failed']);
 const WARN_EVENTS = new Set([
   'task.assigned',
+  'mcp.request',
   'dataset.stale',
   'schedule.skipped',
   'credential.due',

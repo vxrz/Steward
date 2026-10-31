@@ -29,6 +29,7 @@ import { RUN_STATUSES, RUN_TRIGGERS, STEP_STATUSES } from '../api/v1/schemas.js'
 import { safeBaseUrl } from '../api/v1/routes.js';
 import { MAX_RESULT_CHARS, SUPPORTED_VERSIONS } from './config.js';
 import { gatewayTools } from './gateway.js';
+import { requestTools } from './requests.js';
 import { ToolError, cap, cursorArg, defineTool, idArg, isoArg, limitArg, type ToolContext, type ToolDef } from './tooling.js';
 import { zodJsonSchema } from '../jsonSchema.js';
 
@@ -692,7 +693,7 @@ const steward: ToolDef[] = [
 ];
 
 export function allTools(): ToolDef[] {
-  return [...steward, ...gatewayTools];
+  return [...steward, ...gatewayTools, ...requestTools];
 }
 
 export function findTool(name: string): ToolDef | undefined {
@@ -718,7 +719,7 @@ export function listTools(ctx: ToolContext): Record<string, unknown>[] {
       title: t.title,
       description: t.description,
       inputSchema: inputSchema(t),
-      annotations: { title: t.title, readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: !!t.gateway },
+      annotations: { title: t.title, readOnlyHint: !t.asks, destructiveHint: false, idempotentHint: !t.asks, openWorldHint: !!t.gateway },
     }));
 }
 

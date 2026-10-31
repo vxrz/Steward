@@ -572,3 +572,51 @@ export function swappedLabels(before: readonly { key: string; label: string }[],
 export function remeanedLevels(before: readonly { key: string; label: string }[], next: readonly { key: string; label: string }[]): string[] {
   return [...new Set([...reorderedLevels(before, next), ...swappedLabels(before, next)])];
 }
+
+// ---------- service status pages (#26) ----------
+
+export const STATUS_PAGE_LIMITS = { services: 50, title: 200, description: 2000, notice: 2000 } as const;
+export const STATUS_NOTICE_LEVELS = ['info', 'warning', 'outage'] as const;
+export type StatusNoticeLevel = (typeof STATUS_NOTICE_LEVELS)[number];
+/** What a status page says about a service: from its monitors (worst first) */
+export const SERVICE_STATES = ['outage', 'degraded', 'maintenance', 'operational', 'unknown'] as const;
+export type ServiceState = (typeof SERVICE_STATES)[number];
+
+/** A status page as its editors see it. */
+export interface StatusPage {
+  id: string;
+  title: string;
+  description: string;
+  serviceIds: string[];
+  showObjectives: boolean;
+  showVendorIssues: boolean;
+  notice: string;
+  noticeLevel: StatusNoticeLevel;
+  /** A link that works without signing in exists (the secret is shown once when it is made) */
+  publicLink: boolean;
+  publicLinkCreatedAt: string | null;
+  updatedBy: string;
+  updatedAt: string;
+  canEdit: boolean;
+}
+
+/** What a status page shows: no internal names of monitors, platforms or tickets. */
+export interface StatusPageView {
+  id: string;
+  title: string;
+  description: string;
+  notice: string;
+  noticeLevel: StatusNoticeLevel;
+  state: ServiceState;
+  generatedAt: string;
+  services: {
+    name: string;
+    state: ServiceState;
+    /** Monitors behind the state, by state (counts only) */
+    monitors: Partial<Record<ServiceState, number>>;
+    maintenance: { title: string; startsAt: string; endsAt: string; active: boolean }[];
+    objectives: { name: string; window: string; value: number | null; target: number; met: boolean | null }[];
+    /** Open issues waiting on a vendor: the vendor and since when */
+    vendorIssues: { vendor: string; since: string }[];
+  }[];
+}

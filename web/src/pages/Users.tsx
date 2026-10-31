@@ -43,6 +43,7 @@ const ROLE_COLORS: Record<Role, string> = {
   approver: 'teal',
   auditor: 'orange',
   viewer: 'gray',
+  status: 'cyan',
 };
 
 /** Role name and description in the UI language (descriptions default to the English text in shared/). */

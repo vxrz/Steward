@@ -21,9 +21,17 @@ import { allowEmailDomains, authHeaders, loginCookie, setup, startTestServer, ty
  * "route role status" line to <file> – a starting point when classifying new routes.
  */
 
-type Role = 'admin' | 'designer' | 'operator' | 'approver' | 'auditor' | 'viewer';
-const ROLES: Role[] = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer'];
-const USERS: Record<Role, string> = { admin: 'admin', designer: 'dana', operator: 'olivia', approver: 'adam', auditor: 'audrey', viewer: 'vera' };
+type Role = 'admin' | 'designer' | 'operator' | 'approver' | 'auditor' | 'viewer' | 'status';
+const ROLES: Role[] = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer', 'status'];
+const USERS: Record<Role, string> = {
+  admin: 'admin',
+  designer: 'dana',
+  operator: 'olivia',
+  approver: 'adam',
+  auditor: 'audrey',
+  viewer: 'vera',
+  status: 'stella',
+};
 const PW = 'Demo-password-1';
 
 /** Reachable without signing in. */
@@ -32,7 +40,9 @@ const PUBLIC = 'public' as const;
 const HOOK = 'hook' as const;
 type Access = typeof PUBLIC | typeof HOOK | Role[];
 
-const ALL = ROLES;
+/** Every role that works in Steward; a status viewer (#26) only reaches the status pages (EVERYONE) */
+const ALL: Role[] = ROLES.filter((r) => r !== 'status');
+const EVERYONE: Role[] = ROLES;
 const ADMIN: Role[] = ['admin'];
 const ADMIN_AUDITOR: Role[] = ['admin', 'auditor'];
 /** Roles that may create processes, dashboards, monitors, records and credentials. */
@@ -81,12 +91,12 @@ const EXPECT: Record<string, Access> = {
   'GET /api/auth/oidc/:id/start': PUBLIC,
   'GET /api/auth/oidc/callback': PUBLIC,
   'POST /api/auth/logout': ALL,
-  'GET /api/auth/me': ALL,
+  'GET /api/auth/me': EVERYONE,
   'POST /api/auth/password': ALL,
   // step-up re-authentication (auth/step-up.ts): every signed-in session confirms its own owner
-  'GET /api/auth/step-up': ALL,
+  'GET /api/auth/step-up': EVERYONE,
   'POST /api/auth/step-up': ALL,
-  'DELETE /api/auth/step-up': ALL,
+  'DELETE /api/auth/step-up': EVERYONE,
   'POST /api/auth/step-up/sso': ALL,
   'POST /api/auth/step-up/sso/complete': ALL,
   'GET /api/about': ALL,
@@ -153,6 +163,20 @@ const EXPECT: Record<string, Access> = {
   'POST /api/notifications/:id/read': ALL,
   'GET /api/mcp-server': ALL,
   'PUT /api/mcp-server': ADMIN,
+  // requests of MCP clients (#11): each reader sees the ones they may (the route decides per request)
+  'GET /api/mcp-requests': ALL,
+  // service status pages (#26): every signed-in user and the status viewers read them, designers and admins set them up
+  'GET /api/status-pages': EVERYONE,
+  'POST /api/status-pages': DESIGN,
+  'GET /api/status-pages/:pageId': ALL,
+  'PUT /api/status-pages/:pageId': DESIGN,
+  'DELETE /api/status-pages/:pageId': DESIGN,
+  'GET /api/status-pages/:pageId/view': EVERYONE,
+  'POST /api/status-pages/:pageId/link': DESIGN,
+  'DELETE /api/status-pages/:pageId/link': DESIGN,
+  'GET /api/public/status-page': PUBLIC,
+  'GET /api/mcp-requests/:requestId': ALL,
+  'POST /api/mcp-requests/:requestId/decision': ALL,
   'POST /api/demo/setup': ADMIN,
 
   // ---- audit ----
@@ -564,13 +588,13 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/mcp': HOOK,
 
   // ---- API documentation (Swagger UI; Settings → API documentation, default: signed-in users) ----
-  'GET /api/docs': ALL,
+  'GET /api/docs': EVERYONE,
   'GET /api/docs/static/index.html': ALL,
-  'GET /api/docs/static/swagger-initializer.js': ALL,
+  'GET /api/docs/static/swagger-initializer.js': EVERYONE,
   'GET /api/docs/*': ALL,
-  'GET /api/docs/static/*': ALL,
-  'GET /api/docs/json': ALL,
-  'GET /api/docs/yaml': ALL,
+  'GET /api/docs/static/*': EVERYONE,
+  'GET /api/docs/json': EVERYONE,
+  'GET /api/docs/yaml': EVERYONE,
 
   // ---- public read API /api/v1 (API tokens; called with a read token of each role) ----
   'GET /api/v1/health': PUBLIC,
@@ -691,6 +715,7 @@ const EXPECT: Record<string, Access> = {
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
   'POST /api/me/tokens',
+  'POST /api/mcp-requests/:requestId/decision',
   'POST /api/users',
   'PUT /api/users/:id',
   'POST /api/users/:id/reset-password',
@@ -764,6 +789,7 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/migration/imports/staged/:id/apply': 'always',
   'PUT /api/catalogue/cia-scale': 'always',
   'PUT /api/backups/settings': 'always',
+  'PUT /api/platforms/:id/mcp-gateway': { sensitive: { enabled: true, writes: 'confirm' }, harmless: { enabled: true } },
   'PUT /api/backups/passphrase': 'always',
 };
 
@@ -772,6 +798,7 @@ const NO_POSITIVE = new Set([
   // no S3 storage set up in the fixtures
   'GET /api/backups/stored',
   'GET /api/artifacts/:id', // the demo runs write no artifacts
+  'GET /api/mcp-requests/:requestId', // no MCP client asked for anything
   'GET /api/tasks/:id', // no open approval
   'GET /api/tasks/:id/evidence/:evidenceId/download', // no manual step
   'GET /api/v1/tasks/:taskId',
@@ -836,6 +863,8 @@ function fill(url: string): string {
     .replace(/:accessChangeId/g, fx.accessChange!)
     .replace(/:accessCheckId/g, fx.accessCheck!)
     .replace(/:reviewId/g, fx.personReview!)
+    .replace(/:requestId/g, 'mrq_none')
+    .replace(/:pageId/g, fx.statusPage!)
     .replace(/:snapshotId/g, fx.snapshot!)
     .replace(/:findingId/g, fx.finding!)
     .replace(/:catalogueId/g, fx.catalogue!)
@@ -1053,6 +1082,9 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/compliance/findings/:findingId/dismiss': { comment: 'x' },
   'POST /api/compliance/demo/simulate-change': { accessCheckId: fx.accessCheck },
   'POST /api/compliance/person-reviews': { title: 'x', personName: 'x', identifiers: ['x'], checkIds: [fx.accessCheck] },
+  'POST /api/mcp-requests/:requestId/decision': { approve: false },
+  'POST /api/status-pages': { title: 'Matrix page', serviceIds: [fx.service] },
+  'PUT /api/status-pages/:pageId': { title: 'Matrix page', serviceIds: [fx.service] },
   'PUT /api/compliance/person-reviews/:reviewId/decisions': { decisions: [{ itemId: 'pri_none', decision: 'keep' }] },
   'POST /api/compliance/person-reviews/:reviewId/approval': { approve: true },
   'POST /api/compliance/catalogues': { key: 'MATRIX', name: 'x' },
@@ -1271,6 +1303,7 @@ beforeAll(async () => {
     personReview: (
       await a('POST', '/compliance/person-reviews', { title: 'Matrix', personName: 'Matrix', identifiers: ['matrix'], checkIds: [accessCheck.id] })
     ).id,
+    statusPage: (await a('POST', '/status-pages', { title: 'Matrix status', serviceIds: [svc.id] })).id,
   });
   for (const role of ROLES) cookies[role] = await loginCookie(s.base, USERS[role], role === 'admin' ? 'Admin-password-1' : PW);
   for (const role of ROLES) {

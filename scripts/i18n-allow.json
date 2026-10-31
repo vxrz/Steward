@@ -35,6 +35,7 @@
       "Administration",
       "API history.push (7.0+)",
       "Appliance",
+      "Information",
       "Person",
       "{{severity}} {{id}} in {{component}} – {{fix}}",
       "Dependency-Track",

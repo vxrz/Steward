@@ -57,6 +57,12 @@ const ComplianceControlsPage = page(() => import('./pages/ComplianceControls'), 
 const AccessChangesPage = page(() => import('./pages/AccessChanges'), 'AccessChangesPage');
 const AccessReconciliationPage = page(() => import('./pages/AccessReconciliation'), 'AccessReconciliationPage');
 const EvidencePacksPage = page(() => import('./pages/EvidencePacks'), 'EvidencePacksPage');
+const StatusPagesPage = page(() => import('./pages/StatusPages'), 'StatusPagesPage');
+const StatusPageViewPage = page(() => import('./pages/StatusPages'), 'StatusPageViewPage');
+const PublicStatusPage = page(() => import('./pages/StatusPages'), 'PublicStatusPage');
+const StatusViewerApp = page(() => import('./pages/StatusPages'), 'StatusViewerApp');
+const McpRequestsPage = page(() => import('./pages/McpRequests'), 'McpRequestsPage');
+const McpRequestDetailPage = page(() => import('./pages/McpRequests'), 'McpRequestDetailPage');
 const PersonReviewsPage = page(() => import('./pages/PersonReviews'), 'PersonReviewsPage');
 const PersonReviewDetailPage = page(() => import('./pages/PersonReviews'), 'PersonReviewDetailPage');
 const ReportsPage = page(() => import('./pages/Reports'), 'ReportsPage');
@@ -121,6 +127,8 @@ export function App() {
     );
   }
   const st = status.data;
+  // a status page's secret link works without signing in (#26)
+  if (location.pathname === '/status') return <PublicStatusPage />;
   if (st.setupRequired) return <SetupPage status={st} />;
   // the one-time link of `steward admin emergency-access` (see auth/emergency.ts on the server)
   if (location.pathname === '/emergency-access' && !st.me?.emergency)
@@ -128,6 +136,8 @@ export function App() {
   if (!st.me) return <LoginPage status={st} />;
   if (st.me.user.mustChangePassword) return <ForcedPasswordChangePage status={st} onSignOut={onSignOut} />;
   if (!st.unlocked) return <VaultLockedPage status={st} onSignOut={onSignOut} />;
+  // status viewers (role "status" only) see nothing but the status pages
+  if (st.me.user.roles.length && st.me.user.roles.every((r) => r === 'status')) return <StatusViewerApp onSignOut={onSignOut} />;
   return (
     <MeContext.Provider value={st.me}>
       <Shell status={st} />
@@ -217,6 +227,8 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/dashboards" element={<DashboardsPage />} />
                 <Route path="/dashboards/:id" element={<DashboardViewPage />} />
                 <Route path="/tasks" element={<TasksPage />} />
+                <Route path="/mcp-requests" element={<McpRequestsPage />} />
+                <Route path="/mcp-requests/:id" element={<McpRequestDetailPage />} />
                 <Route path="/runs" element={<RunsPage />} />
                 <Route path="/runs/:id" element={<RunDetailPage />} />
                 <Route path="/processes" element={<ProcessesPage />} />
@@ -245,6 +257,8 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/systems" element={<SystemsPage />} />
                 <Route path="/systems/:id" element={<SystemDetailPage />} />
                 <Route path="/maintenance" element={<MaintenancePage />} />
+                <Route path="/status-pages" element={<StatusPagesPage />} />
+                <Route path="/status-pages/:id" element={<StatusPageViewPage />} />
                 <Route path="/duties" element={<DutiesPage />} />
                 <Route path="/duties/:id" element={<DutyDetailPage />} />
                 <Route path="/scorecard" element={<ScorecardPage />} />

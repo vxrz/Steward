@@ -17,12 +17,20 @@ export function McpServerCard() {
   const [busy, setBusy] = useState(false);
   const s = status.data;
   if (!s) return null;
-  const toggle = async (enabled: boolean) => {
+  const toggle = async (body: { enabled?: boolean; runRequests?: boolean }) => {
     setBusy(true);
     try {
-      const next = await put<McpServerStatus>('/mcp-server', { enabled });
+      const next = await put<McpServerStatus>('/mcp-server', body);
       qc.setQueryData(['mcp-server'], next);
-      notifyOk(enabled ? t('settings.turnedOn') : t('settings.turnedOff'));
+      notifyOk(
+        body.enabled !== undefined
+          ? body.enabled
+            ? t('settings.turnedOn')
+            : t('settings.turnedOff')
+          : body.runRequests
+            ? t('settings.runRequestsOn')
+            : t('settings.runRequestsOff'),
+      );
     } catch (e) {
       notifyError(e);
     } finally {
@@ -47,7 +55,14 @@ export function McpServerCard() {
           description={t('settings.enableHint')}
           checked={s.enabled}
           disabled={busy || s.forcedOff}
-          onChange={(e) => toggle(e.currentTarget.checked)}
+          onChange={(e) => toggle({ enabled: e.currentTarget.checked })}
+        />
+        <Switch
+          label={t('settings.runRequests')}
+          description={t('settings.runRequestsHint')}
+          checked={s.runRequests}
+          disabled={busy || !s.enabled}
+          onChange={(e) => toggle({ runRequests: e.currentTarget.checked })}
         />
         {s.enabled && (
           <>

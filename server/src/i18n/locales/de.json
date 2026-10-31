@@ -267,6 +267,7 @@
       "applyMigration": "eine Instanz importieren",
       "changeCiaScale": "die CIA-Skala (Schutzbedarf) ändern",
       "changeBackups": "die Sicherungen oder die Sicherungspassphrase ändern",
+      "allowMcpWrites": "KI-Assistenten ändernde Aufrufe auf einer Plattform anfragen lassen",
       "other": "eine sensible Aktion"
     },
     "scope_one": "Die Bestätigung gilt {{count}} Minute lang für alle sensiblen Aktionen dieser Sitzung.",

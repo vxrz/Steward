@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ActionIcon,
@@ -32,7 +32,9 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import {
+  VEGA_LIMITS,
   forecastTo,
+  vegaSpecFields,
   type DashboardWidget,
   type DatasetMeta,
   type DatasetRow,
@@ -799,6 +801,101 @@ function FreshnessWidget({ w, datasets }: { w: DashboardWidget; datasets: string
 }
 
 // ---------------------------------------------------------------------------
+// Vega-Lite chart (#120)
+// ---------------------------------------------------------------------------
+
+/** Vega is large; it is only downloaded when a dashboard has such a widget. */
+const VegaChart = lazy(() => import('./vega'));
+
+/** The chart's rows: the dataset's, with the source as its name (#142). */
+type ChartRow = Record<string, unknown>;
+function chartRows(rows: DatasetRow[]): ChartRow[] {
+  return rows.slice(0, VEGA_LIMITS.rows).map((r): ChartRow => (r._source ? { ...r, _source: r._source.platform } : r));
+}
+
+function VegaWidget({ w }: { w: DashboardWidget }) {
+  const { t } = useTranslation(['dashboards', 'common', 'editor']);
+  const [view, setView] = useState<'chart' | 'table'>('chart');
+  const [error, setError] = useState<string | null>(null);
+  const ds = useDataset(w.dataset, useScope(w));
+  const d = ds.data;
+  const rows = useMemo(() => chartRows(d?.rows ?? []), [d]);
+  // the table shows the fields the chart encodes, or every column
+  const fields = useMemo(() => {
+    const cols = d ? ['_status', ...d.columns] : [];
+    const used = vegaSpecFields(w.spec).filter((f) => cols.includes(f) || f === '_source');
+    return used.length ? used : (d?.columns ?? []);
+  }, [w.spec, d]);
+  useEffect(() => setError(null), [w.spec, rows]);
+  const onError = useCallback((m: string) => setError(m), []);
+  const title = w.title || d?.title || w.dataset || '';
+  if (!d) {
+    return (
+      <WidgetCard title={title}>
+        {ds.isLoading ? (
+          <Text size="sm" c="dimmed">
+            {t('common:loading')}
+          </Text>
+        ) : (
+          <NoData dataset={w.dataset} error={ds.error} />
+        )}
+      </WidgetCard>
+    );
+  }
+  const shown = rows.slice(0, 200);
+  return (
+    <WidgetCard title={title} subtitle={<Freshness meta={d} />} fetching={ds.isFetching} toggle view={view} onView={setView}>
+      {view === 'table' ? (
+        <div style={{ overflowX: 'auto' }}>
+          <Table fz="sm" striped>
+            <Table.Thead>
+              <Table.Tr>
+                {fields.map((f) => (
+                  <Table.Th key={f}>{f === '_status' ? t('datasets.status') : f === '_source' ? t('datasets.sourcePlatform') : f}</Table.Th>
+                ))}
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {shown.map((r, i) => (
+                <Table.Tr key={typeof r._key === 'string' ? r._key : i}>
+                  {fields.map((f) => (
+                    <Table.Td key={f}>{f === '_status' ? <StatusLabel status={asStatus(r._status as DatasetRow['_status'])} /> : cellText(r[f])}</Table.Td>
+                  ))}
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+          {rows.length > shown.length && (
+            <Text size="xs" c="dimmed" mt={4}>
+              {t('w.rowsOf', { shown: shown.length, total: rows.length })}
+            </Text>
+          )}
+        </div>
+      ) : error ? (
+        <Text size="sm" c="red" role="alert">
+          {t('w.chartError', { error })}
+        </Text>
+      ) : (
+        <Suspense
+          fallback={
+            <Text size="sm" c="dimmed">
+              {t('common:loading')}
+            </Text>
+          }
+        >
+          <VegaChart
+            spec={w.spec ?? {}}
+            rows={rows}
+            label={typeof w.spec?.description === 'string' && w.spec.description ? w.spec.description : title}
+            onError={onError}
+          />
+        </Suspense>
+      )}
+    </WidgetCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 export function WidgetView({ w, datasets }: { w: DashboardWidget; datasets: string[] }) {
   const { t } = useTranslation('dashboards');
@@ -815,6 +912,8 @@ export function WidgetView({ w, datasets }: { w: DashboardWidget; datasets: stri
       return <ChecksWidget w={w} />;
     case 'freshness':
       return <FreshnessWidget w={w} datasets={datasets} />;
+    case 'vega':
+      return <VegaWidget w={w} />;
     case 'markdown':
       return (
         <WidgetCard title={w.title}>

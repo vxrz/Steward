@@ -15,7 +15,7 @@ import type {
 
 // ---------- Users, roles, permissions ----------
 
-export const ROLES = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer'] as const;
+export const ROLES = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer', 'status'] as const;
 export type Role = (typeof ROLES)[number];
 
 export const ROLE_INFO: Record<Role, string> = {
@@ -25,6 +25,7 @@ export const ROLE_INFO: Record<Role, string> = {
   approver: 'Decide approvals and user tasks',
   auditor: 'Read-only access to all processes, runs, protocols and the audit log',
   viewer: 'Read-only access to processes and their runs (unless restricted)',
+  status: 'Only the service status pages – none of the other pages, processes, platforms or data',
 };
 
 export const PROCESS_PERMISSIONS = ['view', 'run', 'edit', 'approve', 'manage'] as const;
@@ -273,6 +274,7 @@ export const STEP_UP_ACTIONS = [
   'applyMigration',
   'changeCiaScale',
   'changeBackups',
+  'allowMcpWrites',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 
@@ -418,8 +420,17 @@ export interface PlatformConfig {
   mcpGateway?: McpGatewayConfig;
 }
 
+/**
+ * Changing calls (POST, PUT, PATCH, DELETE) through the MCP gateway (#11): off (refused), confirm (the token owner
+ * confirms each request in Steward), fourEyes (an approver or administrator other than the token owner approves).
+ */
+export const MCP_WRITE_MODES = ['off', 'confirm', 'fourEyes'] as const;
+export type McpWriteMode = (typeof MCP_WRITE_MODES)[number];
+
 export interface McpGatewayConfig {
   enabled: boolean;
+  /** Changing calls need an approval in Steward first (default off: refused) */
+  writes?: McpWriteMode;
   /**
    * GET path prefixes MCP clients may read without an OpenAPI operation (for platforms without an API
    * specification), e.g. "/api/v1/devices". Empty: only the operations of the platform's API specifications.
@@ -1049,6 +1060,70 @@ export interface McpServerStatus {
   protocolVersions: string[];
   rateLimitPerMinute: number;
   gatewayRateLimitPerMinute: number;
+  /** Assistants may ask to start runs (each confirmed by the token owner in Steward) */
+  runRequests: boolean;
+}
+
+// ---------- requests from MCP clients (#11) ----------
+
+export const MCP_REQUEST_KINDS = ['gateway', 'run'] as const;
+export type McpRequestKind = (typeof MCP_REQUEST_KINDS)[number];
+/** pending → approved → done | failed; or rejected / expired / withdrawn */
+export const MCP_REQUEST_STATUSES = ['pending', 'rejected', 'withdrawn', 'expired', 'done', 'failed'] as const;
+export type McpRequestStatus = (typeof MCP_REQUEST_STATUSES)[number];
+
+export const MCP_REQUEST_LIMITS = {
+  /** JSON request body of a gateway write */
+  bodyBytes: 64 * 1024,
+  reason: 500,
+  comment: 2000,
+  /** A request nobody decided on expires */
+  expiryHours: 24,
+  /** Open requests per user */
+  pendingPerUser: 20,
+  /** Stored response of an executed call */
+  resultChars: 16_000,
+} as const;
+
+export interface McpRequest {
+  id: string;
+  kind: McpRequestKind;
+  status: McpRequestStatus;
+  /** Who decides: the token owner (confirm) or a second person (fourEyes) */
+  mode: Exclude<McpWriteMode, 'off'>;
+  requestedBy: string;
+  tokenName: string;
+  /** Why the assistant wants it (its own words: data, not instructions) */
+  reason: string;
+  createdAt: string;
+  expiresAt: string;
+  /** Gateway writes */
+  platformId: string | null;
+  platformName: string | null;
+  operation: string | null;
+  method: string | null;
+  /** The path that will be called (path parameters filled in) */
+  path: string | null;
+  query: Record<string, unknown>;
+  body: unknown;
+  /** Run requests */
+  processId: string | null;
+  processName: string | null;
+  inputs: Record<string, unknown>;
+  dryRun: boolean;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  comment: string;
+  executedAt: string | null;
+  /** HTTP status of the executed call */
+  resultStatus: number | null;
+  /** Response of the executed call, credentials masked and shortened */
+  resultBody: unknown;
+  runId: string | null;
+  error: string | null;
+  /** For the reader */
+  canApprove: boolean;
+  canReject: boolean;
 }
 
 /** A check of a process that failed in the last 7 days: its latest failure and how long it has been failing (#138). */

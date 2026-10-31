@@ -67,5 +67,55 @@
     "nextReview": "Next review"
   },
   "overdueBadge_one": "{{count}} review overdue",
-  "overdueBadge_other": "{{count}} reviews overdue"
+  "overdueBadge_other": "{{count}} reviews overdue",
+  "statusPages": {
+    "title": "Status pages",
+    "description": "Read-only pages for colleagues outside the service team: how the chosen services are doing, planned and running maintenance, known issues with vendors and – if you want – the availability objectives. They name no monitors, platforms or tickets.",
+    "new": "New status page",
+    "emptyTitle": "No status pages",
+    "emptyText": "A status page shows a few services for stakeholders, e.g. the plant colleagues: built from the monitors linked to the services, the maintenance windows and open vendor tickets.",
+    "servicesCount_one": "{{count}} service",
+    "servicesCount_other": "{{count}} services",
+    "linkSince": "link without sign-in since {{when}}",
+    "makeLink": "Link without sign-in",
+    "newLink": "New link",
+    "revokeLink": "Revoke link",
+    "edit": "Edit {{title}}",
+    "delete": "Delete {{title}}",
+    "editTitle": "Edit status page",
+    "linkTitle": "Link to “{{title}}”",
+    "linkOnce": "Anyone with this link sees the page without signing in. It is shown only now – copy it. A new link replaces this one; revoking ends it.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "pageTitle": "Title",
+    "pageDescription": "Description (optional)",
+    "services": "Services",
+    "servicesHelp": "The state of a service comes from the monitors linked to it (service → links).",
+    "showVendorIssues": "Show known issues with vendors (the vendor and since when – never the ticket)",
+    "showObjectives": "Show the availability objectives (30 days)",
+    "notice": "Notice (optional)",
+    "noticeHelp": "Shown at the top of the page, e.g. what you are doing about a problem.",
+    "noticeLevel": "Kind of notice",
+    "noticeLevels": {
+      "info": "Information",
+      "warning": "Warning",
+      "outage": "Outage"
+    },
+    "states": {
+      "outage": "Outage",
+      "degraded": "Degraded",
+      "maintenance": "Maintenance",
+      "operational": "Operational",
+      "unknown": "No data"
+    },
+    "maintenanceNow": "Maintenance now: {{title}} (until {{to}})",
+    "maintenancePlanned": "Planned maintenance: {{title}}, {{from}} – {{to}}",
+    "vendorIssue": "Known issue with {{vendor}} (since {{since}})",
+    "objective": "{{name}}: {{value}} % (target {{target}} %)",
+    "objectiveNoData": "{{name}}: no data yet (target {{target}} %)",
+    "generated": "As of {{when}}",
+    "linkInvalid": "This status page link is not valid (any more). Ask the person who sent it to you.",
+    "noneForViewer": "No status pages yet.",
+    "signOut": "Sign out"
+  }
 }

@@ -297,4 +297,25 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE application_components ADD COLUMN dt_state TEXT;
     `,
   },
+  {
+    // service status pages for stakeholders (#26); the public link is stored as a hash only
+    name: 'catalogue-010-status-pages',
+    sql: `CREATE TABLE status_pages (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      service_ids TEXT NOT NULL DEFAULT '[]',
+      show_objectives INTEGER NOT NULL DEFAULT 1,
+      show_vendor_issues INTEGER NOT NULL DEFAULT 1,
+      notice TEXT NOT NULL DEFAULT '',
+      notice_level TEXT NOT NULL DEFAULT 'info',
+      link_hash TEXT,
+      link_created_at TEXT,
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_by TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX status_pages_link ON status_pages(link_hash);`,
+  },
 ];

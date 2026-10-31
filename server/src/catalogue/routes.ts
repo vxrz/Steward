@@ -15,6 +15,7 @@ import { contentDisposition } from '../records/attachments.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { getService } from './service.js';
+import * as status from './status-pages.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -23,6 +24,25 @@ const params = (req: FastifyRequest) => req.params as Record<string, string>;
  * scope of living documents: the web UI's API. Every route checks permissions in the service layer.
  */
 export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
+  // service status pages (#26)
+  app.get('/status-pages', async () => status.listPages());
+  app.post('/status-pages', async (req) => status.createPage(status.pageInput.parse(req.body)));
+  app.get('/status-pages/:pageId', async (req) => status.getPage((req.params as { pageId: string }).pageId));
+  app.put('/status-pages/:pageId', async (req) => status.updatePage((req.params as { pageId: string }).pageId, status.pageInput.parse(req.body)));
+  app.delete('/status-pages/:pageId', async (req, reply) => {
+    status.deletePage((req.params as { pageId: string }).pageId);
+    return reply.code(204).send();
+  });
+  app.get('/status-pages/:pageId/view', async (req) => status.viewPage((req.params as { pageId: string }).pageId));
+  app.post('/status-pages/:pageId/link', async (req) => status.createLink((req.params as { pageId: string }).pageId));
+  app.delete('/status-pages/:pageId/link', async (req) => status.revokeLink((req.params as { pageId: string }).pageId));
+  // without signing in: the secret comes in a header (the web page keeps it in the URL fragment, so no log sees it)
+  app.get('/public/status-page', { config: { rateLimit: ROUTE_LIMITS.webhook } }, async (req, reply) => {
+    reply.header('cache-control', 'no-store');
+    const token = String(req.headers['x-status-token'] ?? '');
+    return status.viewByToken(token, req.ip);
+  });
+
   // ---------- applications ----------
   app.get('/applications', async (req) => apps.listApplications({ archived: (req.query as { archived?: string }).archived === '1' }));
   app.post('/applications', async (req) => apps.createApplication(apps.applicationInput.parse(req.body)));

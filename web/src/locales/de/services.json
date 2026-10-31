@@ -67,5 +67,55 @@
     "nextReview": "Nächste Überprüfung"
   },
   "overdueBadge_one": "{{count}} Überprüfung überfällig",
-  "overdueBadge_other": "{{count}} Überprüfungen überfällig"
+  "overdueBadge_other": "{{count}} Überprüfungen überfällig",
+  "statusPages": {
+    "title": "Statusseiten",
+    "description": "Nur lesende Seiten für Kolleginnen und Kollegen außerhalb des Service-Teams: wie es den gewählten Services geht, geplante und laufende Wartungen, bekannte Probleme mit Herstellern und – wenn gewünscht – die Verfügbarkeitsziele. Sie nennen keine Monitore, Plattformen oder Tickets.",
+    "new": "Neue Statusseite",
+    "emptyTitle": "Keine Statusseiten",
+    "emptyText": "Eine Statusseite zeigt einige Services für Beteiligte, z. B. die Kollegen im Werk: aus den mit den Services verknüpften Monitoren, den Wartungsfenstern und offenen Hersteller-Tickets.",
+    "servicesCount_one": "{{count}} Service",
+    "servicesCount_other": "{{count}} Services",
+    "linkSince": "Link ohne Anmeldung seit {{when}}",
+    "makeLink": "Link ohne Anmeldung",
+    "newLink": "Neuer Link",
+    "revokeLink": "Link widerrufen",
+    "edit": "{{title}} bearbeiten",
+    "delete": "{{title}} löschen",
+    "editTitle": "Statusseite bearbeiten",
+    "linkTitle": "Link zu „{{title}}“",
+    "linkOnce": "Jeder mit diesem Link sieht die Seite ohne Anmeldung. Er wird nur jetzt angezeigt – kopieren Sie ihn. Ein neuer Link ersetzt diesen; Widerrufen beendet ihn.",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "pageTitle": "Titel",
+    "pageDescription": "Beschreibung (optional)",
+    "services": "Services",
+    "servicesHelp": "Der Zustand eines Service ergibt sich aus den mit ihm verknüpften Monitoren (Service → Verknüpfungen).",
+    "showVendorIssues": "Bekannte Probleme mit Herstellern zeigen (Hersteller und seit wann – nie das Ticket)",
+    "showObjectives": "Verfügbarkeitsziele zeigen (30 Tage)",
+    "notice": "Hinweis (optional)",
+    "noticeHelp": "Erscheint oben auf der Seite, z. B. was Sie gegen ein Problem tun.",
+    "noticeLevel": "Art des Hinweises",
+    "noticeLevels": {
+      "info": "Information",
+      "warning": "Warnung",
+      "outage": "Störung"
+    },
+    "states": {
+      "outage": "Störung",
+      "degraded": "Eingeschränkt",
+      "maintenance": "Wartung",
+      "operational": "In Betrieb",
+      "unknown": "Keine Daten"
+    },
+    "maintenanceNow": "Wartung läuft: {{title}} (bis {{to}})",
+    "maintenancePlanned": "Geplante Wartung: {{title}}, {{from}} – {{to}}",
+    "vendorIssue": "Bekanntes Problem mit {{vendor}} (seit {{since}})",
+    "objective": "{{name}}: {{value}} % (Ziel {{target}} %)",
+    "objectiveNoData": "{{name}}: noch keine Daten (Ziel {{target}} %)",
+    "generated": "Stand {{when}}",
+    "linkInvalid": "Dieser Link zur Statusseite ist nicht (mehr) gültig. Fragen Sie die Person, die ihn Ihnen geschickt hat.",
+    "noneForViewer": "Noch keine Statusseiten.",
+    "signOut": "Abmelden"
+  }
 }

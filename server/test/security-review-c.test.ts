@@ -407,7 +407,12 @@ describe('M1 – platform settings changed in the database are refused', () => {
   it('binds the encrypted credentials to their platform', async () => {
     const d = await db();
     const rows = d.all<{ id: string; secrets: string | null }>('SELECT id, secrets FROM platforms WHERE secrets IS NOT NULL ORDER BY id');
-    const [a, b] = rows;
+    // two platforms whose credentials differ: demo platforms share credentials, and the seal covers the plaintext
+    const { vault } = await import('../src/vault.js');
+    const plain = (r: { secrets: string | null }) => JSON.stringify(vault().decrypt(r.secrets!));
+    const a = rows[0];
+    const b = rows.find((r) => plain(r) !== plain(a!));
+    expect(b, 'two platforms with different credentials').toBeDefined();
     d.run('UPDATE platforms SET secrets = ? WHERE id = ?', a!.secrets, b!.id);
     try {
       expect((await s.api('GET', `/platforms/${b!.id}`)).integrity).toBe('mismatch');
