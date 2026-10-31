@@ -90,15 +90,16 @@ const EXPECT: Record<string, Access> = {
   'GET /api/migration/imports/:id/history': ADMIN,
   'GET /api/auth/oidc/:id/start': PUBLIC,
   'GET /api/auth/oidc/callback': PUBLIC,
-  'POST /api/auth/logout': ALL,
+  // their own sign-in, password and confirmations: every signed-in person, a status viewer too
+  'POST /api/auth/logout': EVERYONE,
   'GET /api/auth/me': EVERYONE,
-  'POST /api/auth/password': ALL,
+  'POST /api/auth/password': EVERYONE,
   // step-up re-authentication (auth/step-up.ts): every signed-in session confirms its own owner
   'GET /api/auth/step-up': EVERYONE,
-  'POST /api/auth/step-up': ALL,
+  'POST /api/auth/step-up': EVERYONE,
   'DELETE /api/auth/step-up': EVERYONE,
-  'POST /api/auth/step-up/sso': ALL,
-  'POST /api/auth/step-up/sso/complete': ALL,
+  'POST /api/auth/step-up/sso': EVERYONE,
+  'POST /api/auth/step-up/sso/complete': EVERYONE,
   'GET /api/about': ALL,
   'GET /api/system/status': ADMIN_AUDITOR,
   'GET /api/system/update-notice': ADMIN,
@@ -704,6 +705,13 @@ const EXPECT: Record<string, Access> = {
   'POST /api/ticket-references/:id/checked': RUN,
   'DELETE /api/ticket-references/:id': ADMIN,
 
+  // ---- team scopes (#131): owning teams of a resource and why someone has access ----
+  // whoever may see the process (the demo process has no access list); administrators set owning teams
+  'GET /api/owning-teams/:kind/:id': ALL,
+  'PUT /api/owning-teams/:kind/:id': ADMIN,
+  // own rights on what one can see; others' rights for administrators and auditors (checked in team-scopes.test.ts)
+  'GET /api/access/explain': ALL,
+
   // ---- daily summary ----
   'GET /api/me/daily-summary': ALL,
   'PUT /api/me/daily-summary': ALL,
@@ -758,6 +766,13 @@ const SESSION_ONLY = [
 const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown }> = {
   'POST /api/me/tokens': 'always',
   'POST /api/vault/passphrase': 'always',
+  // adding an owning team gives its members their roles on the resource (#131)
+  'PUT /api/owning-teams/:kind/:id': {
+    get sensitive() {
+      return { teamIds: [fx.team] };
+    },
+    harmless: { teamIds: [] as string[] },
+  },
   'POST /api/users': { sensitive: { username: 'matrix-new', roles: ['viewer'] }, harmless: { username: '!' } },
   'PUT /api/users/:id': { sensitive: { roles: ['admin'] }, harmless: {} },
   'POST /api/users/:id/reset-password': 'always',
@@ -834,6 +849,7 @@ function fill(url: string): string {
   return url
     .replace(/\*/g, 'nothing-here')
     .replace(/\/api\/platform-types\/:kind/, `/api/platform-types/${fx.platformKind}`)
+    .replace(/\/api\/owning-teams\/:kind\/:id/, `/api/owning-teams/process/${fx.process}`)
     .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : fx.platform!)
     .replace(/:specId/g, fx.spec!)
     .replace(/:docId/g, fx.doc!)
@@ -937,6 +953,7 @@ const QUERY: Record<string, string> = {
 /** Valid bodies for changing routes, so a refusal is a permission decision and not a validation error. */
 const bodies = (): Record<string, unknown> => ({
   'POST /api/runs': { processId: fx.process, dryRun: true },
+  'PUT /api/owning-teams/:kind/:id': { teamIds: [] },
   'POST /api/schedules': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
   'PUT /api/schedules/:id': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
   'POST /api/triggers': { ...TRIGGER, processId: fx.process },
@@ -1249,6 +1266,7 @@ beforeAll(async () => {
     syncUpdate,
   };
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
+  QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;
   // compliance: the demo access check with a finding, a control, an access change entry, an evidence pack
   const accessCheck = (await a('GET', '/compliance/access-checks'))[0];
   const sim = await a('POST', '/compliance/demo/simulate-change', { accessCheckId: accessCheck.id });
@@ -1462,8 +1480,9 @@ describe('route permission matrix', () => {
   it('keeps identity, vault and sign-in settings to signed-in sessions (no API tokens)', async () => {
     const b = bodies();
     const problems: string[] = [];
-    const { SESSION_ONLY_ROUTES } = await import('../src/app.js');
-    expect([...SESSION_ONLY_ROUTES].sort()).toEqual([...SESSION_ONLY].sort());
+    const { routeAccess } = await import('../src/app.js');
+    const declared = Object.entries(routeAccess(s.app)).filter(([, a]) => a.auth === 'session');
+    expect(declared.map(([k]) => k).sort(), 'routes declaring config.access.auth "session"').toEqual([...SESSION_ONLY].sort());
     for (const k of SESSION_ONLY) {
       expect(EXPECT[k], k).toBeDefined();
       const [method, url] = k.split(' ') as [string, string];
@@ -1472,4 +1491,61 @@ describe('route permission matrix', () => {
     }
     expect(problems).toEqual([]);
   });
+  it('declares on each route the access this table expects (#16)', async () => {
+    const { routeAccess } = await import('../src/app.js');
+    const declared = routeAccess(s.app);
+    const problems: string[] = [];
+    for (const r of routes) {
+      const k = key(r);
+      const want = EXPECT[k];
+      const a = declared[k];
+      if (!a || want === undefined) continue;
+      // the public API (/api/v1) authenticates itself; its open parts (health, OpenAPI) count as public above
+      if (a.auth !== 'api' && (want === PUBLIC) !== (a.auth === 'public')) problems.push(`${k}: declared ${a.auth}, expected ${String(want)}`);
+      if (want === HOOK && a.auth !== 'hook' && a.auth !== 'api') problems.push(`${k}: declared ${a.auth}, expected hook`);
+      if (!Array.isArray(want) || a.auth === 'api') continue;
+      // a status viewer reaches exactly the routes that say so
+      if (want.includes('status') !== a.statusViewer) problems.push(`${k}: statusViewer ${a.statusViewer}, expected ${want.includes('status')}`);
+      // declared roles may not shut out a role the table lets in
+      if (a.roles) for (const role of want) if (!a.roles.includes(role)) problems.push(`${k}: declares roles ${a.roles.join(',')} but ${role} is allowed`);
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it('refuses callers by the declared access before reading the body (#16)', async () => {
+    const { routeAccess } = await import('../src/app.js');
+    const declared = routeAccess(s.app);
+    // a body that cannot be parsed: answered 400 if it were read first
+    const send = async (headers: Record<string, string>, method: string, url: string) => {
+      const res = await fetch(s.base + fill(url), {
+        method,
+        headers: { 'x-sm-client': '1', 'content-type': 'application/json', ...headers },
+        body: '{"broken":',
+      });
+      await res.arrayBuffer();
+      return res.status;
+    };
+    const problems: string[] = [];
+    let checked = 0;
+    for (const r of routes) {
+      const a = declared[key(r)];
+      if (!a || r.method === 'GET' || r.method === 'DELETE' || a.auth === 'api' || a.auth === 'public' || a.auth === 'hook') continue;
+      const anonymous = await send({}, r.method, r.url);
+      // 429: the address has used up its refusals (rateLimits.ts) – refused before the body as well
+      if (anonymous !== 401 && anonymous !== 429) problems.push(`${key(r)} anonymous: ${anonymous}`);
+      if (a.roles && !a.roles.includes('designer')) {
+        const status = await send(authHeaders(cookies.designer), r.method, r.url);
+        if (status !== 403) problems.push(`${key(r)} as designer: ${status}`);
+        checked++;
+      }
+      if (a.auth === 'session') {
+        const status = await send({ authorization: `Bearer ${fullAdminToken}` }, r.method, r.url);
+        if (status !== 403) problems.push(`${key(r)} API token: ${status}`);
+      }
+      const asStatus = await send(authHeaders(cookies.status), r.method, r.url);
+      if (!a.statusViewer && asStatus !== 403) problems.push(`${key(r)} as status viewer: ${asStatus}`);
+    }
+    expect(checked, 'routes with declared roles were tried').toBeGreaterThan(20);
+    expect(problems).toEqual([]);
+  }, 120_000);
 });

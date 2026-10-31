@@ -200,7 +200,37 @@ export interface Team {
   name: string;
   description: string;
   members: string[];
+  /** Roles a member has in this team (#131), by username; members without an entry have only their instance roles */
+  memberRoles: Record<string, Role[]>;
   createdAt: string;
+}
+
+/** Roles a member can have in a team (#131): administrator is instance-wide, a status viewer sees only status pages. */
+export const TEAM_ROLES = ['designer', 'operator', 'approver', 'auditor', 'viewer'] as const satisfies readonly Role[];
+export type TeamRole = (typeof TEAM_ROLES)[number];
+
+/** Kinds of resources that can have owning teams (#131). */
+export const OWNED_KINDS = ['process', 'platform', 'service', 'application', 'system'] as const;
+export type OwnedKind = (typeof OWNED_KINDS)[number];
+
+/** Why someone has a right on a resource (#131): shown in the UI and used in access reviews. */
+export interface AccessReason {
+  /** admin | owner | auditor | instanceRole | teamRole | accessList */
+  source: 'admin' | 'owner' | 'auditor' | 'instanceRole' | 'teamRole' | 'accessList';
+  /** The role, the team, or the access list subject the right comes from */
+  role?: Role;
+  team?: string;
+  subject?: string;
+  permissions: string[];
+}
+
+export interface AccessExplanation {
+  kind: OwnedKind;
+  id: string;
+  user: string;
+  owningTeams: { id: string; name: string }[];
+  permissions: string[];
+  reasons: AccessReason[];
 }
 
 export interface Capabilities {

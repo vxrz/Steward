@@ -25,6 +25,7 @@ import { readSetting, writeSetting } from '../settings.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
 import { addLink, httpUrl, listLinks, removeLink, targetVisible } from '../records/links.js';
+import { me } from '../auth/access.js';
 
 /**
  * Ticket references: Steward documents that a ticket exists in another system
@@ -127,12 +128,6 @@ export function saveTicketSettings(input: z.infer<typeof ticketSettingsSchema>):
 const sourceOf = (key: string, settings = ticketSettings()): TicketSource => settings.sources.find((s) => s.key === key) ?? { key, label: key, vendor: false };
 
 // ---------- permissions ----------
-
-const me = (): AuthUser => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-};
 
 const isEditorRole = (u: AuthUser | null) => !!u && u.roles.some((r) => TICKET_EDITOR_ROLES.includes(r));
 export const isResponsible = (u: AuthUser | null, r: Pick<TicketRow, 'responsible'>): boolean =>

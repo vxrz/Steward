@@ -105,7 +105,7 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
 - Small, focused functions. Comments explain _why_, not _what_.
 - **Security first:**
   - Never log, return or put secrets in error messages; use the existing redaction helpers.
-  - Check permissions on the server for every route, through the helpers in `server/src/auth/permissions.ts`.
+  - Check permissions on the server for every route. Who may reach a route at all goes into its config – `{ config: { access: ACCESS.admin } }`, `ACCESS.public`, `ACCESS.session` (no API tokens), `statusViewer` – and is checked before the body is read; rights on a given object are checked in the service with `me()`, `forbid()` and the helpers of `server/src/auth/permissions.ts`. Both live in [`server/src/auth/access.ts`](server/src/auth/access.ts); the route permission test (`server/test/route-matrix.test.ts`) compares the declarations with its table.
   - Validate all input with zod.
   - Platform credentials only go to the platform's own origins.
 - **Database:**

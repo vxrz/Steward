@@ -19,7 +19,8 @@ import { db } from '../db.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
 import { emit } from '../events.js';
 import { currentUser } from '../auth/context.js';
-import { isAdmin, platformPermissions } from '../auth/permissions.js';
+import { isAdmin } from '../auth/permissions.js';
+import { platformDataVisible } from '../auth/policy.js';
 
 /**
  * Datasets are written by "Publish to dashboard" nodes: the latest snapshot of rows plus a compact metric history used
@@ -160,8 +161,8 @@ function partVisible(platformIds: string[], info: Map<string, PlatformInfo>): bo
   if (isAdmin(u) || u.roles.includes('auditor')) return true;
   return platformIds.every((id) => {
     const p = info.get(id);
-    if (!p || !p.acl.length) return true; // a deleted platform, or one without an access list
-    return platformPermissions(u, p).includes('use');
+    if (!p) return true; // a deleted platform
+    return platformDataVisible(u, { id, acl: p.acl });
   });
 }
 

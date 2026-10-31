@@ -20,7 +20,7 @@ import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { platformPermissions } from '../auth/permissions.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { canCreateServices, canEditService, forbid, me } from '../records/access.js';
+import { canCreateServices, canEditService, forbid, me, canViewCatalogue } from '../records/access.js';
 import { addLink, httpUrl, listBacklinks, listLinks, removeLink, updateLink, type LinkInput, type LinkUpdate } from '../records/links.js';
 import { requireEditable, touch } from '../records/service.js';
 import {
@@ -118,11 +118,16 @@ export const scopeInput = z.object({ applicationIds: z.array(z.string().trim().m
 function row(id: string): ApplicationRow {
   const r = db().get<ApplicationRow>('SELECT * FROM applications WHERE id = ?', id);
   if (!r) throw new HttpError(404, `Application ${id} not found`, 'APPLICATION_NOT_FOUND', { id });
+  // a team-owned item is unknown to those who may not see it (#131); jobs (no user) see everything
+  const u = currentUser();
+  if (u && !canViewCatalogue(u, { kind: 'application', id: r.id, owners: parseJson<string[]>(r.owners, []) }))
+    throw new HttpError(404, `Application ${id} not found`, 'APPLICATION_NOT_FOUND', { id });
   return r;
 }
 
 const ownersOf = (r: Pick<ApplicationRow, 'owners'>) => parseJson<string[]>(r.owners, []);
-export const canEditApplication = (u: AuthUser | null, r: Pick<ApplicationRow, 'owners'>): boolean => canEditService(u, ownersOf(r));
+export const canEditApplication = (u: AuthUser | null, r: Pick<ApplicationRow, 'id' | 'owners'>): boolean =>
+  canEditService(u, { kind: 'application', id: r.id, owners: ownersOf(r) });
 
 function requireEditableApplication(id: string, what: string): ApplicationRow {
   const r = row(id);
@@ -136,15 +141,15 @@ function cmdbOf(r: ApplicationRow): ApplicationSummary['cmdb'] {
 }
 
 type PlatformRow = { id: string; name: string; kind: string; environment: string; acl: string };
-const platformRights = (u: AuthUser | null, p: Pick<PlatformRow, 'acl'>) =>
-  platformPermissions(u, { acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) });
-const platformVisible = (u: AuthUser | null, p: Pick<PlatformRow, 'acl'>) => platformRights(u, p).length > 0;
+const platformRights = (u: AuthUser | null, p: Pick<PlatformRow, 'id' | 'acl'>) =>
+  platformPermissions(u, { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) });
+const platformVisible = (u: AuthUser | null, p: Pick<PlatformRow, 'id' | 'acl'>) => platformRights(u, p).length > 0;
 /**
  * Mapping a platform to an application (or removing it) decides which application – and whose CIA rating – the
  * platform's evidence names: it needs the manage right on the platform (administrators have it everywhere), on top of
  * the right to edit the application.
  */
-const platformManaged = (u: AuthUser | null, p: Pick<PlatformRow, 'acl'>) => platformRights(u, p).includes('manage');
+const platformManaged = (u: AuthUser | null, p: Pick<PlatformRow, 'id' | 'acl'>) => platformRights(u, p).includes('manage');
 
 /** The platforms mapped to these applications, by application; platforms the user may not see are named only as not visible. */
 export function integrationsOf(appIds: string[], u: AuthUser | null = currentUser()): Map<string, ApplicationIntegration[]> {
@@ -166,7 +171,7 @@ export function integrationsOf(appIds: string[], u: AuthUser | null = currentUse
   const wanted = new Set(appIds);
   for (const r of rows) {
     if (!wanted.has(r.application_id)) continue;
-    const visible = platformVisible(u, r);
+    const visible = platformVisible(u, { id: r.platform_id, acl: r.acl });
     const i: ApplicationIntegration = visible
       ? {
           visible,
@@ -177,7 +182,7 @@ export function integrationsOf(appIds: string[], u: AuthUser | null = currentUse
           path: `/platforms/${r.platform_id}`,
           mappedAt: r.created_at,
           mappedBy: r.created_by,
-          canManage: platformManaged(u, r),
+          canManage: platformManaged(u, { id: r.platform_id, acl: r.acl }),
         }
       : { visible, platformId: null, name: '', kind: null, environment: null, path: null, mappedAt: r.created_at, mappedBy: r.created_by, canManage: false };
     out.set(r.application_id, [...(out.get(r.application_id) ?? []), i]);
@@ -244,7 +249,9 @@ export type ApplicationEntry = ApplicationSummary & Pick<ApplicationDetail, 'des
 
 export function listApplicationEntries(o: { archived?: boolean } = {}): ApplicationEntry[] {
   const u = me();
-  const rows = db().all<ApplicationRow>(`SELECT * FROM applications${o.archived ? '' : ' WHERE archived = 0'} ORDER BY name`);
+  const rows = db()
+    .all<ApplicationRow>(`SELECT * FROM applications${o.archived ? '' : ' WHERE archived = 0'} ORDER BY name`)
+    .filter((r) => canViewCatalogue(u, { kind: 'application', id: r.id, owners: parseJson<string[]>(r.owners, []) }));
   const services = servicesOf();
   const ratings = ratingsOf();
   const counts = new Map(
@@ -642,7 +649,7 @@ type ServiceRowLite = { id: string; name: string; owners: string };
 function requireEditableService(serviceId: string, what: string): ServiceRowLite {
   const s = db().get<ServiceRowLite>('SELECT id, name, owners FROM services WHERE id = ?', serviceId);
   if (!s) throw new HttpError(404, `Service ${serviceId} not found`, 'SERVICE_NOT_FOUND', { id: serviceId });
-  if (!canEditService(currentUser(), parseJson<string[]>(s.owners, []))) forbid(what, 'changeService');
+  if (!canEditService(currentUser(), { kind: 'service', id: s.id, owners: parseJson<string[]>(s.owners, []) })) forbid(what, 'changeService');
   return s;
 }
 

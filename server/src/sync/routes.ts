@@ -7,6 +7,7 @@ import * as updates from './updates.js';
 import { fetchSource } from './fetch.js';
 import { handleSyncHook } from './hook.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { ACCESS } from '../auth/access.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -30,7 +31,7 @@ const acceptBody = decision.extend({
 
 /**
  * Git sync API. Sources: administrators (creating, changing and deleting them needs a signed-in
- * session, see SESSION_ONLY_ROUTES in app.ts). Updates inbox: designers and administrators, each
+ * session: config.access, see auth/access.ts). Updates inbox: designers and administrators, each
  * decision with the rights of a manual change. Origins: everyone, for the items they can see.
  */
 export async function syncRoutes(app: FastifyInstance): Promise<void> {
@@ -55,20 +56,20 @@ export async function syncRoutes(app: FastifyInstance): Promise<void> {
     sources.requireAdmin();
     return sources.getSource(params(req).id!);
   });
-  app.post('/sync-sources', async (req) => {
+  app.post('/sync-sources', { config: { access: ACCESS.session } }, async (req) => {
     sources.requireAdmin();
     return sources.createSource(sources.sourceSchema.parse(req.body));
   });
-  app.put('/sync-sources/:id', async (req) => {
+  app.put('/sync-sources/:id', { config: { access: ACCESS.session } }, async (req) => {
     sources.requireAdmin();
     sources.requireSource(params(req).id!);
     return sources.updateSource(params(req).id!, sources.sourceSchema.parse(req.body));
   });
-  app.delete('/sync-sources/:id', async (req) => {
+  app.delete('/sync-sources/:id', { config: { access: ACCESS.session } }, async (req) => {
     sources.deleteSource(params(req).id!);
     return { ok: true };
   });
-  app.post('/sync-sources/:id/rotate-webhook-secret', async (req) => sources.rotateWebhookSecret(params(req).id!));
+  app.post('/sync-sources/:id/rotate-webhook-secret', { config: { access: ACCESS.session } }, async (req) => sources.rotateWebhookSecret(params(req).id!));
   app.post('/sync-sources/:id/fetch', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     sources.requireAdmin();
     sources.requireSource(params(req).id!);

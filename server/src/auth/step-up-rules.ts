@@ -99,7 +99,11 @@ export function changesTeamMembers(req: FastifyRequest): boolean {
   if (!team) return false; // the route answers 404
   if (typeof b.name === 'string' && b.name.trim().toLowerCase() !== team.name.toLowerCase()) return true;
   const before = team.members.map((m) => m.toLowerCase());
-  return !!list(b.members)?.some((m) => !before.includes(m));
+  if (list(b.members)?.some((m) => !before.includes(m))) return true;
+  // a role in the team that a member did not have before grants rights on the team's resources (#131)
+  const had = new Map(Object.entries(team.memberRoles).map(([k, v]) => [k.toLowerCase(), v]));
+  const given = b.memberRoles && typeof b.memberRoles === 'object' ? Object.entries(b.memberRoles as Record<string, unknown>) : [];
+  return given.some(([name, roles]) => Array.isArray(roles) && roles.some((r) => !(had.get(name.toLowerCase()) ?? []).includes(r)));
 }
 
 type Entry = { subject?: unknown; permissions?: unknown };

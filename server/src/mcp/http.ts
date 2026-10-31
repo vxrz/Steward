@@ -39,6 +39,7 @@ import { handleMessage } from './server.js';
 import type { McpPrincipal } from './tools.js';
 import { decide, getRequest, listRequests } from './requests.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { ACCESS } from '../auth/access.js';
 
 export const mcpLimiter = new TokenBucketLimiter();
 const REALM = 'Steward MCP';
@@ -334,7 +335,7 @@ export async function mcpRoutes(app: FastifyInstance): Promise<void> {
     return listRequests(scope);
   });
   app.get('/mcp-requests/:requestId', async (req) => getRequest((req.params as { requestId: string }).requestId));
-  app.post('/mcp-requests/:requestId/decision', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) =>
+  app.post('/mcp-requests/:requestId/decision', { config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.heavy } }, async (req) =>
     decide(
       (req.params as { requestId: string }).requestId,
       z

@@ -105,7 +105,7 @@ function serviceRef(serviceId: string): ServiceRef {
 
 const serviceOwners = (s: ServiceRef) => parseJson<string[]>(s.owners, []);
 const dutyOwners = (d: DutyRow) => parseJson<string[]>(d.owners, []);
-export const canEditDuty = (u: AuthUser | null, s: ServiceRef): boolean => canEditService(u, serviceOwners(s));
+export const canEditDuty = (u: AuthUser | null, s: ServiceRef): boolean => canEditService(u, { kind: 'service', id: s.id, owners: serviceOwners(s) });
 const isDutyOwner = (u: AuthUser | null, d: DutyRow) => !!u && dutyOwners(d).some((x) => matches(u, x));
 const canRequestSkip = (u: AuthUser | null, d: DutyRow, s: ServiceRef) => canEditDuty(u, s) || isDutyOwner(u, d);
 /** Who is responsible when a skip is asked for: the duty's owners and the service's owners, frozen with the request. */
@@ -160,7 +160,7 @@ function viewCtx(now = Date.now()): ViewCtx {
     processVisible: (pid) => {
       if (!seen.has(pid)) {
         const p = procs.get(pid);
-        seen.set(pid, !!p && processPermissions(u, { owner: p.owner, acl: parseJson(p.acl, []) }).includes('view'));
+        seen.set(pid, !!p && processPermissions(u, { id: pid, owner: p.owner, acl: parseJson(p.acl, []) }).includes('view'));
       }
       return seen.get(pid)!;
     },
@@ -367,7 +367,7 @@ function checkReferences(serviceId: string, input: DutyUpdateData): void {
     throw new HttpError(400, 'The application is not part of the service', 'DUTY_APPLICATION_NOT_IN_SERVICE', { id: input.applicationId });
   const p = db().get<{ owner: string | null; acl: string }>('SELECT owner, acl FROM processes WHERE id = ?', input.processId);
   // a process the user may not see is "unknown" to them (no probing)
-  if (!p || !processPermissions(currentUser(), { owner: p.owner, acl: parseJson(p.acl, []) }).includes('view'))
+  if (!p || !processPermissions(currentUser(), { id: input.processId, owner: p.owner, acl: parseJson(p.acl, []) }).includes('view'))
     throw new HttpError(400, `Process ${input.processId} not found`, 'DUTY_PROCESS_UNKNOWN', { id: input.processId });
   if (input.scheduleId) {
     const sch = db().get<{ process_id: string }>('SELECT process_id FROM schedules WHERE id = ?', input.scheduleId);

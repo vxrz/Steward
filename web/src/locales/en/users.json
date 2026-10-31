@@ -60,7 +60,10 @@
     "notSaved": "Team not saved",
     "edit": "Edit team {{name}}",
     "description": "Description",
-    "members": "Members"
+    "members": "Members",
+    "roles": "Roles in this team",
+    "rolesHint": "In addition to their own roles, on what the team owns.",
+    "rolesOf": "{{name}}: roles in the team"
   },
   "sso": {
     "removeConfirm": "Remove single sign-on \"{{name}}\"? Users of this provider can no longer sign in (their accounts and history stay).",

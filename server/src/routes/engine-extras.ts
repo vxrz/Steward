@@ -13,6 +13,7 @@ import { contractCheck } from '../engine/contract.js';
 import { initMetrics, metricsText } from '../metrics.js';
 import { readinessChecks } from '../system/readiness.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { ACCESS } from '../auth/access.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -47,7 +48,7 @@ export async function engineExtrasRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- readiness (public) ----------
-  app.get('/ready', async (_req, reply) => {
+  app.get('/ready', { config: { access: ACCESS.public } }, async (_req, reply) => {
     const { ready, checks } = readinessChecks();
     return reply.code(ready ? 200 : 503).send({ ready, checks });
   });

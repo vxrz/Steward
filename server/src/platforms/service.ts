@@ -40,7 +40,7 @@ function toPlatform(r: PlatformRow): Platform {
   const acl = parseJson<AclEntry<PlatformPermission>[]>(r.acl, []);
   return {
     acl,
-    permissions: platformPermissions(currentUser(), { acl }),
+    permissions: platformPermissions(currentUser(), { id: r.id, acl }),
     id: r.id,
     name: r.name,
     kind: r.kind,

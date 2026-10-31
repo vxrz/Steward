@@ -99,9 +99,9 @@ function uniqueUsers(list: (UserInfo | undefined)[]): UserInfo[] {
   return [...seen.values()];
 }
 
-function processAccess(processId: string): { owner: string | null; acl: AclEntry<ProcessPermission>[] } {
+function processAccess(processId: string): { id: string; owner: string | null; acl: AclEntry<ProcessPermission>[] } {
   const r = db().get<{ owner: string | null; acl: string }>('SELECT owner, acl FROM processes WHERE id = ?', processId);
-  return { owner: r?.owner ?? null, acl: parseJson(r?.acl, []) };
+  return { id: processId, owner: r?.owner ?? null, acl: parseJson(r?.acl, []) };
 }
 
 /** Users who may decide a new task (same rules as decisionCheck, but without the admin override for assigned tasks). */

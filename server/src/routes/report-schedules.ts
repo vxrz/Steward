@@ -1,11 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { currentUser } from '../auth/context.js';
 import { HttpError } from '../util.js';
 import * as schedules from '../reports/schedules.js';
 import { listScheduledReports } from '../reports/service.js';
 import { reportSectionIds } from '../reports/sections.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { me } from '../auth/access.js';
 
 /**
  * Scheduled summary reports (mounted under /api):
@@ -20,11 +20,6 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
  */
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
-const me = () => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-};
 
 export async function reportScheduleRoutes(app: FastifyInstance): Promise<void> {
   app.get('/report-schedules', async () => {

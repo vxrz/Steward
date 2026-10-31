@@ -10,6 +10,7 @@ import {
 import { HttpError, type ErrorParams } from '../util.js';
 import type { AuthUser } from './context.js';
 import { aliasSubjects, sameIdentity } from './aliases.js';
+import { platformAccess, processAccess } from './policy.js';
 
 /**
  * Access model
@@ -55,32 +56,14 @@ export function matches(u: AuthUser, subject: string): boolean {
 
 export const isAdmin = (u: AuthUser | null): boolean => !!u?.roles.includes('admin');
 
-export function processPermissions(u: AuthUser | null, p: { owner?: string | null; acl: AclEntry<ProcessPermission>[] }): ProcessPermission[] {
-  if (!u) return [];
-  if (isAdmin(u)) return [...PROCESS_PERMISSIONS];
-  if (p.owner && p.owner.toLowerCase() === u.username.toLowerCase()) return [...PROCESS_PERMISSIONS];
-  const out = new Set<ProcessPermission>();
-  if (u.roles.includes('auditor')) out.add('view');
-  if (!p.acl.length) {
-    for (const r of u.roles) DEFAULT_PROCESS[r]?.forEach((x) => out.add(x));
-  } else {
-    for (const e of p.acl) if (matches(u, e.subject)) e.permissions.forEach((x) => out.add(x));
-  }
-  if (out.size) out.add('view');
-  return PROCESS_PERMISSIONS.filter((x) => out.has(x));
+/** The rights on a process (auth/policy.ts decides, with owning teams, #131). */
+export function processPermissions(u: AuthUser | null, p: { id: string; owner?: string | null; acl: AclEntry<ProcessPermission>[] }): ProcessPermission[] {
+  return processAccess(u, p).permissions;
 }
 
-export function platformPermissions(u: AuthUser | null, p: { acl: AclEntry<PlatformPermission>[] }): PlatformPermission[] {
-  if (!u) return [];
-  if (isAdmin(u)) return [...PLATFORM_PERMISSIONS];
-  const out = new Set<PlatformPermission>();
-  if (!p.acl.length) {
-    for (const r of u.roles) DEFAULT_PLATFORM[r]?.forEach((x) => out.add(x));
-  } else {
-    for (const e of p.acl) if (matches(u, e.subject)) e.permissions.forEach((x) => out.add(x));
-  }
-  if (out.has('manage')) out.add('use');
-  return PLATFORM_PERMISSIONS.filter((x) => out.has(x));
+/** The rights on a platform (auth/policy.ts decides, with owning teams, #131). */
+export function platformPermissions(u: AuthUser | null, p: { id: string; acl: AclEntry<PlatformPermission>[] }): PlatformPermission[] {
+  return platformAccess(u, p).permissions;
 }
 
 export function capabilities(u: AuthUser | null): Capabilities {

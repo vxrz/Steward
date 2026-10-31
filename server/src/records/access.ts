@@ -1,10 +1,13 @@
 import { ACCESS_TYPE_ID, type RecordFieldDef, type Role } from '@sm/shared';
 import type { AuthUser } from '../auth/context.js';
 import { currentUser } from '../auth/context.js';
-import { isAdmin, matches } from '../auth/permissions.js';
+import { isAdmin } from '../auth/permissions.js';
 import { sameIdentity } from '../auth/aliases.js';
 import { canReadAccessEntry } from '../compliance/access.js';
-import { HttpError, parseJson, type ErrorParam } from '../util.js';
+import { parseJson, type ErrorParam } from '../util.js';
+import { forbid, me } from '../auth/access.js';
+import { catalogueAccess, type CatalogueKind } from '../auth/policy.js';
+export { forbid, me };
 
 /**
  * Who may do what with records and services. Everyone who can sign in reads
@@ -85,17 +88,8 @@ export const fieldParam = (typeKey: string | undefined, f: Pick<RecordFieldDef, 
 });
 
 /** Service editors by role, plus the Steward users and teams named as its owners. */
-export const canEditService = (u: AuthUser | null, owners: string[] = []): boolean =>
-  has(u, SERVICE_EDITOR_ROLES) || (!!u && owners.some((s) => matches(u, s)));
+/** Changing a service, application or system (auth/policy.ts decides, with owning teams, #131). */
+export const canEditService = (u: AuthUser | null, r: { kind: CatalogueKind; id: string; owners: string[] }): boolean => catalogueAccess(u, r).edit;
+/** Seeing a service, application or system (#131): without owning teams everybody signed in. */
+export const canViewCatalogue = (u: AuthUser | null, r: { kind: CatalogueKind; id: string; owners: string[] }): boolean => catalogueAccess(u, r).view;
 export const canCreateServices = (u: AuthUser | null = currentUser()): boolean => has(u, SERVICE_EDITOR_ROLES);
-
-export function me(): AuthUser {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-}
-
-/** 403 FORBIDDEN; `context` picks a specific translated text (errors:codes.FORBIDDEN_<context>). */
-export function forbid(what: string, context?: string): never {
-  throw new HttpError(403, `You are not allowed to ${what}`, 'FORBIDDEN', context ? { context } : undefined);
-}

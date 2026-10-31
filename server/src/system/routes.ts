@@ -18,6 +18,7 @@ import { buildInfo, deploymentKind } from '../buildinfo.js';
 import { readinessChecks } from './readiness.js';
 import { dismissUpdateNotice, updateNoticeFor } from './update-notice.js';
 import { z } from 'zod';
+import { ACCESS } from '../auth/access.js';
 
 /**
  *   GET /api/about          signed-in users: version and build of the server
@@ -162,14 +163,14 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
     return u;
   };
 
-  app.get('/api/system/update-notice', async (_req, reply): Promise<{ notice: UpdateNotice | null }> => {
+  app.get('/api/system/update-notice', { config: { access: ACCESS.admin } }, async (_req, reply): Promise<{ notice: UpdateNotice | null }> => {
     const u = requireAdmin();
     reply.header('cache-control', 'no-store');
     return { notice: updateNoticeFor(u.id) };
   });
 
   const dismissBody = z.object({ id: z.string().min(1).max(64) }).strict();
-  app.post('/api/system/update-notice/dismiss', async (req) => {
+  app.post('/api/system/update-notice/dismiss', { config: { access: ACCESS.admin } }, async (req) => {
     const u = requireAdmin();
     const { id } = dismissBody.parse(req.body);
     if (!dismissUpdateNotice(u, id)) throw new HttpError(404, 'This update notice no longer exists', 'UPDATE_NOTICE_NOT_FOUND');

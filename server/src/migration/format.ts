@@ -59,6 +59,10 @@ export interface PackageTeam {
   name: string;
   description: string;
   members: string[];
+  /** Roles of members in the team, by username (#131; missing in older packages) */
+  memberRoles?: Record<string, string[]>;
+  /** Resources the team owns (#131; missing in older packages) */
+  owns?: { kind: string; id: string }[];
 }
 
 export interface Manifest {

@@ -11,7 +11,8 @@ import { vault } from './vault.js';
 import { HttpError } from './util.js';
 import { registerRoutes } from './routes/index.js';
 import { mockPlatform } from './mock/mockPlatform.js';
-import { currentUser, requestContext } from './auth/context.js';
+import { currentUser, requestContext, type AuthUser } from './auth/context.js';
+import { ACCESS, hasRole, isStatusViewer, type ResolvedAccess, type RouteAccess } from './auth/access.js';
 import { sessionUser, toAuthUser } from './auth/users.js';
 import { LINK_PARAM, readCookie, SESSION_COOKIE, SESSION_HEADER } from './auth/cookies.js';
 import { connectVaultToDatabase } from './vault-rotation.js';
@@ -30,79 +31,10 @@ import { checkBodyShape } from './bodyShape.js';
 import { bodyTooLarge, DEFAULT_BODY_LIMIT } from './bodyLimits.js';
 import { BARE_BASE, injectBaseHref, OUTSIDE_BASE, stripBasePath, withBasePath } from './basePath.js';
 
-/** Reachable without signing in. */
-const PUBLIC_PATHS = [
-  '/api/health',
-  '/api/public/status-page',
-  '/api/instance',
-  '/api/auth/status',
-  '/api/auth/login',
-  '/api/auth/setup',
-  '/api/auth/emergency',
-  '/api/auth/emergency/grant',
-  '/api/vault/status',
-  '/api/ready',
-  '/api/client-config',
-  '/api/theme',
-  '/api/theme/logo',
-];
-/**
- * Identities, sign-in settings and the master passphrase are managed by signed-in people only: an API token
- * (whatever its scope) is refused here. Otherwise a leaked automation token could mint lasting access that
- * outlives revoking it – a new administrator, a reset password, another API token, a changed sign-in setup.
- */
-export const SESSION_ONLY_ROUTES: ReadonlySet<string> = new Set([
-  'POST /api/me/tokens',
-  'POST /api/users',
-  'PUT /api/users/:id',
-  'POST /api/users/:id/reset-password',
-  'POST /api/teams',
-  'PUT /api/teams/:id',
-  'DELETE /api/teams/:id',
-  'POST /api/sso/providers',
-  'PUT /api/sso/providers/:id',
-  'DELETE /api/sso/providers/:id',
-  // a test sign-in shows a person's claims to the administrator who started it
-  'POST /api/sso/providers/:id/test-sign-in',
-  'POST /api/sso/test-sign-ins/:id',
-  // step-up re-authentication (auth/step-up.ts): a token cannot confirm anything
-  'GET /api/auth/step-up',
-  'POST /api/auth/step-up',
-  'DELETE /api/auth/step-up',
-  'POST /api/auth/step-up/sso',
-  'POST /api/auth/step-up/sso/complete',
-  'PUT /api/settings',
-  // an approval of an AI assistant's request is a person's decision in the web app (#11)
-  'POST /api/mcp-requests/:requestId/decision',
-  'POST /api/vault/passphrase',
-  'POST /api/vault/lock',
-  // Git sync sources carry an access token and decide what may enter the installation
-  'POST /api/sync-sources',
-  'PUT /api/sync-sources/:id',
-  'DELETE /api/sync-sources/:id',
-  'POST /api/sync-sources/:id/rotate-webhook-secret',
-  // moving an instance: every credential leaves (export) or a whole instance comes in (import)
-  'POST /api/migration/export',
-  'GET /api/migration/exports/:id/download',
-  'POST /api/migration/imports/upload',
-  'GET /api/migration/imports/staged/:id',
-  'DELETE /api/migration/imports/staged/:id',
-  'POST /api/migration/imports/staged/:id/apply',
-  'GET /api/migration/imports',
-  'GET /api/migration/imports/:id',
-  'GET /api/migration/imports/:id/history',
-]);
 /** Inbound webhooks: machine-to-machine, authenticated by the trigger's secret (no session, no CSRF header). */
 const HOOKS_PREFIX = '/api/hooks/';
 /** Reachable while the vault is locked (for signed-in users). */
 const LOCKED_OK = ['/api/auth/', '/api/vault/'];
-
-/**
- * A status viewer (#26: role "status" and no other role) reaches the status pages and their own sign-in – nothing else.
- * Checked here once, for every route, so a route that forgets a role check cannot leak to them.
- */
-export const STATUS_VIEWER_ROUTES: ReadonlySet<string> = new Set(['GET /api/status-pages', 'GET /api/status-pages/:pageId/view']);
-const statusOnly = (roles: readonly string[]) => roles.length > 0 && roles.every((r) => r === 'status');
 
 /**
  * Content Security Policy for the SPA (Mantine injects inline styles, hence 'unsafe-inline' for styles only).
@@ -236,8 +168,27 @@ const ANONYMOUS_BODY_LIMIT = 64 * 1024;
  * sets one): the route permission matrix test checks them all.
  */
 type RegisteredRoute = { method: string; url: string; bodyLimit?: number };
-const ROUTE_TABLES = new WeakMap<FastifyInstance, (RegisteredRoute & { stepUp?: 'always' | 'rule' })[]>();
-export const registeredRoutes = (app: FastifyInstance): RegisteredRoute[] => (ROUTE_TABLES.get(app) ?? []).map(({ stepUp: _s, ...r }) => r);
+type TableRow = RegisteredRoute & { stepUp?: 'always' | 'rule'; route: { url: string; config?: unknown } };
+const ROUTE_TABLES = new WeakMap<FastifyInstance, TableRow[]>();
+export const registeredRoutes = (app: FastifyInstance): RegisteredRoute[] =>
+  (ROUTE_TABLES.get(app) ?? []).map(({ method, url, bodyLimit }) => ({ method, url, ...(bodyLimit !== undefined ? { bodyLimit } : {}) }));
+
+/**
+ * The access a route declares (`config.access`, auth/access.ts) with the defaults filled in: routes outside /api and
+ * the public API and MCP endpoint (own authentication) say "public" / "api"; the single sign-on callbacks are public,
+ * the inbound webhooks "hook", and a status viewer may use their own sign-in (/api/auth/…).
+ */
+export function resolveAccess(url: string, routeConfig: unknown): ResolvedAccess {
+  const c = (routeConfig ?? {}) as { access?: RouteAccess; smPublicApi?: boolean };
+  if (!url.startsWith('/api/')) return { auth: 'public', statusViewer: true };
+  if (c.smPublicApi || isPublicApiPath(url) || isMcpEndpoint(url)) return { auth: 'api', statusViewer: false };
+  const a = c.access ?? {};
+  const auth = a.auth ?? (url.startsWith('/api/auth/oidc/') ? 'public' : url.startsWith(HOOKS_PREFIX) ? 'hook' : 'user');
+  return { ...a, auth, statusViewer: a.statusViewer ?? (auth === 'public' || url.startsWith('/api/auth/')) };
+}
+/** Every route with its resolved access, keyed "METHOD /url" (the route permission matrix checks them). */
+export const routeAccess = (app: FastifyInstance): Record<string, ResolvedAccess> =>
+  Object.fromEntries((ROUTE_TABLES.get(app) ?? []).map((r) => [`${r.method} ${r.url}`, resolveAccess(r.url, r.route.config)]));
 /** Routes with a step-up rule (auth/step-up.ts): "always", or "rule" when only some requests are sensitive. */
 export const stepUpRoutes = (app: FastifyInstance): Record<string, 'always' | 'rule'> =>
   Object.fromEntries((ROUTE_TABLES.get(app) ?? []).filter((r) => r.stepUp).map((r) => [`${r.method} ${r.url}`, r.stepUp!]));
@@ -267,13 +218,14 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
         }
       : {}),
   }) as unknown as FastifyInstance;
-  const routeTable: (RegisteredRoute & { stepUp?: 'always' | 'rule' })[] = [];
+  const routeTable: TableRow[] = [];
   ROUTE_TABLES.set(app, routeTable);
   app.addHook('onRoute', (r) => {
     const rule = (r.config as { stepUp?: StepUpRule } | undefined)?.stepUp;
     const stepUp = !rule ? undefined : rule.when ? ('rule' as const) : ('always' as const);
+    // the route object itself: plugins (public API, MCP) add to its config after this hook
     for (const method of [r.method].flat())
-      if (method !== 'HEAD') routeTable.push({ method, url: r.url, bodyLimit: r.bodyLimit, ...(stepUp ? { stepUp } : {}) });
+      if (method !== 'HEAD') routeTable.push({ method, url: r.url, bodyLimit: r.bodyLimit, route: r, ...(stepUp ? { stepUp } : {}) });
   });
   await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
   // Rate limits for every route registered below (per user, else per client address; see rateLimits.ts)
@@ -341,14 +293,15 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     }
   });
 
-  // Authentication: resolve the session and run the rest of the request "as" that user.
-  // (Synchronous hook + AsyncLocalStorage.run keeps the user available to all services.)
-  app.addHook('preHandler', (req, reply, done) => {
+  // Authentication and route access (auth/access.ts), decided from the matched route before the body is read: a
+  // request that may not reach the route is refused without parsing what it sends.
+  app.addHook('onRequest', (req, reply, done) => {
     // The matched route, not the raw URL: encoded or unusual spellings of a path can't skip authentication.
     const url = req.routeOptions.url ?? req.url.split('?')[0]!;
     if (!url.startsWith('/api/')) return done();
-    // Public API and its documentation: own authentication (API tokens), see api/.
-    if (req.routeOptions.config?.smPublicApi || isPublicApiPath(url)) return done();
+    const access = resolveAccess(url, req.routeOptions.config);
+    // Public API and MCP endpoint: own authentication (API tokens), see api/ and mcp/.
+    if (access.auth === 'api') return done();
     // The cookie alone is not enough: the session key header (or, for GET links, the link key) must match (see users.ts).
     const sessionKey = req.headers[SESSION_HEADER];
     const linkKey = (req.query as Record<string, unknown> | undefined)?.[LINK_PARAM];
@@ -357,11 +310,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       link: typeof linkKey === 'string' ? linkKey : undefined,
       read: isRead(req.method),
     });
-    const isPublic =
-      PUBLIC_PATHS.includes(url) ||
-      url.startsWith('/api/auth/oidc/') ||
-      url.startsWith(HOOKS_PREFIX) ||
-      (url === '/api/metrics' && process.env.SM_METRICS_PUBLIC === '1');
+    const isPublic = access.auth === 'public' || access.auth === 'hook' || (url === '/api/metrics' && process.env.SM_METRICS_PUBLIC === '1');
     // API tokens act as their owner when there is no signed-in session.
     const bearer = info ? undefined : bearerToken(req.headers.authorization);
     if (bearer) {
@@ -372,7 +321,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       if (t && t.scope === 'read' && !isRead(req.method)) return void reply.code(403).send({ error: 'This API token is read-only' });
       // MCP tokens work on the MCP endpoint only (its own scope, see mcp/http.ts)
       if (t && t.scope === 'mcp' && !isPublic) return void reply.code(403).send({ error: 'This API token is for MCP clients only (/api/mcp)' });
-      if (t && SESSION_ONLY_ROUTES.has(`${req.method} ${url}`)) {
+      if (t && access.auth === 'session') {
         return void reply.code(403).send({ error: 'API tokens cannot do this – sign in to the web UI', code: 'SESSION_REQUIRED' });
       }
       if (t && t.scope !== 'mcp') {
@@ -391,11 +340,22 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       if (!vault().unlocked && !LOCKED_OK.some((p) => url.startsWith(p))) {
         return void reply.code(423).send({ error: 'The vault is locked – an administrator has to unlock it', code: 'VAULT_LOCKED' });
       }
-      if (statusOnly(user.roles) && !url.startsWith('/api/auth/') && !STATUS_VIEWER_ROUTES.has(`${req.method} ${url}`)) {
+      // A status viewer (#26) reaches the routes that allow them – nothing else, whatever a route checks itself.
+      if (isStatusViewer(user.roles) && !access.statusViewer) {
         return void reply.code(403).send({ error: 'Status viewers only see the status pages', code: 'STATUS_VIEWER_ONLY' });
+      }
+      if (access.roles && !hasRole(user, access.roles)) {
+        return void reply.code(403).send({ error: 'You are not allowed to do this', code: 'FORBIDDEN' });
       }
     }
     (req as unknown as { smUser?: string }).smUser = user?.username;
+    (req as unknown as { smAuthUser?: AuthUser | null }).smAuthUser = user;
+    done();
+  });
+  // Run the rest of the request "as" the user found above (a synchronous hook + AsyncLocalStorage.run keeps them
+  // available to all services; set here, after the body was read, so the context reaches the handler).
+  app.addHook('preHandler', (req, _reply, done) => {
+    const user = (req as unknown as { smAuthUser?: AuthUser | null }).smAuthUser ?? null;
     requestContext.run({ user, ip: req.ip }, done);
   });
 
@@ -457,7 +417,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   });
 
   // Runtime settings for the web UI (one build works with and without error reporting).
-  app.get('/api/client-config', async (_req, reply) => {
+  app.get('/api/client-config', { config: { access: ACCESS.public } }, async (_req, reply) => {
     reply.header('cache-control', 'no-store');
     return clientConfig();
   });

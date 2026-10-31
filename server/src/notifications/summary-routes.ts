@@ -6,6 +6,7 @@ import { isAdmin } from '../auth/permissions.js';
 import { HttpError } from '../util.js';
 import * as summary from './summary.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { me } from '../auth/access.js';
 
 /**
  * Daily summary (mounted under /api).
@@ -15,16 +16,13 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
  *   GET /settings/daily-summary    administrators: the switch and who subscribed (no content)
  *   PUT /settings/daily-summary    administrators: allow or stop daily summaries for everyone
  */
-const me = () => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return getUser(u.id);
-};
+/** The signed-in user's full record (with their daily summary settings). */
+const meFull = () => getUser(me().id);
 
 export async function dailySummaryRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/me/daily-summary', async () => summary.summaryState(me()));
-  app.put('/me/daily-summary', async (req) => summary.savePrefs(me(), summary.prefsSchema.parse(req.body ?? {})));
-  app.get('/me/daily-summary/preview', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async () => summary.previewSummary(me()));
+  app.get('/me/daily-summary', async () => summary.summaryState(meFull()));
+  app.put('/me/daily-summary', async (req) => summary.savePrefs(meFull(), summary.prefsSchema.parse(req.body ?? {})));
+  app.get('/me/daily-summary/preview', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async () => summary.previewSummary(meFull()));
 
   app.get('/settings/daily-summary', async () => {
     if (!isAdmin(currentUser())) throw new HttpError(403, 'Only administrators can see the daily summary subscriptions', 'DAILY_SUMMARY_ADMIN_ONLY');

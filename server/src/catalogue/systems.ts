@@ -18,7 +18,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { platformPermissions } from '../auth/permissions.js';
-import { canCreateServices, canEditService, forbid, me } from '../records/access.js';
+import { canCreateServices, canEditService, forbid, me, canViewCatalogue } from '../records/access.js';
 import { httpUrl } from '../records/links.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import {
@@ -118,17 +118,22 @@ export const systemLinkUpdate = systemLinkInput.omit({ systemId: true });
 // ---------- reading ----------
 
 const ownersOf = (r: Pick<SystemRow, 'owners'>) => parseJson<string[]>(r.owners, []);
-export const canEditSystem = (u: AuthUser | null, r: Pick<SystemRow, 'owners'>): boolean => canEditService(u, ownersOf(r));
+export const canEditSystem = (u: AuthUser | null, r: Pick<SystemRow, 'id' | 'owners'>): boolean =>
+  canEditService(u, { kind: 'system', id: r.id, owners: ownersOf(r) });
 
 function row(id: string): SystemRow {
   const r = db().get<SystemRow>('SELECT * FROM systems WHERE id = ?', id);
   if (!r) throw new HttpError(404, `System ${id} not found`, 'SYSTEM_NOT_FOUND', { id });
+  // a team-owned item is unknown to those who may not see it (#131); jobs (no user) see everything
+  const u = currentUser();
+  if (u && !canViewCatalogue(u, { kind: 'system', id: r.id, owners: parseJson<string[]>(r.owners, []) }))
+    throw new HttpError(404, `System ${id} not found`, 'SYSTEM_NOT_FOUND', { id });
   return r;
 }
 
 type PlatformRow = { id: string; name: string; environment: string; acl: string };
-const platformVisible = (u: AuthUser | null, p: Pick<PlatformRow, 'acl'>) =>
-  platformPermissions(u, { acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).length > 0;
+const platformVisible = (u: AuthUser | null, p: Pick<PlatformRow, 'id' | 'acl'>) =>
+  platformPermissions(u, { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).length > 0;
 
 function platformsById(): Map<string, PlatformRow> {
   return new Map(
@@ -230,6 +235,7 @@ export function listSystemEntries(): SystemEntry[] {
   const ctx = { platforms: platformsById(), apps: appsById(), u };
   return db()
     .all<SystemRow>('SELECT * FROM systems ORDER BY name')
+    .filter((r) => canViewCatalogue(u, { kind: 'system', id: r.id, owners: parseJson<string[]>(r.owners, []) }))
     .map((r) => toEntryOf(r, stacks.get(r.id) ?? [], links.get(r.id) ?? [], ctx));
 }
 
@@ -526,7 +532,7 @@ export async function importSystemSbom(id: string, input: SbomInput): Promise<{ 
 // ---------- runs on (application ↔ system) ----------
 
 type AppRow = { id: string; name: string; owners: string; archived: number };
-type CanEditApp = (u: AuthUser | null, r: Pick<AppRow, 'owners'>) => boolean;
+type CanEditApp = (u: AuthUser | null, r: Pick<AppRow, 'id' | 'owners'>) => boolean;
 
 function editableApp(appId: string, canEdit: CanEditApp): AppRow {
   const a = db().get<AppRow>('SELECT id, name, owners, archived FROM applications WHERE id = ?', appId);

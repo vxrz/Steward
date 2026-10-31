@@ -17,7 +17,6 @@ import {
   type NotificationSettingsInput,
 } from '@sm/shared';
 import { HttpError, sha256 } from '../util.js';
-import { currentUser, type AuthUser } from '../auth/context.js';
 import { requireCapability } from '../auth/permissions.js';
 import { getUser, updateProfile } from '../auth/users.js';
 import { createToken, listTokens, revokeToken } from '../auth/tokens.js';
@@ -30,17 +29,9 @@ import { audit } from '../audit.js';
 import { maintenanceStatus, runCleanup } from '../maintenance.js';
 import { publicApiStatus } from '../api/v1/config.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { ACCESS, me, withCapability } from '../auth/access.js';
 
-const me = (): AuthUser => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-};
-const admin = (what: string): AuthUser => {
-  const u = me();
-  requireCapability(u, 'manageSettings', what);
-  return u;
-};
+const admin = (what: string) => withCapability('manageSettings', what);
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const viaToken = (req: FastifyRequest) => !!(req as unknown as { smToken?: string }).smToken;
 
@@ -126,7 +117,7 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
   // ---------- API tokens ----------
   app.get('/me/tokens', async () => listTokens(me().id));
   // a token outlives the session: creating one needs a recent confirmation (auth/step-up.ts)
-  app.post('/me/tokens', { config: { stepUp: { action: 'createToken' } } }, async (req) => {
+  app.post('/me/tokens', { config: { access: ACCESS.session, stepUp: { action: 'createToken' } } }, async (req) => {
     if (viaToken(req)) throw new HttpError(403, 'API tokens cannot create other tokens – sign in to the web UI');
     // emergency access is for repairing sign-in, not for lasting access that outlives its session
     if (me().emergency) throw new HttpError(403, 'API tokens cannot be created in an emergency access session', 'EMERGENCY_NO_TOKENS');
@@ -140,11 +131,11 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     revokeToken(params(req).id!, me().id);
     return { ok: true };
   });
-  app.get('/tokens', async () => {
+  app.get('/tokens', { config: { access: ACCESS.admin } }, async () => {
     requireCapability(me(), 'manageUsers', 'manage API tokens of other users');
     return listTokens();
   });
-  app.delete('/tokens/:id', async (req) => {
+  app.delete('/tokens/:id', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage API tokens of other users');
     revokeToken(params(req).id!);
     return { ok: true };
@@ -157,30 +148,30 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- notification settings ----------
-  app.get('/settings/notifications', async () => {
+  app.get('/settings/notifications', { config: { access: ACCESS.admin } }, async () => {
     admin('change notification settings');
     return getNotificationSettings();
   });
   app.put(
     '/settings/notifications',
-    { config: { stepUp: { action: 'changeNotificationDelivery', who: 'manageSettings', when: changesNotificationDelivery } } },
+    { config: { access: ACCESS.admin, stepUp: { action: 'changeNotificationDelivery', who: 'manageSettings', when: changesNotificationDelivery } } },
     async (req) => {
       admin('change notification settings');
       return saveNotificationSettings(notificationSettingsBody.parse(req.body) as NotificationSettingsInput);
     },
   );
-  app.post('/settings/notifications/test', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+  app.post('/settings/notifications/test', { config: { access: ACCESS.admin, rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const u = admin('test notification channels');
     const b = z.object({ channel: z.enum(['email', 'teams', 'webhook']), to: z.string().max(254).optional() }).parse(req.body);
     return sendTest(b.channel, b.to?.trim() || getUser(u.id).email);
   });
 
   // look of e-mails and Teams messages (name, colour, logo, footer; empty = Settings → Appearance)
-  app.get('/settings/notifications/look', async () => {
+  app.get('/settings/notifications/look', { config: { access: ACCESS.admin } }, async () => {
     admin('view the look of notifications');
     return getLook();
   });
-  app.put('/settings/notifications/look', async (req) => {
+  app.put('/settings/notifications/look', { config: { access: ACCESS.admin } }, async (req) => {
     const u = admin('change the look of notifications');
     const { look, changed } = updateLook(lookBody.parse(req.body ?? {}), u.username);
     if (Object.keys(changed).length)
@@ -193,20 +184,20 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
       });
     return look;
   });
-  app.post('/settings/notifications/look/preview', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+  app.post('/settings/notifications/look/preview', { config: { access: ACCESS.admin, rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     admin('view the look of notifications');
     const { sample, ...draft } = previewBody.parse(req.body ?? {});
     return previewLook(draft, sample);
   });
   // an own logo for e-mails and Teams messages (logo source "custom"): PNG or JPEG, at most 512 KB
-  app.get('/settings/notifications/look/logo', async (_req, reply) => {
+  app.get('/settings/notifications/look/logo', { config: { access: ACCESS.admin } }, async (_req, reply) => {
     admin('view the look of notifications');
     const c = customLogo();
     if (!c) throw new HttpError(404, 'No notification logo is uploaded');
     reply.header('cache-control', 'no-store');
     return reply.type(c.mime).send(c.data);
   });
-  app.post('/settings/notifications/look/logo', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+  app.post('/settings/notifications/look/logo', { config: { access: ACCESS.admin, rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     admin('change the look of notifications');
     const tooLarge = () =>
       new HttpError(400, `The logo is too large (max. ${NOTIFICATION_LOGO_MAX_BYTES / 1024} KB)`, 'NOTIFICATION_LOGO_TOO_LARGE', {
@@ -239,7 +230,7 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     });
     return getLook();
   });
-  app.delete('/settings/notifications/look/logo', async () => {
+  app.delete('/settings/notifications/look/logo', { config: { access: ACCESS.admin } }, async () => {
     admin('change the look of notifications');
     if (removeCustomLogo())
       audit({ action: 'notifications.logo_removed', entityType: 'settings', entityId: 'notifications.look', summary: 'Notification logo removed' });
@@ -247,11 +238,11 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- maintenance ----------
-  app.get('/maintenance', async () => {
+  app.get('/maintenance', { config: { access: ACCESS.admin } }, async () => {
     admin('view maintenance information');
     return maintenanceStatus();
   });
-  app.post('/maintenance/cleanup', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async () => {
+  app.post('/maintenance/cleanup', { config: { access: ACCESS.admin, rateLimit: ROUTE_LIMITS.heavy } }, async () => {
     admin('run the cleanup');
     try {
       runCleanup({ manual: true });

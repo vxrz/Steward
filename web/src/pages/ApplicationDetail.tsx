@@ -22,6 +22,7 @@ import { ComponentsPanel } from '../components/catalogue/ComponentsPanel';
 import { RunsOnPanel } from '../components/catalogue/RunsOnPanel';
 import { CatalogueCredentials } from '../components/catalogue/CatalogueCredentials';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
+import { OwningTeams } from '../components/OwningTeams';
 
 export function ApplicationDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
@@ -177,6 +178,7 @@ export function ApplicationDetailPage() {
               </Text>
             </Stack>
           </Paper>
+          <OwningTeams kind="application" id={a.id} mt="md" />
         </Grid.Col>
       </Grid>
       {editing && <ApplicationFormModal app={a} onClose={() => setEditing(false)} onSaved={(x) => refresh(x)} />}

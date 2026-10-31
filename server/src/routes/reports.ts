@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { REPORT_LANGS, REPORT_LOGO_MAX_BYTES, type ReportRecord } from '@sm/shared';
 import { audit } from '../audit.js';
 import { verifyWithAnchors } from '../audit-anchor.js';
-import { currentUser, type AuthUser } from '../auth/context.js';
 import { capabilities, require, requireCapability } from '../auth/permissions.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
@@ -15,6 +14,7 @@ import { initAutoReports } from '../reports/auto.js';
 import { canViewScheduledReport } from '../reports/schedules.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
+import { ACCESS, me } from '../auth/access.js';
 
 /**
  * Archived PDF reports (mounted under /api):
@@ -29,12 +29,6 @@ import { LARGE_BODIES } from '../bodyLimits.js';
  */
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
-
-const me = (): AuthUser => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-};
 
 function requireRunView(runId: string) {
   const r = store.runRow(runId);
@@ -147,12 +141,12 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- branding (administrators) ----------
   // Registered before /reports/:id so the static paths win.
-  app.get('/reports/branding', async () => {
+  app.get('/reports/branding', { config: { access: ACCESS.admin } }, async () => {
     requireCapability(me(), 'manageSettings', 'manage report branding');
     return branding.getBranding();
   });
 
-  app.put('/reports/branding', async (req) => {
+  app.put('/reports/branding', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'manageSettings', 'manage report branding');
     const b = brandingBody.parse(req.body ?? {});
     const before = branding.getBranding();
@@ -172,14 +166,14 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
     return after;
   });
 
-  app.get('/reports/branding/logo', async (_req, reply) => {
+  app.get('/reports/branding/logo', { config: { access: ACCESS.admin } }, async (_req, reply) => {
     requireCapability(me(), 'manageSettings', 'manage report branding');
     const l = branding.logo();
     reply.header('cache-control', 'no-store');
     return reply.type(l.mime).send(l.data);
   });
 
-  app.post('/reports/branding/logo', { bodyLimit: LARGE_BODIES.reportLogo.bytes }, async (req) => {
+  app.post('/reports/branding/logo', { config: { access: ACCESS.admin }, bodyLimit: LARGE_BODIES.reportLogo.bytes }, async (req) => {
     requireCapability(me(), 'manageSettings', 'manage report branding');
     let data: Buffer;
     if (req.isMultipart()) {
@@ -211,14 +205,14 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
     return after;
   });
 
-  app.delete('/reports/branding/logo', async () => {
+  app.delete('/reports/branding/logo', { config: { access: ACCESS.admin } }, async () => {
     requireCapability(me(), 'manageSettings', 'manage report branding');
     const after = branding.removeLogo();
     audit({ action: 'report.logo_removed', entityType: 'settings', entityId: 'report-branding', summary: 'Report logo reset to the default' });
     return after;
   });
 
-  app.post('/reports/branding/preview', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
+  app.post('/reports/branding/preview', { config: { access: ACCESS.admin, rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
     requireCapability(me(), 'manageSettings', 'manage report branding');
     const b = brandingBody.extend({ lang: langSchema, timeZone: z.string().max(64).optional() }).parse(req.body ?? {});
     const { lang, timeZone, ...draft } = b;

@@ -28,6 +28,7 @@ import '../records/report-section.js';
 import '../tickets/report-section.js';
 import '../duties/report-section.js';
 import '../scorecard/report-section.js';
+import { me } from '../auth/access.js';
 
 /**
  * Scheduled summary reports. A schedule has an owner and runs with the owner's
@@ -302,12 +303,6 @@ function normalize(
     attach_pdf: b.attachPdf ? 1 : 0,
   };
 }
-
-const me = (): AuthUser => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-};
 
 export function createReportSchedule(b: ScheduleInput): ReportSchedule {
   const u = me();

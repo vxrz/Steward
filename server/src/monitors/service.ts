@@ -59,6 +59,7 @@ import { coerceParams, renderTemplate } from './templates.js';
 import { checkExpressions, parseDefinitionInput, validateTemplate } from './validation.js';
 import * as engine from './engine.js';
 import { checkMessage, monitorVisibility, redactCauses, redactDefinition, rootCauseMessage, type MonitorVisibility } from './redact.js';
+import { me } from '../auth/access.js';
 
 /**
  * Monitor management: create, edit, delete, access, heartbeat secrets,
@@ -69,12 +70,6 @@ import { checkMessage, monitorVisibility, redactCauses, redactDefinition, rootCa
 export const HEARTBEAT_SECRET_PREFIX = 'mhs_';
 export const heartbeatPath = (hookId: string) => `/api/hooks/monitor/${hookId}`;
 const MONITOR_ID_RE = /^mon_[A-Za-z0-9_-]{6,40}$/;
-
-const me = () => {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-};
 
 // ---------- access ----------
 

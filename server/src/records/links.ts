@@ -8,7 +8,7 @@ import { permissionsFor } from '../processes/service.js';
 import { monitorRow, permissionsOfRow } from '../monitors/model.js';
 import { likeEscape } from '../database/sql.js';
 import { credentialPermissions, credentialsLinkingTo, type CredentialRow } from '../credentials/service.js';
-import { canReadRecordRow } from './access.js';
+import { canReadRecordRow, canViewCatalogue } from './access.js';
 import { checkLinkType, linkTypeByKey, linkTypeKey } from './link-types.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 
@@ -98,11 +98,12 @@ registerLinkKind('monitor', {
   },
 });
 
-const platformVisible = (acl: string) => platformPermissions(currentUser(), { acl: parseJson<AclEntry<PlatformPermission>[]>(acl, []) }).length > 0;
+const platformVisible = (id: string, acl: string) =>
+  platformPermissions(currentUser(), { id, acl: parseJson<AclEntry<PlatformPermission>[]>(acl, []) }).length > 0;
 registerLinkKind('platform', {
   resolve(id) {
     const p = db().get<{ name: string; acl: string; environment: string }>('SELECT name, acl, environment FROM platforms WHERE id = ?', id);
-    if (!p || !platformVisible(p.acl)) return null;
+    if (!p || !platformVisible(id, p.acl)) return null;
     return { label: p.name, path: `/platforms/${id}`, detail: p.environment || undefined };
   },
   search(q, limit) {
@@ -111,7 +112,7 @@ registerLinkKind('platform', {
         "SELECT id, name, acl, environment FROM platforms WHERE lower(name) LIKE ? ESCAPE '\\' ORDER BY name",
         like(q),
       )
-      .filter((p) => platformVisible(p.acl))
+      .filter((p) => platformVisible(p.id, p.acl))
       .slice(0, limit)
       .map((p) => ({ kind: 'platform' as const, id: p.id, label: p.name, detail: p.environment || undefined }));
   },
@@ -158,35 +159,47 @@ registerLinkKind('record', {
   },
 });
 
+/** Services and applications: everyone reads them, unless they belong to teams the reader is not in (#131). */
+const catalogueVisible = (kind: 'service' | 'application', id: string, owners: string | null) => {
+  const u = currentUser();
+  return !u || canViewCatalogue(u, { kind, id, owners: parseJson<string[]>(owners, []) });
+};
+
 registerLinkKind('service', {
   resolve(id) {
-    const s = db().get<{ name: string; archived: number }>('SELECT name, archived FROM services WHERE id = ?', id);
-    return s ? { label: s.name, path: `/services/${id}`, detail: s.archived ? 'archived' : undefined } : null;
+    const s = db().get<{ name: string; archived: number; owners: string }>('SELECT name, archived, owners FROM services WHERE id = ?', id);
+    return s && catalogueVisible('service', id, s.owners) ? { label: s.name, path: `/services/${id}`, detail: s.archived ? 'archived' : undefined } : null;
   },
   search(q, limit) {
     return db()
-      .all<{ id: string; name: string }>(
-        "SELECT id, name FROM services WHERE archived = 0 AND lower(name) LIKE ? ESCAPE '\\' ORDER BY name LIMIT ?",
+      .all<{ id: string; name: string; owners: string }>(
+        "SELECT id, name, owners FROM services WHERE archived = 0 AND lower(name) LIKE ? ESCAPE '\\' ORDER BY name",
         like(q),
-        limit,
       )
+      .filter((s) => catalogueVisible('service', s.id, s.owners))
+      .slice(0, limit)
       .map((s) => ({ kind: 'service' as const, id: s.id, label: s.name }));
   },
 });
 
-// applications of the service catalogue: everyone reads them, like services
 registerLinkKind('application', {
   resolve(id) {
-    const a = db().get<{ name: string; archived: number; vendor: string }>('SELECT name, archived, vendor FROM applications WHERE id = ?', id);
-    return a ? { label: a.name, path: `/applications/${id}`, detail: a.archived ? 'archived' : a.vendor || undefined } : null;
+    const a = db().get<{ name: string; archived: number; vendor: string; owners: string }>(
+      'SELECT name, archived, vendor, owners FROM applications WHERE id = ?',
+      id,
+    );
+    return a && catalogueVisible('application', id, a.owners)
+      ? { label: a.name, path: `/applications/${id}`, detail: a.archived ? 'archived' : a.vendor || undefined }
+      : null;
   },
   search(q, limit) {
     return db()
-      .all<{ id: string; name: string; vendor: string }>(
-        "SELECT id, name, vendor FROM applications WHERE archived = 0 AND lower(name) LIKE ? ESCAPE '\\' ORDER BY name LIMIT ?",
+      .all<{ id: string; name: string; vendor: string; owners: string }>(
+        "SELECT id, name, vendor, owners FROM applications WHERE archived = 0 AND lower(name) LIKE ? ESCAPE '\\' ORDER BY name",
         like(q),
-        limit,
       )
+      .filter((a) => catalogueVisible('application', a.id, a.owners))
+      .slice(0, limit)
       .map((a) => ({ kind: 'application' as const, id: a.id, label: a.name, detail: a.vendor || undefined }));
   },
 });

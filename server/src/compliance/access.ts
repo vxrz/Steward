@@ -4,7 +4,9 @@ import { currentUser, type AuthUser } from '../auth/context.js';
 import { isAdmin, platformPermissions } from '../auth/permissions.js';
 import { findUserByName } from '../auth/users.js';
 import { db } from '../db.js';
-import { HttpError, parseJson } from '../util.js';
+import { parseJson } from '../util.js';
+import { forbid, me } from '../auth/access.js';
+export { forbid, me };
 
 /**
  * Who may do what with the compliance features. Auditors read everything (read-only), administrators
@@ -28,14 +30,14 @@ export function platformAcl(platformId: string): { exists: boolean; name: string
 
 export function platformPerms(u: AuthUser | null, platformId: string): PlatformPermission[] {
   const p = platformAcl(platformId);
-  return p.exists ? platformPermissions(u, { acl: p.acl }) : [];
+  return p.exists ? platformPermissions(u, { id: platformId, acl: p.acl }) : [];
 }
 
 /** The platform's name, or null when the reader may not see the platform (or it does not exist). */
 export function visiblePlatformName(u: AuthUser | null, platformId: string): string | null {
   const p = platformAcl(platformId);
   if (!p.exists) return null;
-  return readsEverything(u) || platformPermissions(u, { acl: p.acl }).length > 0 ? p.name : null;
+  return readsEverything(u) || platformPermissions(u, { id: platformId, acl: p.acl }).length > 0 ? p.name : null;
 }
 
 /** Steward itself (automatic entries of runs): creates and documents records and sees every run to link it; never approves or verifies. */
@@ -87,14 +89,3 @@ export const canManageCatalogues = (u: AuthUser | null = currentUser()): boolean
 export const canTagControls = (u: AuthUser | null = currentUser()): boolean => has(u, ['admin', 'designer']);
 /** Evidence packs: everyone but viewers (the pack only holds what the requester may see). */
 export const canExportEvidence = (u: AuthUser | null = currentUser()): boolean => has(u, ['admin', 'designer', 'operator', 'approver', 'auditor']);
-
-export function me(): AuthUser {
-  const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
-  return u;
-}
-
-/** 403 FORBIDDEN; `context` picks the translated text (errors:codes.FORBIDDEN_<context>). */
-export function forbid(what: string, context?: string): never {
-  throw new HttpError(403, `You are not allowed to ${what}`, 'FORBIDDEN', context ? { context } : undefined);
-}

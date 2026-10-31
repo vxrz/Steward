@@ -114,8 +114,8 @@ export type MaintenanceInput = z.infer<typeof maintenanceInput>;
 // ---------- targets: names, rights, what they reach ----------
 
 type PlatformRow = { id: string; name: string; acl: string };
-const platformRights = (u: AuthUser | null, p: Pick<PlatformRow, 'acl'>) =>
-  platformPermissions(u, { acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) });
+const platformRights = (u: AuthUser | null, p: Pick<PlatformRow, 'id' | 'acl'>) =>
+  platformPermissions(u, { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) });
 
 function ownersOf(kind: Exclude<MaintenanceTargetKind, 'platform'>, id: string): string[] | null {
   const table = kind === 'service' ? 'services' : kind === 'application' ? 'applications' : 'systems';
@@ -139,7 +139,7 @@ function mayChange(u: AuthUser, t: TargetRef): boolean {
     return !!p && platformRights(u, p).includes('manage');
   }
   const owners = ownersOf(t.kind, t.id);
-  return owners !== null && canEditService(u, owners);
+  return owners !== null && canEditService(u, { kind: t.kind, id: t.id, owners });
 }
 
 const canPlan = (u: AuthUser, targets: TargetRef[]) => canCreateServices(u) || (targets.length > 0 && targets.every((t) => mayChange(u, t)));
