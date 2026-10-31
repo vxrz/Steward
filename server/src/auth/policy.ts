@@ -13,7 +13,7 @@
 import {
   PLATFORM_PERMISSIONS,
   PROCESS_PERMISSIONS,
-  ROLES,
+  TEAM_ROLES,
   type AccessReason,
   type AclEntry,
   type OwnedKind,
@@ -51,7 +51,7 @@ export function memberships(u: AuthUser): Map<string, { name: string; roles: Rol
           'SELECT t.id, t.name, m.roles FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.user_id = ?',
           u.id,
         )
-        .map((r) => [r.id, { name: r.name, roles: parseJson<string[]>(r.roles, []).filter((x): x is Role => (ROLES as readonly string[]).includes(x)) }]),
+        .map((r) => [r.id, { name: r.name, roles: parseJson<string[]>(r.roles, []).filter((x): x is Role => (TEAM_ROLES as readonly string[]).includes(x)) }]),
     );
     membershipCache.set(u, m);
   }

@@ -205,6 +205,10 @@ export interface Team {
   createdAt: string;
 }
 
+/** Roles a member can have in a team (#131): administrator is instance-wide, a status viewer sees only status pages. */
+export const TEAM_ROLES = ['designer', 'operator', 'approver', 'auditor', 'viewer'] as const satisfies readonly Role[];
+export type TeamRole = (typeof TEAM_ROLES)[number];
+
 /** Kinds of resources that can have owning teams (#131). */
 export const OWNED_KINDS = ['process', 'platform'] as const;
 export type OwnedKind = (typeof OWNED_KINDS)[number];

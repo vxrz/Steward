@@ -8,6 +8,7 @@ import {
   STEP_UP_ACTIONS,
   OUTBOUND_POLICIES,
   ROLES,
+  TEAM_ROLES,
   validateProcess,
   type AuthStatus,
   type DashboardAttention,
@@ -737,7 +738,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     description: z.string().max(2000).optional(),
     members: z.array(z.string().max(64)).max(5000).optional(),
     /** roles in the team by member (#131) */
-    memberRoles: boundedRecord(z.array(z.enum(ROLES)).max(ROLES.length), 5000).optional(),
+    memberRoles: boundedRecord(z.array(z.enum(TEAM_ROLES)).max(TEAM_ROLES.length), 5000).optional(),
   });
   // teams are subjects of access lists: a new member gets the team's rights (auth/step-up-rules.ts)
   const teamStepUp = { stepUp: { action: 'changeTeamMembers' as const, who: 'manageUsers' as const, when: changesTeamMembers } };

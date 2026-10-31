@@ -23,6 +23,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import type { AclEntry, Platform } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { AccessEditor } from '../components/AccessEditor';
+import { OwningTeams } from '../components/OwningTeams';
 import { useMe } from '../auth';
 import { DetailState, JsonView, PageHeader } from '../components/common';
 import { PlatformIntegrityAlert } from '../components/security/PlatformIntegrityAlert';
@@ -315,6 +316,7 @@ export function PlatformDetailPage() {
           </Tabs.Panel>
         )}
         <Tabs.Panel value="access">
+          <OwningTeams kind="platform" id={p.id} />
           <AccessEditor kind="platform" acl={p.acl} onSave={(acl) => saveAccess(acl)} readOnly={!canManage} />
         </Tabs.Panel>
         <Tabs.Panel value="mcp">

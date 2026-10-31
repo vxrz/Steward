@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import {
   DEFAULT_SSO_SYNC,
   ROLES,
+  TEAM_ROLES,
   SSO_SYNCED_FIELDS,
   isLocale,
   type Locale,
@@ -459,7 +460,7 @@ function membersOf(teamId: string): Pick<Team, 'members' | 'memberRoles'> {
   );
   const memberRoles: Record<string, Role[]> = {};
   for (const r of rows) {
-    const roles = parseJson<string[]>(r.roles, []).filter((x): x is Role => (ROLES as readonly string[]).includes(x));
+    const roles = parseJson<string[]>(r.roles, []).filter((x): x is Role => (TEAM_ROLES as readonly string[]).includes(x));
     if (roles.length) memberRoles[r.username] = roles;
   }
   return { members: rows.map((r) => r.username), memberRoles };

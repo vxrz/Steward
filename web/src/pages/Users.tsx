@@ -26,7 +26,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconCheck, IconCopy, IconEdit, IconKey, IconPlus, IconTrash, IconUsersGroup } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { ROLES, ROLE_INFO, type AuthStatus, type Role, type Team, type UserInfo } from '@sm/shared';
+import { ROLES, ROLE_INFO, TEAM_ROLES, type AuthStatus, type Role, type Team, type UserInfo } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { PageHeader, useFieldErrors } from '../components/common';
 import { fmtRelative } from '../format';
@@ -290,6 +290,7 @@ export function UsersPage() {
                 {team.members.map((m) => (
                   <Badge key={m} size="xs" variant="outline" color="gray">
                     {m}
+                    {team.memberRoles?.[m]?.length ? ` · ${team.memberRoles[m]!.map((r) => t(`common:roles.${r}`)).join(', ')}` : ''}
                   </Badge>
                 ))}
               </Group>
@@ -497,11 +498,13 @@ function TeamModal({ team, users, onClose, onSaved }: { team: Team | null; users
   const [name, setName] = useState(team?.name ?? '');
   const [description, setDescription] = useState(team?.description ?? '');
   const [members, setMembers] = useState<string[]>(team?.members ?? []);
+  // roles in the team (#131), by member; members without an entry have only their own roles
+  const [memberRoles, setMemberRoles] = useState<Record<string, Role[]>>(team?.memberRoles ?? {});
   const [busy, setBusy] = useState(false);
   const save = async () => {
     setBusy(true);
     try {
-      const body = { name: name.trim(), description, members };
+      const body = { name: name.trim(), description, members, memberRoles: Object.fromEntries(members.map((m) => [m, memberRoles[m] ?? []])) };
       if (team) await put(`/teams/${team.id}`, body);
       else await post('/teams', body);
       notifyOk(t('teamModal.saved', { name }));
@@ -524,6 +527,28 @@ function TeamModal({ team, users, onClose, onSaved }: { team: Team | null; users
           value={members}
           onChange={setMembers}
         />
+        {members.length > 0 && (
+          <Stack gap={4}>
+            <Text size="sm" fw={500}>
+              {t('teamModal.roles')}
+            </Text>
+            <Text size="xs" c="dimmed">
+              {t('teamModal.rolesHint')}
+            </Text>
+            {members.map((m) => (
+              <MultiSelect
+                key={m}
+                size="xs"
+                label={m}
+                aria-label={t('teamModal.rolesOf', { name: m })}
+                data={TEAM_ROLES.map((r) => ({ value: r, label: t(`common:roles.${r}`) }))}
+                value={memberRoles[m] ?? []}
+                onChange={(v) => setMemberRoles((x) => ({ ...x, [m]: v as Role[] }))}
+                clearable
+              />
+            ))}
+          </Stack>
+        )}
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}

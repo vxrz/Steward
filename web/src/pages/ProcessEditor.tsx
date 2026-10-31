@@ -10,6 +10,7 @@ import { PageHeader } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { RunDialog } from '../components/RunDialog';
 import { AccessEditor } from '../components/AccessEditor';
+import { OwningTeams } from '../components/OwningTeams';
 import { SourcePanel, VersionsPanel } from '../components/editor/DefinitionTabs';
 import { SettingsTab } from '../components/editor/SettingsTab';
 import { FlowEditor } from '../components/flow/FlowEditor';
@@ -282,6 +283,7 @@ export function ProcessEditorPage() {
             />
           </Tabs.Panel>
           <Tabs.Panel value="access" pt="md">
+            <OwningTeams kind="process" id={p.id} />
             <AccessEditor
               kind="process"
               acl={p.acl}

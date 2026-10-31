@@ -60,7 +60,10 @@
     "notSaved": "Team nicht gespeichert",
     "edit": "Team {{name}} bearbeiten",
     "description": "Beschreibung",
-    "members": "Mitglieder"
+    "members": "Mitglieder",
+    "roles": "Rollen im Team",
+    "rolesHint": "Zusätzlich zu den eigenen Rollen, auf dem, was dem Team gehört.",
+    "rolesOf": "{{name}}: Rollen im Team"
   },
   "sso": {
     "removeConfirm": "Single Sign-on „{{name}}“ entfernen? Benutzer dieses Anbieters können sich nicht mehr anmelden (Konten und Verlauf bleiben erhalten).",
