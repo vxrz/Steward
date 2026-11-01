@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { EnvHttpProxyAgent } from 'undici';
+import { EnvHttpProxyAgent, fetch } from 'undici';
 import { BRAND, SYNC_LIMITS, type GitProvider } from '@sm/shared';
 import { assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
@@ -142,7 +142,10 @@ const TIMEOUT_MS = 20_000;
 /** JSON answers (branch, tree pages): trees of big repositories are a few MB. */
 const MAX_JSON_BYTES = 8 * 1024 * 1024;
 
-async function readCapped(res: Response, max: number): Promise<Buffer> {
+/** A response of undici's fetch (the dispatcher above is undici's: Node's own fetch bundles another undici). */
+type FetchResponse = Awaited<ReturnType<typeof fetch>>;
+
+async function readCapped(res: FetchResponse, max: number): Promise<Buffer> {
   const declared = Number(res.headers.get('content-length') ?? 0);
   if (declared > max) {
     await res.body?.cancel().catch(() => undefined);
@@ -187,21 +190,21 @@ class Client {
     path: string,
     what: string,
     opts: { max?: number; accept?: string; allow404?: boolean } = {},
-  ): Promise<{ status: number; body: Buffer; headers: Headers }> {
+  ): Promise<{ status: number; body: Buffer; headers: FetchResponse['headers'] }> {
     const url = this.ref.apiBase + path;
     if (!this.checked) {
       // every request goes to the same API origin: one policy check per fetch, address safety on every connect
       await assertOutboundAllowed(url, outboundContext());
       this.checked = true;
     }
-    let res: Response;
+    let res: FetchResponse;
     try {
       res = await fetch(url, {
         headers: { accept: opts.accept ?? 'application/json', 'user-agent': BRAND.slug, ...this.authHeaders },
         redirect: 'manual',
         dispatcher,
         signal: AbortSignal.timeout(TIMEOUT_MS),
-      } as RequestInit);
+      });
     } catch (e) {
       const err = e as Error & { cause?: Error & { code?: string } };
       if (err.cause?.code === 'ESSRFBLOCKED') throw new HttpError(403, err.cause.message, 'GIT_BLOCKED', { detail: err.cause.message });

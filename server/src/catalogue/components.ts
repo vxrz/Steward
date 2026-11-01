@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { EnvHttpProxyAgent } from 'undici';
+import { EnvHttpProxyAgent, fetch } from 'undici';
 import { z } from 'zod';
 import {
   BRAND,
@@ -882,14 +882,14 @@ const sbomDispatcher = new EnvHttpProxyAgent({ connect: { lookup: guardedLookup 
 /** Fetches an SBOM: outbound policy, no redirects, at most COMPONENT_LIMITS.sbomBytes, 30 seconds. */
 async function fetchSbom(url: string): Promise<string> {
   await assertOutboundAllowed(url, outboundContext());
-  let res: Response;
+  let res: Awaited<ReturnType<typeof fetch>>;
   try {
     res = await fetch(url, {
       headers: { accept: 'application/vnd.cyclonedx+json, application/spdx+json, application/json;q=0.9, */*;q=0.1', 'user-agent': BRAND.slug },
       redirect: 'manual',
       dispatcher: sbomDispatcher,
       signal: AbortSignal.timeout(30_000),
-    } as RequestInit);
+    });
   } catch (e) {
     const err = e as Error & { cause?: Error & { code?: string } };
     if (err.cause?.code === 'ESSRFBLOCKED') throw new HttpError(403, err.cause.message, 'SBOM_FETCH_BLOCKED');
