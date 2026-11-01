@@ -20,6 +20,7 @@ export const ENCRYPTED_COLUMNS: { table: string; id: string; column: string; fil
   { table: 'monitor_checks', id: 'hook_id', column: 'secret_enc', file: 'monitors/service.ts' },
   { table: 'sync_sources', id: 'id', column: 'token_enc', file: 'sync/service.ts' },
   { table: 'sync_sources', id: 'id', column: 'webhook_secret_enc', file: 'sync/service.ts' },
+  { table: 'team_settings', id: 'team_id', column: 'channel_secret', file: 'notifications/team-channels.ts' },
 ];
 /** Settings rows of the form {blob: <encrypted>, …}. */
 export const ENCRYPTED_SETTINGS: { key: string; file: string }[] = [

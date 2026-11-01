@@ -36,9 +36,10 @@ describe('migration package classification', () => {
         expect([...known].filter((k) => !all.has(k))).toEqual([]);
         const meta = ['sqlite_sequence', 'schema_version', 'schema_migrations'];
         expect(Object.keys(NOT_MOVED).filter((t) => !tables(d).includes(t) && !meta.includes(t))).toEqual([]);
-        // credentials are re-encrypted on import: their tables must move
+        // credentials are re-encrypted on import: their tables must move (team settings move with their team, the URL re-encrypted)
         const { ENCRYPTED_COLUMNS } = await import('../src/vault-rotation.js');
-        const encryptedNotMoved = ENCRYPTED_COLUMNS.filter((c) => c.table in NOT_MOVED && !['identity_providers', 'sync_sources'].includes(c.table));
+        const carriedApart = ['identity_providers', 'sync_sources', 'team_settings'];
+        const encryptedNotMoved = ENCRYPTED_COLUMNS.filter((c) => c.table in NOT_MOVED && !carriedApart.includes(c.table));
         expect(encryptedNotMoved).toEqual([]);
       } finally {
         d.close();

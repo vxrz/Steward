@@ -18,4 +18,18 @@ export const TEAM_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX resource_teams_team ON resource_teams(team_id);
     `,
   },
+  {
+    // team settings (#136): the team's own channel for messages about its resources (JSON; NULL = the instance's), its
+    // URL encrypted with the vault (NULL = none)
+    name: 'teams-002-settings',
+    sql: `
+      CREATE TABLE team_settings (
+        team_id TEXT PRIMARY KEY REFERENCES teams(id) ON DELETE CASCADE,
+        channel TEXT,
+        channel_secret TEXT,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+    `,
+  },
 ];

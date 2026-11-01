@@ -48,6 +48,10 @@ Only administrators change owning teams. Adding a team is confirmed with a step-
 - A shared _Intranet_ service stays without an owning team, so everybody keeps seeing it, along with applications that are part of it.
 - Platforms used by both teams stay the whole instance's, or get both teams.
 
+## The team's own channel
+
+A team can have its own Teams or webhook channel (_Users → Teams_ → settings): messages about its resources go there, besides the instance channel or instead of it. See [SETTINGS.md](SETTINGS.md#team-settings).
+
 ## Single sign-on
 
 An SSO claim mapping can set team memberships (_Teams_) and, beside them, the **roles in these teams**. On each sign-in with _Synchronise roles_, the member's team roles follow the mapping: they are added, changed, or removed when the mapping no longer gives any.

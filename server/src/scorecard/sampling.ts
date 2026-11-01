@@ -67,6 +67,7 @@ function sendBreach(
     }),
     link: `/services/${s.id}`,
     recipients: users,
+    about: { kind: 'service', id: s.id },
     inAppKey: `objective:${o.id}:${breachId}`,
     externalKey: `objective:${o.id}:${breachId}`,
     data: { objectiveId: o.id, serviceId: s.id, breachId, windows: below.map((w) => w.window) },

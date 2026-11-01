@@ -207,6 +207,33 @@ export interface Team {
   createdAt: string;
 }
 
+/**
+ * A team's own channel for messages about its resources (#136): a Teams Workflow/incoming webhook (card) or a JSON
+ * webhook. "also" posts to the instance channel as well; "instead" leaves it out when every owning team of the
+ * resource has its own channel that says so.
+ */
+export const TEAM_CHANNEL_FORMATS = ['teams', 'json'] as const;
+export const TEAM_CHANNEL_MODES = ['also', 'instead'] as const;
+export interface TeamChannel {
+  enabled: boolean;
+  format: (typeof TEAM_CHANNEL_FORMATS)[number];
+  mode: (typeof TEAM_CHANNEL_MODES)[number];
+  /** a URL is stored (never returned) */
+  hasUrl: boolean;
+}
+/** A team's settings and what they inherit (#136). */
+export interface TeamSettings {
+  teamId: string;
+  teamName: string;
+  /** null: the team uses the instance channel (the default) */
+  channel: TeamChannel | null;
+  /** the instance channel the team falls back to */
+  instance: { teamsEnabled: boolean; webhookEnabled: boolean };
+  canChange: boolean;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
 /** Roles a member can have in a team (#131): administrator is instance-wide, a status viewer sees only status pages. */
 export const TEAM_ROLES = ['designer', 'operator', 'approver', 'auditor', 'viewer'] as const satisfies readonly Role[];
 export type TeamRole = (typeof TEAM_ROLES)[number];

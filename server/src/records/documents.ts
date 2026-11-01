@@ -447,6 +447,7 @@ export function checkDocumentReviews(now = Date.now()): number {
         text: (l) => reminderText(l, r, s.edition!, due.dueAt, plan.phase, plan.days),
         link: `/records/${encodeURIComponent(r.id)}?tab=changelog`,
         recipients: users,
+        about: { kind: 'record', id: r.id },
         inAppKey: `document:${r.id}:${plan.key}`,
         externalKey: `document:${r.id}:${plan.key}`,
         data: { recordId: r.id, number: r.number, edition: s.edition, nextReviewAt: due.dueAt, phase: plan.phase },

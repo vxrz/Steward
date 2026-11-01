@@ -293,6 +293,7 @@ function sendNotifications(o: Extract<OutputDef, { type: 'notification' }>, m: L
       },
       link: `/monitors/${m.id}${e.check ? `?check=${encodeURIComponent(e.check.id)}` : ''}`,
       recipients: to,
+      about: { kind: 'monitor', id: m.id },
       inAppKey: `monitor:${m.id}:${e.subject}:${e.status}:${e.since ?? e.ts}`,
       externalKey: `monitor:${m.id}:${e.subject}:${e.status}:${e.since ?? e.ts}`,
       data: payload(eventFor(m, e, everyone)),

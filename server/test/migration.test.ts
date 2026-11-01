@@ -114,6 +114,11 @@ beforeAll(async () => {
   const desk = (await s.api('GET', '/teams')).find((t: any) => t.name === 'Service Desk');
   await s.api('PUT', `/teams/${desk.id}`, { name: desk.name, members: desk.members, memberRoles: { olivia: ['designer'] } });
   await s.api('PUT', `/owning-teams/process/${p.id}`, { teamIds: [desk.id] });
+  // records belong to teams as well; the team's own channel (#136) moves with it, its URL with the package key
+  await s.api('PUT', `/owning-teams/record/${source.recordId}`, { teamIds: [desk.id] });
+  await s.api('PUT', `/teams/${desk.id}/settings`, {
+    channel: { enabled: true, format: 'teams', mode: 'instead', url: 'https://desk.webhook.example/hook?sig=moved-secret' },
+  });
   // the service catalogue (#84): an application owned by dana, rated, with a platform, part of a service, scoping a document
   const app = await s.api('POST', '/applications', { name: 'Moved application', owners: ['user:dana', 'team:service desk'] });
   await s.api('PUT', `/applications/${app.id}/rating`, { confidentiality: { level: 'very_high', justification: 'Trade secrets' } });
@@ -588,7 +593,10 @@ describe('import into SQLite through the web API', () => {
     expect(p.acl.map((e: any) => e.subject)).toEqual(['user:olivia', 'team:service desk']);
     // team scopes (#131): the process belongs to the team it was mapped to, with the member's role in it
     expect((await max('GET', `/owning-teams/process/${source.processOwner.id}`)).teams.map((t: any) => t.name)).toEqual(['Service Desk']);
-    expect((await max('GET', '/teams')).find((t: any) => t.name === 'Service Desk').memberRoles).toEqual({ olivia: ['designer'] });
+    const deskTeam = (await max('GET', '/teams')).find((t: any) => t.name === 'Service Desk');
+    expect(deskTeam.memberRoles).toEqual({ olivia: ['designer'] });
+    expect((await max('GET', `/owning-teams/record/${source.recordId}`)).teams.map((t: any) => t.name)).toEqual(['Service Desk']);
+    expect((await max('GET', `/teams/${deskTeam.id}/settings`)).channel).toEqual({ enabled: true, format: 'teams', mode: 'instead', hasUrl: true });
     const rec = await max('GET', `/records/${source.recordId}`);
     expect(rec.owner).toBe('dana@contoso.example');
     // applications move with their rating, integrations, services and documents; owners follow the mapping

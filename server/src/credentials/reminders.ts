@@ -132,6 +132,7 @@ export function checkCredentialReminders(now = Date.now()): number {
           link: `/credentials?open=${encodeURIComponent(c.id)}`,
           recipients: users,
           emails,
+          about: { kind: 'credential', id: c.id },
           inAppKey: `credential:${c.id}:${r.key}`,
           externalKey: `credential:${c.id}:${r.key}`,
           data: { credentialId: c.id, name: c.name, type: c.type, due: due.kind, dueAt: due.dueAt, phase: r.phase },

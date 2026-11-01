@@ -167,6 +167,7 @@ function notifyDeciders(r: Row): void {
                 body: `The AI assistant (token "${r.token_name}") wants to: ${what}. The assistant's reason: ${r.reason}. Decide in Steward under AI requests; without a decision the request expires after ${MCP_REQUEST_LIMITS.expiryHours} hours.`,
               },
         link: `/mcp-requests/${r.id}`,
+        ...(r.platform_id ? { about: { kind: 'platform' as const, id: r.platform_id } } : {}),
         inAppKey: r.id,
         externalKey: `mcp-request:${r.id}`,
         data: { requestId: r.id, kind: r.kind },

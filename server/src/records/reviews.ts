@@ -488,6 +488,7 @@ export async function runMeasureJob(now = Date.now()): Promise<number> {
       }),
       link: `/records/${m.record_id}`,
       recipients,
+      about: { kind: 'record', id: m.record_id },
       inAppKey: `measure:${m.id}:${key}`,
       externalKey: `measure:${m.id}:${key}`,
       data: { measureId: m.id, recordId: m.record_id, dueDate: m.due_date, kind },
