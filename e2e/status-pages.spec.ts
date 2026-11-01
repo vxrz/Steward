@@ -20,11 +20,18 @@ test('a status viewer sees only the status pages; the link works without signing
   const stellaApi = await apiAs('stella');
   expect((await stellaApi.get('/api/services')).status()).toBe(403);
 
-  const { token } = await json<{ token: string }>(await dana.post(`/api/status-pages/${page.id}/link`));
+  // the link as the web UI shows it to a signed-in person: it must not carry anything of their session
+  const designer = await loginAs('dana');
+  await designer.goto('/status-pages');
+  await designer.locator('.mantine-Paper-root', { hasText: title }).getByRole('button', { name: 'Link without sign-in' }).click();
+  const link = (await designer.getByRole('dialog').locator('code').innerText()).trim();
+  expect(link).toMatch(/^https?:\/\/[^/]+(\/[^?#]*)?\/status#t=[^&?]+$/);
+  expect(link).not.toContain('/api/');
+  expect(link).not.toContain('_sk=');
   const anonymous = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   try {
     const p = await anonymous.newPage();
-    await p.goto(`/status#t=${token}`);
+    await p.goto(link);
     await expect(p.getByRole('heading', { name: title })).toBeVisible();
     await expect(p.getByText('All lines run.')).toBeVisible();
     await dana.delete(`/api/status-pages/${page.id}/link`);
