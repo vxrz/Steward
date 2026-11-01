@@ -56,7 +56,7 @@ export function ComplianceControlsPage() {
   });
   const list = (coverage.data ?? []).filter((c) => !onlyGaps || c.status === 'gap');
   const counts = useMemo(() => {
-    const out = { covered: 0, gap: 0, unmapped: 0 };
+    const out = { covered: 0, gap: 0, unmapped: 0, notVisible: 0 };
     for (const c of coverage.data ?? []) out[c.status]++;
     return out;
   }, [coverage.data]);
@@ -126,6 +126,11 @@ export function ComplianceControlsPage() {
           <Badge color="red" variant={counts.gap ? 'filled' : 'light'}>
             {t('controls.countGap', { count: counts.gap })}
           </Badge>
+          {counts.notVisible > 0 && (
+            <Badge color="orange" variant="light">
+              {t('controls.countNotVisible', { count: counts.notVisible })}
+            </Badge>
+          )}
           <Badge color="gray" variant="light">
             {t('controls.countUnmapped', { count: counts.unmapped })}
           </Badge>
@@ -194,7 +199,7 @@ function CoverageTable({
                   </Text>
                 </Box>
               </Group>
-              <CoverageBadge status={c.status} size="xs" />
+              <CoverageBadge status={c.status} hidden={c.hidden} size="xs" />
             </Group>
           </Paper>
         ))}
@@ -234,7 +239,7 @@ function CoverageTable({
                 </Anchor>
               </Table.Td>
               <Table.Td>
-                <CoverageBadge status={c.status} />
+                <CoverageBadge status={c.status} hidden={c.hidden} />
               </Table.Td>
               <Table.Td>
                 <Group gap={4}>
@@ -316,7 +321,7 @@ function ControlDrawer({ cov, meta, onClose }: { cov: ControlCoverage; meta?: Co
     <Drawer opened onClose={onClose} position="right" size="lg" title={`${cov.control.catalogueKey} ${cov.control.ref} – ${cov.control.title}`}>
       <Stack gap="md">
         <Group gap="xs">
-          <CoverageBadge status={cov.status} />
+          <CoverageBadge status={cov.status} hidden={cov.hidden} />
           {meta?.canManageCatalogues && !editing && (
             <Button size="xs" variant="subtle" onClick={() => setEditing(true)}>
               {t('controls.editText')}
@@ -428,12 +433,21 @@ function ControlDrawer({ cov, meta, onClose }: { cov: ControlCoverage; meta?: Co
           <Text fw={600} mb={4}>
             {t('controls.evidenceInPeriod')}
           </Text>
-          {cov.evidence.length === 0 ? (
+          {cov.status === 'notVisible' ? (
+            <Text size="sm" c="orange">
+              {t('controls.notVisibleText', { count: cov.hidden })}
+            </Text>
+          ) : cov.evidence.length === 0 ? (
             <Text size="sm" c={cov.status === 'gap' ? 'red' : 'dimmed'}>
               {cov.status === 'gap' ? t('controls.gapText') : t('controls.noEvidence')}
             </Text>
           ) : (
             <EvidenceList items={cov.evidence} />
+          )}
+          {cov.status === 'covered' && cov.hidden > 0 && (
+            <Text size="xs" c="dimmed" mt={4}>
+              {t('controls.hiddenMore', { count: cov.hidden })}
+            </Text>
           )}
           {cov.truncated > 0 && (
             <Text size="xs" c="dimmed" mt={4}>

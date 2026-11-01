@@ -259,4 +259,26 @@ describe('GOV-12: a pack built with limited permissions says so', () => {
     expect(fi.filtered).toMatchObject({ complete: true });
     expect(fi.controls[0]).toMatchObject({ status: 'covered', count: 1, hidden: 0 });
   }, 60_000);
+
+  it('the Controls page and the API say the same as the pack: not visible, with the number of hidden items (#21)', async () => {
+    const q = `catalogue=GOV&from=${encodeURIComponent(dayAgo())}&to=${encodeURIComponent(inAMinute())}`;
+    const [mine] = await olivia('GET', `/compliance/coverage?${q}`);
+    expect(mine).toMatchObject({ status: 'notVisible', hidden: 1, evidence: [], counts: {} });
+    const [all] = await s.api('GET', `/compliance/coverage?${q}`);
+    expect(all).toMatchObject({ status: 'covered', hidden: 0 });
+    expect(all.evidence).toHaveLength(1);
+    // the read API, with Olivia's token
+    const token = (await olivia('POST', '/me/tokens', { name: 'coverage', scope: 'read' })).token;
+    const res = await fetch(`${s.base}/api/v1/control-coverage?${q}`, { headers: { authorization: `Bearer ${token}` } });
+    const page = await res.json();
+    expect(page.items).toEqual([expect.objectContaining({ ref: 'G.1', status: 'notVisible', hidden: 1, counts: {} })]);
+  });
+
+  it('a control without evidence for anyone stays a gap; one without mapped items is not mapped', async () => {
+    const { coverageStatus } = await import('../src/compliance/controls.js');
+    expect(coverageStatus(0, 0, 0)).toBe('unmapped');
+    expect(coverageStatus(2, 0, 0)).toBe('gap');
+    expect(coverageStatus(2, 0, 3)).toBe('notVisible');
+    expect(coverageStatus(2, 1, 3)).toBe('covered');
+  });
 });

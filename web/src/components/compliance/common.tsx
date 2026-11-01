@@ -71,13 +71,14 @@ export function PeriodPicker({ value, onChange }: { value: Period; onChange: (p:
   );
 }
 
-const COVERAGE_COLOR: Record<CoverageStatus, string> = { covered: TONE.ok, gap: TONE.bad, unmapped: TONE.neutral };
+const COVERAGE_COLOR: Record<CoverageStatus, string> = { covered: TONE.ok, gap: TONE.bad, unmapped: TONE.neutral, notVisible: TONE.attention };
 
-export function CoverageBadge({ status, size = 'sm' }: { status: CoverageStatus; size?: 'xs' | 'sm' }) {
+/** The coverage status of a control; "not visible" names how many evidence items the reader may not see (#21). */
+export function CoverageBadge({ status, hidden = 0, size = 'sm' }: { status: CoverageStatus; hidden?: number; size?: 'xs' | 'sm' }) {
   const { t } = useTranslation('compliance');
   return (
     <Badge color={COVERAGE_COLOR[status]} variant={status === 'gap' ? 'filled' : 'light'} size={size} style={{ minWidth: 'max-content' }}>
-      {t(`coverage.${status}`)}
+      {status === 'notVisible' && hidden ? t('coverage.notVisibleHidden', { count: hidden }) : t(`coverage.${status}`)}
     </Badge>
   );
 }

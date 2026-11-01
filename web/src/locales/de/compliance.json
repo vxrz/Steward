@@ -11,7 +11,10 @@
   "coverage": {
     "covered": "Abgedeckt",
     "gap": "Lücke",
-    "unmapped": "Nicht zugeordnet"
+    "unmapped": "Nicht zugeordnet",
+    "notVisible": "Nicht sichtbar",
+    "notVisibleHidden_one": "Nicht sichtbar ({{count}} verborgen)",
+    "notVisibleHidden_other": "Nicht sichtbar ({{count}} verborgen)"
   },
   "findingStatus": {
     "open": "Offen",
@@ -122,7 +125,13 @@
     "importAction": "Importieren",
     "documentEdition": "Fassung {{edition}}",
     "documentReviewed": "überprüft am {{date}} von {{reviewer}}",
-    "documentApproved": "freigegeben am {{date}} von {{approver}}"
+    "documentApproved": "freigegeben am {{date}} von {{approver}}",
+    "countNotVisible_one": "{{count}} nicht sichtbar",
+    "countNotVisible_other": "{{count}} nicht sichtbar",
+    "notVisibleText_one": "Es gibt in diesem Zeitraum Nachweise ({{count}} Eintrag), aber Sie dürfen sie nicht sehen. Prüfer und Administratoren sehen alle Nachweise.",
+    "notVisibleText_other": "Es gibt in diesem Zeitraum Nachweise ({{count}} Einträge), aber Sie dürfen sie nicht sehen. Prüfer und Administratoren sehen alle Nachweise.",
+    "hiddenMore_one": "{{count}} weiterer Nachweis, den Sie nicht sehen dürfen",
+    "hiddenMore_other": "{{count}} weitere Nachweise, die Sie nicht sehen dürfen"
   },
   "accessChanges": {
     "title": "Zugriffsänderungen",
