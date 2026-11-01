@@ -58,6 +58,8 @@ registerOAuthSettings(oauthSettings);
 
 /** OAuth works only while the MCP server is on as well. */
 export const oauthEnabled = (): boolean => mcpEnabled() && oauthSettings().enabled;
+/** Whether the MCP endpoint offers OAuth sign-in: what a client without a token is told, and the WWW-Authenticate hint. */
+export const offersSignIn = (): boolean => oauthEnabled();
 
 export const oauthSettingsInput = z
   .object({
@@ -358,7 +360,8 @@ export type OAuthAccess =
   { ok: true; user: UserInfo; grantId: string; clientName: string } | { ok: false; reason: 'invalid' | 'disabled' | 'audience' | 'owner_disabled' };
 
 const lastTouched = new Map<string, number>();
-export function resolveOAuthAccess(token: string, resource: string): OAuthAccess {
+export function resolveAccessGrant(token: string, resource: string): OAuthAccess {
+  if (!token.startsWith(ACCESS_PREFIX)) return { ok: false, reason: 'invalid' };
   if (!oauthEnabled()) return { ok: false, reason: 'disabled' };
   const g = db().get<GrantRow & { client_name: string; client_revoked: string | null }>(
     `SELECT g.*, c.name AS client_name, c.revoked_at AS client_revoked FROM oauth_grants g JOIN oauth_clients c ON c.id = g.client_id
