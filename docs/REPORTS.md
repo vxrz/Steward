@@ -8,7 +8,17 @@ Steward produces three kinds of PDF/A-2b reports. All of them are archived the s
 | Summary report       | Runs of one or more processes in a period               | _Runs → Summary report_ ([README](../README.md#pdf-reports))  |
 | **Scheduled report** | Availability and SLA, credentials, runs – on a schedule | _Reports_ (this page)                                         |
 
-Branding (company name, logo, colour, classification, footer) comes from _Settings → Report branding_ for all of them.
+## Branding
+
+Branding (company name, logo, colour, classification, footer) comes from _Settings → Report branding_ for all of them, unless a team overrides it.
+
+A team can set its own report branding (_Users → Teams_ → settings → _Report branding_): each field on its own – an empty field keeps the instance value – and its own logo. It is used by:
+
+- report schedules of the team (choose the team in the schedule; the owner must be a member of it, administrators may choose any team);
+- run reports of a process the team owns, and summary reports whose processes all share that team;
+- PDFs of records the team owns.
+
+A resource owned by several teams with branding uses the first of them by name. A renamed team is followed; a deleted team's schedules use the instance branding again. Reports already generated never change.
 
 ## Scheduled reports
 

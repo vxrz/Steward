@@ -31,6 +31,7 @@ import { McpClientConfig, useMcpServer } from '../components/mcp/McpClientConfig
 import { ChangePasswordForm } from './Auth';
 import { LanguageSelect } from '../components/LanguageSelect';
 import { DailySummaryCard } from '../components/notifications/DailySummaryCard';
+import { NewResourceTeamsCard } from '../components/users/NewResourceTeamsCard';
 import {
   browserNotificationsSupported,
   getBrowserNotifyOptIn,
@@ -55,6 +56,7 @@ export function ProfilePage() {
         <LanguageCard user={u} />
         <NotificationsCard user={u} />
         <DailySummaryCard />
+        <NewResourceTeamsCard />
         {local && <PasswordCard />}
         <TokensCard />
       </Stack>

@@ -58,7 +58,8 @@ import { recordRoutes, uploadedFile } from '../records/routes.js';
 import { contentDisposition, downloadType } from '../records/attachments.js';
 import { catalogueRoutes } from '../catalogue/routes.js';
 import { scopeRoutes } from '../auth/scope-routes.js';
-import * as teamChannels from '../notifications/team-channels.js';
+import * as teamSettings from '../teams/settings.js';
+import { chooseNewResourceTeam, newResourceTeams } from '../auth/policy.js';
 import { backupRoutes } from '../backup/routes.js';
 import { ticketRoutes } from '../tickets/routes.js';
 import { dailySummaryRoutes } from '../notifications/summary-routes.js';
@@ -757,12 +758,50 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
   // team settings (#136): members and administrators read them, administrators change them
-  app.get('/teams/:id/settings', async (req) => teamChannels.getTeamSettings(params(req).id!, me()));
+  app.get('/teams/:id/settings', async (req) => teamSettings.getTeamSettings(params(req).id!, me()));
   app.put('/teams/:id/settings', { config: { access: ACCESS.adminSession } }, async (req) =>
-    teamChannels.saveTeamSettings(params(req).id!, teamChannels.teamSettingsInput.parse(req.body), me()),
+    teamSettings.saveTeamSettings(params(req).id!, teamSettings.teamSettingsInput.parse(req.body), me()),
   );
+  // the team's report logo: shown to members and administrators, changed by administrators
+  app.get('/teams/:id/settings/logo', async (req, reply) => {
+    teamSettings.getTeamSettings(params(req).id!, me());
+    const l = teamSettings.teamLogo(params(req).id!);
+    if (!l) throw new HttpError(404, 'The team has no logo of its own', 'TEAM_LOGO_MISSING');
+    reply.header('cache-control', 'no-store');
+    return reply.type(l.mime).send(l.data);
+  });
+  app.post('/teams/:id/settings/logo', { config: { access: ACCESS.adminSession }, bodyLimit: LARGE_BODIES.reportLogo.bytes }, async (req) => {
+    const b = z
+      .object({ contentBase64: z.string().max(LARGE_BODIES.reportLogo.bytes) })
+      .strict()
+      .safeParse(req.body ?? {});
+    if (!b.success) throw new HttpError(400, 'Upload a PNG or JPEG file', 'LOGO_TYPE');
+    return teamSettings.setTeamLogo(params(req).id!, Buffer.from(b.data.contentBase64, 'base64'), me());
+  });
+  app.delete('/teams/:id/settings/logo', { config: { access: ACCESS.adminSession } }, async (req) => teamSettings.removeTeamLogo(params(req).id!, me()));
+  // the owning teams of the resources the signed-in user creates, and their own choice (#136)
+  app.get('/me/new-resource-teams', async () => newResourceTeams(me()));
+  app.put('/me/new-resource-teams', async (req) => {
+    const b = z
+      .object({ teamId: z.string().max(100).nullable() })
+      .strict()
+      .parse(req.body ?? {});
+    const before = newResourceTeams(me());
+    const after = chooseNewResourceTeam(me(), b.teamId);
+    if (before.chosen !== after.chosen)
+      audit({
+        action: 'user.new_resource_team_changed',
+        entityType: 'user',
+        entityId: me().id,
+        summary: after.chosen
+          ? `${me().username}'s new resources get team "${after.teams[0]?.name}"`
+          : `${me().username}'s new resources get the teams' defaults again`,
+        details: { from: before.chosen, to: after.chosen },
+      });
+    return after;
+  });
   app.post('/teams/:id/settings/test', { config: { access: ACCESS.adminSession } }, async (req) => {
-    teamChannels.getTeamSettings(params(req).id!, me());
+    teamSettings.getTeamSettings(params(req).id!, me());
     const { sendTeamTest } = await import('../notifications/service.js');
     return sendTeamTest(params(req).id!);
   });

@@ -2,6 +2,7 @@ import type { ErrorParams } from './errors.js';
 import type { ScheduleNotify } from './notifyPolicy.js';
 import type { Column, ManualFieldType, ManualUse, ProcessDefinition } from './process.js';
 import type { Locale } from './locales.js';
+import type { DailySummaryPrefs } from './dailySummary.js';
 import type {
   SsoConfigWarning,
   SsoGroupValues,
@@ -221,6 +222,21 @@ export interface TeamChannel {
   /** a URL is stored (never returned) */
   hasUrl: boolean;
 }
+/**
+ * Which new resources of its members a team owns (#136): auto – once the team owns something (the default, so a team
+ * that does not use scopes yet changes nothing); always – from the start; never – none (members choose it themselves).
+ */
+export const TEAM_NEW_RESOURCE_MODES = ['auto', 'always', 'never'] as const;
+export type TeamNewResourceMode = (typeof TEAM_NEW_RESOURCE_MODES)[number];
+/** A team's report branding: each field overrides the instance's; null keeps the instance value. */
+export interface TeamReportBranding {
+  companyName: string | null;
+  accentColor: string | null;
+  classification: string | null;
+  footerNote: string | null;
+  /** the team has its own logo */
+  customLogo: boolean;
+}
 /** A team's settings and what they inherit (#136). */
 export interface TeamSettings {
   teamId: string;
@@ -228,10 +244,35 @@ export interface TeamSettings {
   /** null: the team uses the instance channel (the default) */
   channel: TeamChannel | null;
   /** the instance channel the team falls back to */
-  instance: { teamsEnabled: boolean; webhookEnabled: boolean };
+  instance: {
+    teamsEnabled: boolean;
+    webhookEnabled: boolean;
+    branding: { companyName: string; accentColor: string; classification: string; footerNote: string };
+  };
+  newResources: TeamNewResourceMode;
+  /** the daily summary its members get unless they chose their own; null: the instance default (off) */
+  summary: DailySummaryPrefs | null;
+  /** null: reports use the instance branding */
+  branding: TeamReportBranding | null;
+  /** report schedules of the team (they use its branding) */
+  reportSchedules: { id: string; name: string }[];
   canChange: boolean;
   updatedAt: string | null;
   updatedBy: string | null;
+}
+
+/** Where a personal value comes from (#136): the person's own choice, a team default or the instance default. */
+export type SettingSource = { from: 'own' } | { from: 'team'; team: string } | { from: 'instance' };
+
+/** The owning teams of the resources a person creates (#136), and where that comes from. */
+export interface NewResourceTeams {
+  /** teams new resources get now */
+  teams: { id: string; name: string }[];
+  /** own: the person chose one of their teams */
+  source: { from: 'own' } | { from: 'team' } | { from: 'instance' };
+  /** the person's teams they can choose from (teams that take no new resources are left out) */
+  choices: { id: string; name: string }[];
+  chosen: string | null;
 }
 
 /** Roles a member can have in a team (#131): administrator is instance-wide, a status viewer sees only status pages. */

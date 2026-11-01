@@ -133,6 +133,28 @@
     "previewTitle": "Preview: {{title}}",
     "previewEmpty": "Nothing to report right now.",
     "more_one": "… and {{count}} more",
-    "more_other": "… and {{count}} more"
+    "more_other": "… and {{count}} more",
+    "backToDefault": "Back to the default",
+    "resetDone": "Daily summary: the default applies again",
+    "source": {
+      "own": "Your own settings",
+      "team": "Default of team {{team}}",
+      "instance": "Instance default"
+    }
+  },
+  "newResources": {
+    "title": "Owning team of new resources",
+    "intro": "Processes, records, credentials and other resources you create belong to these teams. By default your teams decide; you can choose one of them instead.",
+    "choose": "New resources belong to",
+    "default": "My teams' defaults",
+    "saved": "Saved",
+    "source": {
+      "own": "Your choice",
+      "team": "Default of your teams",
+      "instance": "Whole instance"
+    },
+    "now_one": "New resources now belong to team {{teams}}.",
+    "now_other": "New resources now belong to teams {{teams}}.",
+    "nowNone": "New resources now belong to the whole instance (your teams do not take new resources yet)."
   }
 }

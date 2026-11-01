@@ -12,6 +12,7 @@ import { me } from '../auth/access.js';
  * Daily summary (mounted under /api).
  *   GET /me/daily-summary          the signed-in user's settings, whether summaries are allowed and e-mail can reach them
  *   PUT /me/daily-summary          save them
+ *   DELETE /me/daily-summary       back to the default (a team's or the instance's)
  *   GET /me/daily-summary/preview  what the summary would contain now (nothing is sent)
  *   GET /settings/daily-summary    administrators: the switch and who subscribed (no content)
  *   PUT /settings/daily-summary    administrators: allow or stop daily summaries for everyone
@@ -22,6 +23,8 @@ const meFull = () => getUser(me().id);
 export async function dailySummaryRoutes(app: FastifyInstance): Promise<void> {
   app.get('/me/daily-summary', async () => summary.summaryState(meFull()));
   app.put('/me/daily-summary', async (req) => summary.savePrefs(meFull(), summary.prefsSchema.parse(req.body ?? {})));
+  // back to the default (#136): a team's default or the instance's
+  app.delete('/me/daily-summary', async () => summary.resetPrefs(meFull()));
   app.get('/me/daily-summary/preview', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async () => summary.previewSummary(meFull()));
 
   app.get('/settings/daily-summary', async () => {

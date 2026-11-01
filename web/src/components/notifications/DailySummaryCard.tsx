@@ -1,13 +1,82 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Anchor, Button, Card, Checkbox, Group, Modal, Select, SimpleGrid, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Card, Checkbox, Group, Modal, Select, SimpleGrid, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { IconArrowBackUp } from '@tabler/icons-react';
 import { DAILY_SUMMARY_SECTIONS, type DailySummaryContent, type DailySummaryPrefs, type DailySummaryState } from '@sm/shared';
-import { get, notifyError, notifyOk, put } from '../../api';
+import { del, get, notifyError, notifyOk, put } from '../../api';
 import { fmtRelative } from '../../format';
 
-const browserZone = (): string => {
+/** Where the daily summary settings come from (#136): the person's own, a team default or the instance default. */
+export function SourceBadge({ source }: { source: DailySummaryState['source'] }) {
+  const { t } = useTranslation('profile');
+  return (
+    <Badge variant="light" color={source.from === 'own' ? 'blue' : 'gray'} data-testid="daily-summary-source">
+      {source.from === 'team' ? t('dailySummary.source.team', { team: source.team }) : t(`dailySummary.source.${source.from}`)}
+    </Badge>
+  );
+}
+
+/** The fields of a daily summary: a person's own (Profile) or a team's default for its members (team settings). */
+export function DailySummaryFields({
+  d,
+  set,
+  zoneList,
+  emailBlockedReason,
+}: {
+  d: DailySummaryPrefs;
+  set: (patch: Partial<DailySummaryPrefs>) => void;
+  zoneList: string[];
+  emailBlockedReason?: DailySummaryState['emailBlockedReason'];
+}) {
+  const { t } = useTranslation('profile');
+  return (
+    <>
+      <SimpleGrid cols={{ base: 1, sm: 3 }}>
+        <TextInput type="time" label={t('dailySummary.time')} value={d.time} onChange={(e) => set({ time: e.currentTarget.value || d.time })} />
+        <Select
+          label={t('dailySummary.timeZone')}
+          data={zoneList.length ? zoneList : [d.timeZone]}
+          value={d.timeZone}
+          onChange={(v) => v && set({ timeZone: v })}
+          searchable
+          allowDeselect={false}
+        />
+        <Select
+          label={t('dailySummary.days')}
+          data={(['weekdays', 'everyday'] as const).map((x) => ({ value: x, label: t(`dailySummary.daysOptions.${x}`) }))}
+          value={d.days}
+          onChange={(v) => v && set({ days: v as DailySummaryPrefs['days'] })}
+          allowDeselect={false}
+        />
+      </SimpleGrid>
+      <Select
+        label={t('dailySummary.channel')}
+        maw={320}
+        data={(['inApp', 'inAppEmail'] as const).map((x) => ({ value: x, label: t(`dailySummary.channelOptions.${x}`) }))}
+        value={d.channel}
+        onChange={(v) => v && set({ channel: v as DailySummaryPrefs['channel'] })}
+        allowDeselect={false}
+      />
+      {d.channel === 'inAppEmail' && emailBlockedReason && (
+        <Text size="xs" c="dimmed">
+          {t(`dailySummary.emailBlocked.${emailBlockedReason}`)}
+        </Text>
+      )}
+      <Checkbox.Group label={t('dailySummary.sections')} value={d.sections} onChange={(v) => set({ sections: v as DailySummaryPrefs['sections'] })}>
+        <SimpleGrid cols={{ base: 1, sm: 2 }} mt={6} spacing={6}>
+          {DAILY_SUMMARY_SECTIONS.map((s) => (
+            <Checkbox key={s} value={s} label={t(`dailySummary.sectionNames.${s}`)} />
+          ))}
+        </SimpleGrid>
+      </Checkbox.Group>
+      <Switch label={t('dailySummary.skipEmpty')} checked={d.skipEmpty} onChange={(e) => set({ skipEmpty: e.currentTarget.checked })} />
+    </>
+  );
+}
+
+export const browserZone = (): string => {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   } catch {
@@ -15,7 +84,7 @@ const browserZone = (): string => {
   }
 };
 
-const zones = (): string[] => {
+export const zones = (): string[] => {
   try {
     return (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.('timeZone') ?? [];
   } catch {
@@ -53,6 +122,17 @@ export function DailySummaryCard() {
       setBusy(false);
     }
   };
+  const reset = async () => {
+    setBusy(true);
+    try {
+      qc.setQueryData(['daily-summary'], await del<DailySummaryState>('/me/daily-summary'));
+      notifyOk(t('dailySummary.resetDone'));
+    } catch (e) {
+      notifyError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
   const showPreview = async () => {
     try {
       setPreview(await get<DailySummaryContent & { title: string }>('/me/daily-summary/preview'));
@@ -62,9 +142,10 @@ export function DailySummaryCard() {
   };
   return (
     <Card withBorder>
-      <Title order={5} mb="xs">
-        {t('dailySummary.title')}
-      </Title>
+      <Group justify="space-between" align="flex-start" wrap="nowrap" mb="xs">
+        <Title order={5}>{t('dailySummary.title')}</Title>
+        <SourceBadge source={st.source} />
+      </Group>
       <Text size="sm" c="dimmed" mb="sm">
         {t('dailySummary.intro')}
       </Text>
@@ -80,54 +161,17 @@ export function DailySummaryCard() {
           disabled={!st.allowed && !d.enabled}
           onChange={(e) => set({ enabled: e.currentTarget.checked })}
         />
-        {d.enabled && (
-          <>
-            <SimpleGrid cols={{ base: 1, sm: 3 }}>
-              <TextInput type="time" label={t('dailySummary.time')} value={d.time} onChange={(e) => set({ time: e.currentTarget.value || d.time })} />
-              <Select
-                label={t('dailySummary.timeZone')}
-                data={zoneList.length ? zoneList : [d.timeZone]}
-                value={d.timeZone}
-                onChange={(v) => v && set({ timeZone: v })}
-                searchable
-                allowDeselect={false}
-              />
-              <Select
-                label={t('dailySummary.days')}
-                data={(['weekdays', 'everyday'] as const).map((x) => ({ value: x, label: t(`dailySummary.daysOptions.${x}`) }))}
-                value={d.days}
-                onChange={(v) => v && set({ days: v as DailySummaryPrefs['days'] })}
-                allowDeselect={false}
-              />
-            </SimpleGrid>
-            <Select
-              label={t('dailySummary.channel')}
-              maw={320}
-              data={(['inApp', 'inAppEmail'] as const).map((x) => ({ value: x, label: t(`dailySummary.channelOptions.${x}`) }))}
-              value={d.channel}
-              onChange={(v) => v && set({ channel: v as DailySummaryPrefs['channel'] })}
-              allowDeselect={false}
-            />
-            {d.channel === 'inAppEmail' && st.emailBlockedReason && (
-              <Text size="xs" c="dimmed">
-                {t(`dailySummary.emailBlocked.${st.emailBlockedReason}`)}
-              </Text>
-            )}
-            <Checkbox.Group label={t('dailySummary.sections')} value={d.sections} onChange={(v) => set({ sections: v as DailySummaryPrefs['sections'] })}>
-              <SimpleGrid cols={{ base: 1, sm: 2 }} mt={6} spacing={6}>
-                {DAILY_SUMMARY_SECTIONS.map((s) => (
-                  <Checkbox key={s} value={s} label={t(`dailySummary.sectionNames.${s}`)} />
-                ))}
-              </SimpleGrid>
-            </Checkbox.Group>
-            <Switch label={t('dailySummary.skipEmpty')} checked={d.skipEmpty} onChange={(e) => set({ skipEmpty: e.currentTarget.checked })} />
-          </>
-        )}
+        {d.enabled && <DailySummaryFields d={d} set={set} zoneList={zoneList} emailBlockedReason={st.emailBlockedReason} />}
         <Group justify="space-between" wrap="wrap">
           <Text size="xs" c="dimmed">
             {st.lastSentAt ? t('dailySummary.lastSent', { when: fmtRelative(st.lastSentAt) }) : ''}
           </Text>
           <Group gap="xs">
+            {st.source.from === 'own' && (
+              <Button size="xs" variant="subtle" leftSection={<IconArrowBackUp size={14} />} onClick={reset} loading={busy}>
+                {t('dailySummary.backToDefault')}
+              </Button>
+            )}
             <Button size="xs" variant="default" onClick={showPreview}>
               {t('dailySummary.preview')}
             </Button>

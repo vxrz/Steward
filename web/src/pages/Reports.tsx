@@ -35,6 +35,7 @@ import { reportLangName } from '../components/reports/RunReports';
 import { useTypeName } from '../components/records/common';
 import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
+import { useMe } from '../auth';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
 const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties', 'scorecard'];
@@ -42,7 +43,25 @@ const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tic
 type Draft = Pick<
   ReportSchedule,
   'name' | 'enabled' | 'preset' | 'cron' | 'timezone' | 'periodDays' | 'lang' | 'classification' | 'title' | 'sections' | 'recipients' | 'attachPdf'
-> & { id?: string };
+> & { id?: string; /** the team whose report branding the PDF uses (#136), by name */ team: string | null };
+
+/** What the API takes: the editable fields only, the team by name. */
+const toDraft = (s: ReportSchedule): Draft => ({
+  id: s.id,
+  name: s.name,
+  enabled: s.enabled,
+  preset: s.preset,
+  cron: s.cron,
+  timezone: s.timezone,
+  periodDays: s.periodDays,
+  lang: s.lang,
+  classification: s.classification,
+  title: s.title,
+  sections: s.sections,
+  recipients: s.recipients,
+  attachPdf: s.attachPdf,
+  team: s.team?.name ?? null,
+});
 
 const emptyDraft = (lang: 'en' | 'de'): Draft => ({
   name: '',
@@ -57,6 +76,7 @@ const emptyDraft = (lang: 'en' | 'de'): Draft => ({
   sections: { availability: { monitorIds: null, slaTarget: 99.5 }, credentials: { dueWithinDays: 30 } },
   recipients: { users: [], teams: [], emails: [] },
   attachPdf: false,
+  team: null,
 });
 
 export function ReportsPage() {
@@ -151,6 +171,11 @@ export function ReportsPage() {
                               {t('disabled')}
                             </Badge>
                           )}
+                          {s.team && (
+                            <Badge ml={4} size="xs" color="grape" variant="light">
+                              {t('table.team', { team: s.team.name })}
+                            </Badge>
+                          )}
                         </Text>
                       </Table.Td>
                       <Table.Td>
@@ -190,7 +215,7 @@ export function ReportsPage() {
                                 <IconPlayerPlay size={16} />
                               </ActionIcon>
                             </Tooltip>
-                            <ActionIcon variant="subtle" onClick={() => setDraft({ ...s })} aria-label={t('editOf', { name: s.name })}>
+                            <ActionIcon variant="subtle" onClick={() => setDraft(toDraft(s))} aria-label={t('editOf', { name: s.name })}>
                               <IconEdit size={16} />
                             </ActionIcon>
                             <ActionIcon
@@ -304,6 +329,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
   const { t: tDuties } = useTranslation('duties');
   const [d, setD] = useState<Draft>(draft);
   const [busy, setBusy] = useState(false);
+  const { me, isAdmin } = useMe();
   const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors') });
   const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
   const recordTypes = useQuery({ queryKey: ['record-types', false], queryFn: () => get<RecordType[]>('/record-types'), enabled: sections.includes('records') });
@@ -344,6 +370,9 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
   };
   const users = (subjects.data ?? []).filter((s) => s.kind === 'user').map((s) => ({ value: s.value.slice(5), label: s.label }));
   const teams = (subjects.data ?? []).filter((s) => s.kind === 'team').map((s) => ({ value: s.name ?? s.value.slice(5), label: s.name ?? s.value.slice(5) }));
+  // the branding team (#136): one of the owner's teams (administrators: any team); the current one stays selectable
+  const mine = new Set((me?.user.teams ?? []).map((x) => x.toLowerCase()));
+  const brandingTeams = teams.filter((x) => isAdmin || mine.has(x.value.toLowerCase()) || x.value === d.team);
 
   return (
     <Modal opened onClose={onClose} title={d.id ? t('edit') : t('new')} size="xl">
@@ -523,6 +552,16 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
           maxTags={20}
           value={d.recipients.emails}
           onChange={(v) => set({ recipients: { ...d.recipients, emails: v } })}
+        />
+        <Select
+          label={t('form.team')}
+          description={t('form.teamHint')}
+          clearable
+          placeholder={t('form.teamNone')}
+          data={brandingTeams}
+          value={d.team}
+          onChange={(v) => set({ team: v })}
+          data-testid="schedule-team"
         />
         <Switch
           label={t('form.attachPdf')}

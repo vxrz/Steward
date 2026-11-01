@@ -133,6 +133,28 @@
     "previewTitle": "Vorschau: {{title}}",
     "previewEmpty": "Gerade gibt es nichts zu berichten.",
     "more_one": "… und {{count}} weiterer",
-    "more_other": "… und {{count}} weitere"
+    "more_other": "… und {{count}} weitere",
+    "backToDefault": "Zurück zur Vorgabe",
+    "resetDone": "Tägliche Zusammenfassung: Die Vorgabe gilt wieder",
+    "source": {
+      "own": "Ihre eigenen Einstellungen",
+      "team": "Vorgabe des Teams {{team}}",
+      "instance": "Vorgabe der Instanz"
+    }
+  },
+  "newResources": {
+    "title": "Team neuer Ressourcen",
+    "intro": "Prozesse, Dokumente, Zugangsdaten und andere Ressourcen, die Sie anlegen, gehören diesen Teams. Standardmäßig entscheiden Ihre Teams; Sie können stattdessen eines davon wählen.",
+    "choose": "Neue Ressourcen gehören",
+    "default": "Vorgaben meiner Teams",
+    "saved": "Gespeichert",
+    "source": {
+      "own": "Ihre Wahl",
+      "team": "Vorgabe Ihrer Teams",
+      "instance": "Ganze Instanz"
+    },
+    "now_one": "Neue Ressourcen gehören jetzt dem Team {{teams}}.",
+    "now_other": "Neue Ressourcen gehören jetzt den Teams {{teams}}.",
+    "nowNone": "Neue Ressourcen gehören jetzt der ganzen Instanz (Ihre Teams übernehmen noch keine neuen Ressourcen)."
   }
 }

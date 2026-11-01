@@ -381,6 +381,53 @@
     "saved": "Team settings saved",
     "notSaved": "Team settings not saved",
     "resetDone": "The team uses the instance channel again",
-    "readOnly": "Administrators change team settings."
+    "readOnly": "Administrators change team settings.",
+    "tabs": {
+      "channel": "Channel",
+      "resources": "New resources",
+      "summary": "Daily summary",
+      "branding": "Report branding"
+    },
+    "newResources": {
+      "title": "New resources of members",
+      "hint": "Which of the resources its members create the team owns. A member can choose one of their teams instead (Profile).",
+      "modes": {
+        "auto": "Once the team owns something",
+        "always": "Always",
+        "never": "Never"
+      },
+      "hints": {
+        "auto": "The default: the team owns its members' new resources once it owns something, so a team that owns nothing yet changes nothing.",
+        "always": "The team owns its members' new resources from the start.",
+        "never": "Members' new resources do not get this team, and members cannot choose it for them."
+      }
+    },
+    "summary": {
+      "title": "Daily summary for members",
+      "hint": "Members who have not chosen their own settings in their profile get this daily summary. Their own settings always win.",
+      "usesInstance": "Members without their own settings get the instance default: no daily summary.",
+      "setDefault": "Set a default for members",
+      "enabled": "Members get a daily summary"
+    },
+    "branding": {
+      "title": "Report branding",
+      "hint": "Reports of the team use it instead of the instance branding: scheduled reports of the team, run reports of its processes and PDFs of its records.",
+      "companyName": "Company name",
+      "accentColor": "Accent colour",
+      "classification": "Default classification",
+      "footerNote": "Footer note",
+      "none": "(none)",
+      "emptyKeeps": "An empty field keeps the instance value (shown in grey).",
+      "logo": "Team logo",
+      "instanceLogo": "Logo: the instance's",
+      "uploadLogo": "Upload a logo",
+      "removeLogo": "Remove the logo",
+      "logoSaved": "Logo saved",
+      "logoRemoved": "Logo removed: the instance logo again",
+      "schedules_one": "{{count}} report schedule of the team:",
+      "schedules_other": "{{count}} report schedules of the team:",
+      "noSchedules": "No report schedule uses the team yet (choose the team in a report schedule).",
+      "eyeDropper": "Pick a colour from the screen"
+    }
   }
 }

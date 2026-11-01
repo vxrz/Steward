@@ -29,6 +29,7 @@ import '../tickets/report-section.js';
 import '../duties/report-section.js';
 import '../scorecard/report-section.js';
 import { me } from '../auth/access.js';
+import { memberships } from '../auth/policy.js';
 
 /**
  * Scheduled summary reports. A schedule has an owner and runs with the owner's
@@ -70,6 +71,8 @@ interface Row {
   sections: string;
   recipients: string;
   attach_pdf: number;
+  /** ["team:<name>"] or [] (#136) */
+  team: string;
   created_at: string;
   updated_at: string;
   last_run_at: string | null;
@@ -185,6 +188,7 @@ function toSchedule(r: Row): ReportSchedule {
     sections: parseJson(r.sections, {}),
     recipients: parseJson(r.recipients, { users: [], teams: [], emails: [] }),
     attachPdf: !!r.attach_pdf,
+    team: scheduleTeam(r),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     lastRunAt: r.last_run_at,
@@ -193,6 +197,15 @@ function toSchedule(r: Row): ReportSchedule {
     nextRunAt: jobs.get(r.id)?.nextRun()?.toISOString() ?? null,
     canEdit: canEdit(currentUser(), r),
   };
+}
+
+/** The schedule's team (#136): its report branding is used (a renamed team is followed, a deleted one is gone). */
+function scheduleTeam(r: Pick<Row, 'team'>): { id: string; name: string } | null {
+  const name = parseJson<string[]>(r.team ?? '[]', [])[0]
+    ?.replace(/^team:/i, '')
+    .toLowerCase();
+  const tm = name ? listTeams().find((x) => x.name.toLowerCase() === name) : undefined;
+  return tm ? { id: tm.id, name: tm.name } : null;
 }
 
 function rowOf(id: string): Row {
@@ -232,6 +245,8 @@ export const scheduleInputSchema = z.object({
     })
     .prefault({}),
   attachPdf: z.boolean().default(false),
+  /** The team whose report branding the PDF uses (#136): a team the owner is a member of; null: the instance branding */
+  team: z.string().trim().min(1).max(100).nullable().default(null),
 });
 export type ScheduleInput = z.infer<typeof scheduleInputSchema>;
 
@@ -288,6 +303,15 @@ function normalize(
   // new external addresses must have an allowed domain (notify() checks every address again when sending)
   const stored = new Set(before ? parseJson<ReportRecipients>(before.recipients, { users: [], teams: [], emails: [] }).emails : []);
   assertEmailsAllowed(b.recipients.emails.filter((e) => !stored.has(e)));
+  // the team's branding: a team the owner belongs to (administrators: any team)
+  let team: string[] = [];
+  if (b.team) {
+    const tm = listTeams().find((x) => x.name.toLowerCase() === b.team!.toLowerCase());
+    if (!tm) throw new HttpError(400, `Team "${b.team}" not found`, 'TEAM_NOT_FOUND', { name: b.team });
+    if (!isAdmin(owner) && !memberships(owner).has(tm.id))
+      throw new HttpError(400, `The owner of the schedule is not a member of team "${tm.name}"`, 'REPORT_SCHEDULE_TEAM', { name: tm.name });
+    team = [`team:${tm.name.toLowerCase()}`];
+  }
   return {
     name: b.name,
     enabled: b.enabled ? 1 : 0,
@@ -301,6 +325,7 @@ function normalize(
     sections: JSON.stringify(sections),
     recipients: JSON.stringify({ users: [...new Set(b.recipients.users)], teams: [...new Set(b.recipients.teams)], emails: [...new Set(b.recipients.emails)] }),
     attach_pdf: b.attachPdf ? 1 : 0,
+    team: JSON.stringify(team),
   };
 }
 
@@ -427,6 +452,7 @@ export async function runReportSchedule(id: string, o: { actor: string; at?: num
         owner,
         scheduleId: r.id,
         scheduleName: r.name,
+        teamId: scheduleTeam(r)?.id ?? null,
         title: r.title || r.name,
         from,
         to,

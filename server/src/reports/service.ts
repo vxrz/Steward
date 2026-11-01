@@ -6,7 +6,7 @@ import { db } from '../db.js';
 import { audit, authenticRows, importedSourceOf } from '../audit.js';
 import { runRow } from '../engine/store.js';
 import { HttpError, newId, nowIso, parseJson, pathInside, sha256, slugify } from '../util.js';
-import { getBranding, logo } from './branding.js';
+import { brandingFor, brandingTeamOf, commonBrandingTeam } from './branding.js';
 import { resolveTimeZone, translator } from './i18n.js';
 import { buildRunModel, contentHash, evidenceImages, person, type ReportContext, type RunReportModel } from './model.js';
 import { renderRunReport, type RenderResult } from './run-report.js';
@@ -125,9 +125,10 @@ function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
-function brandingInput(override?: Partial<ReportBranding>) {
-  const branding = { ...getBranding(), ...(override ?? {}) };
-  return { branding, logo: logo().data };
+/** Branding and logo for a report: the instance's, a team's over it (#136), and a preview's changes over both. */
+function brandingInput(override?: Partial<ReportBranding>, teamId?: string | null) {
+  const b = brandingFor(teamId);
+  return { branding: { ...b.branding, ...(override ?? {}) }, logo: b.logo };
 }
 
 /** A stored report's file from its relative path ("<run id>/<report id>.pdf", "summary/<report id>.pdf" …). */
@@ -214,8 +215,8 @@ export interface GenerateOptions {
   compress?: boolean;
 }
 
-function context(o: GenerateOptions, reportId: string, version: number): ReportContext {
-  const b = getBranding();
+function context(o: GenerateOptions, reportId: string, version: number, teamId?: string | null): ReportContext {
+  const b = brandingFor(teamId).branding;
   return {
     reportId,
     version,
@@ -242,9 +243,10 @@ export async function generateRunReport(runId: string, o: GenerateOptions): Prom
     }
     const version = (db().get<{ v: number | null }>('SELECT MAX(version) AS v FROM reports WHERE run_id = ?', runId)?.v ?? 0) + 1;
     const id = newId('rpt_');
-    const model = buildRunModel(runId, context(o, id, version));
+    const team = brandingTeamOf('process', run.process_id);
+    const model = buildRunModel(runId, context(o, id, version, team));
     const hash = contentHash(model);
-    const res = await renderRunReport(model, hash, brandingInput(), { images: evidenceImages(model), compress: o.compress });
+    const res = await renderRunReport(model, hash, brandingInput(undefined, team), { images: evidenceImages(model), compress: o.compress });
     const tr = translator(model.lang, model.timeZone);
     const rec: ReportRecord = {
       id,
@@ -291,9 +293,11 @@ export async function generateSummaryReport(o: SummaryOptions): Promise<ReportRe
   if (to <= from) throw new HttpError(400, 'The end of the period must be after its start', 'PERIOD_END_BEFORE_START');
   if (!o.processIds.length) throw new HttpError(400, 'Select at least one process', 'PROCESS_REQUIRED');
   const id = newId('rpt_');
-  const model = buildSummaryModel({ processIds: o.processIds, from: from.toISOString(), to: to.toISOString(), title: o.title }, context(o, id, 1));
+  // the team's branding when all its processes share one (#136)
+  const team = commonBrandingTeam('process', o.processIds);
+  const model = buildSummaryModel({ processIds: o.processIds, from: from.toISOString(), to: to.toISOString(), title: o.title }, context(o, id, 1, team));
   const hash = contentHash(model);
-  const res = await renderSummaryReport(model, hash, brandingInput(), { compress: o.compress });
+  const res = await renderSummaryReport(model, hash, brandingInput(undefined, team), { compress: o.compress });
   const tr = translator(model.lang, model.timeZone);
   const scope = model.processes.length === 1 ? slugify(model.processes[0]!.name) : `${model.processes.length}-processes`;
   const rec: ReportRecord = {
@@ -345,13 +349,15 @@ export interface ScheduledOptions extends GenerateOptions {
   from: number;
   to: number;
   sections: Record<string, unknown>;
+  /** The schedule's team: its report branding (#136) */
+  teamId?: string | null;
 }
 
 /** Scheduled summary report: collected as the owner, archived (immutable, hashed, audited) like every report. */
 export async function generateScheduledReport(o: ScheduledOptions): Promise<ReportRecord & { texts: string[]; pdf: Buffer }> {
   if (o.to <= o.from) throw new HttpError(400, 'The end of the period must be after its start', 'PERIOD_END_BEFORE_START');
   const id = newId('rpt_');
-  const ctx = context({ ...o, actor: o.owner.username }, id, 1);
+  const ctx = context({ ...o, actor: o.owner.username }, id, 1, o.teamId);
   const model = runAs(o.owner, () =>
     buildScheduledModel(
       {
@@ -368,7 +374,7 @@ export async function generateScheduledReport(o: ScheduledOptions): Promise<Repo
     ),
   );
   const hash = contentHash(model);
-  const res = await renderScheduledReport(model, hash, brandingInput(), { compress: o.compress });
+  const res = await renderScheduledReport(model, hash, brandingInput(undefined, o.teamId), { compress: o.compress });
   const rec: ReportRecord = {
     id,
     kind: 'scheduled',

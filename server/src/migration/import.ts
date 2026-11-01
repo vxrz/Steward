@@ -23,6 +23,7 @@ import {
   type UserDecision,
   TEAM_CHANNEL_FORMATS,
   TEAM_CHANNEL_MODES,
+  REPORT_LOGO_MAX_BYTES,
 } from '@sm/shared';
 import { config } from '../config.js';
 import { Db, db, namedMigrations, coreMigrations } from '../db.js';
@@ -61,6 +62,7 @@ import { DATA_PREFIX } from './export.js';
 import { checkScaleRows } from '../catalogue/cia.js';
 import { SCORECARD_IMPORT_TABLES, scorecardTableChecker } from '../scorecard/import-checks.js';
 import { sealTeamChannel } from '../notifications/team-channels.js';
+import { importedDefaults } from '../teams/settings.js';
 
 /**
  * Import of a migration package (see format.ts and export.ts) into this instance:
@@ -146,8 +148,15 @@ const manifestSchema = z.object({
               .strict()
               .nullable(),
             channelSecret: z.string().max(20000).optional(),
+            // team defaults (#136): checked on import (importedDefaults)
+            defaults: z.unknown().optional(),
+            logo: z
+              .string()
+              .max(Math.ceil((REPORT_LOGO_MAX_BYTES * 4) / 3) + 16)
+              .optional(),
           })
           .optional(),
+        newResourceMembers: z.array(z.string().max(100)).max(100000).optional(),
       }),
     )
     .max(10000),
@@ -1201,12 +1210,15 @@ function copyIntoTarget(
         const tid = teamIds.get(lower(tn));
         // the roles the member had in the team come along (#131)
         const roles = sourceTeams.get(lower(tn))?.memberRoles?.[u.source.username];
+        // and their choice of this team for new resources (#136)
+        const chosen = (sourceTeams.get(lower(tn))?.newResourceMembers ?? []).some((n) => lower(n) === lower(u.source.username));
         if (tid)
           d.run(
-            'INSERT INTO team_members (team_id, user_id, roles) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
+            'INSERT INTO team_members (team_id, user_id, roles, new_resources) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING',
             tid,
             id,
             roles?.length ? JSON.stringify(roles) : null,
+            chosen ? 1 : 0,
           );
       }
     }
@@ -1267,13 +1279,17 @@ function copyIntoTarget(
           throw new HttpError(400, 'A team channel cannot be read with the package key', 'MIGRATION_PACKAGE_INVALID');
         }
       }
+      // team defaults and logo (#136), checked like the team settings form would
+      const defaults = importedDefaults(ts0.defaults, ts0.logo);
       d.run(
-        `INSERT INTO team_settings (team_id, channel, channel_secret, updated_at, updated_by) VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO team_settings (team_id, channel, channel_secret, defaults, logo, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (team_id) DO UPDATE SET channel = excluded.channel, channel_secret = excluded.channel_secret,
-           updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+           defaults = excluded.defaults, logo = excluded.logo, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
         tid,
         ts0.channel ? JSON.stringify(ts0.channel) : null,
         secret,
+        defaults.defaults,
+        defaults.logo,
         ts,
         'migration',
       );

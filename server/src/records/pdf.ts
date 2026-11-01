@@ -15,7 +15,7 @@ import { db } from '../db.js';
 import { audit, queryAudit } from '../audit.js';
 import { findUserByName } from '../auth/users.js';
 import { COLORS, ReportWriter, type Tone } from '../reports/pdf/engine.js';
-import { getBranding, logo } from '../reports/branding.js';
+import { brandingFor, brandingTeamOf } from '../reports/branding.js';
 import { requestLang } from '../reports/service.js';
 import { translator, type Translator } from '../reports/i18n.js';
 import { PRODUCT, chrome, langTag } from '../reports/common.js';
@@ -224,8 +224,10 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
   const R: Texts = recordTexts(o.lang);
   const { t } = R;
   const typeName = R.typeName(rec.typeKey, rec.typeName);
-  const branding = getBranding();
-  const brand = { branding, logo: logo().data };
+  // the branding of the record's team, if it has one (#136)
+  const b = brandingFor(brandingTeamOf('record', rec.id));
+  const branding = b.branding;
+  const brand = { branding, logo: b.logo };
   const hash = rec.frozenHash ?? rec.contentHash;
   const tampered = rec.tampered;
   const draft = !rec.frozen;

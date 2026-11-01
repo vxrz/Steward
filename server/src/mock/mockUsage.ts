@@ -7,7 +7,8 @@ import type { FastifyInstance, preHandlerAsyncHookHandler } from 'fastify';
  * The Usage Transparency route follows the v3.2.0 specification: `GET /aggregatedMonthlyConsumerUsage` needs month
  * (English month name), year, provider, application and KPIName and answers with the aggregated value of that KPI;
  * a missing parameter is a 400 in the error format of the specification. Agent Management uses Spring paging.
- * The KPI value grows a little over the month, so the trend charts of the demo are not flat.
+ * The KPI value grows a little over the month, so the trend charts of the demo are not flat. Monthly credits stay at
+ * 95.5–97.5 % of the demo limit (10 000) all month, so the critical check fails on any day, also on the 1st.
  */
 
 const AGENTS = [
@@ -25,7 +26,7 @@ const AGENTS = [
 /** The KPIs the demo provider reports, by application. */
 const KPIS: Record<string, Record<string, { display: string; base: number; growth: number }>> = {
   'steward-demo': {
-    'monthly-credits': { display: 'Monthly credits', base: 9450, growth: 200 },
+    'monthly-credits': { display: 'Monthly credits', base: 9550, growth: 200 },
     'active-users': { display: 'Active users', base: 12, growth: 2 },
   },
 };
