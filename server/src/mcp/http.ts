@@ -38,6 +38,7 @@ import { PARSE_ERROR, INVALID_REQUEST, INTERNAL_ERROR, STEWARD_ERRORS, errorResp
 import { handleMessage } from './server.js';
 import type { McpPrincipal } from './tools.js';
 import { decide, getRequest, listRequests } from './requests.js';
+import { offersSignIn, resolveAccessGrant, resourceMetadataUrl, resourceOf } from './oauth.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS } from '../auth/access.js';
 
@@ -142,36 +143,69 @@ async function guard(req: FastifyRequest, reply: FastifyReply): Promise<void> {
     );
   }
   const ipKey = `ip:${req.ip}`;
+  const signIn = offersSignIn();
   const bearer = bearerToken(req.headers.authorization);
+  // with OAuth on (#12), clients learn where to sign in from the resource metadata (RFC 9728)
+  const challenge = (extra = '') => `Bearer realm="${REALM}"${signIn ? `, resource_metadata="${resourceMetadataUrl(req)}", scope="mcp"` : ''}${extra}`;
   if (!bearer) {
     if (rateLimited(reply, ipKey)) return;
-    reply.header('www-authenticate', `Bearer realm="${REALM}"`);
+    reply.header('www-authenticate', challenge());
     return void refuse(
       reply,
       401,
       STEWARD_ERRORS.unauthorized,
-      'Send an MCP token as "Authorization: Bearer <token>" (create one with scope "MCP client" on your profile page)',
+      signIn
+        ? 'Sign in with OAuth (see the resource metadata in WWW-Authenticate) or send an MCP token as "Authorization: Bearer <token>"'
+        : 'Send an MCP token as "Authorization: Bearer <token>" (create one with scope "MCP client" on your profile page)',
       'unauthorized',
     );
   }
+  // an MCP token of a person, else an OAuth access token (#12): both are looked up, neither is trusted by its form
   const r = resolveToken(bearer);
-  if (!r.ok) {
-    if (rateLimited(reply, ipKey)) return;
-    logger.debug({ reqId: req.id, ip: req.ip, reason: r.reason }, 'MCP: token refused');
-    if (r.reason === 'owner_disabled') return void refuse(reply, 403, STEWARD_ERRORS.forbidden, 'The owner of this token is deactivated', 'forbidden');
-    reply.header('www-authenticate', `Bearer realm="${REALM}", error="invalid_token"`);
-    return void refuse(reply, 401, STEWARD_ERRORS.unauthorized, 'Invalid, expired or revoked token', 'unauthorized');
+  if (r.ok) {
+    if (rateLimited(reply, `tok:${r.tokenId}`)) return;
+    if (r.scope !== 'mcp') {
+      return void refuse(
+        reply,
+        403,
+        STEWARD_ERRORS.forbidden,
+        'This token is not enabled for MCP – create a token with scope "MCP client" on your profile page',
+        'scope',
+      );
+    }
+    return admit(req, reply, { user: r.user, tokenId: r.tokenId, tokenName: r.name });
   }
-  if (rateLimited(reply, `tok:${r.tokenId}`)) return;
-  if (r.scope !== 'mcp') {
-    return void refuse(
-      reply,
-      403,
-      STEWARD_ERRORS.forbidden,
-      'This token is not enabled for MCP – create a token with scope "MCP client" on your profile page',
-      'scope',
-    );
+  const g = r.reason === 'unknown' ? resolveAccessGrant(bearer, resourceOf(req)) : null;
+  if (g?.ok) {
+    if (rateLimited(reply, `tok:${g.grantId}`)) return;
+    return admit(req, reply, { user: g.user, tokenId: g.grantId, tokenName: `${g.clientName} (OAuth)` });
   }
+  if (rateLimited(reply, ipKey)) return;
+  // the OAuth answer counts when the token was an access token; else the MCP token's
+  const viaGrant = !!g && g.reason !== 'invalid';
+  const reason = viaGrant ? g.reason : r.reason;
+  logger.debug({ reqId: req.id, ip: req.ip, reason, oauth: viaGrant }, 'MCP: token refused');
+  if (reason === 'owner_disabled') {
+    const msg = viaGrant ? 'The account this client acts as is deactivated' : 'The owner of this token is deactivated';
+    return void refuse(reply, 403, STEWARD_ERRORS.forbidden, msg, 'forbidden');
+  }
+  reply.header('www-authenticate', challenge(', error="invalid_token"'));
+  return void refuse(
+    reply,
+    401,
+    STEWARD_ERRORS.unauthorized,
+    reason === 'audience'
+      ? 'This access token was issued for another resource'
+      : reason === 'disabled'
+        ? 'OAuth sign-in for MCP clients is turned off – use an MCP token'
+        : 'Invalid, expired or revoked token',
+    'unauthorized',
+  );
+}
+
+/** The checks after the token: the owner may work now, the request is JSON; then the request acts as the owner. */
+function admit(req: FastifyRequest, reply: FastifyReply, principal: McpPrincipal): void {
+  const r = { user: principal.user, tokenId: principal.tokenId, name: principal.tokenName };
   if (r.user.mustChangePassword)
     return void refuse(reply, 403, STEWARD_ERRORS.forbidden, 'The owner of this token has to change their password in the web UI first', 'forbidden');
   if (!vault().unlocked) {
@@ -186,7 +220,6 @@ async function guard(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   const accept = String(req.headers.accept ?? '');
   if (accept && !/(application\/json|application\/\*|\*\/\*)/i.test(accept))
     return void refuse(reply, 406, INVALID_REQUEST, 'This server answers with application/json – include it in Accept', 'accept');
-  const principal: McpPrincipal = { user: r.user, tokenId: r.tokenId, tokenName: r.name };
   const anyReq = req as unknown as { smMcp?: McpPrincipal; smUser?: string; smToken?: string };
   anyReq.smMcp = principal;
   anyReq.smUser = r.user.username;

@@ -131,5 +131,14 @@ export function mcpServerStatus(): McpServerStatus {
     rateLimitPerMinute: mcpRateLimit(),
     gatewayRateLimitPerMinute: gatewayRateLimit(),
     runRequests: mcpRunRequests(),
+    oauth: oauthSettingsLazy(),
   };
 }
+
+/** OAuth settings (mcp/oauth.ts imports this module, so they are read through a late-bound reference). */
+let oauthSettingsRef: (() => McpServerStatus['oauth']) | null = null;
+export const registerOAuthSettings = (fn: () => McpServerStatus['oauth']): void => {
+  oauthSettingsRef = fn;
+};
+const oauthSettingsLazy = (): McpServerStatus['oauth'] =>
+  oauthSettingsRef?.() ?? { enabled: false, dynamicRegistration: true, accessTokenMinutes: 60, refreshTokenDays: 30 };

@@ -8,6 +8,7 @@ Contents:
 
 - [Turn it on](#turn-it-on)
 - [Create a token](#create-a-token)
+- [Sign in with OAuth (optional)](#sign-in-with-oauth-optional)
 - [Connect a client](#connect-a-client)
 - [Tools](#tools)
 - [Resources](#resources)
@@ -43,6 +44,57 @@ Every person uses their own token. A tool acts with the rights of the token's ow
 A token with the scope _MCP client_ works **only** on the MCP endpoint. The REST API (`/api/v1`) and the web UI's API refuse it. The other way round, _read_ and _full_ tokens do not work on the MCP endpoint. So an MCP token that leaks from a client configuration file gives read-only MCP access and nothing else.
 
 Revoke a token on the profile page (or, as an administrator, under **Settings → API tokens**). It stops working immediately.
+
+## Sign in with OAuth (optional)
+
+Instead of pasting a token, MCP clients that support the [MCP authorization specification](https://modelcontextprotocol.io/specification/latest/basic/authorization) can sign in with the person's Steward account. This is **optional and off by default**; MCP tokens keep working whether it is on or off.
+
+**Turn it on** (administrators): _Settings → Security & sign-in → MCP server_ → **Let MCP clients sign in with OAuth**. The MCP server itself must be on.
+
+**What happens then:**
+
+1. The client calls `/api/mcp` without a token. Steward answers `401` with `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource/api/mcp"`.
+2. The client reads the metadata (RFC 9728 and RFC 8414). If self-registration is allowed, it registers itself (RFC 7591).
+3. It opens the browser at Steward's consent page (`/oauth/authorize`). The person signs in as usual (password or single sign-on) and sees:
+   - which client asks;
+   - where the browser will return;
+   - what the client will be able to do.
+
+   Allowing asks for a step-up confirmation, like creating a token.
+
+4. The client exchanges the one-time code for an access token for the MCP endpoint, plus a refresh token.
+
+**What the client can do:** exactly what an MCP token can do. It has the person's own rights, through the MCP tools only, and changes only ever become requests that a person decides ([Approved writes](#approved-writes)). The access token is refused everywhere else: the REST API (`/api/v1`) and the web UI's API.
+
+**Rules:**
+
+- **PKCE** (`S256`) is required. Clients are public: Steward issues no client secrets.
+- **Redirect URIs:** https, http on a loopback address (`127.0.0.1`, `[::1]`, `localhost`, any port), or the app's own scheme (e.g. `cursor://…`). They must match exactly; `javascript:`, `data:`, `file:` and similar schemes are refused.
+- **Scope:** `mcp`. **Audience:** the token is bound to the MCP endpoint (`resource`, RFC 8707); a token issued for another resource is refused.
+- **Lifetimes:** access tokens live 60 minutes, and people stay signed in for 30 days without using the client. Both can be changed in the settings.
+- **Refresh tokens rotate.** Using an old one again revokes the access: the client and whoever copied the token both lose it. An authorization code is valid once, for 10 minutes; using it twice revokes the access it gave.
+- **One grant per person and client.** Allowing the client again replaces the old grant. At most 50 connected clients per person.
+- **Self-registration** can be turned off. Then only clients that administrators add under the MCP server settings (name and redirect URIs) can sign in.
+
+**See and revoke access:**
+
+- People see their connected clients in their profile under _Connected MCP clients_ and revoke them there.
+- Administrators see every client and connection in the MCP server settings, and can remove a client, which ends every connection to it.
+- Clients can revoke their own tokens (RFC 7009, `POST /oauth/revoke`).
+- Deactivating the person, turning OAuth off or turning MCP off stops every OAuth token at once.
+
+**Endpoints:**
+
+| Endpoint                                            | What                                                           |
+| --------------------------------------------------- | -------------------------------------------------------------- |
+| `GET /.well-known/oauth-protected-resource/api/mcp` | resource metadata (RFC 9728)                                   |
+| `GET /.well-known/oauth-authorization-server`       | authorization server metadata (RFC 8414)                       |
+| `POST /oauth/register`                              | dynamic client registration (RFC 7591), JSON                   |
+| `GET /oauth/authorize`                              | the consent page in the web UI                                 |
+| `POST /oauth/token`                                 | `authorization_code` and `refresh_token`, form-encoded or JSON |
+| `POST /oauth/revoke`                                | token revocation (RFC 7009)                                    |
+
+The issuer is `SM_PUBLIC_URL` (recommended: set it), otherwise the address of the request. With a base path (`SM_BASE_PATH=/steward`), the well-known addresses put the path at the end, as the RFCs require: `/.well-known/oauth-authorization-server/steward` and `/.well-known/oauth-protected-resource/steward/api/mcp`. Steward answers exactly these two outside its base path, so a reverse proxy has to pass them on as well. Steward never sends CORS headers, so browser-based clients must exchange the code through their own backend.
 
 ## Connect a client
 
@@ -214,7 +266,7 @@ All non-read methods still go through one function, `writeDecision()` in `server
 ## Security model
 
 - **Off by default** – globally (administrator setting, `SM_MCP=off`) and per platform for the gateway.
-- **Authentication.** `Authorization: Bearer <token>` on every request, scope _MCP client_ only. Session cookies are ignored, tokens in the URL are refused (`400`). Tokens are stored as hashes, can expire and be revoked. A deactivated owner, an owner who must change their password, and a locked vault all stop the token.
+- **Authentication.** `Authorization: Bearer <token>` on every request: an MCP token (scope _MCP client_ only) or, if turned on, an OAuth access token bound to the MCP endpoint ([above](#sign-in-with-oauth-optional)). Session cookies are ignored, tokens in the URL are refused (`400`). Tokens are stored as hashes, can expire and be revoked. A deactivated owner, an owner who must change their password, and a locked vault all stop the token.
 - **Authorization.** Every tool runs as the token owner through the same services and permission checks as the web UI and the REST API. Objects the owner may not see answer like objects that do not exist.
 - **DNS rebinding.** The `Host` header must be allowed, and a request with an `Origin` header is refused (`403`) unless the origin is Steward's own (`SM_PUBLIC_URL`) or listed in `SM_MCP_ALLOWED_ORIGINS`. Browsers cannot read answers anyway: Steward never sends CORS headers, and the endpoint only accepts `Content-Type: application/json`.
 - **Input limits.** Request bodies up to 64 kB, one JSON-RPC message per request (no batches), strict argument schemas (unknown arguments are errors), cursor and string length limits.
@@ -241,14 +293,15 @@ Above the rate limit the endpoint answers `429` with `Retry-After` and `RateLimi
 
 To keep the audit log meaningful, not every read is audited:
 
-| Event                                                                                                                                                                                                  | Where                                                   |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
-| MCP turned on or off                                                                                                                                                                                   | audit log `mcp.settings_changed`                        |
-| Gateway turned on or off for a platform                                                                                                                                                                | audit log `platform.mcp_gateway_changed`                |
-| First use of a token per UTC day                                                                                                                                                                       | audit log `mcp.token_used`                              |
-| **Every gateway call** – platform, operation id, method, path template, status, duration, token id, owner, names (not values) of the query parameters                                                  | audit log `mcp.gateway_call`                            |
-| **Every refused gateway call** (write method, path, parameters, outbound policy, integrity) with the reason; an invalid literal path is logged as `(invalid)`, control characters in names are escaped | audit log `mcp.gateway_refused`                         |
-| Every tool call: tool, token id, owner, short argument summary (values cut to 60 characters, objects by their keys), outcome, duration                                                                 | operational log (JSON, `info`, message `MCP tool call`) |
+| Event                                                                                                                                                                                                  | Where                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MCP turned on or off                                                                                                                                                                                   | audit log `mcp.settings_changed`                                                                                                                                            |
+| Gateway turned on or off for a platform                                                                                                                                                                | audit log `platform.mcp_gateway_changed`                                                                                                                                    |
+| First use of a token per UTC day (an OAuth connection counts as one token)                                                                                                                             | audit log `mcp.token_used`                                                                                                                                                  |
+| OAuth (#12): a client registered or removed, a person allowed a client, a connection revoked, a code or an old refresh token used again                                                                | audit log `mcp.oauth_client_registered`, `mcp.oauth_client_revoked`, `mcp.oauth_authorized`, `mcp.oauth_grant_revoked`, `mcp.oauth_code_reused`, `mcp.oauth_refresh_reused` |
+| **Every gateway call** – platform, operation id, method, path template, status, duration, token id, owner, names (not values) of the query parameters                                                  | audit log `mcp.gateway_call`                                                                                                                                                |
+| **Every refused gateway call** (write method, path, parameters, outbound policy, integrity) with the reason; an invalid literal path is logged as `(invalid)`, control characters in names are escaped | audit log `mcp.gateway_refused`                                                                                                                                             |
+| Every tool call: tool, token id, owner, short argument summary (values cut to 60 characters, objects by their keys), outcome, duration                                                                 | operational log (JSON, `info`, message `MCP tool call`)                                                                                                                     |
 
 Prometheus metrics (`/api/metrics`): `steward_mcp_requests_total{method,outcome}`, `steward_mcp_tool_calls_total{tool,outcome}`, `steward_mcp_gateway_calls_total{platform,outcome}`.
 
@@ -280,6 +333,4 @@ The server is a small, hand-written JSON-RPC 2.0 implementation (`server/src/mcp
 
 ## Phase 2
 
-Done: **approved writes** ([above](#approved-writes)). Planned, not part of this version:
-
-- **OAuth sign-in for MCP clients** following the MCP authorization specification, as an alternative to pasted tokens.
+Done: **approved writes** ([above](#approved-writes)) and the optional **OAuth sign-in for MCP clients** ([above](#sign-in-with-oauth-optional)).

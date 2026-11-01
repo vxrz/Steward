@@ -718,7 +718,14 @@
     "TEAM_CHANNEL_URL": "Geben Sie die http(s)-URL des Webhooks für den Team-Kanal ein.",
     "TEAM_LOGO_MISSING": "Das Team hat kein eigenes Logo – seine Berichte verwenden das Logo der Instanz.",
     "REPORT_SCHEDULE_TEAM": "Der Eigentümer des Berichtszeitplans ist kein Mitglied des Teams „{{name}}“. Wählen Sie eines der Teams des Eigentümers.",
-    "TEAM_NOT_CHOOSABLE": "Wählen Sie eines Ihrer Teams, das neue Ressourcen übernimmt."
+    "TEAM_NOT_CHOOSABLE": "Wählen Sie eines Ihrer Teams, das neue Ressourcen übernimmt.",
+    "MCP_OAUTH_CLIENT_INVALID": "Der Client kann nicht hinzugefügt werden: {{reason}}",
+    "MCP_OAUTH_CLIENT_NOT_FOUND": "MCP-Client nicht gefunden.",
+    "MCP_OAUTH_GRANT_NOT_FOUND": "Verbundener MCP-Client nicht gefunden.",
+    "MCP_OAUTH_OFF": "Die OAuth-Anmeldung für MCP-Clients ist in diesem Steward ausgeschaltet – fragen Sie einen Administrator oder verwenden Sie ein MCP-Token aus Ihrem Profil.",
+    "MCP_OAUTH_CLIENT_UNKNOWN": "Die Anwendung, die Sie hierher geschickt hat, ist bei diesem Steward nicht registriert (oder wurde entfernt). Starten Sie die Anmeldung in der Anwendung erneut.",
+    "MCP_OAUTH_REDIRECT_UNKNOWN": "Die Rückkehradresse dieser Anfrage ist für die Anwendung nicht registriert, daher leitet Steward Sie nicht dorthin.",
+    "MCP_OAUTH_REQUEST_INVALID": "Die Anwendung hat eine ungültige Anmeldeanfrage gesendet – zurück zu ihr."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

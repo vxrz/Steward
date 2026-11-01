@@ -86,6 +86,13 @@ export function stripBasePath(req: { url?: string; [OUTSIDE_BASE]?: boolean; [BA
     req[BARE_BASE] = true;
     return '/' + rest;
   }
+  // OAuth discovery for MCP clients (#12): the well-known addresses put the issuer's or resource's path after the
+  // well-known prefix (RFC 8414, RFC 9728), outside the base path – exactly these two are let in
+  const q = url.indexOf('?');
+  const path = q < 0 ? url : url.slice(0, q);
+  const query = q < 0 ? '' : url.slice(q);
+  if (path === `/.well-known/oauth-authorization-server${basePath}`) return `/.well-known/oauth-authorization-server${query}`;
+  if (path === `/.well-known/oauth-protected-resource${basePath}/api/mcp`) return `/.well-known/oauth-protected-resource/api/mcp${query}`;
   req[OUTSIDE_BASE] = true;
   return OUTSIDE_BASE_URL;
 }

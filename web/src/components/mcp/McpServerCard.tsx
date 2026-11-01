@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Anchor, Card, Code, Group, Stack, Switch, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Card, Code, Divider, Group, Stack, Switch, Text, Title } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { IconRobot } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
@@ -8,6 +8,7 @@ import type { McpServerStatus } from '@sm/shared';
 import { notifyError, notifyOk, put } from '../../api';
 import { origin } from '../PublicApiInfo';
 import { McpClientConfig, useMcpServer } from './McpClientConfig';
+import { McpOAuthSettings } from './McpOAuthSettings';
 
 /** Settings → MCP server: on/off (administrators), endpoint and client configuration. */
 export function McpServerCard() {
@@ -84,6 +85,8 @@ export function McpServerCard() {
             <Text size="xs" c="dimmed">
               {t('settings.security')}
             </Text>
+            <Divider my="xs" />
+            <McpOAuthSettings />
           </>
         )}
       </Stack>

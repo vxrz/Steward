@@ -25,6 +25,7 @@ import { clientConfig, cspConnectSources, reportError } from './errorReporting.j
 import { themeRoutes } from './theme/routes.js';
 import { systemRoutes } from './system/routes.js';
 import { mcpRoutes } from './mcp/http.js';
+import { oauthApiRoutes, oauthRoutes } from './mcp/oauth.js';
 import { MCP_PATH } from './mcp/config.js';
 import { countRefused, rateLimitOptions, setRateLimitUser, wasRateLimited } from './rateLimits.js';
 import { checkBodyShape } from './bodyShape.js';
@@ -432,6 +433,9 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
 
   await app.register(publicApi, { prefix: '/api' });
   await app.register(mcpRoutes, { prefix: '/api' });
+  // OAuth sign-in for MCP clients (#12): discovery and token endpoints outside /api, the consent page's API inside
+  await app.register(oauthRoutes);
+  await app.register(oauthApiRoutes, { prefix: '/api' });
   await app.register(instanceRoutes, { prefix: '/api' });
   await app.register(registerRoutes, { prefix: '/api' });
   // theme (/api/theme, /api/settings/theme, /manifest.webmanifest), about and system status

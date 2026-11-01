@@ -51,6 +51,7 @@ const UsersPage = page(() => import('./pages/Users'), 'UsersPage');
 const SettingsPage = page(() => import('./pages/Settings'), 'SettingsPage');
 const SettingsIndex = page(() => import('./pages/Settings'), 'SettingsIndex');
 const ProfilePage = page(() => import('./pages/Profile'), 'ProfilePage');
+const OAuthAuthorizePage = page(() => import('./pages/OAuthAuthorize'), 'OAuthAuthorizePage');
 const AboutPage = page(() => import('./pages/About'), 'AboutPage');
 const SystemStatusPage = page(() => import('./pages/SystemStatus'), 'SystemStatusPage');
 const CredentialsPage = page(() => import('./pages/Credentials'), 'CredentialsPage');
@@ -280,6 +281,7 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/settings/migration" element={<MigrationPage />} />
                 <Route path="/settings/backups" element={<BackupsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/oauth/authorize" element={<OAuthAuthorizePage />} />
                 <Route path="/about" element={<AboutPage />} />
                 {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}
                 <Route path="/settings/:area" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
