@@ -165,7 +165,11 @@
     "spec": "Vega-Lite spec (JSON)",
     "specHint": "The data is the dataset’s rows (name “dataset”); loading data, links and images are not allowed. Colour schemes “steward” and “steward-status” follow the theme.",
     "specJson": "Not valid JSON: {{error}}",
-    "specDocs": "Vega-Lite documentation"
+    "specDocs": "Vega-Lite documentation",
+    "combine": "With several sources",
+    "combineHint": "One value per source, or their sum as one number (e.g. users of all tenants)",
+    "combineEach": "One value per source",
+    "combineSum": "Sum of all sources"
   },
   "w": {
     "chart": "Chart",
@@ -227,7 +231,9 @@
       "beyond": "Limit {{limit}} not within two years at this rate",
       "tooFew": "Too few points for a forecast to {{limit}}"
     },
-    "chartError": "The chart could not be drawn: {{error}}"
+    "chartError": "The chart could not be drawn: {{error}}",
+    "sumOfSources_one": "Sum of {{count}} source",
+    "sumOfSources_other": "Sum of {{count}} sources"
   },
   "charts": {
     "trendLabel": "Trend of {{names}}. Use the arrow keys to read values.",

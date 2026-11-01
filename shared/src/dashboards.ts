@@ -119,6 +119,29 @@ export interface MetricSeries {
   forecast?: Forecast | null;
 }
 
+/**
+ * The sum of one metric over several sources as one series: at every point in time the latest value of each source
+ * that has one by then (a source counts from its first point on). Used by KPI widgets set to "sum".
+ */
+export function sumSeries(series: MetricSeries[]): MetricPoint[] {
+  const events = series
+    .flatMap((s, i) => s.points.map((p) => ({ i, ts: p.ts, t: Date.parse(p.ts), value: p.value })))
+    .filter((e) => Number.isFinite(e.t) && Number.isFinite(e.value))
+    .sort((a, b) => a.t - b.t);
+  const latest = new Map<number, number>();
+  const out: MetricPoint[] = [];
+  for (let k = 0; k < events.length; k++) {
+    const e = events[k]!;
+    latest.set(e.i, e.value);
+    // one point per moment, after all sources that report at that moment
+    if (events[k + 1]?.t === e.t) continue;
+    let total = 0;
+    for (const v of latest.values()) total += v;
+    out.push({ ts: e.ts, value: total });
+  }
+  return out;
+}
+
 // ---------- Dashboards ----------
 
 export const WIDGET_TYPES = ['kpi', 'trend', 'status', 'table', 'checks', 'freshness', 'markdown', 'vega'] as const;
@@ -149,6 +172,8 @@ export const dashboardWidgetSchema = z
     metrics: z.array(z.string()).max(3).optional(),
     /** kpi: which direction is good for the change indicator */
     goodWhen: z.enum(['up', 'down']).optional(),
+    /** kpi with several sources: one value per source (default) or their sum */
+    combine: z.enum(['each', 'sum']).optional(),
     /** kpi / trend: history window in days (default 30); the trend (#145) covers the same window */
     days: z.number().int().min(1).max(365).optional(),
     /** kpi: a limit to forecast against (#145); default the metric's limit from the publish step */

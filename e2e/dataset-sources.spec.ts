@@ -63,6 +63,7 @@ test('a dashboard shows every source and filters by source', async ({ page, apiA
           name: `${tag} dashboard`,
           widgets: [
             { id: 'kpi', type: 'kpi', title: 'Users per tenant', dataset, metric: 'total' },
+            { id: 'sum', type: 'kpi', title: 'Users of all tenants', dataset, metric: 'total', combine: 'sum' },
             { id: 'rows', type: 'table', title: 'All users', dataset },
           ],
         },
@@ -78,11 +79,16 @@ test('a dashboard shows every source and filters by source', async ({ page, apiA
     const table = page.getByRole('table');
     await expect(table.getByRole('columnheader', { name: 'Source' })).toBeVisible();
     await expect(table.getByRole('row')).toHaveCount(4); // header + 3
-    await expect(page.getByTestId('kpi-by-source')).toContainText(`${tag} EU`);
-    await expect(page.getByTestId('kpi-by-source')).toContainText(`${tag} US`);
+    const perTenant = page.getByTestId('kpi-by-source').first();
+    await expect(perTenant).toContainText(`${tag} EU`);
+    await expect(perTenant).toContainText(`${tag} US`);
+    // the widget set to "sum": one number for both tenants, with the values per tenant below it
+    await expect(page.getByTestId('kpi-sum')).toHaveText('3');
+    await expect(page.getByText('Sum of 2 sources')).toBeVisible();
+    await expect(page.getByTestId('kpi-by-source')).toHaveCount(2);
     await expectAccessible(page, 'dashboard with sources');
 
-    // one source: its rows only, in the URL, remembered after a reload
+    // one source: its rows only, in the URL, remembered after a reload; the sum is then that source's value
     await filter.getByRole('textbox', { name: 'Sources' }).click();
     await page.getByRole('option', { name: `${tag} US` }).click();
     await page.keyboard.press('Escape');
@@ -90,9 +96,18 @@ test('a dashboard shows every source and filters by source', async ({ page, apiA
     await expect(table.getByRole('row')).toHaveCount(2);
     await expect(table).toContainText('cyd');
     await expect(table.getByRole('columnheader', { name: 'Source' })).toHaveCount(0);
+    await expect(page.getByTestId('kpi-by-source')).toHaveCount(0);
+    await expect(page.getByTestId('kpi-sum')).toHaveCount(0);
     await page.goto(`/dashboards/${dash.id}`);
     await expect(page).toHaveURL(new RegExp(`source=${us}`));
     await expect(page.getByRole('table').getByRole('row')).toHaveCount(2);
+
+    // the widget editor offers the choice for a metric of a dataset with several sources
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    const editors = page.getByRole('button', { name: 'Edit', exact: true });
+    await editors.nth(1).click(); // the second widget: "Users of all tenants"
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('textbox', { name: 'With several sources' })).toHaveValue('Sum of all sources');
   } finally {
     await api.delete(`/api/dashboards/${dash.id}`);
     await api.delete(`/api/datasets/${dataset}`);

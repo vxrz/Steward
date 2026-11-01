@@ -45,6 +45,7 @@ import {
   type RunSummary,
   type Schedule,
   type Trend,
+  sumSeries,
 } from '@sm/shared';
 import type { TFunction } from 'i18next';
 import { Trans, useTranslation } from 'react-i18next';
@@ -207,9 +208,19 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
   const series = useMetrics(isRows ? undefined : w.dataset, isRows ? [] : [w.metric!], days, scope);
   // several sources: the value of each instead of one number (#142)
   const several = !isRows && (meta?.sources?.length ?? 0) > 1;
+  // or, when the widget says so, their sum as one value: the change runs from the first to the latest summed point
+  const sum = several && w.combine === 'sum';
   const one = isRows || several ? undefined : series.data?.find((s) => s.name === w.metric);
-  const points = one?.points ?? [];
-  const value = isRows ? meta?.rowCount : (meta?.metrics[w.metric!] ?? points[points.length - 1]?.value);
+  const summed = useMemo(() => (sum ? sumSeries((series.data ?? []).filter((s) => s.name === w.metric)) : []), [sum, series.data, w.metric]);
+  const points = sum ? summed : (one?.points ?? []);
+  const sourceValues = sum ? meta!.sources.map((src) => src.metrics[w.metric!]).filter((v): v is number => typeof v === 'number') : [];
+  const value = isRows
+    ? meta?.rowCount
+    : sum
+      ? sourceValues.length
+        ? sourceValues.reduce((a, b) => a + b, 0)
+        : undefined
+      : (meta?.metrics[w.metric!] ?? points[points.length - 1]?.value);
   const first = points[0]?.value;
   // the change of the trend line (#145, robust against outliers), else first point → latest value
   const trend = one?.trend ?? null;
@@ -217,6 +228,30 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
   const good = delta === undefined || delta === 0 || !w.goodWhen ? null : delta > 0 === (w.goodWhen === 'up');
   const DeltaIcon = !delta ? IconArrowRight : delta > 0 ? IconArrowUpRight : IconArrowDownRight;
   const label = w.title || `${meta?.title ?? w.dataset} · ${isRows ? t('w.rows') : w.metric}`;
+  const bySource = several ? (
+    <Stack gap={2} data-testid="kpi-by-source">
+      {meta!.sources.map((src) => (
+        <Group key={src.id} gap={8} justify="space-between" wrap="nowrap">
+          <Text size="sm" truncate>
+            {src.name}
+          </Text>
+          <Group gap={6} wrap="nowrap">
+            <Text size="sm" fw={600} className="viz-num">
+              {compact(src.metrics[w.metric!])}
+            </Text>
+            {(() => {
+              const tr = series.data?.find((s) => s.name === w.metric && s.source === src.id)?.trend;
+              return tr?.changePct !== null && tr?.changePct !== undefined ? (
+                <Text size="xs" c="var(--viz-text-secondary)" className="viz-num" data-testid="kpi-source-trend">
+                  {fmtPct(tr.changePct)}
+                </Text>
+              ) : null;
+            })()}
+          </Group>
+        </Group>
+      ))}
+    </Stack>
+  ) : null;
   if (!meta && !metas.isLoading) {
     return (
       <WidgetCard title={label}>
@@ -230,32 +265,11 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
         <TrendTable series={series.data ?? []} names={[w.metric!]} />
       ) : (
         <Stack gap={4}>
-          {several && (
-            <Stack gap={2} data-testid="kpi-by-source">
-              {meta!.sources.map((src) => (
-                <Group key={src.id} gap={8} justify="space-between" wrap="nowrap">
-                  <Text size="sm" truncate>
-                    {src.name}
-                  </Text>
-                  <Group gap={6} wrap="nowrap">
-                    <Text size="sm" fw={600} className="viz-num">
-                      {compact(src.metrics[w.metric!])}
-                    </Text>
-                    {(() => {
-                      const tr = series.data?.find((s) => s.name === w.metric && s.source === src.id)?.trend;
-                      return tr?.changePct !== null && tr?.changePct !== undefined ? (
-                        <Text size="xs" c="var(--viz-text-secondary)" className="viz-num" data-testid="kpi-source-trend">
-                          {fmtPct(tr.changePct)}
-                        </Text>
-                      ) : null;
-                    })()}
-                  </Group>
-                </Group>
-              ))}
-            </Stack>
-          )}
-          <Group gap={10} align="baseline" wrap="nowrap" display={several ? 'none' : undefined}>
-            <span className="viz-kpi-value">{compact(value)}</span>
+          {several && !sum && bySource}
+          <Group gap={10} align="baseline" wrap="nowrap" display={several && !sum ? 'none' : undefined}>
+            <span className="viz-kpi-value" data-testid={sum ? 'kpi-sum' : undefined}>
+              {compact(value)}
+            </span>
             {delta !== undefined && (
               <Group gap={2} wrap="nowrap">
                 <DeltaIcon size={14} color={good === null ? 'var(--viz-muted)' : good ? 'var(--viz-delta-good)' : 'var(--viz-delta-bad)'} aria-hidden />
@@ -279,6 +293,12 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
               </Group>
             )}
           </Group>
+          {sum && (
+            <Text size="xs" c="var(--viz-text-secondary)">
+              {t('w.sumOfSources', { count: meta!.sources.length })}
+            </Text>
+          )}
+          {sum && bySource}
           {trend && <TrendBasis trend={trend} days={days} />}
           {one && <ForecastNote w={w} series={one} days={days} />}
           {points.length > 1 && <Sparkline points={points} />}
