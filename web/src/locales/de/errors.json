@@ -715,7 +715,10 @@
     "KAFKA_TOPIC_NAME": "Ein Kafka-Topic heißt aus Buchstaben, Ziffern, „.“, „_“ und „-“ (höchstens 249).",
     "MQTT_PLATFORM": "Das ist keine MQTT-Plattform.",
     "MQTT_URL": "Die MQTT-Plattform braucht die Variable url (Schema mqtts, wss, mqtt oder ws, mit Host und Port).",
-    "TEAM_CHANNEL_URL": "Geben Sie die http(s)-URL des Webhooks für den Team-Kanal ein."
+    "TEAM_CHANNEL_URL": "Geben Sie die http(s)-URL des Webhooks für den Team-Kanal ein.",
+    "TEAM_LOGO_MISSING": "Das Team hat kein eigenes Logo – seine Berichte verwenden das Logo der Instanz.",
+    "REPORT_SCHEDULE_TEAM": "Der Eigentümer des Berichtszeitplans ist kein Mitglied des Teams „{{name}}“. Wählen Sie eines der Teams des Eigentümers.",
+    "TEAM_NOT_CHOOSABLE": "Wählen Sie eines Ihrer Teams, das neue Ressourcen übernimmt."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

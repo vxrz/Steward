@@ -715,7 +715,10 @@
     "KAFKA_TOPIC_NAME": "A Kafka topic name has letters, digits, \".\", \"_\" and \"-\" (at most 249).",
     "MQTT_PLATFORM": "That is not an MQTT platform.",
     "MQTT_URL": "The MQTT platform needs the variable url (scheme mqtts, wss, mqtt or ws, with host and port).",
-    "TEAM_CHANNEL_URL": "Enter the http(s) URL of the team channel’s webhook."
+    "TEAM_CHANNEL_URL": "Enter the http(s) URL of the team channel’s webhook.",
+    "TEAM_LOGO_MISSING": "The team has no logo of its own – its reports use the instance logo.",
+    "REPORT_SCHEDULE_TEAM": "The owner of the report schedule is not a member of team “{{name}}”. Choose one of the owner's teams.",
+    "TEAM_NOT_CHOOSABLE": "Choose one of your teams that takes new resources."
   },
   "boundary": {
     "title": "Something went wrong on this page",

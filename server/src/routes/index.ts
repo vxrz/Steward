@@ -766,7 +766,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/teams/:id/settings/logo', async (req, reply) => {
     teamSettings.getTeamSettings(params(req).id!, me());
     const l = teamSettings.teamLogo(params(req).id!);
-    if (!l) throw new HttpError(404, 'The team has no logo of its own', 'NOT_FOUND');
+    if (!l) throw new HttpError(404, 'The team has no logo of its own', 'TEAM_LOGO_MISSING');
     reply.header('cache-control', 'no-store');
     return reply.type(l.mime).send(l.data);
   });
