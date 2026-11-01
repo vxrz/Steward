@@ -5,19 +5,16 @@
  * and stores a signed-in session (storage state) for the admin and every demo user.
  * The returned function is the global teardown (kills the server, removes the data dir).
  */
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { FullConfig } from '@playwright/test';
 import { startReverseProxy, type ReverseProxy } from '../scripts/reverse-proxy.mjs';
 import { AUTH_DIR, BASE_PATH, MASTER_PASSPHRASE, ROOT, USERS, authFile, baseURL, origin, type UserKey } from './support/env';
+import { waitForStart } from './support/started';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-function freePort(): string {
-  const script = "const s=require('net').createServer();s.listen(0,'127.0.0.1',()=>{process.stdout.write(String(s.address().port));s.close()})";
-  return execFileSync(process.execPath, ['-e', script], { encoding: 'utf8' }).trim();
-}
 const tail = (file: string, lines = 25) => {
   try {
     return fs.readFileSync(file, 'utf8').trimEnd().split('\n').slice(-lines).join('\n');
@@ -91,8 +88,9 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
   const logFile = path.join(AUTH_DIR, 'server.log');
   const log = fs.createWriteStream(logFile);
 
-  // E2E_BASE_PATH: Steward on its own port under the prefix, the tests talk to a reverse proxy on SM_E2E_PORT
-  const serverPort = BASE_PATH ? freePort() : process.env.SM_E2E_PORT!;
+  // E2E_BASE_PATH: Steward on its own port under the prefix (port 0: the system picks one, #22), the tests talk to a
+  // reverse proxy on SM_E2E_PORT
+  const serverPort = BASE_PATH ? '0' : process.env.SM_E2E_PORT!;
   const child: ChildProcess = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
     cwd: path.join(ROOT, 'server'),
     env: {
@@ -105,7 +103,8 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
       SM_MASTER_PASSPHRASE: MASTER_PASSPHRASE,
       // step-up re-authentication: the stored sessions are confirmed by the fixtures (support/fixtures.ts) – for the longest window
       SM_STEP_UP_MINUTES: '15',
-      SM_LOG_LEVEL: process.env.SM_LOG_LEVEL ?? 'info',
+      // at least info: the start line tells the real port and that our own process holds it (support/started.ts)
+      SM_LOG_LEVEL: ['debug', 'trace'].includes(process.env.SM_LOG_LEVEL ?? '') ? process.env.SM_LOG_LEVEL : 'info',
       // never reach out to a real collector or proxy from the tests
       OTEL_EXPORTER_OTLP_ENDPOINT: '',
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: '',
@@ -116,16 +115,20 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
   child.stderr!.pipe(log);
   let exited: number | null | undefined;
   child.on('close', (code) => (exited = code));
+  const started = waitForStart(child, { log: () => `log ${logFile}:\n${tail(logFile)}` });
+  // a failed start is reported where it is awaited
+  started.catch(() => undefined);
   const killOnExit = () => child.kill('SIGKILL');
   process.on('exit', killOnExit);
   let proxy: ReverseProxy | undefined;
   if (BASE_PATH) {
+    const { port } = await started;
     proxy = await startReverseProxy({
-      target: `http://127.0.0.1:${serverPort}`,
+      target: `http://127.0.0.1:${port}`,
       port: Number(process.env.SM_E2E_PORT),
       proto: process.env.E2E_PROXY_PROTO || 'http',
     });
-    console.log(`[e2e] Steward under ${BASE_PATH} on port ${serverPort}, reverse proxy at ${proxy.url}`);
+    console.log(`[e2e] Steward under ${BASE_PATH} on port ${port}, reverse proxy at ${proxy.url}`);
   }
 
   const teardown = async () => {
@@ -142,8 +145,9 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
   };
 
   try {
-    // 1. wait for the server
-    const started = Date.now();
+    // 1. wait for the server: our own process listens (its start line), then it answers
+    await started;
+    const since = Date.now();
     for (;;) {
       if (exited !== undefined) throw new Error(`demo server exited with code ${exited} – log ${logFile}:\n${tail(logFile)}`);
       try {
@@ -151,7 +155,7 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
       } catch {
         /* not up yet */
       }
-      if (Date.now() - started > 60_000) throw new Error(`demo server did not start within 60 s – log ${logFile}:\n${tail(logFile)}`);
+      if (Date.now() - since > 60_000) throw new Error(`demo server did not answer within 60 s – log ${logFile}:\n${tail(logFile)}`);
       await sleep(200);
     }
 

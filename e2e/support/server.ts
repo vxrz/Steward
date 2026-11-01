@@ -1,9 +1,10 @@
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { startReverseProxy, type ReverseProxy } from '../../scripts/reverse-proxy.mjs';
 import { BASE_PATH, MASTER_PASSPHRASE, ROOT, USERS } from './env';
+import { waitForStart } from './started';
 
 /**
  * A separate, empty server for tests that change global state (e.g. the theme),
@@ -30,18 +31,14 @@ export interface IsolatedServer {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function freePort(): number {
-  const script = "const s=require('net').createServer();s.listen(0,'127.0.0.1',()=>{process.stdout.write(String(s.address().port));s.close()})";
-  return Number(execFileSync(process.execPath, ['-e', script], { encoding: 'utf8' }).trim());
-}
-
 /** `demo`: SM_DEMO=1 (mock platforms and the mock identity provider under /mock). */
 export async function startIsolatedServer(opts: { demo?: boolean } = {}): Promise<IsolatedServer> {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-e2e-iso-'));
-  const port = freePort();
+  // the first start binds port 0 (the system picks a free port, #22); a restart takes the same port again
+  let port = 0;
   // E2E_BASE_PATH: under the prefix, behind its own reverse proxy (like the shared demo server, see global-setup.ts)
-  const proxy: ReverseProxy | undefined = BASE_PATH ? await startReverseProxy({ target: `http://127.0.0.1:${port}` }) : undefined;
-  const baseURL = `${proxy?.url ?? `http://127.0.0.1:${port}`}${BASE_PATH}`;
+  let proxy: ReverseProxy | undefined;
+  let baseURL = '';
   const logFile = path.join(dataDir, 'server.log');
   const log = fs.createWriteStream(logFile);
   let child: ChildProcess;
@@ -60,7 +57,8 @@ export async function startIsolatedServer(opts: { demo?: boolean } = {}): Promis
         SM_MASTER_PASSPHRASE: MASTER_PASSPHRASE,
         // step-up: the admin's setup session counts as confirmed for the longest window
         SM_STEP_UP_MINUTES: '15',
-        SM_LOG_LEVEL: 'warn',
+        // info: the start line with the real port (support/started.ts)
+        SM_LOG_LEVEL: 'info',
         OTEL_EXPORTER_OTLP_ENDPOINT: '',
         OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: '',
       },
@@ -85,6 +83,10 @@ export async function startIsolatedServer(opts: { demo?: boolean } = {}): Promis
     fs.rmSync(dataDir, { recursive: true, force: true });
   };
   const waitUp = async () => {
+    // our own process says it listens (a URL alone could reach whoever holds the port)
+    port = (await waitForStart(child, { log: () => fs.readFileSync(logFile, 'utf8').slice(-2000) })).port;
+    if (BASE_PATH && !proxy) proxy = await startReverseProxy({ target: `http://127.0.0.1:${port}` });
+    baseURL = `${proxy?.url ?? `http://127.0.0.1:${port}`}${BASE_PATH}`;
     const started = Date.now();
     for (;;) {
       if (exited !== undefined) throw new Error(`server exited with code ${exited}: ${fs.readFileSync(logFile, 'utf8').slice(-2000)}`);
