@@ -1,4 +1,5 @@
 import os from 'node:os';
+import { pdfWorkerStatus } from '../reports/pdf/pool.js';
 import type { FastifyInstance } from 'fastify';
 import type { AboutInfo, SystemStatus, UpdateNotice } from '@sm/shared';
 import { config } from '../config.js';
@@ -97,6 +98,7 @@ export function systemStatus(full: boolean): SystemStatus {
     },
     errorReporting: { server: errorReportingEnabled(), browser: !!er.webDsn, ...(full ? { environment: er.environment } : {}) },
     tracing: { enabled: tracingEnabled() },
+    pdf: (({ reason, ...p }) => ({ ...p, ...(full && reason ? { reason } : {}) }))(pdfWorkerStatus()),
     metrics: { access: process.env.SM_METRICS_PUBLIC === '1' ? 'public' : 'adminsAndAuditors' },
     publicApi: { enabled: api.enabled, basePath: api.basePath, docs: api.docs, rateLimitPerMinute: api.rateLimitPerMinute, apiVersion: api.apiVersion },
     retention: {

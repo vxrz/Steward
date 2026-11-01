@@ -20,6 +20,24 @@ A team can set its own report branding (_Users → Teams_ → settings → _Repo
 
 A resource owned by several teams with branding uses the first of them by name. A renamed team is followed; a deleted team's schedules use the instance branding again. Reports already generated never change.
 
+## How PDFs are created
+
+Every PDF – run reports, summary and scheduled reports, PDFs of records and the summary of evidence packs – is drawn in a **worker thread**, apart from the thread that answers requests. A long or unusual document (for example 200 000 characters of text without spaces take several seconds) no longer holds up anyone else.
+
+- **One at a time.** Further PDFs wait their turn; with 20 waiting, the next request gets _Steward is creating other PDFs right now_ (`503 PDF_BUSY`).
+- **At most 60 seconds** per PDF: after that it is stopped with `422 PDF_TIMEOUT`. Shorten very long text, especially long words without spaces.
+- **At most 512 MB of memory** per PDF (`422 PDF_TOO_LARGE`).
+- The data is read first, then the PDF is drawn without access to the database. The PDFs look exactly as before.
+
+`SM_PDF_WORKER` chooses how:
+
+| Value            | PDFs are drawn                                                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `auto` (default) | in the worker thread; if it cannot start (logged once: _PDF worker unavailable_), in the main thread as before                                   |
+| `off`            | always in the main thread, as before 0.3.0 – one at a time, but without the time and memory limits, and other requests wait while a PDF is drawn |
+
+_System status → Runtime → PDFs_ shows which applies, and why the worker could not start. The worker runs in the container, with Node.js and in the desktop executable.
+
 ## Scheduled reports
 
 A report schedule creates a summary report every day, week or month, archives it and sends it to its recipients.

@@ -94,6 +94,29 @@ await build({
   banner: { js: 'const __sm_import_meta_url = require("node:url").pathToFileURL(__filename).href;' },
   logLevel: 'warning',
 });
+// the PDF worker (#13, server/src/reports/pdf/pool.ts): its own bundle, started from an asset of the executable
+await build({
+  entryPoints: [path.join(root, 'server/src/reports/pdf/worker-entry.ts')],
+  outfile: path.join(work, 'pdf-worker.cjs'),
+  bundle: true,
+  platform: 'node',
+  format: 'cjs',
+  target: 'node24',
+  minify: false,
+  sourcemap: false,
+  legalComments: 'none',
+  external: ['playwright', 'playwright-core', 'chromium-bidi', 'electron'],
+  alias: { '@platformatic/wasm-utils': '@platformatic/wasm-utils/bundled' },
+  define: {
+    'import.meta.url': '__sm_import_meta_url',
+    'import.meta.dirname': '__dirname',
+    'process.env.SM_BUILD_COMMIT': JSON.stringify(info.commit ?? ''),
+    'process.env.SM_BUILD_DATE': JSON.stringify(info.date),
+  },
+  // a worker started from source text has no file of its own: the executable stands in for it
+  banner: { js: 'const __sm_import_meta_url = require("node:url").pathToFileURL(process.execPath).href;' },
+  logLevel: 'warning',
+});
 if (bundleOnly) {
   fs.rmSync(out, { recursive: true, force: true });
   console.log('Server bundle OK');
@@ -125,6 +148,7 @@ const manifestFile = path.join(work, 'manifest.json');
 const sha256 = Object.fromEntries(Object.entries(assets).map(([k, f]) => [k, crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex')]));
 fs.writeFileSync(manifestFile, JSON.stringify({ version, files: Object.keys(assets), sha256 }));
 assets['manifest.json'] = manifestFile;
+assets['pdf-worker.cjs'] = path.join(work, 'pdf-worker.cjs');
 
 step(`Embedding ${Object.keys(assets).length} files`);
 const seaConfig = path.join(work, 'sea-config.json');

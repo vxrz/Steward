@@ -71,6 +71,13 @@ export function parseTrustProxy(v: string | undefined): number | string[] | unde
   return list;
 }
 
+function parsePdfWorker(raw: string | undefined): 'auto' | 'off' {
+  const v = (raw ?? '').trim().toLowerCase();
+  if (!v || v === 'auto' || v === 'on') return 'auto';
+  if (v === 'off' || v === '0' || v === 'false') return 'off';
+  throw new Error(`SM_PDF_WORKER: "${raw}" is not auto or off`);
+}
+
 /** A whole number from the environment within [min, max]; the default when unset, an error when invalid. */
 function envInt(name: string, fallback: number, min: number, max: number): number {
   const raw = process.env[name]?.trim();
@@ -104,6 +111,11 @@ export const config = {
   dashboardsDir: path.join(process.env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples'), 'dashboards'),
   /** Fonts, default logo and colour profile for PDF reports (server/assets; unpacked by the desktop executable) */
   assetsDir: process.env.SM_ASSETS_DIR ?? path.join(ROOT_DIR, 'server', 'assets'),
+  /**
+   * PDFs are drawn in a worker thread (#13): "auto" (default) uses it and falls back to drawing in the main thread
+   * when the worker cannot start; "off" always draws in the main thread (no time limit then).
+   */
+  pdfWorker: parsePdfWorker(process.env.SM_PDF_WORKER),
   /** Optional passphrase for unattended start (scheduled runs after reboot); see readMasterPassphrase. */
   masterPassphrase: readMasterPassphrase(),
   /** Serve HTTPS (recommended when other people access the tool over the network). */

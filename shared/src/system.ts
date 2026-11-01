@@ -45,6 +45,8 @@ export interface SystemStatus {
   notifications: { email: boolean; teams: boolean; webhook: boolean };
   errorReporting: { server: boolean; browser: boolean; environment?: string };
   tracing: { enabled: boolean };
+  /** How PDFs are drawn (#13): in the worker thread, or in the main thread (SM_PDF_WORKER=off, or the worker cannot start) */
+  pdf: { mode: 'auto' | 'off'; worker: 'running' | 'idle' | 'unavailable' | 'off'; waiting: number; reason?: string };
   metrics: { access: 'public' | 'adminsAndAuditors' };
   publicApi: { enabled: boolean; basePath: string; docs: 'off' | 'authenticated' | 'public'; rateLimitPerMinute: number; apiVersion: string };
   retention: {

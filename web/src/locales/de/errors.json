@@ -725,7 +725,11 @@
     "MCP_OAUTH_OFF": "Die OAuth-Anmeldung für MCP-Clients ist in diesem Steward ausgeschaltet – fragen Sie einen Administrator oder verwenden Sie ein MCP-Token aus Ihrem Profil.",
     "MCP_OAUTH_CLIENT_UNKNOWN": "Die Anwendung, die Sie hierher geschickt hat, ist bei diesem Steward nicht registriert (oder wurde entfernt). Starten Sie die Anmeldung in der Anwendung erneut.",
     "MCP_OAUTH_REDIRECT_UNKNOWN": "Die Rückkehradresse dieser Anfrage ist für die Anwendung nicht registriert, daher leitet Steward Sie nicht dorthin.",
-    "MCP_OAUTH_REQUEST_INVALID": "Die Anwendung hat eine ungültige Anmeldeanfrage gesendet – zurück zu ihr."
+    "MCP_OAUTH_REQUEST_INVALID": "Die Anwendung hat eine ungültige Anmeldeanfrage gesendet – zurück zu ihr.",
+    "PDF_TIMEOUT": "Das Erstellen des PDFs dauerte länger als {{seconds}} s und wurde abgebrochen – kürzen Sie sehr langen Text, vor allem lange Wörter ohne Leerzeichen.",
+    "PDF_BUSY": "Steward erstellt gerade andere PDFs – versuchen Sie es gleich noch einmal.",
+    "PDF_TOO_LARGE": "Das PDF brauchte mehr als {{mb}} MB Speicher und wurde abgebrochen – kürzen Sie das Dokument.",
+    "PDF_FAILED": "Das Erstellen des PDFs ist fehlgeschlagen – versuchen Sie es erneut, oder bitten Sie einen Administrator, das Server-Log zu prüfen."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",
