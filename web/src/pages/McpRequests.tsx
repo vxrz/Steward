@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, Badge, Button, Code, Group, Paper, SegmentedControl, Stack, Table, Text, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { IconCheck, IconRobot, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { MCP_REQUEST_LIMITS, type McpRequest } from '@sm/shared';
+import { MCP_REQUEST_LIMITS, type McpProposalSelection, type McpRequest } from '@sm/shared';
 import { get, notifyError, post } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE } from '../components/common';
 import { fmtDate, fmtRelative } from '../format';
+import { CatalogueProposalReview, MappingsProposalReview } from '../components/mcp/ProposalReview';
 
 const STATUS_COLOR: Record<McpRequest['status'], string> = {
   pending: TONE.attention,
@@ -28,7 +29,14 @@ function StatusBadge({ status }: { status: McpRequest['status'] }) {
   );
 }
 
-const what = (r: McpRequest) => (r.kind === 'gateway' ? `${r.method} ${r.path}` : (r.processName ?? r.processId ?? ''));
+const what = (r: McpRequest) =>
+  r.proposal?.type === 'catalogue'
+    ? `${r.proposal.key} – ${r.proposal.name}`
+    : r.proposal?.type === 'mappings'
+      ? `${r.proposal.catalogueKey} · ${r.proposal.mappings.length} ↔`
+      : r.kind === 'gateway'
+        ? `${r.method} ${r.path}`
+        : (r.processName ?? r.processId ?? '');
 
 /** AI requests (#11): changing calls and runs that MCP clients asked for, waiting for a person. */
 export function McpRequestsPage() {
@@ -77,7 +85,7 @@ export function McpRequestsPage() {
                       {what(r)}
                     </Text>
                   </Table.Td>
-                  <Table.Td>{r.kind === 'gateway' ? (r.platformName ?? '–') : t('requests.run')}</Table.Td>
+                  <Table.Td>{r.kind === 'gateway' ? (r.platformName ?? '–') : r.kind === 'run' ? t('requests.run') : t(`requests.kinds.${r.kind}`)}</Table.Td>
                   <Table.Td>
                     <StatusBadge status={r.status} />
                   </Table.Td>
@@ -100,11 +108,15 @@ export function McpRequestDetailPage() {
   const q = useQuery({ queryKey: ['mcp-request', id], queryFn: () => get<McpRequest>(`/mcp-requests/${id}`) });
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null);
+  // proposals (#74): what the reviewer accepts of them
+  const [selection, setSelection] = useState<{ value: McpProposalSelection; count: number } | null>(null);
+  const onSelection = useCallback((value: McpProposalSelection, count: number) => setSelection({ value, count }), []);
   const r = q.data;
   const decide = async (approve: boolean) => {
     setBusy(approve ? 'approve' : 'reject');
     try {
-      qc.setQueryData(['mcp-request', id], await post<McpRequest>(`/mcp-requests/${id}/decision`, { approve, comment }));
+      const body = { approve, comment, ...(approve && r?.proposal && selection ? { selection: selection.value } : {}) };
+      qc.setQueryData(['mcp-request', id], await post<McpRequest>(`/mcp-requests/${id}/decision`, body));
       await qc.invalidateQueries({ queryKey: ['mcp-requests'] });
     } catch (e) {
       notifyError(e);
@@ -145,36 +157,40 @@ export function McpRequestDetailPage() {
             </Text>
           )}
         </Paper>
-        <Paper withBorder p="sm">
-          {r.kind === 'gateway' ? (
-            <Stack gap={6}>
-              <Text size="sm">
-                {t('requests.platform')}: {r.platformName ?? r.platformId}
-                {r.operation ? ` · ${r.operation}` : ''}
-              </Text>
-              <Code block>{`${r.method} ${r.path}${Object.keys(r.query).length ? `\n${t('requests.query')}: ${json(r.query)}` : ''}`}</Code>
-              {r.body !== null && (
-                <>
-                  <Text size="sm" fw={600}>
-                    {t('requests.body')}
-                  </Text>
-                  <Code block>{json(r.body)}</Code>
-                </>
-              )}
-            </Stack>
-          ) : (
-            <Stack gap={6}>
-              <Text size="sm">
-                {t('requests.process')}:{' '}
-                <Text span component={Link} to={`/processes/${r.processId}`}>
-                  {r.processName}
+        {r.proposal?.type === 'catalogue' && <CatalogueProposalReview p={r.proposal} editable={r.canApprove} onChange={onSelection} />}
+        {r.proposal?.type === 'mappings' && <MappingsProposalReview p={r.proposal} editable={r.canApprove} onChange={onSelection} />}
+        {!r.proposal && (
+          <Paper withBorder p="sm">
+            {r.kind === 'gateway' ? (
+              <Stack gap={6}>
+                <Text size="sm">
+                  {t('requests.platform')}: {r.platformName ?? r.platformId}
+                  {r.operation ? ` · ${r.operation}` : ''}
                 </Text>
-                {r.dryRun ? ` · ${t('requests.dryRun')}` : ''}
-              </Text>
-              {Object.keys(r.inputs).length > 0 && <Code block>{json(r.inputs)}</Code>}
-            </Stack>
-          )}
-        </Paper>
+                <Code block>{`${r.method} ${r.path}${Object.keys(r.query).length ? `\n${t('requests.query')}: ${json(r.query)}` : ''}`}</Code>
+                {r.body !== null && (
+                  <>
+                    <Text size="sm" fw={600}>
+                      {t('requests.body')}
+                    </Text>
+                    <Code block>{json(r.body)}</Code>
+                  </>
+                )}
+              </Stack>
+            ) : (
+              <Stack gap={6}>
+                <Text size="sm">
+                  {t('requests.process')}:{' '}
+                  <Text span component={Link} to={`/processes/${r.processId}`}>
+                    {r.processName}
+                  </Text>
+                  {r.dryRun ? ` · ${t('requests.dryRun')}` : ''}
+                </Text>
+                {Object.keys(r.inputs).length > 0 && <Code block>{json(r.inputs)}</Code>}
+              </Stack>
+            )}
+          </Paper>
+        )}
         {(r.canApprove || r.canReject) && (
           <Paper withBorder p="sm">
             <Textarea
@@ -192,8 +208,17 @@ export function McpRequestDetailPage() {
                 </Button>
               )}
               {r.canApprove && (
-                <Button leftSection={<IconCheck size={14} />} loading={busy === 'approve'} disabled={!!busy} onClick={() => decide(true)}>
-                  {r.kind === 'run' ? t('requests.approveRun') : t('requests.approveCall')}
+                <Button
+                  leftSection={<IconCheck size={14} />}
+                  loading={busy === 'approve'}
+                  disabled={!!busy || (!!r.proposal && !selection?.count && !selection?.value.catalogue?.remove.length)}
+                  onClick={() => decide(true)}
+                >
+                  {r.proposal
+                    ? t('requests.acceptProposal', { count: selection?.count ?? 0 })
+                    : r.kind === 'run'
+                      ? t('requests.approveRun')
+                      : t('requests.approveCall')}
                 </Button>
               )}
             </Group>
@@ -208,6 +233,13 @@ export function McpRequestDetailPage() {
             {r.error && (
               <Text size="sm" c="red" mt={4}>
                 {r.error}
+              </Text>
+            )}
+            {r.proposal && r.resultBody !== null && r.status === 'done' && (
+              <Text size="sm" mt={4}>
+                {r.proposal.type === 'catalogue'
+                  ? t('proposals.resultCatalogue', r.resultBody as Record<string, number>)
+                  : t('proposals.resultMappings', r.resultBody as Record<string, number>)}
               </Text>
             )}
             {r.runId && (

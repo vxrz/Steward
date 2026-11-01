@@ -131,7 +131,8 @@
     "notVisibleText_one": "There is evidence in this period ({{count}} item), but you may not see it. Auditors and administrators see all evidence.",
     "notVisibleText_other": "There is evidence in this period ({{count}} items), but you may not see it. Auditors and administrators see all evidence.",
     "hiddenMore_one": "{{count}} more evidence item you may not see",
-    "hiddenMore_other": "{{count}} more evidence items you may not see"
+    "hiddenMore_other": "{{count}} more evidence items you may not see",
+    "suggested": "Proposed by the AI assistant of {{user}} (token “{{token}}”), accepted by {{by}}"
   },
   "accessChanges": {
     "title": "Access changes",
