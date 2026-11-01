@@ -68,7 +68,23 @@ jobs:
       - name: Validate example processes and dashboards
         run: npm run validate
       - name: Tests (incl. browser automation and crash/resume)
+        if: matrix.node != 24
         run: npm test
+      # Node 24 measures coverage as well (#23): reported in the job summary and as an artifact, no minimum yet
+      - name: Tests with coverage (incl. browser automation and crash/resume)
+        if: matrix.node == 24
+        run: npm run test:coverage
+      - name: Coverage summary
+        if: always() && matrix.node == 24
+        run: node scripts/coverage-summary.mjs >> "$GITHUB_STEP_SUMMARY"
+      - name: Coverage report
+        if: always() && matrix.node == 24
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: server-coverage
+          path: server/coverage/
+          retention-days: 14
+          if-no-files-found: ignore
       - name: Build web UI
         run: npm run build
       - name: Bundle the desktop executable's server (CommonJS)

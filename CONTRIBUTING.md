@@ -37,17 +37,18 @@ On the first start, set a master passphrase and create an admin account. Then cl
 
 ## Checks to run before you push
 
-| Command                            | What it checks                                                                                                                          |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run typecheck`                | TypeScript in all workspaces                                                                                                            |
-| `npm run lint`                     | ESLint (`eslint.config.js`): no errors and no warnings. `npm run lint:fix` fixes what it can.                                           |
-| `npm run format:check`             | Prettier formatting (`.prettierrc.json`). `npm run format` formats all files.                                                           |
-| `npm test`                         | API, engine and integration tests (vitest, SQLite)                                                                                      |
-| `npm run test:pg`                  | The same suite on PostgreSQL (`SM_TEST_DATABASE_URL`, see [docs/TESTING.md](docs/TESTING.md)). Needed when you touch SQL or migrations. |
-| `npm run build && npm run test:ui` | Playwright browser tests, including accessibility (axe) checks                                                                          |
-| `npm run validate`                 | Example processes and dashboards                                                                                                        |
-| `npm run openapi -- --check`       | `docs/openapi.json` matches the API (run `npm run openapi` to regenerate)                                                               |
-| `scripts/security/scan.sh`         | Optional: the security scanners CI runs (see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md))                                    |
+| Command                            | What it checks                                                                                                                             |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `npm run typecheck`                | TypeScript in all workspaces                                                                                                               |
+| `npm run lint`                     | ESLint (`eslint.config.js`): no errors and no warnings. `npm run lint:fix` fixes what it can.                                              |
+| `npm run format:check`             | Prettier formatting (`.prettierrc.json`). `npm run format` formats all files.                                                              |
+| `npm test`                         | API, engine and integration tests (vitest, SQLite)                                                                                         |
+| `npm run test:coverage`            | The same suite with coverage (v8): a summary in the terminal, the HTML report in `server/coverage/` (CI does this on Node 24, report only) |
+| `npm run test:pg`                  | The same suite on PostgreSQL (`SM_TEST_DATABASE_URL`, see [docs/TESTING.md](docs/TESTING.md)). Needed when you touch SQL or migrations.    |
+| `npm run build && npm run test:ui` | Playwright browser tests, including accessibility (axe) checks                                                                             |
+| `npm run validate`                 | Example processes and dashboards                                                                                                           |
+| `npm run openapi -- --check`       | `docs/openapi.json` matches the API (run `npm run openapi` to regenerate)                                                                  |
+| `scripts/security/scan.sh`         | Optional: the security scanners CI runs (see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md))                                       |
 
 CI runs all of these on every push and pull request: GitHub Actions (`.github/workflows/`), and Woodpecker CI (`.woodpecker/`) on a Forgejo mirror – see [docs/WOODPECKER.md](docs/WOODPECKER.md). A change to one CI system usually needs the same change in the other.
 
