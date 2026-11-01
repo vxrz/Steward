@@ -60,6 +60,7 @@ import {
   type RecordsMeta,
   type SignedPdfDetails,
   INCIDENT_TYPE_ID,
+  isEmailAddress,
 } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, patch, post, put } from '../api';
 import { DetailState, PageHeader } from '../components/common';
@@ -966,7 +967,7 @@ function PdfModal({ rec, onClose, onDone }: { rec: RecordDetail; onClose: () => 
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<RecordAttachment | null>(null);
   const update = (i: number, patch: Partial<SignerRow>) => setSigners((s) => s.map((x, j) => (j === i ? { ...x, ...patch } : x)));
-  const valid = signers.every((s) => s.name.trim() && (!s.email.trim() || /^\S+@\S+\.\S+$/.test(s.email.trim())));
+  const valid = signers.every((s) => s.name.trim() && (!s.email.trim() || isEmailAddress(s.email.trim())));
   const submit = async () => {
     setBusy(true);
     try {

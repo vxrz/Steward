@@ -4,7 +4,7 @@ import { initTelemetry, shutdownTelemetry } from './telemetry.js';
 import { logger } from './log.js';
 import { config, ensureDataDirs, securityWarnings } from './config.js';
 import { buildApp } from './app.js';
-import { unlockFromEnv } from './routes/index.js';
+import { unlockFromEnv } from './routes/auth.js';
 import { vault } from './vault.js';
 import { activeRunIds } from './engine/runner.js';
 import { BRAND } from '@sm/shared';

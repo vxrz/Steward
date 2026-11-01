@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type TestServer } from './helpers.js';
+import { allowEmailDomains, setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
  * Audit anchoring (server/src/audit-anchor.ts, #23): the formats an anchor can come in, anchors configured outside the
@@ -133,6 +133,7 @@ describe('checkpoints', () => {
 describe('checkpoint e-mails to auditors', () => {
   it('takes up to 20 valid addresses, keeps the interval between 1 hour and a week, and is audited', async () => {
     const { saveEmailSettings, emailSettings } = await import('../src/audit-anchor.js');
+    await allowEmailDomains(s, ['example.com']);
     expect(() => saveEmailSettings({ to: ['not-an-address'] })).toThrow(expect.objectContaining({ code: 'INVALID_EMAIL' }));
     expect(() => saveEmailSettings({ to: Array.from({ length: 21 }, (_, i) => `a${i}@example.com`) })).toThrow(/At most 20/);
     expect(saveEmailSettings({ to: [' audit@example.com ', 'audit@example.com'], intervalHours: 0 })).toEqual({ to: ['audit@example.com'], intervalHours: 1 });

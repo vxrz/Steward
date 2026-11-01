@@ -9,6 +9,7 @@ import {
   type ReportSchedule,
   type ReportSchedulePreset,
   type UserInfo,
+  emailAddressSchema,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -241,7 +242,10 @@ export const scheduleInputSchema = z.object({
     .object({
       users: z.array(z.string().trim().min(1).max(100)).max(50).default([]),
       teams: z.array(z.string().trim().min(1).max(100)).max(20).default([]),
-      emails: z.array(z.string().trim().toLowerCase().email().max(254)).max(MAX_EXTERNAL_RECIPIENTS).default([]),
+      emails: z
+        .array(emailAddressSchema({ lowerCase: true }))
+        .max(MAX_EXTERNAL_RECIPIENTS)
+        .default([]),
     })
     .prefault({}),
   attachPdf: z.boolean().default(false),

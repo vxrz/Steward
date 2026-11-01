@@ -33,7 +33,7 @@ import { attachmentFile, attachmentRows, type RecordRow } from '../records/model
 import { canReadRecordRow, canViewCatalogue } from '../records/access.js';
 import { getService } from '../catalogue/service.js';
 import { platformCatalogue, serviceCatalogue } from '../catalogue/evidence.js';
-import { csvCell } from '../audit-export.js';
+import { csvTable } from '../csv.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { likeEscape } from '../database/sql.js';
 import { canExportEvidence, canReadCheck, forbid, me, readsEverything, same, visiblePlatformName } from './access.js';
@@ -596,10 +596,10 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
         'documentedBy',
         'lastEditedBy',
       ] as const;
-      const csv =
-        [head.join(','), ...accessChanges.map((a) => head.map((h) => csvCell(Array.isArray(a[h]) ? (a[h] as string[]).join('; ') : a[h])).join(','))].join(
-          '\r\n',
-        ) + '\r\n';
+      const csv = csvTable(
+        head,
+        accessChanges.map((a) => head.map((h) => a[h])),
+      );
       await b.buffer('access-changes/access-changes.csv', csv);
     }
     if (monitors.length)

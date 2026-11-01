@@ -8,6 +8,7 @@ import {
   type ServiceDocument,
   type ServiceProtectionNeed,
   type ServiceSummary,
+  emailAddressSchema,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -65,7 +66,7 @@ export const serviceInput = z
       .max(64 * 1024)
       .default(''),
     contacts: z
-      .array(z.object({ role: z.enum(SERVICE_CONTACT_ROLES), email: z.string().trim().max(200).email(), name: optionalText(120) }).strict())
+      .array(z.object({ role: z.enum(SERVICE_CONTACT_ROLES), email: emailAddressSchema({ max: 200 }), name: optionalText(120) }).strict())
       .max(20)
       .default([]),
     owners: z

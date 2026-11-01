@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { csvTable } from '../csv.js';
 import {
   CREDENTIAL_LIMITS,
   CREDENTIAL_TYPES,
@@ -18,6 +19,7 @@ import {
   type CredentialStatus,
   type CredentialUrl,
   type MonitorPermission,
+  emailAddressSchema,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -340,7 +342,7 @@ const roleSchema = z.object({
   grantedAt: dateish.nullable().default(null),
   note: z.string().trim().max(CREDENTIAL_LIMITS.roleNote).default(''),
 });
-const ownerSchema = z.object({ email: z.string().trim().toLowerCase().email().max(254), role: z.string().trim().max(80).default('') });
+const ownerSchema = z.object({ email: emailAddressSchema({ lowerCase: true }), role: z.string().trim().max(80).default('') });
 /** Plain e-mail addresses per entry (each one gets the reminders of the entry). */
 export const MAX_CREDENTIAL_OWNER_EMAILS = 10;
 const subjectSchema = z
@@ -1000,13 +1002,6 @@ setCertificateExpiryHook((platformId, expiries) => void syncExpiryFromGatus(plat
 
 // ---------- CSV ----------
 
-const csvCell = (v: unknown): string => {
-  let s = v === null || v === undefined ? '' : Array.isArray(v) ? v.join('; ') : String(v);
-  // formula injection: a leading =, +, -, @ (or tab/CR) would be evaluated by spreadsheet programs
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};
-
 export function credentialsCsv(list: Credential[]): string {
   const head = [
     'id',
@@ -1034,37 +1029,34 @@ export function credentialsCsv(list: Credential[]): string {
     'updated_by',
     'belongs_to',
   ];
-  const lines = list.map((c) =>
-    [
-      c.id,
-      c.name,
-      c.type,
-      c.platformName ?? c.platformText,
-      c.environment,
-      c.status,
-      c.expiresAt,
-      c.nextRotationAt,
-      c.nextReviewAt,
-      c.rotationIntervalDays,
-      c.lastRotatedAt,
-      c.reviewIntervalDays,
-      c.lastReviewedAt,
-      c.owners.map((o) => (o.role ? `${o.email} (${o.role})` : o.email)),
-      c.ownerSubjects,
-      [c.usedBy.text, ...c.usedBy.links.map((l) => `${l.kind}:${l.label ?? l.id}`)].filter(Boolean),
-      c.location.text,
-      c.location.url,
-      c.certificate?.fingerprint256,
-      c.tags,
-      c.archived ? 'yes' : 'no',
-      c.updatedAt,
-      c.updatedBy,
-      c.belongsTo ? `${c.belongsTo.kind}:${c.belongsTo.applicationName ? `${c.belongsTo.applicationName} / ` : ''}${c.belongsTo.name ?? c.belongsTo.id}` : '',
-    ]
-      .map(csvCell)
-      .join(','),
-  );
-  return '\ufeff' + [head.join(','), ...lines].join('\r\n') + '\r\n';
+  const rows = list.map((c) => [
+    c.id,
+    c.name,
+    c.type,
+    c.platformName ?? c.platformText,
+    c.environment,
+    c.status,
+    c.expiresAt,
+    c.nextRotationAt,
+    c.nextReviewAt,
+    c.rotationIntervalDays,
+    c.lastRotatedAt,
+    c.reviewIntervalDays,
+    c.lastReviewedAt,
+    c.owners.map((o) => (o.role ? `${o.email} (${o.role})` : o.email)),
+    c.ownerSubjects,
+    [c.usedBy.text, ...c.usedBy.links.map((l) => `${l.kind}:${l.label ?? l.id}`)].filter(Boolean),
+    c.location.text,
+    c.location.url,
+    c.certificate?.fingerprint256,
+    c.tags,
+    c.archived ? 'yes' : 'no',
+    c.updatedAt,
+    c.updatedBy,
+    c.belongsTo ? `${c.belongsTo.kind}:${c.belongsTo.applicationName ? `${c.belongsTo.applicationName} / ` : ''}${c.belongsTo.name ?? c.belongsTo.id}` : '',
+  ]);
+  // quoted only where needed, with a byte order mark for Excel (see csv.ts)
+  return csvTable(head, rows, { quote: 'needed', bom: true });
 }
 
 /** Small summary for the home page widget. */
