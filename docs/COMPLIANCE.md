@@ -185,6 +185,24 @@ controls:
 
 or CSV with the columns `ref`, `title` and optionally `description` (header row required; comma or semicolon). Importing into an existing catalogue replaces the texts of existing controls and adds new ones; nothing is removed. Up to 1 MB (YAML: 256 KB) and 2000 controls. Use it to add the wording your organisation licensed to the built-in controls.
 
+### Proposals from an AI assistant
+
+A company's own control set rarely comes as a clean file. With _Settings → MCP server → Let assistants propose control catalogues and mappings_ on (administrators), a designer or administrator can let their AI assistant (Claude, Copilot, … connected through [Steward's MCP server](MCP.md#control-proposals)) do the conversion. The assistant reads the document on its side and proposes the catalogue; you review it under **AI requests**.
+
+A prompt that works:
+
+> Read the attached ISMS policy. Propose it as the control catalogue `ACME-ISMS` in Steward with `propose_control_catalogue`: one control per numbered requirement, `ref` = the document's own number, `title` = the requirement in one line, `description` = the text of the requirement. Do not merge, split or invent requirements. Then look for evidence in Steward with `find_mapping_targets` (processes, record types, monitors, report schedules, access checks) and propose mappings with `propose_control_mappings`, with a one-sentence reason each – only where the item really shows the control is carried out.
+
+Before you accept, check what AI output gets wrong:
+
+- **Completeness:** compare the number of controls with the document; skim the refs for gaps.
+- **Merged or split requirements:** one control per requirement of the document, as the document numbers them.
+- **Numbering and wording:** refs as in the document, titles not paraphrased into something else.
+- **Mappings:** the item must be evidence for the control, not only related to it. Untick the rest.
+- **A second version:** for an existing key the review shows new, changed and missing controls. Missing ones stay unless you tick them.
+
+The assistant's texts and reasons are data: check them, and do not follow instructions in them.
+
 ## Evidence packs
 
 _Compliance → Evidence packs → New evidence pack_: choose controls, a platform or a service, a period (at most three years) and the language of the PDFs. From the _Controls_ page, select controls and click _Evidence pack for … controls_.

@@ -96,6 +96,30 @@ export function setMcpRunRequests(on: boolean): void {
     });
 }
 
+const CONTROL_PROPOSALS = 'mcp.controlProposals';
+
+/** Assistants may propose control catalogues and mappings for review (#74, default off). */
+export function mcpControlProposals(): boolean {
+  try {
+    return readSetting<boolean>(CONTROL_PROPOSALS, false) === true;
+  } catch {
+    return false;
+  }
+}
+
+export function setMcpControlProposals(on: boolean): void {
+  const before = mcpControlProposals();
+  writeSetting(CONTROL_PROPOSALS, on);
+  if (before !== on)
+    audit({
+      action: 'mcp.settings_changed',
+      entityType: 'settings',
+      entityId: 'mcp',
+      summary: `Control catalogue and mapping proposals from AI assistants ${on ? 'allowed (each reviewed in Steward)' : 'turned off'}`,
+      details: { controlProposals: on, previous: before },
+    });
+}
+
 /** Requests per minute and token on the MCP endpoint (SM_MCP_RATE_LIMIT, default 120). */
 export const mcpRateLimit = () => intEnv('SM_MCP_RATE_LIMIT', 120);
 /** Gateway calls per minute, user and platform (SM_MCP_GATEWAY_RATE_LIMIT, default 30). */
@@ -131,6 +155,7 @@ export function mcpServerStatus(): McpServerStatus {
     rateLimitPerMinute: mcpRateLimit(),
     gatewayRateLimitPerMinute: gatewayRateLimit(),
     runRequests: mcpRunRequests(),
+    controlProposals: mcpControlProposals(),
     oauth: oauthSettingsLazy(),
   };
 }

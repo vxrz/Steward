@@ -243,6 +243,8 @@ export interface ControlTag {
   label: string;
   path: string | null;
   visible: boolean;
+  /** Mapped from an AI assistant's proposal (#74): who proposed it and who accepted it */
+  suggestion?: { requestedBy: string; tokenName: string; acceptedBy: string; requestId: string };
 }
 
 export interface Control {

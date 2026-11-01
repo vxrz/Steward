@@ -30,6 +30,7 @@ import { safeBaseUrl } from '../api/v1/routes-platforms.js';
 import { MAX_RESULT_CHARS, SUPPORTED_VERSIONS } from './config.js';
 import { gatewayTools } from './gateway.js';
 import { requestTools } from './requests.js';
+import { proposalTools } from '../compliance/proposals.js';
 import { ToolError, cap, cursorArg, defineTool, idArg, isoArg, limitArg, type ToolContext, type ToolDef } from './tooling.js';
 import { zodJsonSchema } from '../jsonSchema.js';
 
@@ -693,7 +694,7 @@ const steward: ToolDef[] = [
 ];
 
 export function allTools(): ToolDef[] {
-  return [...steward, ...gatewayTools, ...requestTools];
+  return [...steward, ...gatewayTools, ...requestTools, ...proposalTools];
 }
 
 export function findTool(name: string): ToolDef | undefined {

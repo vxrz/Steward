@@ -32,6 +32,7 @@ import {
   mcpRateLimit,
   mcpServerStatus,
   setMcpEnabled,
+  setMcpControlProposals,
   setMcpRunRequests,
 } from './config.js';
 import { PARSE_ERROR, INVALID_REQUEST, INTERNAL_ERROR, STEWARD_ERRORS, errorResponse } from './protocol.js';
@@ -328,11 +329,15 @@ export async function mcpRoutes(app: FastifyInstance): Promise<void> {
   app.get('/mcp-server', async () => mcpServerStatus());
   app.put('/mcp-server', async (req) => {
     requireCapability(currentUser(), 'manageSettings', 'change the MCP settings');
-    const b = z.object({ enabled: z.boolean().optional(), runRequests: z.boolean().optional() }).strict().parse(req.body);
+    const b = z
+      .object({ enabled: z.boolean().optional(), runRequests: z.boolean().optional(), controlProposals: z.boolean().optional() })
+      .strict()
+      .parse(req.body);
     if (b.enabled && mcpForcedOff())
       throw new HttpError(409, 'SM_MCP=off turns the MCP server off on this server – remove it to turn the server on here', 'MCP_FORCED_OFF');
     if (b.enabled !== undefined) setMcpEnabled(b.enabled);
     if (b.runRequests !== undefined) setMcpRunRequests(b.runRequests);
+    if (b.controlProposals !== undefined) setMcpControlProposals(b.controlProposals);
     return mcpServerStatus();
   });
 
@@ -372,7 +377,27 @@ export async function mcpRoutes(app: FastifyInstance): Promise<void> {
     decide(
       (req.params as { requestId: string }).requestId,
       z
-        .object({ approve: z.boolean(), comment: z.string().max(MCP_REQUEST_LIMITS.comment).default('') })
+        .object({
+          approve: z.boolean(),
+          comment: z.string().max(MCP_REQUEST_LIMITS.comment).default(''),
+          // what the reviewer accepted of a proposal (#74; checked by the proposal's kind)
+          selection: z
+            .object({
+              catalogue: z
+                .object({
+                  skip: z.array(z.string().max(40)).max(2000),
+                  edits: z
+                    .array(z.object({ ref: z.string().max(40), title: z.string().max(300), description: z.string().max(4000).default('') }).strict())
+                    .max(200),
+                  remove: z.array(z.string().max(40)).max(2000),
+                })
+                .strict()
+                .optional(),
+              mappings: z.array(z.number().int()).max(1000).optional(),
+            })
+            .strict()
+            .optional(),
+        })
         .strict()
         .parse(req.body),
     ),

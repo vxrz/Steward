@@ -381,6 +381,11 @@ function ControlDrawer({ cov, meta, onClose }: { cov: ControlCoverage; meta?: Co
                         {t('controls.notVisible')}
                       </Text>
                     )}
+                    {tag.suggestion && (
+                      <Text span size="xs" c="dimmed" display="block">
+                        {t('controls.suggested', { user: tag.suggestion.requestedBy, token: tag.suggestion.tokenName, by: tag.suggestion.acceptedBy })}
+                      </Text>
+                    )}
                   </Text>
                   {/* items the reader may not see have no id here and cannot be removed by them */}
                   {meta?.canTag && tag.targetId && (

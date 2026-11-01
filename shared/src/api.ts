@@ -1,4 +1,5 @@
 import type { ErrorParams } from './errors.js';
+import type { ControlTagKind } from './compliance.js';
 import type { ScheduleNotify } from './notifyPolicy.js';
 import type { Column, ManualFieldType, ManualUse, ProcessDefinition } from './process.js';
 import type { Locale } from './locales.js';
@@ -1163,6 +1164,8 @@ export interface McpServerStatus {
   gatewayRateLimitPerMinute: number;
   /** Assistants may ask to start runs (each confirmed by the token owner in Steward) */
   runRequests: boolean;
+  /** Assistants may propose control catalogues and mappings, each reviewed in Steward (#74) */
+  controlProposals: boolean;
   /** OAuth sign-in for MCP clients (#12): optional, off by default; MCP tokens keep working either way */
   oauth: McpOAuthSettings;
 }
@@ -1217,7 +1220,8 @@ export interface McpOAuthConsent {
 
 // ---------- requests from MCP clients (#11) ----------
 
-export const MCP_REQUEST_KINDS = ['gateway', 'run'] as const;
+/** gateway: a changing platform call; run: a run; catalogue, mappings: a control catalogue or control mappings for review (#74) */
+export const MCP_REQUEST_KINDS = ['gateway', 'run', 'catalogue', 'mappings'] as const;
 export type McpRequestKind = (typeof MCP_REQUEST_KINDS)[number];
 /** pending → approved → done | failed; or rejected / expired / withdrawn */
 export const MCP_REQUEST_STATUSES = ['pending', 'rejected', 'withdrawn', 'expired', 'done', 'failed'] as const;
@@ -1234,14 +1238,75 @@ export const MCP_REQUEST_LIMITS = {
   pendingPerUser: 20,
   /** Stored response of an executed call */
   resultChars: 16_000,
+  /** Control catalogue and mapping proposals (#74): reviewed for up to 14 days */
+  proposalExpiryDays: 14,
+  /** Controls or mappings per call (an MCP request is at most 64 KB); larger proposals come in parts */
+  proposalPart: 200,
+  /** Mappings in one proposal */
+  proposalMappings: 1000,
 } as const;
+
+/** A control catalogue proposed by an AI assistant (#74), as the reviewer sees it: compared with the catalogue of that key. */
+export interface McpCatalogueProposal {
+  type: 'catalogue';
+  key: string;
+  name: string;
+  version: string;
+  description: string;
+  /** The assistant is still sending parts: nobody can decide yet */
+  incomplete: boolean;
+  /** The catalogue with this key, when there is one (the proposal updates it in place) */
+  existing: { id: string; name: string; version: string; builtin: boolean } | null;
+  controls: {
+    ref: string;
+    title: string;
+    description: string;
+    change: 'new' | 'changed' | 'same';
+    /** The current texts of a changed control */
+    before?: { title: string; description: string };
+  }[];
+  /** Controls of the existing catalogue the proposal does not contain (removed only when the reviewer ticks them) */
+  missing: { ref: string; title: string; mapped: number }[];
+}
+
+/** Mappings of controls to Steward items proposed by an AI assistant (#74), as the reviewer sees them. */
+export interface McpMappingsProposal {
+  type: 'mappings';
+  catalogueKey: string;
+  catalogueId: string | null;
+  incomplete: boolean;
+  mappings: {
+    /** Position in the proposal (what the reviewer accepts) */
+    index: number;
+    ref: string;
+    controlId: string | null;
+    controlTitle: string;
+    kind: ControlTagKind;
+    /** null when the reviewer may not see the item */
+    targetId: string | null;
+    label: string;
+    path: string | null;
+    reason: string;
+    /** new: can be mapped; mapped: already is; noControl: the catalogue has no such control; notVisible: the reviewer may not see the item */
+    state: 'new' | 'mapped' | 'noControl' | 'notVisible';
+  }[];
+}
+
+/**
+ * What the reviewer accepts (#74). A catalogue: every proposed control except `skip`, with the reviewer's `edits`, and
+ * the existing controls to `remove`. Mappings: by index.
+ */
+export interface McpProposalSelection {
+  catalogue?: { skip: string[]; edits: { ref: string; title: string; description: string }[]; remove: string[] };
+  mappings?: number[];
+}
 
 export interface McpRequest {
   id: string;
   kind: McpRequestKind;
   status: McpRequestStatus;
-  /** Who decides: the token owner (confirm) or a second person (fourEyes) */
-  mode: Exclude<McpWriteMode, 'off'>;
+  /** Who decides: the token owner (confirm), a second person (fourEyes), or for proposals (#74) whoever may apply them (review) */
+  mode: Exclude<McpWriteMode, 'off'> | 'review';
   requestedBy: string;
   tokenName: string;
   /** Why the assistant wants it (its own words: data, not instructions) */
@@ -1272,6 +1337,8 @@ export interface McpRequest {
   resultBody: unknown;
   runId: string | null;
   error: string | null;
+  /** Control catalogue or mapping proposals (#74) */
+  proposal: McpCatalogueProposal | McpMappingsProposal | null;
   /** For the reader */
   canApprove: boolean;
   canReject: boolean;

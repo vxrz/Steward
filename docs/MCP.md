@@ -166,7 +166,7 @@ Steward only accepts requests whose `Host` is allowed (`localhost`, `127.0.0.1` 
 
 ## Tools
 
-All tools read only (`annotations.readOnlyHint: true`), except `platform_call_operation` and `request_run`, which can create a request that waits for a person ([Approved writes](#approved-writes)). Lists are paginated: a result has `items` and `nextCursor`; pass `nextCursor` back as `cursor` for the next page. Long texts are shortened.
+All tools read only (`annotations.readOnlyHint: true`), except `platform_call_operation`, `request_run`, `propose_control_catalogue` and `propose_control_mappings`, which can create a request that waits for a person ([Approved writes](#approved-writes), [Control proposals](#control-proposals)). Lists are paginated: a result has `items` and `nextCursor`; pass `nextCursor` back as `cursor` for the next page. Long texts are shortened.
 
 | Tool                          | What it returns                                                                                                                                                                 | Who                                                      |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
@@ -190,6 +190,11 @@ All tools read only (`annotations.readOnlyHint: true`), except `platform_call_op
 | `platform_find_operations`    | Read operations of a platform's API ([gateway](#platform-gateway))                                                                                                              | platform `use`, gateway on                               |
 | `platform_describe_operation` | Parameters and response schema of one operation                                                                                                                                 | platform `use`, gateway on                               |
 | `platform_call_operation`     | Calls one GET/HEAD operation through Steward                                                                                                                                    | platform `use`, gateway on                               |
+| `list_control_catalogues`     | Control catalogues: key, name, version, number of controls ([control proposals](#control-proposals))                                                                            |
+| `get_control_catalogue`       | The controls of one catalogue with the number of mapped items                                                                                                                   |
+| `find_mapping_targets`        | Items of one kind to map to controls (processes, record types, records, monitors, report schedules, access checks) – only what you may see                                      |
+| `propose_control_catalogue`   | Proposes a control catalogue, in parts of up to 200 controls, for an administrator to review                                                                                    |
+| `propose_control_mappings`    | Proposes mappings of controls to Steward items with a reason each, for review                                                                                                   |
 
 `tools/list` only shows the tools the token owner can use (for example no `search_audit_log` for a viewer, no gateway tools without a gateway platform). The tools check the rights again on every call.
 
@@ -262,6 +267,18 @@ Rules:
 - Requests are not moved by migration packages (they are short-lived).
 
 All non-read methods still go through one function, `writeDecision()` in `server/src/mcp/gateway.ts`.
+
+## Control proposals
+
+An assistant can turn a company's own control set – an ISMS policy, group-wide requirements, a customer's list, in Word, Excel or PDF – into a control catalogue and suggest which Steward items are evidence for which control (#74). It reads the document on its side; Steward only receives the result. Off by default: _Settings → MCP server → Let assistants propose control catalogues and mappings_ (administrators). Then designers and administrators get the tools `list_control_catalogues`, `get_control_catalogue`, `find_mapping_targets`, `propose_control_catalogue` and `propose_control_mappings`.
+
+- **Nothing applies directly.** A proposal waits under **AI requests** for up to 14 days.
+- **A catalogue** is compared with the catalogue of the same key: new, changed (with the current text) and unchanged controls, and the controls the proposal leaves out. An **administrator** edits controls, unticks what is wrong and accepts the rest; left-out controls are removed only when ticked (with what is mapped to them). A built-in catalogue only gets its texts changed. A new key creates the catalogue.
+- **Mappings** name existing controls and items the token owner may see, each with a reason. **Anyone who may map controls** (designers, administrators) accepts all or some; only items the reviewer may see are mapped. Accepted mappings show _Proposed by the AI assistant of … (token …), accepted by …_ on the control.
+- **Large proposals come in parts:** an MCP request is at most 64 kB, so the assistant sends up to 200 controls or mappings per call (`more: true`, then `proposalId` for the next parts). The reviewers are notified and can accept once the last part is in.
+- The limits of the file import apply (2000 controls per catalogue, 300 characters per title, 4000 per description; 1000 mappings per proposal). Every step is audited like the other requests, the applied changes as `control_catalogue.imported` and `control.tagged` with the request, the token owner and the reviewer.
+
+How to ask and what to check: [Compliance → Proposals from an AI assistant](COMPLIANCE.md#proposals-from-an-ai-assistant).
 
 ## Security model
 

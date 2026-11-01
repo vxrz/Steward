@@ -17,7 +17,7 @@ import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import { capabilities, isAdmin } from '../auth/permissions.js';
 import { permissionsFor } from '../processes/service.js';
 import { permissionsOfRow } from '../monitors/model.js';
-import { HttpError, newId, nowIso } from '../util.js';
+import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canManageCatalogues, canReadCheck, canTagControls, forbid, me, readsEverything, same, SYSTEM_USER } from './access.js';
 import { BUILTIN_CATALOGUES, DEFAULT_ACCESS_CONTROLS } from './catalogues.js';
 import { toAccessChange } from './access-changes.js';
@@ -73,6 +73,8 @@ interface TagRow {
   target_id: string;
   created_at: string;
   created_by: string;
+  /** Mapped from an AI assistant's proposal (#74, JSON) */
+  suggestion?: string | null;
 }
 
 // ---------- seeding ----------
@@ -166,7 +168,7 @@ export const catalogueInput = z
   })
   .strict();
 
-const controlText = z.object({
+export const controlText = z.object({
   ref: z.string().trim().min(1).max(40),
   title: z.string().trim().min(1).max(LIMITS.title),
   description: z.string().trim().max(LIMITS.description).default(''),
@@ -342,6 +344,74 @@ export function parseCatalogueFile(filename: string, content: string): ParsedCat
 }
 
 /**
+ * Writes controls into a catalogue (inside the caller's transaction): texts of existing refs are replaced, new refs are
+ * added at the end, and the refs in `remove` are deleted with their mappings. Shared by the file import and accepted
+ * proposals of AI assistants (#74).
+ */
+export function upsertControls(
+  catalogueId: string,
+  controls: z.infer<typeof controlText>[],
+  remove: string[] = [],
+): { added: number; updated: number; removed: number } {
+  const existing = new Map(
+    db()
+      .all<ControlRow>('SELECT * FROM controls WHERE catalogue_id = ?', catalogueId)
+      .map((c) => [c.ref.toLowerCase(), c]),
+  );
+  const dropped = new Set(remove.map((r) => r.toLowerCase()).filter((r) => existing.has(r)));
+  const adding = controls.filter((c) => !existing.has(c.ref.toLowerCase())).length;
+  if (existing.size - dropped.size + adding > LIMITS.controls)
+    throw new HttpError(400, `At most ${LIMITS.controls} controls per catalogue`, 'CATALOGUE_TOO_MANY', { max: LIMITS.controls });
+  let added = 0;
+  let updated = 0;
+  let sort = existing.size;
+  for (const c of controls) {
+    const cur = existing.get(c.ref.toLowerCase());
+    if (cur) {
+      if (cur.title !== c.title || cur.description !== c.description) {
+        db().run('UPDATE controls SET title = ?, description = ? WHERE id = ?', c.title, c.description, cur.id);
+        updated++;
+      }
+    } else {
+      db().run(
+        'INSERT INTO controls (id, catalogue_id, ref, title, description, sort) VALUES (?, ?, ?, ?, ?, ?)',
+        newId('ctl_'),
+        catalogueId,
+        c.ref,
+        c.title,
+        c.description,
+        sort++,
+      );
+      added++;
+    }
+  }
+  for (const ref of dropped) {
+    const cur = existing.get(ref)!;
+    db().run('DELETE FROM control_tags WHERE control_id = ?', cur.id);
+    db().run('DELETE FROM controls WHERE id = ?', cur.id);
+  }
+  return { added, updated, removed: dropped.size };
+}
+
+/** The catalogue's controls with how many items are mapped to each (for comparing a proposal, #74). */
+export function catalogueControls(catalogueId: string): { id: string; ref: string; title: string; description: string; mapped: number }[] {
+  return db()
+    .all<{ id: string; ref: string; title: string; description: string; mapped: number }>(
+      `SELECT c.id, c.ref, c.title, c.description, (SELECT COUNT(*) FROM control_tags t WHERE t.control_id = c.id) AS mapped
+     FROM controls c WHERE c.catalogue_id = ? ORDER BY c.sort, c.ref`,
+      catalogueId,
+    )
+    .map((c) => ({ ...c, mapped: Number(c.mapped) }));
+}
+
+/** The catalogue of a key or id, or null. */
+export function findCatalogue(idOrKey: string): { id: string; key: string; name: string; version: string; builtin: boolean } | null {
+  ensureCatalogues();
+  const r = db().get<CatalogueRow>('SELECT * FROM control_catalogues WHERE id = ? OR lower(key) = lower(?)', idOrKey, idOrKey);
+  return r ? { id: r.id, key: r.key, name: r.name, version: r.version, builtin: !!r.builtin } : null;
+}
+
+/**
  * Imports controls: into an existing catalogue (texts of existing refs are replaced, new refs are
  * added, nothing is removed) or as a new catalogue.
  */
@@ -365,46 +435,19 @@ export function importCatalogue(o: { catalogueId?: string; key?: string; name?: 
     );
     cat = catalogueRow(created.id);
   }
-  let added = 0;
-  let updated = 0;
+  let counts = { added: 0, updated: 0, removed: 0 };
   db().tx(() => {
-    const existing = new Map(
-      db()
-        .all<ControlRow>('SELECT * FROM controls WHERE catalogue_id = ?', cat.id)
-        .map((c) => [c.ref.toLowerCase(), c]),
-    );
-    if (existing.size + parsed.controls.filter((c) => !existing.has(c.ref.toLowerCase())).length > LIMITS.controls)
-      throw new HttpError(400, `At most ${LIMITS.controls} controls per catalogue`, 'CATALOGUE_TOO_MANY', { max: LIMITS.controls });
-    let sort = existing.size;
-    for (const c of parsed.controls) {
-      const cur = existing.get(c.ref.toLowerCase());
-      if (cur) {
-        if (cur.title !== c.title || cur.description !== c.description) {
-          db().run('UPDATE controls SET title = ?, description = ? WHERE id = ?', c.title, c.description, cur.id);
-          updated++;
-        }
-      } else {
-        db().run(
-          'INSERT INTO controls (id, catalogue_id, ref, title, description, sort) VALUES (?, ?, ?, ?, ?, ?)',
-          newId('ctl_'),
-          cat.id,
-          c.ref,
-          c.title,
-          c.description,
-          sort++,
-        );
-        added++;
-      }
-    }
+    counts = upsertControls(cat.id, parsed.controls);
     db().run('UPDATE control_catalogues SET updated_at = ?, updated_by = ? WHERE id = ?', nowIso(), me().username, cat.id);
     audit({
       action: 'control_catalogue.imported',
       entityType: 'control_catalogue',
       entityId: cat.id,
-      summary: `${added} control(s) added and ${updated} changed in catalogue ${cat.key} (import of ${o.filename.slice(0, 100)})`,
-      details: { added, updated, filename: o.filename.slice(0, 200) },
+      summary: `${counts.added} control(s) added and ${counts.updated} changed in catalogue ${cat.key} (import of ${o.filename.slice(0, 100)})`,
+      details: { added: counts.added, updated: counts.updated, filename: o.filename.slice(0, 200) },
     });
   });
+  const { added, updated } = counts;
   return { catalogue: toCatalogue(catalogueRow(cat.id)), added, updated };
 }
 
@@ -413,7 +456,15 @@ export function importCatalogue(o: { catalogueId?: string; key?: string; name?: 
 /** A mapped item as the reader sees it: the id only when they may see the item (ids can carry names, e.g. process slugs). */
 function tagInfo(t: TagRow, u: AuthUser | null): ControlTag {
   const r = resolveTarget(t.kind, t.target_id, u);
-  return { kind: t.kind, targetId: r ? t.target_id : null, label: r?.label ?? '', path: r?.path ?? null, visible: !!r };
+  const suggestion = t.suggestion ? parseJson<ControlTag['suggestion'] | null>(t.suggestion, null) : null;
+  return {
+    kind: t.kind,
+    targetId: r ? t.target_id : null,
+    label: r?.label ?? '',
+    path: r?.path ?? null,
+    visible: !!r,
+    ...(suggestion && r ? { suggestion } : {}),
+  };
 }
 
 function toControl(c: ControlRow, cat: Pick<CatalogueRow, 'key'>, u: AuthUser | null, tags?: TagRow[]): Control {
@@ -539,7 +590,8 @@ export function resolveTarget(kind: ControlTagKind, id: string, u: AuthUser | nu
 
 export const tagInput = z.object({ kind: z.enum(CONTROL_TAG_KINDS), targetId: z.string().trim().min(1).max(200) }).strict();
 
-export function addTag(controlId: string, input: z.infer<typeof tagInput>): Control {
+/** `suggestion`: the mapping comes from an AI assistant's proposal that `u` accepted (#74). */
+export function addTag(controlId: string, input: z.infer<typeof tagInput>, suggestion?: NonNullable<ControlTag['suggestion']>): Control {
   const u = me();
   if (!canTagControls(u)) forbid('map items to controls', 'tagControls');
   const c = controlRow(controlId);
@@ -551,19 +603,20 @@ export function addTag(controlId: string, input: z.infer<typeof tagInput>): Cont
     throw new HttpError(400, `At most ${LIMITS.tagsPerControl} items per control`, 'CONTROL_TOO_MANY_TAGS', { max: LIMITS.tagsPerControl });
   db().tx(() => {
     db().run(
-      'INSERT INTO control_tags (control_id, kind, target_id, created_at, created_by) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO control_tags (control_id, kind, target_id, created_at, created_by, suggestion) VALUES (?, ?, ?, ?, ?, ?)',
       c.id,
       input.kind,
       input.targetId,
       nowIso(),
       u.username,
+      suggestion ? JSON.stringify(suggestion) : null,
     );
     audit({
       action: 'control.tagged',
       entityType: 'control',
       entityId: c.id,
-      summary: `${target.label} (${input.kind}) mapped to control ${c.catalogue_key} ${c.ref}`,
-      details: { kind: input.kind, targetId: input.targetId },
+      summary: `${target.label} (${input.kind}) mapped to control ${c.catalogue_key} ${c.ref}${suggestion ? ` (proposed by ${suggestion.requestedBy}'s AI assistant)` : ''}`,
+      details: { kind: input.kind, targetId: input.targetId, ...(suggestion ? { requestId: suggestion.requestId, requestedBy: suggestion.requestedBy } : {}) },
     });
   });
   return getControl(c.id);

@@ -1,5 +1,17 @@
 import { z } from 'zod';
-import { boundedRecord, MCP_REQUEST_LIMITS, type McpRequest, type McpRequestKind, type McpRequestStatus, type McpWriteMode, type Platform } from '@sm/shared';
+import {
+  boundedRecord,
+  MCP_REQUEST_LIMITS,
+  type McpCatalogueProposal,
+  type McpMappingsProposal,
+  type McpProposalSelection,
+  type McpRequest,
+  type McpRequestKind,
+  type McpRequestStatus,
+  type McpWriteMode,
+  type Platform,
+  type UserInfo,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
@@ -25,11 +37,11 @@ import { me } from '../auth/access.js';
  * Every step is in the audit log (entity mcp_request).
  */
 
-interface Row {
+export interface Row {
   id: string;
   kind: McpRequestKind;
   status: McpRequestStatus | 'approved';
-  mode: Exclude<McpWriteMode, 'off'>;
+  mode: Exclude<McpWriteMode, 'off'> | 'review';
   requested_by: string;
   token_id: string;
   token_name: string;
@@ -55,7 +67,33 @@ interface Row {
   result_body: string | null;
   run_id: string | null;
   error: string | null;
+  /** Proposals (#74): the proposed catalogue or mappings (JSON) */
+  payload: string | null;
 }
+
+/**
+ * Proposals an assistant makes for a person to review (#74: control catalogues and mappings). The module that owns
+ * the kind says who may accept, how the reviewer sees it and what accepting does; the inbox, expiry, notifications
+ * and audit trail are the same as for other requests.
+ */
+export interface ReviewKind {
+  /** Who may accept (and see) it */
+  mayAccept: (u: AuthUser, r: Row) => boolean;
+  /** Who is told about a new proposal */
+  deciders: (r: Row) => UserInfo[];
+  /** One line for the audit log and notifications */
+  describe: (r: Row) => string;
+  view: (r: Row, u: AuthUser) => McpCatalogueProposal | McpMappingsProposal;
+  /** Applies what the reviewer accepted, as the reviewer; the result is stored with the request */
+  apply: (r: Row, selection: McpProposalSelection | undefined, u: AuthUser) => { body: unknown; error?: string };
+}
+const REVIEW_KINDS = new Map<McpRequestKind, ReviewKind>();
+export function registerReviewKind(kind: McpRequestKind, def: ReviewKind): void {
+  REVIEW_KINDS.set(kind, def);
+}
+const reviewOf = (r: Row) => (r.mode === 'review' ? REVIEW_KINDS.get(r.kind) : undefined);
+/** A proposal whose assistant is still sending parts */
+const incomplete = (r: Row) => r.mode === 'review' && !!parseJson<{ incomplete?: boolean }>(r.payload, {}).incomplete;
 
 const same = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 const has = (u: AuthUser | null, roles: string[]) => !!u && u.roles.some((r) => roles.includes(r));
@@ -73,9 +111,21 @@ function usesPlatform(u: AuthUser, platformId: string | null): boolean {
 const isOpen = (r: Row) => r.status === 'pending' && r.expires_at > nowIso();
 /** fourEyes: an approver or administrator other than the token owner, who may use the platform */
 const secondPerson = (u: AuthUser, r: Row) => !same(u.username, r.requested_by) && (isAdmin(u) || has(u, ['approver'])) && usesPlatform(u, r.platform_id);
-const mayApprove = (u: AuthUser, r: Row) => isOpen(r) && (r.mode === 'confirm' ? same(u.username, r.requested_by) : secondPerson(u, r));
-const mayReject = (u: AuthUser, r: Row) => isOpen(r) && (same(u.username, r.requested_by) || isAdmin(u) || (r.mode === 'fourEyes' && secondPerson(u, r)));
-const mayRead = (u: AuthUser, r: Row) => same(u.username, r.requested_by) || isAdmin(u) || has(u, ['auditor']) || (r.mode === 'fourEyes' && secondPerson(u, r));
+const mayApprove = (u: AuthUser, r: Row) => {
+  if (!isOpen(r)) return false;
+  const review = reviewOf(r);
+  if (r.mode === 'review') return !!review && !incomplete(r) && review.mayAccept(u, r);
+  return r.mode === 'confirm' ? same(u.username, r.requested_by) : secondPerson(u, r);
+};
+const mayReject = (u: AuthUser, r: Row) =>
+  isOpen(r) &&
+  (same(u.username, r.requested_by) || isAdmin(u) || (r.mode === 'fourEyes' && secondPerson(u, r)) || (r.mode === 'review' && !!reviewOf(r)?.mayAccept(u, r)));
+const mayRead = (u: AuthUser, r: Row) =>
+  same(u.username, r.requested_by) ||
+  isAdmin(u) ||
+  has(u, ['auditor']) ||
+  (r.mode === 'fourEyes' && secondPerson(u, r)) ||
+  (r.mode === 'review' && !!reviewOf(r)?.mayAccept(u, r));
 
 function toRequest(r: Row, u: AuthUser): McpRequest {
   return {
@@ -108,6 +158,7 @@ function toRequest(r: Row, u: AuthUser): McpRequest {
     resultBody: r.result_body === null ? null : parseJson(r.result_body, r.result_body),
     runId: r.run_id,
     error: r.error,
+    proposal: reviewOf(r)?.view(r, u) ?? null,
     canApprove: mayApprove(u, r),
     canReject: mayReject(u, r),
   };
@@ -140,11 +191,16 @@ export function expireRequests(now = nowIso()): number {
   return rows.length;
 }
 
-const describe = (r: Pick<Row, 'kind' | 'method' | 'path' | 'process_name' | 'dry_run'>) =>
-  r.kind === 'gateway' ? `${r.method} ${r.path}` : `run "${r.process_name}"${r.dry_run ? ' (dry run)' : ''}`;
+const describe = (r: Row) =>
+  r.mode === 'review'
+    ? (reviewOf(r)?.describe(r) ?? r.kind)
+    : r.kind === 'gateway'
+      ? `${r.method} ${r.path}`
+      : `run "${r.process_name}"${r.dry_run ? ' (dry run)' : ''}`;
 
 /** The people who decide a request: the token owner (confirm), or every second person (fourEyes). */
 function deciders(r: Row) {
+  if (r.mode === 'review') return reviewOf(r)?.deciders(r) ?? [];
   if (r.mode === 'confirm') return listUsers().filter((x) => x.active && same(x.username, r.requested_by));
   return listUsers().filter((x) => x.active && secondPerson(toAuthUser(x), r));
 }
@@ -153,18 +209,21 @@ function notifyDeciders(r: Row): void {
   void import('../notifications/service.js')
     .then(({ notify }) => {
       const what = describe(r);
+      const review = r.mode === 'review';
+      const expiry = review ? `${MCP_REQUEST_LIMITS.proposalExpiryDays} days` : `${MCP_REQUEST_LIMITS.expiryHours} hours`;
+      const expiryDe = review ? `${MCP_REQUEST_LIMITS.proposalExpiryDays} Tagen` : `${MCP_REQUEST_LIMITS.expiryHours} Stunden`;
       notify({
         event: 'mcp.request',
         recipients: deciders(r),
         text: (locale) =>
           locale === 'de'
             ? {
-                title: `KI-Assistent von ${r.requested_by}: ${r.mode === 'confirm' ? 'Bitte bestätigen' : 'Freigabe nötig'}`,
-                body: `Der KI-Assistent (Token „${r.token_name}") möchte: ${what}. Begründung des Assistenten: ${r.reason}. Entscheiden Sie in Steward unter KI-Anfragen; ohne Entscheidung verfällt die Anfrage nach ${MCP_REQUEST_LIMITS.expiryHours} Stunden.`,
+                title: `KI-Assistent von ${r.requested_by}: ${review ? 'Vorschlag zur Prüfung' : r.mode === 'confirm' ? 'Bitte bestätigen' : 'Freigabe nötig'}`,
+                body: `Der KI-Assistent (Token „${r.token_name}") ${review ? 'schlägt vor' : 'möchte'}: ${what}. Begründung des Assistenten: ${r.reason}. ${review ? 'Prüfen' : 'Entscheiden'} Sie in Steward unter KI-Anfragen; ohne Entscheidung verfällt die Anfrage nach ${expiryDe}.`,
               }
             : {
-                title: `${r.requested_by}'s AI assistant: ${r.mode === 'confirm' ? 'please confirm' : 'approval needed'}`,
-                body: `The AI assistant (token "${r.token_name}") wants to: ${what}. The assistant's reason: ${r.reason}. Decide in Steward under AI requests; without a decision the request expires after ${MCP_REQUEST_LIMITS.expiryHours} hours.`,
+                title: `${r.requested_by}'s AI assistant: ${review ? 'a proposal to review' : r.mode === 'confirm' ? 'please confirm' : 'approval needed'}`,
+                body: `The AI assistant (token "${r.token_name}") ${review ? 'proposes' : 'wants to'}: ${what}. The assistant's reason: ${r.reason}. ${review ? 'Review it' : 'Decide'} in Steward under AI requests; without a decision the request expires after ${expiry}.`,
               },
         link: `/mcp-requests/${r.id}`,
         ...(r.platform_id ? { about: { kind: 'platform' as const, id: r.platform_id } } : {}),
@@ -180,8 +239,8 @@ function insert(r: Row): void {
   db().tx(() => {
     db().run(
       `INSERT INTO mcp_requests (id, kind, status, mode, requested_by, token_id, token_name, reason, created_at, expires_at, platform_id, operation, method, path,
-         path_template, query, body, process_id, process_name, inputs, dry_run)
-       VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         path_template, query, body, process_id, process_name, inputs, dry_run, payload)
+       VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       r.id,
       r.kind,
       r.mode,
@@ -202,12 +261,13 @@ function insert(r: Row): void {
       r.process_name,
       r.inputs,
       r.dry_run,
+      r.payload,
     );
     audit({
       action: 'mcp.request_created',
       entityType: 'mcp_request',
       entityId: r.id,
-      summary: `${r.requested_by}'s AI assistant (token "${r.token_name}") asks to ${describe(r)} – ${r.mode === 'confirm' ? 'the token owner confirms' : 'a second person approves'}`,
+      summary: `${r.requested_by}'s AI assistant (token "${r.token_name}") ${r.mode === 'review' ? 'proposes' : 'asks to'} ${describe(r)} – ${r.mode === 'review' ? 'a person reviews it' : r.mode === 'confirm' ? 'the token owner confirms' : 'a second person approves'}`,
       details: {
         kind: r.kind,
         mode: r.mode,
@@ -221,7 +281,7 @@ function insert(r: Row): void {
       },
     });
   });
-  notifyDeciders(r);
+  if (!incomplete(r)) notifyDeciders(r);
 }
 
 function base(ctx: ToolContext, kind: McpRequestKind, mode: Row['mode'], reason: string): Row {
@@ -242,7 +302,9 @@ function base(ctx: ToolContext, kind: McpRequestKind, mode: Row['mode'], reason:
     token_name: ctx.principal.tokenName,
     reason: reason.trim().slice(0, MCP_REQUEST_LIMITS.reason),
     created_at: created.toISOString(),
-    expires_at: new Date(created.getTime() + MCP_REQUEST_LIMITS.expiryHours * 3_600_000).toISOString(),
+    expires_at: new Date(
+      created.getTime() + (mode === 'review' ? MCP_REQUEST_LIMITS.proposalExpiryDays * 24 : MCP_REQUEST_LIMITS.expiryHours) * 3_600_000,
+    ).toISOString(),
     platform_id: null,
     operation: null,
     method: null,
@@ -262,6 +324,7 @@ function base(ctx: ToolContext, kind: McpRequestKind, mode: Row['mode'], reason:
     result_body: null,
     run_id: null,
     error: null,
+    payload: null,
   };
 }
 
@@ -269,11 +332,50 @@ function base(ctx: ToolContext, kind: McpRequestKind, mode: Row['mode'], reason:
 const created = (r: Row) => ({
   status: 'pending',
   requestId: r.id,
-  needs: r.mode === 'confirm' ? 'the token owner confirms it in Steward' : 'an approver or administrator other than the token owner approves it in Steward',
+  needs:
+    r.mode === 'review'
+      ? 'a person reviews it in Steward, may edit it, and accepts all or parts'
+      : r.mode === 'confirm'
+        ? 'the token owner confirms it in Steward'
+        : 'an approver or administrator other than the token owner approves it in Steward',
   expiresAt: r.expires_at,
   decideAt: `${(config.publicUrl ?? '').replace(/\/$/, '')}${config.basePath ?? ''}/mcp-requests/${r.id}`,
   note: 'Nothing has been changed yet. Tell the user that the request waits for a decision in Steward, and check the outcome later with get_operation_request.',
 });
+
+/** A proposal for review (#74): a new request, or the next part of the assistant's own proposal that is still incomplete. */
+export function saveProposal(
+  ctx: ToolContext,
+  kind: McpRequestKind,
+  o: { proposalId?: string; reason?: string; payload: (prev: unknown) => { incomplete: boolean } & Record<string, unknown> },
+) {
+  if (!o.proposalId) {
+    if (!o.reason?.trim()) throw new ToolError('Give `reason`: what the proposal is and where it comes from – the reviewer sees it');
+    const r = base(ctx, kind, 'review', o.reason);
+    r.payload = JSON.stringify(o.payload(null));
+    insert(r);
+    return { ...created(r), complete: !incomplete(r) };
+  }
+  expireRequests();
+  const r = rowOf(o.proposalId);
+  if (!r || r.kind !== kind || !same(r.requested_by, ctx.principal.user.username) || r.status !== 'pending')
+    throw new ToolError(`Proposal ${o.proposalId} not found, or it is no longer open`);
+  if (!incomplete(r)) throw new ToolError(`Proposal ${o.proposalId} is complete already – start a new proposal for further changes`);
+  const next = o.payload(parseJson(r.payload, null));
+  r.payload = JSON.stringify(next);
+  db().run("UPDATE mcp_requests SET payload = ? WHERE id = ? AND status = 'pending'", r.payload, r.id);
+  if (!next.incomplete) {
+    audit({
+      action: 'mcp.proposal_completed',
+      entityType: 'mcp_request',
+      entityId: r.id,
+      summary: `${r.requested_by}'s AI assistant completed its proposal: ${describe(r)}`,
+      details: { kind: r.kind },
+    });
+    notifyDeciders(r);
+  }
+  return { ...created(r), complete: !next.incomplete };
+}
 
 /** A changing gateway call (validated by the gateway tool) becomes a request. */
 export function createGatewayRequest(
@@ -363,8 +465,8 @@ export function getRequest(id: string): McpRequest {
   return toRequest(r, u);
 }
 
-/** Approve (runs it now, once, as the token owner) or reject a request. */
-export async function decide(id: string, input: { approve: boolean; comment: string }): Promise<McpRequest> {
+/** Approve (runs it now, once, as the token owner – a proposal is applied as the reviewer) or reject a request. */
+export async function decide(id: string, input: { approve: boolean; comment: string; selection?: McpProposalSelection }): Promise<McpRequest> {
   expireRequests();
   const u = me();
   const r = rowOf(id);
@@ -400,7 +502,13 @@ export async function decide(id: string, input: { approve: boolean; comment: str
   if (!mayApprove(u, r))
     throw new HttpError(
       403,
-      r.mode === 'confirm' ? 'Only the token owner confirms this request' : 'An approver or administrator other than the token owner approves this request',
+      r.mode === 'review'
+        ? incomplete(r)
+          ? 'The assistant is still sending this proposal'
+          : 'You may not accept this proposal'
+        : r.mode === 'confirm'
+          ? 'Only the token owner confirms this request'
+          : 'An approver or administrator other than the token owner approves this request',
       'MCP_REQUEST_APPROVE',
     );
   // claim it: whoever gets here first runs it, exactly once
@@ -420,10 +528,11 @@ export async function decide(id: string, input: { approve: boolean; comment: str
     action: 'mcp.request_approved',
     entityType: 'mcp_request',
     entityId: id,
-    summary: `${r.mode === 'confirm' ? 'Confirmed' : 'Approved'}: ${describe(r)} (asked by ${r.requested_by}'s AI assistant)${comment ? ` – ${comment.slice(0, 200)}` : ''}`,
+    summary: `${r.mode === 'review' ? 'Accepted' : r.mode === 'confirm' ? 'Confirmed' : 'Approved'}: ${describe(r)} (asked by ${r.requested_by}'s AI assistant)${comment ? ` – ${comment.slice(0, 200)}` : ''}`,
     details: { kind: r.kind, mode: r.mode, requestedBy: r.requested_by, comment },
   });
-  const outcome = await execute(r);
+  const review = reviewOf(r);
+  const outcome = review ? applyProposal(review, r, input.selection, u) : await execute(r);
   db().run(
     'UPDATE mcp_requests SET status = ?, executed_at = ?, result_status = ?, result_body = ?, run_id = ?, error = ? WHERE id = ?',
     outcome.error ? 'failed' : 'done',
@@ -435,14 +544,37 @@ export async function decide(id: string, input: { approve: boolean; comment: str
     id,
   );
   audit({
-    actor: r.requested_by,
+    actor: review ? u.username : r.requested_by,
     action: 'mcp.request_executed',
     entityType: 'mcp_request',
     entityId: id,
-    summary: `${describe(r)} for ${r.requested_by}'s AI assistant: ${outcome.error ? `failed – ${outcome.error.slice(0, 200)}` : outcome.runId ? `run ${outcome.runId} started` : `HTTP ${outcome.status}`}`,
-    details: { kind: r.kind, approvedBy: u.username, status: outcome.status ?? null, runId: outcome.runId ?? null, error: outcome.error ?? null },
+    summary: review
+      ? `${describe(r)} for ${r.requested_by}'s AI assistant: ${outcome.error ? `failed – ${outcome.error.slice(0, 200)}` : `applied by ${u.username}`}`
+      : `${describe(r)} for ${r.requested_by}'s AI assistant: ${outcome.error ? `failed – ${outcome.error.slice(0, 200)}` : outcome.runId ? `run ${outcome.runId} started` : `HTTP ${outcome.status}`}`,
+    details: {
+      kind: r.kind,
+      approvedBy: u.username,
+      status: outcome.status ?? null,
+      runId: outcome.runId ?? null,
+      error: outcome.error ?? null,
+      ...(review ? { result: outcome.body ?? null } : {}),
+    },
   });
   return getRequest(id);
+}
+
+/** Applies an accepted proposal as the reviewer (their rights decide what may be applied). */
+function applyProposal(
+  review: ReviewKind,
+  r: Row,
+  selection: McpProposalSelection | undefined,
+  u: AuthUser,
+): { status?: number; body?: unknown; runId?: string; error?: string } {
+  try {
+    return runAs(u, () => review.apply(r, selection, u));
+  } catch (e) {
+    return { error: (e as Error).message.slice(0, 1000) };
+  }
 }
 
 /** Runs an approved request as the token owner, with the rights and settings of now. */

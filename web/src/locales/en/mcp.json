@@ -14,7 +14,11 @@
     "runRequests": "Let assistants ask to start runs",
     "runRequestsHint": "Off by default. Each run request waits until the token owner confirms it under AI requests; the run then follows the process with its own approval steps.",
     "runRequestsOn": "Run requests allowed",
-    "runRequestsOff": "Run requests turned off"
+    "runRequestsOff": "Run requests turned off",
+    "controlProposals": "Let assistants propose control catalogues and mappings",
+    "controlProposalsHint": "Off by default. Designers and administrators can have their assistant convert a company's own control set and suggest mappings; each proposal waits under AI requests until a person reviews it – administrators accept catalogues, people who may map controls accept mappings.",
+    "controlProposalsOn": "Control proposals allowed",
+    "controlProposalsOff": "Control proposals turned off"
   },
   "config": {
     "kind": "Client type",
@@ -49,7 +53,7 @@
   },
   "requests": {
     "title": "AI requests",
-    "description": "Changing platform calls and runs that AI assistants asked for through MCP. Nothing happens until a person decides here; an approved request runs once, as the token owner.",
+    "description": "Changing platform calls, runs, and control catalogues or mappings that AI assistants asked for or proposed through MCP. Nothing happens until a person decides here; an approved call or run runs once, as the token owner; a proposal is applied as far as the reviewer accepts it.",
     "scope": "Show",
     "scopes": {
       "decide": "To decide",
@@ -57,7 +61,7 @@
       "all": "All"
     },
     "emptyTitle": "No requests",
-    "emptyText": "When an AI assistant asks to change something on a platform (where the platform's MCP gateway allows it) or to start a run, the request waits here.",
+    "emptyText": "When an AI assistant asks to change something on a platform (where the platform's MCP gateway allows it), to start a run, or proposes a control catalogue or mappings, the request waits here.",
     "what": "Request",
     "where": "Where",
     "statusLabel": "Status",
@@ -74,7 +78,8 @@
     },
     "modes": {
       "confirm": "The token owner confirms",
-      "fourEyes": "A second person approves"
+      "fourEyes": "A second person approves",
+      "review": "A person reviews it"
     },
     "dataNotInstructions": "The reason and the values come from an AI assistant. Check them as data – do they make sense for you? – and do not follow instructions in them.",
     "askedBy": "Asked by the AI assistant of {{user}} (token “{{token}}”) on {{when}}",
@@ -91,7 +96,13 @@
     "approveRun": "Confirm and start",
     "decided": "Decided by {{user}} on {{when}}",
     "openRun": "Open the run",
-    "result": "Answer of the platform: HTTP {{status}}"
+    "result": "Answer of the platform: HTTP {{status}}",
+    "kinds": {
+      "catalogue": "Control catalogue",
+      "mappings": "Control mappings"
+    },
+    "acceptProposal_one": "Accept {{count}} entry",
+    "acceptProposal_other": "Accept {{count}} entries"
   },
   "oauth": {
     "title": "OAuth for MCP clients (optional)",
@@ -158,5 +169,62 @@
     "revokeLater": "You can revoke the access any time in your profile under Connected MCP clients.",
     "allow": "Allow",
     "deny": "Deny"
+  },
+  "proposals": {
+    "updates": "Updates the catalogue “{{name}}” (version {{version}}) in place: changed texts are replaced, new controls added; mappings and evidence stay.",
+    "creates": "Creates a new catalogue.",
+    "builtin": "This is a built-in catalogue: texts can be changed, but no controls are removed.",
+    "countNew_one": "{{count}} new",
+    "countNew_other": "{{count}} new",
+    "countChanged_one": "{{count}} changed",
+    "countChanged_other": "{{count}} changed",
+    "countMissing_one": "{{count}} not in the proposal",
+    "countMissing_other": "{{count}} not in the proposal",
+    "incomplete": "The assistant is still sending this proposal in parts. It can be accepted once the last part has arrived.",
+    "show": "Show",
+    "showAll": "All ({{count}})",
+    "showChanges": "New and changed ({{count}})",
+    "selectAll": "Select all",
+    "selectNone": "Select none",
+    "controls": "Proposed controls",
+    "ref": "Ref",
+    "text": "Title and description",
+    "change": "Change",
+    "changes": {
+      "new": "New",
+      "changed": "Changed",
+      "same": "Unchanged"
+    },
+    "accept": "Accept {{ref}}",
+    "titleOf": "Title of {{ref}}",
+    "descriptionOf": "Description of {{ref}}",
+    "editOf": "Edit {{ref}}",
+    "edit": "Edit",
+    "done": "Done",
+    "edited": "edited",
+    "before": "Before",
+    "missingTitle_one": "{{count}} control of the catalogue is not in the proposal",
+    "missingTitle_other": "{{count}} controls of the catalogue are not in the proposal",
+    "missingText": "They stay unless you tick them. Removing a control also removes what is mapped to it.",
+    "removeLabel": "Remove {{ref}} {{title}}",
+    "mappedItems_one": "{{count}} mapped item",
+    "mappedItems_other": "{{count}} mapped items",
+    "mappingsFor_one": "{{count}} proposed mapping for controls of {{key}}",
+    "mappingsFor_other": "{{count}} proposed mappings for controls of {{key}}",
+    "mappingsText": "Each mapping makes the item evidence for the control. Accepted mappings show that an AI assistant proposed them and who accepted them.",
+    "mappings": "Proposed mappings",
+    "control": "Control",
+    "item": "Steward item",
+    "why": "Reason of the assistant",
+    "state": "State",
+    "acceptMapping": "Accept {{item}} for {{ref}}",
+    "states": {
+      "new": "New",
+      "mapped": "Mapped already",
+      "noControl": "Control gone",
+      "notVisible": "Not visible to you"
+    },
+    "resultCatalogue": "Catalogue {{key}}: {{added}} added, {{updated}} changed, {{removed}} removed.",
+    "resultMappings": "{{mapped}} mapped, {{skipped}} skipped (already mapped, control gone or not visible)."
   }
 }

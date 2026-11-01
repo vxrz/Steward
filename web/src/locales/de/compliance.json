@@ -131,7 +131,8 @@
     "notVisibleText_one": "Es gibt in diesem Zeitraum Nachweise ({{count}} Eintrag), aber Sie dürfen sie nicht sehen. Prüfer und Administratoren sehen alle Nachweise.",
     "notVisibleText_other": "Es gibt in diesem Zeitraum Nachweise ({{count}} Einträge), aber Sie dürfen sie nicht sehen. Prüfer und Administratoren sehen alle Nachweise.",
     "hiddenMore_one": "{{count}} weiterer Nachweis, den Sie nicht sehen dürfen",
-    "hiddenMore_other": "{{count}} weitere Nachweise, die Sie nicht sehen dürfen"
+    "hiddenMore_other": "{{count}} weitere Nachweise, die Sie nicht sehen dürfen",
+    "suggested": "Vorgeschlagen vom KI-Assistenten von {{user}} (Token „{{token}}“), übernommen von {{by}}"
   },
   "accessChanges": {
     "title": "Zugriffsänderungen",

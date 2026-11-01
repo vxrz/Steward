@@ -18,7 +18,7 @@ export function McpServerCard() {
   const [busy, setBusy] = useState(false);
   const s = status.data;
   if (!s) return null;
-  const toggle = async (body: { enabled?: boolean; runRequests?: boolean }) => {
+  const toggle = async (body: { enabled?: boolean; runRequests?: boolean; controlProposals?: boolean }) => {
     setBusy(true);
     try {
       const next = await put<McpServerStatus>('/mcp-server', body);
@@ -28,9 +28,13 @@ export function McpServerCard() {
           ? body.enabled
             ? t('settings.turnedOn')
             : t('settings.turnedOff')
-          : body.runRequests
-            ? t('settings.runRequestsOn')
-            : t('settings.runRequestsOff'),
+          : body.controlProposals !== undefined
+            ? body.controlProposals
+              ? t('settings.controlProposalsOn')
+              : t('settings.controlProposalsOff')
+            : body.runRequests
+              ? t('settings.runRequestsOn')
+              : t('settings.runRequestsOff'),
       );
     } catch (e) {
       notifyError(e);
@@ -64,6 +68,13 @@ export function McpServerCard() {
           checked={s.runRequests}
           disabled={busy || !s.enabled}
           onChange={(e) => toggle({ runRequests: e.currentTarget.checked })}
+        />
+        <Switch
+          label={t('settings.controlProposals')}
+          description={t('settings.controlProposalsHint')}
+          checked={s.controlProposals}
+          disabled={busy || !s.enabled}
+          onChange={(e) => toggle({ controlProposals: e.currentTarget.checked })}
         />
         {s.enabled && (
           <>

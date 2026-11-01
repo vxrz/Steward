@@ -14,7 +14,11 @@
     "runRequests": "Assistenten dürfen Ausführungen anfragen",
     "runRequestsHint": "Standardmäßig aus. Jede Anfrage wartet, bis der Besitzer des Tokens sie unter KI-Anfragen bestätigt; die Ausführung folgt dann dem Prozess mit seinen eigenen Freigaben.",
     "runRequestsOn": "Anfragen von Ausführungen erlaubt",
-    "runRequestsOff": "Anfragen von Ausführungen ausgeschaltet"
+    "runRequestsOff": "Anfragen von Ausführungen ausgeschaltet",
+    "controlProposals": "Assistenten dürfen Kontrollkataloge und Zuordnungen vorschlagen",
+    "controlProposalsHint": "Standardmäßig aus. Designer und Administratoren können ihren Assistenten einen eigenen Kontrollkatalog des Unternehmens umwandeln und Zuordnungen vorschlagen lassen; jeder Vorschlag wartet unter KI-Anfragen, bis eine Person ihn prüft – Kataloge übernehmen Administratoren, Zuordnungen alle, die Kontrollen zuordnen dürfen.",
+    "controlProposalsOn": "Vorschläge für Kontrollen erlaubt",
+    "controlProposalsOff": "Vorschläge für Kontrollen ausgeschaltet"
   },
   "config": {
     "kind": "Art des Clients",
@@ -49,7 +53,7 @@
   },
   "requests": {
     "title": "KI-Anfragen",
-    "description": "Ändernde Plattformaufrufe und Ausführungen, die KI-Assistenten über MCP angefragt haben. Nichts geschieht, bevor hier eine Person entscheidet; eine freigegebene Anfrage läuft einmal, als Besitzer des Tokens.",
+    "description": "Ändernde Plattformaufrufe, Ausführungen sowie Kontrollkataloge und Zuordnungen, die KI-Assistenten über MCP angefragt oder vorgeschlagen haben. Nichts geschieht, bevor hier eine Person entscheidet; ein freigegebener Aufruf oder eine Ausführung läuft einmal, als Besitzer des Tokens; ein Vorschlag wird übernommen, soweit die prüfende Person ihn annimmt.",
     "scope": "Anzeigen",
     "scopes": {
       "decide": "Zu entscheiden",
@@ -57,7 +61,7 @@
       "all": "Alle"
     },
     "emptyTitle": "Keine Anfragen",
-    "emptyText": "Wenn ein KI-Assistent etwas auf einer Plattform ändern möchte (wo das MCP-Gateway der Plattform es erlaubt) oder eine Ausführung starten möchte, wartet die Anfrage hier.",
+    "emptyText": "Wenn ein KI-Assistent etwas auf einer Plattform ändern (wo das MCP-Gateway der Plattform es erlaubt), eine Ausführung starten oder einen Kontrollkatalog oder Zuordnungen vorschlagen möchte, wartet die Anfrage hier.",
     "what": "Anfrage",
     "where": "Wo",
     "statusLabel": "Status",
@@ -74,7 +78,8 @@
     },
     "modes": {
       "confirm": "Der Besitzer des Tokens bestätigt",
-      "fourEyes": "Eine zweite Person gibt frei"
+      "fourEyes": "Eine zweite Person gibt frei",
+      "review": "Eine Person prüft"
     },
     "dataNotInstructions": "Begründung und Werte stammen von einem KI-Assistenten. Prüfen Sie sie als Daten – ergeben sie für Sie Sinn? – und folgen Sie keinen Anweisungen darin.",
     "askedBy": "Angefragt vom KI-Assistenten von {{user}} (Token „{{token}}“) am {{when}}",
@@ -91,7 +96,13 @@
     "approveRun": "Bestätigen und starten",
     "decided": "Entschieden von {{user}} am {{when}}",
     "openRun": "Ausführung öffnen",
-    "result": "Antwort der Plattform: HTTP {{status}}"
+    "result": "Antwort der Plattform: HTTP {{status}}",
+    "kinds": {
+      "catalogue": "Kontrollkatalog",
+      "mappings": "Zuordnungen zu Kontrollen"
+    },
+    "acceptProposal_one": "{{count}} Eintrag übernehmen",
+    "acceptProposal_other": "{{count}} Einträge übernehmen"
   },
   "oauth": {
     "title": "OAuth für MCP-Clients (optional)",
@@ -158,5 +169,62 @@
     "revokeLater": "Sie können den Zugriff jederzeit in Ihrem Profil unter Verbundene MCP-Clients widerrufen.",
     "allow": "Erlauben",
     "deny": "Ablehnen"
+  },
+  "proposals": {
+    "updates": "Aktualisiert den Katalog „{{name}}“ (Version {{version}}): Geänderte Texte werden ersetzt, neue Kontrollen ergänzt; Zuordnungen und Nachweise bleiben.",
+    "creates": "Legt einen neuen Katalog an.",
+    "builtin": "Das ist ein mitgelieferter Katalog: Texte können geändert, aber keine Kontrollen entfernt werden.",
+    "countNew_one": "{{count}} neu",
+    "countNew_other": "{{count}} neu",
+    "countChanged_one": "{{count}} geändert",
+    "countChanged_other": "{{count}} geändert",
+    "countMissing_one": "{{count}} nicht im Vorschlag",
+    "countMissing_other": "{{count}} nicht im Vorschlag",
+    "incomplete": "Der Assistent sendet diesen Vorschlag noch in Teilen. Übernehmen können Sie ihn, sobald der letzte Teil angekommen ist.",
+    "show": "Anzeigen",
+    "showAll": "Alle ({{count}})",
+    "showChanges": "Neue und geänderte ({{count}})",
+    "selectAll": "Alle auswählen",
+    "selectNone": "Keine auswählen",
+    "controls": "Vorgeschlagene Kontrollen",
+    "ref": "Nr.",
+    "text": "Titel und Beschreibung",
+    "change": "Änderung",
+    "changes": {
+      "new": "Neu",
+      "changed": "Geändert",
+      "same": "Unverändert"
+    },
+    "accept": "{{ref}} übernehmen",
+    "titleOf": "Titel von {{ref}}",
+    "descriptionOf": "Beschreibung von {{ref}}",
+    "editOf": "{{ref}} bearbeiten",
+    "edit": "Bearbeiten",
+    "done": "Fertig",
+    "edited": "bearbeitet",
+    "before": "Bisher",
+    "missingTitle_one": "{{count}} Kontrolle des Katalogs ist nicht im Vorschlag",
+    "missingTitle_other": "{{count}} Kontrollen des Katalogs sind nicht im Vorschlag",
+    "missingText": "Sie bleiben, wenn Sie sie nicht ankreuzen. Mit einer Kontrolle werden auch ihre Zuordnungen entfernt.",
+    "removeLabel": "{{ref}} {{title}} entfernen",
+    "mappedItems_one": "{{count}} zugeordnetes Element",
+    "mappedItems_other": "{{count}} zugeordnete Elemente",
+    "mappingsFor_one": "{{count}} vorgeschlagene Zuordnung zu Kontrollen von {{key}}",
+    "mappingsFor_other": "{{count}} vorgeschlagene Zuordnungen zu Kontrollen von {{key}}",
+    "mappingsText": "Mit jeder Zuordnung wird das Element zum Nachweis für die Kontrolle. Übernommene Zuordnungen zeigen, dass ein KI-Assistent sie vorgeschlagen hat und wer sie übernommen hat.",
+    "mappings": "Vorgeschlagene Zuordnungen",
+    "control": "Kontrolle",
+    "item": "Element in Steward",
+    "why": "Begründung des Assistenten",
+    "state": "Stand",
+    "acceptMapping": "{{item}} für {{ref}} übernehmen",
+    "states": {
+      "new": "Neu",
+      "mapped": "Schon zugeordnet",
+      "noControl": "Kontrolle fehlt",
+      "notVisible": "Für Sie nicht sichtbar"
+    },
+    "resultCatalogue": "Katalog {{key}}: {{added}} ergänzt, {{updated}} geändert, {{removed}} entfernt.",
+    "resultMappings": "{{mapped}} zugeordnet, {{skipped}} übersprungen (schon zugeordnet, Kontrolle fehlt oder nicht sichtbar)."
   }
 }
