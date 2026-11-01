@@ -81,8 +81,8 @@ export const LARGE_BODIES = {
    * not – they keep the previous limit, which every export so far was made for.
    */
   exports: { routes: ['POST /api/bundle/import', 'POST /api/platform-types/import'], bytes: PREVIOUS_LIMIT },
-  /** The report logo as base64 (the web app sends multipart): REPORT_LOGO_MAX_BYTES (1 MB) */
-  reportLogo: { routes: ['POST /api/reports/branding/logo'], bytes: base64(REPORT_LOGO_MAX_BYTES) },
+  /** The report logo as base64 (the web app sends multipart; team logos, #136, base64 only): REPORT_LOGO_MAX_BYTES (1 MB) */
+  reportLogo: { routes: ['POST /api/reports/branding/logo', 'POST /api/teams/:id/settings/logo'], bytes: base64(REPORT_LOGO_MAX_BYTES) },
   /**
    * A report PDF as base64, for scripts (the web app sends multipart, up to 50 MB): the previous limit,
    * a PDF of about 18 MB.

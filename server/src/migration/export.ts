@@ -191,8 +191,8 @@ export async function exportPackage(opts: { out: string; transferPassphrase: str
       // identities (no password hashes: local passwords never move)
       const providers = new Map(listProviders().map((p) => [p.id, p.displayName]));
       const teamRows = d.all<{ id: string; name: string; description: string }>('SELECT id, name, description FROM teams ORDER BY name');
-      const members = d.all<{ team_id: string; username: string; roles: string | null }>(
-        'SELECT m.team_id, u.username, m.roles FROM team_members m JOIN users u ON u.id = m.user_id',
+      const members = d.all<{ team_id: string; username: string; roles: string | null; new_resources: number }>(
+        'SELECT m.team_id, u.username, m.roles, m.new_resources FROM team_members m JOIN users u ON u.id = m.user_id',
       );
       const owned = d.all<{ team_id: string; kind: string; resource_id: string }>(
         'SELECT team_id, kind, resource_id FROM resource_teams ORDER BY kind, resource_id',
@@ -200,12 +200,17 @@ export async function exportPackage(opts: { out: string; transferPassphrase: str
       // team settings (#136): the team's own channel, its URL with the package key (like other credentials)
       const teamSettings = new Map(
         d
-          .all<{ team_id: string; channel: string | null; channel_secret: string | null }>('SELECT team_id, channel, channel_secret FROM team_settings')
+          .all<{ team_id: string; channel: string | null; channel_secret: string | null; defaults: string | null; logo: string | null }>(
+            'SELECT team_id, channel, channel_secret, defaults, logo FROM team_settings',
+          )
           .map((r) => [
             r.team_id,
             {
               channel: r.channel ? (JSON.parse(r.channel) as NonNullable<PackageTeam['settings']>['channel']) : null,
               ...(r.channel_secret ? { channelSecret: encryptWith(keys.secrets, JSON.stringify(vault().decrypt(r.channel_secret))) } : {}),
+              // team defaults and the team's report logo (#136)
+              ...(r.defaults ? { defaults: JSON.parse(r.defaults) as unknown } : {}),
+              ...(r.logo ? { logo: r.logo } : {}),
             },
           ]),
       );
@@ -219,6 +224,8 @@ export async function exportPackage(opts: { out: string; transferPassphrase: str
           members: mine.map((m) => m.username),
           // team scopes (#131): what members may do in the team, and what the team owns
           memberRoles: roles,
+          // members who chose this team for their new resources (#136)
+          newResourceMembers: mine.filter((m) => m.new_resources).map((m) => m.username),
           owns: owned.filter((o) => o.team_id === t.id).map((o) => ({ kind: o.kind, id: o.resource_id })),
           ...(teamSettings.has(t.id) ? { settings: teamSettings.get(t.id) } : {}),
         };

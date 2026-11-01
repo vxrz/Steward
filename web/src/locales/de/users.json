@@ -381,6 +381,53 @@
     "saved": "Team-Einstellungen gespeichert",
     "notSaved": "Team-Einstellungen nicht gespeichert",
     "resetDone": "Das Team nutzt wieder den Kanal der Instanz",
-    "readOnly": "Administratoren ändern die Einstellungen von Teams."
+    "readOnly": "Administratoren ändern die Einstellungen von Teams.",
+    "tabs": {
+      "channel": "Kanal",
+      "resources": "Neue Ressourcen",
+      "summary": "Tägliche Zusammenfassung",
+      "branding": "Berichts-Branding"
+    },
+    "newResources": {
+      "title": "Neue Ressourcen der Mitglieder",
+      "hint": "Welche der Ressourcen, die seine Mitglieder anlegen, dem Team gehören. Ein Mitglied kann stattdessen eines seiner Teams wählen (Profil).",
+      "modes": {
+        "auto": "Sobald dem Team etwas gehört",
+        "always": "Immer",
+        "never": "Nie"
+      },
+      "hints": {
+        "auto": "Die Vorgabe: Neue Ressourcen der Mitglieder gehören dem Team, sobald ihm etwas gehört – ein Team, dem noch nichts gehört, ändert also nichts.",
+        "always": "Neue Ressourcen der Mitglieder gehören dem Team von Anfang an.",
+        "never": "Neue Ressourcen der Mitglieder erhalten dieses Team nicht, und Mitglieder können es dafür nicht wählen."
+      }
+    },
+    "summary": {
+      "title": "Tägliche Zusammenfassung für Mitglieder",
+      "hint": "Mitglieder, die in ihrem Profil keine eigenen Einstellungen gewählt haben, erhalten diese tägliche Zusammenfassung. Ihre eigenen Einstellungen gelten immer vorrangig.",
+      "usesInstance": "Mitglieder ohne eigene Einstellungen erhalten die Vorgabe der Instanz: keine tägliche Zusammenfassung.",
+      "setDefault": "Vorgabe für Mitglieder festlegen",
+      "enabled": "Mitglieder erhalten eine tägliche Zusammenfassung"
+    },
+    "branding": {
+      "title": "Berichts-Branding",
+      "hint": "Berichte des Teams verwenden es anstelle des Brandings der Instanz: geplante Berichte des Teams, Ausführungsberichte seiner Prozesse und PDFs seiner Dokumente.",
+      "companyName": "Firmenname",
+      "accentColor": "Akzentfarbe",
+      "classification": "Standard-Klassifizierung",
+      "footerNote": "Fußzeilenhinweis",
+      "none": "(keine)",
+      "emptyKeeps": "Ein leeres Feld behält den Wert der Instanz (grau angezeigt).",
+      "logo": "Team-Logo",
+      "instanceLogo": "Logo: das der Instanz",
+      "uploadLogo": "Logo hochladen",
+      "removeLogo": "Logo entfernen",
+      "logoSaved": "Logo gespeichert",
+      "logoRemoved": "Logo entfernt: wieder das Logo der Instanz",
+      "schedules_one": "{{count}} Berichtszeitplan des Teams:",
+      "schedules_other": "{{count}} Berichtszeitpläne des Teams:",
+      "noSchedules": "Noch kein Berichtszeitplan verwendet das Team (wählen Sie das Team in einem Berichtszeitplan).",
+      "eyeDropper": "Farbe vom Bildschirm übernehmen"
+    }
   }
 }

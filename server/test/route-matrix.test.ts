@@ -128,6 +128,10 @@ const EXPECT: Record<string, Access> = {
   'GET /api/teams/:id/settings': ADMIN,
   'PUT /api/teams/:id/settings': ADMIN,
   'POST /api/teams/:id/settings/test': ADMIN,
+  // the team's report logo (#136): the matrix team has no members, and no logo (NO_POSITIVE)
+  'GET /api/teams/:id/settings/logo': ADMIN,
+  'POST /api/teams/:id/settings/logo': ADMIN,
+  'DELETE /api/teams/:id/settings/logo': ADMIN,
   'GET /api/subjects': ACTIVE,
   'PATCH /api/me': ALL,
   'GET /api/me/tokens': ALL,
@@ -723,6 +727,10 @@ const EXPECT: Record<string, Access> = {
   'GET /api/me/daily-summary': ALL,
   'PUT /api/me/daily-summary': ALL,
   'GET /api/me/daily-summary/preview': ALL,
+  'DELETE /api/me/daily-summary': ALL,
+  // the owning teams of one's own new resources (#136)
+  'GET /api/me/new-resource-teams': ALL,
+  'PUT /api/me/new-resource-teams': ALL,
   'GET /api/settings/daily-summary': ADMIN,
   'PUT /api/settings/daily-summary': ADMIN,
 };
@@ -739,6 +747,8 @@ const SESSION_ONLY = [
   'DELETE /api/teams/:id',
   'PUT /api/teams/:id/settings',
   'POST /api/teams/:id/settings/test',
+  'POST /api/teams/:id/settings/logo',
+  'DELETE /api/teams/:id/settings/logo',
   'POST /api/sso/providers',
   'PUT /api/sso/providers/:id',
   'DELETE /api/sso/providers/:id',
@@ -830,6 +840,7 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
 
 /** GET routes whose fixtures cannot give a 2xx (nothing to find); refusals are still checked. */
 const NO_POSITIVE = new Set([
+  'GET /api/teams/:id/settings/logo', // the matrix team has no logo of its own
   // no S3 storage set up in the fixtures
   'GET /api/backups/stored',
   'GET /api/artifacts/:id', // the demo runs write no artifacts
@@ -1089,6 +1100,8 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/teams': { name: 'team x', members: [] },
   'PUT /api/teams/:id': { name: 'team y', members: ['vera'] },
   'PUT /api/teams/:id/settings': { channel: null },
+  'POST /api/teams/:id/settings/logo': { contentBase64: 'bm90IGFuIGltYWdl' },
+  'PUT /api/me/new-resource-teams': { teamId: null },
   'POST /api/me/tokens': { name: 'x', scope: 'full' },
   'PUT /api/settings': { outboundPolicy: 'open' },
   'PUT /api/settings/instance': { outboundPolicy: 'open' },

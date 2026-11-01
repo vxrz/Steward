@@ -11,7 +11,8 @@
     "sections": "Abschnitte",
     "last": "Letzter Bericht",
     "next": "Nächster Lauf",
-    "owner": "Läuft mit den Rechten von {{owner}}"
+    "owner": "Läuft mit den Rechten von {{owner}}",
+    "team": "Team „{{team}}“"
   },
   "presets": {
     "daily": "Täglich",
@@ -114,7 +115,10 @@
     "attachPdfHint": "Sonst enthält die E-Mail einen Link (zum Öffnen ist ein Konto nötig).",
     "enabled": "Aktiv",
     "dutyLevels": "Stufen",
-    "allLevels": "Alle Stufen"
+    "allLevels": "Alle Stufen",
+    "team": "Berichts-Branding des Teams",
+    "teamHint": "Das PDF verwendet das Berichts-Branding des Teams (Benutzer → Teams → Einstellungen). Wählen Sie eines der Teams des Eigentümers.",
+    "teamNone": "Das Branding der Instanz"
   },
   "emptyState": {
     "title": "Noch keine Berichtszeitpläne",

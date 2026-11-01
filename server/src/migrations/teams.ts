@@ -32,4 +32,16 @@ export const TEAM_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // team defaults (#136): JSON { newResources, summary, branding } (NULL = the instance's), the team's report logo
+    // (base64, NULL = the instance logo), the member's own choice of team for new resources, and the team of a report
+    // schedule (a subjects array, ["team:<name>"], so renames and migration packages map it like other team references)
+    name: 'teams-003-defaults',
+    sql: `
+      ALTER TABLE team_settings ADD COLUMN defaults TEXT;
+      ALTER TABLE team_settings ADD COLUMN logo TEXT;
+      ALTER TABLE team_members ADD COLUMN new_resources INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE report_schedules ADD COLUMN team TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
 ];

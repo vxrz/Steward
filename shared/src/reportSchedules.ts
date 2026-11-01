@@ -61,6 +61,8 @@ export interface ReportSchedule {
   recipients: ReportRecipients;
   /** Attach the PDF to e-mails (otherwise only a link) */
   attachPdf: boolean;
+  /** The team whose report branding the PDF uses (#136); null: the instance branding */
+  team: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
   lastRunAt: string | null;

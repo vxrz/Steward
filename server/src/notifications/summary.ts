@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import {
   DAILY_SUMMARY_SECTIONS,
   DEFAULT_DAILY_SUMMARY,
@@ -43,6 +42,8 @@ import { sendEmail } from './channels.js';
 import { resolveLook } from './look.js';
 import { domainAllowed } from './domains.js';
 import { userLocale } from './service.js';
+import { prefsSchema } from './summary-prefs.js';
+import { teamDefaults } from '../teams/settings.js';
 import { dashboardVisible } from '../dashboards/service.js';
 
 /**
@@ -93,27 +94,32 @@ export function setSummariesAllowed(allowed: boolean): DailySummaryAdmin {
   return adminView();
 }
 
-const validTimeZone = (tz: string): boolean => {
-  try {
-    new Intl.DateTimeFormat('en', { timeZone: tz });
-    return true;
-  } catch {
-    return false;
+export { prefsSchema } from './summary-prefs.js';
+
+/** The daily summary a team sets for its members (#136): the first of the user's teams, by name, that sets one. */
+function teamSummaryFor(userId: string): { prefs: DailySummaryPrefs; team: string } | null {
+  const teams = db().all<{ id: string; name: string }>(
+    `SELECT t.id, t.name FROM team_members m JOIN teams t ON t.id = m.team_id JOIN team_settings s ON s.team_id = t.id
+     WHERE m.user_id = ? AND s.defaults IS NOT NULL ORDER BY t.name`,
+    userId,
+  );
+  for (const t of teams) {
+    const prefs = teamDefaults(t.id).summary;
+    if (prefs) return { prefs, team: t.name };
   }
-};
+  return null;
+}
 
-export const prefsSchema = z
-  .object({
-    enabled: z.boolean(),
-    time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'use HH:MM, e.g. 07:30'),
-    timeZone: z.string().min(1).max(64).refine(validTimeZone, 'unknown time zone'),
-    days: z.enum(['weekdays', 'everyday']),
-    channel: z.enum(['inApp', 'inAppEmail']),
-    sections: z.array(z.enum(DAILY_SUMMARY_SECTIONS)).max(DAILY_SUMMARY_SECTIONS.length),
-    skipEmpty: z.boolean(),
-  })
-  .strict();
+/** The user's daily summary settings and where they come from: their own, a team default, or the instance default (#136). */
+export function effectivePrefs(userId: string): { prefs: DailySummaryPrefs; source: DailySummaryState['source'] } {
+  const own = db().get<{ user_id: string }>('SELECT user_id FROM daily_summary_prefs WHERE user_id = ?', userId);
+  if (own) return { prefs: getPrefs(userId), source: { from: 'own' } };
+  const team = teamSummaryFor(userId);
+  if (team) return { prefs: team.prefs, source: { from: 'team', team: team.team } };
+  return { prefs: { ...DEFAULT_DAILY_SUMMARY }, source: { from: 'instance' } };
+}
 
+/** The user's own daily summary settings (the instance default when they have none; see effectivePrefs for team defaults). */
 export function getPrefs(userId: string): DailySummaryPrefs {
   const r = db().get<{ enabled: number; prefs: string }>('SELECT enabled, prefs FROM daily_summary_prefs WHERE user_id = ?', userId);
   if (!r) return { ...DEFAULT_DAILY_SUMMARY };
@@ -128,10 +134,10 @@ export function getPrefs(userId: string): DailySummaryPrefs {
   return parsed.success ? parsed.data : { ...DEFAULT_DAILY_SUMMARY, enabled: false };
 }
 
-export function savePrefs(u: UserInfo, input: z.infer<typeof prefsSchema>): DailySummaryState {
+export function savePrefs(u: UserInfo, input: DailySummaryPrefs): DailySummaryState {
   if (input.enabled && !summariesAllowed()) throw new HttpError(409, 'An administrator switched daily summaries off', 'DAILY_SUMMARY_NOT_ALLOWED');
   const prefs = { ...input, sections: DAILY_SUMMARY_SECTIONS.filter((s) => input.sections.includes(s)) };
-  const before = getPrefs(u.id);
+  const before = effectivePrefs(u.id).prefs;
   db().run(
     `INSERT INTO daily_summary_prefs (user_id, enabled, prefs, updated_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET enabled = excluded.enabled, prefs = excluded.prefs, updated_at = excluded.updated_at`,
@@ -152,6 +158,23 @@ export function savePrefs(u: UserInfo, input: z.infer<typeof prefsSchema>): Dail
   return summaryState(getUser(u.id));
 }
 
+/** Back to the default (#136): the user's own settings are removed; a team default or the instance default applies. */
+export function resetPrefs(u: UserInfo): DailySummaryState {
+  const before = effectivePrefs(u.id);
+  if (before.source.from === 'own') {
+    db().run('DELETE FROM daily_summary_prefs WHERE user_id = ?', u.id);
+    const after = effectivePrefs(u.id);
+    audit({
+      action: 'notification.daily_summary_changed',
+      entityType: 'user',
+      entityId: u.id,
+      summary: `${u.username} uses the ${after.source.from === 'team' ? `daily summary default of team "${after.source.team}"` : 'instance default for the daily summary'} again`,
+      details: { from: before.prefs, to: after.prefs, source: after.source },
+    });
+  }
+  return summaryState(getUser(u.id));
+}
+
 /** Why e-mail cannot reach this user (null: it can). */
 export function emailBlockedReason(u: UserInfo): DailySummaryState['emailBlockedReason'] {
   const s = getNotificationSettings();
@@ -168,18 +191,40 @@ const lastSent = (userId: string): string | null =>
 
 export function summaryState(u: UserInfo): DailySummaryState {
   const reason = emailBlockedReason(u);
-  return { prefs: getPrefs(u.id), allowed: summariesAllowed(), emailAvailable: !reason, emailBlockedReason: reason, lastSentAt: lastSent(u.id) };
+  const { prefs, source } = effectivePrefs(u.id);
+  return { prefs, source, allowed: summariesAllowed(), emailAvailable: !reason, emailBlockedReason: reason, lastSentAt: lastSent(u.id) };
+}
+
+/** Users who may get a summary: those who turned their own on, and members without their own of teams that turn one on. */
+function candidates(): string[] {
+  const own = db()
+    .all<{ user_id: string }>('SELECT user_id FROM daily_summary_prefs WHERE enabled = 1')
+    .map((r) => r.user_id);
+  const teamIds = db()
+    .all<{ team_id: string }>('SELECT team_id FROM team_settings WHERE defaults IS NOT NULL')
+    .map((r) => r.team_id)
+    .filter((id) => teamDefaults(id).summary?.enabled);
+  const fromTeams = teamIds.length
+    ? db()
+        .all<{ user_id: string }>(
+          `SELECT DISTINCT m.user_id FROM team_members m WHERE m.team_id IN (${teamIds.map(() => '?').join(', ')})
+           AND NOT EXISTS (SELECT 1 FROM daily_summary_prefs p WHERE p.user_id = m.user_id)`,
+          ...teamIds,
+        )
+        .map((r) => r.user_id)
+    : [];
+  return [...new Set([...own, ...fromTeams])];
 }
 
 /** Administrators: who subscribed (no content) and the global switch. */
 export function adminView(): DailySummaryAdmin {
   const users = new Map(listUsers().map((u) => [u.id, u]));
-  const subscribers = db()
-    .all<{ user_id: string }>('SELECT user_id FROM daily_summary_prefs WHERE enabled = 1')
-    .map((r) => users.get(r.user_id))
+  const subscribers = candidates()
+    .map((id) => users.get(id))
     .filter((u): u is UserInfo => !!u && u.active)
-    .map((u) => {
-      const p = getPrefs(u.id);
+    .map((u) => ({ u, p: effectivePrefs(u.id).prefs }))
+    .filter(({ p }) => p.enabled)
+    .map(({ u, p }) => {
       return {
         username: u.username,
         displayName: u.displayName,
@@ -597,7 +642,7 @@ export function renderSummary(
 
 /** The current user's summary as it would be sent now (preview on the profile page; nothing is sent or claimed). */
 export function previewSummary(u: UserInfo, now = Date.now()): DailySummaryContent & { title: string } {
-  const prefs = getPrefs(u.id);
+  const prefs = effectivePrefs(u.id).prefs;
   const since = sinceFor(u.id, now);
   const content = buildSummary(u, prefs, since, now);
   return { ...content, title: renderSummary(content, userLocale(u), prefs.timeZone).title };
@@ -634,7 +679,7 @@ export async function flushSummaryMails(): Promise<void> {
 /** Sends the summaries that are due at `now`. Returns how many users got one (skipped empty ones not counted). */
 export function runDailySummaries(now = Date.now()): number {
   if (!summariesAllowed()) return 0;
-  const rows = db().all<{ user_id: string }>('SELECT user_id FROM daily_summary_prefs WHERE enabled = 1');
+  const rows = candidates().map((user_id) => ({ user_id }));
   if (!rows.length) return 0;
   const users = new Map(listUsers().map((u) => [u.id, u]));
   const settings = getNotificationSettings();
@@ -643,7 +688,7 @@ export function runDailySummaries(now = Date.now()): number {
   for (const r of rows) {
     const u = users.get(r.user_id);
     if (!u?.active) continue;
-    const prefs = getPrefs(u.id);
+    const prefs = effectivePrefs(u.id).prefs;
     if (!prefs.enabled) continue;
     const day = dueDay(prefs, now);
     if (!day) continue;

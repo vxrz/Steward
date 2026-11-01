@@ -16,13 +16,15 @@ import {
   TEAM_ROLES,
   type AccessReason,
   type AclEntry,
+  type NewResourceTeams,
+  type TeamNewResourceMode,
   type OwnedKind,
   type PlatformPermission,
   type ProcessPermission,
   type Role,
 } from '@sm/shared';
 import { db } from '../db.js';
-import { parseJson } from '../util.js';
+import { HttpError, parseJson } from '../util.js';
 import { currentStore, type AuthUser } from './context.js';
 import { isAdmin, matches, DEFAULT_PLATFORM, DEFAULT_PROCESS } from './permissions.js';
 
@@ -94,19 +96,54 @@ export function setOwningTeams(kind: OwnedKind, id: string, teamIds: string[]): 
 }
 
 /**
- * The owning teams a new resource gets from its creator (#131): the creator's teams that already own something. A
- * team that owns nothing does not use team scopes yet, so after an upgrade new resources stay the whole instance's.
+ * The owning teams a new resource gets from its creator (#131, #136), and where that comes from:
+ * - the creator chose one of their teams for their new resources (Profile): that team;
+ * - otherwise the creator's teams that take new resources of members – a team set to "always", or set to "auto" (the
+ *   default) once it owns something. A team that owns nothing does not use team scopes yet, so after an upgrade new
+ *   resources stay the whole instance's. A team set to "never" is left out;
+ * - administrators' new resources get no owning team unless they chose one.
  */
-export function creatorTeams(u: AuthUser | null): string[] {
-  if (!u || isAdmin(u)) return [];
-  const mine = [...memberships(u).keys()];
-  if (!mine.length) return [];
+export function newResourceTeams(u: AuthUser | null): NewResourceTeams {
+  const none: NewResourceTeams = { teams: [], source: { from: 'instance' }, choices: [], chosen: null };
+  if (!u) return none;
+  const rows = db().all<{ id: string; name: string; chosen: number; defaults: string | null }>(
+    `SELECT t.id, t.name, m.new_resources AS chosen, s.defaults FROM team_members m JOIN teams t ON t.id = m.team_id
+     LEFT JOIN team_settings s ON s.team_id = t.id WHERE m.user_id = ? ORDER BY t.name`,
+    u.id,
+  );
+  const mode = (r: { defaults: string | null }): TeamNewResourceMode =>
+    parseJson<{ newResources?: TeamNewResourceMode }>(r.defaults, {}).newResources ?? 'auto';
+  const choices = rows.filter((r) => mode(r) !== 'never');
+  const pick = (r: { id: string; name: string }) => ({ id: r.id, name: r.name });
+  const chosen = choices.find((r) => r.chosen);
+  const base = { choices: choices.map(pick), chosen: chosen?.id ?? null };
+  if (chosen) return { ...base, teams: [pick(chosen)], source: { from: 'own' } };
+  if (isAdmin(u) || !choices.length) return { ...none, ...base };
+  const ids = choices.map((r) => r.id);
   const owning = new Set(
     db()
-      .all<{ team_id: string }>(`SELECT DISTINCT team_id FROM resource_teams WHERE team_id IN (${mine.map(() => '?').join(', ')})`, ...mine)
+      .all<{ team_id: string }>(`SELECT DISTINCT team_id FROM resource_teams WHERE team_id IN (${ids.map(() => '?').join(', ')})`, ...ids)
       .map((r) => r.team_id),
   );
-  return mine.filter((t) => owning.has(t));
+  const teams = choices.filter((r) => mode(r) === 'always' || owning.has(r.id)).map(pick);
+  return { ...base, teams, source: teams.length ? { from: 'team' } : { from: 'instance' } };
+}
+
+/** The ids of the owning teams a new resource of `u` gets (see newResourceTeams). */
+export function creatorTeams(u: AuthUser | null): string[] {
+  return newResourceTeams(u).teams.map((t) => t.id);
+}
+
+/** The person's own choice of team for their new resources (#136); null: the teams' defaults again. */
+export function chooseNewResourceTeam(u: AuthUser, teamId: string | null): NewResourceTeams {
+  const now = newResourceTeams(u);
+  if (teamId !== null && !now.choices.some((c) => c.id === teamId))
+    throw new HttpError(400, 'Choose one of your teams that takes new resources', 'TEAM_NOT_CHOOSABLE');
+  db().tx(() => {
+    db().run('UPDATE team_members SET new_resources = 0 WHERE user_id = ?', u.id);
+    if (teamId) db().run('UPDATE team_members SET new_resources = 1 WHERE user_id = ? AND team_id = ?', u.id, teamId);
+  });
+  return newResourceTeams(u);
 }
 
 /** Give a new resource its creator's teams (see creatorTeams). */

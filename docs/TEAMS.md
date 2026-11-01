@@ -29,7 +29,13 @@ Everyone else does not see a team-owned resource. It answers like one that does 
 
 **An application without owning teams of its own** belongs to the teams of the services it is part of. If those services belong to two teams, it belongs to both. If it is also part of a service of the whole instance, it belongs to the whole instance. To keep such an application to one team anyway, give it its own owning team: its own teams always win over the ones it would inherit from its services.
 
+### New resources
+
 **New resources** get their creator's teams, but only teams that already own something. A team that owns nothing does not use team scopes yet, so after an upgrade new resources stay the whole instance's. Administrators' new resources get no owning team.
+
+Each team can change that in its settings (_Users → Teams_ → settings → _New resources_): **Once the team owns something** (the default, as above), **Always** (from the start, so a new team can begin with its members' own resources) or **Never** (the team only owns what administrators give it).
+
+A member of several teams can choose **one** of them for their new resources in their profile (_Owning team of new resources_); the profile shows which teams new resources get now and whether that is their choice, their teams' default or the whole instance. A team set to _Never_ cannot be chosen, and a choice ends when the member leaves the team. Administrators can choose a team the same way; without a choice their new resources stay the whole instance's.
 
 ## Setting it up
 
@@ -50,7 +56,7 @@ Only administrators change owning teams. Adding a team is confirmed with a step-
 
 ## The team's own channel
 
-A team can have its own Teams or webhook channel (_Users → Teams_ → settings): messages about its resources go there, besides the instance channel or instead of it. See [SETTINGS.md](SETTINGS.md#team-settings).
+A team can have its own Teams or webhook channel (_Users → Teams_ → settings): messages about its resources go there, besides the instance channel or instead of it. A team can also set a daily summary for its members and its own report branding. See [SETTINGS.md](SETTINGS.md#team-settings).
 
 ## Single sign-on
 
@@ -58,8 +64,8 @@ An SSO claim mapping can set team memberships (_Teams_) and, beside them, the **
 
 ## Upgrade and migration
 
-- The upgrade only adds a column (`team_members.roles`) and a table (`resource_teams`). No owning team is set, so every installation keeps its visibility.
-- Migration packages carry team roles and owning teams through the identity mapping.
+- The upgrade only adds columns (`team_members.roles`, `team_members.new_resources`) and tables (`resource_teams`, `team_settings`). No owning team is set and every team starts with the defaults above, so every installation keeps its visibility.
+- Migration packages carry team roles, owning teams, team settings and members' choice of team for new resources through the identity mapping.
 
 ## API
 
@@ -69,5 +75,6 @@ An SSO claim mapping can set team memberships (_Teams_) and, beside them, the **
 | `PUT /api/owning-teams/:kind/:id`      | `{ teamIds }`: set them (administrators)                                           |
 | `POST /api/owning-teams/bulk`          | `{ teamIds, mode: set\|add\|remove, resources?: [{kind,id}], service?, preview? }` |
 | `GET /api/access/explain?kind&id&user` | the rights of a user and where they come from                                      |
+| `GET/PUT /api/me/new-resource-teams`   | the owning teams of your new resources and your choice (`{ teamId \| null }`)      |
 
 `kind` is one of `process`, `platform`, `service`, `application`, `system`, `record`, `credential`, `monitor`, `dashboard` and `ticket`. Report schedules keep their own rule (owner, recipients, auditors and administrators) and have no owning teams.

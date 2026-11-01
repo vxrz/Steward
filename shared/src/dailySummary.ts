@@ -34,6 +34,8 @@ export const DEFAULT_DAILY_SUMMARY: DailySummaryPrefs = {
 
 export interface DailySummaryState {
   prefs: DailySummaryPrefs;
+  /** where the settings come from (#136): the person's own, a team default, or the instance default */
+  source: { from: 'own' } | { from: 'team'; team: string } | { from: 'instance' };
   /** Administrators allow daily summaries (Settings → Notifications) */
   allowed: boolean;
   /** E-mail can be delivered to this user: SMTP on, the event routed to e-mail, an allowed address, e-mail notifications on */

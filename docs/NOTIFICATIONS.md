@@ -154,6 +154,8 @@ Once a day, a short summary of what concerns you. It is **off by default**; turn
 - scheduled reports you receive that were generated since the last summary;
 - **trends** of dataset metrics you may see: limits and floors the trend reaches within 30 days (soonest first), then metrics that changed by 10 % or more in 7 days with a stable trend ([README: Trends and forecasts](../README.md#dashboards)). People who had every section selected get the new section; a chosen subset stays as it was.
 
+**Team default.** A team can set a daily summary for its members (_Users → Teams_ → settings → _Daily summary_). Members who have not saved their own settings get it – the profile card says _Default of team …_; with several teams, the first by name that sets one applies. Saving in the profile makes the settings your own (they always win), and _Back to the default_ removes them again.
+
 You choose the sections, the time of day and your time zone, the days (Monday to Friday, or every day), and whether it comes in the app only or also by e-mail. With _Send nothing on days without anything to report_ you get nothing on quiet days. **Preview** shows what it would contain right now, without sending anything.
 
 **E-mail** is sent only when e-mail is set up (SMTP), the event _Daily summary_ is routed to e-mail in _Settings → Notifications_, you turned on e-mail notifications, and your address's domain is allowed (see above). The profile card says why when one of these is missing. The e-mail has a compact HTML part and a plain text part, in your language, with links into Steward (`SM_PUBLIC_URL` or the base URL in the notification settings).

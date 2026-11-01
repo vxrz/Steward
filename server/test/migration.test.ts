@@ -6,6 +6,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ADMIN, authHeaders, loginCookie, quiesce, setup, startTestServer, startedUrl, type Client, type TestServer } from './helpers.js';
 import { PG_TEST_URL } from './pg-env.js';
+import { tinyPng } from './png.js';
 
 /**
  * Moving an instance (#51): export on an in-process source with the demo data, then import into fresh
@@ -118,7 +119,15 @@ beforeAll(async () => {
   await s.api('PUT', `/owning-teams/record/${source.recordId}`, { teamIds: [desk.id] });
   await s.api('PUT', `/teams/${desk.id}/settings`, {
     channel: { enabled: true, format: 'teams', mode: 'instead', url: 'https://desk.webhook.example/hook?sig=moved-secret' },
+    // team defaults (#136) and the team's report logo move with it as well, and a member's choice of the team
+    newResources: 'always',
+    branding: { companyName: 'Service Desk unit', accentColor: '#2b8a3e', classification: null, footerNote: null },
   });
+  await s.api('POST', `/teams/${desk.id}/settings/logo`, { contentBase64: tinyPng().toString('base64') });
+  {
+    const { db } = await import('../src/db.js');
+    db().run("UPDATE team_members SET new_resources = 1 WHERE team_id = ? AND user_id = (SELECT id FROM users WHERE username = 'olivia')", desk.id);
+  }
   // the service catalogue (#84): an application owned by dana, rated, with a platform, part of a service, scoping a document
   const app = await s.api('POST', '/applications', { name: 'Moved application', owners: ['user:dana', 'team:service desk'] });
   await s.api('PUT', `/applications/${app.id}/rating`, { confidentiality: { level: 'very_high', justification: 'Trade secrets' } });
@@ -596,7 +605,9 @@ describe('import into SQLite through the web API', () => {
     const deskTeam = (await max('GET', '/teams')).find((t: any) => t.name === 'Service Desk');
     expect(deskTeam.memberRoles).toEqual({ olivia: ['designer'] });
     expect((await max('GET', `/owning-teams/record/${source.recordId}`)).teams.map((t: any) => t.name)).toEqual(['Service Desk']);
-    expect((await max('GET', `/teams/${deskTeam.id}/settings`)).channel).toEqual({ enabled: true, format: 'teams', mode: 'instead', hasUrl: true });
+    const deskSettings = await max('GET', `/teams/${deskTeam.id}/settings`);
+    expect(deskSettings.channel).toEqual({ enabled: true, format: 'teams', mode: 'instead', hasUrl: true });
+    expect(deskSettings).toMatchObject({ newResources: 'always', branding: { companyName: 'Service Desk unit', accentColor: '#2b8a3e', customLogo: true } });
     const rec = await max('GET', `/records/${source.recordId}`);
     expect(rec.owner).toBe('dana@contoso.example');
     // applications move with their rating, integrations, services and documents; owners follow the mapping

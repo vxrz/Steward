@@ -11,7 +11,8 @@
     "sections": "Sections",
     "last": "Last report",
     "next": "Next run",
-    "owner": "Runs with the rights of {{owner}}"
+    "owner": "Runs with the rights of {{owner}}",
+    "team": "Team {{team}}"
   },
   "presets": {
     "daily": "Daily",
@@ -114,7 +115,10 @@
     "attachPdfHint": "Otherwise the e-mail contains a link (recipients need an account to open it).",
     "enabled": "Enabled",
     "dutyLevels": "Levels",
-    "allLevels": "All levels"
+    "allLevels": "All levels",
+    "team": "Report branding of team",
+    "teamHint": "The PDF uses the team's report branding (Users → Teams → settings). Choose one of the owner's teams.",
+    "teamNone": "The instance branding"
   },
   "emptyState": {
     "title": "No report schedules yet",

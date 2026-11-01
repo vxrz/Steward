@@ -89,6 +89,8 @@ export const USER_REFS: UserRef[] = [
   { table: 'webhook_triggers', column: 'owner', kind: 'username' },
   { table: 'report_schedules', column: 'owner', kind: 'username' },
   { table: 'report_schedules', column: 'recipients', kind: 'recipients' },
+  // the schedule's team, for its report branding (#136)
+  { table: 'report_schedules', column: 'team', kind: 'subjects' },
   { table: 'records', column: 'owner', kind: 'username' },
   { table: 'record_documents', column: 'review_owner', kind: 'username' },
   { table: 'run_tasks', column: 'assignees', kind: 'subjects' },
