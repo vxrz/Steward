@@ -118,7 +118,9 @@ export function autoLayout(nodes: FlowNode[], wires: Wire[]): FlowNode[] {
   g.setDefaultEdgeLabel(() => ({}));
   const laid = nodes.filter((n) => n.type !== 'note');
   for (const n of laid) g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
-  wires.forEach((w, i) => {
+  // edges in reverse order: dagre 3 orders siblings the other way round than dagre 1 did, so this keeps branches
+  // where they were (the first port on top, e.g. "yes" above "no") – checked against all example processes
+  [...wires.entries()].reverse().forEach(([i, w]) => {
     if (g.hasNode(w.from) && g.hasNode(w.to)) g.setEdge(w.from, w.to, {}, `${w.port}-${i}`);
   });
   dagre.layout(g);
