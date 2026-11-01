@@ -8,6 +8,7 @@ import {
   type NotificationLookPreview,
   type ProcessPermission,
   type UserInfo,
+  isEmailAddress,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { on, type DomainEvents } from '../events.js';
@@ -26,6 +27,7 @@ import { dryRunDelivery, isDryRun, logoDataUrl, lookProblems, resolveLook } from
 import { getSettings } from '../settings.js';
 import { formatDateTime, resolveLocale, t } from '../i18n/index.js';
 import { allowedDomainRules, domainAllowed } from './domains.js';
+import { flushEmails, queueEmail } from './email.js';
 import { teamChannelUrl, teamChannelsFor, teamsOf } from './team-channels.js';
 
 /** Same event + entity within this window → no second e-mail/Teams/webhook message (and no second in-app entry for the same key). */
@@ -226,28 +228,23 @@ export function notify(n: Notice): void {
     return;
   }
   if (external.includes('email')) {
+    // one way out for e-mail (email.ts): the user's own address, or an address outside Steward with an allowed domain
     for (const u of n.recipients) {
       if (!u.email || !u.emailNotifications) continue;
-      if (claimSend(`email:${key}:${u.id}`, DEDUPE_WINDOW_MS)) {
-        const msg = message(userLocale(u, fallback), u);
-        jobs.push({ channel: 'email', to: u.username, send: () => sendEmail(settings.email, secrets, u.email!, msg) });
-      }
+      if (claimSend(`email:${key}:${u.id}`, DEDUPE_WINDOW_MS))
+        queueEmail({ event: n.event, to: { user: u }, message: message(userLocale(u, fallback), u), secrets });
     }
     const userAddresses = new Set(n.recipients.map((u) => u.email?.toLowerCase()).filter(Boolean));
     const rules = n.emails?.length ? allowedDomainRules() : [];
-    let refused = 0;
-    for (const addr of new Set((n.emails ?? []).map((e) => e.trim().toLowerCase()).filter((e) => /^[^\s@]+@[^\s@]+$/.test(e)))) {
+    for (const addr of new Set((n.emails ?? []).map((e) => e.trim().toLowerCase()).filter(isEmailAddress))) {
       if (userAddresses.has(addr)) continue; // already reached as a Steward user (with their own settings)
       if (!domainAllowed(addr, rules)) {
-        refused++;
+        queueEmail({ event: n.event, to: { address: addr }, message: message(fallback), rules, secrets }); // logs the refusal
         continue;
       }
-      if (claimSend(`email:${key}:${addr}`, DEDUPE_WINDOW_MS)) {
-        const msg = message(fallback);
-        jobs.push({ channel: 'email', to: 'external address', send: () => sendEmail(settings.email, secrets, addr, msg) });
-      }
+      if (claimSend(`email:${key}:${addr}`, DEDUPE_WINDOW_MS))
+        queueEmail({ event: n.event, to: { address: addr }, message: message(fallback), rules, secrets });
     }
-    if (refused) logger.warn({ event: n.event, refused }, 'e-mail not sent to addresses outside the allowed domains');
   }
   if (external.includes('teams') && secrets.teamsWebhookUrl && claimSend(`teams:${key}`, DEDUPE_WINDOW_MS)) {
     const msg = message(fallback);
@@ -277,6 +274,7 @@ export function notify(n: Notice): void {
 export async function flushNotifications(): Promise<void> {
   await new Promise((r) => setImmediate(r));
   while (pending.size) await Promise.allSettled([...pending]);
+  await flushEmails();
 }
 
 // ---------- event handlers ----------

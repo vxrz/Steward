@@ -26,7 +26,7 @@ import { HttpError } from '../util.js';
 import { ProblemError } from '../api/v1/problem.js';
 import { decodeCursor, encodeCursor, pageArray, pageRows } from '../api/v1/pagination.js';
 import { RUN_STATUSES, RUN_TRIGGERS, STEP_STATUSES } from '../api/v1/schemas.js';
-import { safeBaseUrl } from '../api/v1/routes.js';
+import { safeBaseUrl } from '../api/v1/routes-platforms.js';
 import { MAX_RESULT_CHARS, SUPPORTED_VERSIONS } from './config.js';
 import { gatewayTools } from './gateway.js';
 import { requestTools } from './requests.js';

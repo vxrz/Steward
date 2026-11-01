@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import { REPORT_LANGS, type RecordAttachment, type RecordDetail, type RecordPdfDetails, type RecordSigner, type ReportLang } from '@sm/shared';
+import {
+  REPORT_LANGS,
+  type RecordAttachment,
+  type RecordDetail,
+  type RecordPdfDetails,
+  type RecordSigner,
+  type ReportLang,
+  emailAddressSchema,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { audit, queryAudit } from '../audit.js';
 import { findUserByName } from '../auth/users.js';
@@ -40,11 +48,7 @@ export const pdfInput = z
           .object({
             name: z.string().trim().min(1).max(120),
             role: z.string().trim().max(120).default(''),
-            email: z
-              .string()
-              .trim()
-              .max(200)
-              .email()
+            email: emailAddressSchema({ max: 200 })
               .optional()
               .or(z.literal('').transform(() => undefined)),
           })

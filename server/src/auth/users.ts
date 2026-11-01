@@ -11,6 +11,7 @@ import {
   type Team,
   type UserInfo,
   type UserProfileValue,
+  isEmailAddress,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -275,8 +276,6 @@ export function updateUser(
   return getUser(id);
 }
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 /**
  * Changes a user makes to their own profile. Name and e-mail of single sign-on accounts come from the identity provider
  * unless its sync rule for the field is "only when the account is created".
@@ -297,7 +296,7 @@ export function updateProfile(
     lastName: lastName !== undefined && lastName !== (before.lastName ?? null),
   });
   if (displayName !== undefined && (!displayName || displayName.length > 100)) throw new HttpError(400, 'Display name: 1–100 characters');
-  if (email && !EMAIL.test(email)) throw new HttpError(400, 'Enter a valid e-mail address', 'INVALID_EMAIL');
+  if (email && !isEmailAddress(email)) throw new HttpError(400, 'Enter a valid e-mail address', 'INVALID_EMAIL');
   if (patch.locale !== undefined && patch.locale !== null && !isLocale(patch.locale))
     throw new HttpError(400, `Unsupported language "${patch.locale}"`, 'UNSUPPORTED_LOCALE');
   const changes: string[] = [];

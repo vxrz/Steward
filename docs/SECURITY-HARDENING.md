@@ -160,7 +160,7 @@ What Steward guarantees: every entry is HMAC-signed and chained, so an edit, an 
 - **Signed checkpoints**: every `SM_AUDIT_CHECKPOINT_MINUTES` (default 60, when there are new entries), on every verification and before every export Steward signs `{seq, hash, digest, count, ts}` with the installation's **Ed25519 key** (the private key never leaves the vault; it is not derived from the passphrase).
 - **(must) Ship them somewhere append-only:**
   - the operational log has one JSON line per checkpoint (`"msg":"audit checkpoint"`, field `auditCheckpoint`) – send stdout to your SIEM/syslog;
-  - _Audit log → Anchoring → E-mail checkpoints to_: auditors or a write-once mailbox (uses the notification e-mail settings, at most every N hours);
+  - _Audit log → Anchoring → E-mail checkpoints to_: auditors or a write-once mailbox (uses the notification e-mail settings, at most every N hours; addresses outside Steward need an allowed domain, _Settings → Notifications_);
   - `<data dir>/audit-anchor.json` always holds the latest one (a database administrator cannot change it).
 - **Verify against them**: _Audit log → Verify against checkpoint_ (paste the JSON or `seq:hash`), or keep the newest one in `SM_AUDIT_ANCHOR` / `SM_AUDIT_ANCHOR_FILE` (e.g. a file on a WORM share the SIEM writes) so every verification checks it. Verification fails when the log is shorter than the checkpoint or differs from it.
 - **Record the public key** once: _Audit log → Anchoring → Public key (PEM)_; note its fingerprint in your change-management system. Anyone can then check a signed checkpoint and an export offline, without Steward:

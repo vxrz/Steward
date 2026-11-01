@@ -36,9 +36,9 @@ import { getRecord } from '../records/service.js';
 import { listDatasets, metricTrends } from '../dashboards/datasets.js';
 import { monitorDatasetVisible } from '../monitors/datasets.js';
 import { permissionsFor } from '../processes/service.js';
-import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
+import { absoluteLink, getNotificationSettings } from './settings.js';
 import { addInApp } from './store.js';
-import { sendEmail } from './channels.js';
+import { flushEmails, queueEmail } from './email.js';
 import { resolveLook } from './look.js';
 import { domainAllowed } from './domains.js';
 import { userLocale } from './service.js';
@@ -670,11 +670,8 @@ function claimDay(userId: string, day: string, now: number): boolean {
 const setOutcome = (userId: string, day: string, outcome: 'sent' | 'empty' | 'failed') =>
   db().run('UPDATE daily_summary_sends SET outcome = ? WHERE user_id = ? AND day = ?', outcome, userId, day);
 
-const pendingMails = new Set<Promise<void>>();
 /** For tests: wait for e-mails queued by runDailySummaries(). */
-export async function flushSummaryMails(): Promise<void> {
-  while (pendingMails.size) await Promise.allSettled([...pendingMails]);
-}
+export const flushSummaryMails = (): Promise<void> => flushEmails();
 
 /** Sends the summaries that are due at `now`. Returns how many users got one (skipped empty ones not counted). */
 export function runDailySummaries(now = Date.now()): number {
@@ -707,20 +704,19 @@ export function runDailySummaries(now = Date.now()): number {
       const m = renderSummary(content, l, prefs.timeZone);
       if (route.includes('inApp')) addInApp(u.id, { event: 'summary.daily', title: m.title, body: m.inApp, link: '/', dedupeKey: `summary.daily:${day}` }, DAY);
       if (wantsEmail && settings.email.enabled) {
-        const secrets = channelSecrets();
-        const p = sendEmail(settings.email, secrets, u.email!, {
+        queueEmail({
           event: 'summary.daily',
-          title: m.title,
-          body: m.inApp,
-          locale: l,
-          link: absoluteLink('/'),
-          ts: nowIso(),
-          emailParts: { text: m.text, html: m.html, note: m.note, button: m.button },
-        })
-          .then(() => logger.debug({ user: u.username }, 'daily summary e-mailed'))
-          .catch((err) => logger.warn({ err: { message: (err as Error).message }, user: u.username }, 'daily summary could not be e-mailed'))
-          .finally(() => pendingMails.delete(p));
-        pendingMails.add(p);
+          to: { user: u },
+          message: {
+            event: 'summary.daily',
+            title: m.title,
+            body: m.inApp,
+            locale: l,
+            link: absoluteLink('/'),
+            ts: nowIso(),
+            emailParts: { text: m.text, html: m.html, note: m.note, button: m.button },
+          },
+        });
       }
       setOutcome(u.id, day, 'sent');
       sent++;

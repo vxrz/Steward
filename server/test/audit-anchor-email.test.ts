@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { setup, startTestServer, type TestServer } from './helpers.js';
+import { setup, startTestServer, type TestServer, allowEmailDomains } from './helpers.js';
 
 // Capture e-mails instead of talking to an SMTP server.
 const mails = vi.hoisted(() => [] as { to: string; subject: string; text: string }[]);
@@ -33,6 +33,12 @@ describe('audit checkpoints leave the system (SIEM line, e-mail)', () => {
       webhook: { enabled: false },
       routes: {},
     });
+    // auditors' addresses need an allowed domain, as every address outside Steward (#18)
+    await expect(s.api('PUT', '/audit/anchoring', { emailRecipients: ['auditor@example.com'] })).rejects.toMatchObject({
+      status: 400,
+      body: { code: 'EMAIL_DOMAIN_NOT_ALLOWED' },
+    });
+    await allowEmailDomains(s, ['example.com']);
     const a = await s.api('PUT', '/audit/anchoring', { emailRecipients: ['auditor@example.com', 'worm-archive@example.com'], emailIntervalHours: 24 });
     expect(a.emailRecipients).toEqual(['auditor@example.com', 'worm-archive@example.com']);
     await expect(s.api('PUT', '/audit/anchoring', { emailRecipients: ['not-an-address'] })).rejects.toMatchObject({ status: 400 });

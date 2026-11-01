@@ -306,7 +306,7 @@ In the single-file desktop executable the Swagger UI files are embedded and unpa
 
 ## For developers
 
-- Schemas: `server/src/api/v1/schemas.ts` (zod, converted to JSON Schema and used for Fastify's response serialisation). Routes: `server/src/api/v1/routes.ts`. Authentication, rate limits: `server/src/api/v1/auth.ts`. Plugin, OpenAPI and Swagger UI: `server/src/api/index.ts`.
+- Schemas: `server/src/api/v1/schemas.ts` (zod, converted to JSON Schema and used for Fastify's response serialisation). Routes: `server/src/api/v1/routes.ts` (shared setup, Meta) and one `routes-<area>.ts` per area, plus the feature modules' `api-v1.ts`. Authentication, rate limits: `server/src/api/v1/auth.ts`. Plugin, OpenAPI and Swagger UI: `server/src/api/index.ts`.
 - `npm run openapi` regenerates [`docs/openapi.json`](openapi.json); `npm run openapi -- --check` fails (exit 1) when the committed file is outdated – run it in CI. `npm run openapi -- --help` lists the options.
 - `server/test/api-v1.test.ts` checks authentication, permissions, pagination, secret leakage and validates every response against the generated document.
 

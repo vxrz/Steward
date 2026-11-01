@@ -1,6 +1,7 @@
 import fs from 'node:fs';
+import { assertEmailsAllowed } from './notifications/domains.js';
 import path from 'node:path';
-import { BRAND, type AuditAnchoring, type AuditCheckpoint, type AuditVerifyResult } from '@sm/shared';
+import { BRAND, type AuditAnchoring, type AuditCheckpoint, type AuditVerifyResult, isEmailAddress } from '@sm/shared';
 import { config } from './config.js';
 import { audit, checkpointPayload, latestCheckpoint, publicResult, verifyAuditAsync, type Anchor, type VerifyOutcome } from './audit.js';
 import { publicKeyFingerprint, publicKeyPem, vault, verifySignature } from './vault.js';
@@ -186,8 +187,10 @@ export function emailSettings(): { to: string[]; intervalHours: number } {
 
 export function saveEmailSettings(input: { to: string[]; intervalHours?: number }): { to: string[]; intervalHours: number } {
   const to = [...new Set(input.to.map((s) => s.trim()).filter(Boolean))];
-  for (const a of to) if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a)) throw new HttpError(400, `"${a}" is not an e-mail address`, 'INVALID_EMAIL');
+  for (const a of to) if (!isEmailAddress(a)) throw new HttpError(400, `"${a}" is not an e-mail address`, 'INVALID_EMAIL');
   if (to.length > 20) throw new HttpError(400, 'At most 20 recipients');
+  // auditors outside the company: their domain must be allowed (Settings → Notifications), as for every address outside Steward
+  assertEmailsAllowed(to);
   const intervalHours = Math.min(24 * 7, Math.max(1, Math.round(input.intervalHours ?? 24)));
   const v = { to, intervalHours };
   writeSetting(EMAIL_KEY, v);
@@ -205,8 +208,8 @@ async function emailCheckpoint(cp: AuditCheckpoint, force = false): Promise<bool
   if (!s.to.length) return false;
   const last = readSetting<string | null>(EMAIL_LAST_KEY, null);
   if (!force && last && Date.now() - Date.parse(last) < s.intervalHours * 3600_000) return false;
-  const { getNotificationSettings, channelSecrets } = await import('./notifications/settings.js');
-  const { sendEmail } = await import('./notifications/channels.js');
+  const { getNotificationSettings, publicBaseUrl } = await import('./notifications/settings.js');
+  const { queueEmail } = await import('./notifications/email.js');
   const n = getNotificationSettings();
   if (!n.email.enabled || !n.email.host) return false;
   const pub = ownKey();
@@ -218,18 +221,26 @@ async function emailCheckpoint(cp: AuditCheckpoint, force = false): Promise<bool
     JSON.stringify(cp),
   ].join('\n');
   writeSetting(EMAIL_LAST_KEY, nowIso());
+  // the one way out for e-mail (notifications/email.ts): auditors' addresses need an allowed domain like any other
+  // address outside Steward (#18)
+  const sent: Promise<boolean>[] = [];
   for (const to of s.to) {
-    await sendEmail(n.email, channelSecrets(), to, {
+    const out = queueEmail({
       event: 'audit.checkpoint',
-      title: `Audit checkpoint #${cp.seq}`,
-      body,
-      locale: 'en',
-      link: `${(await import('./notifications/settings.js')).publicBaseUrl()}/audit`,
-      ts: cp.ts,
-      data: { checkpoint: cp },
+      to: { address: to },
+      message: {
+        event: 'audit.checkpoint',
+        title: `Audit checkpoint #${cp.seq}`,
+        body,
+        locale: 'en',
+        link: `${publicBaseUrl()}/audit`,
+        ts: cp.ts,
+        data: { checkpoint: cp },
+      },
     });
+    if (out.status === 'queued') sent.push(out.done);
   }
-  return true;
+  return (await Promise.all(sent)).some(Boolean);
 }
 
 // ---------- status & jobs ----------
