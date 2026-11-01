@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/index.ts",
     "start": "tsx src/index.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@fastify/multipart": "~10.1.4",
@@ -48,6 +49,7 @@
     "@types/pdfkit": "^0.17.6",
     "@types/pg": "~8.23.1",
     "@types/ws": "~8.18.2",
-    "vitest": "~3.2.4"
+    "@vitest/coverage-v8": "~5.0.5",
+    "vitest": "~5.0.5"
   }
 }

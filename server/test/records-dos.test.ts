@@ -12,6 +12,7 @@ import { inlineText, MD_MAX_TABLE_CELLS, parseInline, parseMarkdown, safeHref, t
 import { breakLongWords, MAX_UNBROKEN_CHARS, ReportWriter, type Chrome, type PdfMeta } from '../src/reports/pdf/engine.js';
 import { h1Title, parseRecordMarkdown } from '../src/records/markdown-io.js';
 import { findSignatures } from '../src/records/signed.js';
+import { timeLimit } from './time.js';
 
 const N = 256 * 1024;
 const ms = (f: () => unknown) => {
@@ -190,9 +191,9 @@ describe('R1: PDF engine and long words', () => {
 
   it('renders a 20 000-character word and 50 000 brackets in well under two seconds', async () => {
     await render((w) => w.paragraph('warm up'));
-    expect(await render((w) => w.paragraph('a'.repeat(20000)))).toBeLessThan(5000);
-    expect(await render((w) => w.paragraph('['.repeat(50000)))).toBeLessThan(5000);
-    expect(await render((w) => w.paragraph('x'.repeat(50000), { mono: true }))).toBeLessThan(2000);
+    expect(await render((w) => w.paragraph('a'.repeat(20000)))).toBeLessThan(timeLimit(5000));
+    expect(await render((w) => w.paragraph('['.repeat(50000)))).toBeLessThan(timeLimit(5000));
+    expect(await render((w) => w.paragraph('x'.repeat(50000), { mono: true }))).toBeLessThan(timeLimit(2000));
   });
 
   it('protects tables and key/value boxes (run and scheduled reports) the same way', async () => {
@@ -203,7 +204,7 @@ describe('R1: PDF engine and long words', () => {
       );
       w.keyValues([{ label: 'value', value: 'v'.repeat(20000), span: 2 }]);
     });
-    expect(t).toBeLessThan(2000);
+    expect(t).toBeLessThan(timeLimit(2000));
   });
 
   it('records the text as given (without the break characters)', async () => {
