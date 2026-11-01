@@ -12,6 +12,7 @@ import { REPORT_MIGRATIONS } from './migrations/reports.js';
 import { MONITOR_MIGRATIONS } from './migrations/monitors.js';
 import { SECURITY_MIGRATIONS } from './migrations/security.js';
 import { TEAM_MIGRATIONS } from './migrations/teams.js';
+import { MCP_OAUTH_MIGRATIONS } from './migrations/mcp-oauth.js';
 import { CREDENTIAL_MIGRATIONS } from './migrations/credentials.js';
 import { GATUS_MIGRATIONS } from './migrations/gatus.js';
 import { REPORT_SCHEDULE_MIGRATIONS } from './migrations/report-schedules.js';
@@ -100,6 +101,7 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...SCORECARD_MIGRATIONS,
   ...PLATFORM_MIGRATIONS,
   ...TEAM_MIGRATIONS,
+  ...MCP_OAUTH_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [

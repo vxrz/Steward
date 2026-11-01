@@ -32,6 +32,7 @@ import { ChangePasswordForm } from './Auth';
 import { LanguageSelect } from '../components/LanguageSelect';
 import { DailySummaryCard } from '../components/notifications/DailySummaryCard';
 import { NewResourceTeamsCard } from '../components/users/NewResourceTeamsCard';
+import { McpConnectedClientsCard } from '../components/mcp/McpConnectedClientsCard';
 import {
   browserNotificationsSupported,
   getBrowserNotifyOptIn,
@@ -59,6 +60,7 @@ export function ProfilePage() {
         <NewResourceTeamsCard />
         {local && <PasswordCard />}
         <TokensCard />
+        <McpConnectedClientsCard />
       </Stack>
     </>
   );

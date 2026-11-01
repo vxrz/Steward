@@ -566,7 +566,7 @@ export const pendingSignIns = (): number => pending.size;
 
 function safeReturnTo(path: unknown): string {
   // only same-site relative paths (no protocol-relative //host)
-  return typeof path === 'string' && path.length <= MAX_RETURN_TO && /^\/(?!\/)[\w\-./?=&%#]*$/.test(path) && !path.startsWith('/api/') ? path : '/';
+  return typeof path === 'string' && path.length <= MAX_RETURN_TO && /^\/(?!\/)[\w\-./?=&%#+~]*$/.test(path) && !path.startsWith('/api/') ? path : '/';
 }
 
 async function authorizationUrl(p: SsoProvider, config: oidc.Configuration, flow: Omit<Pending, 'verifier' | 'nonce' | 'expires'>): Promise<string> {

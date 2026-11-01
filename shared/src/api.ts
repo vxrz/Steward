@@ -375,6 +375,7 @@ export const STEP_UP_ACTIONS = [
   'changeCiaScale',
   'changeBackups',
   'allowMcpWrites',
+  'allowMcpClient',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 
@@ -1162,6 +1163,56 @@ export interface McpServerStatus {
   gatewayRateLimitPerMinute: number;
   /** Assistants may ask to start runs (each confirmed by the token owner in Steward) */
   runRequests: boolean;
+  /** OAuth sign-in for MCP clients (#12): optional, off by default; MCP tokens keep working either way */
+  oauth: McpOAuthSettings;
+}
+
+/** OAuth sign-in for MCP clients (#12), set by administrators. */
+export interface McpOAuthSettings {
+  enabled: boolean;
+  /** clients may register themselves (RFC 7591); otherwise administrators add them */
+  dynamicRegistration: boolean;
+  accessTokenMinutes: number;
+  refreshTokenDays: number;
+}
+export const MCP_OAUTH_LIMITS = { accessTokenMinutes: [5, 1440], refreshTokenDays: [1, 365], clients: 500, redirectUris: 10 } as const;
+/** An OAuth client of the MCP server (administrators). */
+export interface McpOAuthClient {
+  id: string;
+  name: string;
+  redirectUris: string[];
+  /** "dynamic" (registered itself) or the administrator who added it */
+  registeredBy: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  /** people who granted it access now */
+  grants: number;
+}
+/** Access a person gave an MCP client (Profile → Connected MCP clients). */
+export interface McpOAuthGrant {
+  id: string;
+  clientId: string;
+  clientName: string;
+  /** the user it acts as (administrators see everyone's) */
+  owner: string;
+  scope: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  /** when the refresh token runs out (the client must ask again) */
+  expiresAt: string;
+}
+/** What the consent page shows before a person allows a client. */
+export interface McpOAuthConsent {
+  clientId: string;
+  clientName: string;
+  redirectUri: string;
+  /** the host the browser returns to: what the person checks */
+  redirectHost: string;
+  registeredBy: string;
+  scope: string;
+  resource: string;
+  /** the person already allowed this client (a new grant replaces the old one) */
+  alreadyGranted: boolean;
 }
 
 // ---------- requests from MCP clients (#11) ----------

@@ -718,7 +718,14 @@
     "TEAM_CHANNEL_URL": "Enter the http(s) URL of the team channel’s webhook.",
     "TEAM_LOGO_MISSING": "The team has no logo of its own – its reports use the instance logo.",
     "REPORT_SCHEDULE_TEAM": "The owner of the report schedule is not a member of team “{{name}}”. Choose one of the owner's teams.",
-    "TEAM_NOT_CHOOSABLE": "Choose one of your teams that takes new resources."
+    "TEAM_NOT_CHOOSABLE": "Choose one of your teams that takes new resources.",
+    "MCP_OAUTH_CLIENT_INVALID": "The client cannot be added: {{reason}}",
+    "MCP_OAUTH_CLIENT_NOT_FOUND": "MCP client not found.",
+    "MCP_OAUTH_GRANT_NOT_FOUND": "Connected MCP client not found.",
+    "MCP_OAUTH_OFF": "OAuth sign-in for MCP clients is turned off on this Steward – ask an administrator, or use an MCP token from your profile.",
+    "MCP_OAUTH_CLIENT_UNKNOWN": "The application that sent you here is not registered with this Steward (or was removed). Start the sign-in in the application again.",
+    "MCP_OAUTH_REDIRECT_UNKNOWN": "The return address of this request is not registered for the application, so Steward will not send you there.",
+    "MCP_OAUTH_REQUEST_INVALID": "The application sent an invalid sign-in request – returning to it."
   },
   "boundary": {
     "title": "Something went wrong on this page",

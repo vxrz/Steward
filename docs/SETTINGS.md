@@ -52,27 +52,29 @@ Where a personal value has a default, the profile says where it comes from:
 
 ## Every setting, its scope and who changes it
 
-| Setting                                                                            | Scope           | Changed by                                      | Where                               |
-| ---------------------------------------------------------------------------------- | --------------- | ----------------------------------------------- | ----------------------------------- |
-| Display name, e-mail (local accounts), language                                    | personal        | the person                                      | Profile                             |
-| E-mail notifications, in-app subscriptions                                         | personal        | the person                                      | Profile                             |
-| Daily summary                                                                      | personal        | the person (team default: administrators)       | Profile; _Users → Teams_ → settings |
-| Owning team of one's new resources                                                 | personal        | the person                                      | Profile                             |
-| Password, API and MCP tokens                                                       | personal        | the person                                      | Profile                             |
-| Members, their roles in the team                                                   | team            | administrators                                  | _Users → Teams_                     |
-| Team channel, new resources of members, daily summary for members, report branding | team            | administrators (members see them)               | _Users → Teams_ → settings          |
-| Owning teams of a resource                                                         | resource        | administrators                                  | the resource's _Owning teams_ panel |
-| Default language, browser automation, unattended operation                         | instance        | administrators                                  | _Settings → General_                |
-| Sign-in, single sign-on only, outbound access, public API, MCP server, vault       | instance        | administrators (with a step-up for some)        | _Settings → Security & sign-in_     |
-| API tokens of all users                                                            | instance        | administrators                                  | _Settings → Security & sign-in_     |
-| Ticket sources, Git sync, migration, end of life                                   | instance        | administrators                                  | _Settings → Integrations_           |
-| Notification channels, routes, e-mail domains, look of messages                    | instance        | administrators                                  | _Settings → Notifications_          |
-| Daily summaries allowed (for everyone), credential reminders                       | instance        | administrators                                  | _Settings → Notifications_          |
-| Colours, name and logo of the app; report branding                                 | instance        | administrators                                  | _Settings → Appearance & branding_  |
-| Four-eyes rule for access findings, CIA scale, expected documents, environments    | instance        | administrators                                  | _Settings → Catalogue & compliance_ |
-| Data retention and storage, backups, system status                                 | instance        | administrators (system status: auditors see it) | _Settings → Maintenance_            |
-| Single sign-on providers and accounts                                              | instance        | administrators                                  | _Users_                             |
-| A report schedule's sections, recipients and team                                  | report schedule | its owner and administrators                    | _Reports_                           |
+| Setting                                                                            | Scope           | Changed by                                      | Where                                        |
+| ---------------------------------------------------------------------------------- | --------------- | ----------------------------------------------- | -------------------------------------------- |
+| Display name, e-mail (local accounts), language                                    | personal        | the person                                      | Profile                                      |
+| E-mail notifications, in-app subscriptions                                         | personal        | the person                                      | Profile                                      |
+| Daily summary                                                                      | personal        | the person (team default: administrators)       | Profile; _Users → Teams_ → settings          |
+| Owning team of one's new resources                                                 | personal        | the person                                      | Profile                                      |
+| Password, API and MCP tokens                                                       | personal        | the person                                      | Profile                                      |
+| Members, their roles in the team                                                   | team            | administrators                                  | _Users → Teams_                              |
+| Team channel, new resources of members, daily summary for members, report branding | team            | administrators (members see them)               | _Users → Teams_ → settings                   |
+| Owning teams of a resource                                                         | resource        | administrators                                  | the resource's _Owning teams_ panel          |
+| Default language, browser automation, unattended operation                         | instance        | administrators                                  | _Settings → General_                         |
+| Sign-in, single sign-on only, outbound access, public API, MCP server, vault       | instance        | administrators (with a step-up for some)        | _Settings → Security & sign-in_              |
+| OAuth sign-in for MCP clients (optional), its clients and connections              | instance        | administrators                                  | _Settings → Security & sign-in → MCP server_ |
+| Connected MCP clients (OAuth)                                                      | personal        | the person                                      | Profile                                      |
+| API tokens of all users                                                            | instance        | administrators                                  | _Settings → Security & sign-in_              |
+| Ticket sources, Git sync, migration, end of life                                   | instance        | administrators                                  | _Settings → Integrations_                    |
+| Notification channels, routes, e-mail domains, look of messages                    | instance        | administrators                                  | _Settings → Notifications_                   |
+| Daily summaries allowed (for everyone), credential reminders                       | instance        | administrators                                  | _Settings → Notifications_                   |
+| Colours, name and logo of the app; report branding                                 | instance        | administrators                                  | _Settings → Appearance & branding_           |
+| Four-eyes rule for access findings, CIA scale, expected documents, environments    | instance        | administrators                                  | _Settings → Catalogue & compliance_          |
+| Data retention and storage, backups, system status                                 | instance        | administrators (system status: auditors see it) | _Settings → Maintenance_                     |
+| Single sign-on providers and accounts                                              | instance        | administrators                                  | _Users_                                      |
+| A report schedule's sections, recipients and team                                  | report schedule | its owner and administrators                    | _Reports_                                    |
 
 ## API
 

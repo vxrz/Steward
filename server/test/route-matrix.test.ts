@@ -732,6 +732,25 @@ const EXPECT: Record<string, Access> = {
   'GET /api/me/new-resource-teams': ALL,
   'PUT /api/me/new-resource-teams': ALL,
   'GET /api/settings/daily-summary': ADMIN,
+
+  // ---- OAuth sign-in for MCP clients (#12): off in the fixtures (discovery and endpoints answer 404) ----
+  'GET /.well-known/oauth-protected-resource': PUBLIC,
+  'GET /.well-known/oauth-protected-resource/api/mcp': PUBLIC,
+  'GET /.well-known/oauth-authorization-server': PUBLIC,
+  'GET /.well-known/openid-configuration': PUBLIC,
+  'POST /oauth/register': PUBLIC,
+  'POST /oauth/token': PUBLIC,
+  'POST /oauth/revoke': PUBLIC,
+  // the consent page: every person who may use MCP (checked in mcp-oauth.test.ts)
+  'GET /api/oauth/authorize': ALL,
+  'POST /api/oauth/authorize': ALL,
+  'GET /api/me/mcp-clients': ALL,
+  'DELETE /api/me/mcp-clients/:grantId': ALL,
+  'GET /api/settings/mcp-oauth': ADMIN,
+  'PUT /api/settings/mcp-oauth': ADMIN,
+  'POST /api/settings/mcp-oauth/clients': ADMIN,
+  'DELETE /api/settings/mcp-oauth/clients/:clientId': ADMIN,
+  'DELETE /api/settings/mcp-oauth/grants/:grantId': ADMIN,
   'PUT /api/settings/daily-summary': ADMIN,
 };
 
@@ -749,6 +768,11 @@ const SESSION_ONLY = [
   'POST /api/teams/:id/settings/test',
   'POST /api/teams/:id/settings/logo',
   'DELETE /api/teams/:id/settings/logo',
+  'POST /api/oauth/authorize',
+  'PUT /api/settings/mcp-oauth',
+  'POST /api/settings/mcp-oauth/clients',
+  'DELETE /api/settings/mcp-oauth/clients/:clientId',
+  'DELETE /api/settings/mcp-oauth/grants/:grantId',
   'POST /api/sso/providers',
   'PUT /api/sso/providers/:id',
   'DELETE /api/sso/providers/:id',
@@ -784,6 +808,11 @@ const SESSION_ONLY = [
  * one that does not (`harmless`, never STEP_UP_REQUIRED). A route that loses its step-up fails this test.
  */
 const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown }> = {
+  // allowing an MCP client gives it lasting access as the person (#12); denying needs no confirmation
+  'POST /api/oauth/authorize': {
+    sensitive: { request: { response_type: 'code', client_id: 'mcpc_matrix', redirect_uri: 'http://127.0.0.1:1/cb' }, approve: true },
+    harmless: { request: { response_type: 'code', client_id: 'mcpc_matrix', redirect_uri: 'http://127.0.0.1:1/cb' }, approve: false },
+  },
   'POST /api/me/tokens': 'always',
   'POST /api/vault/passphrase': 'always',
   // adding an owning team gives its members their roles on the resource (#131)
@@ -840,6 +869,12 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
 
 /** GET routes whose fixtures cannot give a 2xx (nothing to find); refusals are still checked. */
 const NO_POSITIVE = new Set([
+  // OAuth sign-in for MCP clients is off in the fixtures (#12)
+  'GET /.well-known/oauth-protected-resource',
+  'GET /.well-known/oauth-protected-resource/api/mcp',
+  'GET /.well-known/oauth-authorization-server',
+  'GET /.well-known/openid-configuration',
+  'GET /api/oauth/authorize',
   'GET /api/teams/:id/settings/logo', // the matrix team has no logo of its own
   // no S3 storage set up in the fixtures
   'GET /api/backups/stored',
@@ -1102,6 +1137,9 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/teams/:id/settings': { channel: null },
   'POST /api/teams/:id/settings/logo': { contentBase64: 'bm90IGFuIGltYWdl' },
   'PUT /api/me/new-resource-teams': { teamId: null },
+  'POST /api/oauth/authorize': { request: { response_type: 'code', client_id: 'mcpc_matrix', redirect_uri: 'http://127.0.0.1:1/cb' }, approve: false },
+  'PUT /api/settings/mcp-oauth': { dynamicRegistration: true },
+  'POST /api/settings/mcp-oauth/clients': { name: 'Matrix', redirectUris: ['http://127.0.0.1:1/cb'] },
   'POST /api/me/tokens': { name: 'x', scope: 'full' },
   'PUT /api/settings': { outboundPolicy: 'open' },
   'PUT /api/settings/instance': { outboundPolicy: 'open' },
