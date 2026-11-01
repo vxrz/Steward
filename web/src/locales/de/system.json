@@ -185,7 +185,13 @@
       "timeZone": "Zeitzone",
       "hostname": "Hostname",
       "pid": "Prozess-ID",
-      "dataDir": "Datenordner"
+      "dataDir": "Datenordner",
+      "pdf": "PDFs",
+      "pdfWorker": "Im Worker-Thread erstellt (Limit 60 s, eins nach dem anderen)",
+      "pdfOff": "Im Haupt-Thread erstellt (SM_PDF_WORKER=off)",
+      "pdfUnavailable": "Im Haupt-Thread erstellt – der Worker-Thread konnte nicht starten",
+      "pdfWaiting_one": "{{count}} wartet",
+      "pdfWaiting_other": "{{count}} warten"
     },
     "deployments": {
       "executable": "Desktop-Programm",

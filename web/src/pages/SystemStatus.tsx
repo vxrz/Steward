@@ -205,6 +205,20 @@ export function SystemStatusPage() {
                   heapTotal: fmtBytes(s.runtime.memory.heapTotal),
                 })}
               </Row>
+              <Row label={t('status.runtime.pdf')}>
+                {s.pdf.worker === 'off'
+                  ? t('status.runtime.pdfOff')
+                  : s.pdf.worker === 'unavailable'
+                    ? t('status.runtime.pdfUnavailable')
+                    : t('status.runtime.pdfWorker')}
+                {s.pdf.reason ? (
+                  <>
+                    {' '}
+                    <Code style={{ overflowWrap: 'anywhere' }}>{s.pdf.reason}</Code>
+                  </>
+                ) : null}
+                {s.pdf.waiting > 0 ? ` · ${t('status.runtime.pdfWaiting', { count: s.pdf.waiting })}` : ''}
+              </Row>
               <Row label={t('status.runtime.timeZone')}>{s.runtime.timeZone}</Row>
               {s.runtime.hostname && <Row label={t('status.runtime.hostname')}>{s.runtime.hostname}</Row>}
               {s.runtime.pid !== undefined && <Row label={t('status.runtime.pid')}>{s.runtime.pid}</Row>}

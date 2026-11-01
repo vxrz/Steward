@@ -725,7 +725,11 @@
     "MCP_OAUTH_OFF": "OAuth sign-in for MCP clients is turned off on this Steward – ask an administrator, or use an MCP token from your profile.",
     "MCP_OAUTH_CLIENT_UNKNOWN": "The application that sent you here is not registered with this Steward (or was removed). Start the sign-in in the application again.",
     "MCP_OAUTH_REDIRECT_UNKNOWN": "The return address of this request is not registered for the application, so Steward will not send you there.",
-    "MCP_OAUTH_REQUEST_INVALID": "The application sent an invalid sign-in request – returning to it."
+    "MCP_OAUTH_REQUEST_INVALID": "The application sent an invalid sign-in request – returning to it.",
+    "PDF_TIMEOUT": "Creating the PDF took longer than {{seconds}} s and was stopped – shorten very long text, especially long words without spaces.",
+    "PDF_BUSY": "Steward is creating other PDFs right now – try again in a moment.",
+    "PDF_TOO_LARGE": "The PDF needed more than {{mb}} MB of memory and was stopped – shorten the document.",
+    "PDF_FAILED": "Creating the PDF failed – try again, or ask an administrator to look at the server log."
   },
   "boundary": {
     "title": "Something went wrong on this page",

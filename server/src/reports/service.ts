@@ -9,9 +9,10 @@ import { HttpError, newId, nowIso, parseJson, pathInside, sha256, slugify } from
 import { brandingFor, brandingTeamOf, commonBrandingTeam } from './branding.js';
 import { resolveTimeZone, translator } from './i18n.js';
 import { buildRunModel, contentHash, evidenceImages, person, type ReportContext, type RunReportModel } from './model.js';
-import { renderRunReport, type RenderResult } from './run-report.js';
-import { buildSummaryModel, renderSummaryReport } from './summary-report.js';
-import { buildScheduledModel, renderScheduledReport } from './scheduled-report.js';
+import type { RenderResult } from './run-report.js';
+import { drawPdf } from './pdf/pool.js';
+import { buildSummaryModel } from './summary-report.js';
+import { buildScheduledModel } from './scheduled-report.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import { getUser } from '../auth/users.js';
 
@@ -246,7 +247,7 @@ export async function generateRunReport(runId: string, o: GenerateOptions): Prom
     const team = brandingTeamOf('process', run.process_id);
     const model = buildRunModel(runId, context(o, id, version, team));
     const hash = contentHash(model);
-    const res = await renderRunReport(model, hash, brandingInput(undefined, team), { images: evidenceImages(model), compress: o.compress });
+    const res = await drawPdf('run', model, hash, brandingInput(undefined, team), { images: evidenceImages(model), compress: o.compress });
     const tr = translator(model.lang, model.timeZone);
     const rec: ReportRecord = {
       id,
@@ -297,7 +298,7 @@ export async function generateSummaryReport(o: SummaryOptions): Promise<ReportRe
   const team = commonBrandingTeam('process', o.processIds);
   const model = buildSummaryModel({ processIds: o.processIds, from: from.toISOString(), to: to.toISOString(), title: o.title }, context(o, id, 1, team));
   const hash = contentHash(model);
-  const res = await renderSummaryReport(model, hash, brandingInput(undefined, team), { compress: o.compress });
+  const res = await drawPdf('summary', model, hash, brandingInput(undefined, team), { compress: o.compress });
   const tr = translator(model.lang, model.timeZone);
   const scope = model.processes.length === 1 ? slugify(model.processes[0]!.name) : `${model.processes.length}-processes`;
   const rec: ReportRecord = {
@@ -374,7 +375,7 @@ export async function generateScheduledReport(o: ScheduledOptions): Promise<Repo
     ),
   );
   const hash = contentHash(model);
-  const res = await renderScheduledReport(model, hash, brandingInput(undefined, o.teamId), { compress: o.compress });
+  const res = await drawPdf('scheduled', model, hash, brandingInput(undefined, o.teamId), { compress: o.compress });
   const rec: ReportRecord = {
     id,
     kind: 'scheduled',
@@ -657,5 +658,5 @@ export async function previewReport(o: {
     ],
     auditOmitted: 0,
   };
-  return renderRunReport(model, contentHash(model), brandingInput(o.branding));
+  return drawPdf('run', model, contentHash(model), brandingInput(o.branding));
 }

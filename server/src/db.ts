@@ -700,7 +700,14 @@ export function openAppDb(target: DatabaseTarget = databaseTarget(), extra: Pick
 }
 
 let instance: Db | undefined;
+let noDatabase: string | null = null;
+/** Threads that must not read the database (the PDF worker, #13) call this: db() then throws instead of opening it. */
+export function forbidDatabase(reason: string): void {
+  noDatabase = reason;
+}
+
 export function db(): Db {
+  if (noDatabase) throw new Error(`No database here: ${noDatabase}`);
   if (!instance) instance = openAppDb();
   return instance;
 }

@@ -185,7 +185,13 @@
       "timeZone": "Time zone",
       "hostname": "Host name",
       "pid": "Process ID",
-      "dataDir": "Data folder"
+      "dataDir": "Data folder",
+      "pdf": "PDFs",
+      "pdfWorker": "Drawn in a worker thread (60 s limit, one at a time)",
+      "pdfOff": "Drawn in the main thread (SM_PDF_WORKER=off)",
+      "pdfUnavailable": "Drawn in the main thread – the worker thread could not start",
+      "pdfWaiting_one": "{{count}} waiting",
+      "pdfWaiting_other": "{{count}} waiting"
     },
     "deployments": {
       "executable": "Desktop executable",
