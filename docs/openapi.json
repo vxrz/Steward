@@ -7584,16 +7584,21 @@
             "enum": [
               "covered",
               "gap",
-              "unmapped"
+              "unmapped",
+              "notVisible"
             ],
-            "description": "covered: evidence in the period; gap: mapped, but no evidence; unmapped: no Steward item mapped"
+            "description": "covered: evidence in the period; gap: mapped, but no evidence; unmapped: no Steward item mapped; notVisible: there is evidence, but none the caller may see (since 0.3.0)"
           },
           "counts": {
             "type": "object",
             "additionalProperties": {
               "type": "integer"
             },
-            "description": "Evidence items per kind (run, record, accessChange, snapshot, finding, personReview, report, monitor)"
+            "description": "Evidence items per kind (run, record, accessChange, snapshot, finding, personReview, report, monitor) the caller may see"
+          },
+          "hidden": {
+            "type": "integer",
+            "description": "Evidence items in the period the caller may not see (counted, not named; since 0.3.0)"
           }
         },
         "required": [
@@ -7602,7 +7607,8 @@
           "ref",
           "title",
           "status",
-          "counts"
+          "counts",
+          "hidden"
         ],
         "additionalProperties": false
       },
@@ -23384,7 +23390,7 @@
         "tags": [
           "Compliance"
         ],
-        "description": "Per control: covered (evidence in the period), gap (mapped items, but no evidence) or unmapped, with the number of evidence items per kind.",
+        "description": "Per control: covered (evidence in the period), gap (mapped items, but no evidence), unmapped, or notVisible (there is evidence, but none the caller may see), with the number of evidence items per kind and of those the caller may not see.",
         "parameters": [
           {
             "schema": {

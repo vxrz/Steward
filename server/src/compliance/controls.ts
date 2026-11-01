@@ -5,6 +5,7 @@ import {
   type Control,
   type ControlCatalogue,
   type ControlCoverage,
+  type CoverageStatus,
   type ControlTag,
   type ControlTagKind,
   type EvidenceItem,
@@ -814,6 +815,19 @@ export const periodQuery = z
 
 const normPeriod = (p: Period): Period => ({ from: new Date(p.from).toISOString(), to: new Date(p.to).toISOString() });
 
+const evidenceKey = (e: EvidenceItem) => `${e.kind}|${e.id}`;
+
+const uniqueEvidence = (items: EvidenceItem[]) => {
+  const seen = new Set<string>();
+  return items.filter((e) => (seen.has(evidenceKey(e)) ? false : (seen.add(evidenceKey(e)), true)));
+};
+
+/** Evidence items in `everything` that are not in `visible`. */
+const countHidden = (everything: EvidenceItem[], visible: EvidenceItem[]): number => {
+  const seen = new Set(visible.map(evidenceKey));
+  return everything.filter((e) => !seen.has(evidenceKey(e))).length;
+};
+
 /** Evidence coverage of every control of a catalogue (or the given controls) in a period. */
 export function coverage(p: Period, o: { catalogue?: string; controlIds?: string[] } = {}): ControlCoverage[] {
   const u = me();
@@ -824,6 +838,8 @@ export function coverage(p: Period, o: { catalogue?: string; controlIds?: string
   for (const t of db().all<TagRow>('SELECT * FROM control_tags')) tags.set(t.control_id, [...(tags.get(t.control_id) ?? []), t]);
   // evidence per tagged item is computed once even when it is mapped to several controls
   const cache = new Map<string, EvidenceItem[]>();
+  const complete = readsEverything(u);
+  const allCache = new Map<string, EvidenceItem[]>();
   return controls.map((control) => {
     const mine = tags.get(control.id) ?? [];
     const all: EvidenceItem[] = [];
@@ -832,27 +848,48 @@ export function coverage(p: Period, o: { catalogue?: string; controlIds?: string
       if (!cache.has(k)) cache.set(k, evidenceOf(t, period, u));
       all.push(...cache.get(k)!);
     }
-    const seen = new Set<string>();
-    const unique = all.filter((e) => (seen.has(`${e.kind}|${e.id}`) ? false : (seen.add(`${e.kind}|${e.id}`), true))).sort((a, b) => b.at.localeCompare(a.at));
+    const unique = uniqueEvidence(all).sort((a, b) => b.at.localeCompare(a.at));
     const counts: Partial<Record<EvidenceKind, number>> = {};
     for (const e of unique) counts[e.kind] = (counts[e.kind] ?? 0) + 1;
+    let hidden = 0;
+    if (!complete && mine.length) {
+      // what everyone could see, compared with what this reader sees (counted, never named)
+      const everything = uniqueEvidence(
+        mine.flatMap((t) => {
+          const k = `${t.kind}|${t.target_id}`;
+          if (!allCache.has(k))
+            allCache.set(
+              k,
+              runAs(SYSTEM_USER, () => evidenceOf(t, period, SYSTEM_USER)),
+            );
+          return allCache.get(k)!;
+        }),
+      );
+      hidden = countHidden(everything, unique);
+    }
     return {
       control,
-      status: mine.length === 0 ? 'unmapped' : unique.length ? 'covered' : 'gap',
+      status: coverageStatus(mine.length, unique.length, hidden),
       counts,
       evidence: unique.slice(0, LIMITS.evidencePerControl),
       truncated: Math.max(0, unique.length - LIMITS.evidencePerControl),
+      hidden,
     };
   });
 }
 
-/** Coverage of a control in an evidence pack: "notVisible" when there is evidence, but none the creator may see. */
-export type PackCoverageStatus = ControlCoverage['status'] | 'notVisible';
+/**
+ * The coverage status of a control (#21), the same on the Controls page, in the API and in evidence packs: "notVisible"
+ * when there is evidence, but none the reader may see – not a gap.
+ */
+export function coverageStatus(mapped: number, visible: number, hidden: number): CoverageStatus {
+  if (mapped === 0) return 'unmapped';
+  if (visible) return 'covered';
+  return hidden ? 'notVisible' : 'gap';
+}
 
-const uniqueEvidence = (items: EvidenceItem[]) => {
-  const seen = new Set<string>();
-  return items.filter((e) => (seen.has(`${e.kind}|${e.id}`) ? false : (seen.add(`${e.kind}|${e.id}`), true)));
-};
+/** Coverage of a control in an evidence pack (the same statuses as everywhere). */
+export type PackCoverageStatus = CoverageStatus;
 
 /**
  * Full evidence of controls (no list limit) – for evidence packs. `hidden` counts the evidence items
@@ -872,11 +909,10 @@ export function evidenceForControls(
     const evidence = uniqueEvidence(mine.flatMap((t) => evidenceOf(t, period, u)));
     let hidden = 0;
     if (!complete && mine.length) {
-      const visible = new Set(evidence.map((e) => `${e.kind}|${e.id}`));
       const all = runAs(SYSTEM_USER, () => uniqueEvidence(mine.flatMap((t) => evidenceOf(t, period, SYSTEM_USER))));
-      hidden = all.filter((e) => !visible.has(`${e.kind}|${e.id}`)).length;
+      hidden = countHidden(all, evidence);
     }
-    const status: PackCoverageStatus = mine.length === 0 ? 'unmapped' : evidence.length ? 'covered' : hidden ? 'notVisible' : 'gap';
+    const status = coverageStatus(mine.length, evidence.length, hidden);
     return { control, evidence, status, hidden };
   });
 }

@@ -151,7 +151,10 @@ _Compliance → Controls_ shows a catalogue with the coverage of each control in
 
 - **Covered** – mapped items produced evidence in the period,
 - **Gap** – items are mapped, but there is no evidence in the period,
+- **Not visible** – there is evidence in the period, but none you may see; the badge says how many items are hidden. Auditors and administrators see all evidence. A covered control also says how many more items you may not see.
 - **Not mapped** – no Steward item is mapped to the control.
+
+The Controls page, the read API (`GET /api/v1/control-coverage`, fields `status` and `hidden`) and evidence packs use the same rule, so a person with limited rights never sees a gap where there is evidence.
 
 Evidence per kind of mapped item:
 

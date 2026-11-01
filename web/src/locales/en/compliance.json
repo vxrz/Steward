@@ -11,7 +11,10 @@
   "coverage": {
     "covered": "Covered",
     "gap": "Gap",
-    "unmapped": "Not mapped"
+    "unmapped": "Not mapped",
+    "notVisible": "Not visible",
+    "notVisibleHidden_one": "Not visible ({{count}} hidden)",
+    "notVisibleHidden_other": "Not visible ({{count}} hidden)"
   },
   "findingStatus": {
     "open": "Open",
@@ -122,7 +125,13 @@
     "importAction": "Import",
     "documentEdition": "Edition {{edition}}",
     "documentReviewed": "reviewed {{date}} by {{reviewer}}",
-    "documentApproved": "approved {{date}} by {{approver}}"
+    "documentApproved": "approved {{date}} by {{approver}}",
+    "countNotVisible_one": "{{count}} not visible",
+    "countNotVisible_other": "{{count}} not visible",
+    "notVisibleText_one": "There is evidence in this period ({{count}} item), but you may not see it. Auditors and administrators see all evidence.",
+    "notVisibleText_other": "There is evidence in this period ({{count}} items), but you may not see it. Auditors and administrators see all evidence.",
+    "hiddenMore_one": "{{count}} more evidence item you may not see",
+    "hiddenMore_other": "{{count}} more evidence items you may not see"
   },
   "accessChanges": {
     "title": "Access changes",

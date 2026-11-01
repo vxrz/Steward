@@ -132,7 +132,7 @@ export function complianceApiRoutes(get: Get): void {
       tag: 'Compliance',
       summary: 'Evidence coverage of controls in a period',
       description:
-        'Per control: covered (evidence in the period), gap (mapped items, but no evidence) or unmapped, with the number of evidence items per kind.',
+        'Per control: covered (evidence in the period), gap (mapped items, but no evidence), unmapped, or notVisible (there is evidence, but none the caller may see), with the number of evidence items per kind and of those the caller may not see.',
       query: A.CoverageQuery,
       paginated: true,
       response: pageOf('ControlCoverage', 'A page of coverage entries'),
@@ -146,6 +146,7 @@ export function complianceApiRoutes(get: Get): void {
         title: c.control.title,
         status: c.status,
         counts: c.counts as Record<string, number>,
+        hidden: c.hidden,
       }));
       const page = pageArray(list, (c) => [c.catalogueKey, c.controlId], q, q);
       linkNext(req, reply, page.nextCursor);

@@ -104,8 +104,13 @@ export const ControlCoverage = z.object({
   catalogueKey: z.string(),
   ref: z.string(),
   title: z.string(),
-  status: z.enum(['covered', 'gap', 'unmapped']).describe('covered: evidence in the period; gap: mapped, but no evidence; unmapped: no Steward item mapped'),
-  counts: z.record(z.string(), z.number().int()).describe(`Evidence items per kind (${EVIDENCE_KINDS.join(', ')})`),
+  status: z
+    .enum(['covered', 'gap', 'unmapped', 'notVisible'])
+    .describe(
+      'covered: evidence in the period; gap: mapped, but no evidence; unmapped: no Steward item mapped; notVisible: there is evidence, but none the caller may see (since 0.3.0)',
+    ),
+  counts: z.record(z.string(), z.number().int()).describe(`Evidence items per kind (${EVIDENCE_KINDS.join(', ')}) the caller may see`),
+  hidden: z.number().int().describe('Evidence items in the period the caller may not see (counted, not named; since 0.3.0)'),
 });
 
 export const COMPLIANCE_COMPONENTS: Record<string, ZodTypeAny> = { AccessChange, AccessFinding, Control, ControlTag, ControlCatalogue, ControlCoverage };

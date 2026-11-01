@@ -282,7 +282,11 @@ export interface EvidenceDocument {
   lastReviewedBy: string | null;
 }
 
-export type CoverageStatus = 'covered' | 'gap' | 'unmapped';
+/**
+ * covered: evidence in the period; gap: mapped, but no evidence; unmapped: nothing mapped; notVisible: there is
+ * evidence, but none the reader may see (#21) – the same rule on the Controls page, in the API and in evidence packs.
+ */
+export type CoverageStatus = 'covered' | 'gap' | 'unmapped' | 'notVisible';
 
 export interface ControlCoverage {
   control: Control;
@@ -291,6 +295,8 @@ export interface ControlCoverage {
   evidence: EvidenceItem[];
   /** Evidence items left out (list limit) */
   truncated: number;
+  /** Evidence items in the period the reader may not see (only counted, never named) */
+  hidden: number;
 }
 
 export interface ControlsMeta {
