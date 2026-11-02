@@ -23,6 +23,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Accessible names contain the visible text** (WCAG 2.5.3 _Label in Name_, checked by axe 4.14): the search button in the header, the user menu, the start-page tiles, the language switch on the sign-in page, the _Document this change_ and _Dismiss_ buttons of access reconciliation and the _Diff_ button of document editions are announced with the words they show (for example _Dismiss: alice_), so voice control and screen readers use the same name as the screen.
 - **The link to a status page without sign-in works** (#26): the link the web app showed after _Link without sign-in_ pointed into the API and carried part of the creator's browser session (`…/api/?_sk=…/status#t=…`), so opening it elsewhere answered _Please sign in_. It is now `https://<host>[/<path prefix>]/status#t=…`. The part of the session in old links is useless without the creator's browser cookie; to be safe, create a new link (this replaces the old one) and sign out once in the browser that created it. The browser test now opens the link exactly as the page shows it.
 
 ## [0.2.10] - 2026-10-31

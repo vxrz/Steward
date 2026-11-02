@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Avatar, Badge, Group, Menu, Modal, Stack, Text, UnstyledButton, useMantineColorScheme } from '@mantine/core';
+import { Avatar, Badge, Group, Menu, Modal, Stack, Text, UnstyledButton, VisuallyHidden, useMantineColorScheme } from '@mantine/core';
 import {
   IconActivityHeartbeat,
   IconCheck,
@@ -66,15 +66,16 @@ export function UserMenu() {
     <>
       <Menu position="bottom-end" width={240}>
         <Menu.Target>
-          <UnstyledButton aria-label={t('userMenu.label')}>
+          <UnstyledButton>
             <Group gap={6} wrap="nowrap">
-              <Avatar size={28} radius="xl" color="brand">
+              <Avatar size={28} radius="xl" color="brand" aria-hidden>
                 {initials}
               </Avatar>
               <Text size="sm" visibleFrom="xs" truncate maw={160}>
                 {me.user.displayName}
               </Text>
-              <IconChevronDown size={14} />
+              <VisuallyHidden>{t('userMenu.label')}</VisuallyHidden>
+              <IconChevronDown size={14} aria-hidden />
             </Group>
           </UnstyledButton>
         </Menu.Target>

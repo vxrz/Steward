@@ -17,7 +17,7 @@ test('Ctrl+K finds and opens a process; "start run" opens the run dialog', async
   await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('Insights Hub – Platform health check');
 
   // the header button opens it, too
-  await page.getByRole('button', { name: /^Search \(/ }).click();
+  await page.getByRole('button', { name: /^Search… / }).click();
   await search.fill('start run health');
   await page.getByRole('button', { name: 'Start run of Insights Hub – Platform health check' }).click();
   const dialog = page.getByRole('dialog', { name: 'Run: Insights Hub – Platform health check' });

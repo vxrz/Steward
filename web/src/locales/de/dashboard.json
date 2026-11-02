@@ -15,7 +15,6 @@
   },
   "counts": {
     "label": "Was Ihre Aufmerksamkeit braucht",
-    "name": "{{label}}: {{value}} – {{detail}}",
     "allQuiet": "Alles ruhig",
     "tasks": "Wartet auf Sie",
     "tasksDetail": "Freigaben und Entscheidungen",

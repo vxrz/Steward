@@ -413,7 +413,6 @@ export function CommandPaletteButton() {
       <UnstyledButton
         onClick={() => spotlight.open()}
         visibleFrom="sm"
-        aria-label={t('palette.searchWithShortcut', { shortcut })}
         px="sm"
         h={32}
         w={240}

@@ -84,9 +84,9 @@ test.describe('lists, dialogs and help (admin)', () => {
     const tiles = page.getByTestId('start-tiles');
     const links = tiles.getByRole('link');
     await expect(links).toHaveCount(9);
-    // the approved order; every link names its label and number
-    const names = await links.evaluateAll((l) => l.map((a) => a.getAttribute('aria-label') ?? ''));
-    expect(names.map((n) => n.replace(/: .*/, ''))).toEqual([
+    // the approved order; every link is named by its visible label, number and detail
+    const names = await links.evaluateAll((l) => l.map((a) => (a as HTMLElement).innerText.replace(/\s+/g, ' ').trim()));
+    expect(names.map((n) => n.replace(/ \d.*/, ''))).toEqual([
       'Waiting for you',
       'Failed runs (24 h)',
       'Monitors down',
@@ -97,7 +97,7 @@ test.describe('lists, dialogs and help (admin)', () => {
       'Services needing attention',
       'Waiting on vendors',
     ]);
-    for (const n of names) expect(n).toMatch(/^[^:]+: \d+ – .+/);
+    for (const n of names) expect(n).toMatch(/^.+ \d+ \S.*$/);
     expect(await links.evaluateAll((l) => l.map((a) => a.getAttribute('href')))).toEqual(
       [
         '/tasks',
@@ -111,7 +111,7 @@ test.describe('lists, dialogs and help (admin)', () => {
         '/tickets?waiting=vendor',
       ].map(appHref),
     );
-    const vendor = tiles.getByRole('link', { name: /^Waiting on vendors: [1-9]\d* – oldest \d+ days$/ });
+    const vendor = tiles.getByRole('link', { name: /^Waiting on vendors [1-9]\d* oldest \d+ days$/ });
     await expect(vendor).toHaveAttribute('data-state', 'attention');
     // keyboard: the tiles are in the tab order
     await links.nth(7).focus();
@@ -236,10 +236,10 @@ test.describe('start page zero state (viewer)', () => {
     const tiles = page.getByTestId('start-tiles');
     await expect(tiles.getByRole('link')).toHaveCount(4);
     await expect(tiles.locator('[data-state="quiet"]')).toHaveCount(4);
-    await expect(tiles.getByRole('link', { name: 'Waiting for you: 0 – All quiet' })).toBeVisible();
-    await expect(tiles.getByRole('link', { name: 'Failed runs (24 h): 0 – All quiet · 3 runs' })).toBeVisible();
-    await expect(tiles.getByRole('link', { name: 'Monitors down: 0 – All quiet' })).toBeVisible();
-    await expect(tiles.getByRole('link', { name: 'Waiting on vendors: 0 – All quiet' })).toBeVisible();
+    await expect(tiles.getByRole('link', { name: 'Waiting for you 0 All quiet' })).toBeVisible();
+    await expect(tiles.getByRole('link', { name: 'Failed runs (24 h) 0 All quiet · 3 runs' })).toBeVisible();
+    await expect(tiles.getByRole('link', { name: 'Monitors down 0 All quiet' })).toBeVisible();
+    await expect(tiles.getByRole('link', { name: 'Waiting on vendors 0 All quiet' })).toBeVisible();
     await expect(tiles.getByText(/Undocumented access changes|Credentials due/)).toHaveCount(0);
     await expectAccessible(page, 'start page zero state');
     // the start page refreshes the counts in the background: let a refresh still in the handler end quietly

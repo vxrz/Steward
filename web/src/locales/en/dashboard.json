@@ -15,7 +15,6 @@
   },
   "counts": {
     "label": "What needs your attention",
-    "name": "{{label}}: {{value}} – {{detail}}",
     "allQuiet": "All quiet",
     "tasks": "Waiting for you",
     "tasksDetail": "Approvals and decisions",

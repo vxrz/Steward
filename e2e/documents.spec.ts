@@ -75,7 +75,7 @@ test('a service document gets editions 1.0 and 1.1, a review, and shows on the s
   const log = adam.getByRole('table', { name: 'Document changelog' });
   await expect(log).toContainText('Heartbeat check added');
   await expect(log).toContainText('First edition');
-  await log.getByRole('button', { name: 'Changes from edition 1.0 to 1.1' }).click();
+  await log.getByRole('button', { name: 'Diff: edition 1.0 to 1.1' }).click();
   const diff = adam.getByRole('dialog', { name: 'Changes from edition 1.0 to 1.1' });
   await expect(diff.getByText('and check the heartbeat', { exact: false })).toBeVisible();
   await settle(adam);

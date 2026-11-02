@@ -591,7 +591,7 @@
     "open": "Open",
     "openNamed": "Open edition {{edition}}",
     "diff": "Diff",
-    "diffNamed": "Changes from edition {{from}} to {{to}}",
+    "diffNamed": "Diff: edition {{from}} to {{to}}",
     "diffTitle": "Changes from edition {{from}} to {{to}}",
     "pdf": "PDF",
     "pdfNamed": "PDF of edition {{edition}}",
