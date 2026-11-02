@@ -10,7 +10,7 @@ import { chooseNewResourceTeam, newResourceTeams } from '../auth/policy.js';
 import { subjectReferences } from '../auth/subjects.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
-import { changesAccess, changesTeamMembers, grantsRoles } from '../auth/step-up-rules.js';
+import { changesAccess, changesTeamChannel, changesTeamMembers, grantsRoles } from '../auth/step-up-rules.js';
 import { requireCapability } from '../auth/permissions.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
@@ -130,8 +130,10 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
   });
   // team settings (#136): members and administrators read them, administrators change them
   app.get('/teams/:id/settings', async (req) => teamSettings.getTeamSettings(params(req).id!, me()));
-  app.put('/teams/:id/settings', { config: { access: ACCESS.adminSession } }, async (req) =>
-    teamSettings.saveTeamSettings(params(req).id!, teamSettings.teamSettingsInput.parse(req.body), me()),
+  app.put(
+    '/teams/:id/settings',
+    { config: { access: ACCESS.adminSession, stepUp: { action: 'changeNotificationDelivery', who: 'manageUsers', when: changesTeamChannel } } },
+    async (req) => teamSettings.saveTeamSettings(params(req).id!, teamSettings.teamSettingsInput.parse(req.body), me()),
   );
   // the team's report logo: shown to members and administrators, changed by administrators
   app.get('/teams/:id/settings/logo', async (req, reply) => {

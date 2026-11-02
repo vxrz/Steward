@@ -842,6 +842,11 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'PUT /api/settings/notifications': { sensitive: { allowedEmailDomains: ['matrix.example'] }, harmless: { allowedEmailDomains: ['example.com'] } },
   'POST /api/teams': { sensitive: { name: 'Matrix step-up', members: ['vera'] }, harmless: { name: '!' } },
   'PUT /api/teams/:id': { sensitive: { name: 'Matrix team', members: ['vera'] }, harmless: { name: 'Matrix team', members: [] } },
+  // a team's own channel sends messages about its resources elsewhere (#136)
+  'PUT /api/teams/:id/settings': {
+    sensitive: { channel: { enabled: true, format: 'teams', mode: 'also', url: 'https://matrix.example/hook' } },
+    harmless: { newResources: 'auto' },
+  },
   // (harmless: no list, so nobody gains a right – refused by the route's validation, the fixture stays)
   'PUT /api/platforms/:id/access': {
     sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] },

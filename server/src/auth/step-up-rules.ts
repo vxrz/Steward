@@ -59,6 +59,15 @@ export function changesSignInOrOutbound(req: FastifyRequest): boolean {
 }
 
 /**
+ * A team's own channel (#136): a new or replaced Teams/webhook URL sends messages about the team's resources elsewhere,
+ * as the instance channel does (see below). Keeping the stored URL (omitted) or removing it is not sensitive.
+ */
+export function changesTeamChannel(req: FastifyRequest): boolean {
+  const url = obj(obj(body(req)).channel).url;
+  return typeof url === 'string' && url.trim() !== '';
+}
+
+/**
  * Where notifications go and who they may reach: the SMTP server, port, TLS, user and sender, a new or replaced Teams or
  * webhook URL, the base URL of links, the allowed e-mail domains, and the channels of the emergency access alert.
  * Changing only the password or removing a URL is not sensitive (it cannot send anything elsewhere).

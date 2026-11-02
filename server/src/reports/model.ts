@@ -440,12 +440,35 @@ export function thumbnailable(data: Buffer): boolean {
  * Images for thumbnails: screenshots (PNG/JPEG) of the run and PNG/JPEG evidence files of manual steps. Missing or
  * changed files (SHA-256) and images too large to decode safely are skipped – they are listed with their hash only.
  */
+/**
+ * Thumbnails in the run report: images are held outside the worker's memory limit, so they are limited themselves.
+ * A larger image, or one beyond the total, stays in the evidence list (name, size, SHA-256) without a thumbnail.
+ */
+export const EVIDENCE_IMAGE_LIMITS = { imageBytes: 10 * 1024 * 1024, totalBytes: 64 * 1024 * 1024 };
+
 export function evidenceImages(model: RunReportModel): { id: string; data: Buffer }[] {
   const out: { id: string; data: Buffer }[] = [];
+  let total = 0;
+  /** Reads the file when it fits the limits */
+  const fits = (size: number) => size <= EVIDENCE_IMAGE_LIMITS.imageBytes && total + size <= EVIDENCE_IMAGE_LIMITS.totalBytes;
+  const read = (file: string): Buffer | null => {
+    // one open file: the size checked is the size of the file read
+    const fd = fs.openSync(file, 'r');
+    try {
+      if (!fits(fs.fstatSync(fd).size)) return null;
+      const data = fs.readFileSync(fd);
+      if (!fits(data.length)) return null;
+      total += data.length;
+      return data;
+    } finally {
+      fs.closeSync(fd);
+    }
+  };
   for (const e of model.evidence) {
     if (!/^image\/(png|jpe?g)$/.test(e.mime)) continue;
     try {
-      out.push({ id: e.id, data: fs.readFileSync(store.artifactFile(e.id).path) });
+      const data = read(store.artifactFile(e.id).path);
+      if (data) out.push({ id: e.id, data });
     } catch {
       /* file missing */
     }
@@ -456,8 +479,8 @@ export function evidenceImages(model: RunReportModel): { id: string; data: Buffe
       try {
         const row = db().get<{ path: string; task_id: string }>('SELECT path, task_id FROM run_task_evidence WHERE id = ?', e.id);
         if (!row) continue;
-        const data = fs.readFileSync(evidenceFile(row.path));
-        if (sha256(data) === e.sha256 && thumbnailable(data)) out.push({ id: e.id, data });
+        const data = read(evidenceFile(row.path));
+        if (data && sha256(data) === e.sha256 && thumbnailable(data)) out.push({ id: e.id, data });
       } catch {
         /* file missing */
       }

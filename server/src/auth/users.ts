@@ -23,6 +23,7 @@ import { passwordLoginMode } from '../settings.js';
 import { config } from '../config.js';
 import { aliasTarget, invalidateAliases, teamAliasTarget } from './aliases.js';
 import { rewriteTeamReferences } from './subjects.js';
+import { revokeOAuthGrants } from '../mcp/oauth-grants.js';
 
 interface UserRow {
   id: string;
@@ -257,7 +258,10 @@ export function updateUser(
       nowIso(),
       id,
     );
-    if (patch.active === false) db().run('DELETE FROM sessions WHERE user_id = ?', id);
+    if (patch.active === false) {
+      db().run('DELETE FROM sessions WHERE user_id = ?', id);
+      if (before.active) revokeOAuthGrants({ userId: id, username: before.username }, 'account deactivated');
+    }
     const changes: string[] = [];
     if (JSON.stringify(roles) !== JSON.stringify(before.roles)) changes.push(`roles ${before.roles.join(',') || '–'} → ${roles.join(',') || '–'}`);
     if (patch.active !== undefined && patch.active !== before.active) changes.push(patch.active ? 'activated' : 'deactivated');
@@ -366,6 +370,7 @@ export function resetPassword(id: string): string {
   db().tx(() => {
     db().run('UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = ? WHERE id = ?', hashPassword(temp), nowIso(), id);
     db().run('DELETE FROM sessions WHERE user_id = ?', id);
+    revokeOAuthGrants({ userId: id, username: u.username }, 'password reset by an administrator');
     audit({ action: 'user.password_reset', entityType: 'user', entityId: id, summary: `Password of "${u.username}" reset by an administrator` });
   });
   return temp;
@@ -388,6 +393,7 @@ export function recoverAccount(id: string, opts: { actor: string; activate?: boo
       id,
     );
     db().run('DELETE FROM sessions WHERE user_id = ?', id);
+    revokeOAuthGrants({ userId: id, username: u.username }, 'password reset on the server');
     audit({
       actor: opts.actor,
       action: 'user.password_reset',

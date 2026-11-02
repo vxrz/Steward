@@ -60,7 +60,7 @@ import { checkExpressions, parseDefinitionInput, validateTemplate } from './vali
 import * as engine from './engine.js';
 import { checkMessage, monitorVisibility, redactCauses, redactDefinition, rootCauseMessage, type MonitorVisibility } from './redact.js';
 import { me } from '../auth/access.js';
-import { assignCreatorTeams } from '../auth/policy.js';
+import { assignCreatorTeams, forgetOwningTeams } from '../auth/policy.js';
 
 /**
  * Monitor management: create, edit, delete, access, heartbeat secrets,
@@ -848,6 +848,8 @@ export function deleteMonitor(idOrKey: string): void {
     db().run('DELETE FROM datasets WHERE process_id = ?', `monitor:${r.id}`);
     db().run('UPDATE monitors SET template_id = NULL WHERE template_id = ?', r.id);
     db().run('DELETE FROM monitors WHERE id = ?', r.id);
+    // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
+    forgetOwningTeams('monitor', r.id);
     audit({
       action: r.is_template ? 'monitor.template_deleted' : 'monitor.deleted',
       entityType: 'monitor',

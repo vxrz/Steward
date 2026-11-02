@@ -23,6 +23,7 @@ import { notify, titleName } from '../notifications/service.js';
 import { assertEmailsAllowed } from '../notifications/domains.js';
 import { formatDateTime, t } from '../i18n/index.js';
 import { generateScheduledReport } from './service.js';
+import { asBackgroundPdf } from './pdf/pool.js';
 import { parseSections, reportSection } from './sections.js';
 // sections registered by other features
 import '../records/report-section.js';
@@ -451,7 +452,10 @@ export async function runReportSchedule(id: string, o: { actor: string; at?: num
     const { from, to } = reportPeriod(r.preset, r.period_days, r.timezone, at);
     let rec: ReportRecord & { texts: string[]; pdf: Buffer };
     try {
-      rec = await generateScheduledReport({
+      // the scheduler's own reports wait for the PDF queue; one started by a person is refused when it is full
+      const generate = (input: Parameters<typeof generateScheduledReport>[0]) =>
+        o.actor === 'system' ? asBackgroundPdf(() => generateScheduledReport(input)) : generateScheduledReport(input);
+      rec = await generate({
         actor: o.actor,
         owner,
         scheduleId: r.id,

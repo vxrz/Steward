@@ -31,6 +31,7 @@ import { ACCESS, me } from '../auth/access.js';
 import { requireCapability } from '../auth/permissions.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { MCP_PATH, mcpEnabled, registerOAuthSettings } from './config.js';
+import { revokeOAuthGrants } from './oauth-grants.js';
 
 // ---------- settings ----------
 
@@ -74,6 +75,8 @@ export function setOAuthSettings(patch: z.infer<typeof oauthSettingsInput>): Mcp
   const before = oauthSettings();
   const after = { ...before, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) } as McpOAuthSettings;
   writeSetting(SETTING, after);
+  // turned off: the connections end for good, so turning it on again does not revive access nobody re-approved
+  if (before.enabled && !after.enabled) revokeOAuthGrants('all', 'OAuth sign-in for MCP clients turned off');
   const changed = (Object.keys(after) as (keyof McpOAuthSettings)[]).filter((k) => before[k] !== after[k]);
   if (changed.length)
     audit({
@@ -177,7 +180,9 @@ function redirectMatches(registered: string[], uri: string): boolean {
 /** A display name: trimmed, without control characters, at most 100 characters. */
 function clientName(raw: unknown): string {
   if (typeof raw !== 'string') return 'MCP client';
-  const clean = [...raw.trim()].filter((ch) => ch.charCodeAt(0) >= 32 && ch.charCodeAt(0) !== 127).join('');
+  // no control characters, and no angle brackets: the consent page shows the name inside a translated sentence,
+  // where markup would be rendered (a self-registered client could fake a "verified" label)
+  const clean = [...raw.trim()].filter((ch) => ch.charCodeAt(0) >= 32 && ch.charCodeAt(0) !== 127 && ch !== '<' && ch !== '>').join('');
   return clean.slice(0, 100) || 'MCP client';
 }
 
@@ -188,13 +193,22 @@ function createClient(name: string, redirectUris: string[], registeredBy: string
     const p = typeof r === 'string' ? redirectProblem(r) : 'is not a string';
     if (p) throw new OAuthError(400, 'invalid_redirect_uri', `The redirect URI ${JSON.stringify(String(r).slice(0, 100))} ${p}`);
   }
-  const count = () => Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM oauth_clients WHERE revoked_at IS NULL')!.n);
-  // a full list (e.g. registrations nobody finished): self-registered clients older than a day that were never used go first
-  if (count() >= MCP_OAUTH_LIMITS.clients)
+  // self-registered clients (anyone may register, rate-limited) and those administrators add are counted apart: a
+  // flood of registrations cannot keep administrators from adding a client
+  const dynamic = registeredBy === 'dynamic';
+  const count = () =>
+    Number(
+      db().get<{ n: number }>(
+        `SELECT COUNT(*) AS n FROM oauth_clients WHERE revoked_at IS NULL AND ${dynamic ? "registered_by = 'dynamic'" : "registered_by <> 'dynamic'"}`,
+      )!.n,
+    );
+  // a full list (e.g. registrations nobody finished): self-registered clients older than an hour that were never used
+  // go first – a client that registers signs its person in right away
+  if (dynamic && count() >= MCP_OAUTH_LIMITS.clients)
     db().run(
       `DELETE FROM oauth_clients WHERE registered_by = 'dynamic' AND last_used_at IS NULL AND created_at < ?
        AND NOT EXISTS (SELECT 1 FROM oauth_grants g WHERE g.client_id = oauth_clients.id)`,
-      new Date(Date.now() - 86_400_000).toISOString(),
+      new Date(Date.now() - 3_600_000).toISOString(),
     );
   if (count() >= MCP_OAUTH_LIMITS.clients)
     throw new OAuthError(400, 'invalid_client_metadata', 'Too many registered clients – an administrator can remove unused ones');

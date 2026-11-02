@@ -30,10 +30,10 @@ function StatusBadge({ status }: { status: McpRequest['status'] }) {
 }
 
 const what = (r: McpRequest) =>
-  r.proposal?.type === 'catalogue'
-    ? `${r.proposal.key} – ${r.proposal.name}`
-    : r.proposal?.type === 'mappings'
-      ? `${r.proposal.catalogueKey} · ${r.proposal.mappings.length} ↔`
+  r.proposalSummary?.type === 'catalogue'
+    ? `${r.proposalSummary.key} – ${r.proposalSummary.name}`
+    : r.proposalSummary?.type === 'mappings'
+      ? `${r.proposalSummary.catalogueKey} · ${r.proposalSummary.mappings} ↔`
       : r.kind === 'gateway'
         ? `${r.method} ${r.path}`
         : (r.processName ?? r.processId ?? '');

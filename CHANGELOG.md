@@ -24,6 +24,23 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Owning teams also apply to maintenance windows, status pages and linking applications** (security review before the release, #131):
+  - A maintenance window for items of a team is planned, changed and cancelled only by those who may change them. Other people neither see it in the list and calendar nor find the names of its items.
+  - A status page shows a team's service only once someone who may change the service adds it.
+  - Adding an application of a team to a service of the whole instance (which makes it everyone's) is for administrators.
+  - Items without owning teams behave as before.
+  - Owning teams of deleted credentials, dashboards, platforms, systems, monitors and tickets are removed with them, so a new dashboard of the same name does not inherit them.
+- **A team's own notification channel** asks the administrator to confirm with a step-up when its URL is set or replaced, as the instance's channels do.
+- **MCP sign-in and AI proposals are harder to misuse:**
+  - Self-registered OAuth clients are counted apart from those administrators add, and unused registrations are removed after an hour.
+  - Angle brackets are dropped from client names (the consent page shows the name inside a sentence).
+  - Proposals are limited to 2 MB each and 8 MB per person.
+  - The _AI requests_ list shows what a proposal is about without its whole comparison.
+  - A proposed mapping to an item the reviewer may not see shows neither the item nor the AI's reason for it.
+- **OAuth access of MCP clients ends for good** (#12): deactivating a person or resetting their password (by an administrator, or with `steward admin reset-password`) revokes their connected clients, and turning OAuth off revokes everyone's. Before, the access came back when the person was reactivated or OAuth turned on again. MCP tokens are unchanged: they are refused while their owner is deactivated, and revoked by their owner or an administrator.
+- **PDFs:** when the worker thread cannot start, Steward tries again after 1 minute, then less often up to every hour, instead of drawing in the main thread until the next restart. Evidence images in a run report get thumbnails up to 10 MB each and 64 MB together (images are not counted in the 512 MB memory limit of the worker); larger ones stay in the evidence list without a thumbnail.
+- **Steward's own PDFs are not refused when many PDFs are waiting:** the run report and the access-change record after a run, and scheduled reports, wait for their turn. Before, a burst of requests could leave a run without its access-change entries.
+- **CSV downloads of dashboard tables** defuse text that a spreadsheet would run as a formula, as the other CSV files do. E-mail addresses with control characters are refused.
 - **Accessible names contain the visible text** (WCAG 2.5.3 _Label in Name_, checked by axe 4.14): the search button in the header, the user menu, the start-page tiles, the language switch on the sign-in page, the _Document this change_ and _Dismiss_ buttons of access reconciliation and the _Diff_ button of document editions are announced with the words they show (for example _Dismiss: alice_), so voice control and screen readers use the same name as the screen.
 - **The link to a status page without sign-in works** (#26): the link the web app showed after _Link without sign-in_ pointed into the API and carried part of the creator's browser session (`…/api/?_sk=…/status#t=…`), so opening it elsewhere answered _Please sign in_. It is now `https://<host>[/<path prefix>]/status#t=…`. The part of the session in old links is useless without the creator's browser cookie; to be safe, create a new link (this replaces the old one) and sign out once in the browser that created it. The browser test now opens the link exactly as the page shows it.
 

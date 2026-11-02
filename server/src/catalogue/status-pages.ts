@@ -14,7 +14,8 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { runAs, type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
-import { canCreateServices, forbid, me } from '../records/access.js';
+import { canCreateServices, canEditService, forbid, me } from '../records/access.js';
+import { catalogueTeams } from '../auth/policy.js';
 import { SYSTEM_USER } from '../compliance/access.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { listMaintenance } from './maintenance.js';
@@ -97,15 +98,27 @@ export function getPage(id: string): StatusPage {
   return toPage(rowOf(id), me());
 }
 
-function checkServices(ids: string[]): void {
-  for (const id of new Set(ids))
-    if (!db().get('SELECT 1 FROM services WHERE id = ?', id)) throw new HttpError(400, `Service ${id} not found`, 'SERVICE_NOT_FOUND', { id });
+/**
+ * A status page publishes its services (to every signed-in user, status viewers and anyone with the link): a service
+ * of owning teams only by someone who may change it (#131); a service of the whole instance, as before, by any page
+ * editor. Services the page already shows stay (a page editor may change the rest of the page).
+ */
+function checkServices(ids: string[], u: AuthUser, kept: string[] = []): void {
+  const keep = new Set(kept);
+  for (const id of new Set(ids)) {
+    if (keep.has(id)) continue;
+    const r = db().get<{ owners: string }>('SELECT owners FROM services WHERE id = ?', id);
+    const allowed =
+      !!r && (catalogueTeams('service', id).length === 0 || canEditService(u, { kind: 'service', id, owners: parseJson<string[]>(r.owners, []) }));
+    // the same answer for a service that does not exist and one the user may not publish: ids of others' services stay unconfirmed
+    if (!allowed) throw new HttpError(400, `Service ${id} not found`, 'SERVICE_NOT_FOUND', { id });
+  }
 }
 
 export function createPage(input: z.infer<typeof pageInput>): StatusPage {
   const u = me();
   if (!canEdit(u)) forbid('set up status pages', 'statusPages');
-  checkServices(input.serviceIds);
+  checkServices(input.serviceIds, u);
   const id = newId('stp_');
   const now = nowIso();
   db().tx(() => {
@@ -140,7 +153,7 @@ export function updatePage(id: string, input: z.infer<typeof pageInput>): Status
   const u = me();
   if (!canEdit(u)) forbid('change status pages', 'statusPages');
   const before = rowOf(id);
-  checkServices(input.serviceIds);
+  checkServices(input.serviceIds, u, parseJson<string[]>(before.service_ids, []));
   db().tx(() => {
     db().run(
       `UPDATE status_pages SET title = ?, description = ?, service_ids = ?, show_objectives = ?, show_vendor_issues = ?, notice = ?, notice_level = ?,

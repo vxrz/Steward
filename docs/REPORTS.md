@@ -26,15 +26,15 @@ Every PDF – run reports, summary and scheduled reports, PDFs of records and th
 
 - **One at a time.** Further PDFs wait their turn; with 20 waiting, the next request gets _Steward is creating other PDFs right now_ (`503 PDF_BUSY`).
 - **At most 60 seconds** per PDF: after that it is stopped with `422 PDF_TIMEOUT`. Shorten very long text, especially long words without spaces.
-- **At most 512 MB of memory** per PDF (`422 PDF_TOO_LARGE`).
+- **At most 512 MB of JavaScript memory** (heap) per PDF (`422 PDF_TOO_LARGE`). Images are held outside it, so they have limits of their own: a run report shows thumbnails of evidence images up to 10 MB each and 64 MB together; larger ones stay in the evidence list (name, size, SHA-256) without a thumbnail.
 - The data is read first, then the PDF is drawn without access to the database. The PDFs look exactly as before.
 
 `SM_PDF_WORKER` chooses how:
 
-| Value            | PDFs are drawn                                                                                                                                   |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `auto` (default) | in the worker thread; if it cannot start (logged once: _PDF worker unavailable_), in the main thread as before                                   |
-| `off`            | always in the main thread, as before 0.3.0 – one at a time, but without the time and memory limits, and other requests wait while a PDF is drawn |
+| Value            | PDFs are drawn                                                                                                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auto` (default) | in the worker thread; if it cannot start (logged: _PDF worker unavailable_), in the main thread as before, and Steward tries to start it again after 1 minute, then after 2, 4 … up to every hour |
+| `off`            | always in the main thread, as before 0.3.0 – one at a time, but without the time and memory limits, and other requests wait while a PDF is drawn                                                  |
 
 _System status → Runtime → PDFs_ shows which applies, and why the worker could not start. The worker runs in the container, with Node.js and in the desktop executable.
 

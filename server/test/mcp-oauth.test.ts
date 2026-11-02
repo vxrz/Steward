@@ -168,7 +168,8 @@ describe('OAuth sign-in for MCP clients', () => {
     });
     expect(r.status).toBe(201);
     expect(r.body).toMatchObject({
-      client_name: 'Claude <b>Desktop</b>',
+      // angle brackets are dropped: the consent page shows the name inside a sentence with markup
+      client_name: 'Claude bDesktop/b',
       token_endpoint_auth_method: 'none',
       grant_types: ['authorization_code', 'refresh_token'],
     });
@@ -181,7 +182,7 @@ describe('OAuth sign-in for MCP clients', () => {
     const { challenge } = pkce();
     const c = await dana('GET', `/oauth/authorize?${qs(request(clientId, challenge))}`);
     expect(c).toMatchObject({
-      clientName: 'Claude <b>Desktop</b>',
+      clientName: 'Claude bDesktop/b',
       redirectHost: '127.0.0.1:33418',
       registeredBy: 'dynamic',
       scope: 'mcp',
@@ -236,7 +237,7 @@ describe('OAuth sign-in for MCP clients', () => {
     expect(t.body.refresh_token).toMatch(/^smr_/);
     const r = await mcp(t.body.access_token);
     expect(r.status).toBe(200);
-    expect(r.body.result.structuredContent).toMatchObject({ you: { username: 'dana' }, mcp: { token: { name: 'Claude <b>Desktop</b> (OAuth)' } } });
+    expect(r.body.result.structuredContent).toMatchObject({ you: { username: 'dana' }, mcp: { token: { name: 'Claude bDesktop/b (OAuth)' } } });
     // the access token is for the MCP endpoint only
     const rest = await raw('GET', '/api/v1/processes', { headers: { authorization: `Bearer ${t.body.access_token}` } });
     expect(rest.status).toBe(401);
@@ -281,7 +282,7 @@ describe('OAuth sign-in for MCP clients', () => {
   it('the person sees their connected clients and revokes them; RFC 7009 revocation works as well', async () => {
     const t = await signIn(dana, clientId);
     const list = await dana('GET', '/me/mcp-clients');
-    expect(list).toEqual([expect.objectContaining({ clientName: 'Claude <b>Desktop</b>', owner: 'dana', scope: 'mcp' })]);
+    expect(list).toEqual([expect.objectContaining({ clientName: 'Claude bDesktop/b', owner: 'dana', scope: 'mcp' })]);
     expect(await s.api('GET', '/me/mcp-clients')).toEqual([]); // administrators' own list
     expect(await status(stella('DELETE', `/me/mcp-clients/${list[0].id}`))).toBe(403);
     await dana('DELETE', `/me/mcp-clients/${list[0].id}`);
@@ -315,24 +316,63 @@ describe('OAuth sign-in for MCP clients', () => {
     await s.api('PUT', '/settings/mcp-oauth', { dynamicRegistration: true });
   });
 
-  it('stops working when OAuth or MCP is turned off, or the person is deactivated – MCP tokens keep working', async () => {
+  it('counts self-registered clients apart: a full list of registrations does not keep administrators from adding one', async () => {
+    const { db } = await import('../src/db.js');
+    const count = () => Number(db().get<{ n: number }>("SELECT COUNT(*) AS n FROM oauth_clients WHERE revoked_at IS NULL AND registered_by = 'dynamic'")!.n);
+    const now = new Date().toISOString();
+    db().tx(() => {
+      for (let i = count(); i < 500; i++)
+        db().run(
+          "INSERT INTO oauth_clients (id, name, redirect_uris, registered_by, created_at) VALUES (?, ?, ?, 'dynamic', ?)",
+          `mcpc_flood${i}`,
+          'Flood',
+          JSON.stringify([REDIRECT]),
+          now,
+        );
+    });
+    expect((await raw('POST', '/oauth/register', { json: { redirect_uris: [REDIRECT] } })).body.error).toBe('invalid_client_metadata');
+    expect(await status(s.api('POST', '/settings/mcp-oauth/clients', { name: 'Second assistant', redirectUris: ['https://two.example.com/cb'] }))).toBe(200);
+    // registrations nobody used for an hour make room
+    db().run("UPDATE oauth_clients SET created_at = ? WHERE id LIKE 'mcpc_flood%'", new Date(Date.now() - 2 * 3_600_000).toISOString());
+    expect((await raw('POST', '/oauth/register', { json: { redirect_uris: [REDIRECT] } })).status).toBe(201);
+    db().run("DELETE FROM oauth_clients WHERE id LIKE 'mcpc_flood%'");
+  });
+
+  it('ends for good when OAuth is turned off, the person is deactivated or their password reset – MCP tokens keep working', async () => {
     const c = (await raw('POST', '/oauth/register', { json: { client_name: 'Again', redirect_uris: [REDIRECT] } })).body.client_id;
-    const t = await signIn(dana, c);
+    const refused = async (t: { access_token: string; refresh_token: string }) => {
+      expect((await mcp(t.access_token)).status).toBe(401);
+      expect((await raw('POST', '/oauth/token', { form: { grant_type: 'refresh_token', refresh_token: t.refresh_token, client_id: c } })).body.error).toBe(
+        'invalid_grant',
+      );
+    };
+    let t = await signIn(dana, c);
     await s.api('PUT', '/settings/mcp-oauth', { enabled: false });
     const off = await mcp(t.access_token);
     expect(off.status).toBe(401);
     expect(off.body.error.message).toContain('turned off');
     expect((await mcp(mcpToken)).status).toBe(200);
+    // turning it on again does not bring back access: the person connects the client again
     await s.api('PUT', '/settings/mcp-oauth', { enabled: true });
+    await refused(t);
+    t = await signIn(dana, c);
     expect((await mcp(t.access_token)).status).toBe(200);
     const users = await import('../src/auth/users.js');
     const id = users.findUserByName('dana')!.id;
     users.updateUser(id, { active: false });
-    expect((await mcp(t.access_token)).status).toBe(403);
-    expect((await raw('POST', '/oauth/token', { form: { grant_type: 'refresh_token', refresh_token: t.refresh_token, client_id: c } })).body.error).toBe(
-      'invalid_grant',
-    );
     users.updateUser(id, { active: true });
+    await refused(t);
+    expect((await mcp(mcpToken)).status).toBe(200);
+    dana = await s.as('dana', PW); // deactivation ended the session as well
+    t = await signIn(dana, c);
+    users.resetPassword(id);
+    await refused(t);
+    const revoked = await s.api('GET', '/audit?action=mcp.oauth_grants_revoked');
+    expect(revoked.map((a: { summary: string }) => a.summary)).toEqual([
+      expect.stringContaining('password reset by an administrator'),
+      expect.stringContaining('account deactivated'),
+      expect.stringContaining('turned off'),
+    ]);
     const audits = await s.api('GET', '/audit?action=mcp.oauth_authorized');
     expect(audits[0].summary).toContain('dana allowed MCP client');
     expect(JSON.stringify(audits)).not.toMatch(/smo_|smr_/);

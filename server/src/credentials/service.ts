@@ -39,7 +39,7 @@ import { belongsTarget, belongsToSchema, checkBelongsTo, toBelongsTo } from './b
 import * as processes from '../processes/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { me } from '../auth/access.js';
-import { assignCreatorTeams, teamScoped } from '../auth/policy.js';
+import { assignCreatorTeams, forgetOwningTeams, teamScoped } from '../auth/policy.js';
 
 /**
  * Credentials register: documents credentials (what, where kept, who owns them,
@@ -962,6 +962,8 @@ export function deleteCredential(id: string): void {
   db().tx(() => {
     for (const t of ['credential_events', 'credential_reminders']) db().run(`DELETE FROM ${t} WHERE credential_id = ?`, id);
     db().run('DELETE FROM credentials WHERE id = ?', id);
+    // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
+    forgetOwningTeams('credential', id);
     audit({
       action: 'credential.deleted',
       entityType: 'credential',
