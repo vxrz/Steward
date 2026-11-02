@@ -346,7 +346,7 @@ function fieldValue(typeKey: string, f: RecordFieldDef, v: string | undefined): 
 function ContentTab({ rec }: { rec: RecordDetail }) {
   const { t } = useTranslation('records');
   return (
-    <Grid gutter="lg">
+    <Grid gap="lg">
       {rec.fieldDefs.length > 0 && (
         <Grid.Col span={{ base: 12, md: 4 }} order={{ base: 1, md: 2 }}>
           <Paper withBorder p="sm">

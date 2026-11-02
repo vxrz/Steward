@@ -42,7 +42,7 @@ test('settings: notification routing, retention, maintenance status', async ({ p
 
 test('settings: allowed e-mail domains for addresses outside Steward', async ({ page }) => {
   await page.goto('/settings/notifications');
-  const domains = page.getByRole('textbox', { name: 'Allowed e-mail domains for addresses outside Steward' });
+  const domains = page.getByRole('combobox', { name: 'Allowed e-mail domains for addresses outside Steward' });
   await expect(domains).toBeVisible();
   await domains.fill('Example.com');
   await domains.press('Enter');
@@ -55,7 +55,7 @@ test('settings: allowed e-mail domains for addresses outside Steward', async ({ 
   await expect(card.getByText('*.partner.example', { exact: true })).toBeVisible();
   await expect(card.getByText('example.com', { exact: true })).toBeVisible();
   // back to the default (the domains of the users' own addresses)
-  await page.getByRole('textbox', { name: 'Allowed e-mail domains for addresses outside Steward' }).focus();
+  await page.getByRole('combobox', { name: 'Allowed e-mail domains for addresses outside Steward' }).focus();
   await page.keyboard.press('Backspace');
   await page.keyboard.press('Backspace');
   await page.getByRole('button', { name: 'Save notification settings' }).click();

@@ -76,7 +76,7 @@ export function ApplicationDetailPage() {
           )
         }
       />
-      <Grid gutter="lg">
+      <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
             <MaintenancePanel kind="application" id={a.id} canPlan={a.canEdit && !a.archived} />

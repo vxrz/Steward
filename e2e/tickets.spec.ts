@@ -27,7 +27,7 @@ test('an operator documents a vendor ticket from the service page and keeps its 
   await expect(dialog.getByRole('textbox', { name: 'Link' })).toHaveAttribute('aria-invalid', 'true');
   await expect(dialog.getByRole('textbox', { name: 'Link' })).toBeFocused();
   await dialog.getByRole('textbox', { name: 'Link' }).fill('https://support.vendor.example/cases/4711');
-  await dialog.getByRole('textbox', { name: 'Vendor' }).fill('Vendor A');
+  await dialog.getByRole('combobox', { name: 'Vendor' }).fill('Vendor A');
   await dialog.getByRole('textbox', { name: 'Note' }).fill('**Case opened** with vendor support.\n\n<img src=x onerror=alert(1)>');
   await dialog.getByRole('button', { name: 'Save' }).click();
 

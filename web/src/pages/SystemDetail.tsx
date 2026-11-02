@@ -70,7 +70,7 @@ export function SystemDetailPage() {
           )
         }
       />
-      <Grid gutter="lg">
+      <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
             {s.note && <Text size="sm">{s.note}</Text>}

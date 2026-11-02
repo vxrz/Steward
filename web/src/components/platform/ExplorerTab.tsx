@@ -187,7 +187,7 @@ export function ExplorerTab({ platform, preset, canWrite = true }: { platform: P
           <Anchor size="xs" onClick={() => setShowHeaders((s) => !s)}>
             {showHeaders ? t('explorer.hideHeaders') : t('explorer.showHeaders')}
           </Anchor>
-          <Collapse in={showHeaders}>
+          <Collapse expanded={showHeaders}>
             <JsonView value={result.headers} maxHeight={200} />
           </Collapse>
           <Text size="sm" fw={500} mt="sm" mb={4}>

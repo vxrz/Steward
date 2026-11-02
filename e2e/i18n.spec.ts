@@ -163,7 +163,7 @@ async function checkPages(page: Page, headers: Record<string, string>) {
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Neues Dokument' }).click();
   const create = page.getByRole('dialog');
-  await create.getByRole('textbox', { name: 'Art' }).click();
+  await create.getByRole('combobox', { name: 'Art' }).click();
   await page.getByRole('option', { name: /^CR – Änderungsantrag/ }).click();
   // the description of the built-in type in German
   await expect(create.getByText(/Eine geplante Änderung an einem Service/)).toBeVisible();

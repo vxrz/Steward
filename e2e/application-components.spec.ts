@@ -35,9 +35,9 @@ test('a component gets a tech stack by hand and from an SBOM', async ({ page, ap
     await chooseOption(page, 'Type', 'Container image');
     await form.getByRole('textbox', { name: 'Name' }).fill('ghcr.io/acme/orders');
     await form.getByRole('button', { name: 'Add product' }).click();
-    await page.getByRole('textbox', { name: 'Product' }).fill('Node.js');
+    await page.getByRole('combobox', { name: 'Product' }).fill('Node.js');
     await page.getByRole('option', { name: 'Node.js', exact: true }).click();
-    await form.getByRole('textbox', { name: 'Version' }).fill('22');
+    await form.getByRole('combobox', { name: 'Version' }).fill('22');
     await expectAccessible(page, 'component dialog');
     await form.getByRole('button', { name: 'Save' }).click();
     await expect(form).toBeHidden();

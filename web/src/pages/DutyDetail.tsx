@@ -98,7 +98,7 @@ export function DutyDetailPage() {
           </>
         }
       />
-      <Grid gutter="lg">
+      <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
             {d.description.trim() && <MarkdownView text={d.description} />}

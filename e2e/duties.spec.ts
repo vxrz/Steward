@@ -57,7 +57,7 @@ test('a duty is due until its process ran, and an exception needs a second perso
   // plan an exception for the next month
   await card.getByRole('button', { name: `Ask for an exception of “${dutyName}”` }).click();
   const ask = page.getByRole('dialog', { name: `Ask for an exception of “${dutyName}”` });
-  const period = await ask.getByRole('textbox', { name: /^Period/ }).inputValue();
+  const period = await ask.getByRole('combobox', { name: /^Period/ }).inputValue();
   expect(period).toMatch(/^\d{4}-\d{2}$/);
   await ask.getByRole('textbox', { name: /^Reason/ }).fill('The backup system is replaced next month');
   await ask.getByRole('button', { name: 'Ask' }).click();

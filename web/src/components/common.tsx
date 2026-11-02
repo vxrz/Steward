@@ -131,7 +131,7 @@ export function FilterPanel({ active, children }: { active: number; children: Re
       >
         {active ? t('filtersActive', { count: active }) : t('filters')}
       </Button>
-      <Collapse in={open} id="list-filters">
+      <Collapse expanded={open} id="list-filters">
         {children}
       </Collapse>
     </Box>

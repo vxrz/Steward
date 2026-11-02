@@ -65,7 +65,7 @@ test.describe('lists, dialogs and help (admin)', () => {
 
     // the start page's runs tile opens the failed runs when there are any
     await page.goto('/runs?status=failed');
-    await expect(page.getByRole('textbox', { name: 'Status' })).toHaveValue('failed');
+    await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('failed');
   });
 
   test('start page: nine tiles of what needs attention, each opening its filtered list', async ({ page, apiAs }) => {
@@ -131,7 +131,7 @@ test.describe('lists, dialogs and help (admin)', () => {
     await expect(filter.getByRole('button', { pressed: true })).toHaveCount(2);
 
     await page.goto('/runs?status=failed&within=24h');
-    await expect(page.getByRole('textbox', { name: 'Started' })).toHaveValue('Last 24 hours');
+    await expect(page.getByRole('combobox', { name: 'Started' })).toHaveValue('Last 24 hours');
   });
 
   test('? lists the shortcuts; g r opens the runs; nothing happens while typing', async ({ page }) => {
@@ -194,8 +194,8 @@ test.describe('lists, dialogs and help (admin)', () => {
     await expect(create).toBeEnabled();
     await create.click();
     await expect(dialog.getByText('Required')).toHaveCount(2);
-    await expect(dialog.getByRole('textbox', { name: 'Type' })).toHaveAttribute('aria-invalid', 'true');
-    await expect(dialog.getByRole('textbox', { name: 'Type' })).toBeFocused();
+    await expect(dialog.getByRole('combobox', { name: 'Type' })).toHaveAttribute('aria-invalid', 'true');
+    await expect(dialog.getByRole('combobox', { name: 'Type' })).toBeFocused();
     await expectAccessible(page, 'new record dialog with errors');
     await page.emulateMedia({ colorScheme: 'dark' });
     await expectAccessible(page, 'new record dialog with errors (dark)');

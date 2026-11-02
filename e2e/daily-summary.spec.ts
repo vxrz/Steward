@@ -11,7 +11,7 @@ test('a user turns on the daily summary, previews it, and administrators see the
   await card.getByLabel('Send me a daily summary').click();
   await expect(card.getByRole('switch', { name: 'Send me a daily summary' })).toBeChecked();
   await card.getByLabel('Time', { exact: true }).fill('06:45');
-  await card.getByRole('textbox', { name: 'Days' }).click();
+  await card.getByRole('combobox', { name: 'Days' }).click();
   await page.getByRole('option', { name: 'Every day' }).click();
   await card.getByRole('checkbox', { name: 'Reports for me' }).uncheck();
   await card.getByRole('button', { name: 'Save' }).click();

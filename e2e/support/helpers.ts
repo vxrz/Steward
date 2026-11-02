@@ -46,7 +46,7 @@ export async function waitForRun(api: APIRequestContext, runId: string, statuses
 
 /** Picks an option of a Mantine Select / combobox identified by its label. */
 export async function chooseOption(page: Page, label: string | RegExp, option: string | RegExp): Promise<void> {
-  await page.getByRole('textbox', { name: label }).click();
+  await page.getByRole('combobox', { name: label }).click();
   // the dropdown (and a dialog that just opened) moves while its transition runs: click once it stands still
   await animationsDone(page);
   await page.getByRole('option', { name: option }).click();
@@ -63,7 +63,7 @@ export async function chooseRunMode(scope: Locator, mode: 'Dry run' | 'Test run'
 export async function startRunFromDialog(page: Page, opts: { dryRun: boolean; platform?: RegExp } = { dryRun: true }): Promise<string> {
   const dialog = page.getByRole('dialog', { name: /^Run: / });
   await expect(dialog).toBeVisible();
-  const slot = dialog.getByRole('textbox', { name: /^Connection "/ }).first();
+  const slot = dialog.getByRole('combobox', { name: /^Connection "/ }).first();
   if (!(await slot.inputValue())) {
     await slot.click();
     await page.getByRole('option', { name: opts.platform ?? /Insights Hub \(demo\)/ }).click();

@@ -127,7 +127,10 @@ export function CatalogueProposalReview({
                       aria-label={t('proposals.accept', { ref: c.ref })}
                       checked={chosen.has(c.ref)}
                       disabled={!editable}
-                      onChange={(ev) => setChosen((s) => toggle(s, c.ref, ev.currentTarget.checked))}
+                      onChange={(ev) => {
+                        const on = ev.currentTarget.checked;
+                        setChosen((s) => toggle(s, c.ref, on));
+                      }}
                     />
                   </Table.Td>
                   <Table.Td className="mono">{c.ref}</Table.Td>
@@ -139,7 +142,10 @@ export function CatalogueProposalReview({
                           size="xs"
                           value={title}
                           maxLength={300}
-                          onChange={(ev) => setEdits((x) => ({ ...x, [c.ref]: { title: ev.currentTarget.value, description } }))}
+                          onChange={(ev) => {
+                            const value = ev.currentTarget.value;
+                            setEdits((x) => ({ ...x, [c.ref]: { title: value, description } }));
+                          }}
                         />
                         <Textarea
                           aria-label={t('proposals.descriptionOf', { ref: c.ref })}
@@ -148,7 +154,10 @@ export function CatalogueProposalReview({
                           minRows={2}
                           maxLength={4000}
                           value={description}
-                          onChange={(ev) => setEdits((x) => ({ ...x, [c.ref]: { title, description: ev.currentTarget.value } }))}
+                          onChange={(ev) => {
+                            const value = ev.currentTarget.value;
+                            setEdits((x) => ({ ...x, [c.ref]: { title, description: value } }));
+                          }}
                         />
                         <Group justify="flex-end">
                           <Button size="compact-xs" variant="default" onClick={() => setEditing(null)}>
@@ -218,7 +227,10 @@ export function CatalogueProposalReview({
                 size="xs"
                 disabled={!editable}
                 checked={remove.has(m.ref)}
-                onChange={(ev) => setRemove((s) => toggle(s, m.ref, ev.currentTarget.checked))}
+                onChange={(ev) => {
+                  const on = ev.currentTarget.checked;
+                  setRemove((s) => toggle(s, m.ref, on));
+                }}
                 label={`${t('proposals.removeLabel', { ref: m.ref, title: m.title })}${m.mapped ? ` · ${t('proposals.mappedItems', { count: m.mapped })}` : ''}`}
               />
             ))}
@@ -280,14 +292,16 @@ export function MappingsProposalReview({
                     aria-label={t('proposals.acceptMapping', { ref: m.ref, item: m.label || m.kind })}
                     checked={chosen.has(m.index)}
                     disabled={!editable || m.state !== 'new'}
-                    onChange={(ev) =>
+                    onChange={(ev) => {
+                      // read the event now: the update function runs later, when React has cleared it
+                      const on = ev.currentTarget.checked;
                       setChosen((s) => {
                         const next = new Set(s);
-                        if (ev.currentTarget.checked) next.add(m.index);
+                        if (on) next.add(m.index);
                         else next.delete(m.index);
                         return next;
-                      })
-                    }
+                      });
+                    }}
                   />
                 </Table.Td>
                 <Table.Td>

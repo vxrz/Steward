@@ -4,6 +4,7 @@ import {
   createTheme,
   defaultVariantColorsResolver,
   parseThemeColor,
+  v8CssVariablesResolver,
   type CSSVariablesResolver,
   type MantineThemeOverride,
   type VariantColorsResolver,
@@ -99,7 +100,12 @@ export function mantineTheme(t: PublicTheme, closeLabel = 'Close') {
 export function cssVariablesResolver(t: PublicTheme): CSSVariablesResolver {
   const light = themeCssVariables(t, 'light');
   const dark = themeCssVariables(t, 'dark');
-  return () => ({ variables: {}, light, dark });
+  // Mantine 9 draws the light variant (badges, light buttons, alerts) in solid colours; the 8.x variables keep
+  // the transparent look the theme colours and contrast checks were made for
+  return (theme) => {
+    const v8 = v8CssVariablesResolver(theme);
+    return { variables: v8.variables, light: { ...v8.light, ...light }, dark: { ...v8.dark, ...dark } };
+  };
 }
 
 const ThemeContext = createContext<PublicTheme>(DEFAULT_THEME);

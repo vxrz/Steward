@@ -141,12 +141,12 @@ export function RecordEditorPage() {
           void save();
         }}
       >
-        <Grid gutter="lg">
+        <Grid gap="lg">
           <Grid.Col span={{ base: 12, md: 8 }}>
             <Stack gap="sm">
               <TextInput label={t('editor.recordTitle')} value={draft.title} onChange={(e) => set({ title: e.currentTarget.value })} required maxLength={300} />
               {wide ? (
-                <Grid gutter="sm">
+                <Grid gap="sm">
                   <Grid.Col span={6}>{editorPane}</Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="sm" fw={500} mb={4}>

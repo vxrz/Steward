@@ -121,7 +121,7 @@ test('admin requires signed commits from named signers and sees why a fetch is r
   await dialog.getByRole('textbox', { name: 'Folder' }).fill('steward');
   await dialog.getByLabel('Require signed commits').click();
   await expect(dialog.getByText(/every new commit since the last fetch/)).toBeVisible();
-  const signers = dialog.getByRole('textbox', { name: 'Allowed signers (optional)' });
+  const signers = dialog.getByRole('combobox', { name: 'Allowed signers (optional)' });
   await signers.fill('alice');
   await signers.press('Enter');
   await settle(page);

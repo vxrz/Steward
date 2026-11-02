@@ -89,7 +89,7 @@ test('a dashboard shows every source and filters by source', async ({ page, apiA
     await expectAccessible(page, 'dashboard with sources');
 
     // one source: its rows only, in the URL, remembered after a reload; the sum is then that source's value
-    await filter.getByRole('textbox', { name: 'Sources' }).click();
+    await filter.getByRole('combobox', { name: 'Sources' }).click();
     await page.getByRole('option', { name: `${tag} US` }).click();
     await page.keyboard.press('Escape');
     await expect(page).toHaveURL(new RegExp(`source=${us}`));
@@ -107,7 +107,7 @@ test('a dashboard shows every source and filters by source', async ({ page, apiA
     const editors = page.getByRole('button', { name: 'Edit', exact: true });
     await editors.nth(1).click(); // the second widget: "Users of all tenants"
     const dialog = page.getByRole('dialog');
-    await expect(dialog.getByRole('textbox', { name: 'With several sources' })).toHaveValue('Sum of all sources');
+    await expect(dialog.getByRole('combobox', { name: 'With several sources' })).toHaveValue('Sum of all sources');
   } finally {
     await api.delete(`/api/dashboards/${dash.id}`);
     await api.delete(`/api/datasets/${dataset}`);

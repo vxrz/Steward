@@ -122,7 +122,7 @@ export function TicketDetailPage() {
           </>
         }
       />
-      <Grid gutter="lg">
+      <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
             {x.note.trim() ? (

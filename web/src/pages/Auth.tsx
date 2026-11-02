@@ -296,7 +296,7 @@ export function LoginPage({ status }: { status: AuthStatus }) {
               </Text>
             </Group>
           </UnstyledButton>
-          <Collapse in={showPassword}>{passwordForm}</Collapse>
+          <Collapse expanded={showPassword}>{passwordForm}</Collapse>
         </>
       ) : (
         <>

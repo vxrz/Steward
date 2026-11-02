@@ -193,7 +193,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
   return (
     <>
       <PageHeader title={t('title')} description={t(`areas.${area}.description`)} actions={caps.viewAudit || !readOnly ? <SystemStatusLink /> : undefined} />
-      <Grid gutter="lg">
+      <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 3 }}>{nav}</Grid.Col>
         <Grid.Col span={{ base: 12, md: 9 }}>
           <Stack maw={760}>
