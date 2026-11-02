@@ -450,11 +450,19 @@ export function evidenceImages(model: RunReportModel): { id: string; data: Buffe
   const out: { id: string; data: Buffer }[] = [];
   let total = 0;
   /** Reads the file when it fits the limits */
+  const fits = (size: number) => size <= EVIDENCE_IMAGE_LIMITS.imageBytes && total + size <= EVIDENCE_IMAGE_LIMITS.totalBytes;
   const read = (file: string): Buffer | null => {
-    const size = fs.statSync(file).size;
-    if (size > EVIDENCE_IMAGE_LIMITS.imageBytes || total + size > EVIDENCE_IMAGE_LIMITS.totalBytes) return null;
-    total += size;
-    return fs.readFileSync(file);
+    // one open file: the size checked is the size of the file read
+    const fd = fs.openSync(file, 'r');
+    try {
+      if (!fits(fs.fstatSync(fd).size)) return null;
+      const data = fs.readFileSync(fd);
+      if (!fits(data.length)) return null;
+      total += data.length;
+      return data;
+    } finally {
+      fs.closeSync(fd);
+    }
   };
   for (const e of model.evidence) {
     if (!/^image\/(png|jpe?g)$/.test(e.mime)) continue;
