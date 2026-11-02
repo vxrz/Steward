@@ -30,7 +30,7 @@ test('an access change made outside Steward shows up as undocumented, is documen
   await expectAccessible(page, 'access reconciliation');
 
   // one click: document it after the fact
-  await row.getByRole('button', { name: `Document the change of ${granted.userName}` }).click();
+  await row.getByRole('button', { name: `Document this change: ${granted.userName}` }).click();
   const dialog = page.getByRole('dialog', { name: `Document the change of ${granted.userName}` });
   await dialog.getByRole('textbox', { name: 'Reason' }).fill('Emergency access during the outage, approved by phone (INC0042)');
   await dialog.getByRole('textbox', { name: 'Request reference' }).fill('INC0042');
@@ -97,7 +97,7 @@ test('with four-eyes dismissals, a second person confirms the dismissal of a fin
     const findings = page.getByRole('table', { name: 'Findings' });
     const row = findings.getByRole('row').filter({ hasText: finding.subjectName });
     await expect(row).toContainText('dana asked to dismiss it: Vendor test account');
-    await row.getByRole('button', { name: `Confirm the dismissal of the change of ${finding.subjectName}` }).click();
+    await row.getByRole('button', { name: `Confirm dismissal: ${finding.subjectName}` }).click();
     const dialog = page.getByRole('dialog', { name: `Confirm the dismissal of the change of ${finding.subjectName}` });
     await expect(dialog).toContainText('Vendor test account');
     await expectAccessible(page, 'confirm dismissal');

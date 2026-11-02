@@ -158,14 +158,15 @@ export function AttentionTiles({ a }: { a: DashboardAttention }) {
     >
       {tiles.map((x) => (
         <div key={x.key} role="listitem">
-          <AttentionTile tile={x} name={t('counts.name', { label: x.label, value: fmtNumber(x.value), detail: x.detail })} />
+          <AttentionTile tile={x} />
         </div>
       ))}
     </SimpleGrid>
   );
 }
 
-function AttentionTile({ tile, name }: { tile: Tile; name: string }) {
+// the visible label, number and detail are its accessible name (WCAG 2.5.3: the name contains the visible text)
+function AttentionTile({ tile }: { tile: Tile }) {
   const color = tile.tone ?? TONE.ok;
   const Icon = tile.tone ? tile.icon : IconCircleCheck;
   return (
@@ -174,7 +175,6 @@ function AttentionTile({ tile, name }: { tile: Tile; name: string }) {
       p="sm"
       component={Link}
       to={tile.to}
-      aria-label={name}
       data-testid={`tile-${tile.key}`}
       data-state={tile.tone ? 'attention' : 'quiet'}
       className="clickable attention-tile"

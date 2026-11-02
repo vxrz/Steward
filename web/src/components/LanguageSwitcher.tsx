@@ -33,11 +33,13 @@ export function LanguageMenu() {
   const { t } = useTranslation('nav');
   const change = useChangeLanguage();
   const active = currentLanguage();
+  const activeName = LANGUAGES.find((l) => l.code === active)?.nativeName ?? active;
   return (
     <Menu position="bottom-end" width={180}>
       <Menu.Target>
-        <Button variant="subtle" color="gray" size="xs" leftSection={<IconLanguage size={16} />} aria-label={t('language')}>
-          {LANGUAGES.find((l) => l.code === active)?.nativeName}
+        {/* the visible language name is part of the accessible name (WCAG 2.5.3) */}
+        <Button variant="subtle" color="gray" size="xs" leftSection={<IconLanguage size={16} />} aria-label={`${t('language')}: ${activeName}`}>
+          {activeName}
         </Button>
       </Menu.Target>
       <Menu.Dropdown>
