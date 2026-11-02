@@ -19,7 +19,7 @@ test('MCP server: turn it on, create an MCP token with its client configuration,
   const card = page.locator('.mantine-Card-root').filter({ has: page.getByRole('heading', { name: 'MCP server (AI assistants)' }) });
   const toggle = card.getByRole('switch', { name: 'Turn on the MCP server' });
   if (!(await toggle.isChecked())) {
-    await card.getByText('Turn on the MCP server', { exact: true }).click(); // Mantine hides the input behind its label
+    await toggle.click();
     await expect(page.getByText('MCP server turned on')).toBeVisible();
   }
   await expect(toggle).toBeChecked();
@@ -84,7 +84,7 @@ test('platform: turn on the read-only MCP gateway (manage right), operators only
     const toggle = page.getByRole('switch', { name: 'Allow access for MCP clients' });
     await expect(toggle).not.toBeChecked();
     await expect(page.getByText(/0 read operations and \d+ changing operations/)).toBeVisible();
-    await page.getByText('Allow access for MCP clients', { exact: true }).click();
+    await toggle.click();
     await expect(toggle).toBeChecked();
     await page.getByRole('textbox', { name: /Allowed GET path prefixes/ }).fill('/echo-headers');
     await page.getByRole('button', { name: 'Save' }).click();

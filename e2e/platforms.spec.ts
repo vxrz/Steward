@@ -25,7 +25,13 @@ test('platform: test connection, API explorer, credentials stay hidden', async (
   await page.getByRole('textbox', { name: 'Path (relative to base URL)' }).fill('/api/identitymanagement/v3/Users?count=2');
   await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.getByText('HTTP 200', { exact: true })).toBeVisible();
-  await expect(page.getByText(/"userName": ".+@example\.com"/).first()).toBeVisible();
+  // the response in the Explorer tab (the connection test's details stay in their closed fold)
+  await expect(
+    page
+      .getByRole('tabpanel', { name: 'Explorer' })
+      .getByText(/"userName": ".+@example\.com"/)
+      .first(),
+  ).toBeVisible();
 
   const html = await page.content();
   for (const s of SECRETS) expect(html).not.toContain(s);
@@ -45,7 +51,7 @@ test('operator may use the explorer read-only', async ({ loginAs }) => {
   await page.getByText('Industrial Edge Management (demo)', { exact: true }).click();
   await expect(page.getByText(/You may use this platform in runs and send read-only requests/)).toBeVisible();
   await page.getByRole('tab', { name: 'Explorer' }).click();
-  await page.getByRole('textbox', { name: 'Method' }).click();
+  await page.getByRole('combobox', { name: 'Method' }).click();
   await expect(page.getByRole('option')).toHaveText(['GET', 'HEAD']);
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Send' }).click();
@@ -108,7 +114,7 @@ test('API specs: a specification is copied to another platform of the same kind'
   await page.getByRole('tab', { name: 'API specs' }).click();
   await page.getByRole('button', { name: 'Copy Edge devices to other platforms' }).click();
   const dialog = page.getByRole('dialog', { name: /Copy .Edge devices. to other platforms/ });
-  await dialog.getByRole('textbox', { name: 'Platforms' }).click();
+  await dialog.getByRole('combobox', { name: 'Platforms' }).click();
   // only platforms of the same kind are offered
   await expect(page.getByRole('option', { name: targetName })).toBeVisible();
   await expect(page.getByRole('option')).toHaveCount(1);
@@ -131,7 +137,7 @@ test('access: a team or role picked from the list can be added', async ({ page, 
   await page.goto(`/platforms/${id}`);
   await page.getByRole('tab', { name: 'Access' }).click();
 
-  const field = page.getByRole('textbox', { name: 'Add user, team or role' });
+  const field = page.getByRole('combobox', { name: 'Add user, team or role' });
   const add = page.getByRole('button', { name: 'Add', exact: true });
   await expect(add).toBeDisabled();
   await field.fill(team.slice(0, 12));

@@ -11,7 +11,7 @@ test('a service document gets editions 1.0 and 1.1, a review, and shows on the s
   await page.goto('/records');
   await page.getByRole('button', { name: 'New record' }).click();
   const create = page.getByRole('dialog', { name: 'New record' });
-  await create.getByRole('textbox', { name: 'Type' }).click();
+  await create.getByRole('combobox', { name: 'Type' }).click();
   await page.getByRole('option', { name: /^DOC – Service documentation/ }).click();
   await create.getByRole('textbox', { name: 'Title' }).fill(title);
   await create.getByRole('button', { name: 'Create draft' }).click();

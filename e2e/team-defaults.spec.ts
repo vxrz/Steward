@@ -47,7 +47,7 @@ test("team defaults: new resources, daily summary for members and report brandin
       await expect(member.getByTestId('daily-summary-source')).toHaveText(`Default of team ${name}`);
       await expect(member.getByTestId('new-resources-source')).toHaveText('Default of your teams');
       await expect(member.getByTestId('new-resources-now')).toHaveText(`New resources now belong to team ${name}.`);
-      await member.getByRole('textbox', { name: 'New resources belong to' }).click();
+      await member.getByRole('combobox', { name: 'New resources belong to' }).click();
       await member.getByRole('option', { name }).click();
       await expect(member.getByTestId('new-resources-source')).toHaveText('Your choice');
       await expectAccessible(member, 'profile: team defaults');

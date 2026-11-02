@@ -14,7 +14,7 @@ test('admin creates a user, assigns roles and a team, then deactivates the accou
   const add = page.getByRole('dialog', { name: 'Add user' });
   await add.getByRole('textbox', { name: 'User name' }).fill(username);
   await add.getByRole('textbox', { name: 'Display name' }).fill('E2E Person');
-  await add.getByRole('textbox', { name: 'Roles' }).click({ force: true });
+  await add.getByRole('combobox', { name: 'Roles' }).click({ force: true });
   await page.getByRole('option', { name: /^approver – / }).click();
   await add.getByRole('heading', { name: 'Add user' }).click(); // closes the dropdown
   await add.getByLabel('Initial password (optional)').fill('Initial-password-1');
@@ -29,7 +29,7 @@ test('admin creates a user, assigns roles and a team, then deactivates the accou
   // change roles: operator → viewer only
   await row.getByRole('button', { name: 'Edit' }).click();
   const edit = page.getByRole('dialog', { name: `Edit ${username}` });
-  await edit.getByRole('textbox', { name: 'Roles' }).click({ force: true });
+  await edit.getByRole('combobox', { name: 'Roles' }).click({ force: true });
   await page.getByRole('option', { name: /^operator – / }).click();
   await page.getByRole('option', { name: /^approver – / }).click();
   await page.getByRole('option', { name: /^viewer – / }).click();
@@ -42,7 +42,7 @@ test('admin creates a user, assigns roles and a team, then deactivates the accou
   await page.getByRole('button', { name: 'New team' }).click();
   const teamDialog = page.getByRole('dialog', { name: 'New team' });
   await teamDialog.getByRole('textbox', { name: 'Name' }).fill(team);
-  await teamDialog.getByRole('textbox', { name: 'Members' }).fill(username, { force: true });
+  await teamDialog.getByRole('combobox', { name: 'Members' }).fill(username, { force: true });
   await page.getByRole('option', { name: `E2E Person (${username})` }).click();
   await teamDialog.getByRole('heading', { name: 'New team' }).click();
   await teamDialog.getByRole('button', { name: 'Save' }).click();

@@ -31,7 +31,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       {/* the administrator's theme (Settings → Appearance), also on the sign-in page */}
       <ThemedMantineProvider>
-        <Notifications position="top-right" />
+        <Notifications position="top-right" pauseResetOnHover="notification" />
         {/* confirmation dialogs (components/confirm.tsx) */}
         <ModalsProvider>
           {/* with a trailing slash: the app's home is /steward/ (the server redirects /steward there) */}

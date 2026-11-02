@@ -12,7 +12,7 @@ test('a change request is approved by someone else and generated as PDF with two
   await page.goto('/records');
   await page.getByRole('button', { name: 'New record' }).click();
   const create = page.getByRole('dialog', { name: 'New record' });
-  await create.getByRole('textbox', { name: 'Type' }).click();
+  await create.getByRole('combobox', { name: 'Type' }).click();
   await page.getByRole('option', { name: /^CR – / }).click();
   await create.getByRole('textbox', { name: 'Title' }).fill(title);
   await create.getByRole('button', { name: 'Create draft' }).click();
@@ -128,7 +128,7 @@ test('a service is created and linked to a record, with backlinks both ways', as
   await page.getByRole('button', { name: 'Add link' }).click();
   const link = page.getByRole('dialog', { name: 'Add link' });
   await chooseOption(page, 'Kind', 'Record');
-  await link.getByRole('textbox', { name: 'Target' }).fill(rec.number);
+  await link.getByRole('combobox', { name: 'Target' }).fill(rec.number);
   await expect(page.getByRole('option', { name: rec.number })).toBeVisible();
   await animationsDone(page);
   await page.getByRole('option', { name: rec.number }).click();

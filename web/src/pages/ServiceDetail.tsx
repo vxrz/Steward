@@ -75,7 +75,7 @@ export function ServiceDetailPage() {
           )
         }
       />
-      <Grid gutter="lg">
+      <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
             <MaintenancePanel kind="service" id={s.id} canPlan={s.canEdit && !s.archived} />

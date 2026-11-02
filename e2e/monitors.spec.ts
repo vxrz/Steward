@@ -170,7 +170,7 @@ test('importing a monitor asks which platform a name stands for when it is not u
   await page.getByRole('button', { name: 'Import', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Import a monitor' });
   await dialog.getByLabel('Or paste YAML').fill(yaml);
-  const pick = dialog.getByRole('textbox', { name: 'Platform for “Insights Hub”' });
+  const pick = dialog.getByRole('combobox', { name: 'Platform for “Insights Hub”' });
   await expect(pick).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Import YAML' })).toBeDisabled();
   await pick.click();

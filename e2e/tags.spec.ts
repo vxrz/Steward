@@ -17,11 +17,11 @@ test('a tag with a value is entered with Tab and Enter and filters the list', as
     await page.getByRole('button', { name: 'New application' }).first().click();
     const form = page.getByRole('dialog', { name: 'New application' });
     await form.getByRole('textbox', { name: 'Name' }).fill(name);
-    const key = form.getByRole('textbox', { name: 'Tag key' });
+    const key = form.getByRole('combobox', { name: 'Tag key' });
     await key.fill('env');
     await page.keyboard.press('Escape'); // close the suggestions, keep the dialog
     await key.press('Tab');
-    await expect(form.getByRole('textbox', { name: 'Value (optional)' })).toBeFocused();
+    await expect(form.getByRole('combobox', { name: 'Value (optional)' })).toBeFocused();
     await page.keyboard.type('prod');
     await page.keyboard.press('Enter');
     await key.fill('pci');

@@ -38,13 +38,13 @@ test('an administrator test-signs-in through a provider and previews the account
 
   // an unsaved change of the user name rule: the preview follows
   await dialog.getByRole('button', { name: 'Scopes and claims' }).click();
-  await dialog.getByRole('textbox', { name: 'User name rule' }).click();
+  await dialog.getByRole('combobox', { name: 'User name rule' }).click();
   await page.getByRole('option', { name: 'Lower case without @domain (max)' }).click();
   // only listed domains are stripped (any other domain is refused)
   await expect(dialog.getByText('Enter at least one domain')).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled();
-  await dialog.getByRole('textbox', { name: 'Domains to strip' }).fill('contoso.example');
-  await dialog.getByRole('textbox', { name: 'Domains to strip' }).press('Enter');
+  await dialog.getByRole('combobox', { name: 'Domains to strip' }).fill('contoso.example');
+  await dialog.getByRole('combobox', { name: 'Domains to strip' }).press('Enter');
   await expect(dialog.getByTestId('sso-warnings')).toContainText('Only the listed domains are stripped');
   await test.getByRole('tab', { name: 'Preview' }).click();
   await expect(preview).toContainText('User name rule: max@contoso.example → max');
@@ -52,8 +52,8 @@ test('an administrator test-signs-in through a provider and previews the account
   await dialog.getByRole('button', { name: /^Accounts: linking/ }).click();
   await dialog.getByRole('button', { name: 'Add required claim' }).click();
   await dialog.getByRole('textbox', { name: 'Claim', exact: true }).fill('hd');
-  await dialog.getByRole('textbox', { name: 'Accepted values' }).fill('example.com');
-  await dialog.getByRole('textbox', { name: 'Accepted values' }).press('Enter');
+  await dialog.getByRole('combobox', { name: 'Accepted values' }).fill('example.com');
+  await dialog.getByRole('combobox', { name: 'Accepted values' }).press('Enter');
   await expect(test.getByTestId('sso-test-refusal')).toContainText('does not belong to the organisation');
   await expect(preview).toContainText('Refused');
   await expectAccessible(page, 'provider editor with a test sign-in');

@@ -230,7 +230,7 @@ export function PlatformDetailPage() {
               <Anchor size="xs" onClick={() => setShowBody((s) => !s)}>
                 {showBody ? t('detail.hideResponse') : t('detail.showResponse')}
               </Anchor>
-              <Collapse in={showBody}>
+              <Collapse expanded={showBody}>
                 <JsonView value={test.body} maxHeight={240} />
               </Collapse>
             </>

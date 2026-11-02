@@ -10,10 +10,10 @@ test('operator creates a schedule, runs it now and deletes it', async ({ page, a
   await page.getByRole('button', { name: 'New schedule' }).click();
   const dialog = page.getByRole('dialog', { name: 'New schedule' });
 
-  await dialog.getByRole('textbox', { name: 'Process' }).fill('Device status');
+  await dialog.getByRole('combobox', { name: 'Process' }).fill('Device status');
   await page.getByRole('option', { name: 'Industrial Edge – Device status check' }).click();
   // the connection slot appears once the process is loaded
-  await dialog.getByRole('textbox', { name: 'Connection "iem"' }).click();
+  await dialog.getByRole('combobox', { name: 'Connection "iem"' }).click();
   await page.getByRole('option', { name: 'Industrial Edge Management (demo)' }).click();
   await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(name);
   await dialog.getByText('Hourly', { exact: true }).click();
@@ -22,11 +22,11 @@ test('operator creates a schedule, runs it now and deletes it', async ({ page, a
   await expect(dialog.getByText(/^Next: /)).toBeVisible();
   // failed checks notify on change by default, with a 4-hour reminder (#127)
   const notify = dialog.getByTestId('notify-policy');
-  await expect(notify.getByRole('textbox', { name: 'Failed checks notify' })).toHaveValue('On change (recommended)');
+  await expect(notify.getByRole('combobox', { name: 'Failed checks notify' })).toHaveValue('On change (recommended)');
   await notify.getByRole('textbox', { name: 'Reminder while still failing' }).fill('8');
-  await notify.getByText('Send a message when a check passes again').click();
+  await notify.getByLabel('Send a message when a check passes again').click();
   // what counts as a change and where the messages go (#139)
-  await notify.getByRole('textbox', { name: 'What counts as a change' }).click();
+  await notify.getByRole('combobox', { name: 'What counts as a change' }).click();
   await page.getByRole('option', { name: 'Only the start and end of failing' }).click();
   await notify.getByText('Only these channels:').click();
   await notify.getByText('E-mail', { exact: true }).click();

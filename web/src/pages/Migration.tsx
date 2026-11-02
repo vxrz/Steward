@@ -408,7 +408,7 @@ function PlanSummary({ plan }: { plan: MigrationPlan }) {
           </Text>
         </Group>
       </UnstyledButton>
-      <Collapse in={more}>
+      <Collapse expanded={more}>
         <Stack gap="xs">
           <Text size="sm">
             {t('migration.plan.notApplied')}: {plan.settings.notApplied.join(', ') || '–'}

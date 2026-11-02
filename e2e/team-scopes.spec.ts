@@ -19,7 +19,7 @@ test('an administrator gives a team a process and a member a role in the team; o
     await page.goto('/users');
     await page.getByRole('button', { name: `Edit team ${teamName}` }).click();
     const dialog = page.getByRole('dialog', { name: `Edit team ${teamName}` });
-    await dialog.getByRole('textbox', { name: 'vera: roles in the team' }).click({ force: true });
+    await dialog.getByRole('combobox', { name: 'vera: roles in the team' }).click({ force: true });
     await page.getByRole('option', { name: 'designer', exact: true }).click();
     await dialog.getByRole('heading', { name: `Edit team ${teamName}` }).click(); // closes the dropdown
     await dialog.getByRole('button', { name: 'Save' }).click();
@@ -30,7 +30,7 @@ test('an administrator gives a team a process and a member a role in the team; o
     await page.goto(`/processes/${proc.id}`);
     await page.getByRole('tab', { name: 'Access' }).click();
     await expect(page.getByText(/belongs to the whole instance/)).toBeVisible();
-    await page.getByRole('textbox', { name: 'Teams' }).fill(teamName, { force: true });
+    await page.getByRole('combobox', { name: 'Teams' }).fill(teamName, { force: true });
     await page.getByRole('option', { name: teamName }).click();
     await page.getByText('Owning teams', { exact: true }).click(); // closes the dropdown
     await page.getByRole('button', { name: 'Save owning teams' }).click();
@@ -42,7 +42,7 @@ test('an administrator gives a team a process and a member a role in the team; o
     await page.getByRole('button', { name: 'Why do I have access?' }).click();
     const why = page.getByRole('dialog', { name: 'Who may do what, and why' });
     await expect(why.getByText(/Administrator:/)).toBeVisible();
-    await why.getByRole('textbox', { name: 'For user' }).fill('vera', { force: true });
+    await why.getByRole('combobox', { name: 'For user' }).fill('vera', { force: true });
     await page.getByRole('option', { name: /\(vera\)/ }).click();
     await expect(why.getByText(new RegExp(`designer in team ${teamName}`))).toBeVisible();
     await expectAccessible(page, 'access explanation');
@@ -85,7 +85,7 @@ test('a record has owning teams on its access tab; a whole service is moved with
     await page.goto(`/services/${service.id}`);
     await page.getByRole('button', { name: 'Owning teams for the whole service…' }).click();
     const dialog = page.getByRole('dialog', { name: 'Owning teams for the service and what belongs to it' });
-    await dialog.getByRole('textbox', { name: 'Teams' }).fill(teamName, { force: true });
+    await dialog.getByRole('combobox', { name: 'Teams' }).fill(teamName, { force: true });
     await page.getByRole('option', { name: teamName }).click();
     await dialog.getByText(/Covers the service/).click(); // closes the dropdown
     await dialog.getByRole('button', { name: 'Preview' }).click();

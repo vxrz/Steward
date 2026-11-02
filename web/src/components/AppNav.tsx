@@ -306,7 +306,7 @@ export function AppNav({
                   />
                 </Group>
               </UnstyledButton>
-              <Collapse in={open} id={id}>
+              <Collapse expanded={open} id={id}>
                 {g.items.map(link)}
               </Collapse>
             </Box>

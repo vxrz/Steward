@@ -207,7 +207,7 @@ export function ProcessEditorPage() {
             </UnstyledButton>
           }
         >
-          <Collapse in={showIssues}>
+          <Collapse expanded={showIssues}>
             <Stack gap={2}>
               {problems.slice(0, 30).map((i, k) => (
                 <UnstyledButton

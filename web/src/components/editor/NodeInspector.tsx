@@ -25,7 +25,7 @@ function Section({ title, children, defaultOpen = false, color }: { title: strin
           </Text>
         </Group>
       </UnstyledButton>
-      <Collapse in={open}>
+      <Collapse expanded={open}>
         <Box mt={4}>{children}</Box>
       </Collapse>
     </Box>

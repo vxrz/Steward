@@ -47,7 +47,7 @@ test.describe('dashboards', () => {
     const rows = table.getByRole('table').getByRole('row');
     await expect(rows.nth(1)).toBeVisible();
     const problems = await rows.count();
-    await table.getByText('Problems only').click();
+    await table.getByLabel('Problems only').click();
     await expect.poll(() => rows.count()).toBeGreaterThan(problems);
     await table.getByRole('textbox', { name: 'Search' }).fill('edge-lab');
     await expect(rows).toHaveCount(2); // header + edge-lab

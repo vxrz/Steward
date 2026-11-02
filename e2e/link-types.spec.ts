@@ -100,7 +100,7 @@ test('editing a link changes its type, label and note; it moves to its group', a
   const d2 = dana.getByRole('dialog', { name: 'Edit link' });
   await expect(d2.getByRole('textbox', { name: 'Target' })).toHaveValue(target.name);
   await expect(d2.getByRole('textbox', { name: 'Label' })).toHaveCount(0);
-  await expect(d2.getByRole('textbox', { name: 'Type' })).toHaveCount(0);
+  await expect(d2.getByRole('combobox', { name: 'Type' })).toHaveCount(0);
   await d2.getByRole('textbox', { name: 'Note' }).fill('runs on');
   await d2.getByRole('button', { name: 'Save' }).click();
   await expect(d2).toBeHidden();

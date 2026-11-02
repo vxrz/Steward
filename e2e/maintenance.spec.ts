@@ -27,7 +27,7 @@ test.describe('as a designer', () => {
       // the application is already listed
       await expect(form.getByTestId('maintenance-targets')).toBeVisible();
       await expect(form.getByText(appName)).toBeVisible();
-      await form.getByRole('textbox', { name: 'Repeats' }).click();
+      await form.getByRole('combobox', { name: 'Repeats' }).click();
       await animationsDone(page);
       await page.getByRole('option', { name: 'Weekly' }).click();
       await expect(form.getByRole('textbox', { name: 'Every' })).toHaveValue('1');

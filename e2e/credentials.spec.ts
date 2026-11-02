@@ -13,7 +13,7 @@ test('a designer documents an agent certificate by uploading it and sees it as d
   await page.getByRole('button', { name: 'New entry' }).click();
   const dialog = page.getByRole('dialog', { name: 'New entry' });
   await dialog.getByRole('textbox', { name: 'Name' }).fill(name);
-  await dialog.getByRole('textbox', { name: 'Type' }).click();
+  await dialog.getByRole('combobox', { name: 'Type' }).click();
   await page.getByRole('option', { name: 'Agent / device certificate' }).click();
   await dialog.getByRole('textbox', { name: 'Platform (free text)' }).fill('Insights Hub');
   await dialog.getByRole('textbox', { name: 'Where it is kept' }).fill('KeePass: IT-Ops.kdbx → Insights Hub/Agents/IoT2050-hall3');
@@ -104,9 +104,9 @@ test('roles and permissions of a credential, linked to an application', async ({
     await dialog.getByRole('textbox', { name: 'Name' }).fill(name);
     // used by: the application and an external page
     await dialog.getByRole('button', { name: 'Link a process, monitor, platform, service or application' }).click();
-    await dialog.getByRole('textbox', { name: 'Kind of link' }).click();
+    await dialog.getByRole('combobox', { name: 'Kind of link' }).click();
     await page.getByRole('option', { name: 'Application' }).click();
-    await dialog.getByRole('textbox', { name: 'Linked object' }).click();
+    await dialog.getByRole('combobox', { name: 'Linked object' }).click();
     await page.getByRole('option', { name: appName }).click();
     await dialog.getByRole('button', { name: 'Add external link' }).click();
     await dialog.getByTestId('credential-urls').getByRole('textbox', { name: 'Label' }).fill('Swagger');
@@ -145,7 +145,7 @@ test('an entry belongs to a system of the catalogue and is listed on its page (#
     await page.getByRole('button', { name: 'New entry' }).click();
     const dialog = page.getByRole('dialog', { name: 'New entry' });
     await dialog.getByRole('textbox', { name: 'Name' }).fill(name);
-    await dialog.getByRole('textbox', { name: 'Belongs to' }).fill(sysName);
+    await dialog.getByRole('combobox', { name: 'Belongs to' }).fill(sysName);
     await page.getByRole('option', { name: sysName }).click();
     await dialog.getByRole('textbox', { name: 'Where it is kept' }).fill('KeePass: IT-Ops.kdbx → SFTP/upload');
     await dialog.getByRole('button', { name: 'Save' }).click();

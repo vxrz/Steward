@@ -188,7 +188,7 @@ export function AuditPage() {
                 {open === a.seq && (
                   <Table.Tr>
                     <Table.Td colSpan={5}>
-                      <Collapse in>
+                      <Collapse expanded>
                         <Text size="xs" c="dimmed" className="mono" mb={4}>
                           {t('table.hash', { hash: a.hash })}
                         </Text>

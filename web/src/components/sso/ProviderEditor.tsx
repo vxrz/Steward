@@ -357,7 +357,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
             </Text>
           </Group>
         </UnstyledButton>
-        <Collapse in={advanced}>
+        <Collapse expanded={advanced}>
           <Stack gap="xs">
             {kind === 'entra' && (
               <Select
@@ -385,7 +385,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
             </Text>
           </Group>
         </UnstyledButton>
-        <Collapse in={accounts}>
+        <Collapse expanded={accounts}>
           <Stack gap="sm">
             <LinkingAndRequired form={form} set={set} />
             <ProfileAndSync form={form} set={set} />

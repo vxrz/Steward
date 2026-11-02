@@ -179,7 +179,7 @@ export function DocsTab({ platform, readOnly = false }: { platform: Platform; re
                 </Tooltip>
               </Group>
               {d.kind === 'note' && (
-                <Collapse in={!!expanded[d.id]}>
+                <Collapse expanded={!!expanded[d.id]}>
                   <Paper mt="sm" p="sm" bg="var(--mantine-color-default-hover)">
                     <Markdown text={d.content} />
                   </Paper>

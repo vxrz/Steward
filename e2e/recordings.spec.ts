@@ -55,7 +55,7 @@ test('a response recorded in the explorer answers a test run', async ({ page, ap
     await page.goto(`/processes/${proc.id}`);
     await page.getByRole('button', { name: 'Run', exact: true }).click();
     const run = page.getByRole('dialog', { name: /^Run: / });
-    const slot = run.getByRole('textbox', { name: /^Connection "/ }).first();
+    const slot = run.getByRole('combobox', { name: /^Connection "/ }).first();
     if (!(await slot.inputValue())) {
       await slot.click();
       await page.getByRole('option', { name: /Insights Hub \(demo\)/ }).click();

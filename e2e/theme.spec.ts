@@ -110,7 +110,7 @@ test.describe('custom theme (own server)', () => {
     await expect(login.getByRole('heading', { name: 'Sign in to ACME Steward' })).toBeVisible();
     await expect(login).toHaveTitle('ACME Steward');
     await login.getByLabel('User name').fill(USERS.admin.username);
-    await login.getByLabel('Password').fill(USERS.admin.password);
+    await login.getByRole('textbox', { name: 'Password' }).fill(USERS.admin.password);
     const signIn = login.getByRole('button', { name: 'Sign in', exact: true });
     await expect(signIn).toHaveCSS('background-color', YELLOW);
     await expect(signIn).toHaveCSS('color', BLACK);
@@ -143,7 +143,7 @@ test.describe('custom theme (own server)', () => {
       await expect(login.getByRole('heading', { name: /^Sign in/ })).toBeVisible();
       // enables the (filled) sign-in button
       await login.getByLabel('User name').fill('someone');
-      await login.getByLabel('Password').fill('something');
+      await login.getByRole('textbox', { name: 'Password' }).fill('something');
       await expectAccessible(login, `sign-in page (yellow, ${colorScheme})`);
 
       const page = await open(browser, { colorScheme });

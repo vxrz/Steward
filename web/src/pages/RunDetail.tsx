@@ -508,7 +508,7 @@ const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: strin
           {fmtDuration(step.durationMs)}
         </Text>
       </Group>
-      <Collapse in={open}>
+      <Collapse expanded={open}>
         {open && (
           <Stack gap="xs" mt="xs">
             <Text size="xs" c="dimmed" className="mono">
