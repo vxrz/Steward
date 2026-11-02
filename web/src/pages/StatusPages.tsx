@@ -39,6 +39,7 @@ import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE, useCreateParam } from '../components/common';
 import { fmtDate, fmtRelative } from '../format';
 import { BRAND } from '../../../shared/src/brand';
+import { appUrl } from '../basePath';
 
 const STATE_COLOR: Record<ServiceState, string> = {
   outage: TONE.bad,
@@ -201,7 +202,7 @@ export function StatusPagesPage() {
   const makeLink = async (p: StatusPage) => {
     try {
       const r = await post<{ token: string }>(`/status-pages/${p.id}/link`);
-      setLink({ title: p.title, url: `${window.location.origin}${apiUrl('/').replace(/\/api\/$/, '')}/status#t=${r.token}` });
+      setLink({ title: p.title, url: appUrl(`/status#t=${r.token}`) });
       await refresh();
     } catch (e) {
       notifyError(e);
