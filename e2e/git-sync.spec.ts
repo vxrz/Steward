@@ -119,7 +119,7 @@ test('admin requires signed commits from named signers and sees why a fetch is r
   await dialog.getByRole('textbox', { name: 'Name' }).fill(sourceName);
   await dialog.getByRole('textbox', { name: 'Repository URL' }).fill(`${baseURL()}/mock/git/${repo}`);
   await dialog.getByRole('textbox', { name: 'Folder' }).fill('steward');
-  await dialog.getByText('Require signed commits').click();
+  await dialog.getByLabel('Require signed commits').click();
   await expect(dialog.getByText(/every new commit since the last fetch/)).toBeVisible();
   const signers = dialog.getByRole('textbox', { name: 'Allowed signers (optional)' });
   await signers.fill('alice');

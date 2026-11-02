@@ -105,7 +105,7 @@ test('define an availability objective and see the scorecard of the service', as
   await expectAccessible(page, 'scorecard page on a phone');
   await page.setViewportSize({ width: 1280, height: 900 });
   // attention only: the service is not listed
-  await page.getByText('Attention needed only', { exact: true }).click(); // Mantine hides the input behind its label
+  await page.getByLabel('Attention needed only', { exact: true }).click();
   await expect(page.getByRole('switch', { name: 'Attention needed only' })).toBeChecked();
   await expect(page).toHaveURL(/attention=1/);
   await expect(page.getByTestId(`scorecard-${svc.id}`)).toHaveCount(0);

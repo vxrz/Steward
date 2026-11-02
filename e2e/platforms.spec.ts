@@ -25,7 +25,13 @@ test('platform: test connection, API explorer, credentials stay hidden', async (
   await page.getByRole('textbox', { name: 'Path (relative to base URL)' }).fill('/api/identitymanagement/v3/Users?count=2');
   await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.getByText('HTTP 200', { exact: true })).toBeVisible();
-  await expect(page.getByText(/"userName": ".+@example\.com"/).first()).toBeVisible();
+  // the response in the Explorer tab (the connection test's details stay in their closed fold)
+  await expect(
+    page
+      .getByRole('tabpanel', { name: 'Explorer' })
+      .getByText(/"userName": ".+@example\.com"/)
+      .first(),
+  ).toBeVisible();
 
   const html = await page.content();
   for (const s of SECRETS) expect(html).not.toContain(s);

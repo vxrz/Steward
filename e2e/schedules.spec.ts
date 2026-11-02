@@ -24,7 +24,7 @@ test('operator creates a schedule, runs it now and deletes it', async ({ page, a
   const notify = dialog.getByTestId('notify-policy');
   await expect(notify.getByRole('textbox', { name: 'Failed checks notify' })).toHaveValue('On change (recommended)');
   await notify.getByRole('textbox', { name: 'Reminder while still failing' }).fill('8');
-  await notify.getByText('Send a message when a check passes again').click();
+  await notify.getByLabel('Send a message when a check passes again').click();
   // what counts as a change and where the messages go (#139)
   await notify.getByRole('textbox', { name: 'What counts as a change' }).click();
   await page.getByRole('option', { name: 'Only the start and end of failing' }).click();
