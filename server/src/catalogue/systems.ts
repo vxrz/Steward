@@ -38,7 +38,7 @@ import { lifecycleSettings, releasesOf } from './lifecycle.js';
 import { byEnvironment, environmentValue } from './environments.js';
 import { credentialsBelongingTo, toCredential } from '../credentials/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
-import { assignCreatorTeams } from '../auth/policy.js';
+import { assignCreatorTeams, forgetOwningTeams } from '../auth/policy.js';
 
 /**
  * Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on – often several
@@ -482,6 +482,8 @@ export function deleteSystem(id: string): void {
   db().tx(() => {
     db().run('DELETE FROM system_stack WHERE system_id = ?', id);
     db().run('DELETE FROM systems WHERE id = ?', id);
+    // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
+    forgetOwningTeams('system', id);
     audit({
       action: 'system.deleted',
       entityType: 'system',

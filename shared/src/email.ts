@@ -6,13 +6,13 @@ export const EMAIL_MAX = 254;
 /**
  * One rule for e-mail addresses everywhere (#18): user profiles, credential owners, service contacts, report
  * recipients, record signers and auditors who receive checkpoints. "local@domain.tld" without spaces and without
- * the characters that would make it a list or a display name for the mail transport (<>()[]\,;:"). Letters
- * beyond ASCII are allowed, as in internationalised addresses.
+ * the characters that would make it a list or a display name for the mail transport (<>()[]\,;:"), and without
+ * control characters. Letters beyond ASCII are allowed, as in internationalised addresses.
  */
 const EMAIL_RE = /^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+\.[^\s@<>()[\]\\,;:".]+$/;
 
 export function isEmailAddress(s: string): boolean {
-  return s.length <= EMAIL_MAX && EMAIL_RE.test(s);
+  return s.length <= EMAIL_MAX && EMAIL_RE.test(s) && !/\p{Cc}/u.test(s);
 }
 
 /** The same rule as a zod schema (trimmed; lower-cased with { lowerCase: true }). */

@@ -1244,7 +1244,14 @@ export const MCP_REQUEST_LIMITS = {
   proposalPart: 200,
   /** Mappings in one proposal */
   proposalMappings: 1000,
+  /** Stored size of one proposal, and of all open proposals of one person (the reviewers' inbox reads them) */
+  proposalBytes: 2 * 1024 * 1024,
+  proposalBytesPerUser: 8 * 1024 * 1024,
 } as const;
+
+/** A proposal in the list of AI requests (#74): what it is about, without its content. */
+export type McpProposalSummary =
+  { type: 'catalogue'; key: string; name: string; controls: number } | { type: 'mappings'; catalogueKey: string; mappings: number };
 
 /** A control catalogue proposed by an AI assistant (#74), as the reviewer sees it: compared with the catalogue of that key. */
 export interface McpCatalogueProposal {
@@ -1337,8 +1344,10 @@ export interface McpRequest {
   resultBody: unknown;
   runId: string | null;
   error: string | null;
-  /** Control catalogue or mapping proposals (#74) */
+  /** Control catalogue or mapping proposals (#74): the full comparison in the detail only */
   proposal: McpCatalogueProposal | McpMappingsProposal | null;
+  /** What a proposal is about, also in lists */
+  proposalSummary: McpProposalSummary | null;
   /** For the reader */
   canApprove: boolean;
   canReject: boolean;

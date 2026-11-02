@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import * as sea from 'node:sea';
 import { Worker } from 'node:worker_threads';
 import { config } from '../../config.js';
@@ -10,8 +11,8 @@ import type { PdfDrawers } from './drawers.js';
  * document cannot hold up the requests of everyone else, and one that takes too long is stopped. The data is
  * collected in the main thread first; drawing reads no database (forbidDatabase in the worker).
  *
- * SM_PDF_WORKER=auto (default) falls back to drawing in the main thread when the worker cannot start (logged
- * once); "off" always draws in the main thread. Without the worker there is no time limit.
+ * SM_PDF_WORKER=auto (default) falls back to drawing in the main thread when the worker cannot start (logged), and
+ * tries to start it again later (after 1 minute, then doubling up to an hour); "off" always draws in the main thread. Without the worker there is no time limit.
  */
 
 export const PDF_LIMITS = {
@@ -23,6 +24,9 @@ export const PDF_LIMITS = {
   memoryMb: 512,
   /** The time the worker may take to start */
   bootMs: 30_000,
+  /** After the worker could not start: the first wait before trying again, doubled after every failure up to the longest */
+  retryMs: 60_000,
+  retryMaxMs: 3_600_000,
 };
 
 export type PdfKind = keyof PdfDrawers;
@@ -82,8 +86,18 @@ const fromWorkerError = (e: WorkerError): Error => {
 
 let worker: Worker | null = null;
 let ready: Promise<boolean> | null = null;
-/** The worker could not start: draw in the main thread from now on (logged once) */
+/** The worker could not start: draw in the main thread until retryAt, then try again */
 let unavailable: string | null = null;
+let failures = 0;
+let retryAt = 0;
+
+function markUnavailable(why: string, err?: unknown): void {
+  unavailable = why;
+  failures++;
+  const wait = Math.min(PDF_LIMITS.retryMaxMs, PDF_LIMITS.retryMs * 2 ** (failures - 1));
+  retryAt = Date.now() + wait;
+  logger.warn({ err, reason: why, retryInSeconds: wait / 1000 }, 'PDF worker unavailable – PDFs are drawn in the main thread');
+}
 let current: Job | null = null;
 /** The worker that reported "ready" (a crash after that is a failing PDF, not a worker that cannot start) */
 let booted: Worker | null = null;
@@ -126,6 +140,8 @@ function start(): Promise<boolean> {
           workerSections = new Set(m.sections ?? []);
           w.on('message', onMessage);
           booted = w;
+          unavailable = null;
+          failures = 0;
           resolve(true);
         });
         w.on('error', (e) => {
@@ -140,19 +156,17 @@ function start(): Promise<boolean> {
         });
       });
     } catch (e) {
-      unavailable = (e as Error).message;
-      logger.warn({ err: e }, 'PDF worker unavailable – PDFs are drawn in the main thread');
+      markUnavailable((e as Error).message, e);
       return false;
     }
   })();
   return ready;
 }
 
-/** The worker could not start (not a failing PDF): from now on, draw in the main thread. */
+/** The worker could not start (not a failing PDF): draw in the main thread until the next try. */
 function fail(w: Worker, why: string): void {
   if (worker !== w) return;
-  unavailable = why;
-  logger.warn({ reason: why }, 'PDF worker unavailable – PDFs are drawn in the main thread');
+  markUnavailable(why);
   worker = null;
   void w.terminate();
 }
@@ -164,10 +178,7 @@ function onCrash(w: Worker, e: Error): void {
   ready = null;
   // before it was ready: the worker cannot start here (the waiting PDF is drawn in the main thread)
   if (booted !== w) {
-    if (!unavailable) {
-      unavailable = e.message;
-      logger.warn({ err: e }, 'PDF worker unavailable – PDFs are drawn in the main thread');
-    }
+    if (!unavailable) markUnavailable(e.message, e);
     return;
   }
   const job = current;
@@ -226,6 +237,11 @@ function next(): void {
   if (!job) return;
   current = job;
   void (async () => {
+    // the worker could not start: try again once the wait is over
+    if (unavailable && Date.now() >= retryAt) {
+      unavailable = null;
+      ready = null;
+    }
     const useWorker = config.pdfWorker === 'auto' && !unavailable && (await start()) && workerKnows(job);
     if (!useWorker || !worker) {
       await inProcess(job);
@@ -263,9 +279,16 @@ function next(): void {
   })();
 }
 
-/** Draws a PDF (in the worker when it is available), one after the other. */
+const background = new AsyncLocalStorage<true>();
+/**
+ * Steward's own PDFs (the run report and access-change record after a run, scheduled reports): they wait for their
+ * turn instead of being refused when the queue is full, so a burst of requests cannot make them fail for good.
+ */
+export const asBackgroundPdf = <T>(fn: () => T): T => background.run(true, fn);
+
+/** Draws a PDF (in the worker when it is available), one after the other; a full queue refuses requests of people. */
 export function drawPdf<K extends PdfKind>(kind: K, ...args: Args<K>): Promise<Result<K>> {
-  if (current && waiting.length >= PDF_LIMITS.queue)
+  if (current && waiting.length >= PDF_LIMITS.queue && !background.getStore())
     return Promise.reject(new HttpError(503, 'Steward is creating other PDFs right now – try again in a moment', 'PDF_BUSY'));
   return new Promise<Result<K>>((resolve, reject) => {
     waiting.push({ id: ++seq, kind, args, resolve: resolve as (v: unknown) => void, reject });
@@ -286,6 +309,11 @@ export function pdfWorkerStatus(): { mode: 'auto' | 'off'; worker: 'running' | '
 /** For tests: another worker file (one that cannot start, say) */
 let sourceOverride: URL | null = null;
 
+/** For tests: the worker file to start next time (null: the real one) */
+export function setPdfWorkerSource(source: URL | null): void {
+  sourceOverride = source;
+}
+
 /** For tests: stop the worker, forget that it was unavailable and optionally start the next one from another file. */
 export async function resetPdfWorker(o: { source?: URL } = {}): Promise<void> {
   const w = worker;
@@ -293,6 +321,8 @@ export async function resetPdfWorker(o: { source?: URL } = {}): Promise<void> {
   ready = null;
   booted = null;
   unavailable = null;
+  failures = 0;
+  retryAt = 0;
   sourceOverride = o.source ?? null;
   if (w) await w.terminate();
 }

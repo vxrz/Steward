@@ -4,6 +4,7 @@ import {
   MCP_REQUEST_LIMITS,
   type McpCatalogueProposal,
   type McpMappingsProposal,
+  type McpProposalSummary,
   type McpProposalSelection,
   type McpRequest,
   type McpRequestKind,
@@ -83,6 +84,8 @@ export interface ReviewKind {
   deciders: (r: Row) => UserInfo[];
   /** One line for the audit log and notifications */
   describe: (r: Row) => string;
+  /** What the proposal is about, for lists (cheap: no comparison, no lookups) */
+  summary: (r: Row) => McpProposalSummary;
   view: (r: Row, u: AuthUser) => McpCatalogueProposal | McpMappingsProposal;
   /** Applies what the reviewer accepted, as the reviewer; the result is stored with the request */
   apply: (r: Row, selection: McpProposalSelection | undefined, u: AuthUser) => { body: unknown; error?: string };
@@ -92,8 +95,14 @@ export function registerReviewKind(kind: McpRequestKind, def: ReviewKind): void 
   REVIEW_KINDS.set(kind, def);
 }
 const reviewOf = (r: Row) => (r.mode === 'review' ? REVIEW_KINDS.get(r.kind) : undefined);
-/** A proposal whose assistant is still sending parts */
-const incomplete = (r: Row) => r.mode === 'review' && !!parseJson<{ incomplete?: boolean }>(r.payload, {}).incomplete;
+/** A proposal whose assistant is still sending parts (read once per row: payloads can be large) */
+const incompleteOf = new WeakMap<Row, boolean>();
+const incomplete = (r: Row): boolean => {
+  if (r.mode !== 'review') return false;
+  let v = incompleteOf.get(r);
+  if (v === undefined) incompleteOf.set(r, (v = !!parseJson<{ incomplete?: boolean }>(r.payload, {}).incomplete));
+  return v;
+};
 
 const same = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 const has = (u: AuthUser | null, roles: string[]) => !!u && u.roles.some((r) => roles.includes(r));
@@ -127,7 +136,8 @@ const mayRead = (u: AuthUser, r: Row) =>
   (r.mode === 'fourEyes' && secondPerson(u, r)) ||
   (r.mode === 'review' && !!reviewOf(r)?.mayAccept(u, r));
 
-function toRequest(r: Row, u: AuthUser): McpRequest {
+/** The request as `u` sees it; lists leave out a proposal's comparison (the detail has it). */
+function toRequest(r: Row, u: AuthUser, detail = true): McpRequest {
   return {
     id: r.id,
     kind: r.kind,
@@ -158,7 +168,8 @@ function toRequest(r: Row, u: AuthUser): McpRequest {
     resultBody: r.result_body === null ? null : parseJson(r.result_body, r.result_body),
     runId: r.run_id,
     error: r.error,
-    proposal: reviewOf(r)?.view(r, u) ?? null,
+    proposal: detail ? (reviewOf(r)?.view(r, u) ?? null) : null,
+    proposalSummary: reviewOf(r)?.summary(r) ?? null,
     canApprove: mayApprove(u, r),
     canReject: mayReject(u, r),
   };
@@ -343,6 +354,24 @@ const created = (r: Row) => ({
   note: 'Nothing has been changed yet. Tell the user that the request waits for a decision in Steward, and check the outcome later with get_operation_request.',
 });
 
+/** Proposals are kept small enough for the reviewers' inbox: per proposal and over all open proposals of one person. */
+function checkProposalSize(r: Row): void {
+  const size = Buffer.byteLength(r.payload ?? '');
+  if (size > MCP_REQUEST_LIMITS.proposalBytes)
+    throw new ToolError(
+      `The proposal is too large (${Math.ceil(size / 1024)} KB, at most ${MCP_REQUEST_LIMITS.proposalBytes / 1024} KB) – split it into several proposals`,
+    );
+  const others = Number(
+    db().get<{ n: number | null }>(
+      "SELECT SUM(LENGTH(payload)) AS n FROM mcp_requests WHERE requested_by = ? AND status = 'pending' AND mode = 'review' AND id <> ?",
+      r.requested_by,
+      r.id,
+    )?.n ?? 0,
+  );
+  if (others + size > MCP_REQUEST_LIMITS.proposalBytesPerUser)
+    throw new ToolError('Your open proposals are too large together – wait until some are decided (or ask the user to withdraw some in Steward)');
+}
+
 /** A proposal for review (#74): a new request, or the next part of the assistant's own proposal that is still incomplete. */
 export function saveProposal(
   ctx: ToolContext,
@@ -353,6 +382,7 @@ export function saveProposal(
     if (!o.reason?.trim()) throw new ToolError('Give `reason`: what the proposal is and where it comes from – the reviewer sees it');
     const r = base(ctx, kind, 'review', o.reason);
     r.payload = JSON.stringify(o.payload(null));
+    checkProposalSize(r);
     insert(r);
     return { ...created(r), complete: !incomplete(r) };
   }
@@ -363,6 +393,7 @@ export function saveProposal(
   if (!incomplete(r)) throw new ToolError(`Proposal ${o.proposalId} is complete already – start a new proposal for further changes`);
   const next = o.payload(parseJson(r.payload, null));
   r.payload = JSON.stringify(next);
+  checkProposalSize(r);
   db().run("UPDATE mcp_requests SET payload = ? WHERE id = ? AND status = 'pending'", r.payload, r.id);
   if (!next.incomplete) {
     audit({
@@ -454,7 +485,7 @@ export function listRequests(scope: 'mine' | 'decide' | 'all'): McpRequest[] {
   return rows
     .filter((r) => mayRead(u, r) && (scope !== 'decide' || mayApprove(u, r)))
     .slice(0, 200)
-    .map((r) => toRequest(r, u));
+    .map((r) => toRequest(r, u, false));
 }
 
 export function getRequest(id: string): McpRequest {

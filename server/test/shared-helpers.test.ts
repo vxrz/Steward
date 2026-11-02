@@ -40,6 +40,9 @@ describe('e-mail addresses', () => {
       'a@b@c.com',
       'a@example.com.',
       `${'a'.repeat(250)}@x.de`,
+      // control characters (escape sequences, NUL) are not part of an address
+      'da\u001bna@example.com',
+      'dana@exa\u0000mple.com',
     ])
       expect(isEmailAddress(a)).toBe(false);
   });

@@ -3,6 +3,7 @@ import { logger } from '../log.js';
 import { runRow } from '../engine/store.js';
 import { getProcess } from '../processes/service.js';
 import { generateRunReport } from './service.js';
+import { asBackgroundPdf } from './pdf/pool.js';
 
 /**
  * Processes with `report: { auto: true }` get their run report generated and
@@ -38,21 +39,23 @@ export function initAutoReports(): void {
   if (subscribed) return;
   subscribed = true;
   on('run.finished', (e) => {
-    setImmediate(() => {
-      void autoReport(e.runId)
-        .catch((err) => {
-          logger.warn({ err, runId: e.runId }, 'automatic run report failed');
-          return null;
-        })
-        .then(async (reportId) => {
-          for (const fn of afterReport) {
-            try {
-              await fn(e.runId, reportId);
-            } catch (err) {
-              logger.warn({ err, runId: e.runId }, 'work after the run report failed');
+    setImmediate(() =>
+      asBackgroundPdf(() => {
+        void autoReport(e.runId)
+          .catch((err) => {
+            logger.warn({ err, runId: e.runId }, 'automatic run report failed');
+            return null;
+          })
+          .then(async (reportId) => {
+            for (const fn of afterReport) {
+              try {
+                await fn(e.runId, reportId);
+              } catch (err) {
+                logger.warn({ err, runId: e.runId }, 'work after the run report failed');
+              }
             }
-          }
-        });
-    });
+          });
+      }),
+    );
   });
 }

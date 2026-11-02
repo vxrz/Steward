@@ -37,8 +37,11 @@ export function dateTime(ts: string | number): string {
 
 export function toCsv(columns: string[], rows: unknown[][]): string {
   const cell = (v: unknown) => {
-    const s = v === null || v === undefined ? '' : String(v);
-    return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    let s = v === null || v === undefined ? '' : String(v);
+    // dataset values can come from outside Steward: text that a spreadsheet would run as a formula is defused, as in
+    // the server's CSV files (server/src/csv.ts); numbers stay numbers
+    if (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+    return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return [columns.map(cell).join(','), ...rows.map((r) => r.map(cell).join(','))].join('\n');
 }

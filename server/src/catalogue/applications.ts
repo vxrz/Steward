@@ -18,7 +18,7 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
-import { platformPermissions } from '../auth/permissions.js';
+import { isAdmin, platformPermissions } from '../auth/permissions.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canCreateServices, canEditService, forbid, me, canViewCatalogue, catalogueVisibleNow } from '../records/access.js';
 import { addLink, httpUrl, listBacklinks, listLinks, removeLink, updateLink, type LinkInput, type LinkUpdate } from '../records/links.js';
@@ -42,7 +42,7 @@ import { componentCounts, componentsOf, stackRollup } from './components.js';
 import { systemCounts, systemLinksOf } from './systems.js';
 import { credentialsBelongingTo, credentialsLinkingTo, toCredential, type CredentialRow } from '../credentials/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
-import { assignCreatorTeams } from '../auth/policy.js';
+import { assignCreatorTeams, catalogueTeams } from '../auth/policy.js';
 
 /**
  * Applications of the service catalogue (#84): name, description, vendor, version, URL, owners, criticality, tags,
@@ -670,6 +670,16 @@ export function setServiceApplication(serviceId: string, applicationId: string, 
   const u = me();
   const s = requireEditableService(serviceId, 'change the applications of this service');
   const a = row(applicationId);
+  if (!db().get('SELECT 1 FROM service_applications WHERE service_id = ? AND application_id = ?', serviceId, applicationId)) {
+    // an application without teams of its own belongs to the teams of its services (#131): adding it to a service
+    // changes who sees it, so it takes someone who may change the application; making an application of teams one of
+    // the whole instance (a service without owning teams) is for administrators, as setting owning teams is
+    if (!canViewCatalogue(u, { kind: 'application', id: a.id, owners: ownersOf(a) }))
+      throw new HttpError(404, `Application ${applicationId} not found`, 'APPLICATION_NOT_FOUND', { id: applicationId });
+    if (!canEditApplication(u, a)) forbid('add this application to a service', 'changeApplication');
+    if (!isAdmin(u) && catalogueTeams('application', a.id).length > 0 && catalogueTeams('service', serviceId).length === 0)
+      forbid('add an application of owning teams to a service of the whole instance – an administrator can', 'changeApplication');
+  }
   const { role, roleText } = roleOf(input);
   if (role === 'other' && !roleText) throw new HttpError(400, 'Describe the role (or choose primary or dependency)', 'APPLICATION_ROLE_TEXT');
   const cur = db().get<MemberRow>('SELECT * FROM service_applications WHERE service_id = ? AND application_id = ?', serviceId, applicationId);

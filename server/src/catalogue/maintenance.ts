@@ -19,7 +19,8 @@ import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/context.js';
 import { platformPermissions } from '../auth/permissions.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
-import { canCreateServices, canEditService, canReadRecordRow, forbid, me } from '../records/access.js';
+import { canCreateServices, canEditService, canReadRecordRow, canViewCatalogue, forbid, me } from '../records/access.js';
+import { catalogueTeams, owningTeams } from '../auth/policy.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { instanceTimeZone } from '../duties/periods.js';
 import { logger } from '../log.js';
@@ -123,14 +124,21 @@ function ownersOf(kind: Exclude<MaintenanceTargetKind, 'platform'>, id: string):
   return r ? parseJson<string[]>(r.owners, []) : null;
 }
 
+/** The item's name, or null when it does not exist or the reader may not see it (#131); jobs without a reader see all. */
 function nameOf(t: TargetRef, u: AuthUser | null): string | null {
   if (t.kind === 'platform') {
     const p = db().get<PlatformRow>('SELECT id, name, acl FROM platforms WHERE id = ?', t.id);
     return p && platformRights(u, p).length ? p.name : null;
   }
   const table = t.kind === 'service' ? 'services' : t.kind === 'application' ? 'applications' : 'systems';
-  return db().get<{ name: string }>(`SELECT name FROM ${table} WHERE id = ?`, t.id)?.name ?? null;
+  const r = db().get<{ name: string; owners: string }>(`SELECT name, owners FROM ${table} WHERE id = ?`, t.id);
+  if (!r) return null;
+  if (u && !canViewCatalogue(u, { kind: t.kind, id: t.id, owners: parseJson<string[]>(r.owners, []) })) return null;
+  return r.name;
 }
+
+/** Whether the item belongs to owning teams (#131): then only those who may change it plan its maintenance. */
+const teamScopedTarget = (t: TargetRef): boolean => (t.kind === 'platform' ? owningTeams('platform', t.id) : catalogueTeams(t.kind, t.id)).length > 0;
 
 /** May the user change this item (and so plan its maintenance)? */
 function mayChange(u: AuthUser, t: TargetRef): boolean {
@@ -142,7 +150,14 @@ function mayChange(u: AuthUser, t: TargetRef): boolean {
   return owners !== null && canEditService(u, { kind: t.kind, id: t.id, owners });
 }
 
-const canPlan = (u: AuthUser, targets: TargetRef[]) => canCreateServices(u) || (targets.length > 0 && targets.every((t) => mayChange(u, t)));
+/**
+ * Planning maintenance for these items: each one the user may change, or – for items of the whole instance (no owning
+ * team), as before team scopes – any item a service editor can see. A window without items: service editors.
+ */
+const canPlan = (u: AuthUser, targets: TargetRef[]) =>
+  targets.length ? targets.every((t) => mayChange(u, t) || (canCreateServices(u) && !teamScopedTarget(t) && nameOf(t, u) !== null)) : canCreateServices(u);
+/** A window is listed to a reader who sees at least one of its items (or it has none). */
+const windowVisible = (u: AuthUser | null, targets: TargetRef[]) => !u || !targets.length || targets.some((t) => nameOf(t, u) !== null);
 
 /** 400 for an item that does not exist (or a platform the user may not see). */
 function checkTargets(targets: TargetRef[], u: AuthUser, kept: TargetRef[] = []): void {
@@ -218,6 +233,13 @@ function row(id: string): WindowRow {
   return r;
 }
 
+/** A window the reader may see (404 otherwise, as for one that does not exist). */
+function visibleRow(id: string, u: AuthUser | null): WindowRow {
+  const r = row(id);
+  if (!windowVisible(u, targetsOf(id))) throw new HttpError(404, `Maintenance window ${id} not found`, 'MAINTENANCE_NOT_FOUND', { id });
+  return r;
+}
+
 function changeRecordOf(id: string | null, u: AuthUser | null): MaintenanceWindowSummary['changeRecord'] {
   if (!id) return null;
   const rec = db().get<{ id: string; number: string; title: string; type_id: string; fields: string; owner: string }>(
@@ -238,7 +260,11 @@ function toSummary(r: WindowRow, u: AuthUser | null, now: number): MaintenanceWi
     recurrence: recurrenceOf(r),
     timeZone: r.time_zone,
     responsible: parseJson<string[]>(r.responsible, []),
-    targets: targets.map((t): MaintenanceTarget => ({ ...t, name: nameOf(t, u) })),
+    // only the items the reader may see: names and ids of others' items stay hidden (#131)
+    targets: targets.flatMap((t): MaintenanceTarget[] => {
+      const name = nameOf(t, u);
+      return name === null && u ? [] : [{ ...t, name }];
+    }),
     changeRecord: changeRecordOf(r.change_record_id, u),
     quietMonitors: !!r.quiet_monitors,
     pauseMessages: !!r.pause_messages,
@@ -291,7 +317,9 @@ export function listMaintenance(f: MaintenanceFilter = {}, now = Date.now()): Ma
   const from = f.from ? Date.parse(f.from) : now - DAY;
   const to = Math.min(f.to ? Date.parse(f.to) : now + 60 * DAY, from + 400 * DAY);
   if (!(to > from)) throw new HttpError(400, 'The range must end after it starts', 'MAINTENANCE_RANGE');
-  let rows = db().all<WindowRow>(`SELECT * FROM maintenance_windows ${f.cancelled ? '' : 'WHERE cancelled_at IS NULL'} ORDER BY starts_at`);
+  let rows = db()
+    .all<WindowRow>(`SELECT * FROM maintenance_windows ${f.cancelled ? '' : 'WHERE cancelled_at IS NULL'} ORDER BY starts_at`)
+    .filter((r) => windowVisible(u, targetsOf(r.id)));
   if (f.target) {
     const [kind, id] = [f.target.slice(0, f.target.indexOf(':')), f.target.slice(f.target.indexOf(':') + 1)];
     rows = rows.filter((r) => {
@@ -327,7 +355,7 @@ export function listMaintenance(f: MaintenanceFilter = {}, now = Date.now()): Ma
 
 export function getMaintenance(id: string, now = Date.now()): MaintenanceWindowDetail {
   const u = me();
-  const r = row(id);
+  const r = visibleRow(id, u);
   const reach = reachOf(targetsOf(id));
   return {
     ...toSummary(r, u, now),
@@ -382,6 +410,8 @@ function writeTargets(id: string, targets: TargetRef[]): void {
 
 export function createMaintenance(input: MaintenanceInput): MaintenanceWindowDetail {
   const u = me();
+  // service editors hear first about an item that does not exist (or that they may not see), as before team scopes
+  if (canCreateServices(u)) checkTargets(input.targets, u);
   if (!canPlan(u, input.targets)) forbid('plan maintenance for these items', 'planMaintenance');
   validate(input);
   checkTargets(input.targets, u);
@@ -430,6 +460,7 @@ export function updateMaintenance(id: string, input: MaintenanceInput): Maintena
   const cur = row(id);
   const before = targetsOf(id);
   if (cur.cancelled_at) throw new HttpError(409, 'The maintenance window was cancelled', 'MAINTENANCE_CANCELLED');
+  if (canCreateServices(u)) checkTargets(input.targets, u, before);
   if (!canPlan(u, before) || !canPlan(u, input.targets)) forbid('change this maintenance window', 'planMaintenance');
   validate(input);
   checkTargets(input.targets, u, before);
@@ -736,7 +767,7 @@ function monthEnd(rec: MaintenanceRecurrence, start: number, tz: string): string
 /** The window as an iCalendar file (one event, with its repetition), to add to a calendar. */
 export function maintenanceIcs(id: string): { name: string; body: string } {
   const u = me();
-  const r = row(id);
+  const r = visibleRow(id, u);
   const w = toSummary(r, u, Date.now());
   const s = Date.parse(r.starts_at);
   const e = Date.parse(r.ends_at);

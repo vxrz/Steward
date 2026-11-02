@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -77,6 +77,12 @@ describe('the PDF worker', () => {
     const first = pdfOf(id);
     await new Promise((r) => setTimeout(r, 200));
     await expect(pdfOf(id)).rejects.toThrow(/PDF_BUSY|creating other PDFs/);
+    // Steward's own PDFs (after a run, scheduled reports) are queued instead: this one waits and is drawn (it fails in
+    // the drawing, as its data is empty – but it is not refused)
+    const draw = pool.drawPdf as (kind: string, ...args: unknown[]) => Promise<unknown>;
+    await expect(draw('record', {})).rejects.toThrow(/PDF_BUSY|creating other PDFs/);
+    const background = await pool.asBackgroundPdf(() => draw('record', {})).catch((e: unknown) => e);
+    expect(String((background as Error)?.message ?? background)).not.toMatch(/PDF_BUSY|creating other PDFs/);
     await first;
   });
 
@@ -86,6 +92,18 @@ describe('the PDF worker', () => {
     expect(pdf.filename).toMatch(/\.pdf$/);
     expect(pool.pdfWorkerStatus()).toMatchObject({ worker: 'unavailable' });
     expect(pool.pdfWorkerStatus().reason).toBeTruthy();
+    // it tries again a minute later, not only after a restart
+    pool.setPdfWorkerSource(null);
+    await pdfOf(await record('Still in the main thread.'));
+    expect(pool.pdfWorkerStatus()).toMatchObject({ worker: 'unavailable' });
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(Date.now() + pool.PDF_LIMITS.retryMs + 1000);
+      await pdfOf(await record('In the worker again.'));
+      expect(pool.pdfWorkerStatus()).toMatchObject({ worker: 'running', reason: null });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('draws in the main thread with SM_PDF_WORKER=off', async () => {

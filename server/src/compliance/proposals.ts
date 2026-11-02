@@ -159,7 +159,8 @@ function mappingsView(r: Row, u: AuthUser): McpMappingsProposal {
         targetId: t ? m.targetId : null,
         label: t?.label ?? '',
         path: t?.path ?? null,
-        reason: m.reason,
+        // the AI's reason names the item: not shown to someone who may not see it
+        reason: t ? m.reason : '',
         state,
       };
     }),
@@ -197,6 +198,10 @@ registerReviewKind('catalogue', {
     const p = payloadOf<CataloguePayload>(r);
     return `control catalogue ${p.key} "${p.name}" (${p.controls?.length ?? 0} controls)`;
   },
+  summary: (r) => {
+    const p = payloadOf<CataloguePayload>(r);
+    return { type: 'catalogue', key: p.key, name: p.name, controls: p.controls?.length ?? 0 };
+  },
   view: (r) => catalogueView(r),
   apply: applyCatalogue,
 });
@@ -211,6 +216,10 @@ registerReviewKind('mappings', {
   describe: (r) => {
     const p = payloadOf<MappingsPayload>(r);
     return `${p.mappings?.length ?? 0} mapping(s) for controls of ${p.catalogueKey}`;
+  },
+  summary: (r) => {
+    const p = payloadOf<MappingsPayload>(r);
+    return { type: 'mappings', catalogueKey: p.catalogueKey, mappings: p.mappings?.length ?? 0 };
   },
   view: mappingsView,
   apply: applyMappings,

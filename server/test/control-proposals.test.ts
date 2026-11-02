@@ -247,4 +247,22 @@ describe('AI-proposed control mappings', () => {
     const st = await call(tok.dana, 'get_operation_request', { requestId: p.data.requestId });
     expect(st.data).toMatchObject({ status: 'rejected', comment: 'Not evidence' });
   });
+
+  it('a mapping to an item the reader may no longer see shows neither the item nor the reason', async () => {
+    const pid = (await call(tok.dana, 'find_mapping_targets', { kind: 'process' })).data.items[0].id;
+    const p = await call(tok.dana, 'propose_control_mappings', {
+      catalogueKey: 'ACME-ISMS',
+      mappings: [{ ref: 'ACME-6', kind: 'process', targetId: pid, reason: 'The payroll export of Hidden Corp covers it' }],
+      reason: 'Hidden mapping',
+    });
+    const other = (await s.api('POST', '/teams', { name: 'Payroll', members: [] })).id;
+    await s.api('PUT', `/owning-teams/process/${pid}`, { teamIds: [other] });
+    try {
+      const r = await dana('GET', `/mcp-requests/${p.data.requestId}`);
+      expect(r.proposal.mappings).toEqual([expect.objectContaining({ state: 'notVisible', targetId: null, label: '', reason: '' })]);
+      expect(JSON.stringify(r.proposal)).not.toContain('Hidden Corp');
+    } finally {
+      await s.api('PUT', `/owning-teams/process/${pid}`, { teamIds: [] });
+    }
+  });
 });

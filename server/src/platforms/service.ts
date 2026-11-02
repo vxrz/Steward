@@ -15,7 +15,7 @@ import { paramSchema, requestBodyInfo, resolveRef, successStatuses } from './ope
 import { currentUser } from '../auth/context.js';
 import { cleanAcl, platformPermissions } from '../auth/permissions.js';
 import { PLATFORM_PERMISSIONS, type AclEntry, type PlatformPermission } from '@sm/shared';
-import { assignCreatorTeams } from '../auth/policy.js';
+import { assignCreatorTeams, forgetOwningTeams } from '../auth/policy.js';
 
 interface PlatformRow {
   id: string;
@@ -260,6 +260,8 @@ export function deletePlatform(id: string): void {
   const docs = db().all<{ filename: string | null; id: string }>('SELECT id, filename FROM platform_docs WHERE platform_id = ?', id);
   db().tx(() => {
     db().run('DELETE FROM platforms WHERE id = ?', id);
+    // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
+    forgetOwningTeams('platform', id);
     // Gatus metrics mode: the source with its samples, aggregates, transitions and endpoints
     deleteGatusSource(id);
     audit({ action: 'platform.deleted', entityType: 'platform', entityId: id, summary: `Platform "${p.name}" deleted` });

@@ -10,7 +10,7 @@ import { parseYaml } from '../yaml-safe.js';
 import { currentUser } from '../auth/context.js';
 import { capabilities, isAdmin } from '../auth/permissions.js';
 import { logger } from '../log.js';
-import { assignCreatorTeams, teamScoped } from '../auth/policy.js';
+import { assignCreatorTeams, forgetOwningTeams, teamScoped } from '../auth/policy.js';
 import type { AuthUser } from '../auth/context.js';
 
 interface DashRow {
@@ -132,6 +132,8 @@ export function deleteDashboard(id: string): void {
   if (!d.canEdit) throw new HttpError(403, 'Only the owner or an administrator can delete this dashboard');
   db().tx(() => {
     db().run('DELETE FROM dashboards WHERE id = ?', id);
+    // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
+    forgetOwningTeams('dashboard', id);
     audit({ action: 'dashboard.deleted', entityType: 'dashboard', entityId: id, summary: `Dashboard "${d.name}" deleted` });
   });
 }

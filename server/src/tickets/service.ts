@@ -26,7 +26,7 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
 import { addLink, httpUrl, listLinks, removeLink, targetVisible } from '../records/links.js';
 import { me } from '../auth/access.js';
-import { assignCreatorTeams, teamScoped } from '../auth/policy.js';
+import { assignCreatorTeams, forgetOwningTeams, teamScoped } from '../auth/policy.js';
 
 /**
  * Ticket references: Steward documents that a ticket exists in another system
@@ -728,6 +728,8 @@ export function deleteTicket(id: string): void {
     db().run("DELETE FROM item_links WHERE from_kind = 'ticket' AND from_id = ?", id);
     for (const t of ['ticket_ref_events', 'ticket_ref_reminders']) db().run(`DELETE FROM ${t} WHERE ticket_id = ?`, id);
     db().run('DELETE FROM ticket_refs WHERE id = ?', id);
+    // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
+    forgetOwningTeams('ticket', id);
     audit({
       action: 'ticket.deleted',
       entityType: 'ticket',
