@@ -165,7 +165,11 @@
     "spec": "Vega-Lite-Spezifikation (JSON)",
     "specHint": "Die Daten sind die Zeilen des Datensatzes (Name „dataset“); Daten nachladen, Links und Bilder sind nicht erlaubt. Die Farbschemata „steward“ und „steward-status“ folgen dem Design.",
     "specJson": "Kein gültiges JSON: {{error}}",
-    "specDocs": "Vega-Lite-Dokumentation"
+    "specDocs": "Vega-Lite-Dokumentation",
+    "combine": "Bei mehreren Quellen",
+    "combineHint": "Ein Wert je Quelle oder ihre Summe als eine Zahl (z. B. Benutzer aller Tenants)",
+    "combineEach": "Ein Wert je Quelle",
+    "combineSum": "Summe aller Quellen"
   },
   "w": {
     "chart": "Diagramm",
@@ -227,7 +231,9 @@
       "beyond": "Limit {{limit}} bei diesem Verlauf nicht innerhalb von zwei Jahren",
       "tooFew": "Zu wenige Messpunkte für eine Prognose bis {{limit}}"
     },
-    "chartError": "Das Diagramm konnte nicht gezeichnet werden: {{error}}"
+    "chartError": "Das Diagramm konnte nicht gezeichnet werden: {{error}}",
+    "sumOfSources_one": "Summe aus {{count}} Quelle",
+    "sumOfSources_other": "Summe aus {{count}} Quellen"
   },
   "charts": {
     "trendLabel": "Trend von {{names}}. Werte mit den Pfeiltasten ablesen.",

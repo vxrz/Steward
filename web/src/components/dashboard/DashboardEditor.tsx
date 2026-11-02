@@ -323,6 +323,19 @@ function WidgetForm({ widget, onClose, onSave }: { widget: DashboardWidget; onCl
                 onChange={(v) => set({ days: Number(v) || undefined })}
               />
             </Group>
+            {(meta?.sources?.length ?? 0) > 1 && w.metric && w.metric !== '_rows' && (
+              <Select
+                label={t('form.combine')}
+                description={t('form.combineHint')}
+                data={[
+                  { value: 'each', label: t('form.combineEach') },
+                  { value: 'sum', label: t('form.combineSum') },
+                ]}
+                value={w.combine ?? 'each'}
+                allowDeselect={false}
+                onChange={(v) => set({ combine: v === 'sum' ? 'sum' : undefined })}
+              />
+            )}
             <Group grow align="flex-start">
               <NumberInput
                 label={t('form.threshold')}
