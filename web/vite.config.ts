@@ -4,7 +4,7 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import { BRAND } from '../shared/src/brand';
+import { BRAND } from '../shared/src/brand.ts';
 import { buildInfo, thirdPartyLicenses } from '../scripts/build-info.mjs';
 
 const target = `http://127.0.0.1:${process.env.SM_PORT ?? 4310}`;
@@ -110,7 +110,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     chunkSizeWarningLimit: 2000,
-    rollupOptions: {
+    rolldownOptions: {
       // The shared sources have no import-time side effects (constants, types, zod schemas), so a page
       // that only needs e.g. ROLES from the @sm/shared barrel does not pull in zod and dagre (~30 kB gzip).
       treeshake: { moduleSideEffects: (id) => !/[\\/]shared[\\/]src[\\/]/.test(id) },
