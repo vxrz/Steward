@@ -47,10 +47,10 @@ test('the service hub has a tab for each part, with addresses that can be shared
       ['Scorecard', 'scorecard', 'scorecard-panel'],
     ];
     for (const [name, path, testId] of cases) {
-      await tabs.getByRole('link', { name: new RegExp(`^${name}`) }).click();
-      await expect(page, name).toHaveURL(new RegExp(`/services/${svc.id}/${path}$`));
+      await tabs.getByRole('link', { name }).click();
+      await expect(page, name).toHaveURL((u) => u.pathname.endsWith(`/services/${svc.id}/${path}`));
       await expect(page.getByTestId(testId), name).toBeVisible();
-      await expect(tabs.getByRole('link', { name: new RegExp(`^${name}`) })).toHaveAttribute('aria-current', 'page');
+      await expect(tabs.getByRole('link', { name })).toHaveAttribute('aria-current', 'page');
     }
     await expect(page.getByTestId('service-applications')).toHaveCount(0);
 
@@ -73,7 +73,7 @@ test('the service hub has a tab for each part, with addresses that can be shared
       .click();
     await expect(page.getByTestId('tickets-panel')).toBeVisible();
     await page.goBack();
-    await expect(page).toHaveURL(new RegExp(`/services/${svc.id}/duties$`));
+    await expect(page).toHaveURL((u) => u.pathname.endsWith(`/services/${svc.id}/duties`));
   } finally {
     await api.delete(`/api/services/${svc.id}`);
     await api.delete(`/api/systems/${sys.id}`).catch(() => undefined);
@@ -91,7 +91,7 @@ test.describe('on a phone @mobile', () => {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
       await page.getByTestId('service-tab-scorecard').scrollIntoViewIfNeeded();
       await page.getByTestId('service-tab-scorecard').tap();
-      await expect(page).toHaveURL(new RegExp(`/services/${svc.id}/scorecard$`));
+      await expect(page).toHaveURL((u) => u.pathname.endsWith(`/services/${svc.id}/scorecard`));
     } finally {
       await api.delete(`/api/services/${svc.id}`);
     }

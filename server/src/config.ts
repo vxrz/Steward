@@ -2,7 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { parseDatabaseTarget, type DatabaseTarget } from './database/sql.js';
 import { resolveBasePath } from './basePath.js';
-import { ConfigError, parseEnv, type Env } from './config-schema.js';
+import { ConfigError, parseEnv, withoutName, type Env } from './config-schema.js';
 
 export { ConfigError, parseEnv, parseTrustProxy, type Env } from './config-schema.js';
 
@@ -90,7 +90,7 @@ function check<T>(name: string, fn: () => T): T {
     return fn();
   } catch (e) {
     if (e instanceof ConfigError) throw e;
-    throw new ConfigError([{ name, message: (e as Error).message.replace(new RegExp(`^${name}[: ]\\s*`), '') }]);
+    throw new ConfigError([{ name, message: withoutName((e as Error).message, name) }]);
   }
 }
 

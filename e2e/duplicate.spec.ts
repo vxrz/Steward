@@ -40,7 +40,7 @@ test.describe('as a designer', () => {
     await expect(page.getByTestId('monitor-node-db-copy')).toBeVisible();
     await expect(page.getByTestId('monitor-node-other-copy')).toHaveCount(0);
     await page.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`/monitors/${monitor.id}$`));
+    await expect(page).toHaveURL((u) => u.pathname.endsWith(`/monitors/${monitor.id}`));
     const saved = await json<{ definition: { checks: { id: string; name: string }[]; links: unknown[] } }>(await api.get(`/api/monitors/${monitor.id}`));
     expect(saved.definition.checks.map((c) => c.id)).toEqual(['web', 'db', 'other', 'web-copy', 'db-copy']);
     expect(saved.definition.checks.find((c) => c.id === 'web-copy')?.name).toBe('Web (copy)');

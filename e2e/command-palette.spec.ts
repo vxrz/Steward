@@ -89,7 +89,7 @@ test.describe('palette actions (v0.4.0)', () => {
       // an application by name
       await open(page, app.name);
       await page.getByRole('button', { name: app.name, exact: true }).click();
-      await expect(page).toHaveURL(new RegExp(`/applications/${app.id}$`));
+      await expect(page).toHaveURL((u) => u.pathname.endsWith(`/applications/${app.id}`));
       // a service page opened directly counts as well
       await page.goto(`/services/${svc.id}`);
       await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText(svc.name);

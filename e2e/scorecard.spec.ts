@@ -81,7 +81,7 @@ test('define an availability objective and see the scorecard of the service', as
 
   // the scorecard of the service (its own tab): four parts, each with its own status
   await page.getByTestId('service-tab-scorecard').click();
-  await expect(page).toHaveURL(new RegExp(`/services/${svc.id}/scorecard$`));
+  await expect(page).toHaveURL((u) => u.pathname.endsWith(`/services/${svc.id}/scorecard`));
   const sc = page.getByTestId('scorecard-panel');
   await expect(sc.getByTestId('part-duties').getByTestId('part-status')).toHaveText('Open');
   await expect(sc.getByTestId('part-duties')).toContainText('Mandatory: 0 of 1 met, 1 open');

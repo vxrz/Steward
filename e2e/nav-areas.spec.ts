@@ -194,7 +194,7 @@ test.describe('addresses (admin)', () => {
     const svc = await json(await api.post('/api/services', { data: { name: uniq('E2E hub redirect') } }));
     try {
       await page.goto(`/services/${svc.id}/no-such-tab`);
-      await expect(page).toHaveURL(new RegExp(`/services/${svc.id}$`));
+      await expect(page).toHaveURL((u) => u.pathname.endsWith(`/services/${svc.id}`));
       await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText(svc.name);
     } finally {
       await api.delete(`/api/services/${svc.id}`);

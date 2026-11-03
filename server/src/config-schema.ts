@@ -57,6 +57,13 @@ const fail = (ctx: z.RefinementCtx, message: string) => {
   return z.NEVER;
 };
 
+/** A parser's message without the variable name it starts with ("SM_X: …", "SM_X=…"), since the issue names it already. */
+export function withoutName(message: string, name: string): string {
+  if (!message.startsWith(name)) return message;
+  const rest = message.slice(name.length);
+  return /^[: =]/.test(rest) ? rest.slice(1).trimStart() : message;
+}
+
 const quote = (s: string) => JSON.stringify(s.length > 80 ? `${s.slice(0, 80)}…` : s);
 
 /** A string (trimmed); undefined when not set. */
@@ -175,7 +182,7 @@ function parsedBy<T>(name: string, parse: (s: string) => T) {
     try {
       return parse(s);
     } catch (e) {
-      return fail(ctx, (e as Error).message.replace(new RegExp(`^${name}[: =]\\s*`), ''));
+      return fail(ctx, withoutName((e as Error).message, name));
     }
   });
 }

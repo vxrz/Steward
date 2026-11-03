@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ConfigError, VARS, parseEnv, parseEnvPart } from '../src/config-schema.js';
+import { ConfigError, VARS, parseEnv, parseEnvPart, withoutName } from '../src/config-schema.js';
 
 const SERVER = path.resolve(import.meta.dirname, '..');
 const ROOT = path.resolve(SERVER, '..');
@@ -196,5 +196,17 @@ describe('generated documentation', () => {
     const r = spawnSync(process.execPath, ['--import', 'tsx', 'server/src/cli/config-docs.ts', '--check'], { cwd: ROOT, encoding: 'utf8', timeout: 60_000 });
     expect(r.stderr).toBe('');
     expect(r.status).toBe(0);
+  });
+});
+
+describe('withoutName', () => {
+  it('drops a leading variable name and its separator, nothing else', () => {
+    expect(withoutName('SM_BASE_PATH: must start with /', 'SM_BASE_PATH')).toBe('must start with /');
+    expect(withoutName('SM_BASE_PATH=x is not allowed', 'SM_BASE_PATH')).toBe('x is not allowed');
+    expect(withoutName('SM_BASE_PATHS: other', 'SM_BASE_PATH')).toBe('SM_BASE_PATHS: other');
+    expect(withoutName('must start with /', 'SM_BASE_PATH')).toBe('must start with /');
+    // a name with regex characters is taken literally
+    expect(withoutName('A.B: x', 'A.B')).toBe('x');
+    expect(withoutName('AxB: x', 'A.B')).toBe('AxB: x');
   });
 });
