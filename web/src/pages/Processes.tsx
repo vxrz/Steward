@@ -32,18 +32,20 @@ import {
   IconDots,
   IconArchive,
   IconFileExport,
-  IconPackage,
+  IconChevronDown,
   IconPackageExport,
   IconPackageImport,
   IconSitemap,
   IconChecklist,
 } from '@tabler/icons-react';
-import { BUNDLE_FORMATS, tagLabel, tagsMatch, type ExportBundle, type ProcessDetail, type ProcessSummary, type ProcessTemplate } from '@sm/shared';
+import { BUNDLE_FORMATS, tagLabel, tagsMatch, type ExportBundle, type ProcessDetail, type ProcessSummary } from '@sm/shared';
 import { TagBadges, TagFilterChip, useTagFilter } from '../components/tags';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { EmptyState, PageHeader, QueryState, StatusBadge } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { RunDialog } from '../components/RunDialog';
+import { DescriptionText, descriptionPlain } from '../components/DescriptionText';
+import { TemplateGallery } from '../components/TemplateGallery';
 import { fmtRelative } from '../format';
 import { errorText } from '../i18n/errors';
 import { BRAND } from '../../../shared/src/brand';
@@ -127,7 +129,14 @@ export function ProcessesPage() {
   const [tag, setTag] = useTagFilter();
   const f = filter.toLowerCase();
   const list = (processes.data ?? []).filter(
-    (p) => (!f || p.name.toLowerCase().includes(f) || p.tags.some((x) => tagLabel(x).toLowerCase().includes(f))) && tagsMatch(p.tags, tag),
+    (p) =>
+      (!f ||
+        p.name.toLowerCase().includes(f) ||
+        p.tags.some((x) => tagLabel(x).toLowerCase().includes(f)) ||
+        descriptionPlain(p.description ?? '')
+          .toLowerCase()
+          .includes(f)) &&
+      tagsMatch(p.tags, tag),
   );
 
   return (
@@ -137,13 +146,29 @@ export function ProcessesPage() {
         description={t('description')}
         actions={
           <>
-            <Menu position="bottom-end">
+            {/* the secondary actions in one menu: a manual procedure, YAML import, bundles (several processes and dashboards in one file) */}
+            <Menu position="bottom-end" width={300}>
               <Menu.Target>
-                <Button size="xs" variant="default" leftSection={<IconPackage size={14} />}>
-                  {t('bundle.button')}
+                <Button size="xs" variant="default" rightSection={<IconChevronDown size={14} />} data-testid="processes-more">
+                  {t('more')}
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
+                {caps.createProcesses && (
+                  <>
+                    <Menu.Item leftSection={<IconChecklist size={14} />} onClick={createManual}>
+                      {t('newManualProcedure')}
+                      <Text size="xs" c="dimmed">
+                        {t('newManualProcedureHint')}
+                      </Text>
+                    </Menu.Item>
+                    <Menu.Item leftSection={<IconUpload size={14} />} onClick={importModal.open}>
+                      {t('importYaml')}
+                    </Menu.Item>
+                    <Menu.Divider />
+                  </>
+                )}
+                <Menu.Label>{t('bundle.label')}</Menu.Label>
                 <Menu.Item leftSection={<IconPackageExport size={14} />} component="a" href={apiUrl('/bundle/export')}>
                   {t('bundle.exportAll')}
                 </Menu.Item>
@@ -156,14 +181,8 @@ export function ProcessesPage() {
             </Menu>
             {caps.createProcesses && (
               <>
-                <Button size="xs" variant="default" leftSection={<IconUpload size={14} />} onClick={importModal.open}>
-                  {t('importYaml')}
-                </Button>
                 <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />} onClick={templates.open}>
                   {t('fromTemplate')}
-                </Button>
-                <Button size="xs" variant="default" leftSection={<IconChecklist size={14} />} onClick={createManual}>
-                  {t('newManualProcedure')}
                 </Button>
                 <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createBlank}>
                   {t('newProcess')}
@@ -251,9 +270,7 @@ export function ProcessesPage() {
                 </Menu>
               </Group>
             </Group>
-            <Text size="sm" c="dimmed" lineClamp={3} mt={4} style={{ whiteSpace: 'pre-line' }}>
-              {p.description}
-            </Text>
+            <DescriptionText text={p.description} size="sm" c="dimmed" lineClamp={3} mt={4} />
             <Group gap={4} mt="sm">
               <Badge size="xs" variant="outline">
                 v{p.currentVersion}
@@ -283,67 +300,10 @@ export function ProcessesPage() {
         ))}
       </SimpleGrid>
       <RunDialog processId={runId} opened={!!runId} onClose={() => setRunId(null)} />
-      <TemplatesModal opened={templatesOpen} onClose={templates.close} />
+      <TemplateGallery opened={templatesOpen} onClose={templates.close} />
       <ImportModal opened={importOpen} onClose={importModal.close} />
       <BundleImportModal opened={bundleOpen} onClose={bundleModal.close} />
     </>
-  );
-}
-
-function TemplatesModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
-  const { t } = useTranslation('processes');
-  const navigate = useNavigate();
-  const qc = useQueryClient();
-  const templates = useQuery({ queryKey: ['templates'], queryFn: () => get<ProcessTemplate[]>('/templates'), enabled: opened });
-  const [busy, setBusy] = useState<string | null>(null);
-  return (
-    <Modal opened={opened} onClose={onClose} title={t('templates.title')} size="xl">
-      <Stack>
-        {templates.data?.map((tpl) => (
-          <Card key={tpl.id} withBorder padding="sm">
-            <Group justify="space-between" wrap="nowrap" align="flex-start">
-              <div style={{ minWidth: 0 }}>
-                <Text fw={600}>{tpl.name}</Text>
-                <Text size="sm" c="dimmed" lineClamp={4} style={{ whiteSpace: 'pre-line' }}>
-                  {tpl.description}
-                </Text>
-                <Group gap={4} mt={6}>
-                  {tpl.tags.map((tag) => (
-                    <Badge key={tag} size="xs" variant="light" color="gray">
-                      {tag}
-                    </Badge>
-                  ))}
-                  <Badge size="xs" variant="outline">
-                    {t('templates.steps', { count: (tpl.definition.nodes ?? []).filter((n) => n.type !== 'start' && n.type !== 'note').length })}
-                  </Badge>
-                </Group>
-              </div>
-              <Button
-                size="xs"
-                aria-label={t('templates.useNamed', { name: tpl.name })}
-                loading={busy === tpl.id}
-                onClick={async () => {
-                  setBusy(tpl.id);
-                  try {
-                    const p = await post<ProcessDetail>('/processes', { templateId: tpl.id });
-                    qc.invalidateQueries({ queryKey: ['processes'] });
-                    notifyOk(t('templates.created', { name: p.name }));
-                    onClose();
-                    navigate(`/processes/${p.id}`);
-                  } catch (e) {
-                    notifyError(e);
-                  } finally {
-                    setBusy(null);
-                  }
-                }}
-              >
-                {t('templates.use')}
-              </Button>
-            </Group>
-          </Card>
-        ))}
-      </Stack>
-    </Modal>
   );
 }
 

@@ -31,7 +31,25 @@
     "steps_other": "{{count}} steps",
     "created": "Created \"{{name}}\"",
     "use": "Use",
-    "useNamed": "Use template {{name}}"
+    "useNamed": "Use template {{name}}",
+    "anyPlatform": "Any platform or none",
+    "search": "Search",
+    "searchPlaceholder": "Name, description, tag or platform",
+    "platform": "Platform",
+    "allPlatforms": "All platforms",
+    "mine": "Matches your platforms",
+    "shown": "{{count}} of {{total}} templates",
+    "noMatch": "No template matches. Clear the search or the filters.",
+    "needs": "needs: {{kind}} platform",
+    "haveKind": "You have a platform of this kind",
+    "missingKind": "No platform of this kind yet – add one under Platforms",
+    "recommended": "recommended: {{schedule}}",
+    "nextText": "Try it with a dry run – it simulates every change and writes the full protocol – then let it run on a schedule.",
+    "missingPlatform": "The process needs a {{kind}} platform. Add one under Platforms before the first run.",
+    "dryRun": "Start a dry run",
+    "schedule": "Create a schedule",
+    "openEditor": "Open in the editor",
+    "backToList": "Back to the templates"
   },
   "import": {
     "title": "Import process (YAML or JSON)",
@@ -46,7 +64,6 @@
     "submit": "Import"
   },
   "bundle": {
-    "button": "Bundle",
     "exportAll": "Export all processes & dashboards",
     "importMenu": "Import bundle…",
     "importTitle": "Import bundle",
@@ -63,7 +80,8 @@
     "newVersion": "Save as new version",
     "skip": "Skip",
     "copy": "Import as copy",
-    "result": "{{created}} created, {{updated}} updated, {{skipped}} skipped"
+    "result": "{{created}} created, {{updated}} updated, {{skipped}} skipped",
+    "label": "Bundles: several processes and dashboards in one file"
   },
   "newManualProcedure": "New manual procedure",
   "manualTemplate": {
@@ -78,5 +96,7 @@
     "ticket": "Change ticket",
     "check": "Check the result",
     "checkItem1": "Everything works as before"
-  }
+  },
+  "more": "More",
+  "newManualProcedureHint": "Checklists and evidence, done by people – no platform needed"
 }

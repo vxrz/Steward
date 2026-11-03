@@ -48,7 +48,8 @@ export function SchedulesPage() {
   const navigate = useNavigate();
   const schedules = useQuery({ queryKey: ['schedules'], queryFn: () => get<Schedule[]>('/schedules'), refetchInterval: 10000 });
   const [draft, setDraft] = useState<Draft | null>(null);
-  useCreateParam(true, () => setDraft(emptyDraft()));
+  // ?new=1 opens a new schedule; &processId=… preselects the process (the template gallery's next steps)
+  useCreateParam(true, () => setDraft({ ...emptyDraft(), processId: new URLSearchParams(window.location.search).get('processId') ?? '' }));
 
   // ?edit=<id> (links in messages, #139) opens the schedule
   const [params, setParams] = useSearchParams();

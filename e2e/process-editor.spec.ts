@@ -15,10 +15,18 @@ test.describe('process editor (designer)', () => {
     // create from a template
     await page.goto('/processes');
     await page.getByRole('button', { name: 'From template' }).click();
-    await page
-      .getByRole('dialog', { name: 'Start from a template' })
-      .getByRole('button', { name: `Use template ${HEALTH}` })
-      .click();
+    const gallery = page.getByRole('dialog', { name: 'Start from a template' });
+    // search and what a template needs
+    await gallery.getByRole('textbox', { name: 'Search' }).fill('platform health');
+    const card = gallery.getByTestId('template-card').filter({ hasText: HEALTH });
+    await expect(card.getByTestId('template-needs')).toHaveText('needs: Siemens Insights Hub platform');
+    await expect(card).not.toContainText('**');
+    await gallery.getByRole('button', { name: `Use template ${HEALTH}` }).click();
+    // the next steps: dry run, schedule, editor
+    const next = gallery.getByTestId('template-next-steps');
+    await expect(next.getByRole('button', { name: 'Start a dry run' })).toBeVisible();
+    await expect(next.getByRole('button', { name: 'Create a schedule' })).toBeVisible();
+    await next.getByRole('button', { name: 'Open in the editor' }).click();
     await expect(page).toHaveURL(/\/processes\/[^/]+$/);
     const processId = page.url().split('/').pop()!;
     await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('v1');
@@ -104,7 +112,8 @@ test.describe('process editor (designer)', () => {
 
     const name = uniq('E2E imported');
     await page.goto('/processes');
-    await page.getByRole('button', { name: 'Import YAML' }).click();
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Import YAML' }).click();
     const dialog = page.getByRole('dialog', { name: 'Import process (YAML or JSON)' });
     await dialog.getByRole('textbox').fill(yaml.replace(`name: ${HEALTH}`, `name: ${name}`));
     await dialog.getByRole('button', { name: 'Import', exact: true }).click();
