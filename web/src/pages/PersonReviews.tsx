@@ -57,12 +57,19 @@ export function PersonReviewsPage() {
   const closeNew = () => {
     setCreating(false);
     setInitialUser('');
-    if (params.has('user')) {
-      const next = new URLSearchParams(params);
-      next.delete('user');
-      setParams(next, { replace: true });
-    }
+    // from the current address (the ?new=1 of the palette may already be gone)
+    if (params.has('user'))
+      setParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          next.delete('user');
+          next.delete('new');
+          return next;
+        },
+        { replace: true },
+      );
   };
+
   const list = reviews.data ?? [];
   const newButton = canCreate && (
     <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>

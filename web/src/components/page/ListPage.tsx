@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { Box, Group, SegmentedControl, TextInput, Tooltip, VisuallyHidden } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { IconLayoutList, IconSearch, IconTable } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Icon } from '@tabler/icons-react';
@@ -35,6 +36,8 @@ export function useStoredListView(id: string, narrow: boolean): { value: ListVie
 /** Table or cards, remembered per list in this browser. */
 function ViewToggle({ id, value, onChange }: { id: string; value: ListView; onChange: (v: ListView) => void }) {
   const { t } = useTranslation();
+  // the width up to which DataTable shows cards by default
+  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const data = [
     {
       value: 'table',
@@ -65,8 +68,8 @@ function ViewToggle({ id, value, onChange }: { id: string; value: ListView; onCh
       aria-label={t('listPage.view')}
       data-testid={`list-view-${id}`}
       data={data}
-      // auto: whatever DataTable shows at this width – the control shows "table" until the user chooses
-      value={value === 'auto' ? 'table' : value}
+      // auto: what the list shows at this width (cards on phones) until the user chooses
+      value={value === 'auto' ? (narrow ? 'cards' : 'table') : value}
       onChange={(v) => {
         const next = v as ListView;
         onChange(next);
