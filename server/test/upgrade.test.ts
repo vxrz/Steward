@@ -63,6 +63,8 @@ describe.each(versions)('upgrade from %s', (version) => {
   let pending: string[] = [];
   /** The operations of every API spec as the old version stored them, with the path each request went to then. */
   let oldOperations: { platformId: string; ops: { method: string; path: string }[] }[] = [];
+  /** The datasets as the old version stored them (0.4.0 keeps their rows in the partitions only) */
+  let oldDatasets: { key: string; rows: number }[] = [];
   let proc: ChildProcess | undefined;
   let stdout = '';
   let base = '';
@@ -119,6 +121,7 @@ describe.each(versions)('upgrade from %s', (version) => {
         platformId: r.platform_id,
         ops: (JSON.parse(r.operations) as { method: string; path: string }[]).map((o) => ({ method: o.method, path: (r.path_prefix ?? '') + o.path })),
       }));
+      oldDatasets = old.all<{ key: string; row_count: number }>('SELECT key, row_count FROM datasets').map((r) => ({ key: r.key, rows: Number(r.row_count) }));
       // evidence packs expire a week after they were made (SM_EVIDENCE_RETENTION_DAYS): the fixture's pack would turn
       // "expired" as the fixture ages. This test checks that it still verifies after the upgrade, not the expiry.
       old.run("UPDATE evidence_packs SET expires_at = '2999-01-01T00:00:00.000Z' WHERE status = 'ready'");
@@ -239,6 +242,20 @@ describe.each(versions)('upgrade from %s', (version) => {
     expect(r.anchors.map((a: any) => a.source)).toEqual(expect.arrayContaining(['local anchor file', 'checkpoint you entered']));
     expect(r.anchors.every((a: any) => a.ok)).toBe(true);
     expect(r.checkpoint.signature).toBeTruthy();
+  });
+
+  it('keeps every dataset readable with all its rows, and frees their combined copy (0.4.0)', async () => {
+    for (const ds of oldDatasets) {
+      const d = await admin('GET', `/datasets/${encodeURIComponent(ds.key)}`);
+      expect(d.rows, ds.key).toHaveLength(ds.rows);
+    }
+    const d = new Db(pg ? { ...pg, lock: false } : sqlite, { migrate: false });
+    try {
+      // (read above: every dataset has a partition now)
+      expect(d.all<{ key: string }>("SELECT key FROM datasets WHERE rows <> '[]'")).toEqual([]);
+    } finally {
+      d.close();
+    }
   });
 
   it('writes one system.upgraded entry when the database was migrated', async () => {
