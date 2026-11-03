@@ -55,8 +55,11 @@ describe('incremental and full verification', () => {
     await add(5);
     const r = await s.api('GET', '/audit/verify');
     expect(r).toMatchObject({ ok: true, mode: 'incremental', fromSeq: cp.seq });
-    // (the verification and the checkpoint after it are written after the check)
-    expect(r.checked).toBe((await maxSeq()) - cp.seq - 2);
+    // it checked the 5 entries after the checkpoint and whatever background work (demo feeders, jobs) wrote until
+    // it ran, but nothing up to the checkpoint and not its own entry, which is written after the check
+    const verified = Number((await db()).get<{ m: number }>("SELECT MAX(seq) AS m FROM audit_log WHERE action = 'audit.verified' AND seq > ?", cp.seq)!.m);
+    expect(r.checked).toBeGreaterThanOrEqual(5);
+    expect(r.checked).toBeLessThanOrEqual(verified - cp.seq - 1);
     expect(r.message).toMatch(new RegExp(`checked from the signed checkpoint at entry #${cp.seq}`));
     // (that verification signed a checkpoint: change an entry after it)
     await add(3);
