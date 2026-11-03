@@ -146,3 +146,42 @@ describe('Snowflake – project access review', () => {
     expect(r.steps.some((x: any) => x.stepId === 'show')).toBe(false);
   });
 });
+
+describe('Snowflake – account hygiene and usage', () => {
+  it('finds inactive people, passwords without MFA, technical users with passwords, admins, disabled users with roles and failed tasks', async () => {
+    const r = await finish(await start('snowflake-account-hygiene', { snowflake: platformByKind.snowflake! }, { maxCredits7d: 20 }));
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    const checks = Object.fromEntries(r.steps.filter((x: any) => x.type === 'check').map((x: any) => [x.stepId, x.status]));
+    expect(checks).toEqual({
+      noInactive: 'failed',
+      mfa: 'failed',
+      servicePasswords: 'failed',
+      admins: 'succeeded',
+      disabled: 'failed',
+      tasksOk: 'failed',
+      creditsOk: 'failed',
+    });
+    const users = await s.api('GET', '/datasets/snowflake.users');
+    const by = Object.fromEntries(users.rows.map((x: any) => [x._key, x]));
+    expect(by.Z004EFGH).toMatchObject({ Type: 'person', 'Sign-in': 'password, no MFA', _status: 'warning' });
+    expect(by.Z004EFGH.Findings).toBe('no login for 200 days; password without MFA');
+    expect(by.Z005IJKL).toMatchObject({ Type: 'disabled', Roles: 'PRD_SDC_OPQ_PBI_DEV_READWRITE', _status: 'critical' });
+    expect(by.SVC_PBI_ETL).toMatchObject({ Type: 'technical', Findings: 'technical user with a password' });
+    expect(by.SVC_PBI_GATEWAY).toMatchObject({ Type: 'technical', 'Sign-in': 'key pair', Findings: '–', _status: 'good' });
+    expect(by.BREAKGLASS_ADMIN).toMatchObject({ Type: 'person', 'Last login': 'never' });
+    expect(users.metrics).toMatchObject({
+      users: 12,
+      inactive: 3, // Hans Ilg (200 days), Mia Neumann (91), BREAKGLASS_ADMIN (never); Karla Lang is disabled
+      passwordNoMfa: 1,
+      servicePasswords: 1, // OLD_BI is disabled
+      disabledWithRoles: 2, // OLD_BI and Karla Lang
+      accountAdmins: 2,
+      securityAdmins: 1,
+    });
+    const credits = await s.api('GET', '/datasets/snowflake.credits');
+    expect(credits.metrics).toMatchObject({ warehouses: 4, credits7d: 47.25, credits30d: 182.25, failedTasks: 1 });
+    expect(credits.rows.find((x: any) => x._key === 'TRANSFORM_WH')).toMatchObject({ 'Credits (7 days)': 31.25, _status: 'warning' });
+    const tasks = await s.api('GET', '/datasets/snowflake.tasks');
+    expect(tasks.rows).toEqual([expect.objectContaining({ Task: 'SHOP.STAGING.LOAD_EVENTS', _status: 'critical' })]);
+  });
+});
