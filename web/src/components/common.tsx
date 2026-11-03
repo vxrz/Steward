@@ -155,7 +155,7 @@ export function PageHeader({ title, description, actions, back }: { title: React
       {crumbs.length > 0 && <BackLinks crumbs={crumbs} />}
       <Group justify="space-between" align="flex-start" mb="md" wrap="wrap" gap="sm">
         <Box style={{ minWidth: 0, flex: '1 1 18rem' }}>
-          <Title order={2} fz={{ base: 'h3', sm: 'h2' }} style={{ overflowWrap: 'anywhere' }}>
+          <Title order={1} fz={{ base: 'h3', sm: 'h2' }} style={{ overflowWrap: 'anywhere' }}>
             {title}
           </Title>
           {description && (

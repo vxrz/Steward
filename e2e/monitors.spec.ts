@@ -129,7 +129,7 @@ test('the status wall lists monitors with problems first', async ({ page }) => {
 test('viewers see monitors but cannot create or edit them', async ({ loginAs }) => {
   const page = await loginAs('vera');
   await page.goto('/monitors');
-  await expect(page.getByRole('heading', { name: 'Monitors', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Monitors', level: 1 })).toBeVisible();
   await expect(page.getByRole('button', { name: 'New monitor' })).toHaveCount(0);
   await page.getByRole('table', { name: 'Monitors' }).getByRole('link', { name: 'Machine 17 – PowerMeter' }).click();
   await expect(page.getByTestId('monitor-graph')).toBeVisible();

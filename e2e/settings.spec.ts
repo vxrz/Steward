@@ -6,7 +6,7 @@ test.use({ storageState: authFile('admin') });
 
 test('settings: notification routing, retention, maintenance status', async ({ page }) => {
   await page.goto('/settings/notifications');
-  await expect(page.getByRole('heading', { name: 'Settings', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
 
   // notification routing table
   const routing = page.getByRole('table').filter({ hasText: 'task.assigned' });

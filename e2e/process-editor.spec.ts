@@ -21,7 +21,7 @@ test.describe('process editor (designer)', () => {
       .click();
     await expect(page).toHaveURL(/\/processes\/[^/]+$/);
     const processId = page.url().split('/').pop()!;
-    await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('v1');
+    await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText('v1');
 
     // rename in the Settings tab and save v2
     await page.getByRole('tab', { name: 'Settings' }).click();
@@ -32,7 +32,7 @@ test.describe('process editor (designer)', () => {
     await save.getByLabel('Change comment (optional)').fill('renamed by the UI test');
     await save.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Saved as version v2')).toBeVisible();
-    await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText(name);
+    await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText(name);
 
     // a dry run gives the editor data for the live preview
     await page.getByRole('button', { name: 'Run', exact: true }).click();
@@ -109,7 +109,7 @@ test.describe('process editor (designer)', () => {
     await dialog.getByRole('textbox').fill(yaml.replace(`name: ${HEALTH}`, `name: ${name}`));
     await dialog.getByRole('button', { name: 'Import', exact: true }).click();
     await expect(page).toHaveURL(/\/processes\/[^/]+$/);
-    await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText(name);
-    await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('v1');
+    await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText(name);
+    await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText('v1');
   });
 });

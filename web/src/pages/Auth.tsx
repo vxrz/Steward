@@ -47,7 +47,7 @@ function Card({ icon, title, intro, children }: { icon: ReactNode; title: string
       <Paper withBorder shadow="sm" p="xl" w="100%" maw={440}>
         <Stack>
           <Center>{icon}</Center>
-          <Title order={3} ta="center">
+          <Title order={1} size="h3" ta="center">
             {title}
           </Title>
           {intro && (

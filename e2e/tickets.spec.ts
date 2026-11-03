@@ -32,7 +32,7 @@ test('an operator documents a vendor ticket from the service page and keeps its 
   await dialog.getByRole('button', { name: 'Save' }).click();
 
   // the detail page: status, Markdown note rendered safely, affected service, history
-  await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText(number);
+  await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText(number);
   await expect(page.getByRole('main').getByText('Case opened', { exact: true })).toBeVisible();
   await expect(page.getByRole('main').getByText('<img src=x onerror=alert(1)>')).toBeVisible();
   await expect(page.locator('main img[src="x"]')).toHaveCount(0);
@@ -77,7 +77,7 @@ test.describe('read-only accounts', () => {
   test('a viewer reads ticket references but cannot add them', async ({ page }) => {
     await page.goto('/tickets');
     await settle(page);
-    await expect(page.getByRole('heading', { name: 'Ticket references', level: 2 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Ticket references', level: 1 })).toBeVisible();
     await expect(page.getByRole('button', { name: 'New ticket reference' })).toHaveCount(0);
   });
 });

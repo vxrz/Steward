@@ -147,7 +147,7 @@ test.describe('navigation (admin)', () => {
     await search.fill('monitor machine 17 powermeter');
     await page.getByRole('button', { name: /^Machine 17 – PowerMeter/ }).click();
     await expect(page).toHaveURL(/\/monitors\/[^/]+$/);
-    await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('Machine 17 – PowerMeter');
+    await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText('Machine 17 – PowerMeter');
     await settle(page);
     // Ctrl+K toggles: pressed while the palette is still closing, it would close it instead of opening it
     await expect(search).toBeHidden();
@@ -221,7 +221,7 @@ test.describe('first steps on an empty installation (own server)', () => {
     await checklist.getByRole('button', { name: 'Hide the getting-started checklist' }).click();
     await expect(checklist).toBeHidden();
     await page.reload();
-    await expect(page.getByRole('main').getByRole('heading', { name: 'Dashboard', level: 2 })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
     await expect(checklist).toBeHidden();
   });
 

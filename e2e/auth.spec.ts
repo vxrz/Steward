@@ -19,7 +19,7 @@ test.describe('sign-in', () => {
     await signIn(page, USERS.dana.username, USERS.dana.password);
     await expectShell(page);
     await expect(page.getByRole('button', { name: 'User menu' })).toContainText(USERS.dana.displayName);
-    await expect(page.getByRole('heading', { name: 'Dashboard', level: 2 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
 
     const headers = await pageSessionHeaders(page);
     expect((await page.request.get('/api/auth/me', { headers })).status()).toBe(200);
@@ -77,7 +77,7 @@ test.describe('viewer (vera)', () => {
 
   test('sees no admin pages or editing buttons', async ({ page, request }) => {
     await page.goto('/processes');
-    await expect(page.getByRole('heading', { name: 'Processes', level: 2 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Processes', level: 1 })).toBeVisible();
     const nav = page.getByRole('navigation');
     await expect(nav.getByRole('link', { name: 'Processes' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Audit log' })).toHaveCount(0);

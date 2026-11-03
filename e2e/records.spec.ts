@@ -28,14 +28,14 @@ test('a change request is approved by someone else and generated as PDF with two
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page).toHaveURL(/\/records\/rec_[^/]+$/);
   const id = page.url().split('/').pop()!;
-  await expect(page.getByRole('heading', { level: 2 })).toContainText(title);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText(title);
 
   // submit
   await page.getByRole('button', { name: 'Submit', exact: true }).click();
   const submit = page.getByRole('dialog', { name: /^Submit: CR-/ });
   await submit.getByRole('button', { name: 'Submit', exact: true }).click();
   await expect(submit).toBeHidden();
-  await expect(page.getByRole('heading', { level: 2 })).toContainText('Submitted');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Submitted');
   // the author cannot approve (and is no approver)
   await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(0);
 
@@ -47,7 +47,7 @@ test('a change request is approved by someone else and generated as PDF with two
   await approve.getByRole('textbox', { name: 'Comment' }).fill('Fine, go ahead');
   await approve.getByRole('button', { name: 'Approve', exact: true }).click();
   await expect(approve).toBeHidden();
-  await expect(adam.getByRole('heading', { level: 2 })).toContainText('Approved');
+  await expect(adam.getByRole('heading', { level: 1 })).toContainText('Approved');
 
   // PDF with two external signers
   await adam.getByRole('button', { name: 'More actions' }).click();
@@ -100,8 +100,8 @@ test('an ADR in Markdown is imported as a draft', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Import 1 file' }).click();
   await expect(dialog.getByText('1 record created.')).toBeVisible();
   await dialog.getByRole('link', { name: title }).click();
-  await expect(page.getByRole('heading', { level: 2 })).toContainText(title);
-  await expect(page.getByRole('heading', { level: 2 })).toContainText('Draft');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText(title);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Draft');
   await expect(page.getByText('Several instances share one database.')).toBeVisible();
   await expect(page.getByText(/imported records start as drafts/i)).toBeVisible();
 });
@@ -121,7 +121,7 @@ test('a service is created and linked to a record, with backlinks both ways', as
   await form.getByRole('textbox', { name: 'Link to the entry' }).fill('https://example.service-now.com/ci/CI0042');
   await form.getByRole('button', { name: 'Save' }).click();
   await expect(page).toHaveURL(/\/services\/svc_/);
-  await expect(page.getByRole('heading', { level: 2 })).toContainText(name);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText(name);
   await expect(page.getByRole('link', { name: /Open in CMDB/ })).toHaveAttribute('href', 'https://example.service-now.com/ci/CI0042');
 
   // link the record
@@ -214,7 +214,7 @@ test.describe('phone @mobile', () => {
     const rec = await json(await api.post('/api/records', { data: { type: 'ADR', title: uniq('E2E phone decision') } }));
     for (const path of ['/records', `/records/${rec.id}`, `/records/${rec.id}/edit`, '/services']) {
       await page.goto(path);
-      await expect(page.getByRole('main').getByRole('heading', { level: 2 }).first()).toBeVisible();
+      await expect(page.getByRole('main').getByRole('heading', { level: 1 }).first()).toBeVisible();
       await expectNoHorizontalScroll(page);
     }
   });

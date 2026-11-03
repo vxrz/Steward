@@ -92,6 +92,28 @@ const GitUpdateDetailPage = page(() => import('./pages/GitUpdates'), 'GitUpdateD
 const TicketsPage = page(() => import('./pages/Tickets'), 'TicketsPage');
 const TicketDetailPage = page(() => import('./pages/TicketDetail'), 'TicketDetailPage');
 
+const MAIN_ID = 'main-content';
+
+/** "Skip to content": the first focusable element, visible only while it has focus (WCAG 2.4.1). */
+function SkipLink() {
+  const { t } = useTranslation('nav');
+  return (
+    <a
+      href={`#${MAIN_ID}`}
+      className="skip-link"
+      onClick={(e) => {
+        // focus the main region without changing the URL (the router owns the hash)
+        e.preventDefault();
+        const main = document.getElementById(MAIN_ID);
+        main?.focus();
+        main?.scrollIntoView({ block: 'start' });
+      }}
+    >
+      {t('skipToContent')}
+    </a>
+  );
+}
+
 function PageLoader() {
   return (
     <Center py={80}>
@@ -169,6 +191,7 @@ function Shell({ status }: { status: AuthStatus }) {
 
   return (
     <AppShell header={{ height: 52 }} navbar={{ width: railActive ? 64 : 232, breakpoint: 'sm', collapsed: { mobile: !opened } }} padding="md">
+      <SkipLink />
       <AppShell.Header>
         <Group h="100%" px={{ base: 'xs', xs: 'md' }} justify="space-between" wrap="nowrap" gap="xs">
           <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
@@ -218,7 +241,7 @@ function Shell({ status }: { status: AuthStatus }) {
           onNavigate={close}
         />
       </AppShell.Navbar>
-      <AppShell.Main style={{ display: 'flex', flexDirection: 'column' }}>
+      <AppShell.Main id={MAIN_ID} tabIndex={-1} style={{ display: 'flex', flexDirection: 'column', outline: 'none' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {status.me!.emergency && <EmergencyBanner expiresAt={status.me!.emergency.expiresAt} onSignOut={() => signOut(qc)} />}
           {caps.manageSettings && <UpdateNotice />}

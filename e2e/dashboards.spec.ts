@@ -12,7 +12,7 @@ test.describe('dashboards', () => {
     for (const name of ['Platform operations', 'Access governance', 'Edge fleet']) {
       await page.goto('/dashboards');
       await page.getByText(name, { exact: true }).click();
-      await expect(page.getByRole('heading', { name, level: 2 })).toBeVisible();
+      await expect(page.getByRole('heading', { name, level: 1 })).toBeVisible();
       await expect(page.getByText(/data from .+ ago/)).toBeVisible();
       await expect(page.locator('.viz-root').first()).toBeVisible();
       await expect(page.getByRole('alert')).toHaveCount(0);

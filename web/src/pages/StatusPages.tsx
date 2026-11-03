@@ -66,7 +66,9 @@ export function StatusView({ view }: { view: StatusPageView }) {
     <Stack maw={900}>
       <Group justify="space-between" wrap="wrap">
         <div>
-          <Title order={2}>{view.title}</Title>
+          <Title order={1} size="h2">
+            {view.title}
+          </Title>
           {view.description && (
             <Text c="dimmed" size="sm">
               {view.description}

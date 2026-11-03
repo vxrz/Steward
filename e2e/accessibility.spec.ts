@@ -30,9 +30,23 @@ async function expectAccessible(page: Page, name: string) {
   expect(report, `accessibility violations on ${name}`).toEqual([]);
 }
 
+/**
+ * Page structure beyond the WCAG 2.1 tags: exactly one level-1 heading (axe "page-has-heading-one") and buttons
+ * of at least 24 × 24 px (WCAG 2.2, 2.5.8 "target-size"; links in text are exempt, stacked links are not checked yet).
+ */
+async function expectStructure(page: Page, name: string) {
+  await expect(page.getByRole('heading', { level: 1 }), `one h1 on ${name}`).toHaveCount(1);
+  const result = await new AxeBuilder({ page }).withRules(['page-has-heading-one', 'target-size']).analyze();
+  const bad = result.violations
+    .map((v) => ({ id: v.id, nodes: v.id === 'target-size' ? v.nodes.filter((n) => /^<button/.test(n.html)) : v.nodes }))
+    .filter((v) => v.nodes.length)
+    .map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
+  expect(bad, `structure violations on ${name}`).toEqual([]);
+}
+
 /** Wait for the page content (lazy routes, queries) before scanning. */
 async function settle(page: Page) {
-  await expect(page.getByRole('main').getByRole('heading', { level: 2 }).first()).toBeVisible();
+  await expect(page.getByRole('main').getByRole('heading', { level: 1 }).first()).toBeVisible();
   await page.waitForLoadState('networkidle');
 }
 
@@ -65,8 +79,24 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
       await page.goto(path);
       await settle(page);
       await expectAccessible(page, name);
+      await expectStructure(page, name);
     });
   }
+
+  test('"Skip to content" is the first focusable element and moves focus to the page', async ({ page }) => {
+    await page.goto('/runs');
+    await settle(page);
+    await page.locator('body').focus();
+    await page.keyboard.press('Tab');
+    const skip = page.getByRole('link', { name: 'Skip to content' });
+    await expect(skip).toBeFocused();
+    await expect(skip).toBeInViewport();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('main')).toBeFocused();
+    // the next Tab continues inside the page, not in the header or the sidebar
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => !!document.activeElement?.closest('main'))).toBe(true);
+  });
 
   test('run detail and My tasks with an open task', async ({ page, apiAs }) => {
     const api = await apiAs('admin');

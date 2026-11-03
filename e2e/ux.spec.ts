@@ -213,7 +213,7 @@ test.describe('lists, dialogs and help (admin)', () => {
     await expect(page.getByTestId('detail-loading')).toBeVisible();
     release();
     await expect(page.getByTestId('detail-loading')).toBeHidden();
-    await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible();
   });
 });
 

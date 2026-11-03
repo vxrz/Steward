@@ -11,10 +11,10 @@ test.describe('human in the loop', () => {
     await olivia.goto('/processes');
     await olivia.getByRole('button', { name: `Run ${ACCESS_REVIEW_1}` }).click();
     const runId = await startRunFromDialog(olivia, { dryRun: true });
-    await expect(olivia.getByRole('main').getByRole('heading', { level: 2 })).toContainText('dry run');
+    await expect(olivia.getByRole('main').getByRole('heading', { level: 1 })).toContainText('dry run');
     const task = taskRegion(olivia, { title: /^Task: Flag \d+ inactive user\(s\)/ });
     await expect(task).toBeVisible();
-    await expect(olivia.getByRole('main').getByRole('heading', { level: 2 })).toContainText('waiting');
+    await expect(olivia.getByRole('main').getByRole('heading', { level: 1 })).toContainText('waiting');
 
     // --- adam (approver) gets a notification and finds the task in My tasks
     const adam = await loginAs('adam');
@@ -36,7 +36,7 @@ test.describe('human in the loop', () => {
     await expect(mine).toBeHidden();
 
     // --- olivia's run page follows: succeeded, decision and report recorded
-    await expect(olivia.getByRole('main').getByRole('heading', { level: 2 })).toContainText('succeeded', { timeout: 20_000 });
+    await expect(olivia.getByRole('main').getByRole('heading', { level: 1 })).toContainText('succeeded', { timeout: 20_000 });
     await expect(olivia.getByRole('tab', { name: 'Decisions (1)' })).toBeVisible();
     await olivia.getByRole('tab', { name: 'Reports (1)' }).click();
     await expect(olivia.getByText('Users flagged for access review')).toBeVisible();
@@ -84,7 +84,7 @@ test.describe('human in the loop', () => {
     await chooseRunMode(dialog, 'Run');
     await expect(dialog.getByText('This run will change data')).toBeVisible();
     const runId = await startRunFromDialog(olivia, { dryRun: false });
-    await expect(olivia.getByRole('main').getByRole('heading', { level: 2 })).not.toContainText('dry run');
+    await expect(olivia.getByRole('main').getByRole('heading', { level: 1 })).not.toContainText('dry run');
 
     const adam = await loginAs('adam');
     await adam.goto('/tasks');
@@ -106,7 +106,7 @@ test.describe('human in the loop', () => {
     const run = await waitForRun(api, runId, ['succeeded', 'failed']);
     expect(run.status, run.error).toBe('succeeded');
     expect(run.stats.writes).toBe(1);
-    await expect(olivia.getByRole('main').getByRole('heading', { level: 2 })).toContainText('succeeded', { timeout: 20_000 });
+    await expect(olivia.getByRole('main').getByRole('heading', { level: 1 })).toContainText('succeeded', { timeout: 20_000 });
     await olivia.getByRole('tab', { name: 'Reports (1)' }).click();
     await expect(olivia.getByText('Users flagged for access review')).toBeVisible();
     await expect(olivia.getByRole('tabpanel').getByRole('cell', { name: userName })).toBeVisible();

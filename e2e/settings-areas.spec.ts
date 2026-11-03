@@ -35,7 +35,7 @@ test('settings are split into areas with their own addresses, and each says its 
 
   // a single setting from the command palette
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Dashboard', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
   await page.keyboard.press('Control+K');
   await page.getByRole('textbox', { name: 'Search', exact: true }).fill('data retention');
   await page.getByRole('button', { name: /^Data retention/ }).click();

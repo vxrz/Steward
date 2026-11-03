@@ -26,6 +26,6 @@ export async function expectAccessible(page: Page, name: string) {
 
 /** Wait for the page content (lazy routes, queries) before scanning. */
 export async function settle(page: Page) {
-  await expect(page.getByRole('main').getByRole('heading', { level: 2 }).first()).toBeVisible();
+  await expect(page.getByRole('main').getByRole('heading', { level: 1 }).first()).toBeVisible();
   await page.waitForLoadState('networkidle');
 }

@@ -10,7 +10,7 @@ const SECRETS = ['demo-secret', 'demo-password'];
 test('platform: test connection, API explorer, credentials stay hidden', async ({ page, apiAs }) => {
   await page.goto('/platforms');
   await page.getByText('Insights Hub (demo)', { exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Insights Hub (demo)', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Insights Hub (demo)', level: 1 })).toBeVisible();
 
   await page.getByRole('button', { name: 'Test connection' }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'Connection works' })).toContainText('HTTP 200');

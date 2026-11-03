@@ -15,7 +15,7 @@ test('an access change made outside Steward shows up as undocumented, is documen
   await json(await api.post(`/api/compliance/access-checks/${check.id}/run`, { data: {} })); // baseline
 
   await page.goto(`/compliance/reconciliation?check=${check.id}`);
-  await expect(page.getByRole('heading', { level: 2, name: 'Access reconciliation' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Access reconciliation' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Open (0)' })).toBeVisible();
   await expect(page.getByText('No undocumented changes')).toBeVisible();
 
@@ -51,7 +51,7 @@ test('an access change made outside Steward shows up as undocumented, is documen
 
   // an evidence pack for ISO/IEC 27001 5.18 (access rights)
   await page.goto('/compliance/controls?catalogue=ISO27001');
-  await expect(page.getByRole('heading', { level: 2, name: 'Controls' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Controls' })).toBeVisible();
   const control = page.getByRole('row').filter({ hasText: 'access rights' }).filter({ hasText: '5.18' });
   await expect(control).toContainText('Covered');
   await settle(page);
@@ -120,7 +120,7 @@ test('the compliance pages work at phone width @mobile', async ({ page }) => {
     ['/compliance/evidence-packs', 'Evidence packs'],
   ] as const) {
     await page.goto(path);
-    await expect(page.getByRole('heading', { level: 2, name: heading })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
     await settle(page);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow, `${path} scrolls horizontally`).toBeLessThanOrEqual(1);

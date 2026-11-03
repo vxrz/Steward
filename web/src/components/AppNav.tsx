@@ -291,6 +291,8 @@ export function AppNav({
                 w="100%"
                 px="sm"
                 py={3}
+                // 28 px high: a comfortable target (WCAG 2.2, 2.5.8)
+                mih={28}
                 style={{ borderRadius: 'var(--mantine-radius-default)' }}
                 className="nav-group-toggle"
               >

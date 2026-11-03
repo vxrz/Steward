@@ -63,7 +63,7 @@ test.describe('migration: export and import with the identity mapping (own serve
     const page = await open(browser, source);
     await page.goto('/settings/integrations');
     await page.getByRole('link', { name: 'Open migration' }).click();
-    await expect(page.getByRole('heading', { name: 'Migration', level: 2 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Migration', level: 1 })).toBeVisible();
     const card = page.locator('.mantine-Card-root', { has: page.getByRole('heading', { name: 'Export this instance' }) });
     await card.getByLabel(/^Master passphrase of this instance/).fill(MASTER_PASSPHRASE);
     await card.getByLabel(/^Transfer passphrase/).fill(TRANSFER);
