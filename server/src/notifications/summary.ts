@@ -14,6 +14,8 @@ import {
   LATER_SUMMARY_SECTIONS,
   SUMMARY_FORECAST_DAYS,
   SUMMARY_TREND_PCT,
+  runOutcome,
+  type RunStatus,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -287,23 +289,26 @@ interface Ctx {
 
 type Section = { count: number; items: DailySummaryItem[] };
 
-function runsSection(c: Ctx): Section & { failed: number } {
+function runsSection(c: Ctx): Section & { failed: number; findings: number } {
   const access = new Map(
     db()
       .all<{ id: string; owner: string | null; acl: string }>('SELECT id, owner, acl FROM processes')
       .map((p) => [p.id, processPermissions(c.user, { id: p.id, owner: p.owner, acl: parseJson(p.acl, []) }).includes('view')]),
   );
   const rows = db()
-    .all<{ id: string; process_id: string; process_name: string; status: string; dry_run: number; started_at: string; error: string | null }>(
-      'SELECT id, process_id, process_name, status, dry_run, started_at, error FROM runs WHERE started_at >= ? AND started_at < ? ORDER BY started_at DESC',
+    .all<{ id: string; process_id: string; process_name: string; status: RunStatus; dry_run: number; started_at: string; error: string | null; stats: string }>(
+      'SELECT id, process_id, process_name, status, dry_run, started_at, error, stats FROM runs WHERE started_at >= ? AND started_at < ? ORDER BY started_at DESC',
       c.since,
       c.until,
     )
     .filter((r) => access.get(r.process_id));
   const failed = rows.filter((r) => r.status === 'failed');
+  // runs that executed but whose checks found something (their findings are messages of their own)
+  const findings = rows.filter((r) => runOutcome(r.status, parseJson<{ checksFailed?: number }>(r.stats, {}).checksFailed ?? 0) === 'findings').length;
   return {
     count: rows.length,
     failed: failed.length,
+    findings,
     items: failed.map((r) => ({
       title: t(c.l, 'dailySummary.runFailed', { process: r.process_name }) + (r.dry_run ? ` (${t(c.l, 'dailySummary.dryRun')})` : ''),
       detail: [dateTime(c.l, r.started_at, c.tz), r.error ? r.error.slice(0, 160) : ''].filter(Boolean).join(' · '),
@@ -568,7 +573,7 @@ export function buildSummary(u: UserInfo, prefs: DailySummaryPrefs, since: numbe
   const ctx: Ctx = { user, since: new Date(since).toISOString(), until: new Date(until).toISOString(), l: userLocale(u), tz: prefs.timeZone };
   return runAs(user, () => {
     const sections = prefs.sections.map((id) => {
-      let s: Section & { failed?: number };
+      let s: Section & { failed?: number; findings?: number };
       try {
         s = BUILDERS[id](ctx);
       } catch (err) {
@@ -576,7 +581,10 @@ export function buildSummary(u: UserInfo, prefs: DailySummaryPrefs, since: numbe
         s = { count: 0, items: [] };
       }
       // runs: the headline counts every run; the items are the failed ones
-      const items = id === 'runs' ? [{ title: t(ctx.l, 'dailySummary.runsTotal', { count: s.count, failed: s.failed ?? 0 }) }, ...s.items] : s.items;
+      const total = s.findings
+        ? t(ctx.l, 'dailySummary.runsTotalFindings', { count: s.count, failed: s.failed ?? 0, findings: s.findings })
+        : t(ctx.l, 'dailySummary.runsTotal', { count: s.count, failed: s.failed ?? 0 });
+      const items = id === 'runs' ? [{ title: total }, ...s.items] : s.items;
       const max = id === 'runs' ? MAX_ITEMS + 1 : MAX_ITEMS;
       return { id, count: s.count, items: items.slice(0, max), more: Math.max(0, items.length - max) };
     });

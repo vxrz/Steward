@@ -157,6 +157,8 @@
     "count": "{{section}}: {{count}}",
     "runsTotal_one": "{{count}} Ausführung, {{failed}} fehlgeschlagen",
     "runsTotal_other": "{{count}} Ausführungen, {{failed}} fehlgeschlagen",
+    "runsTotalFindings_one": "{{count}} Ausführung, {{failed}} fehlgeschlagen, {{findings}} mit Befunden abgeschlossen",
+    "runsTotalFindings_other": "{{count}} Ausführungen, {{failed}} fehlgeschlagen, {{findings}} mit Befunden abgeschlossen",
     "runFailed": "{{process}} fehlgeschlagen",
     "dryRun": "Probelauf",
     "task": "{{title}}",
