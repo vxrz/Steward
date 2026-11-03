@@ -86,13 +86,30 @@ A wrong or missing external ID, or a trust policy that does not name the caller,
 }
 ```
 
-Leave out `ce:GetCostAndUsage` to read no costs (the readout says why there are none), or the `iam:` actions to read no users. The last three `iam:` actions are only for access reviews of the account (access check source _AWS IAM_, [COMPLIANCE.md](COMPLIANCE.md#access-reconciliation)). Cost Explorer must be enabled in the account (the management account of an organisation sees the costs of all member accounts – then use the tag to tell them apart, or one platform per member account with its own role).
+Process steps that call further AWS APIs ([below](#aws-calls-in-processes)) need their actions added. Leave out `ce:GetCostAndUsage` to read no costs (the readout says why there are none), or the `iam:` actions to read no users. The last three `iam:` actions are only for access reviews of the account (access check source _AWS IAM_, [COMPLIANCE.md](COMPLIANCE.md#access-reconciliation)). Cost Explorer must be enabled in the account (the management account of an organisation sees the costs of all member accounts – then use the tag to tell them apart, or one platform per member account with its own role).
 
 Without a role, the same read policy goes to the IAM user directly.
 
 ### S3 backups are a separate platform
 
 Backups to S3 ([BACKUPS.md](BACKUPS.md)) do not use the AWS account platform: they go to a storage platform of their own (type _Generic REST API_ with AWS request signing for the service `s3`, the bucket's endpoint as base URL, [BACKUPS.md](BACKUPS.md#2-the-storage-platform)) with a key that may only write to the backup bucket. Keep the two apart – the read-only account platform should never be able to write, and the backup key should not read the account.
+
+### AWS calls in processes
+
+A process `http` step on an AWS platform can call any AWS API Steward has no connector for, signed like the connector's own calls: give the step `aws: { service, region }` and a path relative to that service's endpoint.
+
+```yaml
+- id: instances
+  type: http
+  connection: aws
+  method: POST
+  aws: { service: ec2, region: eu-central-1 }
+  path: /
+  bodyType: form
+  body: { Action: DescribeInstances, Version: '2016-11-15', MaxResults: '5' }
+```
+
+The request goes to `https://ec2.eu-central-1.amazonaws.com/` (an AWS platform with another base URL, such as LocalStack, receives it at its base URL), signed for `ec2` in `eu-central-1` with the platform's keys or role. The outbound policy treats that endpoint as the platform's own origin **only** because the step names the service; a step without `aws` cannot reach other `amazonaws.com` hosts through the platform. The role needs the actions the step calls (here `ec2:DescribeInstances`).
 
 ## Components of an application
 

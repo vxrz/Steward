@@ -1291,15 +1291,29 @@ function secretBindings(ctx: RunContext): SecretBinding[] {
  * outbound policy (SSRF) and must not carry any bound platform's secret to an
  * origin that platform does not allow. Shared by the http and browser nodes.
  */
-async function enforceOutbound(ctx: RunContext, url: string, headers: Record<string, string> = {}, body?: unknown): Promise<void> {
-  await assertOutboundAllowed(url, engineOutboundContext());
+async function enforceOutbound(ctx: RunContext, url: string, headers: Record<string, string> = {}, body?: unknown, platformOrigins?: string[]): Promise<void> {
+  await assertOutboundAllowed(url, engineOutboundContext(), { platformOrigins });
   await assertNoSecretLeak(url, headers, body, secretBindings(ctx));
 }
 
 async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Promise<LeafResult> {
   const b = ctx.bindings[step.connection];
   if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
-  const p = await ctx.str(step.path);
+  // AWS (v0.3.1): another AWS service of the account, signed with the platform – the path is relative to its endpoint
+  const awsScope = step.aws;
+  let awsOrigin: string | undefined;
+  let awsEndpoint = '';
+  if (awsScope) {
+    if (b.platform.config.auth?.type !== 'aws_sigv4')
+      throw new Error(`"aws" needs a platform with AWS request signing (SigV4); "${b.platform.name}" uses ${b.platform.config.auth?.type ?? 'none'}`);
+    if (b.platform.kind === 'aws') {
+      const { endpointFor } = await import('../aws/client.js');
+      awsEndpoint = endpointFor(b.platform, awsScope.service, awsScope.region);
+      if (/^https:\/\/[^/]+\.amazonaws\.com(\.cn)?$/i.test(awsEndpoint)) awsOrigin = awsEndpoint;
+    }
+  }
+  const rawPath = await ctx.str(step.path);
+  const p = awsEndpoint && !/^https?:\/\//i.test(rawPath) ? awsEndpoint + (rawPath.startsWith('/') ? '' : '/') + rawPath : rawPath;
   // Semgrep's res-render-injection takes (step, ctx, key) for Express's (req, res, next): ctx.render() evaluates the
   // step's expressions in the run scope, it never loads a file or template by name (false positive).
   const query = (await ctx.render(step.query ?? {})) as Record<string, unknown>; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
@@ -1342,8 +1356,14 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
   const doRequest = async (url: string, q: Record<string, unknown>) => {
     if (ctx.recorded) return replay(url, q);
     const target = await buildUrl(b.platform, b.secrets, url, q);
-    await enforceOutbound(ctx, target, headers, body);
-    const res = await platformRequest(b.platform, b.secrets, { method: step.method, url, query: q, headers, body, bodyType: step.bodyType }, ctx.signal);
+    // the AWS endpoint the step names is the platform's own origin for this call – only then, not every amazonaws.com host
+    await enforceOutbound(ctx, target, headers, body, awsOrigin ? [awsOrigin] : undefined);
+    const res = await platformRequest(
+      b.platform,
+      b.secrets,
+      { method: step.method, url, query: q, headers, body, bodyType: step.bodyType, ...(awsScope ? { aws: awsScope } : {}) },
+      ctx.signal,
+    );
     ctx.redactor.add(...secretValues(b.secrets));
     if (res.attempts && res.attempts > 1) ctx.log('warn', `${step.method} ${url} → HTTP ${res.status} after ${res.attempts} attempts`, key);
     if (!accept(res.status)) throw new Error(`HTTP ${res.status} from ${step.method} ${url}: ${snippet(res.body)}`);

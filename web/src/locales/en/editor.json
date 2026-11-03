@@ -48,6 +48,10 @@
         "mutating": {
           "label": "Treat as write (skip in dry run)",
           "help": "Default: every method except GET/HEAD"
+        },
+        "aws": {
+          "label": "AWS service (AWS platforms only)",
+          "help": "service and region, e.g. { service: ec2, region: eu-central-1 }: the path is relative to that endpoint, signed with the platform"
         }
       }
     },

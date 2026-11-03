@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Process `http` steps can call AWS APIs**: on an AWS account platform, `aws: { service, region }` on the step sends the request to that service's endpoint (`https://<service>.<region>.amazonaws.com`, the path relative to it) signed with the platform's SigV4 keys or role – for AWS APIs Steward has no connector for. The outbound policy counts that endpoint as the platform's own origin only for a step that names the service. See [AWS](docs/AWS.md#aws-calls-in-processes).
+
 ### Fixed
 
 - **_Test connection_ no longer reports a sign-in page as a working connection**: a base URL that redirects to a login page, or answers with an HTML page where a connector expects its API, used to pass because every status below 400 counted. Now a redirect left over, an HTML page after a redirect, and – for the connectors with a known API (GitHub, GitLab, Forgejo, Prometheus, Kubernetes, Dependency-Track, CheckMk, Gatus, endoflife.date, Insights Hub, Industrial Edge) – any answer that is not JSON fail, with where it redirected to and what to check (_is the base URL the API, and reachable without browser sign-in?_). A Prometheus must answer `{"status":"success"}`. The result shows who answered (`content-type`, `server`, `via`, `www-authenticate`, `location`), and an empty body as _(empty response)_ instead of `{}`.

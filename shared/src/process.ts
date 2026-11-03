@@ -10,6 +10,7 @@ import { stepsToGraph } from './graph.js';
 import { REPORT_LANGS } from './reports.js';
 import { boundedRecord } from './zodLimits.js';
 import { tagInput } from './tags.js';
+import { AWS_REGION_RE } from './aws.js';
 
 /**
  * Process definition model.
@@ -138,6 +139,11 @@ export interface HttpConfig {
   operationId?: string;
   /** Override write detection (non-GET/HEAD = write) used for dry runs. */
   mutating?: boolean;
+  /**
+   * AWS (v0.3.1): on an AWS platform, call this AWS service in this region, signed with the platform's SigV4 settings –
+   * the path is relative to the service's endpoint (https://<service>.<region>.amazonaws.com).
+   */
+  aws?: { service: string; region: string };
 }
 export interface SetConfig {
   type: 'set';
@@ -428,6 +434,13 @@ const shapes = {
     paginate: paginateSchema.optional(),
     operationId: z.string().optional(),
     mutating: z.boolean().optional(),
+    aws: z
+      .object({
+        service: z.string().regex(/^[a-z][a-z0-9-]{1,40}$/, 'an AWS service name as in its endpoint, e.g. ec2, s3, sts, logs'),
+        region: z.string().regex(AWS_REGION_RE, 'an AWS region, e.g. eu-central-1'),
+      })
+      .strict()
+      .optional(),
   },
   set: { type: z.literal('set'), values: boundedRecord(z.unknown(), 500) },
   forEach: {
