@@ -55,6 +55,15 @@ Themes of this release (details in the CHANGELOG once released):
 - **Getting started.** Onboarding for a new installation, ready-made bundles of procedures, dashboards and monitors, simpler set-up of the integrations.
 - **Architecture documentation.** [ARCHITECTURE.md](ARCHITECTURE.md) with C4 diagrams and [decision records](adr/README.md).
 
+## After 0.4.0 – more platforms
+
+In this order:
+
+1. **Microsoft Graph / Entra ID** ([#202](https://github.com/vxrz/Steward/issues/202)): a read-only platform for access reviews of groups, directory roles and app roles, guests and stale accounts, and app registrations whose secrets or certificates expire soon (into the credentials register).
+2. **Postman export** ([#204](https://github.com/vxrz/Steward/issues/204)): processes and platforms as Postman collections and environments – sign-in, requests and checks as scripts, never a secret; an import of requests and auth later.
+3. **IBM PAM** ([#205](https://github.com/vxrz/Steward/issues/205), likely IBM Verify Privilege Vault): who may use which privileged secret, rotation and heartbeat hygiene, links from the credentials register, and secret checkouts as evidence – never the secret values.
+4. **Direct SQL databases** ([#203](https://github.com/vxrz/Steward/issues/203)): PostgreSQL, MariaDB/MySQL and SQL Server first, Oracle later; read-only by default, for grant reviews, account hygiene, monitor checks and datasets. The first platform kind that is not HTTP, so a decision record comes first.
+
 ## Later
 
 Bigger topics we expect to work on, in no fixed order. Each gets a decision record before it starts.
