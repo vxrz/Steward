@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Demo setup and _Use template_ are fast again.** Since 0.3.1 every process created from a template read all process and dashboard templates again (for the gallery's metadata), so loading the demo data took about twice as long and the CI test runs hit their time limit. A template is now read from its own file only.
+
 ## [0.3.1] - 2026-11-03
 
 Integrations now say what went wrong: a connection test no longer calls a sign-in page or redirect a working connection, credentials entered but never sent are pointed out, and GitLab, Prometheus, AWS and Snowflake errors name the likely cause. GitLab is called with `PRIVATE-TOKEN`, Prometheus with POST queries, the AWS test checks every permission Steward needs, and process `http` steps can call AWS services and have an answer size limit. Dataset freshness of scheduled runs follows the schedule as it is now, per source, in words. A run whose checks failed shows **Completed with findings** instead of a green _Succeeded_. Templates arrive for Snowflake, Git hosts, AWS and Prometheus, with a searchable template gallery. A round of accessibility, wording and mobile fixes rounds it off. One database migration, additive: `ops-013-dataset-stale-fixed`. **Check before updating:** GitLab platforms that use OAuth tokens need the bearer header name `Authorization`; publish steps whose `staleAfterMinutes` should stay a fixed limit on scheduled processes need `staleAfterFixed: true`; some labels changed (_Records_ → _Documents_, _Protocol_ → _Run report_, _Updates from Git_ → _Git sync_), the addresses stay.
