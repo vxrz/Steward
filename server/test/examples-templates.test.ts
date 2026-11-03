@@ -368,3 +368,35 @@ describe('monitor examples', () => {
     }
   });
 });
+
+describe('template metadata for the gallery', () => {
+  it('lists the platforms a template needs, its recommended schedule, its datasets and the dashboards it feeds', async () => {
+    const list = (await s.api('GET', '/templates')) as any[];
+    const by = Object.fromEntries(list.map((t) => [t.id, t]));
+    expect(by['61-snowflake-project-access-review']).toMatchObject({
+      connections: [{ slot: 'snowflake', kinds: ['snowflake'], description: expect.stringContaining('Snowflake') }],
+      connectionKinds: ['snowflake'],
+      recommendedSchedule: { cron: '0 7 1 1,4,7,10 *', text: expect.stringMatching(/^quarterly/) },
+      datasets: ['snowflake.project-access'],
+      dashboards: [{ id: '61-snowflake-account', name: 'Snowflake account' }],
+      minVersion: '0.2.8',
+      tags: expect.arrayContaining(['access-review']),
+    });
+    // a slot that takes several kinds
+    expect(by['82-github-repository-health']).toMatchObject({
+      connectionKinds: ['forgejo', 'github', 'gitlab'],
+      datasets: ['git.repositories'],
+      dashboards: [{ id: '82-repositories', name: 'Repositories' }],
+    });
+    // the schedule from the description only, cron in backticks
+    expect(by['15-ih-inventory-snapshot'].recommendedSchedule).toBeTruthy();
+    expect(by['16-ih-access-snapshot']).toMatchObject({ recommendedSchedule: { cron: null, text: expect.stringMatching(/^daily/) }, minVersion: null });
+    // no connection: nothing needed
+    expect(by['77-end-of-life-overview']).toMatchObject({ connections: [], connectionKinds: [], dashboards: [{ id: '60-end-of-life', name: 'End of life' }] });
+    // "e.g." does not end the sentence
+    expect(by['72-gatus-report-check'].recommendedSchedule.cron).toBe('*/5 * * * *');
+    expect(by['77-end-of-life-overview']).toMatchObject({ recommendedSchedule: { cron: '0 7 * * 1' }, minVersion: '0.2.6' });
+    // every template says when to run it
+    expect(list.filter((t) => !t.recommendedSchedule).map((t) => t.id)).toEqual([]);
+  });
+});
