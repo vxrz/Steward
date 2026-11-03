@@ -15,7 +15,8 @@ body {
   margin: 0 0 6px;
   padding-left: 20px;
 }
-.md code {
+.md code,
+.inline-code {
   font-family: var(--mantine-font-family-monospace);
   font-size: 12px;
   background: var(--mantine-color-default-hover);
