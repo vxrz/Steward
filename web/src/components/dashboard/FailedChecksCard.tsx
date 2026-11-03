@@ -92,28 +92,30 @@ export function FailedChecksCard({ checks }: { checks: FailedCheckGroup[] }) {
           {visible.map((c) => (
             <Group key={`${c.processId}/${c.checkId}`} justify="space-between" gap={4} wrap="wrap" align="flex-start" data-testid="failed-check">
               <div style={{ minWidth: 0, flex: 1 }}>
-                <Group gap={6}>
+                {/* what was found first (the check's result), the expectation (its name) under it */}
+                <Group gap={6} wrap="nowrap" align="flex-start">
                   <SeverityBadge severity={c.severity} />
-                  <Anchor component={Link} to={`/runs/${c.runId}`} size="sm">
-                    {c.name}
-                  </Anchor>
-                  {c.resolved && (
-                    <Badge size="xs" variant="light" color="green">
-                      {t('checks.resolved')}
-                    </Badge>
-                  )}
-                </Group>
-                {c.message && (
                   <Spoiler
-                    maxHeight={36}
+                    maxHeight={44}
                     showLabel={t('checks.showMore')}
                     hideLabel={t('checks.showLess')}
                     styles={{ control: { fontSize: 'var(--mantine-font-size-xs)' } }}
+                    style={{ minWidth: 0 }}
                   >
-                    <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
-                      {c.message}
-                    </Text>
+                    <Anchor component={Link} to={`/runs/${c.runId}`} size="sm" style={{ overflowWrap: 'anywhere' }} data-testid="failed-check-result">
+                      {c.message || t('checks.failedName', { name: c.name })}
+                    </Anchor>
+                    {c.resolved && (
+                      <Badge size="xs" variant="light" color="green" ml={6}>
+                        {t('checks.resolved')}
+                      </Badge>
+                    )}
                   </Spoiler>
+                </Group>
+                {c.message && (
+                  <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }} data-testid="failed-check-expected">
+                    {t('checks.expected', { name: c.name })}
+                  </Text>
                 )}
                 <Text size="xs" c="dimmed">
                   {c.resolved ? t('checks.failedTimes', { count: c.count }) : t('checks.failingSince', { since: fmtRelative(c.since), count: c.streak })}

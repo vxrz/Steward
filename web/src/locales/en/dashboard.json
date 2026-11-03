@@ -44,7 +44,7 @@
     "scorecardOf_other": "of {{services}} services"
   },
   "waiting": "Waiting for your decision",
-  "failedChecks": "Failed checks (last 7 days)",
+  "failedChecks": "Check findings (last 7 days)",
   "recentRuns": "Recent runs",
   "upcoming": "Upcoming",
   "nothingScheduled": "Nothing scheduled. <a>Plan a process</a>.",
@@ -115,8 +115,10 @@
     "failingSince_other": "failing since {{since}}, {{count}} runs",
     "failedTimes_one": "failed once in 7 days",
     "failedTimes_other": "failed {{count}} times in 7 days",
-    "failedRuns": "runs with failed checks",
+    "failedRuns": "runs with findings",
     "showAll": "Show all {{count}}",
-    "showFewer": "Show fewer"
+    "showFewer": "Show fewer",
+    "failedName": "Failed: {{name}}",
+    "expected": "Expected: {{name}}"
   }
 }
