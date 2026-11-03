@@ -6,6 +6,7 @@ import {
   type DatasetMeta,
   type DatasetRow,
   type DatasetSource,
+  type DatasetStaleReason,
   type DatasetStatus,
   type MetricLimit,
   type MetricSeries,
@@ -21,6 +22,7 @@ import { emit } from '../events.js';
 import { currentUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
 import { platformDataVisible } from '../auth/policy.js';
+import { permissionsFor } from '../processes/service.js';
 
 /**
  * Datasets are written by "Publish to dashboard" nodes: the latest snapshot of rows plus a compact metric history used
@@ -35,6 +37,12 @@ import { platformDataVisible } from '../auth/policy.js';
  * Visibility: whoever may see the dataset sees a partition, unless one of its platforms has an access list without
  * them (administrators and auditors see all). Hidden partitions are left out of rows, counts and metrics, without a
  * hint. Readers pass a `View`; internal readers (reconciliation, notifications) read everything.
+ *
+ * Freshness (0.3.1): a partition written by a run that a schedule started (or a sub-process of such a run) is stale
+ * after 2.5 × the schedule's interval (at least 15 minutes) – the publish step's `staleAfterMinutes` applies to runs
+ * without a schedule, and to scheduled ones only with `staleAfterFixed`. The interval and the next run are read from
+ * the schedule's current cron when the partition is read (the interval stored at write time is the fallback for a
+ * deleted schedule), so changing a schedule takes effect at once.
  */
 
 /** Metric history retention */
@@ -75,6 +83,8 @@ interface PartDb {
   metrics: string;
   limits?: string | null;
   stale_after_minutes: number | null;
+  /** 1: `stale_after_minutes` applies to scheduled runs too (the step's `staleAfterFixed`) */
+  stale_fixed?: number | null;
   expected_minutes: number | null;
 }
 
@@ -103,17 +113,57 @@ function platformInfo(ids: string[]): Map<string, PlatformInfo> {
   return out;
 }
 
-/** The schedule's interval in minutes (from its next two runs). */
-function scheduleMinutes(scheduleId: string | null): number | null {
-  if (!scheduleId) return null;
-  const s = db().get<{ cron: string; timezone: string | null }>('SELECT cron, timezone FROM schedules WHERE id = ?', scheduleId);
-  if (!s) return null;
+/** A schedule as freshness needs it. */
+interface ScheduleFacts {
+  name: string;
+  processId: string;
+  processName: string;
+  /** Interval in minutes (between its next two runs); null: the cron no longer parses */
+  minutes: number | null;
+  /** Next run; null when disabled */
+  nextRunAt: string | null;
+}
+
+/**
+ * Schedules read once per request (a list of datasets shares them): each cron is parsed once. `null`: the schedule
+ * is gone.
+ */
+type Schedules = Map<string, ScheduleFacts | null>;
+
+function cronFacts(cron: string, timezone: string | null, enabled: boolean): Pick<ScheduleFacts, 'minutes' | 'nextRunAt'> {
   try {
-    const [a, b] = new Cron(s.cron, { paused: true, timezone: s.timezone || undefined }).nextRuns(2);
-    return a && b ? Math.max(1, Math.round((b.getTime() - a.getTime()) / 60000)) : null;
+    const c = new Cron(cron, { paused: true, timezone: timezone || undefined });
+    const [a, b] = c.nextRuns(2);
+    c.stop();
+    return {
+      minutes: a && b ? Math.max(1, Math.round((b.getTime() - a.getTime()) / 60000)) : null,
+      nextRunAt: enabled && a ? a.toISOString() : null,
+    };
   } catch {
-    return null;
+    return { minutes: null, nextRunAt: null };
   }
+}
+
+/** Loads the schedules of these ids that are not in `cache` yet. */
+function loadSchedules(ids: (string | null)[], cache: Schedules = new Map()): Schedules {
+  const missing = [...new Set(ids.filter((id): id is string => !!id && !cache.has(id)))];
+  if (!missing.length) return cache;
+  for (const r of db().all<{
+    id: string;
+    name: string;
+    process_id: string;
+    process_name: string | null;
+    cron: string;
+    timezone: string | null;
+    enabled: number;
+  }>(
+    `SELECT s.id, s.name, s.process_id, p.name AS process_name, s.cron, s.timezone, s.enabled
+       FROM schedules s LEFT JOIN processes p ON p.id = s.process_id WHERE s.id IN (${missing.map(() => '?').join(',')})`,
+    ...missing,
+  ))
+    cache.set(r.id, { name: r.name, processId: r.process_id, processName: r.process_name ?? r.process_id, ...cronFacts(r.cron, r.timezone, !!r.enabled) });
+  for (const id of missing) if (!cache.has(id)) cache.set(id, null);
+  return cache;
 }
 
 /** The schedule a run belongs to (a sub-process: its first parent's). */
@@ -151,8 +201,20 @@ export function sourceOfRun(runId: string, slot?: string): { id: string; platfor
   return ids.length ? { id: ids.join('+'), platformIds: ids } : { id: INSTANCE_SOURCE, platformIds: [] };
 }
 
-const effectiveStale = (p: Pick<PartDb, 'stale_after_minutes' | 'expected_minutes'>): number =>
-  p.stale_after_minutes ?? (p.expected_minutes ? Math.max(15, Math.ceil(p.expected_minutes * 2.5)) : DEFAULT_STALE_MINUTES);
+/**
+ * When a partition is stale, and why: a scheduled run follows its schedule (2.5 × the current interval, at least 15
+ * minutes; the stored interval when the schedule is gone), unless the step fixes its limit for scheduled runs too; a
+ * run without a schedule the step's limit, else 24 hours.
+ */
+export function freshnessOf(
+  p: Pick<PartDb, 'schedule_id' | 'stale_after_minutes' | 'stale_fixed' | 'expected_minutes'>,
+  schedule: ScheduleFacts | null | undefined,
+): { staleAfterMinutes: number; staleReason: DatasetStaleReason; expectedMinutes: number | null } {
+  const expectedMinutes = p.schedule_id ? (schedule?.minutes ?? p.expected_minutes ?? null) : null;
+  if (p.stale_after_minutes && (!expectedMinutes || p.stale_fixed)) return { staleAfterMinutes: p.stale_after_minutes, staleReason: 'fixed', expectedMinutes };
+  if (expectedMinutes) return { staleAfterMinutes: Math.max(15, Math.ceil(expectedMinutes * 2.5)), staleReason: 'schedule', expectedMinutes };
+  return { staleAfterMinutes: DEFAULT_STALE_MINUTES, staleReason: 'default', expectedMinutes };
+}
 
 /** Whether the reader may see a partition: none of its platforms has an access list without them. */
 function partVisible(platformIds: string[], info: Map<string, PlatformInfo>): boolean {
@@ -193,28 +255,45 @@ function ensureParts(key: string): void {
       d.status_counts,
       d.metrics,
       d.stale_after_minutes,
-      scheduleMinutes(scheduleId),
+      scheduleId ? (loadSchedules([scheduleId]).get(scheduleId)?.minutes ?? null) : null,
     );
     db().run('UPDATE dataset_metrics SET source = ? WHERE dataset_key = ? AND source IS NULL', src.id, key);
   });
 }
 
 const PART_META =
-  'dataset_key, source, platform_ids, run_id, schedule_id, dry_run, updated_at, row_count, columns, status_counts, metrics, limits, stale_after_minutes, expected_minutes';
+  'dataset_key, source, platform_ids, run_id, schedule_id, dry_run, updated_at, row_count, columns, status_counts, metrics, limits, stale_after_minutes, stale_fixed, expected_minutes';
 
 function partsOf(key: string, withRows: boolean): PartDb[] {
   ensureParts(key);
   return db().all<PartDb>(`SELECT ${withRows ? '*' : PART_META} FROM dataset_parts WHERE dataset_key = ? ORDER BY source`, key);
 }
 
-function toSource(p: PartDb, info: Map<string, PlatformInfo>): DatasetSource {
+/** Whether the reader may see a process's name (internal readers: always). */
+const processVisible = (processId: string, cache: Map<string, boolean>): boolean => {
+  if (!currentUser()) return true;
+  let v = cache.get(processId);
+  if (v === undefined) cache.set(processId, (v = permissionsFor(processId).includes('view')));
+  return v;
+};
+
+/** What one read shares between its partitions: platforms, schedules, process visibility. */
+interface ReadCtx {
+  info: Map<string, PlatformInfo>;
+  schedules: Schedules;
+  processes: Map<string, boolean>;
+}
+
+function toSource(p: PartDb, ctx: ReadCtx, datasetProcessId: string): DatasetSource {
   const ids = parseJson<string[]>(p.platform_ids, []);
-  const stale = effectiveStale(p);
+  const schedule = p.schedule_id ? loadSchedules([p.schedule_id], ctx.schedules).get(p.schedule_id) : null;
+  const f = freshnessOf(p, schedule);
+  const shown = !!schedule && processVisible(schedule.processId, ctx.processes);
   return {
     id: p.source,
     platformIds: ids,
-    name: ids.length ? ids.map((id) => info.get(id)?.name ?? id).join(' + ') : 'This instance',
-    environment: [...new Set(ids.map((id) => info.get(id)?.environment ?? '').filter(Boolean))].join(', '),
+    name: ids.length ? ids.map((id) => ctx.info.get(id)?.name ?? id).join(' + ') : 'This instance',
+    environment: [...new Set(ids.map((id) => ctx.info.get(id)?.environment ?? '').filter(Boolean))].join(', '),
     runId: p.run_id,
     scheduleId: p.schedule_id,
     updatedAt: p.updated_at,
@@ -223,22 +302,36 @@ function toSource(p: PartDb, info: Map<string, PlatformInfo>): DatasetSource {
     statusCounts: parseJson(p.status_counts, {}),
     metrics: parseJson(p.metrics, {}),
     limits: parseJson(p.limits ?? '{}', {}),
-    staleAfterMinutes: stale,
-    expectedMinutes: p.expected_minutes,
-    stale: Date.now() - Date.parse(p.updated_at) > stale * 60000,
+    staleAfterMinutes: f.staleAfterMinutes,
+    staleReason: f.staleReason,
+    expectedMinutes: f.expectedMinutes,
+    nextRunAt: schedule?.nextRunAt ?? null,
+    scheduleName: shown ? schedule.name : null,
+    viaProcess: shown && schedule.processId !== datasetProcessId ? { id: schedule.processId, name: schedule.processName } : null,
+    stale: Date.now() - Date.parse(p.updated_at) > f.staleAfterMinutes * 60000,
   };
 }
 
 /** The partitions a reader sees, after the source filter of the view. */
-function visibleParts(key: string, view: View | undefined, withRows: boolean): { parts: PartDb[]; info: Map<string, PlatformInfo> } {
+function visibleParts(
+  key: string,
+  view: View | undefined,
+  withRows: boolean,
+  shared?: Pick<ReadCtx, 'schedules' | 'processes'>,
+): { parts: PartDb[]; ctx: ReadCtx } {
   const all = partsOf(key, withRows);
   const info = platformInfo([...new Set(all.flatMap((p) => parseJson<string[]>(p.platform_ids, [])))]);
   const parts = all.filter((p) => partVisible(parseJson<string[]>(p.platform_ids, []), info) && (!view?.sources?.length || view.sources.includes(p.source)));
-  return { parts, info };
+  const ctx: ReadCtx = { info, schedules: shared?.schedules ?? new Map(), processes: shared?.processes ?? new Map() };
+  loadSchedules(
+    parts.map((p) => p.schedule_id),
+    ctx.schedules,
+  );
+  return { parts, ctx };
 }
 
-function metaOf(d: DatasetRowDb, parts: PartDb[], info: Map<string, PlatformInfo>): DatasetMeta {
-  const sources = parts.map((p) => toSource(p, info));
+function metaOf(d: DatasetRowDb, parts: PartDb[], ctx: ReadCtx): DatasetMeta {
+  const sources = parts.map((p) => toSource(p, ctx, d.process_id));
   const counts: Partial<Record<DatasetStatus, number>> = {};
   for (const s of sources) for (const [k, n] of Object.entries(s.statusCounts)) counts[k as DatasetStatus] = (counts[k as DatasetStatus] ?? 0) + (n ?? 0);
   const latest = [...parts].sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
@@ -271,11 +364,12 @@ const HEADER = 'key, title, process_id, process_name, run_id, dry_run, updated_a
 
 /** All datasets with their visible partitions; a dataset without any is left out. */
 export function listDatasets(view?: View): DatasetMeta[] {
+  const shared = { schedules: new Map() as Schedules, processes: new Map<string, boolean>() };
   return db()
     .all<DatasetRowDb>(`SELECT ${HEADER} FROM datasets ORDER BY key`)
     .map((d) => {
-      const { parts, info } = visibleParts(d.key, view, false);
-      return parts.length ? metaOf(d, parts, info) : null;
+      const { parts, ctx } = visibleParts(d.key, view, false, shared);
+      return parts.length ? metaOf(d, parts, ctx) : null;
     })
     .filter((m): m is DatasetMeta => !!m);
 }
@@ -285,18 +379,18 @@ const notFound = (key: string) => new HttpError(404, `Dataset "${key}" has no da
 export function getDatasetMeta(key: string, view?: View): DatasetMeta {
   const d = db().get<DatasetRowDb>(`SELECT ${HEADER} FROM datasets WHERE key = ?`, key);
   if (!d) throw notFound(key);
-  const { parts, info } = visibleParts(key, view, false);
+  const { parts, ctx } = visibleParts(key, view, false);
   if (!parts.length && currentUser() && !view?.sources?.length) throw notFound(key);
-  return metaOf(d, parts, info);
+  return metaOf(d, parts, ctx);
 }
 
 /** The rows of the visible partitions, each with its `_source`. */
 export function getDataset(key: string, view?: View): Dataset {
   const d = db().get<DatasetRowDb>(`SELECT ${HEADER} FROM datasets WHERE key = ?`, key);
   if (!d) throw notFound(key);
-  const { parts, info } = visibleParts(key, view, true);
+  const { parts, ctx } = visibleParts(key, view, true);
   if (!parts.length && currentUser() && !view?.sources?.length) throw notFound(key);
-  const meta = metaOf(d, parts, info);
+  const meta = metaOf(d, parts, ctx);
   const rows: DatasetRow[] = [];
   parts.forEach((p, i) => {
     const src = rowSource(p, meta.sources[i]!);
@@ -333,6 +427,8 @@ export function publishDataset(input: {
   /** Limits of metrics (#145) */
   limits?: Record<string, MetricLimit>;
   staleAfterMinutes?: number;
+  /** `staleAfterMinutes` applies to scheduled runs too (instead of the schedule's interval) */
+  staleAfterFixed?: boolean;
   /** The connection whose platform is the source (#142) */
   sourceSlot?: string;
 }): DatasetMeta {
@@ -350,6 +446,7 @@ export function publishDataset(input: {
   if (owner) ensureParts(input.key);
   const src = sourceOfRun(input.runId, input.sourceSlot);
   const scheduleId = input.runId ? scheduleOfRun(input.runId) : null;
+  const schedules = loadSchedules([scheduleId]);
   const counts: Partial<Record<DatasetStatus, number>> = {};
   // the stored rows carry no _source: it is added when they are read (names change)
   const rows = input.rows.map(({ _source: _s, ...r }) => r as DatasetRow);
@@ -357,12 +454,12 @@ export function publishDataset(input: {
   const ts = nowIso();
   db().tx(() => {
     db().run(
-      `INSERT INTO dataset_parts (dataset_key, source, platform_ids, run_id, schedule_id, dry_run, updated_at, row_count, columns, rows, status_counts, metrics, limits, stale_after_minutes, expected_minutes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO dataset_parts (dataset_key, source, platform_ids, run_id, schedule_id, dry_run, updated_at, row_count, columns, rows, status_counts, metrics, limits, stale_after_minutes, stale_fixed, expected_minutes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(dataset_key, source) DO UPDATE SET platform_ids = excluded.platform_ids, run_id = excluded.run_id, schedule_id = excluded.schedule_id,
          dry_run = excluded.dry_run, updated_at = excluded.updated_at, row_count = excluded.row_count, columns = excluded.columns, rows = excluded.rows,
          status_counts = excluded.status_counts, metrics = excluded.metrics, limits = excluded.limits,
-         stale_after_minutes = excluded.stale_after_minutes, expected_minutes = excluded.expected_minutes`,
+         stale_after_minutes = excluded.stale_after_minutes, stale_fixed = excluded.stale_fixed, expected_minutes = excluded.expected_minutes`,
       input.key,
       src.id,
       JSON.stringify(src.platformIds),
@@ -377,7 +474,9 @@ export function publishDataset(input: {
       JSON.stringify(input.metrics),
       JSON.stringify(input.limits ?? {}),
       input.staleAfterMinutes ?? null,
-      scheduleMinutes(scheduleId),
+      input.staleAfterFixed ? 1 : 0,
+      // the fallback for when the schedule is deleted; readers use the schedule's current interval
+      scheduleId ? (schedules.get(scheduleId)?.minutes ?? null) : null,
     );
     // the dataset: all partitions together (internal readers), with each row's source
     const parts = db().all<PartDb>('SELECT * FROM dataset_parts WHERE dataset_key = ?', input.key);
@@ -439,15 +538,16 @@ export function publishDataset(input: {
   // the partition just written, whoever runs the process
   const d = db().get<DatasetRowDb>(`SELECT ${HEADER} FROM datasets WHERE key = ?`, input.key)!;
   const part = db().get<PartDb>(`SELECT ${PART_META} FROM dataset_parts WHERE dataset_key = ? AND source = ?`, input.key, src.id)!;
-  return metaOf(d, [part], platformInfo(src.platformIds));
+  return metaOf(d, [part], { info: platformInfo(src.platformIds), schedules, processes: new Map() });
 }
 
 // ---------- metrics ----------
 
 /** Metric history per source, downsampled to at most `maxPoints` per series (last value per bucket). */
 export function metricSeries(key: string, names: string[] | undefined, days: number, maxPoints = 200, view?: View): MetricSeries[] {
-  const { parts, info } = visibleParts(key, view, false);
-  const sources = new Map(parts.map((p) => [p.source, toSource(p, info)]));
+  const d = db().get<{ process_id: string }>('SELECT process_id FROM datasets WHERE key = ?', key);
+  const { parts, ctx } = visibleParts(key, view, false);
+  const sources = new Map(parts.map((p) => [p.source, toSource(p, ctx, d?.process_id ?? '')]));
   if (!sources.size) return [];
   const since = new Date(Date.now() - days * 86400000).toISOString();
   const ids = [...sources.keys()];
@@ -536,20 +636,18 @@ export function allParts(): { key: string; title: string; processId: string; pro
   );
   for (const k of heads.keys()) ensureParts(k);
   const parts = db().all<PartDb>(`SELECT ${PART_META} FROM dataset_parts`);
-  const info = platformInfo([...new Set(parts.flatMap((p) => parseJson<string[]>(p.platform_ids, [])))]);
+  const ctx: ReadCtx = {
+    info: platformInfo([...new Set(parts.flatMap((p) => parseJson<string[]>(p.platform_ids, [])))]),
+    schedules: loadSchedules(parts.map((p) => p.schedule_id)),
+    processes: new Map(),
+  };
   return parts
     .filter((p) => heads.has(p.dataset_key))
     .map((p) => {
       const d = heads.get(p.dataset_key)!;
+      const source = toSource(p, ctx, d.process_id);
       // messages only when the step asks for it or a schedule feeds the partition (the 24-hour default is shown, not sent)
-      return {
-        key: d.key,
-        title: d.title,
-        processId: d.process_id,
-        processName: d.process_name,
-        source: toSource(p, info),
-        notify: !!(p.stale_after_minutes || p.expected_minutes),
-      };
+      return { key: d.key, title: d.title, processId: d.process_id, processName: d.process_name, source, notify: source.staleReason !== 'default' };
     });
 }
 

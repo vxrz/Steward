@@ -175,5 +175,9 @@
     "clear": "Tag-Filter {{tag}} entfernen",
     "anyValue": "beliebiges {{key}}",
     "noMatch": "Nichts passt zum Tag-Filter."
+  },
+  "cron": {
+    "next": "Nächste: {{dates}}",
+    "use": "Übernehmen"
   }
 }

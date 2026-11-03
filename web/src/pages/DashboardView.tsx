@@ -11,7 +11,7 @@ import { DetailState, PageHeader } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { fmtRelative } from '../format';
 import { useMe } from '../auth';
-import { DashboardContext, useDatasetMetas } from '../components/dashboard/data';
+import { DashboardContext, useDashboardCtx, useDatasetMetas } from '../components/dashboard/data';
 import { WidgetGrid } from '../components/dashboard/widgets';
 import { DashboardEditor } from '../components/dashboard/DashboardEditor';
 import { confirmDanger } from '../components/confirm';
@@ -210,15 +210,16 @@ export function DashboardViewPage() {
   );
 }
 
+/** How old the dashboard's data is: its oldest source (in the source filter), so one late tenant is not hidden by fresh ones. */
 function LastUpdate({ keys }: { keys: string[] }) {
   const { t } = useTranslation('dashboards');
   const metas = useDatasetMetas();
-  const latest = (metas.data ?? [])
+  const { sources } = useDashboardCtx();
+  const oldest = (metas.data ?? [])
     .filter((m) => keys.includes(m.key))
-    .map((m) => m.updatedAt)
-    .sort()
-    .pop();
-  return <span>{latest ? t('view.dataFrom', { when: fmtRelative(latest) }) : t('view.noData')}</span>;
+    .flatMap((m) => (m.sources?.length ? m.sources.filter((s) => !sources?.length || sources.includes(s.id)).map((s) => s.updatedAt) : [m.updatedAt]))
+    .sort()[0];
+  return <span>{oldest ? t('view.dataFrom', { when: fmtRelative(oldest) }) : t('view.noData')}</span>;
 }
 
 /** The dashboard's source filter (#142): shown when its datasets come from more than one source. */

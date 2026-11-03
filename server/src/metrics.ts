@@ -2,6 +2,7 @@ import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from 'prom
 import { db } from './db.js';
 import { on } from './events.js';
 import { registerMonitorMetrics } from './monitors/metrics.js';
+import { allParts } from './dashboards/datasets.js';
 
 /**
  * Prometheus metrics (GET /api/metrics). Counters and histograms are fed by
@@ -125,8 +126,7 @@ export function initMetrics(): Registry {
       this.set(r?.ts ? Math.max(0, (Date.now() - Date.parse(r.ts)) / 1000) : 0);
     },
   });
-  const datasets = () =>
-    db().all<{ key: string; updated_at: string; stale_after_minutes: number | null }>('SELECT key, updated_at, stale_after_minutes FROM datasets');
+  const datasets = () => db().all<{ key: string; updated_at: string }>('SELECT key, updated_at FROM datasets');
   new Gauge({
     name: 'sm_dataset_age_seconds',
     help: 'Age of the latest snapshot of a dashboard dataset',
@@ -139,15 +139,14 @@ export function initMetrics(): Registry {
   });
   new Gauge({
     name: 'sm_dataset_stale',
-    help: '1 when a dataset is older than its staleAfterMinutes',
+    help: '1 when a partition of a dataset is stale (its schedule, or the publish step’s staleAfterMinutes; the 24-hour default does not count)',
     labelNames: ['dataset'] as const,
     registers: [registry],
     collect() {
       this.reset();
-      for (const d of datasets()) {
-        const age = Date.now() - Date.parse(d.updated_at);
-        this.set({ dataset: d.key }, d.stale_after_minutes && age > d.stale_after_minutes * 60000 ? 1 : 0);
-      }
+      const stale = new Map<string, number>();
+      for (const p of allParts()) stale.set(p.key, Math.max(stale.get(p.key) ?? 0, p.notify && p.source.stale ? 1 : 0));
+      for (const d of datasets()) this.set({ dataset: d.key }, stale.get(d.key) ?? 0);
     },
   });
   registerMonitorMetrics(registry);

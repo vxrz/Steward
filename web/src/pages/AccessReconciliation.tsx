@@ -38,6 +38,7 @@ import {
 } from '@sm/shared';
 import { get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, PageHeader, QueryState, TONE, subjectLabel, useCreateParam } from '../components/common';
+import { CronPreview } from '../components/CronPreview';
 import { FindingStatusBadge, KindBadge, RightsDiff } from '../components/compliance/common';
 import { fmtDate, fmtRelative } from '../format';
 import { localNow } from './AccessChanges';
@@ -716,6 +717,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
           />
           <TextInput label={t('reconciliation.timezone')} required value={f.timezone} onChange={(e) => up('timezone', e.currentTarget.value)} maxLength={64} />
         </Group>
+        <CronPreview cron={f.cron} timezone={f.timezone} onUse={(c) => up('cron', c)} />
         <MultiSelect
           label={t('reconciliation.notify')}
           description={t('reconciliation.notifyHelp')}

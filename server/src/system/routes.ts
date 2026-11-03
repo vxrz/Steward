@@ -39,7 +39,7 @@ function safe<T>(fn: () => T, fallback: T): T {
 }
 
 export function systemStatus(full: boolean): SystemStatus {
-  const { ready, checks } = readinessChecks();
+  const { ready, checks } = readinessChecks(full);
   const settings = getSettings();
   const schedules = safe(() => runAs(SYSTEM, () => scheduler.listSchedules()), []);
   const enabled = schedules.filter((s) => s.enabled);

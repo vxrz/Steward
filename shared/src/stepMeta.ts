@@ -276,7 +276,13 @@ export const STEP_META: Record<NodeType, StepMeta> = {
         key: 'staleAfterMinutes',
         label: 'Stale after (minutes)',
         kind: 'number',
-        help: 'Default: 2.5 × the interval of the schedule that ran it (at least 15 minutes), else 24 hours',
+        help: 'For runs without a schedule (default 24 hours). Scheduled runs follow their schedule: 2.5 × its interval, at least 15 minutes',
+      },
+      {
+        key: 'staleAfterFixed',
+        label: 'Use “Stale after” for scheduled runs too',
+        kind: 'boolean',
+        help: 'Instead of 2.5 × the schedule interval, e.g. for a tighter or a more tolerant limit than the schedule gives',
       },
       { key: 'maxRows', label: 'Max rows (safety limit, default 5000)', kind: 'number' },
       {

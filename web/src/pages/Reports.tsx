@@ -35,6 +35,7 @@ import { reportLangName } from '../components/reports/RunReports';
 import { useTypeName } from '../components/records/common';
 import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
+import { CronPreview } from '../components/CronPreview';
 import { useMe } from '../auth';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
@@ -418,6 +419,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
           />
           <TextInput label={t('form.classification')} value={d.classification} onChange={(e) => set({ classification: e.currentTarget.value })} />
         </SimpleGrid>
+        {d.preset === 'custom' && <CronPreview cron={d.cron} timezone={d.timezone} onUse={(c) => set({ cron: c })} />}
 
         <Divider label={t('form.sections')} labelPosition="left" />
         <Text size="xs" c="dimmed">

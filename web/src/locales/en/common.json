@@ -175,5 +175,9 @@
     "clear": "Clear the tag filter {{tag}}",
     "anyValue": "any {{key}}",
     "noMatch": "Nothing matches the tag filter."
+  },
+  "cron": {
+    "next": "Next: {{dates}}",
+    "use": "Use"
   }
 }

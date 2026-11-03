@@ -45,7 +45,9 @@ const mapDataset = (d: ReturnType<typeof datasets.getDatasetMeta>) => ({
     rowCount: x.rowCount,
     metrics: x.metrics,
     staleAfterMinutes: x.staleAfterMinutes,
+    staleReason: x.staleReason,
     expectedMinutes: x.expectedMinutes,
+    nextRunAt: x.nextRunAt,
     stale: x.stale,
   })),
 });

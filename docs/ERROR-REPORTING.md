@@ -39,7 +39,7 @@ readable without signing in (errors on the sign-in page are reported too).
 
 | Reported                                                                                                                                                    | Not reported (business outcomes, visible in Steward itself)                              |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| API requests answered with a 5xx status by the error handler                                                                                                | 4xx responses: validation errors, missing permissions, not found, locked vault           |
+| API requests answered with a 5xx status by the error handler (also of the public REST API `/api/v1`)                                                        | 4xx responses: validation errors, missing permissions, not found, locked vault           |
 | Unhandled exceptions and unhandled promise rejections (the process still exits as before, after reporting)                                                  | Failed runs and failed steps, platforms answering with 4xx/5xx, timeouts, network errors |
 | Internal engine errors: programming errors (`TypeError`, `ReferenceError`, `RangeError`) in a step or run, failed resume/recovery of runs, failed schedules | A wrong configured master passphrase and other expected errors (`HttpError` < 500)       |
 | Browser: uncaught errors, unhandled rejections, rendering errors caught by the error boundary                                                               |                                                                                          |
@@ -56,7 +56,9 @@ covered by `server/test/error-reporting.test.ts`).
 - the error type, message and stack trace (file names, functions, line numbers,
   and on the server a few lines of Steward's own source code around each frame);
   the linked `cause` errors
-- tags: `route` (route pattern, e.g. `/api/runs/:id`), `method`, `request_id`,
+- tags: `route` (route pattern, e.g. `/api/runs/:id`), `method`, `request_id`
+  (the response's `X-Request-Id`, a UUID – the reference the web app shows with
+  _Something went wrong_, and `reqId` in the server log),
   `phase` (`step`, `run`, `resume`, `schedule`, …), `node_type`, `run_id`
   (random id, to find the run in Steward), `trace_id` (OpenTelemetry trace, when
   tracing is on)

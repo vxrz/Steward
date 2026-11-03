@@ -14,7 +14,7 @@ Steward notifies people in the app (the bell in the header) and – depending on
 | Run failed                      | Who started the run, the owner of the schedule                                                                                                                |
 | Check failed                    | Who started the run, the schedule owner, the process owner                                                                                                    |
 | Check passes again              | The same, when a schedule asks for it (below)                                                                                                                 |
-| Stale data                      | The process owner and administrators                                                                                                                          |
+| Stale data                      | The process owner and administrators: after 2.5 × the interval of the schedule that fed it, else the publish step's `staleAfterMinutes`                       |
 | Schedule skipped                | The schedule owner and administrators                                                                                                                         |
 | Monitor status                  | Owners and subscribers of the monitor (root causes only)                                                                                                      |
 | Credential due                  | The owners of the entry ([CREDENTIALS.md](CREDENTIALS.md))                                                                                                    |

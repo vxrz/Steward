@@ -452,8 +452,17 @@ export const Dataset = z.object({
         updatedAt: ts(),
         rowCount: z.number().int(),
         metrics: z.record(z.string(), z.number()),
-        staleAfterMinutes: z.number().int().describe('The step setting, else 2.5 × the schedule interval (at least 15), else 24 h'),
-        expectedMinutes: z.number().int().nullable().describe('Interval of the schedule that feeds it'),
+        staleAfterMinutes: z
+          .number()
+          .int()
+          .describe(
+            'A run started by a schedule: 2.5 × the schedule interval (at least 15); a run without one: the publish step setting, else 24 h (see staleReason)',
+          ),
+        staleReason: z
+          .enum(['schedule', 'fixed', 'default'])
+          .describe('Where staleAfterMinutes comes from: the schedule interval, the publish step setting, or the 24-hour default'),
+        expectedMinutes: z.number().int().nullable().describe('Interval of the schedule that feeds it (its current cron)'),
+        nextRunAt: ts().nullable().describe('Next run of the schedule that feeds it; null when not scheduled (no schedule, disabled or deleted)'),
         stale: z.boolean(),
       }),
     )
