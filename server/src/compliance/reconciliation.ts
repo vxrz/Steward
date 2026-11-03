@@ -444,7 +444,7 @@ const clip = (s: unknown) =>
 
 /** Sorted subjects with sorted unique rights; duplicates of a subject id (case-insensitive) are merged. */
 export function normalizeSubjects(
-  list: { id: string; name?: string; type?: string; rights: unknown[]; aliases?: string[]; activity?: string }[],
+  list: { id: string; name?: string; type?: string; rights: unknown[]; aliases?: string[]; activity?: string; activityInfo?: AccessSubject['activityInfo'] }[],
 ): AccessSubject[] {
   const byId = new Map<string, AccessSubject>();
   for (const s of list) {
@@ -458,6 +458,11 @@ export function normalizeSubjects(
     if (aliases.length) cur.aliases = aliases;
     // a hint for person reviews read live; runCheck drops it before the snapshot
     if (s.activity && !cur.activity) cur.activity = clip(s.activity);
+    if (s.activityInfo && !cur.activityInfo)
+      cur.activityInfo = {
+        lastLoginAt: s.activityInfo.lastLoginAt ? clip(s.activityInfo.lastLoginAt) : null,
+        passwordWithoutMfa: !!s.activityInfo.passwordWithoutMfa,
+      };
     if (cur.rights.length > LIMITS.rightsPerSubject)
       throw new HttpError(400, `${id} has more than ${LIMITS.rightsPerSubject} rights`, 'SNAPSHOT_TOO_MANY_RIGHTS', { id, max: LIMITS.rightsPerSubject });
     if (!cur.name && s.name) cur.name = clip(s.name);
@@ -610,7 +615,15 @@ async function collectSnowflake(c: CheckRow): Promise<{ subjects: AccessSubject[
     throw new HttpError(400, `The scope has more than ${LIMITS.subjects} members`, 'SNAPSHOT_TOO_LARGE', { max: LIMITS.subjects });
   return {
     subjects: normalizeSubjects(
-      subjects.map((x) => ({ id: clip(x.id), name: clip(x.name), type: x.type, rights: x.rights.map(clip), aliases: x.aliases, activity: x.activity })),
+      subjects.map((x) => ({
+        id: clip(x.id),
+        name: clip(x.name),
+        type: x.type,
+        rights: x.rights.map(clip),
+        aliases: x.aliases,
+        activity: x.activity,
+        activityInfo: x.activityInfo,
+      })),
     ),
     sourceRunId: null,
   };
@@ -811,7 +824,7 @@ export async function runCheck(id: string, o: { actor: string; trigger: 'schedul
     // rights the check leaves out (e.g. a review marker group); the subjects stay
     const ignored = new Set(parseJson<string[]>(c.ignore_rights, []).map((x) => x.toLowerCase()));
     // the activity hint (last login) changes every day: it is never part of a snapshot
-    const subjects = collected.subjects.map(({ activity: _activity, ...x }) =>
+    const subjects = collected.subjects.map(({ activity: _activity, activityInfo: _info, ...x }) =>
       ignored.size ? { ...x, rights: x.rights.filter((r) => !ignored.has(r.toLowerCase())) } : x,
     );
     const hash = snapshotHash(subjects);
