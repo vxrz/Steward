@@ -9,13 +9,14 @@ import { SubjectsInput } from '../components/SubjectsInput';
 import { CIA_DIMENSIONS, SERVICE_CRITICALITIES, tagLabel, tagsMatch, type ApplicationDetail, type ApplicationSummary, type ServiceSummary } from '@sm/shared';
 import { TagBadges, TagFilterChip, TagInput, useTagFilter } from '../components/tags';
 import { get, notifyError, post, put } from '../api';
-import { EmptyState, FilterPanel, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
+import { EmptyState, FilterPanel, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
 import { fmtDate, fmtRelative } from '../format';
 import { CriticalityBadge } from './Services';
 import { RatingBadges, levelText, useCiaScale } from '../components/catalogue/cia';
 import { useRoleLabel } from '../components/catalogue/ServiceApplications';
 import { EndOfLifeButton } from '../components/catalogue/lifecycle';
+import { ListPage, useStoredListView } from '../components/page/ListPage';
 
 const NOT_RATED = '__none';
 
@@ -37,6 +38,7 @@ export function ApplicationsPage() {
   const canCreate = hasRole('admin') || hasRole('designer');
   useCreateParam(canCreate, () => setCreating(true));
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
+  const listView = useStoredListView('applications', narrow);
 
   // the levels of all dimensions, once each (a scale per dimension can have different levels)
   const levelOptions = useMemo(() => {
@@ -60,24 +62,25 @@ export function ApplicationsPage() {
   const active = [service, criticality, protection].filter(Boolean).length;
 
   return (
-    <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          <>
-            <Button size="xs" variant="default" component={Link} to="/applications/cia-scale" leftSection={<IconScale size={14} />}>
-              {t('scale.link')}
+    <ListPage
+      view="applications"
+      viewState={listView}
+      title={t('title')}
+      description={t('description')}
+      actions={
+        <>
+          <Button size="xs" variant="default" component={Link} to="/applications/cia-scale" leftSection={<IconScale size={14} />}>
+            {t('scale.link')}
+          </Button>
+          <EndOfLifeButton />
+          {canCreate && (
+            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
+              {t('new')}
             </Button>
-            <EndOfLifeButton />
-            {canCreate && (
-              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
-                {t('new')}
-              </Button>
-            )}
-          </>
-        }
-      />
+          )}
+        </>
+      }
+    >
       <Group gap="sm" mb="md" align="flex-end" wrap="wrap">
         <TextInput
           label={t('search')}
@@ -131,6 +134,7 @@ export function ApplicationsPage() {
         <EmptyState
           icon={IconApps}
           title={archived ? t('emptyState.titleArchived') : t('emptyState.title')}
+          whoCanAct={t('common:whoCanAct.applications')}
           action={
             canCreate &&
             !archived && (
@@ -149,7 +153,7 @@ export function ApplicationsPage() {
         </Text>
       )}
       {list.length > 0 &&
-        (narrow ? (
+        (listView.cards ? (
           <Stack gap="xs" role="list" aria-label={t('title')}>
             {list.map((a) => (
               <Paper key={a.id} withBorder p="sm" role="listitem">
@@ -227,7 +231,7 @@ export function ApplicationsPage() {
           </div>
         ))}
       {creating && <ApplicationFormModal onClose={() => setCreating(false)} onSaved={(a) => navigate(`/applications/${a.id}`)} />}
-    </>
+    </ListPage>
   );
 }
 

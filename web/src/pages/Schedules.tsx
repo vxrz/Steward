@@ -6,7 +6,8 @@ import { IconCalendarTime, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from 
 import { Trans, useTranslation } from 'react-i18next';
 import { DEFAULT_SCHEDULE_NOTIFY, type ProcessDetail, type ProcessSummary, type Schedule } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
-import { EmptyState, PageHeader, QueryState, StatusBadge, useCreateParam, useFieldErrors } from '../components/common';
+import { QueryState, StatusBadge, useCreateParam, useFieldErrors } from '../components/common';
+import { AutomateTabs } from '../components/page/LinkTabs';
 import { InputsForm, defaultInputs } from '../components/InputsForm';
 import { BindingsForm, loadBindings } from '../components/RunDialog';
 import { fmtDate, fmtRelative } from '../format';
@@ -16,6 +17,7 @@ import { confirmDanger } from '../components/confirm';
 import { RunModeField } from '../components/RunModeField';
 import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/notify/NotifyPolicy';
 import { CronWarnings, useCronPreview } from '../components/CronPreview';
+import { ListPage } from '../components/page/ListPage';
 
 const PRESETS = [
   { key: 'every15', cron: '*/15 * * * *' },
@@ -79,30 +81,29 @@ export function SchedulesPage() {
   };
 
   return (
-    <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDraft(emptyDraft())}>
-            {t('new')}
+    <ListPage
+      tabs={<AutomateTabs active="/schedules" />}
+      title={t('title')}
+      description={t('description')}
+      primaryAction={
+        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDraft(emptyDraft())}>
+          {t('new')}
+        </Button>
+      }
+      empty={{
+        show: schedules.data?.length === 0,
+        icon: IconCalendarTime,
+        title: t('emptyState.title'),
+        text: t('emptyState.text'),
+        whoCanAct: t('common:whoCanAct.schedules'),
+        action: (
+          <Button leftSection={<IconPlus size={16} />} onClick={() => setDraft(emptyDraft())}>
+            {t('emptyState.action')}
           </Button>
-        }
-      />
+        ),
+      }}
+    >
       <QueryState query={schedules} />
-      {schedules.data?.length === 0 && (
-        <EmptyState
-          icon={IconCalendarTime}
-          title={t('emptyState.title')}
-          action={
-            <Button leftSection={<IconPlus size={16} />} onClick={() => setDraft(emptyDraft())}>
-              {t('emptyState.action')}
-            </Button>
-          }
-        >
-          {t('emptyState.text')}
-        </EmptyState>
-      )}
       {!!schedules.data?.length && (
         <div className="table-scroll">
           <Table highlightOnHover fz="sm">
@@ -242,7 +243,7 @@ export function SchedulesPage() {
           }}
         />
       )}
-    </>
+    </ListPage>
   );
 }
 

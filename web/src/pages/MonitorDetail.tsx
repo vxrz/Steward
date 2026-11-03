@@ -29,7 +29,7 @@ import {
   type MonitorSaveResult,
 } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
-import { DetailState, JsonView, PageHeader } from '../components/common';
+import { DetailState, JsonView } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { AccessEditor } from '../components/AccessEditor';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
@@ -41,6 +41,7 @@ import { confirmDanger, confirmDialog } from '../components/confirm';
 import { appUrl } from '../basePath';
 import { MonitorReviewModal, useCanStartReview } from '../components/records/IncidentReview';
 import { OwningTeams } from '../components/OwningTeams';
+import { DetailHeader } from '../components/page/DetailPage';
 
 export function MonitorDetailPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -104,7 +105,8 @@ export function MonitorDetailPage() {
 
   return (
     <>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: m.name, kind: 'monitor' }}
         back="monitors"
         title={
           <Group gap="sm" wrap="wrap">

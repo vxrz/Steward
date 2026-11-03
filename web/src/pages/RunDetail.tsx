@@ -18,22 +18,12 @@ import {
 import { outcomeOf, topSeverity, type AuditEntry, type ProcessDetail, type RunChild, type RunDetail, type RunStepRecord } from '@sm/shared';
 import { get, notifyError, post, apiUrl } from '../api';
 import { fmtDate, fmtDuration, fmtNumber, fmtTime, runDuration } from '../format';
-import {
-  DetailState,
-  JsonView,
-  Markdown,
-  PageHeader,
-  SEVERITY_COLORS,
-  SeverityBadge,
-  StatusBadge,
-  TONE,
-  severityLabel,
-  statusLabel,
-} from '../components/common';
+import { DetailState, JsonView, Markdown, SEVERITY_COLORS, SeverityBadge, StatusBadge, TONE, severityLabel, statusLabel } from '../components/common';
 import { errorSteps, findingsOf, findingsText } from '../components/RunTable';
 import { TaskPanel } from '../components/TaskPanel';
 import { RunDialog } from '../components/RunDialog';
 import { GenerateReportDialog, RunReportsPanel, canReport } from '../components/reports/RunReports';
+import { DetailHeader } from '../components/page/DetailPage';
 
 const ACTIVE = ['running', 'waiting', 'queued'];
 /** Long runs (for-each over thousands of items) render their steps and log lines in pages. */
@@ -87,7 +77,8 @@ export function RunDetailPage() {
 
   return (
     <>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: r.processName, kind: 'run' }}
         back="runs"
         title={
           <Group gap="xs">

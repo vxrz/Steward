@@ -25,7 +25,7 @@ import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { AccessEditor } from '../components/AccessEditor';
 import { OwningTeams } from '../components/OwningTeams';
 import { useMe } from '../auth';
-import { DetailState, JsonView, PageHeader } from '../components/common';
+import { DetailState, JsonView } from '../components/common';
 import { PlatformIntegrityAlert } from '../components/security/PlatformIntegrityAlert';
 import { fmtNumber, fmtRelative } from '../format';
 import { KIND_COLORS } from './Platforms';
@@ -39,6 +39,7 @@ import { RecordingsTab } from '../components/platform/RecordingsTab';
 import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
+import { DetailHeader } from '../components/page/DetailPage';
 
 interface TokenInfo {
   fetchedAt: string;
@@ -143,7 +144,8 @@ export function PlatformDetailPage() {
 
   return (
     <>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: p.name, kind: 'platform' }}
         back="platforms"
         title={p.name}
         description={

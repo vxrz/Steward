@@ -29,13 +29,14 @@ import { useTranslation } from 'react-i18next';
 import { CONNECTOR_FORMATS, impliedAuthType, type AuthType, type ConnectorPackage, type Platform, type PlatformPreset } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { useMe } from '../auth';
-import { EmptyState, Hint, KeyValueEditor, PageHeader, QueryState } from '../components/common';
+import { EmptyState, Hint, KeyValueEditor, QueryState } from '../components/common';
 import { authLabel, presetDescription, presetSecretHelp, presetSecretLabel } from '../components/platform/presetText';
 import i18n from '../i18n';
 import { BRAND } from '../../../shared/src/brand';
 import { EnvironmentInput } from '../components/catalogue/environments';
 import { confirmDanger } from '../components/confirm';
 import { fmtDate, fmtRelative } from '../format';
+import { ListPage } from '../components/page/ListPage';
 
 export const KIND_COLORS: Record<string, string> = {
   'insights-hub': 'teal',
@@ -67,7 +68,7 @@ function LastTest({ test }: { test?: Platform['lastTest'] }) {
 }
 
 export function PlatformsPage() {
-  const { t } = useTranslation('platforms');
+  const { t } = useTranslation(['platforms', 'common']);
   const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
   const [typesOpen, setTypesOpen] = useState(false);
@@ -89,28 +90,74 @@ export function PlatformsPage() {
   const filtered = !!(needle || kind || env);
 
   return (
-    <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          <>
-            <Button size="xs" variant="default" leftSection={<IconPlug size={14} />} onClick={() => setTypesOpen(true)}>
-              {t('types.button')}
+    <ListPage
+      activeFilters={[needle, kind, env].filter(Boolean).length}
+      title={t('title')}
+      description={t('description')}
+      actions={
+        <>
+          <Button size="xs" variant="default" leftSection={<IconPlug size={14} />} onClick={() => setTypesOpen(true)}>
+            {t('types.button')}
+          </Button>
+          {caps.createPlatforms && (
+            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setAdding(true)}>
+              {t('add')}
             </Button>
-            {caps.createPlatforms && (
-              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setAdding(true)}>
-                {t('add')}
-              </Button>
+          )}
+        </>
+      }
+      filters={
+        all.length > 0 && (
+          <Group gap="sm" align="flex-end" mb="md" wrap="wrap" role="search" aria-label={t('filter.search')}>
+            <TextInput
+              size="xs"
+              label={t('filter.search')}
+              placeholder={t('filter.searchPlaceholder')}
+              leftSection={<IconSearch size={14} />}
+              value={q}
+              onChange={(e) => setQ(e.currentTarget.value)}
+              w={{ base: '100%', xs: 260 }}
+            />
+            {kinds.length > 1 && (
+              <Select
+                size="xs"
+                label={t('filter.kind')}
+                placeholder={t('filter.all')}
+                data={kinds}
+                value={kind}
+                onChange={setKind}
+                clearable
+                searchable
+                w={{ base: '48%', xs: 200 }}
+              />
             )}
-          </>
-        }
-      />
+            {envs.length > 0 && (
+              <Select
+                size="xs"
+                label={t('filter.environment')}
+                placeholder={t('filter.all')}
+                data={envs}
+                value={env}
+                onChange={setEnv}
+                clearable
+                w={{ base: '48%', xs: 160 }}
+              />
+            )}
+            {filtered && (
+              <Text size="xs" c="dimmed" mb={6} aria-live="polite">
+                {t('filter.count', { shown: shown.length, total: all.length })}
+              </Text>
+            )}
+          </Group>
+        )
+      }
+    >
       <QueryState query={platforms} rows={3} />
       {platforms.data && platforms.data.length === 0 && (
         <EmptyState
           icon={IconServer}
           title={t('empty.title')}
+          whoCanAct={t('common:whoCanAct.platforms')}
           action={
             caps.createPlatforms && (
               <Button leftSection={<IconPlus size={16} />} onClick={() => setAdding(true)}>
@@ -122,49 +169,6 @@ export function PlatformsPage() {
           {t('empty.text')}
           {!caps.createPlatforms && <div>{t('empty.adminsOnly')}</div>}
         </EmptyState>
-      )}
-      {all.length > 0 && (
-        <Group gap="sm" align="flex-end" mb="md" wrap="wrap" role="search" aria-label={t('filter.search')}>
-          <TextInput
-            size="xs"
-            label={t('filter.search')}
-            placeholder={t('filter.searchPlaceholder')}
-            leftSection={<IconSearch size={14} />}
-            value={q}
-            onChange={(e) => setQ(e.currentTarget.value)}
-            w={{ base: '100%', xs: 260 }}
-          />
-          {kinds.length > 1 && (
-            <Select
-              size="xs"
-              label={t('filter.kind')}
-              placeholder={t('filter.all')}
-              data={kinds}
-              value={kind}
-              onChange={setKind}
-              clearable
-              searchable
-              w={{ base: '48%', xs: 200 }}
-            />
-          )}
-          {envs.length > 0 && (
-            <Select
-              size="xs"
-              label={t('filter.environment')}
-              placeholder={t('filter.all')}
-              data={envs}
-              value={env}
-              onChange={setEnv}
-              clearable
-              w={{ base: '48%', xs: 160 }}
-            />
-          )}
-          {filtered && (
-            <Text size="xs" c="dimmed" mb={6} aria-live="polite">
-              {t('filter.count', { shown: shown.length, total: all.length })}
-            </Text>
-          )}
-        </Group>
       )}
       {filtered && shown.length === 0 && (
         <EmptyState
@@ -241,7 +245,7 @@ export function PlatformsPage() {
       </SimpleGrid>
       <AddPlatformModal opened={adding} onClose={() => setAdding(false)} onCreated={(id) => navigate(`/platforms/${id}`)} />
       <ConnectorTypesModal opened={typesOpen} onClose={() => setTypesOpen(false)} canManage={caps.createPlatforms} />
-    </>
+    </ListPage>
   );
 }
 

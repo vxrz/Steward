@@ -30,7 +30,7 @@ import { IconCheck, IconCopy, IconEdit, IconKey, IconPlus, IconSettings, IconTra
 import { Trans, useTranslation } from 'react-i18next';
 import { ROLES, ROLE_INFO, TEAM_ROLES, type AuthStatus, type Role, type Team, type UserInfo } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
-import { PageHeader, useFieldErrors } from '../components/common';
+import { useFieldErrors } from '../components/common';
 import { DataTable, type DataColumn } from '../components/DataTable';
 import { fmtRelative } from '../format';
 import { useMe } from '../auth';
@@ -39,6 +39,7 @@ import i18n from '../i18n';
 import { ProfileValues } from '../components/users/ProfileValues';
 import { TeamSettingsModal } from '../components/users/TeamSettingsModal';
 import { confirmDanger, confirmDialog } from '../components/confirm';
+import { ListPage } from '../components/page/ListPage';
 
 const ROLE_COLORS: Record<Role, string> = {
   admin: 'red',
@@ -154,16 +155,16 @@ export function UsersPage() {
   };
 
   return (
-    <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setEditing('new')}>
-            {t('addUser')}
-          </Button>
-        }
-      />
+    <ListPage
+      view="users"
+      title={t('title')}
+      description={t('description')}
+      primaryAction={
+        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setEditing('new')}>
+          {t('addUser')}
+        </Button>
+      }
+    >
       <Stack>
         {users.data && (
           <UserList users={users.data} myName={myName} passwordsOff={passwordsOff} ssoName={ssoName} onEdit={setEditing} onReset={reset} onActive={setActive} />
@@ -282,7 +283,7 @@ export function UsersPage() {
         />
       )}
       {temp && <TempPassword username={temp.username} password={temp.password} onClose={() => setTemp(null)} />}
-    </>
+    </ListPage>
   );
 }
 

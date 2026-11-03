@@ -6,7 +6,7 @@ import { IconEdit, IconExternalLink, IconFileImport, IconTrash } from '@tabler/i
 import { useTranslation } from 'react-i18next';
 import type { SbomPreview, SystemDetail } from '@sm/shared';
 import { del, get, notifyError } from '../api';
-import { DetailState, PageHeader, subjectLabel } from '../components/common';
+import { DetailState, subjectLabel } from '../components/common';
 import { Field } from '../components/records/common';
 import { confirmDanger } from '../components/confirm';
 import { fmtDate } from '../format';
@@ -16,6 +16,7 @@ import { SystemFormModal } from './Systems';
 import { CatalogueCredentials } from '../components/catalogue/CatalogueCredentials';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { OwningTeams } from '../components/OwningTeams';
+import { DetailHeader } from '../components/page/DetailPage';
 
 /** A system (#129): what it is, its tech stack, the platform it is, and the applications that run on it per environment. */
 export function SystemDetailPage() {
@@ -45,7 +46,8 @@ export function SystemDetailPage() {
   };
   return (
     <>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: s.name, kind: 'system' }}
         back="systems"
         title={
           <Group gap="sm" wrap="wrap">

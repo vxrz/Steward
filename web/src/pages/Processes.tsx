@@ -16,7 +16,6 @@ import {
   Stack,
   Text,
   Textarea,
-  TextInput,
   Tooltip,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
@@ -26,7 +25,6 @@ import { useTranslation } from 'react-i18next';
 import {
   IconPlayerPlay,
   IconPlus,
-  IconSearch,
   IconTemplate,
   IconUpload,
   IconDots,
@@ -41,7 +39,8 @@ import {
 import { BUNDLE_FORMATS, tagLabel, tagsMatch, type ExportBundle, type ProcessDetail, type ProcessSummary } from '@sm/shared';
 import { TagBadges, TagFilterChip, useTagFilter } from '../components/tags';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
-import { EmptyState, PageHeader, QueryState, StatusBadge } from '../components/common';
+import { QueryState, StatusBadge } from '../components/common';
+import { AutomateTabs } from '../components/page/LinkTabs';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { RunDialog } from '../components/RunDialog';
 import { DescriptionText, descriptionPlain } from '../components/DescriptionText';
@@ -51,6 +50,7 @@ import { errorText } from '../i18n/errors';
 import { BRAND } from '../../../shared/src/brand';
 import { useMe } from '../auth';
 import { confirmDanger } from '../components/confirm';
+import { ListPage } from '../components/page/ListPage';
 
 export function ProcessesPage() {
   const { t } = useTranslation(['processes', 'common']);
@@ -140,86 +140,80 @@ export function ProcessesPage() {
   );
 
   return (
-    <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          <>
-            {/* the secondary actions in one menu: a manual procedure, YAML import, bundles (several processes and dashboards in one file) */}
-            <Menu position="bottom-end" width={300}>
-              <Menu.Target>
-                <Button size="xs" variant="default" rightSection={<IconChevronDown size={14} />} data-testid="processes-more">
-                  {t('more')}
-                </Button>
-              </Menu.Target>
-              <Menu.Dropdown>
-                {caps.createProcesses && (
-                  <>
-                    <Menu.Item leftSection={<IconChecklist size={14} />} onClick={createManual}>
-                      {t('newManualProcedure')}
-                      <Text size="xs" c="dimmed">
-                        {t('newManualProcedureHint')}
-                      </Text>
-                    </Menu.Item>
-                    <Menu.Item leftSection={<IconUpload size={14} />} onClick={importModal.open}>
-                      {t('importYaml')}
-                    </Menu.Item>
-                    <Menu.Divider />
-                  </>
-                )}
-                <Menu.Label>{t('bundle.label')}</Menu.Label>
-                <Menu.Item leftSection={<IconPackageExport size={14} />} component="a" href={apiUrl('/bundle/export')}>
-                  {t('bundle.exportAll')}
-                </Menu.Item>
-                {caps.createProcesses && (
-                  <Menu.Item leftSection={<IconPackageImport size={14} />} onClick={bundleModal.open}>
-                    {t('bundle.importMenu')}
+    <ListPage
+      tabs={<AutomateTabs active="/processes" />}
+      title={t('title')}
+      description={t('description')}
+      actions={
+        <>
+          {/* the secondary actions in one menu: a manual procedure, YAML import, bundles (several processes and dashboards in one file) */}
+          <Menu position="bottom-end" width={300}>
+            <Menu.Target>
+              <Button size="xs" variant="default" rightSection={<IconChevronDown size={14} />} data-testid="processes-more">
+                {t('more')}
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              {caps.createProcesses && (
+                <>
+                  <Menu.Item leftSection={<IconChecklist size={14} />} onClick={createManual}>
+                    {t('newManualProcedure')}
+                    <Text size="xs" c="dimmed">
+                      {t('newManualProcedureHint')}
+                    </Text>
                   </Menu.Item>
-                )}
-              </Menu.Dropdown>
-            </Menu>
-            {caps.createProcesses && (
-              <>
-                <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />} onClick={templates.open}>
-                  {t('fromTemplate')}
-                </Button>
-                <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createBlank}>
-                  {t('newProcess')}
-                </Button>
-              </>
-            )}
+                  <Menu.Item leftSection={<IconUpload size={14} />} onClick={importModal.open}>
+                    {t('importYaml')}
+                  </Menu.Item>
+                  <Menu.Divider />
+                </>
+              )}
+              <Menu.Label>{t('bundle.label')}</Menu.Label>
+              <Menu.Item leftSection={<IconPackageExport size={14} />} component="a" href={apiUrl('/bundle/export')}>
+                {t('bundle.exportAll')}
+              </Menu.Item>
+              {caps.createProcesses && (
+                <Menu.Item leftSection={<IconPackageImport size={14} />} onClick={bundleModal.open}>
+                  {t('bundle.importMenu')}
+                </Menu.Item>
+              )}
+            </Menu.Dropdown>
+          </Menu>
+          {caps.createProcesses && (
+            <>
+              <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />} onClick={templates.open}>
+                {t('fromTemplate')}
+              </Button>
+              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createBlank}>
+                {t('newProcess')}
+              </Button>
+            </>
+          )}
+        </>
+      }
+      search={{ value: filter, onChange: setFilter, placeholder: t('search') }}
+      empty={{
+        show: processes.data?.length === 0,
+        icon: IconSitemap,
+        title: t('empty.title'),
+        text: (
+          <>
+            {t('empty.text')}
+            {!caps.createProcesses && <div>{t('empty.askForAccess')}</div>}
           </>
-        }
-      />
-      <TextInput
-        mb="md"
-        placeholder={t('search')}
-        leftSection={<IconSearch size={14} />}
-        value={filter}
-        onChange={(e) => setFilter(e.currentTarget.value)}
-        maw={360}
-      />
+        ),
+        whoCanAct: t('common:whoCanAct.processes'),
+        action: caps.createProcesses && (
+          <Button onClick={templates.open} leftSection={<IconTemplate size={16} />}>
+            {t('empty.browse')}
+          </Button>
+        ),
+      }}
+    >
       <Box mb="md">
         <TagFilterChip tag={tag} onChange={setTag} />
       </Box>
       <QueryState query={processes} />
-      {processes.data?.length === 0 && (
-        <EmptyState
-          icon={IconSitemap}
-          title={t('empty.title')}
-          action={
-            caps.createProcesses && (
-              <Button onClick={templates.open} leftSection={<IconTemplate size={16} />}>
-                {t('empty.browse')}
-              </Button>
-            )
-          }
-        >
-          {t('empty.text')}
-          {!caps.createProcesses && <div>{t('empty.askForAccess')}</div>}
-        </EmptyState>
-      )}
       <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }}>
         {list.map((p) => (
           <Card key={p.id} withBorder padding="md" className="clickable" onClick={() => navigate(`/processes/${p.id}`)}>
@@ -303,7 +297,7 @@ export function ProcessesPage() {
       <TemplateGallery opened={templatesOpen} onClose={templates.close} />
       <ImportModal opened={importOpen} onClose={importModal.close} />
       <BundleImportModal opened={bundleOpen} onClose={bundleModal.close} />
-    </>
+    </ListPage>
   );
 }
 

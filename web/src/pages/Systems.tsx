@@ -7,11 +7,12 @@ import { useTranslation } from 'react-i18next';
 import { SubjectsInput } from '../components/SubjectsInput';
 import { SYSTEM_KINDS, SYSTEM_LIMITS, type Platform, type SystemDetail, type SystemKind, type SystemSummary } from '@sm/shared';
 import { get, notifyError, post, put } from '../api';
-import { EmptyState, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
+import { EmptyState, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
 import { fmtRelative } from '../format';
 import { EnvironmentBadge, useEnvironmentList } from '../components/catalogue/environments';
 import { StackFields, stackBody, stackRowsOf, type StackRow } from '../components/catalogue/ComponentsPanel';
+import { ListPage } from '../components/page/ListPage';
 
 /** Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on. */
 export function SystemsPage() {
@@ -35,52 +36,55 @@ export function SystemsPage() {
       (!env || s.environments.includes(env)),
   );
   return (
-    <>
-      <PageHeader
-        title={t('systems.title')}
-        description={t('systems.description')}
-        actions={
-          canCreate && (
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
-              {t('systems.new')}
-            </Button>
-          )
-        }
-      />
-      <Group gap="sm" mb="md" align="flex-end" wrap="wrap">
-        <TextInput
-          size="xs"
-          label={t('search')}
-          placeholder={t('systems.searchPlaceholder')}
-          leftSection={<IconSearch size={14} />}
-          value={q}
-          onChange={(e) => setQ(e.currentTarget.value)}
-          w={{ base: '100%', sm: 240 }}
-        />
-        <Select
-          size="xs"
-          label={t('systems.kind')}
-          data={SYSTEM_KINDS.map((k) => ({ value: k, label: t(`systems.kinds.${k}`) }))}
-          value={kind}
-          onChange={setKind}
-          clearable
-          w={180}
-        />
-        <Select
-          size="xs"
-          label={t('environments.label')}
-          data={[...new Set([...envList.map((e) => e.name), ...(systems.data ?? []).flatMap((s) => s.environments).filter(Boolean)])]}
-          value={env}
-          onChange={setEnv}
-          clearable
-          w={180}
-        />
-      </Group>
+    <ListPage
+      activeFilters={[needle, kind, env].filter(Boolean).length}
+      title={t('systems.title')}
+      description={t('systems.description')}
+      primaryAction={
+        canCreate && (
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
+            {t('systems.new')}
+          </Button>
+        )
+      }
+      filters={
+        <Group gap="sm" mb="md" align="flex-end" wrap="wrap">
+          <TextInput
+            size="xs"
+            label={t('search')}
+            placeholder={t('systems.searchPlaceholder')}
+            leftSection={<IconSearch size={14} />}
+            value={q}
+            onChange={(e) => setQ(e.currentTarget.value)}
+            w={{ base: '100%', sm: 240 }}
+          />
+          <Select
+            size="xs"
+            label={t('systems.kind')}
+            data={SYSTEM_KINDS.map((k) => ({ value: k, label: t(`systems.kinds.${k}`) }))}
+            value={kind}
+            onChange={setKind}
+            clearable
+            w={180}
+          />
+          <Select
+            size="xs"
+            label={t('environments.label')}
+            data={[...new Set([...envList.map((e) => e.name), ...(systems.data ?? []).flatMap((s) => s.environments).filter(Boolean)])]}
+            value={env}
+            onChange={setEnv}
+            clearable
+            w={180}
+          />
+        </Group>
+      }
+    >
       <QueryState query={systems} />
       {systems.isSuccess && systems.data.length === 0 && (
         <EmptyState
           icon={IconServer2}
           title={t('systems.emptyTitle')}
+          whoCanAct={t('common:whoCanAct.systems')}
           action={
             canCreate && (
               <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)}>
@@ -167,7 +171,7 @@ export function SystemsPage() {
           }}
         />
       )}
-    </>
+    </ListPage>
   );
 }
 

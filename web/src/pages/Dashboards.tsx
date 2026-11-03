@@ -26,12 +26,13 @@ import { IconAlertTriangle, IconChartBar, IconFlask, IconPlus, IconTemplate, Ico
 import { useTranslation } from 'react-i18next';
 import type { Dashboard, DashboardDefinition, DatasetMeta, NewResourceTeams, Team } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
-import { EmptyState, PageHeader, QueryState } from '../components/common';
+import { EmptyState, QueryState } from '../components/common';
 import { fmtNumber, fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { StatusCounts } from '../components/dashboard/status';
 import { confirmDanger } from '../components/confirm';
 import '../components/dashboard/viz.css';
+import { ListPage } from '../components/page/ListPage';
 
 interface DashboardTemplate {
   id: string;
@@ -52,31 +53,31 @@ export function DashboardsPage() {
   const [newOpen, newModal] = useDisclosure();
 
   return (
-    <>
-      <PageHeader
-        title={t('list.title')}
-        description={t('list.description')}
-        actions={
-          caps.createProcesses && (
-            <>
-              <Button size="xs" variant="default" leftSection={<IconUpload size={14} />} onClick={importModal.open}>
-                {t('list.importYaml')}
-              </Button>
-              <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />} onClick={templates.open}>
-                {t('list.fromTemplate')}
-              </Button>
-              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={newModal.open}>
-                {t('list.new')}
-              </Button>
-            </>
-          )
-        }
-      />
+    <ListPage
+      title={t('list.title')}
+      description={t('list.description')}
+      actions={
+        caps.createProcesses && (
+          <>
+            <Button size="xs" variant="default" leftSection={<IconUpload size={14} />} onClick={importModal.open}>
+              {t('list.importYaml')}
+            </Button>
+            <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />} onClick={templates.open}>
+              {t('list.fromTemplate')}
+            </Button>
+            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={newModal.open}>
+              {t('list.new')}
+            </Button>
+          </>
+        )
+      }
+    >
       <QueryState query={dashboards} rows={2} />
       {dashboards.data?.length === 0 && (
         <EmptyState
           icon={IconChartBar}
           title={t('list.emptyTitle')}
+          whoCanAct={t('common:whoCanAct.dashboards')}
           action={
             caps.createProcesses && (
               <Button leftSection={<IconTemplate size={16} />} onClick={templates.open}>
@@ -206,7 +207,7 @@ export function DashboardsPage() {
       <TemplatesModal opened={templatesOpen} onClose={templates.close} />
       <ImportModal opened={importOpen} onClose={importModal.close} />
       <NewDashboardModal opened={newOpen} onClose={newModal.close} />
-    </>
+    </ListPage>
   );
 }
 

@@ -7,7 +7,7 @@ import { IconDots, IconDownload, IconEdit, IconRefresh, IconTrash, IconDeviceFlo
 import { Trans, useTranslation } from 'react-i18next';
 import type { Dashboard, DashboardDefinition, DatasetStatus } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put, apiUrl } from '../api';
-import { DetailState, PageHeader } from '../components/common';
+import { DetailState } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { fmtRelative } from '../format';
 import { useMe } from '../auth';
@@ -17,6 +17,7 @@ import { DashboardEditor } from '../components/dashboard/DashboardEditor';
 import { confirmDanger } from '../components/confirm';
 import '../components/dashboard/viz.css';
 import { OwningTeams } from '../components/OwningTeams';
+import { DetailHeader } from '../components/page/DetailPage';
 
 export function DashboardViewPage() {
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
@@ -118,7 +119,8 @@ export function DashboardViewPage() {
 
   return (
     <DashboardContext.Provider value={ctx}>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: def.name, kind: 'dashboard' }}
         back="dashboards"
         title={
           <Group gap="xs" wrap="wrap">

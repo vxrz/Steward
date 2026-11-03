@@ -6,7 +6,7 @@ import { IconCheck, IconChevronDown, IconEdit, IconExternalLink, IconReportMedic
 import { useTranslation } from 'react-i18next';
 import { TICKET_LIMITS, isTicketOpen, type TicketDetail, type TicketEvent, type TicketStatus } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post } from '../api';
-import { DetailState, PageHeader, subjectLabel } from '../components/common';
+import { DetailState, subjectLabel } from '../components/common';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field } from '../components/records/common';
 import { TICKET_STATUS_IDS, TicketStatusBadge, useSourceLabel, useTicketSettings } from '../components/tickets/common';
@@ -15,6 +15,7 @@ import { fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { useCanStartReview, useStartReview } from '../components/records/IncidentReview';
 import { OwningTeams } from '../components/OwningTeams';
+import { DetailHeader } from '../components/page/DetailPage';
 
 export function TicketDetailPage() {
   const { t } = useTranslation(['tickets', 'records', 'common']);
@@ -50,7 +51,8 @@ export function TicketDetailPage() {
   const reminder = x.effectiveReminderDays ? t('reminder.summary', { count: x.effectiveReminderDays }) : t('reminder.none');
   return (
     <>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: `${x.externalNumber} ${x.title}`, kind: 'ticket' }}
         back="tickets"
         title={
           <Group gap="sm" wrap="wrap">

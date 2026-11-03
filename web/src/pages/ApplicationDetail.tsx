@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { TagBadges } from '../components/tags';
 import type { ApplicationDetail, ApplicationDocument, Platform } from '@sm/shared';
 import { del, get, notifyError, patch, post } from '../api';
-import { DetailState, PageHeader, subjectLabel, useFieldErrors } from '../components/common';
+import { DetailState, subjectLabel, useFieldErrors } from '../components/common';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field, LinksPanel, RecordStatusBadge } from '../components/records/common';
 import { EditionBadge, ReviewStatusBadge } from '../components/records/DocumentPanel';
@@ -23,6 +23,7 @@ import { RunsOnPanel } from '../components/catalogue/RunsOnPanel';
 import { CatalogueCredentials } from '../components/catalogue/CatalogueCredentials';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { OwningTeams } from '../components/OwningTeams';
+import { DetailHeader } from '../components/page/DetailPage';
 
 export function ApplicationDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
@@ -49,7 +50,8 @@ export function ApplicationDetailPage() {
   };
   return (
     <>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: a.name, kind: 'application' }}
         back="applications"
         title={
           <Group gap="sm" wrap="wrap">

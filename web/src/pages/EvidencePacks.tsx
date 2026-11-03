@@ -23,9 +23,10 @@ import { IconDownload, IconPackageExport, IconPlus, IconTrash } from '@tabler/ic
 import { useTranslation } from 'react-i18next';
 import type { Control, EvidencePack, EvidencePacksMeta, Platform, ServiceSummary } from '@sm/shared';
 import { apiUrl, del, get, getOptional, notifyError, post } from '../api';
-import { EmptyState, PageHeader, QueryState, TONE, useCreateParam } from '../components/common';
+import { EmptyState, QueryState, TONE, useCreateParam } from '../components/common';
 import { PeriodPicker, periodRange, presetPeriod, validPeriod, type Period } from '../components/compliance/common';
 import { fmtBytes, fmtDate, fmtRelative } from '../format';
+import { ListPage } from '../components/page/ListPage';
 
 const STATUS_COLOR: Record<EvidencePack['status'], string> = { building: TONE.active, ready: TONE.ok, failed: TONE.bad, expired: TONE.neutral };
 
@@ -71,18 +72,17 @@ export function EvidencePacksPage() {
     </Badge>
   );
   return (
-    <>
-      <PageHeader
-        title={t('packs.title')}
-        description={t('packs.description')}
-        actions={
-          meta.data?.canCreate && (
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
-              {t('packs.new')}
-            </Button>
-          )
-        }
-      />
+    <ListPage
+      title={t('packs.title')}
+      description={t('packs.description')}
+      actions={
+        meta.data?.canCreate && (
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
+            {t('packs.new')}
+          </Button>
+        )
+      }
+    >
       {meta.data && (
         <Text size="xs" c="dimmed" mb="sm">
           {t('packs.limits', { size: fmtBytes(meta.data.maxBytes), days: meta.data.retentionDays })}
@@ -104,6 +104,7 @@ export function EvidencePacksPage() {
         <EmptyState
           icon={IconPackageExport}
           title={t('packs.emptyTitle')}
+          whoCanAct={t('common:whoCanAct.evidencePacks')}
           action={
             meta.data?.canCreate && (
               <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)}>
@@ -194,7 +195,7 @@ export function EvidencePacksPage() {
           </div>
         ))}
       {creating && <NewPackModal onClose={() => setCreating(false)} />}
-    </>
+    </ListPage>
   );
 }
 

@@ -37,7 +37,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { useShellLayout } from '../layout';
 import { validateProcess, type ProcessDefinition, type ProcessDetail, type ValidationIssue } from '@sm/shared';
 import { ApiError, get, notifyError, notifyOk, put, apiUrl } from '../api';
-import { PageHeader } from '../components/common';
+import {} from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { RunDialog } from '../components/RunDialog';
 import { AccessEditor } from '../components/AccessEditor';
@@ -51,6 +51,7 @@ import { useDefHistory, useUndoKeys } from '../components/editor/useDefHistory';
 import { fmtRelative } from '../format';
 import { issueText } from '../i18n/meta';
 import { statusLabel } from '../components/common';
+import { DetailHeader } from '../components/page/DetailPage';
 
 /** Drop undefined values so dirty-checking and saving see the same thing. */
 const normalize = (d: ProcessDefinition): ProcessDefinition => JSON.parse(JSON.stringify(d));
@@ -176,7 +177,8 @@ export function ProcessEditorPage() {
 
   return (
     <Box>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: p.name, kind: 'process' }}
         back="processes"
         title={
           <Group gap="xs" wrap="wrap">

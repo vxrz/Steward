@@ -41,13 +41,15 @@ import type {
 import { DEFAULT_TRIGGER_NOTIFY } from '@sm/shared';
 import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
-import { EmptyState, Hint, PageHeader, QueryState, StatusBadge } from '../components/common';
+import { Hint, QueryState, StatusBadge } from '../components/common';
+import { AutomateTabs } from '../components/page/LinkTabs';
 import { BindingsForm, loadBindings } from '../components/RunDialog';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { appUrl } from '../basePath';
 import { RunModeField } from '../components/RunModeField';
 import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/notify/NotifyPolicy';
+import { ListPage } from '../components/page/ListPage';
 
 type Draft = WebhookTriggerSettings & { id?: string; owner?: string };
 
@@ -161,30 +163,29 @@ export function TriggersPage() {
   };
 
   return (
-    <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDraft(emptyDraft())}>
-            {t('new')}
+    <ListPage
+      tabs={<AutomateTabs active="/triggers" />}
+      title={t('title')}
+      description={t('description')}
+      primaryAction={
+        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDraft(emptyDraft())}>
+          {t('new')}
+        </Button>
+      }
+      empty={{
+        show: triggers.data?.length === 0,
+        icon: IconWebhook,
+        title: t('emptyState.title'),
+        text: t('emptyState.text'),
+        whoCanAct: t('common:whoCanAct.triggers'),
+        action: (
+          <Button leftSection={<IconPlus size={16} />} onClick={() => setDraft(emptyDraft())}>
+            {t('emptyState.action')}
           </Button>
-        }
-      />
+        ),
+      }}
+    >
       <QueryState query={triggers} />
-      {triggers.data?.length === 0 && (
-        <EmptyState
-          icon={IconWebhook}
-          title={t('emptyState.title')}
-          action={
-            <Button leftSection={<IconPlus size={16} />} onClick={() => setDraft(emptyDraft())}>
-              {t('emptyState.action')}
-            </Button>
-          }
-        >
-          {t('emptyState.text')}
-        </EmptyState>
-      )}
       {!!triggers.data?.length && (
         <div className="table-scroll">
           <Table highlightOnHover fz="sm">
@@ -351,7 +352,7 @@ export function TriggersPage() {
       {secret && <SecretModal created={secret} onClose={() => setSecret(null)} />}
       {testing && <TestModal trigger={testing} onClose={() => (setTesting(null), refresh())} />}
       {history && <HistoryModal trigger={history} onClose={() => setHistory(null)} />}
-    </>
+    </ListPage>
   );
 }
 

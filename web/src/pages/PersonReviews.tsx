@@ -18,13 +18,15 @@ import {
   TextInput,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconCheck, IconPlus, IconRefresh, IconSend, IconShieldCheck, IconUserSearch } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { PERSON_REVIEW_LIMITS, type AccessCheck, type PersonReview, type PersonReviewDecision, type PersonReviewSummary } from '@sm/shared';
 import { get, notifyError, post, put } from '../api';
 import { useMe } from '../auth';
-import { EmptyState, PageHeader, QueryState, TONE, useCreateParam } from '../components/common';
+import { QueryState, TONE, useCreateParam } from '../components/common';
+import { ListPage } from '../components/page/ListPage';
+import { DetailHeader } from '../components/page/DetailPage';
 import { fmtDate, fmtRelative } from '../format';
 
 const STATUS_COLOR: Record<PersonReview['status'], string> = { open: TONE.active, submitted: TONE.attention, approved: TONE.ok, closed: TONE.neutral };
@@ -45,7 +47,22 @@ export function PersonReviewsPage() {
   const canCreate = isAdmin || hasRole('designer');
   const [creating, setCreating] = useState(false);
   const reviews = useQuery({ queryKey: ['person-reviews'], queryFn: () => get<PersonReviewSummary[]>('/compliance/person-reviews') });
-  useCreateParam(canCreate, () => setCreating(true));
+  // ?new=1&user=<username> (the command palette's "New person review for …"): the dialog for that person
+  const [params, setParams] = useSearchParams();
+  const [initialUser, setInitialUser] = useState('');
+  useCreateParam(canCreate, () => {
+    setInitialUser(params.get('user') ?? '');
+    setCreating(true);
+  });
+  const closeNew = () => {
+    setCreating(false);
+    setInitialUser('');
+    if (params.has('user')) {
+      const next = new URLSearchParams(params);
+      next.delete('user');
+      setParams(next, { replace: true });
+    }
+  };
   const list = reviews.data ?? [];
   const newButton = canCreate && (
     <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
@@ -53,14 +70,20 @@ export function PersonReviewsPage() {
     </Button>
   );
   return (
-    <>
-      <PageHeader title={t('personReviews.title')} description={t('personReviews.description')} actions={newButton} />
+    <ListPage
+      title={t('personReviews.title')}
+      description={t('personReviews.description')}
+      primaryAction={newButton}
+      empty={{
+        show: reviews.isSuccess && list.length === 0,
+        icon: IconUserSearch,
+        title: t('personReviews.emptyTitle'),
+        text: t('personReviews.emptyText'),
+        whoCanAct: t('common:whoCanAct.personReviews'),
+        action: newButton,
+      }}
+    >
       <QueryState query={reviews} />
-      {reviews.isSuccess && list.length === 0 && (
-        <EmptyState icon={IconUserSearch} title={t('personReviews.emptyTitle')} action={newButton}>
-          {t('personReviews.emptyText')}
-        </EmptyState>
-      )}
       {list.length > 0 && (
         <div className="table-scroll">
           <Table fz="sm" aria-label={t('personReviews.title')}>
@@ -95,18 +118,18 @@ export function PersonReviewsPage() {
           </Table>
         </div>
       )}
-      {creating && <NewReviewModal onClose={() => setCreating(false)} />}
-    </>
+      {creating && <NewReviewModal onClose={closeNew} initialUser={initialUser} />}
+    </ListPage>
   );
 }
 
-function NewReviewModal({ onClose }: { onClose: () => void }) {
+function NewReviewModal({ onClose, initialUser = '' }: { onClose: () => void; initialUser?: string }) {
   const { t } = useTranslation(['compliance', 'common']);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const checks = useQuery({ queryKey: ['access-checks'], queryFn: () => get<AccessCheck[]>('/compliance/access-checks') });
   const [title, setTitle] = useState('');
-  const [personUser, setPersonUser] = useState('');
+  const [personUser, setPersonUser] = useState(initialUser);
   const [personName, setPersonName] = useState('');
   const [identifiers, setIdentifiers] = useState<string[]>([]);
   const [checkIds, setCheckIds] = useState<string[]>([]);
@@ -121,6 +144,11 @@ function NewReviewModal({ onClose }: { onClose: () => void }) {
       notifyError(e);
     }
   };
+  // opened for a known user: look up their name and identifiers right away
+  useEffect(() => {
+    if (initialUser) void suggest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, for the user the dialog was opened for
+  }, []);
   const ready = title.trim() && personName.trim() && identifiers.length > 0 && checkIds.length > 0;
   const submit = async () => {
     if (!ready) return;
@@ -255,7 +283,8 @@ export function PersonReviewDetailPage() {
   if (!r) return <QueryState query={q} />;
   return (
     <>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: r.title, kind: 'personReview' }}
         back={back}
         title={r.title}
         description={

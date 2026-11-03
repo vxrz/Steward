@@ -9,10 +9,11 @@ import { SubjectsInput } from '../components/SubjectsInput';
 import { SERVICE_CONTACT_ROLES, SERVICE_CRITICALITIES, tagsMatch, type ServiceContact, type ServiceDetail, type ServiceSummary } from '@sm/shared';
 import { TagBadges, TagFilterChip, TagInput, useTagFilter } from '../components/tags';
 import { get, notifyError, post, put } from '../api';
-import { EmptyState, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
+import { EmptyState, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
 import { fmtDate, fmtRelative } from '../format';
 import { NeedBadges } from '../components/catalogue/cia';
+import { ListPage, useStoredListView } from '../components/page/ListPage';
 
 export const CRITICALITY_COLORS: Record<string, string> = { low: 'gray', medium: 'blue', high: 'orange', critical: 'red' };
 
@@ -73,26 +74,31 @@ export function ServicesPage() {
   const canCreate = hasRole('admin') || hasRole('designer');
   useCreateParam(canCreate, () => setCreating(true));
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
+  const listView = useStoredListView('services', narrow);
   const [tag, setTag] = useTagFilter();
   const all = services.data ?? [];
   const list = all.filter((s) => tagsMatch(s.tags, tag));
   return (
-    <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          canCreate && (
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
-              {t('new')}
-            </Button>
-          )
-        }
-      />
-      <Group gap="md" mb="md">
-        <Switch size="sm" label={t('showArchived')} checked={archived} onChange={(e) => setArchived(e.currentTarget.checked)} />
-        <TagFilterChip tag={tag} onChange={setTag} />
-      </Group>
+    <ListPage
+      view="services"
+      viewState={listView}
+      activeFilters={[archived, tag].filter(Boolean).length}
+      title={t('title')}
+      description={t('description')}
+      primaryAction={
+        canCreate && (
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
+            {t('new')}
+          </Button>
+        )
+      }
+      filters={
+        <Group gap="md" mb="md">
+          <Switch size="sm" label={t('showArchived')} checked={archived} onChange={(e) => setArchived(e.currentTarget.checked)} />
+          <TagFilterChip tag={tag} onChange={setTag} />
+        </Group>
+      }
+    >
       <QueryState query={services} />
       {services.isSuccess && all.length > 0 && list.length === 0 && (
         <Text size="sm" c="dimmed">
@@ -103,6 +109,7 @@ export function ServicesPage() {
         <EmptyState
           icon={IconStack2}
           title={archived ? t('emptyState.titleArchived') : t('emptyState.title')}
+          whoCanAct={t('common:whoCanAct.services')}
           action={
             canCreate &&
             !archived && (
@@ -116,7 +123,7 @@ export function ServicesPage() {
         </EmptyState>
       )}
       {list.length > 0 &&
-        (narrow ? (
+        (listView.cards ? (
           <Stack gap="xs" role="list" aria-label={t('title')}>
             {list.map((s) => (
               <Paper key={s.id} withBorder p="sm" role="listitem">
@@ -206,7 +213,7 @@ export function ServicesPage() {
           </div>
         ))}
       {creating && <ServiceFormModal onClose={() => setCreating(false)} onSaved={(s) => navigate(`/services/${s.id}`)} />}
-    </>
+    </ListPage>
   );
 }
 

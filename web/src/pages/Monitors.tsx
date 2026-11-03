@@ -35,7 +35,7 @@ import {
 } from '@sm/shared';
 import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, post, put } from '../api';
-import { EmptyState, Hint, PageHeader, QueryState, useFieldErrors } from '../components/common';
+import { EmptyState, Hint, QueryState, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, fmtUptime, monitorStatusLabel, monitorStatusLower } from '../components/monitors/status';
@@ -43,6 +43,7 @@ import { CopyBlock, ImportModal, InstantiateModal, SecretsModal, gatewayCurl } f
 import { confirmDanger } from '../components/confirm';
 import { DataTable, type DataColumn } from '../components/DataTable';
 import { appUrl } from '../basePath';
+import { ListPage } from '../components/page/ListPage';
 
 export function MonitorsPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -67,18 +68,18 @@ export function MonitorsPage() {
   const shown = (statusFilter.length ? list.filter((m) => statusFilter.includes(m.status)) : list).filter((m) => tagsMatch(m.tags, tag));
 
   return (
-    <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          canCreate && (
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => navigate('/monitors/new')}>
-              {t('new')}
-            </Button>
-          )
-        }
-      />
+    <ListPage
+      view={tab === 'monitors' ? 'monitors' : undefined}
+      title={t('title')}
+      description={t('description')}
+      primaryAction={
+        canCreate && (
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => navigate('/monitors/new')}>
+            {t('new')}
+          </Button>
+        )
+      }
+    >
       <Group justify="space-between" mb="md" gap="xs">
         <SegmentedControl
           size="xs"
@@ -125,6 +126,7 @@ export function MonitorsPage() {
             <EmptyState
               icon={IconHeartRateMonitor}
               title={t('emptyState.title')}
+              whoCanAct={t('common:whoCanAct.monitors')}
               action={
                 canCreate && (
                   <>
@@ -167,7 +169,7 @@ export function MonitorsPage() {
         />
       )}
       {secrets && <SecretsModal result={secrets} onClose={() => setSecrets(null)} />}
-    </>
+    </ListPage>
   );
 }
 

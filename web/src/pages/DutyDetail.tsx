@@ -6,12 +6,13 @@ import { IconArchive, IconArchiveOff, IconCalendarOff, IconEdit } from '@tabler/
 import { useTranslation } from 'react-i18next';
 import type { DutyDetail, DutyPeriod, DutySkip, ServiceDetail } from '@sm/shared';
 import { get, notifyError, notifyOk, post } from '../api';
-import { DetailState, PageHeader, subjectLabel } from '../components/common';
+import { DetailState, subjectLabel } from '../components/common';
 import { Field } from '../components/records/common';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { confirmDanger } from '../components/confirm';
 import { DutyFormModal, DutyLevelBadge, DutyStatusBadge, lastDay, periodLabel, SkipModal } from '../components/duties/common';
 import { fmtDate } from '../format';
+import { DetailHeader } from '../components/page/DetailPage';
 
 export function DutyDetailPage() {
   const { t } = useTranslation(['duties', 'common']);
@@ -52,7 +53,8 @@ export function DutyDetailPage() {
   };
   return (
     <>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: d.name, kind: 'duty' }}
         back="duties"
         title={
           <Group gap="sm" wrap="wrap">

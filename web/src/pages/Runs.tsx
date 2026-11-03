@@ -6,7 +6,8 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { ProcessSummary, RunSummary } from '@sm/shared';
 import { get } from '../api';
-import { EmptyState, FilterPanel, PageHeader, QueryState, statusLabel } from '../components/common';
+import { QueryState, statusLabel } from '../components/common';
+import { ListPage } from '../components/page/ListPage';
 import { ListFooter } from '../components/DataTable';
 import { RunTable } from '../components/RunTable';
 import { SummaryReportDialog } from '../components/reports/SummaryReportDialog';
@@ -19,7 +20,7 @@ type Period = (typeof PERIODS)[number];
 const PERIOD_MS: Record<Period, number> = { '24h': 86400000, '7d': 7 * 86400000 };
 
 export function RunsPage() {
-  const { t } = useTranslation('runs');
+  const { t } = useTranslation(['runs', 'common']);
   // ?status=failed (or =findings: completed with findings), ?processId=… and ?within=24h (links from the start page) preset the filters
   const [params] = useSearchParams();
   const [status, setStatus] = useState<string | null>(params.get('status'));
@@ -52,18 +53,19 @@ export function RunsPage() {
     refetchInterval: 4000,
   });
   const list = runs.data?.pages.flat() ?? [];
+  const filtered = !!(status || processId || period || checks);
   return (
-    <>
-      <PageHeader
-        title={t('list.title')}
-        description={t('list.description')}
-        actions={
-          <Button size="xs" variant="light" leftSection={<IconReportAnalytics size={14} />} onClick={() => setSummaryOpen(true)}>
-            {t('list.summaryReport')}
-          </Button>
-        }
-      />
-      <FilterPanel active={[status, processId, period, checks].filter(Boolean).length}>
+    <ListPage
+      title={t('list.title')}
+      description={t('list.description')}
+      actions={
+        <Button size="xs" variant="light" leftSection={<IconReportAnalytics size={14} />} onClick={() => setSummaryOpen(true)}>
+          {t('list.summaryReport')}
+        </Button>
+      }
+      activeFilters={[status, processId, period, checks].filter(Boolean).length}
+      view="runs"
+      filters={
         <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
           <Select
             size="xs"
@@ -107,27 +109,26 @@ export function RunsPage() {
             w={{ base: '100%', xs: 200 }}
           />
         </Group>
-      </FilterPanel>
+      }
+      empty={{
+        show: runs.isSuccess && list.length === 0 && !filtered,
+        icon: IconPlayerPlay,
+        title: t('emptyState.title'),
+        text: t('emptyState.text'),
+        whoCanAct: t('common:whoCanAct.runs'),
+        action: (
+          <Button component={Link} to="/processes" leftSection={<IconSitemap size={16} />}>
+            {t('emptyState.action')}
+          </Button>
+        ),
+      }}
+    >
       <QueryState query={runs} />
-      {runs.isSuccess &&
-        list.length === 0 &&
-        (status || processId || period || checks ? (
-          <Text c="dimmed" size="sm">
-            {t('emptyState.noMatch')}
-          </Text>
-        ) : (
-          <EmptyState
-            icon={IconPlayerPlay}
-            title={t('emptyState.title')}
-            action={
-              <Button component={Link} to="/processes" leftSection={<IconSitemap size={16} />}>
-                {t('emptyState.action')}
-              </Button>
-            }
-          >
-            {t('emptyState.text')}
-          </EmptyState>
-        ))}
+      {runs.isSuccess && list.length === 0 && filtered && (
+        <Text c="dimmed" size="sm">
+          {t('emptyState.noMatch')}
+        </Text>
+      )}
       {list.length > 0 && (
         <RunTable
           runs={list}
@@ -135,6 +136,6 @@ export function RunsPage() {
         />
       )}
       <SummaryReportDialog opened={summaryOpen} onClose={() => setSummaryOpen(false)} processIds={processId ? [processId] : undefined} />
-    </>
+    </ListPage>
   );
 }

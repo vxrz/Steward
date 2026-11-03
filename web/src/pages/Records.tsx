@@ -7,13 +7,14 @@ import { IconCheck, IconFileCertificate, IconFileImport, IconPlus, IconSearch, I
 import { useTranslation } from 'react-i18next';
 import { RECORD_STATUSES, RECORD_WORKFLOW_KEYS, tagLabel, type RecordDetail, type RecordImportItem, type RecordSummary, type RecordsMeta } from '@sm/shared';
 import { get, notifyError, post } from '../api';
-import { EmptyState, FilterPanel, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
+import { EmptyState, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { RecordStatusBadge, useRecordTypes, useTypeName } from '../components/records/common';
 import { fmtDate, fmtRelative } from '../format';
 import { codeText, errorText } from '../i18n/errors';
 import { fieldLabelByKey, typeDescription, typeTemplate } from '../components/records/builtin';
 import { EditionBadge, ReviewStatusBadge } from '../components/records/DocumentPanel';
+import { ListPage } from '../components/page/ListPage';
 
 /** Records per request; "Load more" raises the limit by this much. */
 const RECORDS_PAGE = 500;
@@ -60,31 +61,31 @@ export function RecordsPage() {
   useCreateParam(meta.data?.canCreate, () => setCreating(true));
 
   return (
-    <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          <>
-            {meta.data?.canManageTypes && (
-              <Button size="xs" variant="default" leftSection={<IconSettings size={14} />} component={Link} to="/records/types">
-                {t('types.title')}
-              </Button>
-            )}
-            {canCreate && (
-              <Button size="xs" variant="default" leftSection={<IconFileImport size={14} />} onClick={() => setImporting(true)}>
-                {t('import')}
-              </Button>
-            )}
-            {canCreate && (
-              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
-                {t('new')}
-              </Button>
-            )}
-          </>
-        }
-      />
-      <FilterPanel active={[type, status, tag, workflow, review, q.trim()].filter(Boolean).length}>
+    <ListPage
+      view="records"
+      title={t('title')}
+      description={t('description')}
+      actions={
+        <>
+          {meta.data?.canManageTypes && (
+            <Button size="xs" variant="default" leftSection={<IconSettings size={14} />} component={Link} to="/records/types">
+              {t('types.title')}
+            </Button>
+          )}
+          {canCreate && (
+            <Button size="xs" variant="default" leftSection={<IconFileImport size={14} />} onClick={() => setImporting(true)}>
+              {t('import')}
+            </Button>
+          )}
+          {canCreate && (
+            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
+              {t('new')}
+            </Button>
+          )}
+        </>
+      }
+      activeFilters={[type, status, tag, workflow, review, q.trim()].filter(Boolean).length}
+      filters={
         <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
           <TextInput
             size="xs"
@@ -150,7 +151,8 @@ export function RecordsPage() {
             </Badge>
           )}
         </Group>
-      </FilterPanel>
+      }
+    >
       <QueryState query={records} />
       {records.isSuccess &&
         list.length === 0 &&
@@ -162,6 +164,7 @@ export function RecordsPage() {
           <EmptyState
             icon={IconFileCertificate}
             title={t('list.emptyTitle')}
+            whoCanAct={t('common:whoCanAct.records')}
             action={
               canCreate && (
                 <>
@@ -194,7 +197,7 @@ export function RecordsPage() {
       )}
       {creating && <NewRecordModal onClose={() => setCreating(false)} onCreated={(r) => navigate(`/records/${r.id}/edit`)} />}
       {importing && <ImportModal onClose={() => setImporting(false)} />}
-    </>
+    </ListPage>
   );
 }
 
