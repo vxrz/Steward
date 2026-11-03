@@ -185,3 +185,64 @@ describe('Snowflake – account hygiene and usage', () => {
     expect(tasks.rows).toEqual([expect.objectContaining({ Task: 'SHOP.STAGING.LOAD_EVENTS', _status: 'critical' })]);
   });
 });
+
+describe('Git – member review', () => {
+  const review = async (kind: string, inputs: Record<string, unknown> = {}) => {
+    let items: any[] = [];
+    const runId = await start('git-member-review', { git: platformByKind[kind]! }, inputs);
+    const r = await finish(runId, (x) => {
+      items = x;
+      return x.filter((i) => i.preselected).map((i) => i.key);
+    });
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    expect(r.tasks.find((t: any) => t.mode === 'approve')).toMatchObject({ decidedBy: 'adam', fourEyes: true });
+    const d = await s.api('GET', '/datasets/git.members');
+    const rows = d.rows.filter((x: any) => x._key.startsWith(`${kind}|`));
+    return {
+      r,
+      pre: Object.fromEntries(items.map((i) => [i.key.split('|').slice(1).join('|'), i.preselected])),
+      by: Object.fromEntries(rows.map((x: any) => [x._key, x])),
+      manual: r.tasks.find((t: any) => t.mode === 'manual').instructions as string,
+    };
+  };
+
+  it('GitHub: owners, members, outside collaborators and who has no 2FA', async () => {
+    const { pre, by, manual } = await review('github');
+    expect(pre).toEqual({ 'acme|alice': true, 'acme|bob': false, 'acme|dave': true, 'acme|carol-ext': false });
+    expect(manual).toContain('gh api -X DELETE /orgs/acme/outside_collaborators/carol-ext');
+    expect(manual).toContain('gh api -X DELETE /orgs/acme/memberships/bob');
+    expect(by['github|acme|bob']).toMatchObject({ Role: 'member', '2FA': 'disabled', Review: 'removed', _status: 'critical' });
+    expect(by['github|acme|alice']).toMatchObject({ Role: 'owner', '2FA': 'enabled', Review: 'kept', _status: 'good' });
+    expect(by['github|acme|carol-ext']).toMatchObject({ Role: 'outside collaborator', Review: 'removed' });
+  });
+
+  it('GitLab: inherited roles, last activity, 2FA and project members outside the group', async () => {
+    const { pre, by, manual } = await review('gitlab', { projects: ['acme/shop/web'] });
+    expect(pre).toEqual({ 'acme|alice': true, 'acme|bob': false, 'acme|dave': true, 'acme/shop/web|carol-ext': false });
+    expect(manual).toContain('api/v4/projects/acme%2Fshop%2Fweb/members/103"   # carol-ext');
+    expect(by['gitlab|acme|bob']).toMatchObject({ Role: 'developer', '2FA': 'disabled', _status: 'critical' });
+    expect(by['gitlab|acme/shop/web|carol-ext']).toMatchObject({ Role: 'outside: reporter', _status: 'critical' });
+    expect(by['gitlab|acme|dave']).toMatchObject({ Role: 'developer', '2FA': 'enabled', _status: 'good' });
+  });
+
+  it('Forgejo: team members with their last login and outside collaborators', async () => {
+    const { pre, by, manual } = await review('forgejo', { projects: ['acme/shop-web'] });
+    expect(pre).toEqual({ 'acme|alice': true, 'acme|bob': false, 'acme|dave': true, 'acme|carol-ext': false });
+    expect(manual).toContain('api/v1/repos/acme/shop-web/collaborators/carol-ext');
+    expect(by['forgejo|acme|alice']).toMatchObject({ Role: 'owner', _status: 'good' });
+    expect(by['forgejo|acme|bob']).toMatchObject({ Role: 'teams: developers', _status: 'warning' });
+    expect(by['forgejo|acme|carol-ext']).toMatchObject({ Role: 'outside collaborator: acme/shop-web', Review: 'removed' });
+    // one dataset, one part per host
+    const d = await s.api('GET', '/datasets/git.members');
+    expect(new Set(d.rows.map((x: any) => x.Host))).toEqual(new Set(['GitHub', 'GitLab', 'Forgejo']));
+  });
+
+  it('documents the removals in the rights the Git access source reads', async () => {
+    const entries = (await s.api('GET', `/compliance/access-changes?platformId=${platformByKind.github}`)).filter((e: any) => e.subjectId === 'bob');
+    for (let i = 0; i < 50 && !entries.length; i++) {
+      await sleep(200);
+      entries.push(...(await s.api('GET', `/compliance/access-changes?platformId=${platformByKind.github}`)).filter((e: any) => e.subjectId === 'bob'));
+    }
+    expect(entries[0]).toMatchObject({ kind: 'revoke', revoked: ['member'], approvedBy: 'adam' });
+  });
+});

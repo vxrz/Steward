@@ -81,7 +81,7 @@ const INPUTS: Record<string, Record<string, unknown>> = {
   'gatus-report-check': { path: '/api/identitymanagement/v3/Users' },
 };
 /** Slots without a kind are bound to the Insights Hub demo tenant, except these. */
-const SLOT_KIND: Record<string, string> = { portal: 'industrial-edge-management' };
+const SLOT_KIND: Record<string, string> = { portal: 'industrial-edge-management', git: 'github', github: 'github' };
 
 describe('example library', () => {
   it.each(processFiles)('process %s is valid', (f) => {
