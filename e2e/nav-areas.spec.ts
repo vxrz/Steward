@@ -173,6 +173,22 @@ test.describe('addresses (admin)', () => {
     }
   });
 
+  test('lists switch between table and cards, and keep the choice', async ({ page }) => {
+    await page.goto('/runs');
+    await settle(page);
+    const view = page.getByTestId('list-view-runs');
+    await expect(page.getByRole('table', { name: 'Runs' })).toBeVisible();
+    await view.getByText('Cards').click({ force: true });
+    await expect(page.getByRole('list', { name: 'Runs' })).toBeVisible();
+    await expect(page.getByRole('table')).toHaveCount(0);
+    await expectAccessible(page, 'runs as cards');
+    await page.reload();
+    await settle(page);
+    await expect(page.getByRole('list', { name: 'Runs' })).toBeVisible();
+    await page.getByTestId('list-view-runs').getByText('Table').click({ force: true });
+    await expect(page.getByRole('table', { name: 'Runs' })).toBeVisible();
+  });
+
   test('an unknown tab of a service leads to its overview', async ({ page, apiAs }) => {
     const api = await apiAs('admin');
     const svc = await json(await api.post('/api/services', { data: { name: uniq('E2E hub redirect') } }));
