@@ -732,7 +732,11 @@
     "PDF_FAILED": "Creating the PDF failed – try again, or ask an administrator to look at the server log.",
     "INTERNAL_ERROR": "Something went wrong (reference {{requestId}}). Please try again; if it keeps happening, quote the reference to your administrator.",
     "CRON_DAY_OR": "Day of month and day of week are both set, so this runs on every day where either one matches – not only on days where both do. For the nth weekday of a month use the # form, e.g. 0 6 * * 1#1 (the first Monday).",
-    "CRON_DAY_OR_suggestion": "Day of month and day of week are both set, so this runs on every day where either one matches – not only on days where both do. For the nth weekday of a month use {{suggestion}}."
+    "CRON_DAY_OR_suggestion": "Day of month and day of week are both set, so this runs on every day where either one matches – not only on days where both do. For the nth weekday of a month use {{suggestion}}.",
+    "ACCESS_CHECK_CONFLUENT_SOURCE": "The Confluent source needs a Confluent Cloud API platform.",
+    "ACCESS_CHECK_CONFLUENT_READ": "Confluent Cloud could not be read: {{detail}}",
+    "CONFLUENT_REST_URL": "The variable kafkaRestUrl of the platform is not a URL ({{url}}).",
+    "CONFLUENT_CLUSTER_ID": "The variable clusterId has letters, digits, - and _ (e.g. lkc-abc123)."
   },
   "boundary": {
     "title": "Something went wrong on this page",

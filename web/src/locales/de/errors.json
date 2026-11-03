@@ -732,7 +732,11 @@
     "PDF_FAILED": "Das Erstellen des PDFs ist fehlgeschlagen – versuchen Sie es erneut, oder bitten Sie einen Administrator, das Server-Log zu prüfen.",
     "INTERNAL_ERROR": "Etwas ist schiefgelaufen (Referenz {{requestId}}). Bitte versuchen Sie es erneut; wenn es wieder auftritt, nennen Sie Ihrer Administration die Referenz.",
     "CRON_DAY_OR": "Tag im Monat und Wochentag sind beide gesetzt: Der Zeitplan läuft an jedem Tag, an dem einer der beiden passt – nicht nur, wenn beide passen. Für den n-ten Wochentag eines Monats verwenden Sie die #-Schreibweise, z. B. 0 6 * * 1#1 (der erste Montag).",
-    "CRON_DAY_OR_suggestion": "Tag im Monat und Wochentag sind beide gesetzt: Der Zeitplan läuft an jedem Tag, an dem einer der beiden passt – nicht nur, wenn beide passen. Für den n-ten Wochentag eines Monats verwenden Sie {{suggestion}}."
+    "CRON_DAY_OR_suggestion": "Tag im Monat und Wochentag sind beide gesetzt: Der Zeitplan läuft an jedem Tag, an dem einer der beiden passt – nicht nur, wenn beide passen. Für den n-ten Wochentag eines Monats verwenden Sie {{suggestion}}.",
+    "ACCESS_CHECK_CONFLUENT_SOURCE": "Die Quelle Confluent braucht eine Confluent-Cloud-API-Plattform.",
+    "ACCESS_CHECK_CONFLUENT_READ": "Confluent Cloud konnte nicht gelesen werden: {{detail}}",
+    "CONFLUENT_REST_URL": "Die Variable kafkaRestUrl der Plattform ist keine URL ({{url}}).",
+    "CONFLUENT_CLUSTER_ID": "Die Variable clusterId besteht aus Buchstaben, Ziffern, - und _ (z. B. lkc-abc123)."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

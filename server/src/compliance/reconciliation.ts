@@ -4,6 +4,8 @@ import {
   ACCESS_CHECK_SOURCES,
   SNOWFLAKE_KIND,
   SNOWFLAKE_SCOPE_RE,
+  CONFLUENT_KIND,
+  confluentCrnProblem,
   isGitPlatformKind,
   type AccessChange,
   type AccessChangeKind,
@@ -170,7 +172,7 @@ function toCheck(r: CheckRow, u: AuthUser | null): AccessCheck {
     platformKind: p.exists ? p.kind : null,
     source: r.source,
     datasetKey: r.source === 'dataset' ? r.dataset_key : null,
-    scope: r.source === 'git' || r.source === 'snowflake' ? r.dataset_key : null,
+    scope: scoped(r.source) ? r.dataset_key : null,
     cron: r.cron,
     timezone: r.timezone,
     enabled: !!r.enabled,
@@ -198,6 +200,10 @@ const subjectRef = z
   .toLowerCase()
   .regex(/^(user|team):.{1,128}$/, 'Use user:<name> or team:<name>');
 
+/** Sources with a scope (kept in the dataset_key column): Git, Snowflake, Confluent (v0.4.0). */
+const scoped = (source: string) => source === 'git' || source === 'snowflake' || source === 'confluent';
+const SCOPE_RE = /^([A-Za-z0-9_.$-]+(\/[A-Za-z0-9_.-]+){0,10})?$/;
+
 export const checkInput = z
   .object({
     name: z.string().trim().min(1).max(120),
@@ -208,15 +214,11 @@ export const checkInput = z
       .string()
       .regex(/^[a-z0-9][a-z0-9._-]{0,63}$/i, 'Dataset key: letters, digits, . _ - (e.g. ih.access-snapshot)')
       .nullish(),
-    /** Source "git": organisation / group, or owner/repo; "snowflake": empty or DATABASE[.SCHEMA[.TABLE]] (kept where the dataset key is kept) */
-    scope: z
-      .string()
-      .trim()
-      .regex(
-        /^([A-Za-z0-9_.$-]+(\/[A-Za-z0-9_.-]+){0,10})?$/,
-        'Scope: an organisation or group (acme) or a repository (acme/shop-web); Snowflake: DATABASE, DATABASE.SCHEMA or DATABASE.SCHEMA.TABLE',
-      )
-      .nullish(),
+    /**
+     * Source "git": organisation / group, or owner/repo; "snowflake": empty or DATABASE[.SCHEMA[.TABLE]]; "confluent": the
+     * CRN whose role bindings are read (kept where the dataset key is kept)
+     */
+    scope: z.string().trim().max(500).nullish(),
     cron: z.string().trim().min(1).max(100).default('0 6 * * *'),
     timezone: z.string().trim().min(1).max(64).default('UTC'),
     enabled: z.boolean().default(true),
@@ -226,7 +228,17 @@ export const checkInput = z
   .strict()
   .superRefine((c, ctx) => {
     if (c.source === 'dataset' && !c.datasetKey) ctx.addIssue({ code: 'custom', path: ['datasetKey'], message: 'A dataset check needs the dataset key' });
+    if (c.scope && c.source !== 'confluent' && !SCOPE_RE.test(c.scope))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['scope'],
+        message: 'Scope: an organisation or group (acme) or a repository (acme/shop-web); Snowflake: DATABASE, DATABASE.SCHEMA or DATABASE.SCHEMA.TABLE',
+      });
     if (c.source === 'git' && !c.scope) ctx.addIssue({ code: 'custom', path: ['scope'], message: 'A Git check needs the organisation, group or repository' });
+    if (c.source === 'confluent') {
+      const problem = c.scope ? confluentCrnProblem(c.scope) : 'A Confluent check needs the CRN of the organization, environment or cluster';
+      if (problem) ctx.addIssue({ code: 'custom', path: ['scope'], message: problem });
+    }
     if (c.source === 'snowflake' && c.scope && !SNOWFLAKE_SCOPE_RE.test(c.scope))
       ctx.addIssue({
         code: 'custom',
@@ -238,7 +250,7 @@ export type CheckInput = z.infer<typeof checkInput>;
 
 /** What the dataset_key column keeps: the dataset key, or the scope of a Git or Snowflake check. */
 const keyOf = (input: CheckInput): string | null =>
-  input.source === 'dataset' ? (input.datasetKey ?? null) : input.source === 'git' || input.source === 'snowflake' ? input.scope || null : null;
+  input.source === 'dataset' ? (input.datasetKey ?? null) : scoped(input.source) ? input.scope || null : null;
 
 /** A check may run at most every 15 minutes (five cron fields, time zone known). */
 function checkCron(cron: string, tz: string): void {
@@ -299,6 +311,8 @@ function validatePlatform(u: AuthUser, input: CheckInput): void {
   if (input.source === 'snowflake' && p.kind !== SNOWFLAKE_KIND)
     throw new HttpError(400, 'The Snowflake source needs a Snowflake platform', 'ACCESS_CHECK_SNOWFLAKE_SOURCE');
   if (input.source === 'aws' && p.kind !== 'aws') throw new HttpError(400, 'The AWS source needs an AWS account platform', 'ACCESS_CHECK_AWS_SOURCE');
+  if (input.source === 'confluent' && p.kind !== CONFLUENT_KIND)
+    throw new HttpError(400, 'The Confluent source needs a Confluent Cloud API platform', 'ACCESS_CHECK_CONFLUENT_SOURCE');
 }
 
 export function listChecks(): AccessCheck[] {
@@ -352,7 +366,7 @@ export function createCheck(input: CheckInput): AccessCheck {
         platformId: input.platformId,
         source: input.source,
         datasetKey: input.datasetKey ?? null,
-        ...(input.source === 'git' || input.source === 'snowflake' ? { scope: input.scope ?? null } : {}),
+        ...(scoped(input.source) ? { scope: input.scope ?? null } : {}),
         cron: input.cron,
         timezone: input.timezone,
         notify: input.notify,
@@ -407,7 +421,7 @@ export function updateCheck(id: string, input: CheckInput): AccessCheck {
       details: {
         source: input.source,
         datasetKey: input.datasetKey ?? null,
-        ...(input.source === 'git' || input.source === 'snowflake' ? { scope: input.scope ?? null } : {}),
+        ...(scoped(input.source) ? { scope: input.scope ?? null } : {}),
         cron: input.cron,
         timezone: input.timezone,
         enabled: input.enabled,
@@ -650,6 +664,40 @@ async function collectAws(c: CheckRow): Promise<{ subjects: AccessSubject[]; sou
   };
 }
 
+/** Confluent Cloud (v0.4.0): role bindings under a CRN and, optionally, the cluster's ACLs – read as the check's owner. */
+async function collectConfluent(c: CheckRow): Promise<{ subjects: AccessSubject[]; sourceRunId: null }> {
+  const owner = ownerUser(c);
+  const platform = runAs(owner, () => getPlatform(c.platform_id));
+  if (!platform.permissions.includes('use'))
+    throw new HttpError(403, `The owner ${c.owner} may not use the platform "${platform.name}"`, 'ACCESS_CHECK_OWNER', {
+      owner: c.owner,
+      context: 'platform',
+      name: platform.name,
+    });
+  if (platform.kind !== CONFLUENT_KIND) throw new HttpError(400, 'The Confluent source needs a Confluent Cloud API platform', 'ACCESS_CHECK_CONFLUENT_SOURCE');
+  const secrets = getSecrets(c.platform_id);
+  await assertOutboundAllowed(await buildUrl(platform, secrets, '/', {}), outboundContext());
+  const { aclTarget, confluentAccess } = await import('../kafka/confluent.js');
+  // the cluster's REST endpoint belongs to the platform for this read (like the AWS endpoints)
+  const target = aclTarget(platform);
+  if (target && secrets.clusterApiKey) await assertOutboundAllowed(target.restUrl, outboundContext(), { platformOrigins: [target.restUrl] });
+  let subjects: AccessSubject[];
+  try {
+    subjects = await confluentAccess(platform, secrets, String(c.dataset_key ?? ''));
+  } catch (e) {
+    if (e instanceof HttpError && e.statusCode < 500) throw e;
+    throw new HttpError(502, `Confluent Cloud could not be read: ${(e as Error).message}`.slice(0, 500), 'ACCESS_CHECK_CONFLUENT_READ', {
+      detail: (e as Error).message.slice(0, 300),
+    });
+  }
+  if (subjects.length > LIMITS.subjects)
+    throw new HttpError(400, `The scope has more than ${LIMITS.subjects} principals`, 'SNAPSHOT_TOO_LARGE', { max: LIMITS.subjects });
+  return {
+    subjects: normalizeSubjects(subjects.map((x) => ({ id: clip(x.id), name: clip(x.name), type: x.type, rights: x.rights.map(clip), aliases: x.aliases }))),
+    sourceRunId: null,
+  };
+}
+
 /** A dataset in the access snapshot shape, published by a process (never a dry run). */
 function collectDataset(c: CheckRow): { subjects: AccessSubject[]; sourceRunId: string } {
   const d = db().get<{ rows: string; run_id: string; dry_run: number; process_id: string }>(
@@ -758,7 +806,9 @@ export async function readCheckSource(
             ? await collectSnowflake(c)
             : c.source === 'aws'
               ? await collectAws(c)
-              : collectDataset(c);
+              : c.source === 'confluent'
+                ? await collectConfluent(c)
+                : collectDataset(c);
     return { subjects: got.subjects, origin: 'live', takenAt: nowIso(), error: null };
   } catch (e) {
     const last = db().get<SnapshotRow>('SELECT * FROM access_snapshots WHERE check_id = ? ORDER BY seq DESC LIMIT 1', checkId);
@@ -793,7 +843,9 @@ export async function runCheck(id: string, o: { actor: string; trigger: 'schedul
               ? await collectSnowflake(c)
               : c.source === 'aws'
                 ? await collectAws(c)
-                : collectDataset(c);
+                : c.source === 'confluent'
+                  ? await collectConfluent(c)
+                  : collectDataset(c);
     } catch (e) {
       const msg = (e as Error).message.slice(0, 500);
       db().tx(() => {
