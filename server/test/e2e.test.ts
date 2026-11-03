@@ -112,7 +112,11 @@ describe('templates against the mock platform', () => {
     }
     const approval = r.tasks.find((t: any) => t.status === 'open');
     expect(approval.mode).toBe('approve');
-    await s.api('POST', `/tasks/${approval.id}/complete`, { approved: true });
+    // the revocation needs a second person (four-eyes): not the one who decided, an approver
+    expect(approval.fourEyes).toBe(true);
+    await expect(s.api('POST', `/tasks/${approval.id}/complete`, { approved: true })).rejects.toThrow();
+    const adam = await s.as('adam', 'Demo-password-1');
+    await adam('POST', `/tasks/${approval.id}/complete`, { approved: true });
     const done = await s.waitRun(id, ['succeeded', 'failed']);
     expect(failedSteps(done)).toEqual([]);
     expect(done.status).toBe('succeeded');
