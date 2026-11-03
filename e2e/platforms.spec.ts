@@ -155,3 +155,37 @@ test('access: a team or role picked from the list can be added', async ({ page, 
   await add.click();
   await expect(page.getByRole('table').getByText('Everyone with role operator', { exact: true })).toBeVisible();
 });
+
+test('credentials that authentication "none" does not send: the new dialog picks the type, the settings warn and switch', async ({ page, apiAs }) => {
+  // the add dialog: a token filled in on the Prometheus preset (authentication "none") picks bearer
+  await page.goto('/platforms');
+  await page.getByRole('button', { name: 'Add platform' }).click();
+  await page.getByText('Prometheus (PromQL)', { exact: true }).click();
+  const auth = page.getByTestId('add-platform-auth');
+  await expect(auth).toHaveValue('No auth');
+  await page.getByLabel('Bearer token', { exact: true }).fill('a-prometheus-token');
+  await expect(auth).toHaveValue('Bearer token');
+  await page.keyboard.press('Escape');
+
+  // an existing platform with a password but authentication "none"
+  const api = await apiAs('admin');
+  const name = uniq('Prometheus trap');
+  const p = await json<{ id: string }>(
+    await api.post('/api/platforms', {
+      data: {
+        name,
+        kind: 'prometheus',
+        baseUrl: 'https://prometheus.example.com',
+        config: { auth: { type: 'none' } },
+        secrets: { username: 'u', password: 'p-secret-1' },
+      },
+    }),
+  );
+  await page.goto(`/platforms/${p.id}`);
+  const warning = page.getByTestId('platform-unsent-credentials');
+  await expect(warning).toContainText('credentials are stored (username, password): they are not sent');
+  await warning.getByRole('button', { name: 'Switch to “Basic auth (username / password)”' }).click();
+  await expect(warning).toBeHidden();
+  await expect(page.getByRole('combobox', { name: 'Type' })).toHaveValue('Basic auth (username / password)');
+  await api.delete(`/api/platforms/${p.id}`);
+});
