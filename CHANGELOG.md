@@ -61,6 +61,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Demo setup and _Use template_ are fast again.** Since 0.3.1 every process created from a template read all process and dashboard templates again (for the gallery's metadata), so loading the demo data took about twice as long and the CI test runs hit their time limit. A template is now read from its own file only.
 - **Snowflake `390144 JWT token is invalid`** now names the usual causes (the account identifier the JWT needs, the user, the public key) in a database component's readout and in the Snowflake monitor check too, not only in the connection test.
 
 ## [0.3.1] - 2026-11-03

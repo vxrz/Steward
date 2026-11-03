@@ -233,30 +233,41 @@ export function toYaml(def: ProcessDefinition): string {
 
 // ---------- Templates ----------
 
-export function listTemplates(): ProcessTemplate[] {
+/** The template files, sorted (the ids are the file names without .yaml). */
+function templateFiles(): string[] {
   if (!fs.existsSync(config.templatesDir)) return [];
-  const dashboards = templateDashboards();
   return fs
     .readdirSync(config.templatesDir)
     .filter((f) => /\.ya?ml$/.test(f))
-    .sort()
-    .map((f) => {
-      const text = fs.readFileSync(path.join(config.templatesDir, f), 'utf8');
-      const def = parseDefinitionText(text) as ProcessDefinition;
-      const res = validateProcess(def);
-      if (!res.ok) logger.warn({ template: f, issues: res.issues }, 'invalid template');
-      const definition = res.definition ?? def;
-      const meta = templateMeta(def as unknown as Record<string, unknown>, definition, text);
-      return {
-        id: f.replace(/\.ya?ml$/, ''),
-        name: def.name,
-        description: def.description ?? '',
-        tags: def.tags ?? [],
-        definition,
-        ...meta,
-        dashboards: dashboards.filter((d) => d.datasets.some((x) => meta.datasets.includes(x))).map(({ id, name }) => ({ id, name })),
-      };
-    });
+    .sort();
+}
+
+/** One template file, parsed and validated (the definition falls back to the parsed text if it is invalid). */
+function readTemplate(file: string): { text: string; def: ProcessDefinition; definition: ProcessDefinition } {
+  const text = fs.readFileSync(path.join(config.templatesDir, file), 'utf8');
+  const def = parseDefinitionText(text) as ProcessDefinition;
+  const res = validateProcess(def);
+  if (!res.ok) logger.warn({ template: file, issues: res.issues }, 'invalid template');
+  return { text, def, definition: res.definition ?? def };
+}
+
+export function listTemplates(): ProcessTemplate[] {
+  const files = templateFiles();
+  if (!files.length) return [];
+  const dashboards = templateDashboards();
+  return files.map((f) => {
+    const { text, def, definition } = readTemplate(f);
+    const meta = templateMeta(def as unknown as Record<string, unknown>, definition, text);
+    return {
+      id: f.replace(/\.ya?ml$/, ''),
+      name: def.name,
+      description: def.description ?? '',
+      tags: def.tags ?? [],
+      definition,
+      ...meta,
+      dashboards: dashboards.filter((d) => d.datasets.some((x) => meta.datasets.includes(x))).map(({ id, name }) => ({ id, name })),
+    };
+  });
 }
 
 /** The dashboard templates with the datasets they read (for "feeds these dashboards"). */
@@ -317,7 +328,9 @@ function templateMeta(
 }
 
 export function createFromTemplate(templateId: string): ProcessDetail {
-  const t = listTemplates().find((x) => x.id === templateId);
-  if (!t) throw new HttpError(404, 'Template not found');
-  return createProcess(t.definition, { id: t.id.replace(/^\d+-/, ''), comment: `Created from template ${t.id}` });
+  // reads only this template's file: the gallery metadata of listTemplates() is not needed here
+  const file = templateFiles().find((f) => f.replace(/\.ya?ml$/, '') === templateId);
+  if (!file) throw new HttpError(404, 'Template not found');
+  const { definition } = readTemplate(file);
+  return createProcess(definition, { id: templateId.replace(/^\d+-/, ''), comment: `Created from template ${templateId}` });
 }
