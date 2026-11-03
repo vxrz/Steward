@@ -405,6 +405,9 @@ function OutboundCard({ d }: { d: Draft }) {
         <Text size="xs" c="dimmed">
           {t('outbound.note')}
         </Text>
+        <Text size="xs" c="dimmed" data-testid="outbound-when-needed">
+          {t('outbound.whenNeeded')}
+        </Text>
       </Stack>
     </Card>
   );

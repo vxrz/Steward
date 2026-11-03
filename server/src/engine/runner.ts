@@ -140,6 +140,10 @@ class RunContext {
   redactor = new Redactor();
   abort = new AbortController();
   browser?: BrowserSession;
+  /** Page navigations the outbound policy blocked (the browser only sees an aborted request), in order */
+  browserBlocked: string[] = [];
+  /** Redirect hops (followed by Chromium itself) the policy refuses, not yet reported */
+  browserRedirects: string[] = [];
   stats: RunStats;
   nodes: Map<string, FlowNode>;
   activations = new Map<string, number>();
@@ -1834,10 +1838,24 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
           if (navigation) await assertOutboundAllowed(url, outCtx);
           else await assertAddressSafe(url);
           return true;
-        } catch {
+        } catch (e) {
+          // the page only sees "net::ERR_BLOCKED_BY_CLIENT": say what was blocked and why (v0.3.1)
+          let origin = url;
+          try {
+            origin = new URL(url).origin;
+          } catch {
+            /* keep the text */
+          }
+          if (navigation) {
+            const msg = blockedNavigation(origin, e);
+            if (!ctx.browserBlocked.includes(msg)) ctx.browserBlocked.push(msg);
+            ctx.log('warn', `Browser: ${msg}`);
+          } else ctx.log('debug', `Browser: a sub-request to ${origin} was blocked (${(e as Error).message.slice(0, 200)})`);
           return false;
         }
       },
+      // a redirect hop the policy refuses has already been sent by Chromium: the step stops using the page
+      onRefusedRedirect: (url) => ctx.browserRedirects.push(url),
     });
   }
   const page = ctx.browser.page;
@@ -1855,6 +1873,8 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
       : sb,
   );
   const extracted: Record<string, unknown> = {};
+  const blockedBefore = ctx.browserBlocked.length;
+  const blockedNow = () => ctx.browserBlocked.slice(blockedBefore);
   const shots: { id: string; name: string; sha256: string }[] = [];
   const done: string[] = [];
   const extraBindings: Bindings = { page: () => ({ url: page.url() }) };
@@ -1951,6 +1971,8 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
           break;
         }
       }
+      // actions that can navigate: a refused redirect hop is reported by the time the action is done (or just after)
+      await refusedRedirects(ctx, page, ['goto', 'click', 'press'].includes(a.action) ? 50 : 0);
       if (a.action !== 'goto') done.push(label);
     } catch (e) {
       // capture evidence of the failure
@@ -1974,7 +1996,8 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
       } catch {
         /* ignore */
       }
-      throw new Error(`Browser action ${label} failed: ${(e as Error).message.split('\n')[0]}`);
+      const blocked = blockedNow();
+      throw new Error(`Browser action ${label} failed: ${(e as Error).message.split('\n')[0]}${blocked.length ? ` – ${blocked.join('; ')}` : ''}`);
     }
   }
   if (shots.length) {
@@ -1988,11 +2011,42 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
       details: { stepKey: key, screenshots: shots },
     });
   }
+  await refusedRedirects(ctx, page, 50).catch((e: Error) => {
+    throw new Error(`Browser step: ${e.message} – ${blockedNow().join('; ')}`);
+  });
   store.updateStepInput(ctx.runId, key, { actions: done });
+  const blocked = blockedNow();
   return {
-    output: { ...extracted, url: page.url(), title: await page.title(), screenshots: shots },
-    summary: `${step.actions.length} action(s)${shots.length ? `, ${shots.length} screenshot(s)` : ''}`,
+    output: { ...extracted, url: page.url(), title: await page.title(), screenshots: shots, ...(blocked.length ? { blockedByPolicy: blocked } : {}) },
+    summary: `${step.actions.length} action(s)${shots.length ? `, ${shots.length} screenshot(s)` : ''}${blocked.length ? `, ${blocked.length} navigation(s) blocked by the outbound policy` : ''}`,
   };
+}
+
+/**
+ * Redirect hops the policy refuses (reported after Chromium sent them): the page is left for about:blank so nothing
+ * of that origin is read or filled in, and the action fails with what was blocked.
+ */
+async function refusedRedirects(ctx: RunContext, page: BrowserSession['page'], waitMs: number): Promise<void> {
+  // the check of a hop finishes just after the navigation that caused it
+  if (!ctx.browserRedirects.length && waitMs) await new Promise((r) => setTimeout(r, waitMs));
+  if (!ctx.browserRedirects.length) return;
+  const urls = ctx.browserRedirects.splice(0);
+  const origins = [...new Set(urls.map((u) => originOfSafe(u) || u))];
+  const msgs = origins.map((o) => blockedNavigation(o, new Error('outbound policy')));
+  for (const m of msgs) {
+    if (!ctx.browserBlocked.includes(m)) ctx.browserBlocked.push(m);
+    ctx.log('warn', `Browser: a redirect was ${m}`);
+  }
+  await page.goto('about:blank').catch(() => undefined);
+  throw new Error(`the page was redirected to ${origins.join(', ')}, which the outbound policy does not allow`);
+}
+
+/** A page navigation the policy refused, in plain words: what, and how to allow it. */
+export function blockedNavigation(origin: string, e: unknown): string {
+  const m = (e as Error)?.message ?? '';
+  if (/outbound policy/i.test(m))
+    return `blocked by the outbound policy: ${origin} – add it to the platform's trusted origins or the allow-list (Settings → Security & sign-in → Outbound access)`;
+  return `blocked: ${origin} – ${m.slice(0, 200)}`;
 }
 
 /** Most items a check keeps for its messages, and characters per item (#144). */

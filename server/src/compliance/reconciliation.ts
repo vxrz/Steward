@@ -612,10 +612,16 @@ async function collectAws(c: CheckRow): Promise<{ subjects: AccessSubject[]; sou
       name: platform.name,
     });
   if (platform.kind !== 'aws') throw new HttpError(400, 'The AWS source needs an AWS account platform', 'ACCESS_CHECK_AWS_SOURCE');
-  const { AwsClient } = await import('../aws/client.js');
+  const { AwsClient, IAM_REGION, endpointFor } = await import('../aws/client.js');
+  const secrets = getSecrets(c.platform_id);
+  // the outbound policy like the Git and Snowflake sources (v0.3.1): the base URL (STS) and the IAM endpoint it reads,
+  // which counts as the AWS platform's own origin
+  await assertOutboundAllowed(await buildUrl(platform, secrets, '/', {}), outboundContext());
+  const iam = endpointFor(platform, 'iam', IAM_REGION);
+  await assertOutboundAllowed(`${iam}/`, outboundContext(), { platformOrigins: [iam] });
   let subjects: AccessSubject[];
   try {
-    subjects = await new AwsClient(platform, getSecrets(c.platform_id)).iamAccess();
+    subjects = await new AwsClient(platform, secrets).iamAccess();
   } catch (e) {
     throw new HttpError(502, `AWS could not be read: ${(e as Error).message}`.slice(0, 500), 'ACCESS_CHECK_AWS_READ', {
       detail: (e as Error).message.slice(0, 300),

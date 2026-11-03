@@ -145,6 +145,35 @@ The passphrase protects every credential and unlocks the audit and signing keys.
 
 - Steward calls the platforms you connect, the identity provider, SMTP/Teams/webhooks for notifications, and optionally an OTLP collector and an error tracker. Allow exactly these in the egress firewall/proxy (`HTTPS_PROXY`, `NO_PROXY`); block everything else, in particular cloud metadata endpoints.
 - Credentials are only attached to requests for the platform's own origins (and _Trusted origins_).
+
+### Which rule checks which call
+
+Two layers apply to what Steward sends: **address safety** (always on: cloud-metadata and link-local addresses and Steward's own API are never reachable, the resolved IP is pinned) and the **outbound policy** (_Settings → Security & sign-in → Outbound access_: `platforms` – the default –, `allowList` or `open`). Which calls the policy checks:
+
+| Call                                                                                                                                                                                                                                          | Checked by                                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Built-in connector reads** – repositories (GitHub, GitLab, Forgejo), Kubernetes, Prometheus, CheckMk, Dependency-Track, AWS, Snowflake, Gatus status, monitor checks of these kinds, _Test connection_                                      | address safety only: they go to the platform's own base URL (AWS: its service endpoints), which an administrator or platform manager configured                                                                              |
+| **Process steps** (`http`, pagination, browser navigation), **access reviews** (Insights Hub, Git, Snowflake, AWS IAM), **endoflife.date**, the **Gatus metrics scrape**, the **MCP gateway**, Kafka's Schema Registry, OpenAPI import by URL | the policy; under `platforms` the origins of configured platforms (base URL and _Trusted origins_) are allowed without an entry. An `http` step with `aws: { service, region }` may also reach that one AWS service endpoint |
+| **Monitor HTTP checks**, **webhook outputs**, **SBOM URLs**, **Git sync** sources                                                                                                                                                             | the policy: a host that is not a configured platform needs an allow-list entry                                                                                                                                               |
+| **TCP and ping checks**, the **Zabbix sender**                                                                                                                                                                                                | always the allow-list (a raw `host:port` is never derived from a platform, so it cannot be used to scan a platform's host)                                                                                                   |
+| **MQTT brokers**, **Kafka brokers**                                                                                                                                                                                                           | under `platforms` the broker the platform names (Kafka: also brokers in the bootstrap server's domain); under `allowList` an entry                                                                                           |
+| Browser sub-resources (scripts, images, XHR of a page)                                                                                                                                                                                        | address safety only, so portals that load assets from CDNs work                                                                                                                                                              |
+
+Under **`allowList`** nothing is implicit: every destination of the second to fifth rows needs an entry, also configured platforms (built-in connector reads still work). Under **`open`** only address safety applies. Notification webhooks and e-mail that administrators set up are not checked by the policy.
+
+#### Do I need an allow-list entry?
+
+| I want to …                                                                                         | Policy `platforms` (default)                        | Policy `allowList`        |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------- |
+| read repositories, Kubernetes, Prometheus … of a platform; test a platform's connection             | no                                                  | no                        |
+| call a platform from a process step, run an access review on it, scrape Gatus metrics               | no                                                  | yes – the platform's host |
+| call another AWS service from a process step (`aws: { service, region }`)                           | no                                                  | yes – that endpoint       |
+| follow a redirect of a platform to another host in a process or browser step (e.g. a sign-in page)  | yes – or add it to the platform's _Trusted origins_ | yes                       |
+| check a website with a monitor HTTP check, post monitor results to a webhook, import an SBOM by URL | yes, unless the host is a platform                  | yes                       |
+| ping a machine or check a TCP port; push to Zabbix                                                  | yes – its IP, host or a CIDR                        | yes                       |
+
+A refused call says _Blocked by the outbound policy: <origin> is not a configured platform or on the allow-list_. A browser step names the origin it was redirected or navigated to: _blocked by the outbound policy: <origin> – add it to the platform's trusted origins or the allow-list_ (Chromium follows HTTP redirects itself: such a hop has already been sent when it is detected, and the step stops using the page).
+
 - Error reporting (`SM_SENTRY_DSN`) and tracing (`OTEL_*`) are off by default. Events are scrubbed; traces carry no user names (a pseudonym), but URLs and host names of platforms. Point them at systems inside your company.
 
 ## Browser steps and Chromium
