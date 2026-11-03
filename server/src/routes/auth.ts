@@ -25,7 +25,8 @@ import * as sso from '../auth/sso.js';
 import * as emergency from '../auth/emergency.js';
 import * as stepUp from '../auth/step-up.js';
 import { currentInstanceId } from '../instance.js';
-import { capabilities, isAdmin, requireCapability } from '../auth/permissions.js';
+import { capabilities, isAdmin, requireCapability, viewsAutomation } from '../auth/permissions.js';
+import * as credentials from '../credentials/service.js';
 import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { auditPendingUpgrades } from '../upgrades.js';
@@ -86,7 +87,9 @@ function meInfo(): Me | null {
   if (!u) return null;
   const user = users.getUser(u.id);
   if (u.emergency) user.mustChangePassword = false;
-  return { user, capabilities: capabilities(u), ...(u.emergency ? { emergency: { expiresAt: u.emergency.expiresAt } } : {}) };
+  // what the sidebar shows besides the capabilities (pages that are of no use to the user are left out)
+  const nav = { viewAutomation: viewsAutomation(u), viewCredentials: credentials.mayReadSomeCredential(u) };
+  return { user, capabilities: { ...capabilities(u), ...nav }, ...(u.emergency ? { emergency: { expiresAt: u.emergency.expiresAt } } : {}) };
 }
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;

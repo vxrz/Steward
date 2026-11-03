@@ -314,6 +314,13 @@ export interface Capabilities {
   createMonitors: boolean;
   /** Export evidence packs (Compliance) */
   exportEvidence?: boolean;
+  /**
+   * The sidebar shows Schedules and Triggers (roles that run, build or audit processes, in the instance or a team).
+   * Only in GET /auth/status; missing means true.
+   */
+  viewAutomation?: boolean;
+  /** The sidebar shows Credentials (a role that may read the register, or an entry the user owns). Missing means true. */
+  viewCredentials?: boolean;
 }
 
 export interface Me {

@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **The sidebar leaves out pages a role cannot use**: viewers and approvers no longer see _Schedules_ and _Triggers_, people without a role that reads the credentials register (and without an entry of their own) no longer see _Credentials_, and _Settings_ shows for administrators and auditors only (everybody else has their profile in the user menu). Roles from a team count. The addresses keep working. `GET /api/auth/status` carries two additional capabilities for it, `viewAutomation` and `viewCredentials`.
+
 ### Fixed
 
 - **Accessibility (WCAG 2.2 AA)**: every page title is now the page's level-1 heading (it was a level-2 heading, so pages had no `h1`; the size is unchanged), a _Skip to content_ link is the first element reached with the Tab key (visible while focused) and moves the focus to the page content, icon-only buttons are at least 24 × 24 px (small ones 28 px; _Download CSV_, _Undo_/_Redo_ were 22 px) and the sidebar's section headings 28 px high, and a run's result in run lists shows a warning icon next to the red text of failed checks and steps. The axe tests also check for one `h1` per page and the target size of buttons.

@@ -167,9 +167,17 @@ test.describe('navigation (viewer)', () => {
   test('sections only list the pages the user may open', async ({ page }) => {
     await page.goto('/');
     await settle(page);
-    const admin = sidebar(page).getByRole('group', { name: 'Administration' });
-    await expect(admin.getByRole('link')).toHaveText(['Settings']);
-    await expect(sidebar(page).getByRole('link', { name: 'Updates from Git' })).toHaveCount(0);
+    // nothing a viewer cannot use: no schedules, triggers, credentials or settings – and no empty Administration section
+    await expect(sidebar(page).getByRole('group', { name: 'Administration' })).toHaveCount(0);
+    for (const name of ['Updates from Git', 'Schedules', 'Triggers', 'Credentials', 'Settings'])
+      await expect(sidebar(page).getByRole('link', { name, exact: true })).toHaveCount(0);
+    await expect(sidebar(page).getByRole('group', { name: 'Automate' }).getByRole('link')).toHaveText(['Processes']);
+    // the addresses still work
+    await page.goto('/schedules');
+    await settle(page);
+    await expect(page.getByRole('heading', { name: 'Schedules', level: 1 })).toBeVisible();
+    await page.goto('/');
+    await settle(page);
     await page.keyboard.press('Control+K');
     await page.getByRole('textbox', { name: 'Search', exact: true }).fill('new monitor');
     await expect(page.getByRole('button', { name: 'New monitor', exact: true })).toHaveCount(0);

@@ -10,7 +10,7 @@ import {
 import { HttpError, type ErrorParams } from '../util.js';
 import type { AuthUser } from './context.js';
 import { aliasSubjects, sameIdentity } from './aliases.js';
-import { platformAccess, processAccess } from './policy.js';
+import { memberships, platformAccess, processAccess } from './policy.js';
 
 /**
  * Access model
@@ -77,6 +77,15 @@ export function capabilities(u: AuthUser | null): Capabilities {
     createMonitors: has('admin', 'designer'),
     exportEvidence: has('admin', 'designer', 'operator', 'approver', 'auditor'),
   };
+}
+
+/** Roles whose people work with schedules and triggers (create, run or audit them); viewers and approvers do not. */
+const AUTOMATION_ROLES: Role[] = ['admin', 'designer', 'operator', 'auditor'];
+
+/** Whether the sidebar shows Schedules and Triggers: an automation role in the instance or in one of the user's teams. */
+export function viewsAutomation(u: AuthUser | null): boolean {
+  if (!u) return false;
+  return [...u.roles, ...[...memberships(u).values()].flatMap((m) => m.roles)].some((r) => AUTOMATION_ROLES.includes(r));
 }
 
 export function requireCapability(u: AuthUser | null, cap: keyof Capabilities, what: string): void {
