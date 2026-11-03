@@ -96,3 +96,31 @@ test('the cron preview warns when day of month and day of week are both set, and
   await expect(dialog.getByText(/^Next: /)).toBeVisible();
   await expect(warning).toHaveCount(0);
 });
+
+test('an unexpected server error shows a reference to quote, not its text', async ({ page, allowConsole }) => {
+  allowConsole(/status of 50\d/);
+  await page.route('**/api/cron/preview', (route) =>
+    route.fulfill({
+      status: 500,
+      headers: { 'content-type': 'application/json', 'x-request-id': '3f2a9c1e-0000-4000-8000-00000000e2e0' },
+      body: JSON.stringify({
+        error: 'Internal error (request id 3f2a9c1e-0000-4000-8000-00000000e2e0)',
+        code: 'INTERNAL_ERROR',
+        params: { requestId: '3f2a9c1e-0000-4000-8000-00000000e2e0' },
+      }),
+    }),
+  );
+  await page.goto('/schedules');
+  await page.getByRole('button', { name: 'New schedule' }).click();
+  const dialog = page.getByRole('dialog', { name: 'New schedule' });
+  await dialog.getByRole('textbox', { name: 'Cron expression' }).fill('0 6 * * *');
+  await expect(dialog.getByText('Something went wrong (reference 3f2a9c1e-0000-4000-8000-00000000e2e0)', { exact: false })).toBeVisible();
+
+  // a proxy's error page (no JSON) with the request id the proxy passed on
+  await page.unroute('**/api/cron/preview');
+  await page.route('**/api/cron/preview', (route) =>
+    route.fulfill({ status: 502, headers: { 'content-type': 'text/html', 'x-request-id': 'lb-12345' }, body: '<html>Bad gateway</html>' }),
+  );
+  await dialog.getByRole('textbox', { name: 'Cron expression' }).fill('0 7 * * *');
+  await expect(dialog.getByText('Something went wrong (reference lb-12345)', { exact: false })).toBeVisible();
+});

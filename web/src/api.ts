@@ -11,6 +11,8 @@ export class ApiError extends Error {
     public issues?: { path: string; message: string }[],
     public code?: string,
     public params?: ErrorParams,
+    /** The server's X-Request-Id: the reference to quote for an unexpected error */
+    public requestId?: string,
   ) {
     super(message);
   }
@@ -134,7 +136,12 @@ async function request<T>(method: string, url: string, body: unknown, retried: b
       throw new ApiError(403, i18n.t('errors:codes.STEP_UP_CANCELLED'), undefined, 'STEP_UP_CANCELLED');
     }
     if (!url.startsWith('/auth/') && (res.status === 401 || res.status === 423 || d?.code === 'PASSWORD_CHANGE_REQUIRED')) onAuthChange?.();
-    throw new ApiError(res.status, d?.error ?? i18n.t('errors:http', { status: res.status }), d?.issues, d?.code, d?.params);
+    const requestId = res.headers.get('x-request-id') ?? undefined;
+    // an unexpected server error, or a proxy's error page: "Something went wrong (reference …)" to quote
+    if (requestId && res.status >= 500 && res.status !== 503 && (d?.code === 'INTERNAL_ERROR' || typeof d?.error !== 'string')) {
+      throw new ApiError(res.status, d?.error ?? i18n.t('errors:http', { status: res.status }), undefined, 'INTERNAL_ERROR', { requestId }, requestId);
+    }
+    throw new ApiError(res.status, d?.error ?? i18n.t('errors:http', { status: res.status }), d?.issues, d?.code, d?.params, requestId);
   }
   return data as T;
 }
