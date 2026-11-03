@@ -94,7 +94,10 @@
     "discoverTokens": "API-Token für Skripte und KI-Assistenten (MCP)",
     "discoverWall": "Statuswand der Monitore",
     "discoverSearch": "alles durchsuchen mit",
-    "shortcutCtrlK": "Strg K"
+    "shortcutCtrlK": "Strg K",
+    "expand": "Checkliste zeigen",
+    "collapse": "Checkliste einklappen",
+    "next": "Als Nächstes:"
   },
   "checks": {
     "count_one": "{{count}} Prüfung schlägt fehl",

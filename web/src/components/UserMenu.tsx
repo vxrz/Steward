@@ -10,6 +10,7 @@ import {
   IconLock,
   IconLogout,
   IconMoon,
+  IconRocket,
   IconSun,
   IconUser,
 } from '@tabler/icons-react';
@@ -108,6 +109,12 @@ export function UserMenu() {
           {caps.viewAudit && (
             <Menu.Item leftSection={<IconActivityHeartbeat size={14} />} onClick={() => navigate('/settings/status')}>
               {t('userMenu.systemStatus')}
+            </Menu.Item>
+          )}
+          {isAdmin && (
+            // the start page's getting-started checklist, also after it was folded or hidden
+            <Menu.Item leftSection={<IconRocket size={14} />} onClick={() => navigate('/?checklist=1')}>
+              {t('help.checklist')}
             </Menu.Item>
           )}
           <Menu.Item leftSection={<IconInfoCircle size={14} />} onClick={() => navigate('/about')}>
