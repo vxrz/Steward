@@ -10,14 +10,8 @@ import { sealPlatformConfigs } from '../platforms/integrity.js';
 import { getSettings, passwordLoginMode } from '../settings.js';
 import { resolveLocale, t as serverT } from '../i18n/index.js';
 import { HttpError } from '../util.js';
-import { recoverRuns } from '../engine/runner.js';
 import { browserAvailable } from '../engine/browser.js';
-import * as scheduler from '../scheduler.js';
-import { startAccessChecks } from '../compliance/reconciliation.js';
-import { startMonitorEngine, stopMonitorEngine } from '../monitors/engine.js';
-import { startGatusScraper } from '../gatus/metrics.js';
-import { startReportSchedules } from '../reports/schedules.js';
-import { startGitSync } from '../sync/engine.js';
+import { startUnlocked, stopUnlocked } from '../bootstrap.js';
 import { seedExamplesSource } from '../sync/service.js';
 import { currentUser, runAs } from '../auth/context.js';
 import * as users from '../auth/users.js';
@@ -32,7 +26,6 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
 import { auditPendingUpgrades } from '../upgrades.js';
 import { ACCESS, me } from '../auth/access.js';
 
-let started = false;
 /** Things that need the decrypted vault: pending audit entries, scheduler, recovery of waiting runs. */
 async function onUnlocked(): Promise<void> {
   flushPendingAudit();
@@ -51,15 +44,8 @@ async function onUnlocked(): Promise<void> {
   sso.sealProviderConfigs();
   // Steward's example library as a disabled Git sync source, once per installation
   seedExamplesSource();
-  if (started) return;
-  started = true;
-  await recoverRuns();
-  scheduler.startScheduler();
-  startMonitorEngine();
-  startGatusScraper();
-  startReportSchedules();
-  startGitSync();
-  startAccessChecks();
+  // recovery, scheduler, monitors and the other services that need the vault (bootstrap.ts: the start and stop order)
+  await startUnlocked();
 }
 
 export async function unlockFromEnv(): Promise<void> {
@@ -409,9 +395,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (!isAdmin(me())) throw new HttpError(403, 'Only administrators can lock the vault');
     if (vault().unlocked) {
       audit({ action: 'vault.locked', entityType: 'vault', summary: `Vault locked by ${me().username}` });
-      scheduler.stopScheduler();
-      void stopMonitorEngine();
-      started = false;
+      stopUnlocked();
       vault().lock();
     }
     return { ok: true };

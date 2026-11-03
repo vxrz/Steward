@@ -120,6 +120,43 @@ describe('global run limit (SM_MAX_CONCURRENT_RUNS)', () => {
 });
 
 describe('graceful shutdown', () => {
+  it('drains running steps, marks the rest interrupted, leaves runs waiting for a person, refuses new runs', async () => {
+    const bootstrap = await import('../src/bootstrap.js');
+    const short = await start('short-step');
+    const long = await start('long-step');
+    const approval = await start('needs-approval');
+    await s.waitRun(approval, ['waiting']);
+    expect(await status(long)).toBe('running');
+    const t0 = Date.now();
+    const stopping = bootstrap.shutdown(1500);
+    // not ready any more, and no new runs
+    const ready = await fetch(`${s.base}/api/ready`);
+    expect(ready.status).toBe(503);
+    expect(JSON.stringify(await ready.json())).toMatch(/Shutting down/);
+    await expect(s.api('POST', '/runs', { processId: 'short-step' })).rejects.toMatchObject({ status: 503, body: { code: 'SHUTTING_DOWN' } });
+    const report = await stopping;
+    const took = Date.now() - t0;
+    // the short step ended within the grace period; the long one did not
+    expect(took).toBeGreaterThanOrEqual(1400);
+    expect(took).toBeLessThan(5000);
+    expect(report.interrupted).toEqual([long]);
+    expect(report.drained).toBeGreaterThanOrEqual(1);
+    expect(await status(short)).toBe('succeeded');
+    expect(await status(long)).toBe('interrupted');
+    expect(await status(approval)).toBe('waiting');
+    const audit = await s.api<{ action: string; summary: string }[]>('GET', `/audit?runId=${long}&limit=10`);
+    expect(audit.find((a) => a.action === 'run.interrupted')?.summary).toMatch(/Steward was stopped/);
+    // what is left of the long run must not overwrite "interrupted" (here: it is cancelled in memory)
+    const { cancelRun } = runner;
+    await cancelRun(long, 'admin').catch(() => undefined);
+    expect(await status(long)).toBe('interrupted');
+    // a second call waits for the first
+    expect(await bootstrap.shutdown(1500)).toBe(report);
+    bootstrap.resetLifecycle();
+    runner.resumeAcceptingRuns();
+    await s.api('POST', `/runs/${approval}/cancel`);
+  });
+
   it('queues a sub-process run started while shutting down (it starts after the restart)', async () => {
     runner.stopAcceptingRuns();
     try {

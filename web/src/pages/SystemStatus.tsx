@@ -11,6 +11,7 @@ import { shortCommit } from '../buildInfo';
 import { fmtBytes, fmtDate, fmtNumber, fmtRelative } from '../format';
 import { errorText } from '../i18n/errors';
 import { appUrl } from '../basePath';
+import { BackgroundJobs } from '../components/system/BackgroundJobs';
 
 const doc = (p: string) => `${BRAND.repoUrl}/blob/HEAD/docs/${p}`;
 
@@ -362,6 +363,7 @@ export function SystemStatusPage() {
               )}
             </Section>
           </SimpleGrid>
+          {s.view === 'full' && <BackgroundJobs />}
         </Stack>
       )}
     </>

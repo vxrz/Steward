@@ -161,23 +161,4 @@ export function runCleanup(opts: { manual?: boolean } = {}): LastCleanup {
   }
 }
 
-let timers: NodeJS.Timeout[] = [];
-
-/** Cleanup one minute after start, then daily. */
-export function startMaintenanceJobs(): void {
-  if (timers.length) return;
-  const safe = () => {
-    try {
-      runCleanup();
-    } catch (err) {
-      logger.warn({ err }, 'maintenance cleanup failed');
-    }
-  };
-  timers = [setTimeout(safe, 60000), setInterval(safe, DAY_MS)];
-  for (const t of timers) t.unref();
-}
-
-export function stopMaintenanceJobs(): void {
-  for (const t of timers) clearTimeout(t);
-  timers = [];
-}
+// Run one minute after the start, then daily, by the job runner (jobs/builtin.ts, job "cleanup").

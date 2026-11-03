@@ -264,15 +264,4 @@ export function verificationResult(r: VerifyOutcome, checkpoint: AuditCheckpoint
   return publicResult(r, checkpoint ? { checkpoint } : {});
 }
 
-let timer: NodeJS.Timeout | undefined;
-export function startAuditJobs(): void {
-  if (timer) return;
-  timer = setInterval(() => {
-    void createCheckpoint('interval').catch((err) => logger.warn({ err }, 'audit checkpoint failed'));
-  }, CHECKPOINT_INTERVAL_MINUTES * 60_000);
-  timer.unref();
-}
-export function stopAuditJobs(): void {
-  if (timer) clearInterval(timer);
-  timer = undefined;
-}
+// Interval checkpoints are a background job (jobs/builtin.ts, job "audit-checkpoint").

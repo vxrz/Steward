@@ -121,12 +121,11 @@ describe('checkpoints', () => {
     expect(anchoringStatus().latest).not.toBeNull();
   });
 
-  it('the hourly job starts once and stops', async () => {
-    const { startAuditJobs, stopAuditJobs } = await import('../src/audit-anchor.js');
-    startAuditJobs();
-    startAuditJobs();
-    stopAuditJobs();
-    stopAuditJobs();
+  it('the hourly checkpoint is a background job', async () => {
+    const { registerBuiltInJobs } = await import('../src/jobs/builtin.js');
+    const { listJobs } = await import('../src/jobs/registry.js');
+    registerBuiltInJobs();
+    expect(listJobs().find((j) => j.name === 'audit-checkpoint')).toMatchObject({ everySeconds: 3600, nextRunAt: null });
   });
 });
 

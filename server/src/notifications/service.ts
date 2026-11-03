@@ -32,7 +32,6 @@ import { teamChannelUrl, teamChannelsFor, teamsOf } from './team-channels.js';
 
 /** Same event + entity within this window → no second e-mail/Teams/webhook message (and no second in-app entry for the same key). */
 export const DEDUPE_WINDOW_MS = 60 * 60000;
-const STALE_CHECK_MS = 5 * 60000;
 
 export interface NoticeText {
   title: string;
@@ -657,56 +656,7 @@ export function initNotifications(): void {
   });
 }
 
-let staleTimer: NodeJS.Timeout | undefined;
-export function startNotificationJobs(): void {
-  if (staleTimer) return;
-  staleTimer = setInterval(() => {
-    try {
-      checkStaleDatasets();
-    } catch (err) {
-      logger.warn({ err }, 'stale dataset check failed');
-    }
-    // credentials register: expiry / rotation / review reminders (idempotent, see credentials/reminders.ts)
-    import('../credentials/reminders.js').then((m) => m.checkCredentialReminders()).catch((err) => logger.warn({ err }, 'credential reminder check failed'));
-    // living documents: periodic review reminders, same schedule as the credentials register (records/documents.ts)
-    import('../records/documents.js').then((m) => m.checkDocumentReviews()).catch((err) => logger.warn({ err }, 'document review reminder check failed'));
-    // ticket references: "not checked for N days" reminders (tickets/reminders.ts); daily summaries (summary.ts) – both idempotent
-    import('../tickets/reminders.js').then((m) => m.checkTicketReminders()).catch((err) => logger.warn({ err }, 'ticket reminder check failed'));
-    // service duties: store and close periods, reminders and "missed" messages (duties/jobs.ts, idempotent)
-    import('../duties/jobs.js').then((m) => m.runDutyJob()).catch((err) => logger.warn({ err }, 'duty job failed'));
-    // availability objectives and the service scorecard: hourly samples, breaches, daily snapshots (scorecard/jobs.ts, idempotent)
-    // (objectives on Prometheus: their figures are read first, #110)
-    import('../scorecard/objectives.js')
-      .then((o) => o.readPromObjectives())
-      .catch((err) => logger.warn({ err }, 'reading Prometheus figures for objectives failed'))
-      .then(() => import('../scorecard/jobs.js'))
-      .then((m) => m.runScorecardJob())
-      .catch((err) => logger.warn({ err }, 'scorecard job failed'));
-    // end of life of the tech stacks: daily refresh from endoflife.date and messages to application owners (catalogue/lifecycle.ts, idempotent)
-    import('../catalogue/lifecycle.js').then((m) => m.runLifecycleJob()).catch((err) => logger.warn({ err }, 'end-of-life job failed'));
-    // Kubernetes namespaces of applications: deployments, images (tech stack), pods, certificates (#111, every 6 hours)
-    import('../catalogue/kubernetes.js').then((m) => m.runKubernetesJob()).catch((err) => logger.warn({ err }, 'Kubernetes job failed'));
-    // repositories of applications: branch, pipeline, release, alerts, packages, keys, tech stack from files (#107, every 6 hours)
-    import('../catalogue/repositories.js').then((m) => m.runRepositoryJob()).catch((err) => logger.warn({ err }, 'repository job failed'));
-    // Kafka topics of applications: settings, offsets, consumer lag, schema version (#112, every 6 hours)
-    import('../kafka/service.js').then((m) => m.runKafkaJob()).catch((err) => logger.warn({ err }, 'Kafka job failed'));
-    import('../aws/service.js').then((m) => m.runAwsJob()).catch((err) => logger.warn({ err }, 'AWS job failed'));
-    import('../snowflake/service.js').then((m) => m.runSnowflakeJob()).catch((err) => logger.warn({ err }, 'Snowflake job failed'));
-    import('../dtrack/service.js').then((m) => m.runDtrackJob()).catch((err) => logger.warn({ err }, 'Dependency-Track job failed'));
-    import('./summary.js').then((m) => m.runDailySummaries()).catch((err) => logger.warn({ err }, 'daily summary job failed'));
-    // maintenance windows: reminders, start and end messages (catalogue/maintenance.ts, idempotent)
-    import('../catalogue/maintenance.js').then((m) => m.runMaintenanceJob()).catch((err) => logger.warn({ err }, 'maintenance job failed'));
-    import('../records/reviews.js').then((m) => m.runMeasureJob()).catch((err) => logger.warn({ err }, 'measure reminders failed'));
-    // paused messages of schedules, triggers and monitor outputs: one "still failing" message when a pause ends (#139)
-    import('./pause.js').then((m) => m.checkPauseEnds()).catch((err) => logger.warn({ err }, 'pause end check failed'));
-  }, STALE_CHECK_MS);
-  staleTimer.unref();
-}
-
-export function stopNotificationJobs(): void {
-  if (staleTimer) clearInterval(staleTimer);
-  staleTimer = undefined;
-}
+// The periodic checks (stale datasets, reminders, integrations, daily summaries …) are background jobs: jobs/builtin.ts.
 
 /** The test message (also the sample of the look preview). */
 function testMessage(name: string): OutgoingMessage {
