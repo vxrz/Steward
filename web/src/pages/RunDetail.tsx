@@ -39,6 +39,8 @@ const ACTIVE = ['running', 'waiting', 'queued'];
 /** Long runs (for-each over thousands of items) render their steps and log lines in pages. */
 const STEP_PAGE = 500;
 const LOG_PAGE = 1000;
+/** Findings listed at the top of a run that completed with findings (all of them: the Checks tab). */
+const FINDINGS_SHOWN = 5;
 
 export function RunDetailPage() {
   const { t } = useTranslation(['runs', 'common']);
@@ -80,6 +82,7 @@ export function RunDetailPage() {
   const openTasks = r.tasks.filter((task) => task.status === 'open');
   const checks = r.steps.filter((s) => s.type === 'check');
   const findings = findingsOf(r);
+  const failedChecks = checks.filter((s) => s.status === 'failed' && !s.error);
   const failedSteps = errorSteps(r);
 
   return (
@@ -182,8 +185,31 @@ export function RunDetailPage() {
           </Alert>
         )}
         {outcomeOf(r) === 'findings' && (
-          <Alert color={SEVERITY_COLORS[topSeverity(findings) ?? 'error']} title={t('detail.findingsTitle')} data-testid="run-findings">
-            {t('detail.findingsText', { findings: findingsText(t, findings) })}
+          <Alert color={SEVERITY_COLORS[topSeverity(findings) ?? 'error']} title={t('detail.findingsTitle')} data-testid="run-findings" p="sm">
+            <Text size="sm">{t('detail.findingsText', { findings: findingsText(t, findings) })}</Text>
+            <Stack gap={2} mt={6}>
+              {/* what was found first, the expectation (the check's name) after it */}
+              {failedChecks.slice(0, FINDINGS_SHOWN).map((c) => {
+                const o = (c.output ?? {}) as { severity?: string; message?: string };
+                return (
+                  <Group key={c.id} gap={6} wrap="nowrap" align="flex-start">
+                    <SeverityBadge severity={o.severity ?? 'error'} />
+                    <Text size="sm" style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+                      {o.message || t('detail.checkFailed', { name: c.name })}
+                      <Text span size="xs" c="dimmed">
+                        {' · '}
+                        {t('detail.expected', { name: c.name })}
+                      </Text>
+                    </Text>
+                  </Group>
+                );
+              })}
+              {failedChecks.length > FINDINGS_SHOWN && (
+                <Text size="xs" c="dimmed">
+                  {t('detail.moreFindings', { count: failedChecks.length - FINDINGS_SHOWN })}
+                </Text>
+              )}
+            </Stack>
           </Alert>
         )}
         {r.status === 'interrupted' && (

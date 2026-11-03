@@ -180,8 +180,12 @@
     },
     "testRun": "Test run (recorded responses)",
     "findingsTitle": "Completed with findings",
-    "findingsText": "The run executed every step, but its checks found something: {{findings}}. See the Checks tab.",
-    "findingBadge": "finding · {{severity}}"
+    "findingsText": "The run executed every step, but its checks found something: {{findings}}. All checks: the Checks tab.",
+    "findingBadge": "finding · {{severity}}",
+    "checkFailed": "Failed: {{name}}",
+    "expected": "expected: {{name}}",
+    "moreFindings_one": "and {{count}} more finding",
+    "moreFindings_other": "and {{count}} more findings"
   },
   "emptyState": {
     "title": "No runs yet",

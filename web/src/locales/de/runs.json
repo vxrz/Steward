@@ -180,8 +180,12 @@
     },
     "testRun": "Testlauf (aufgezeichnete Antworten)",
     "findingsTitle": "Mit Befunden abgeschlossen",
-    "findingsText": "Die Ausführung hat alle Schritte ausgeführt, aber ihre Prüfungen haben etwas gefunden: {{findings}}. Details im Reiter „Prüfungen“.",
-    "findingBadge": "Befund · {{severity}}"
+    "findingsText": "Die Ausführung hat alle Schritte ausgeführt, aber ihre Prüfungen haben etwas gefunden: {{findings}}. Alle Prüfungen: Reiter „Prüfungen“.",
+    "findingBadge": "Befund · {{severity}}",
+    "checkFailed": "Nicht erfüllt: {{name}}",
+    "expected": "erwartet: {{name}}",
+    "moreFindings_one": "und {{count}} weiterer Befund",
+    "moreFindings_other": "und {{count}} weitere Befunde"
   },
   "emptyState": {
     "title": "Noch keine Ausführungen",
