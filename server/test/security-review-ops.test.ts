@@ -435,7 +435,9 @@ describe('#11 linked platforms of credentials', () => {
       const hidden = await errorOf(dana('POST', '/credentials', credential({ platformId: zabbix.id })));
       const missing = await errorOf(dana('POST', '/credentials', credential({ platformId: 'plat_does_not_exist' })));
       expect(hidden).toMatch(/400/);
-      expect(hidden.replaceAll(zabbix.id, 'ID')).toBe(missing.replaceAll('plat_does_not_exist', 'ID'));
+      // the same answer (the problem's request id differs per request)
+      const same = (t: string, id: string) => t.replaceAll(id, 'ID').replace(/"requestId":"[^"]*"/, '"requestId":"…"');
+      expect(same(hidden, zabbix.id)).toBe(same(missing, 'plat_does_not_exist'));
       // an entry linked by an administrator stays editable for others (the link is kept)
       const c = await s.api('POST', '/credentials', credential({ name: 'Linked by admin', platformId: zabbix.id }));
       const seen = await dana('GET', `/credentials/${c.id}`);
