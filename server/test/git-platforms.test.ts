@@ -1,3 +1,5 @@
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { dockerfileImages, rangeVersion, stackHints } from '@sm/shared';
 import { setup, startTestServer, type TestServer } from './helpers.js';
@@ -167,6 +169,8 @@ describe('repositories of an application', () => {
       alerts: null,
       packages: [{ name: 'acme/shop/shop-web', type: 'container' }],
     });
+    // the raw files are read although the host answers 406 to Accept: application/json (it did fail the whole read)
+    expect(gl.repository.stackFiles).toContain('Dockerfile');
     expect(gl.repository.keys.map((k: any) => [k.kind, k.title, k.write])).toEqual([
       ['deploy-key', 'argocd (read-only)', false],
       ['deploy-key', 'release bot', true],
@@ -186,6 +190,70 @@ describe('repositories of an application', () => {
     a = await s.api('POST', `/applications/${app.id}/components`, { type: 'repository', name: 'acme/nope', platformId: ids.github });
     const gone = await read(app.id, a.components.find((c: any) => c.name === 'acme/nope').id);
     expect(gone.repository.error).toMatch(/no repository "acme\/nope"/);
+  });
+
+  it('GitLab: PRIVATE-TOKEN, and failed answers in plain words (redirect, empty 401, object messages, scopes, HTML)', async () => {
+    const got: { path: string; privateToken?: string; authorization?: string }[] = [];
+    let mode = 'redirect';
+    const host = http.createServer((req, res) => {
+      got.push({ path: req.url ?? '', privateToken: req.headers['private-token'] as string, authorization: req.headers.authorization });
+      const json = (status: number, body: unknown) => {
+        res.writeHead(status, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(body));
+      };
+      if (mode === 'redirect') {
+        res.writeHead(302, { location: 'https://sso.example.com/users/sign_in?redirect=%2Fapi' });
+        return res.end();
+      }
+      if (mode === 'empty401') {
+        res.writeHead(401);
+        return res.end();
+      }
+      if (mode === 'scope')
+        return json(403, { error: 'insufficient_scope', error_description: 'The request requires higher privileges than provided by the access token.' });
+      if (mode === 'object') return json(400, { message: { ref: ['is invalid'] } });
+      if (mode === 'html') {
+        res.writeHead(200, { 'content-type': 'text/html' });
+        return res.end('<!doctype html><title>Sign in</title>');
+      }
+      json(404, { message: '404 Project Not Found' });
+    });
+    await new Promise<void>((r) => host.listen(0, '127.0.0.1', r));
+    try {
+      const origin = `http://127.0.0.1:${(host.address() as AddressInfo).port}`;
+      const p = await s.api('POST', '/platforms', {
+        name: 'GitLab (local)',
+        kind: 'gitlab',
+        baseUrl: `${origin}/api/v4`,
+        config: { auth: { type: 'bearer' }, variables: {}, http: { proxy: 'none', retry: { maxRetries: 0 } } },
+        secrets: { token: 'glpat-local-secret-1' },
+      });
+      const app = await s.api('POST', '/applications', { name: 'Shop on a local GitLab', owners: [] });
+      const a = await s.api('POST', `/applications/${app.id}/components`, { type: 'repository', name: 'acme/shop/web', platformId: p.id });
+      const cmp = a.components.find((c: any) => c.name === 'acme/shop/web').id;
+      const error = async (m: string) => {
+        mode = m;
+        return (await read(app.id, cmp)).repository.error as string;
+      };
+      expect(await error('redirect')).toBe(
+        'the Git host answered HTTP 302 – redirected to https://sso.example.com/users/sign_in – the base URL must be the API (https://HOST/api/v4) and reachable without browser sign-in',
+      );
+      // GitLab's own header, not Authorization (which proxies and sign-in gateways take over)
+      expect(got.at(-1)).toMatchObject({ privateToken: 'glpat-local-secret-1', authorization: undefined });
+      const e401 = await error('empty401');
+      expect(e401).toMatch(/^the Git host refused the token \(401\): an empty response\. Likely causes: the token expired or was revoked;/);
+      expect(e401).toContain('deploy tokens and feed tokens do not work');
+      expect(e401).toContain('removed the PRIVATE-TOKEN header');
+      expect(await error('scope')).toMatch(
+        /^no permission \(403\): insufficient_scope – The request requires higher privileges than provided by the access token\. – The token is valid but lacks a right: it needs the scope read_api/,
+      );
+      expect(await error('object')).toBe('the Git host answered HTTP 400: {"ref":["is invalid"]}');
+      expect(await error('html')).toBe('the Git host answered with an HTML page, not the API – the base URL must be the API (https://HOST/api/v4)');
+      expect(await error('notfound')).toContain('a reverse proxy in front of GitLab may decode %2F');
+      expect(got.every((g) => !g.path.includes('glpat'))).toBe(true);
+    } finally {
+      host.close();
+    }
   });
 
   it('the job reads repositories not read for 6 hours', async () => {

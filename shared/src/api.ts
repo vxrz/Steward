@@ -446,7 +446,10 @@ export interface AuthConfig {
   tokenPath?: string;
   /** token_request: expression for lifetime in seconds (optional) */
   expiresInPath?: string;
-  /** Header added to API calls; template with {{ token }} */
+  /**
+   * Header added to API calls; template with {{ token }}. bearer: the header the token goes in – Authorization (default,
+   * as `Bearer <token>`) or another name, which gets the bare token (GitLab's default: PRIVATE-TOKEN).
+   */
   headerName?: string;
   headerValue?: string;
   /**

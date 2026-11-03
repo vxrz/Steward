@@ -214,6 +214,8 @@
     "queryParam": "Query-Parameter",
     "unsentCredentials": "Als Authentifizierung ist „Keine“ eingestellt, aber Zugangsdaten sind gespeichert ({{keys}}): Sie werden nicht gesendet, und die Plattform antwortet mit 401. Wählen Sie „{{type}}“, wenn die API sie braucht.",
     "switchAuth": "Auf „{{type}}“ umstellen",
+    "bearerHeader": "Header für das Token (optional)",
+    "bearerHeaderHint": "Standard: Authorization: Bearer <token> (GitLab: PRIVATE-TOKEN: <token>). Ein anderer Header-Name sendet das Token unverändert; Authorization ist bei GitLab für OAuth-Tokens.",
     "authOptions": {
       "none": "Keine",
       "basic": "Basic Auth (Benutzername / Passwort)",

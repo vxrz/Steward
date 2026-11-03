@@ -387,9 +387,13 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       if (p.kind === 'kafka')
         return ['authorization', 'Basic ' + Buffer.from(`${secrets.registryKey ?? ''}:${secrets.registrySecret ?? ''}`).toString('base64')];
       return ['authorization', 'Basic ' + Buffer.from(`${secrets.username ?? ''}:${secrets.password ?? ''}`).toString('base64')];
-    case 'bearer':
+    case 'bearer': {
       if (!secrets.token) throw new Error('Secret "token" is not set');
-      return ['authorization', `Bearer ${secrets.token}`];
+      // GitLab's own header for personal, group and project access tokens: reverse proxies and sign-in gateways in
+      // front of GitLab often take over Authorization (v0.3.1). headerName "Authorization" there is for OAuth tokens.
+      const name = (auth.headerName || (p.kind === 'gitlab' ? 'PRIVATE-TOKEN' : 'Authorization')).toLowerCase();
+      return name === 'authorization' ? ['authorization', `Bearer ${secrets.token}`] : [name, secrets.token];
+    }
     case 'apiKey':
       if (auth.apiKeyIn === 'query') return null;
       return [(auth.apiKeyName || 'x-api-key').toLowerCase(), secrets.apiKey ?? ''];

@@ -206,6 +206,16 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
                 )}
               </Alert>
             )}
+            {auth.type === 'bearer' && (
+              <TextInput
+                label={t('settings.bearerHeader')}
+                description={t('settings.bearerHeaderHint')}
+                classNames={{ input: 'mono' }}
+                placeholder={kind === 'gitlab' ? 'PRIVATE-TOKEN' : 'Authorization'}
+                value={auth.headerName ?? ''}
+                onChange={(e) => setAuth({ headerName: e.currentTarget.value || undefined })}
+              />
+            )}
             {needed.length > 0 && (
               <Alert color={missing.length ? 'orange' : 'gray'} variant="light">
                 <Text size="sm">
