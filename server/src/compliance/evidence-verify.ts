@@ -1,7 +1,6 @@
 import { EVIDENCE_PACK_FORMAT, type AuditCheckpoint, type AuditEntry } from '@sm/shared';
 import { DIGEST_SEED, checkpointPayload, digestStep } from '../audit.js';
 import { publicKeyFingerprint, verifySignature } from '../vault.js';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -136,7 +135,9 @@ async function verifyPackArchives(
       results.push({ file: a.file, ok: false, message: 'missing or different' });
       continue;
     }
-    const tmp = path.join(os.tmpdir(), `steward-archive-${process.pid}-${crypto.randomUUID()}.zip`);
+    // a folder of its own (mkdtemp: unique, mode 0700), removed with the archive afterwards
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'steward-archive-'));
+    const tmp = path.join(dir, 'archive.zip');
     try {
       await pipeline(await zip.stream(e), fs.createWriteStream(tmp, { flags: 'wx', mode: 0o600 }));
       const v = await verifyArchive(tmp, { publicKey: key });
@@ -145,7 +146,7 @@ async function verifyPackArchives(
       else if (!endOk) problems.push(`${a.file} does not end at the checkpoint the excerpt names`);
       results.push({ file: a.file, ok: v.ok && endOk, message: v.message });
     } finally {
-      fs.rmSync(tmp, { force: true });
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   }
   return { results, problems };
