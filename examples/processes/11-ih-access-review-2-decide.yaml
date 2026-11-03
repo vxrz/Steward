@@ -4,8 +4,12 @@ description: |
   group and asks you who still needs access (users who logged in again
   recently are preselected). Kept users are removed from the review group;
   for all others access is revoked after a final approval – either by
-  removing all their group/role memberships or by deleting the user.
-tags: [housekeeping, users, insights-hub]
+  removing all their group/role memberships or by deleting the user. The
+  revocation needs a second person (four-eyes).
+
+  Recommended schedule: quarterly, two to four weeks after "Access review 1"
+  (`0 7 25 1,4,7,10 *`).
+tags: [access-review, governance, users, insights-hub]
 connections:
   - slot: hub
     kind: insights-hub
@@ -101,15 +105,16 @@ steps:
         expectStatus: [200, 204, 404]
   - id: approveRevoke
     type: userTask
-    name: Confirm revocation
-    description: Tip – set "fourEyes" and "assignees" (e.g. role:approver) so a second person has to confirm revocations.
+    name: Confirm revocation (four-eyes)
     when: "$count(vars.decision.unselected) > 0"
     mode: approve
     title: "Revoke access for {{ $count(vars.decision.unselected) }} user(s)?"
     instructions: |
-      Mode: **{{ inputs.revokeMode }}**
+      Mode: **{{ inputs.revokeMode }}**. Decided by {{ vars.decision.decidedBy }}; a different person has to confirm.
 
       {{ $join(vars.decision.unselected.('- ' & userName), '\n') }}
+    assignees: [role:approver, role:admin]
+    fourEyes: true
     onReject: continue
     saveAs: revokeApproval
   - id: revoke

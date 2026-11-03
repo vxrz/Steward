@@ -1,0 +1,29 @@
+name: Snowflake account
+description: Users, sign-in hygiene, administrators, warehouse credits, failed tasks and the latest project access review of a Snowflake account – fed by "Snowflake – Account hygiene and usage" (daily) and "Snowflake – Project access review" (quarterly).
+refreshSeconds: 300
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **Snowflake account** – read by the processes *Snowflake – Account hygiene and usage* and *Snowflake – Project access review* from `SNOWFLAKE.ACCOUNT_USAGE` (up to two hours behind). Opening this page never calls Snowflake.
+      Monitors watch tables, tasks and credits live with the check type "Snowflake"; access reviews read the source "Snowflake".
+  - { id: users, type: kpi, title: Users, dataset: snowflake.users, metric: users, width: 2 }
+  - { id: inactive, type: kpi, title: People inactive, dataset: snowflake.users, metric: inactive, goodWhen: down, width: 2 }
+  - { id: noMfa, type: kpi, title: Passwords without MFA, dataset: snowflake.users, metric: passwordNoMfa, goodWhen: down, width: 2 }
+  - { id: servicePasswords, type: kpi, title: Technical users with a password, dataset: snowflake.users, metric: servicePasswords, goodWhen: down, width: 2 }
+  - { id: admins, type: kpi, title: ACCOUNTADMIN holders, dataset: snowflake.users, metric: accountAdmins, goodWhen: down, width: 2 }
+  - { id: disabled, type: kpi, title: Disabled users with roles, dataset: snowflake.users, metric: disabledWithRoles, goodWhen: down, width: 2 }
+  - { id: userStatus, type: status, title: Users by state, dataset: snowflake.users, width: 4 }
+  - { id: userTrend, type: trend, title: Sign-in findings, dataset: snowflake.users, metrics: [inactive, passwordNoMfa, disabledWithRoles], days: 90, width: 8 }
+  - { id: userProblems, type: table, title: Users needing attention, dataset: snowflake.users, problemsOnly: true, width: 12 }
+  - { id: credits7d, type: kpi, title: Credits (7 days), dataset: snowflake.credits, metric: credits7d, goodWhen: down, width: 3 }
+  - { id: credits30d, type: kpi, title: Credits (30 days), dataset: snowflake.credits, metric: credits30d, goodWhen: down, width: 3 }
+  - { id: failedTasks, type: kpi, title: Tasks failed, dataset: snowflake.tasks, metric: failedTasks, goodWhen: down, width: 3 }
+  - { id: revoked, type: kpi, title: Grants revoked in the last review, dataset: snowflake.project-access, metric: revoked, width: 3 }
+  - { id: creditTrend, type: trend, title: Credits, dataset: snowflake.credits, metrics: [credits7d, credits30d], days: 90, width: 8 }
+  - { id: warehouses, type: table, title: Warehouses, dataset: snowflake.credits, width: 4 }
+  - { id: tasks, type: table, title: Failed tasks, dataset: snowflake.tasks, width: 12 }
+  - { id: projectAccess, type: table, title: Project access (latest review), dataset: snowflake.project-access, width: 12 }
+  - { id: checks, type: checks, title: Latest hygiene checks, process: snowflake-account-hygiene, width: 6 }
+  - { id: fresh, type: freshness, title: Data freshness, width: 6 }

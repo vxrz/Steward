@@ -1,13 +1,13 @@
 name: Kafka topics
-description: The Kafka topics of applications against the standards – partitions, replication, retention, schema, newest message, consumer lag – fed by "Kafka – topic standards" (daily).
+description: The Kafka topics of applications against the standards – partitions, replication, retention, schema, newest message, consumer lag – fed by "Kafka – Topic standards" (daily).
 refreshSeconds: 300
 widgets:
   - id: intro
     type: markdown
     width: 12
     text: |
-      **Kafka topics** – from the process *Kafka – topic standards*, which reads what Steward knows about the topics of applications (components of type "Kafka topic"). Opening this page never calls the cluster.
-      Live checks are monitors with the check type "Kafka topic"; schema changes go through *Kafka – schema change review*.
+      **Kafka topics** – from the process *Kafka – Topic standards*, which reads what Steward knows about the topics of applications (components of type "Kafka topic"). Opening this page never calls the cluster.
+      Live checks are monitors with the check type "Kafka topic"; schema changes go through *Kafka – Schema change review*.
   - { id: topics, type: kpi, title: Topics, dataset: kafka.topics, metric: topics, width: 3 }
   - { id: violations, type: kpi, title: Not to standard, dataset: kafka.topics, metric: violations, goodWhen: down, width: 3 }
   - { id: lagging, type: kpi, title: Consumers lagging, dataset: kafka.topics, metric: lagging, goodWhen: down, width: 3 }

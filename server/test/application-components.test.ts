@@ -32,7 +32,8 @@ const audit = (id: string) => s.api('GET', `/audit?entityType=application&entity
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
-  await s.api('POST', '/demo/setup', {});
+  // without the sample applications: no end-of-life data for the stacks of this test before it refreshes
+  await s.api('POST', '/demo/setup', { applications: false });
   [dana, olivia, vera] = await Promise.all(['dana', 'olivia', 'vera'].map((u) => s.as(u, PW)));
 });
 afterAll(async () => {

@@ -5,7 +5,7 @@ description: |
   users who only hold the default role (accounts that probably are not needed).
   Read-only; records checks and a report and publishes `ih.groups`.
 
-  Recommended schedule: weekly.
+  Recommended schedule: weekly (`30 6 * * 1`).
   Required rights: read users and groups.
 tags: [housekeeping, groups, governance, insights-hub]
 connections:
@@ -98,7 +98,7 @@ steps:
       empty: "$count(vars.empty)"
       singleMember: "$count(vars.single)"
       onlyDefaultRole: "$count(vars.onlyDefault)"
-    staleAfterMinutes: 11520
+    staleAfterMinutes: 20160
   - id: reportDefault
     type: report
     name: Users with only the default role

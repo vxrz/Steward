@@ -699,6 +699,30 @@ export interface ProcessTemplate {
   description: string;
   tags: string[];
   definition: ProcessDefinition;
+  /**
+   * The connections the template needs (0.3.1): per slot the platform kinds that fit – the slot's `kind`, or the
+   * template's `kinds` hint for slots that take several (e.g. GitHub, GitLab or Forgejo); empty: any platform.
+   */
+  connections?: ProcessTemplateConnection[];
+  /** Every platform kind named by the connections, sorted (for a platform filter) */
+  connectionKinds?: string[];
+  /**
+   * The recommended schedule: `cron` from the template's `recommendedSchedule` (or the first cron expression in
+   * backticks of the "Recommended schedule:" sentence), `text` that sentence of the description; null when it has none
+   */
+  recommendedSchedule?: { cron: string | null; text: string } | null;
+  /** The datasets its publish steps write */
+  datasets?: string[];
+  /** The dashboard templates that read one of these datasets */
+  dashboards?: { id: string; name: string }[];
+  /** `# steward-min-version` of the file, or null */
+  minVersion?: string | null;
+}
+
+export interface ProcessTemplateConnection {
+  slot: string;
+  kinds: string[];
+  description: string;
 }
 
 // ---------- Runs ----------

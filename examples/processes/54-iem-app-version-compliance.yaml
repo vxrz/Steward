@@ -88,7 +88,7 @@ steps:
       installations: "$count(vars.rows[state != 'unknown'])"
       outdated: "$count(vars.rows[state = 'behind'])"
       unknownDevices: "$count(vars.rows[state = 'unknown'])"
-    staleAfterMinutes: 1500
+    staleAfterMinutes: 2880
   - id: check
     type: check
     name: All installed apps are current

@@ -1,4 +1,5 @@
-name: "Kafka – topic standards"
+# steward-min-version: 0.2.7
+name: "Kafka – Topic standards"
 description: |
   Checks the Kafka topics of applications against your standards: partitions,
   replication, min.insync.replicas, retention and cleanup policy, a schema in
@@ -11,7 +12,7 @@ description: |
   schedule's notification policy. Publishes `kafka.topics` (one row per topic;
   metrics topics, violations, lagging, quiet) for the "Kafka topics" dashboard.
   Monitors watch the live state with the check type "Kafka topic"; schema
-  changes go through "Kafka – schema change review".
+  changes go through "Kafka – Schema change review".
 tags: [kafka, standards, catalogue]
 inputs:
   - name: apps
@@ -118,6 +119,7 @@ steps:
       violations: "$count(vars.violating)"
       lagging: "$count(vars.lagging)"
       quiet: "$count(vars.quiet)"
+    staleAfterMinutes: 2880
   - id: standards
     type: check
     name: Topics meet the standards

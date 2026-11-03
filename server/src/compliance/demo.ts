@@ -2,7 +2,7 @@ import { db } from '../db.js';
 import { logger } from '../log.js';
 import { nowIso } from '../util.js';
 import { currentActor } from '../auth/context.js';
-import { createCheck, runCheck } from './reconciliation.js';
+import { checkInput, createCheck, runCheck } from './reconciliation.js';
 import { ensureCatalogues } from './controls.js';
 import { DEFAULT_ACCESS_CONTROLS } from './catalogues.js';
 
@@ -51,4 +51,50 @@ export async function setupComplianceDemo(platformId: string | undefined): Promi
     logger.warn({ err: (err as Error).message }, 'demo access reconciliation not created');
     return false;
   }
+}
+
+/**
+ * Demo data: access checks of the simulated Snowflake account (roles of users), the AWS account (IAM users) and the
+ * GitHub organisation acme, with their baseline snapshots – so a person review (e.g. of karla.lang@example.com or bob)
+ * finds the person on several platforms. Named after the Insights Hub check, which stays the first in the list.
+ */
+export async function setupAccessSourcesDemo(platformByKind: Map<string, string>): Promise<number> {
+  const checks: { name: string; kind: string; source: 'snowflake' | 'aws' | 'git'; scope: string | null; description: string }[] = [
+    {
+      name: 'Platform access (demo) – Snowflake roles',
+      kind: 'snowflake',
+      source: 'snowflake',
+      scope: '',
+      description: 'The roles of every user of the demo Snowflake account.',
+    },
+    {
+      name: 'Platform access (demo) – AWS IAM users',
+      kind: 'aws',
+      source: 'aws',
+      scope: null,
+      description: 'The IAM users of the demo AWS account with their groups and policies.',
+    },
+    {
+      name: 'Platform access (demo) – GitHub organisation acme',
+      kind: 'github',
+      source: 'git',
+      scope: 'acme',
+      description: 'Owners, members and outside collaborators of acme on the demo GitHub.',
+    },
+  ];
+  let n = 0;
+  for (const c of checks) {
+    const platformId = platformByKind.get(c.kind);
+    if (!platformId || db().get('SELECT 1 FROM access_checks WHERE name = ?', c.name)) continue;
+    try {
+      const check = createCheck(
+        checkInput.parse({ name: c.name, description: c.description, platformId, source: c.source, scope: c.scope, cron: '45 6 * * *', timezone: 'UTC' }),
+      );
+      await runCheck(check.id, { actor: currentActor(), trigger: 'demo' });
+      n++;
+    } catch (err) {
+      logger.warn({ err: (err as Error).message, check: c.name }, 'demo access check not created');
+    }
+  }
+  return n;
 }

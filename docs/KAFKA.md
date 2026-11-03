@@ -6,8 +6,8 @@ Steward checks the Kafka topics an application owns – service-level checks, no
 | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | Settings, partitions, newest message, consumer lag and schema version of a topic          | application components of type **Kafka topic** (read every 6 hours, or _Read now_) |
 | New messages within N minutes, too much lag, a stuck consumer group, an unexpected schema | monitors with the check type **Kafka topic**                                       |
-| The topics of applications against your standards                                         | the example process _Kafka – topic standards_ and the dashboard **Kafka topics**   |
-| A schema change with a compatibility check and an approval                                | the example process _Kafka – schema change review_                                 |
+| The topics of applications against your standards                                         | the example process _Kafka – Topic standards_ and the dashboard **Kafka topics**   |
+| A schema change with a compatibility check and an approval                                | the example process _Kafka – Schema change review_                                 |
 | A few recent messages for troubleshooting                                                 | _Peek_ on a topic component (off by default)                                       |
 
 Works with Confluent Cloud and Confluent Platform, Apache Kafka, Redpanda, Amazon MSK (SASL/SCRAM) and Azure Event Hubs (Kafka endpoint). Steward connects with a pure-JavaScript Kafka client (`@platformatic/kafka`); nothing to install.
@@ -48,7 +48,7 @@ On the application page, _Components → Add_: type **Kafka topic**, the topic n
 - **Consumer groups** with committed offsets on the topic and their lag (end offset − committed offset; partitions without a commit count fully), the group with the most lag first.
 - **Schema**: the subject `<topic>-value` in the Schema Registry, its latest version, id and type. A new version is recorded in the application's history (`application.topic_schema_changed`).
 
-Processes see what Steward read as `readout` of each component of an application input – that is how _Kafka – topic standards_ works without calling the cluster.
+Processes see what Steward read as `readout` of each component of an application input – that is how _Kafka – Topic standards_ works without calling the cluster.
 
 ## Monitor check
 
@@ -67,7 +67,7 @@ The message says what it saw: `Kafka: orders – group billing stuck: lag 3326, 
 
 ## Schema change review
 
-The example _Kafka – schema change review_ takes the subject, the proposed schema and the reason, reads the current version, asks the Schema Registry whether the change is compatible (by the subject's compatibility level) and asks an approver to decide. The run with its approval is the evidence; record the decision as a decision record (_Records → New → DR_) linking the run. Steward does not register the schema – your pipeline does, after approval; start the process from it through a trigger.
+The example _Kafka – Schema change review_ takes the subject, the proposed schema and the reason, reads the current version, asks the Schema Registry whether the change is compatible (by the subject's compatibility level) and asks an approver to decide. The run with its approval is the evidence; record the decision as a decision record (_Records → New → DR_) linking the run. Steward does not register the schema – your pipeline does, after approval; start the process from it through a trigger.
 
 ## Peek
 

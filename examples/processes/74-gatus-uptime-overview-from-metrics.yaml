@@ -1,6 +1,6 @@
-name: "Gatus – uptime overview (from /metrics)"
+name: "Gatus – Uptime overview (from /metrics)"
 description: |
-  The "Gatus – uptime overview" for a Gatus whose API is protected by OIDC
+  The "Gatus – Uptime overview" for a Gatus whose API is protected by OIDC
   (`security.oidc`), or whenever you prefer not to give Steward a Gatus login.
   It reads only what Gatus serves without authentication:
 

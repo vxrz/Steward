@@ -1,0 +1,313 @@
+# steward-min-version: 0.2.8
+name: "Snowflake – Account hygiene and usage"
+description: |
+  A daily look at a Snowflake account from SNOWFLAKE.ACCOUNT_USAGE: people
+  without a login for N days, password sign-ins without MFA, technical users
+  that still have a password, how many users hold ACCOUNTADMIN and
+  SECURITYADMIN, disabled users that still hold roles, the credits of every
+  warehouse over 7 and 30 days and the tasks that failed. Checks warn about
+  each finding. Read-only (statements with bind parameters only).
+
+  Recommended schedule: daily (`15 6 * * *`), with "message on change" in the
+  schedule's notification policy. Publishes `snowflake.users` (one row per
+  user), `snowflake.credits` (one row per warehouse) and `snowflake.tasks`
+  (failed tasks) for the "Snowflake account" dashboard. Needs a Snowflake
+  platform whose role has IMPORTED PRIVILEGES on the SNOWFLAKE database and a
+  warehouse (docs/SNOWFLAKE.md). ACCOUNT_USAGE lags up to two hours behind.
+recommendedSchedule: "15 6 * * *"
+tags: [governance, security, costs, snowflake]
+connections:
+  - slot: snowflake
+    kind: snowflake
+    description: Snowflake account (SQL API, key-pair JWT; read-only)
+inputs:
+  - name: inactiveDays
+    label: People inactive after (days without login)
+    type: number
+    default: 90
+  - name: technicalPattern
+    label: Technical users – name pattern (regular expression, besides TYPE SERVICE)
+    type: string
+    default: "(SVC|TECH|SYS)_.*"
+  - name: maxAccountAdmins
+    label: At most this many users with ACCOUNTADMIN
+    type: number
+    default: 3
+  - name: maxCredits7d
+    label: Warn above this many credits per warehouse in 7 days (0 = no limit)
+    type: number
+    default: 0
+  - name: taskHours
+    label: Failed tasks of the last (hours)
+    type: number
+    default: 24
+steps:
+  - id: readUsers
+    type: http
+    name: Users (ACCOUNT_USAGE.USERS)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT NAME, LOGIN_NAME, DISPLAY_NAME, EMAIL, TYPE, DISABLED,
+        TO_VARCHAR(LAST_SUCCESS_LOGIN, 'YYYY-MM-DD"T"HH24:MI:SS.FF3TZH:TZM') AS LAST_SUCCESS_LOGIN,
+        HAS_PASSWORD, HAS_MFA, EXT_AUTHN_DUO, HAS_RSA_PUBLIC_KEY, NAME RLIKE ? AS NAME_TECHNICAL
+        FROM SNOWFLAKE.ACCOUNT_USAGE.USERS WHERE DELETED_ON IS NULL
+      bindings:
+        "1": { type: TEXT, value: "{{ $string(inputs.technicalPattern) }}" }
+      timeout: 60
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: usersRead
+  - id: readGrants
+    type: http
+    name: Roles granted to users (ACCOUNT_USAGE.GRANTS_TO_USERS)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: SELECT GRANTEE_NAME, ROLE FROM SNOWFLAKE.ACCOUNT_USAGE.GRANTS_TO_USERS WHERE DELETED_ON IS NULL
+      timeout: 60
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: grantsRead
+  - id: readCredits
+    type: http
+    name: Warehouse credits (ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT WAREHOUSE_NAME,
+        SUM(IFF(START_TIME > DATEADD(day, -7, CURRENT_TIMESTAMP()), CREDITS_USED, 0)) AS CREDITS_7D,
+        SUM(CREDITS_USED) AS CREDITS_30D
+        FROM SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY
+        WHERE START_TIME > DATEADD(day, -30, CURRENT_TIMESTAMP())
+        GROUP BY WAREHOUSE_NAME ORDER BY CREDITS_30D DESC
+      timeout: 60
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: creditsRead
+  - id: readTasks
+    type: http
+    name: Failed tasks (ACCOUNT_USAGE.TASK_HISTORY)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT DATABASE_NAME, SCHEMA_NAME, NAME, COUNT(*) AS FAILURES,
+        TO_VARCHAR(MAX(SCHEDULED_TIME), 'YYYY-MM-DD"T"HH24:MI:SS.FF3TZH:TZM') AS LAST_FAILURE,
+        MAX_BY(ERROR_MESSAGE, SCHEDULED_TIME) AS ERROR_MESSAGE
+        FROM SNOWFLAKE.ACCOUNT_USAGE.TASK_HISTORY
+        WHERE STATE = 'FAILED' AND SCHEDULED_TIME > DATEADD(hour, ?, CURRENT_TIMESTAMP())
+        GROUP BY DATABASE_NAME, SCHEMA_NAME, NAME ORDER BY LAST_FAILURE DESC
+      bindings:
+        "1": { type: FIXED, value: "{{ $string(-$abs(inputs.taskHours)) }}" }
+      timeout: 60
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: tasksRead
+  - id: tables
+    type: set
+    name: Result sets as rows
+    values:
+      # the SQL API answers rows as arrays, with the column names in resultSetMetaData
+      users: "{{ ($c := [vars.usersRead.body.resultSetMetaData.rowType.name]; [$map(vars.usersRead.body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })]) }}"
+      grants: "{{ ($c := [vars.grantsRead.body.resultSetMetaData.rowType.name]; [$map(vars.grantsRead.body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })]) }}"
+      credits: "{{ ($c := [vars.creditsRead.body.resultSetMetaData.rowType.name]; [$map(vars.creditsRead.body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })]) }}"
+      tasks: "{{ ($c := [vars.tasksRead.body.resultSetMetaData.rowType.name]; [$map(vars.tasksRead.body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })]) }}"
+  - id: evaluate
+    type: set
+    name: Findings per user
+    values:
+      userRows: >-
+        {{ [vars.users.(
+          $u := $;
+          $roles := [$vars.grants[GRANTEE_NAME = $u.NAME].ROLE];
+          $technical := $u.TYPE in ['SERVICE', 'LEGACY_SERVICE'] or $u.NAME_TECHNICAL = 'true';
+          $disabled := $u.DISABLED = 'true';
+          $days := $ts($u.LAST_SUCCESS_LOGIN) ? $daysSince($u.LAST_SUCCESS_LOGIN) : null;
+          $mfa := $u.HAS_MFA = 'true' or $u.EXT_AUTHN_DUO = 'true';
+          $findings := [
+            $disabled and $count($roles) > 0 ? 'disabled, still holds ' & $join($roles, ', ') : undefined,
+            $not($disabled) and $not($technical) and ($days = null or $days > $inputs.inactiveDays) ? ($days = null ? 'never signed in' : 'no login for ' & $days & ' days') : undefined,
+            $not($disabled) and $not($technical) and $u.HAS_PASSWORD = 'true' and $not($mfa) ? 'password without MFA' : undefined,
+            $not($disabled) and $technical and $u.HAS_PASSWORD = 'true' ? 'technical user with a password' : undefined
+          ];
+          {
+            "key": $u.NAME,
+            "user": $u.NAME,
+            "name": $u.DISPLAY_NAME ? $u.DISPLAY_NAME : $u.LOGIN_NAME,
+            "email": $u.EMAIL ? $u.EMAIL : '',
+            "type": $disabled ? 'disabled' : ($technical ? 'technical' : 'person'),
+            "roles": $join($roles, ', '),
+            "admin": 'ACCOUNTADMIN' in $roles or 'SECURITYADMIN' in $roles,
+            "lastLogin": $days != null ? $fromMillis($ts($u.LAST_SUCCESS_LOGIN), '[Y0001]-[M01]-[D01]') : 'never',
+            "days": $days,
+            "signIn": $u.HAS_RSA_PUBLIC_KEY = 'true' and $u.HAS_PASSWORD != 'true' ? 'key pair'
+              : ($u.HAS_PASSWORD = 'true' ? ($mfa ? 'password + MFA' : 'password, no MFA') : 'SSO / other'),
+            "findings": $findings,
+            "critical": ($disabled and $count($roles) > 0) or (('ACCOUNTADMIN' in $roles or 'SECURITYADMIN' in $roles) and $u.HAS_PASSWORD = 'true' and $not($mfa))
+          }
+        )] }}
+      inactive: "{{ [vars.userRows[type = 'person' and (days = null or days > $inputs.inactiveDays)].user] }}"
+      passwordNoMfa: "{{ [vars.userRows[type = 'person' and signIn = 'password, no MFA'].user] }}"
+      servicePasswords: "{{ [vars.userRows[type = 'technical' and $contains(signIn, 'password')].user] }}"
+      disabledWithRoles: "{{ [vars.userRows[type = 'disabled' and roles != ''].user] }}"
+      accountAdmins: "{{ [$distinct(vars.grants[ROLE = 'ACCOUNTADMIN'].GRANTEE_NAME)] }}"
+      securityAdmins: "{{ [$distinct(vars.grants[ROLE = 'SECURITYADMIN'].GRANTEE_NAME)] }}"
+      creditRows: >-
+        {{ [vars.credits.{
+          "key": WAREHOUSE_NAME,
+          "warehouse": WAREHOUSE_NAME,
+          "credits7d": $round($number(CREDITS_7D), 2),
+          "credits30d": $round($number(CREDITS_30D), 2)
+        }] }}
+      expensive: "{{ inputs.maxCredits7d > 0 ? [vars.creditRows[credits7d > $inputs.maxCredits7d]] : [] }}"
+      taskRows: >-
+        {{ [vars.tasks.{
+          "key": DATABASE_NAME & '.' & SCHEMA_NAME & '.' & NAME,
+          "task": DATABASE_NAME & '.' & SCHEMA_NAME & '.' & NAME,
+          "failures": $number(FAILURES),
+          "lastFailure": $ts(LAST_FAILURE) ? $fromMillis($ts(LAST_FAILURE), '[Y0001]-[M01]-[D01] [H01]:[m01]') : '–',
+          "error": $substring($string(ERROR_MESSAGE), 0, 300)
+        }] }}
+  - id: publishUsers
+    type: publish
+    name: Publish the users
+    dataset: snowflake.users
+    title: Snowflake users
+    rows: vars.userRows
+    key: key
+    columns:
+      - { label: User, value: user }
+      - { label: Name, value: name }
+      - { label: E-mail, value: email }
+      - { label: Type, value: type }
+      - { label: Roles, value: roles }
+      - { label: Last login, value: lastLogin }
+      - { label: Days, value: "days != null ? days : '–'" }
+      - { label: Sign-in, value: signIn }
+      - { label: Findings, value: "$count(findings) ? $join(findings, '; ') : '–'" }
+    status: "critical ? 'critical' : ($count(findings) > 0 ? 'warning' : 'good')"
+    statusText: "$join(findings, '; ')"
+    metrics:
+      users: "$count(vars.userRows)"
+      people: "$count(vars.userRows[type = 'person'])"
+      technical: "$count(vars.userRows[type = 'technical'])"
+      inactive: "$count(vars.inactive)"
+      passwordNoMfa: "$count(vars.passwordNoMfa)"
+      servicePasswords: "$count(vars.servicePasswords)"
+      disabledWithRoles: "$count(vars.disabledWithRoles)"
+      accountAdmins: "$count(vars.accountAdmins)"
+      securityAdmins: "$count(vars.securityAdmins)"
+    staleAfterMinutes: 2880
+  - id: publishCredits
+    type: publish
+    name: Publish the warehouse credits
+    dataset: snowflake.credits
+    title: Snowflake warehouse credits
+    rows: vars.creditRows
+    key: key
+    columns:
+      - { label: Warehouse, value: warehouse }
+      - { label: Credits (7 days), value: credits7d }
+      - { label: Credits (30 days), value: credits30d }
+    status: "$inputs.maxCredits7d > 0 and credits7d > $inputs.maxCredits7d ? 'warning' : 'good'"
+    statusText: "$inputs.maxCredits7d > 0 and credits7d > $inputs.maxCredits7d ? credits7d & ' credits in 7 days (at most ' & $inputs.maxCredits7d & ')' : ''"
+    metrics:
+      warehouses: "$count(vars.creditRows)"
+      credits7d: "$round($sum(vars.creditRows.credits7d), 2)"
+      credits30d: "$round($sum(vars.creditRows.credits30d), 2)"
+      failedTasks: "$count(vars.taskRows)"
+    staleAfterMinutes: 2880
+  - id: publishTasks
+    type: publish
+    name: Publish the failed tasks
+    dataset: snowflake.tasks
+    title: Failed Snowflake tasks
+    rows: vars.taskRows
+    key: key
+    columns:
+      - { label: Task, value: task }
+      - { label: Failures, value: failures }
+      - { label: Last failure, value: lastFailure }
+      - { label: Error, value: error }
+    status: "'critical'"
+    statusText: error
+    metrics:
+      failedTasks: "$count(vars.taskRows)"
+      failures: "$sum(vars.taskRows.failures)"
+    staleAfterMinutes: 2880
+  - id: noInactive
+    type: check
+    name: No inactive people
+    severity: warning
+    condition: "$count(vars.inactive) = 0"
+    message: "{{ $count(vars.inactive) = 0 ? 'Every person signed in within ' & inputs.inactiveDays & ' days' : $join(vars.inactive, ', ') }}"
+    headline: "{{ $count(vars.inactive) }} people without a login for {{ inputs.inactiveDays }} days"
+    value: "$count(vars.inactive)"
+    items: "vars.userRows[type = 'person' and (days = null or days > $inputs.inactiveDays)].(user & ' (' & name & '): ' & lastLogin)"
+  - id: mfa
+    type: check
+    name: Password sign-ins use MFA
+    severity: warning
+    condition: "$count(vars.passwordNoMfa) = 0"
+    message: "{{ $count(vars.passwordNoMfa) = 0 ? 'Every person with a password has MFA' : $join(vars.passwordNoMfa, ', ') }}"
+    headline: "{{ $count(vars.passwordNoMfa) }} people sign in with a password without MFA"
+    value: "$count(vars.passwordNoMfa)"
+    items: vars.passwordNoMfa
+  - id: servicePasswords
+    type: check
+    name: Technical users have no password
+    severity: warning
+    condition: "$count(vars.servicePasswords) = 0"
+    message: "{{ $count(vars.servicePasswords) = 0 ? 'No technical user has a password' : $join(vars.servicePasswords, ', ') & ' – use key pairs (TYPE = SERVICE)' }}"
+    headline: "{{ $count(vars.servicePasswords) }} technical users with a password"
+    value: "$count(vars.servicePasswords)"
+    items: vars.servicePasswords
+  - id: admins
+    type: check
+    name: Few account administrators
+    severity: warning
+    condition: "$count(vars.accountAdmins) <= inputs.maxAccountAdmins"
+    message: "{{ 'ACCOUNTADMIN: ' & ($count(vars.accountAdmins) ? $join(vars.accountAdmins, ', ') : 'nobody') & '; SECURITYADMIN: ' & ($count(vars.securityAdmins) ? $join(vars.securityAdmins, ', ') : 'nobody') }}"
+    headline: "{{ $count(vars.accountAdmins) }} users hold ACCOUNTADMIN (at most {{ inputs.maxAccountAdmins }})"
+    value: "$count(vars.accountAdmins)"
+    betterWhen: lower
+    items: vars.accountAdmins
+  - id: disabled
+    type: check
+    name: Disabled users hold no roles
+    severity: warning
+    condition: "$count(vars.disabledWithRoles) = 0"
+    message: "{{ $count(vars.disabledWithRoles) = 0 ? 'No disabled user holds a role' : $join(vars.userRows[type = 'disabled' and roles != ''].(user & ': ' & roles), '; ') }}"
+    headline: "{{ $count(vars.disabledWithRoles) }} disabled users still hold roles"
+    value: "$count(vars.disabledWithRoles)"
+    items: "vars.userRows[type = 'disabled' and roles != ''].(user & ': ' & roles)"
+  - id: tasksOk
+    type: check
+    name: No task failed
+    severity: warning
+    condition: "$count(vars.taskRows) = 0"
+    message: "{{ $count(vars.taskRows) = 0 ? 'No task failed in ' & inputs.taskHours & ' h' : $join(vars.taskRows.(task & ': ' & error), '; ') }}"
+    headline: "{{ $count(vars.taskRows) }} tasks failed in {{ inputs.taskHours }} h"
+    value: "$count(vars.taskRows)"
+    items: "vars.taskRows.(task & ' (' & failures & '×)')"
+  - id: creditsOk
+    type: check
+    name: Warehouse credits within the limit
+    severity: warning
+    when: "inputs.maxCredits7d > 0"
+    condition: "$count(vars.expensive) = 0"
+    message: "{{ $count(vars.expensive) = 0 ? 'Every warehouse used at most ' & inputs.maxCredits7d & ' credits in 7 days' : $join(vars.expensive.(warehouse & ': ' & credits7d), '; ') }}"
+    headline: "{{ $count(vars.expensive) }} warehouses above {{ inputs.maxCredits7d }} credits in 7 days"
+    value: "$count(vars.expensive)"
+    items: "vars.expensive.(warehouse & ': ' & credits7d)"

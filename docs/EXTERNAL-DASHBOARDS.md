@@ -46,8 +46,8 @@ The examples use these datasets:
 
 | Dataset                | Process                                    | Columns                                                                                                          | Metrics                               |
 | ---------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `gatus-uptime`         | 71 Gatus – uptime overview                 | Endpoint, Group, Healthy, Uptime (%), Avg response (ms), Last response (ms), Last check (UTC), Last error        | `endpoints`, `down`, `avgUptime`      |
-| `gatus-uptime-metrics` | 74 Gatus – uptime overview (from /metrics) | Endpoint, Group, Healthy, Uptime (%), Avg response (ms), Last response (ms), Certificate expires in (days), Type | the same, plus `certificatesExpiring` |
+| `gatus-uptime`         | 71 Gatus – Uptime overview                 | Endpoint, Group, Healthy, Uptime (%), Avg response (ms), Last response (ms), Last check (UTC), Last error        | `endpoints`, `down`, `avgUptime`      |
+| `gatus-uptime-metrics` | 74 Gatus – Uptime overview (from /metrics) | Endpoint, Group, Healthy, Uptime (%), Avg response (ms), Last response (ms), Certificate expires in (days), Type | the same, plus `certificatesExpiring` |
 | `ih.privileged`        | 12 Insights Hub – Privileged access review | User, Role, Last login, Days, Review                                                                             | `privileged`, `stale90`, `removed`    |
 | `ih.access-snapshot`   | 16 Insights Hub – Access snapshot          | subjectId, subjectName, subjectType, right                                                                       | `users`, `assignments`                |
 

@@ -1,0 +1,492 @@
+# steward-min-version: 0.2.7
+name: "Git – Member and outside-collaborator review (GitHub, GitLab, Forgejo)"
+description: |
+  Periodic review of who belongs to an organisation or group on GitHub,
+  GitLab or Forgejo / Gitea – the connection decides which:
+
+  - GitHub: owners, members and outside collaborators of the organisation,
+    and who of them signs in without two-factor authentication
+    (`filter=2fa_disabled`, an owner's token). GitHub has no API for the last
+    activity of members (only the audit log of Enterprise Cloud).
+  - GitLab: the members of the group with their role (inherited ones
+    included) and expiry, the last activity (billable members of a top-level
+    group, Premium/Ultimate), 2FA (an administrator token) and the direct
+    members of the projects you list who are not members of the group.
+  - Forgejo / Gitea: the members of the organisation's teams ("Owners" are
+    the owners) with their last login, and the collaborators of the
+    repositories you list who are not members.
+
+  The owner of the review ticks who stays (active members with 2FA are
+  preselected; outside collaborators, inactive people and people without 2FA
+  are not), a second person confirms (four-eyes), and a manual step lists the
+  removals to make on the host – the token is read-only – which a second
+  person verifies. The removals are documented as access changes in the
+  rights the access reconciliation with the source "Git" reads (owner,
+  member, outside-collaborator; GitLab roles; Forgejo teams). What a token
+  cannot read shows as "unknown".
+
+  Recommended schedule: quarterly (`0 7 1 1,4,7,10 *`), one schedule per
+  host. Publishes `git.members` (one part per host) for the "Access
+  governance" dashboard. Needs a GitHub, GitLab or Forgejo platform
+  (docs/GIT-PLATFORMS.md).
+recommendedSchedule: "0 7 1 1,4,7,10 *"
+tags: [access-review, governance, git, github, gitlab, forgejo]
+connections:
+  - slot: git
+    kinds: [github, gitlab, forgejo]
+    description: A GitHub, GitLab or Forgejo / Gitea platform with a read-only token (GitHub read:org, GitLab read_api)
+inputs:
+  - name: org
+    label: Organisation (GitLab – group path)
+    type: string
+    default: acme
+    required: true
+  - name: projects
+    label: "GitLab projects / Forgejo repositories whose direct collaborators are reviewed too"
+    type: list
+    default: []
+  - name: inactiveDays
+    label: Inactive after (days)
+    type: number
+    default: 90
+steps:
+  - id: setup
+    type: set
+    name: Host and organisation
+    values:
+      host: "{{ conn.git.kind }}"
+      org: "{{ $trim(inputs.org) }}"
+      orgPath: "{{ $encodeUrlComponent($trim(inputs.org)) }}"
+  - id: known
+    type: check
+    name: The connection is a Git host
+    condition: "vars.host in ['github', 'gitlab', 'forgejo']"
+    message: "{{ 'Bind a GitHub, GitLab or Forgejo platform (not ' & vars.host & ')' }}"
+    failRun: true
+
+  # ---------- GitHub ----------
+  - id: isGithub
+    type: if
+    name: GitHub?
+    condition: "vars.host = 'github'"
+    then:
+      - id: ghOwners
+        type: http
+        name: Owners
+        connection: git
+        method: GET
+        path: "/orgs/{{ vars.orgPath }}/members"
+        query: { role: admin }
+        paginate: { mode: page, pageParam: page, sizeParam: per_page, pageSize: 100, firstPage: 1 }
+        saveAs: ghOwners
+      - id: ghMembers
+        type: http
+        name: Members
+        connection: git
+        method: GET
+        path: "/orgs/{{ vars.orgPath }}/members"
+        query: { role: member }
+        paginate: { mode: page, pageParam: page, sizeParam: per_page, pageSize: 100, firstPage: 1 }
+        saveAs: ghMembers
+      - id: ghOutside
+        type: http
+        name: Outside collaborators
+        connection: git
+        method: GET
+        path: "/orgs/{{ vars.orgPath }}/outside_collaborators"
+        paginate: { mode: page, pageParam: page, sizeParam: per_page, pageSize: 100, firstPage: 1 }
+        saveAs: ghOutside
+      - id: ghNo2fa
+        type: http
+        name: Members without two-factor authentication (owner token)
+        connection: git
+        method: GET
+        path: "/orgs/{{ vars.orgPath }}/members"
+        query: { filter: 2fa_disabled }
+        paginate: { mode: page, pageParam: page, sizeParam: per_page, pageSize: 100, firstPage: 1 }
+        onError: continue
+        saveAs: ghNo2fa
+      - id: ghNo2faOutside
+        type: http
+        name: Outside collaborators without two-factor authentication
+        connection: git
+        method: GET
+        path: "/orgs/{{ vars.orgPath }}/outside_collaborators"
+        query: { filter: 2fa_disabled }
+        paginate: { mode: page, pageParam: page, sizeParam: per_page, pageSize: 100, firstPage: 1 }
+        onError: continue
+        saveAs: ghNo2faOutside
+      - id: ghRows
+        type: set
+        name: One row per person
+        values:
+          rows: >-
+            {{ (
+              $org := vars.org;
+              $orgPath := vars.orgPath;
+              $known := $not($exists(vars.ghNo2fa.error)) and $not($exists(vars.ghNo2faOutside.error));
+              $off := $append(vars.ghNo2fa.body.login, vars.ghNo2faOutside.body.login);
+              $row := function($login, $role, $right) {{
+                "key": 'github|' & $lowercase($org) & '|' & $lowercase($login),
+                "host": 'GitHub',
+                "org": $org,
+                "login": $login,
+                "role": $role,
+                "rights": [$right],
+                "outside": $right = 'outside-collaborator',
+                "state": 'active',
+                "expires": '–',
+                "twoFactor": $known ? ($login in $off ? 'disabled' : 'enabled') : 'unknown',
+                "lastActivity": 'unknown',
+                "days": null,
+                "command": $right = 'outside-collaborator'
+                  ? 'gh api -X DELETE /orgs/' & $orgPath & '/outside_collaborators/' & $login
+                  : 'gh api -X DELETE /orgs/' & $orgPath & '/memberships/' & $login
+              }};
+              $append($append(
+                [vars.ghOwners.body.$row(login, 'owner', 'owner')],
+                [vars.ghMembers.body.$row(login, 'member', 'member')]),
+                [vars.ghOutside.body.$row(login, 'outside collaborator', 'outside-collaborator')])
+            ) }}
+          howTo: Remove them under *Organisation → People* (outside collaborators under *Outside collaborators*), or with the GitHub CLI as an owner
+
+  # ---------- GitLab ----------
+  - id: isGitlab
+    type: if
+    name: GitLab?
+    condition: "vars.host = 'gitlab'"
+    then:
+      - id: glMembers
+        type: http
+        name: Members of the group (inherited ones included)
+        connection: git
+        method: GET
+        path: "/groups/{{ vars.orgPath }}/members/all"
+        paginate: { mode: page, pageParam: page, sizeParam: per_page, pageSize: 100, firstPage: 1 }
+        saveAs: glMembers
+      - id: glBillable
+        type: http
+        name: Last activity (billable members, Premium/Ultimate)
+        connection: git
+        method: GET
+        path: "/groups/{{ vars.orgPath }}/billable_members"
+        paginate: { mode: page, pageParam: page, sizeParam: per_page, pageSize: 100, firstPage: 1 }
+        onError: continue
+        saveAs: glBillable
+      - id: glNo2fa
+        type: http
+        name: Users without two-factor authentication (administrator token)
+        connection: git
+        method: GET
+        path: /users
+        query: { two_factor: disabled }
+        paginate: { mode: page, pageParam: page, sizeParam: per_page, pageSize: 100, firstPage: 1, maxPages: 50 }
+        onError: continue
+        saveAs: glNo2fa
+      - id: glProjects
+        type: forEach
+        name: Direct members of the projects (2 in parallel)
+        items: inputs.projects
+        as: project
+        concurrency: 2
+        maxItems: 100
+        saveAs: glProjects
+        steps:
+          - id: glProjectMembers
+            type: http
+            name: Direct members of the project
+            connection: git
+            method: GET
+            path: "/projects/{{ $encodeUrlComponent($trim(vars.project)) }}/members"
+            paginate: { mode: page, pageParam: page, sizeParam: per_page, pageSize: 100, firstPage: 1 }
+            onError: continue
+            saveAs: direct
+          - id: glProjectRows
+            type: set
+            name: Members of the project
+            values:
+              projectMembers: "{{ ($p := $trim(vars.project); $exists(vars.direct.error) ? [] : [vars.direct.body.{ 'project': $p, 'm': $ }]) }}"
+      - id: glRows
+        type: set
+        name: One row per membership
+        values:
+          rows: >-
+            {{ (
+              $group := vars.org;
+              $levels := { "5": "minimal", "10": "guest", "15": "planner", "20": "reporter", "30": "developer", "40": "maintainer", "50": "owner" };
+              $activityKnown := $not($exists(vars.glBillable.error));
+              $tfKnown := $not($exists(vars.glNo2fa.error));
+              $off := [vars.glNo2fa.body.username];
+              $activity := $merge([vars.glBillable.body.{ username: last_activity_on }]);
+              $groupNames := [vars.glMembers.body.username];
+              $row := function($m, $where, $outside) {(
+                $last := $lookup($activity, $m.username);
+                $level := $lookup($levels, $string($m.access_level));
+                $name := $level ? $level : 'level-' & $m.access_level;
+                {
+                  "key": 'gitlab|' & $lowercase($where) & '|' & $lowercase($m.username),
+                  "host": 'GitLab',
+                  "org": $where,
+                  "login": $m.username,
+                  "role": $outside ? 'outside: ' & $name : $name,
+                  "rights": [$name],
+                  "outside": $outside,
+                  "state": $m.state,
+                  "expires": $m.expires_at ? $m.expires_at : '–',
+                  "twoFactor": $tfKnown ? ($m.username in $off ? 'disabled' : 'enabled') : 'unknown',
+                  "lastActivity": $last ? $last : ($activityKnown ? 'never' : 'unknown'),
+                  "days": $last ? $daysSince($last) : null,
+                  "command": 'curl -X DELETE -H "PRIVATE-TOKEN: $TOKEN" "$GITLAB/api/v4/' & ($outside ? 'projects/' : 'groups/') & $encodeUrlComponent($where) & '/members/' & $m.id & '"   # ' & $m.username
+                }
+              )};
+              $append(
+                [vars.glMembers.body.$row($, $group, false)],
+                [vars.glProjects.results.projectMembers[$not(m.username in $groupNames)].$row(m, project, true)]
+              )
+            ) }}
+          howTo: Remove them under *Manage → Members* of the group or project (inherited memberships where they are granted), or with the API as an owner
+
+  # ---------- Forgejo / Gitea ----------
+  - id: isForgejo
+    type: if
+    name: Forgejo / Gitea?
+    condition: "vars.host = 'forgejo'"
+    then:
+      - id: fjTeams
+        type: http
+        name: Teams of the organisation
+        connection: git
+        method: GET
+        path: "/orgs/{{ vars.orgPath }}/teams"
+        paginate: { mode: page, pageParam: page, sizeParam: limit, pageSize: 50, firstPage: 1 }
+        saveAs: fjTeams
+      - id: fjTeamMembers
+        type: forEach
+        name: Members of each team (3 in parallel)
+        items: vars.fjTeams.body
+        as: team
+        concurrency: 3
+        maxItems: 200
+        saveAs: fjTeamMembers
+        steps:
+          - id: fjMembersOfTeam
+            type: http
+            name: Team members
+            connection: git
+            method: GET
+            path: "/teams/{{ vars.team.id }}/members"
+            paginate: { mode: page, pageParam: page, sizeParam: limit, pageSize: 50, firstPage: 1 }
+            saveAs: tm
+          - id: fjTeamRows
+            type: set
+            name: Logins of the team
+            values:
+              inTeam: "{{ ($t := vars.team.name; [vars.tm.body.{ 'team': $t, 'login': login }]) }}"
+      - id: fjOrgMembers
+        type: http
+        name: Members with their last login
+        connection: git
+        method: GET
+        path: "/orgs/{{ vars.orgPath }}/members"
+        paginate: { mode: page, pageParam: page, sizeParam: limit, pageSize: 50, firstPage: 1 }
+        saveAs: fjOrgMembers
+      - id: fjCollaborators
+        type: forEach
+        name: Collaborators of the repositories (2 in parallel)
+        items: inputs.projects
+        as: repo
+        concurrency: 2
+        maxItems: 100
+        saveAs: fjCollaborators
+        steps:
+          - id: fjRepoCollaborators
+            type: http
+            name: Collaborators
+            connection: git
+            method: GET
+            path: "/repos/{{ $join([$split($trim(vars.repo), '/').$encodeUrlComponent($)], '/') }}/collaborators"
+            paginate: { mode: page, pageParam: page, sizeParam: limit, pageSize: 50, firstPage: 1 }
+            onError: continue
+            saveAs: rc
+          - id: fjCollaboratorRows
+            type: set
+            name: Collaborators of the repository
+            values:
+              repoCollaborators: "{{ ($r := $trim(vars.repo); $exists(vars.rc.error) ? [] : [vars.rc.body.{ 'repo': $r, 'login': login, 'lastLogin': last_login }]) }}"
+      - id: fjRows
+        type: set
+        name: One row per person
+        values:
+          rows: >-
+            {{ (
+              $org := vars.org;
+              $orgPath := vars.orgPath;
+              $inTeams := [vars.fjTeamMembers.results.inTeam];
+              $logins := $distinct($inTeams.login);
+              $lastOf := $merge([vars.fjOrgMembers.body.{ login: last_login }]);
+              $real := function($t) { $t and $substring($string($t), 0, 4) != '0001' ? $t : undefined };
+              $member := [$logins.(
+                $l := $;
+                $teams := [$inTeams[login = $l].team];
+                $owner := 'owners' in $teams.$lowercase($);
+                $last := $real($lookup($lastOf, $l));
+                {
+                  "key": 'forgejo|' & $lowercase($org) & '|' & $lowercase($l),
+                  "host": 'Forgejo',
+                  "org": $org,
+                  "login": $l,
+                  "role": $owner ? 'owner' : 'teams: ' & $join($teams, ', '),
+                  "rights": [$teams.($lowercase($) = 'owners' ? 'owner' : 'team:' & $)],
+                  "outside": false,
+                  "state": 'active',
+                  "expires": '–',
+                  "twoFactor": 'unknown',
+                  "lastActivity": $last ? $fromMillis($ts($last), '[Y0001]-[M01]-[D01]') : 'never',
+                  "days": $last ? $daysSince($last) : null,
+                  "command": 'curl -X DELETE -H "Authorization: token $TOKEN" "$FORGEJO/api/v1/orgs/' & $orgPath & '/members/' & $l & '"'
+                }
+              )];
+              $outsiders := [vars.fjCollaborators.results.repoCollaborators[$not(login in $logins)]];
+              $outside := [$distinct($outsiders.login).(
+                $l := $;
+                $mine := [$outsiders[login = $l]];
+                $last := $real($mine[0].lastLogin);
+                {
+                  "key": 'forgejo|' & $lowercase($org) & '|' & $lowercase($l),
+                  "host": 'Forgejo',
+                  "org": $org,
+                  "login": $l,
+                  "role": 'outside collaborator: ' & $join($mine.repo, ', '),
+                  "rights": [$mine.('collaborator:' & repo)],
+                  "outside": true,
+                  "state": 'active',
+                  "expires": '–',
+                  "twoFactor": 'unknown',
+                  "lastActivity": $last ? $fromMillis($ts($last), '[Y0001]-[M01]-[D01]') : 'never',
+                  "days": $last ? $daysSince($last) : null,
+                  "command": $join($mine.('curl -X DELETE -H "Authorization: token $TOKEN" "$FORGEJO/api/v1/repos/' & repo & '/collaborators/' & $l & '"'), '\n')
+                }
+              )];
+              $append($member, $outside)
+            ) }}
+          howTo: Remove members under *Organisation → Teams*, collaborators under *Repository → Settings → Collaborators*, or with the API as an owner
+
+  # ---------- the review ----------
+  - id: attest
+    type: userTask
+    name: Who stays?
+    when: "$count(vars.rows) > 0"
+    mode: select
+    title: "Member review of {{ vars.org }} ({{ vars.rows[0].host }}): tick the {{ $count(vars.rows) }} memberships that stay"
+    instructions: |
+      **Unticked** memberships are removed after a second person confirms.
+      Active members with two-factor authentication are preselected; outside collaborators, people inactive for more than {{ inputs.inactiveDays }} days, blocked users and people without 2FA are not.
+    items: vars.rows
+    itemKey: key
+    columns:
+      - { label: Where, value: org }
+      - { label: Login, value: login }
+      - { label: Role, value: role }
+      - { label: 2FA, value: twoFactor }
+      - { label: Last activity, value: lastActivity }
+      - { label: Expires, value: expires }
+    preselect: "$not(outside) and state = 'active' and twoFactor != 'disabled' and (days = null ? lastActivity = 'unknown' : days <= $inputs.inactiveDays)"
+    saveAs: attestation
+  - id: confirm
+    type: userTask
+    name: Confirm the removals (four-eyes)
+    when: "$count(vars.attestation.unselected) > 0"
+    mode: approve
+    title: "Remove {{ $count(vars.attestation.unselected) }} memberships on {{ vars.rows[0].host }}?"
+    instructions: |
+      Reviewed by {{ vars.attestation.decidedBy }}. A different person has to confirm.
+
+      {{ $join(vars.attestation.unselected.('- ' & login & ' – ' & role & ' in ' & org & ' (2FA ' & twoFactor & ', last activity ' & lastActivity & ')'), '\n') }}
+    assignees: [role:approver, role:admin]
+    fourEyes: true
+    onReject: continue
+    saveAs: removal
+  - id: remove
+    type: userTask
+    mode: manual
+    name: Remove them on the host
+    when: "vars.removal.approved = true"
+    title: "Remove {{ $count(vars.attestation.unselected) }} memberships on {{ vars.rows[0].host }}"
+    instructions: |
+      Steward's token is read-only. {{ vars.howTo }}:
+
+      ```sh
+      {{ $join(vars.attestation.unselected.command, '\n') }}
+      ```
+
+      A second person verifies before the access changes are documented.
+    checklist:
+      - Memberships removed
+      - Members page checked – they are gone
+    checklistAllRequired: true
+    fields:
+      - id: ticket
+        type: ticket
+        label: Change ticket
+    evidence: optional
+    verification:
+      required: true
+      onReject: return
+    saveAs: removed
+  - id: document
+    type: accessChange
+    name: Document the removals
+    when: "vars.removal.approved = true and vars.removed.completed = true"
+    connection: git
+    kind: revoke
+    items: vars.attestation.unselected
+    subjectId: login
+    subjectName: login
+    rights: rights
+    reason: "Member review of {{ vars.org }}: membership not attested"
+    requestRef: "{{ vars.removed.fields.ticket ? vars.removed.fields.ticket : '' }}"
+    approvedBy: "{{ vars.removal.decidedBy }}"
+  - id: publish
+    type: publish
+    name: Publish the members
+    dataset: git.members
+    title: Git members
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Host, value: host }
+      - { label: Organisation, value: org }
+      - { label: Login, value: login }
+      - { label: Role, value: role }
+      - { label: 2FA, value: twoFactor }
+      - { label: Last activity, value: lastActivity }
+      - label: Review
+        value: >-
+          key in $vars.attestation.selectedKeys ? 'kept'
+            : ($vars.removal.approved = true ? ($vars.removed.completed = true ? 'removed' : 'to remove')
+            : ($exists($vars.attestation) ? 'removal rejected' : 'not reviewed'))
+    status: >-
+      twoFactor = 'disabled' ? 'critical'
+        : (outside or state != 'active' or (days != null and days > $inputs.inactiveDays) or lastActivity = 'never' ? 'warning' : 'good')
+    statusText: >-
+      twoFactor = 'disabled' ? 'no two-factor authentication'
+        : (outside ? 'outside collaborator'
+        : (state != 'active' ? state
+        : (days != null and days > $inputs.inactiveDays ? 'inactive for ' & days & ' days' : (lastActivity = 'never' ? 'never active' : ''))))
+    metrics:
+      members: "$count(vars.rows)"
+      owners: "$count(vars.rows[$not(outside) and 'owner' in rights])"
+      outside: "$count(vars.rows[outside])"
+      no2fa: "$count(vars.rows[twoFactor = 'disabled'])"
+      inactive: "$count(vars.rows[$not(outside) and ((days != null and days > $inputs.inactiveDays) or lastActivity = 'never')])"
+      removed: "vars.removal.approved = true and vars.removed.completed = true ? $count(vars.attestation.unselected) : 0"
+    staleAfterMinutes: 264960
+  - id: summary
+    type: report
+    name: Summary
+    title: "Member review of {{ vars.org }} ({{ vars.rows[0].host }})"
+    text: |
+      - Memberships: **{{ $count(vars.rows) }}**, of them outside collaborators: **{{ $count(vars.rows[outside]) }}**
+      - Without two-factor authentication: **{{ $count(vars.rows[twoFactor = 'disabled']) }}**{{ vars.rows[0].twoFactor = 'unknown' ? ' (not readable with this token or host)' : '' }}
+      - Inactive for more than {{ inputs.inactiveDays }} days: **{{ $count(vars.rows[$not(outside) and ((days != null and days > $inputs.inactiveDays) or lastActivity = 'never')]) }}**{{ vars.rows[0].lastActivity = 'unknown' ? ' (activity not readable with this host or plan)' : '' }}
+      - Kept: **{{ $count(vars.attestation.selected) }}**, removed: **{{ vars.removal.approved = true and vars.removed.completed = true ? $count(vars.attestation.unselected) : 0 }}**

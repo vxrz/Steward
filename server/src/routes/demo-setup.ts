@@ -9,9 +9,11 @@ import { me } from '../auth/access.js';
 /** Loading the demo data (mounted under /api). */
 export async function demoSetupRoutes(app: FastifyInstance): Promise<void> {
   // ---------- demo ----------
-  app.post('/demo/setup', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async () => {
+  app.post('/demo/setup', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
     if (!config.demo) throw new HttpError(404, 'Demo mode is not enabled (start with npm run demo)');
     if (!isAdmin(me())) throw new HttpError(403, 'Only administrators can load demo data');
-    return setupDemo();
+    // { applications: false } leaves out the sample applications (tests that need an empty catalogue)
+    const body = (req.body ?? {}) as { applications?: unknown };
+    return setupDemo({ applications: body.applications !== false });
   });
 }

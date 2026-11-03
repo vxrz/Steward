@@ -1,0 +1,107 @@
+# steward-min-version: 0.2.8
+name: "AWS – Costs per application"
+description: |
+  The AWS costs of every application by its tag (Cost Explorer, per month):
+  the last full month, the month before, the change, the current month so
+  far and the average of the last months. It reads what Steward already knows
+  about each account (application components of type "Cloud account"; the
+  costs are read once a day, at most six months) – no call to AWS from the
+  process, so Cost Explorer is not charged again. A check warns when an
+  application costs more than the growth you allow. Read-only.
+
+  Recommended schedule: monthly, on the 3rd (`0 7 3 * *` – Cost Explorer
+  needs a day or two to settle the month). Publishes `aws.costs` (one row per
+  application and account; metrics lastMonth, previousMonth, currentMonth,
+  growing) for the "Cloud costs and keys" dashboard. Costs without the tag are
+  not shown (Cost Explorer: tag the resources and activate the tag as a cost
+  allocation tag).
+recommendedSchedule: "0 7 3 * *"
+tags: [aws, costs, catalogue]
+inputs:
+  - name: apps
+    label: Applications (empty = all)
+    type: applications
+  - name: maxGrowthPercent
+    label: Warn when the last month grew by more than (%)
+    type: number
+    default: 20
+steps:
+  - id: rows
+    type: set
+    name: One row per application and account
+    values:
+      thisMonth: "{{ $substring($now(), 0, 7) }}"
+      rows: >-
+        {{ [inputs.apps.(
+          $app := name;
+          $cur := $$.vars.thisMonth;
+          components[type = 'cloud-account' and $exists(readout.readAt)].(
+            $months := [readout.costs.months[month < $cur]]^(month);
+            $current := readout.costs.months[month = $cur][0];
+            $last := $months[-1];
+            $prev := $months[-2];
+            $change := $last and $prev and $prev.amount > 0 ? $round(($last.amount - $prev.amount) / $prev.amount * 100, 1) : null;
+            {
+              "key": $app & '/' & name,
+              "application": $app,
+              "component": name,
+              "account": readout.account ? readout.account : '–',
+              "currency": $last.currency ? $last.currency : ($current.currency ? $current.currency : 'USD'),
+              "lastMonth": $last ? $last.month : '–',
+              "last": $last ? $round($last.amount, 2) : null,
+              "previous": $prev ? $round($prev.amount, 2) : null,
+              "change": $change,
+              "current": $current ? $round($current.amount, 2) : null,
+              "average": $count($months) ? $round($average($months.amount), 2) : null,
+              "error": readout.costs.error ? readout.costs.error : ''
+            }
+          )
+        )] }}
+      growing: "{{ [vars.rows[change != null and change > $inputs.maxGrowthPercent]] }}"
+  - id: publish
+    type: publish
+    name: Publish the costs
+    dataset: aws.costs
+    title: AWS costs per application
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Application, value: application }
+      - { label: Account, value: account }
+      - { label: Month, value: lastMonth }
+      - { label: Costs, value: "last != null ? last : '–'" }
+      - { label: Month before, value: "previous != null ? previous : '–'" }
+      - { label: Change (%), value: "change != null ? change : '–'" }
+      - { label: This month so far, value: "current != null ? current : '–'" }
+      - { label: Average, value: "average != null ? average : '–'" }
+      - { label: Currency, value: currency }
+    status: "error ? 'unknown' : (change != null and change > $inputs.maxGrowthPercent ? 'warning' : 'good')"
+    statusText: "error ? error : (change != null and change > $inputs.maxGrowthPercent ? 'grew by ' & change & ' %' : '')"
+    metrics:
+      applications: "$count($distinct(vars.rows.application))"
+      lastMonth: "$round($sum(vars.rows.last), 2)"
+      previousMonth: "$round($sum(vars.rows.previous), 2)"
+      currentMonth: "$round($sum(vars.rows.current), 2)"
+      growing: "$count(vars.growing)"
+    staleAfterMinutes: 89280
+  - id: growth
+    type: check
+    name: Costs grow within the limit
+    severity: warning
+    condition: "$count(vars.growing) = 0"
+    message: "{{ $count(vars.growing) = 0 ? 'No application grew by more than ' & inputs.maxGrowthPercent & ' %' : $join(vars.growing.(application & ': ' & previous & ' → ' & last & ' ' & currency & ' (+' & change & ' %)'), '; ') }}"
+    headline: "{{ $count(vars.growing) }} applications cost more than {{ inputs.maxGrowthPercent }} % more"
+    value: "$count(vars.growing)"
+    items: "vars.growing.(application & ' +' & change & ' %')"
+  - id: summary
+    type: report
+    name: Monthly report
+    title: "AWS costs per application – {{ vars.rows[0].lastMonth }}"
+    text: |
+      - Applications: **{{ $count($distinct(vars.rows.application)) }}**
+      - Last month: **{{ $round($sum(vars.rows.last), 2) }}** (month before: {{ $round($sum(vars.rows.previous), 2) }}), this month so far: {{ $round($sum(vars.rows.current), 2) }}
+    rows: vars.rows
+    columns:
+      - { label: Application, value: application }
+      - { label: Costs, value: "last != null ? last : '–'" }
+      - { label: Change (%), value: "change != null ? change : '–'" }

@@ -36,7 +36,8 @@ let app: any;
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
-  await s.api('POST', '/demo/setup', {});
+  // without the sample applications: the end-of-life data and the products counted are this test's only
+  await s.api('POST', '/demo/setup', { applications: false });
   [dana, olivia, vera] = await Promise.all(['dana', 'olivia', 'vera'].map((u) => s.as(u, PW)));
   app = await dana('POST', '/applications', { name: 'Orders (eol)', owners: ['user:olivia'] });
   await olivia('POST', `/applications/${app.id}/components`, {

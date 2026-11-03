@@ -7,9 +7,9 @@ The two work together in four directions, plus a metrics mode that gives Steward
 | #   | Direction                                       | How                                                                                                                                                                        |
 | --- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | **Gatus monitors Steward**                      | Gatus endpoints for `/api/health` and `/api/ready`                                                                                                                         |
-| 2   | **Steward shows Gatus status** (read-only)      | Connector type _Gatus_, process _Gatus – uptime overview_, dashboard _Uptime_                                                                                              |
-| 3   | **Steward reports its own checks to Gatus**     | Gatus _external endpoint_, process _Gatus – report Steward check to Gatus_                                                                                                 |
-| 4   | **A Gatus alert starts a Steward runbook**      | Gatus _custom alerting provider_ → Steward **webhook trigger** → _Diagnose endpoint outage_                                                                                |
+| 2   | **Steward shows Gatus status** (read-only)      | Connector type _Gatus_, process _Gatus – Uptime overview_, dashboard _Uptime_                                                                                              |
+| 3   | **Steward reports its own checks to Gatus**     | Gatus _external endpoint_, process _Gatus – Report a Steward check to Gatus_                                                                                               |
+| 4   | **A Gatus alert starts a Steward runbook**      | Gatus _custom alerting provider_ → Steward **webhook trigger** → _Gatus – Diagnose an endpoint outage_                                                                     |
 | 5   | **Steward keeps Gatus' history** (metrics mode) | Steward scrapes Gatus' Prometheus endpoint `/metrics`: uptime, outages, response times and certificate expiry for monitors, scheduled reports and the credentials register |
 
 Everything below was written against the Gatus README and source (`api/*.go`, `alerting/provider/custom/custom.go`, `config/key/key.go`) on `master`, latest release **v5.37.0**, checked on 2026-10-22. Gatus has no formally versioned API, so check a release's README if you run an older version.
@@ -103,7 +103,7 @@ Both can be used at the same time. With metrics mode on, a monitor's _Gatus endp
 
 ### Process and dashboard
 
-1. _Processes → From template → Gatus – uptime overview_ (`examples/processes/71-gatus-uptime-overview.yaml`).
+1. _Processes → From template → Gatus – Uptime overview_ (`examples/processes/71-gatus-uptime-overview.yaml`).
 2. _Dashboards → From template → Uptime_ (`examples/dashboards/40-uptime.yaml`).
 3. _Schedules → New schedule_: the process, cron `*/10 * * * *` (every 10 minutes; 5–15 minutes is sensible), the Gatus platform for the `gatus` connection. Use a service account as the owner.
 
@@ -120,7 +120,7 @@ and publishes the dataset **`gatus-uptime`**: row status `critical` when down, `
 
 ### Without a Gatus login: the overview from `/metrics`
 
-With Gatus' API behind OIDC (`security.oidc`), the overview above cannot read `/api/v1/endpoints/statuses`. _Gatus – uptime overview (from /metrics)_ (`examples/processes/74-gatus-uptime-overview-from-metrics.yaml`) reads only what Gatus serves without a login, so the platform's authentication can be `none`:
+With Gatus' API behind OIDC (`security.oidc`), the overview above cannot read `/api/v1/endpoints/statuses`. _Gatus – Uptime overview (from /metrics)_ (`examples/processes/74-gatus-uptime-overview-from-metrics.yaml`) reads only what Gatus serves without a login, so the platform's authentication can be `none`:
 
 | Column                     | From                                                                                                                                                                                     |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -148,14 +148,14 @@ external-endpoints:
 ```
 
 1. Generate a long random token (e.g. `openssl rand -base64 32`), give it to Gatus as `STEWARD_EXTERNAL_TOKEN` and store it on the Gatus platform in Steward as the credential **`externalToken`**.
-2. _From template → Gatus – report Steward check to Gatus_ (`72-gatus-report-check.yaml`). Inputs: the endpoint key (`steward_steward-checks` for the snippet above), the path to check on the `target` platform, the latency limit and the name of the token credential (one credential per external endpoint if you push to several).
+2. _From template → Gatus – Report a Steward check to Gatus_ (`72-gatus-report-check.yaml`). Inputs: the endpoint key (`steward_steward-checks` for the snippet above), the path to check on the `target` platform, the latency limit and the name of the token credential (one credential per external endpoint if you push to several).
 3. Schedule it more often than the heartbeat interval.
 
 The first two steps are the check; replace them with any check of your own. Only `success`, `error` and `duration` are sent: `POST /api/v1/endpoints/<key>/external?success=true|false&error=…&duration=<ms>ms` with `Authorization: Bearer <token>`. That token belongs to the external endpoint, not to the Gatus login; the step sets the header itself. It is read with `$secret()` and redacted from the protocol. Dry runs record the POST without sending it.
 
 ## 4. Gatus alerts start a Steward runbook
 
-Gatus' **custom alerting provider** can call any URL. Point it at a Steward **webhook trigger**, and every alert starts a process: here the runbook _Diagnose endpoint outage (from Gatus alert)_ (`73-gatus-diagnose-outage.yaml`). It
+Gatus' **custom alerting provider** can call any URL. Point it at a Steward **webhook trigger**, and every alert starts a process: here the runbook _Gatus – Diagnose an endpoint outage (from an alert)_ (`73-gatus-diagnose-outage.yaml`). It
 
 1. reads the recent results of the endpoint from Gatus,
 2. probes the endpoint URL once more, but **only if the URL lies below the base URL of the `probe` platform**,
@@ -170,7 +170,7 @@ A `RESOLVED` alert is only logged.
 1. Import the runbook from the template.
 2. Add a platform for the probe: _Generic REST API_, auth `none`, base URL covering the applications Gatus watches (e.g. `https://apps.corp.example`). The runbook never sends credentials to an address taken from the alert; URLs outside the probe platform are not called.
 3. _Triggers → New webhook trigger_:
-   - Process _Diagnose endpoint outage_, connections `gatus` and `probe`.
+   - Process _Gatus – Diagnose an endpoint outage_, connections `gatus` and `probe`.
    - _Map a Gatus alert_ fills the input mapping below.
    - Ignore identical payloads for **300 s** (Gatus re-sends an alert as a reminder when `minimum-reminder-interval` is set) and keep _Skip while the previous run is still running or waiting_ on.
    - Allowed source addresses: the address of the Gatus host (see _Security_).

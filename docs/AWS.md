@@ -129,6 +129,17 @@ Processes see the readout as `readout` of the component (input type _Application
 
 The tag is the link: give every resource of an application the same tag (AWS _cost allocation tag_ – activate it in the Billing console so Cost Explorer can group by it; costs from before the activation are not grouped). Tag policies of AWS Organizations can require it. The tagging API lists resources of most services; a few (some global ones) only appear in `us-east-1` – add it to `regions` if you use them.
 
+## Templates
+
+The example processes read what Steward read for the cloud accounts of the applications (input type _Applications_, `components[type = 'cloud-account'].readout`) – no call to AWS from the process, so Cost Explorer is not charged again. Process http steps cannot sign requests for other AWS services yet; once they can, a template can read IAM directly as well.
+
+| Template                                                                                            | What it does                                                                                                                        | Schedule      | Dataset        |
+| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------- | -------------- |
+| [63 AWS – IAM access key age and unused credentials](../examples/processes/63-aws-iam-key-age.yaml) | Active access keys older than N days (rotate), active keys never or not recently used, inactive keys left, unused console passwords | daily         | `aws.iam-keys` |
+| [64 AWS – Costs per application](../examples/processes/64-aws-costs-per-application.yaml)           | Last full month, the month before, the change, this month so far and the average per application; a check above a growth you allow  | monthly (3rd) | `aws.costs`    |
+
+The dashboard [Cloud costs and keys](../examples/dashboards/63-cloud-costs-and-keys.yaml) shows both. Only IAM users with the application tag are in a readout; the access reconciliation with the source _AWS_ lists every IAM user of the account.
+
 ## Demo
 
-The demo has _AWS (demo)_, an account `123456789012` with resources tagged `application=shop` and `application=crm` in `eu-central-1` and `eu-west-1`, six months of costs and three IAM users. The mock checks the signature of every request.
+The demo has _AWS (demo)_, an account `123456789012` with resources tagged `application=shop` and `application=crm` in `eu-central-1` and `eu-west-1`, six months of costs and three IAM users. The mock checks the signature of every request. The sample applications _Webshop (demo)_ and _CRM (demo)_ have the cloud accounts `shop` and `crm`, so the templates above have data, and the access check _Platform access (demo) – AWS IAM users_ reads the IAM users.

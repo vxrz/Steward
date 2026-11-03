@@ -6,6 +6,8 @@ description: |
   `found`, `groupId`, `memberIds`, `memberCount`. Read-only.
 
   Import this template together with the processes that call it.
+
+  Recommended schedule: none – called by other processes.
 tags: [building-block, subprocess, groups, insights-hub]
 connections:
   - slot: hub

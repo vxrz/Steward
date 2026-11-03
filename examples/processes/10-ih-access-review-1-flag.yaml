@@ -8,7 +8,10 @@ description: |
   Note: the last-login attribute `lastLogonTime` is returned by the Insights Hub
   user API but is not part of the official spec. Verify it with a dry run on
   your tenant and adjust the "Determine inactive users" step if needed.
-tags: [housekeeping, users, insights-hub]
+
+  Recommended schedule: quarterly (`0 7 1 1,4,7,10 *`), followed by "Access
+  review 2" two to four weeks later.
+tags: [access-review, governance, users, insights-hub]
 connections:
   - slot: hub
     kind: insights-hub

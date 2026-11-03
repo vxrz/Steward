@@ -67,6 +67,8 @@ Access reviews (_Compliance → Access reviews_) take the source **Snowflake**:
 
 Rights read like `SELECT TABLE SHOP.SALES.ORDERS`, `USAGE SCHEMA SHOP.SALES`, `OWNERSHIP DATABASE SHOP`. **Technical users** (`TYPE = SERVICE` or `LEGACY_SERVICE`) are marked _technical_, disabled users _disabled_. Each run is a snapshot; the next run shows what was granted or removed, as for every other source.
 
+Where the account's `USERS` view has them, Steward also reads `EMAIL`, `LAST_SUCCESS_LOGIN`, `HAS_PASSWORD`, `HAS_MFA` and `EXT_AUTHN_DUO` (0.3.1; without them – an older account – the four columns of before). The **e-mail address** is kept as an alias of the user when it differs from the login name, so a **person review** finds users whose names are employee ids (`Z003ABCD`) by their e-mail address. Person reviews show the **last login** (and "password without MFA") next to each right as a hint for the reviewer; the hint is read live and never part of a snapshot, so it does not create new snapshots every day.
+
 Not counted: future grants (they apply to objects created later and show up once those exist), database roles, and grants to shares.
 
 ## Monitor check
@@ -100,6 +102,22 @@ checks:
 
 `failAs` (`down` or `degraded`, default `down`) is the status when the limit is not met; a table that cannot be found is _unknown_.
 
+## Templates
+
+Example processes that call the SQL API themselves (`POST /api/v2/statements` on the Snowflake platform, statements with bind parameters, read-only):
+
+| Template                                                                                              | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Schedule  | Datasets                                                  |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------- |
+| [61 Snowflake – Project access review](../examples/processes/61-snowflake-project-access-review.yaml) | `SHOW GRANTS ON DATABASE` per database → the roles with a privilege → `SHOW GRANTS OF ROLE` per role, nested roles followed up to four levels to the users, with the path (`PRD_X_READONLY ← PBI_REPORTING ← Z006MNOP`); users from `ACCOUNT_USAGE.USERS`, technical users (TYPE or a name pattern) marked; the owner attests, a second person confirms, a manual step lists the `REVOKE ROLE … FROM USER …;` statements (maker–checker), access changes documented | quarterly | `snowflake.project-access`                                |
+| [62 Snowflake – Account hygiene and usage](../examples/processes/62-snowflake-account-hygiene.yaml)   | People inactive for N days, password sign-ins without MFA, technical users with a password, ACCOUNTADMIN and SECURITYADMIN holders, disabled users that still hold roles, credits per warehouse over 7 and 30 days, failed tasks                                                                                                                                                                                                                                    | daily     | `snowflake.users`, `snowflake.credits`, `snowflake.tasks` |
+
+The dashboard [Snowflake account](../examples/dashboards/61-snowflake-account.yaml) shows both, the monitor [Snowflake account](../examples/monitors/50-snowflake-account.yaml) watches a table, the tasks of a database and the credits of a warehouse live.
+
+- **Names from inputs** (databases, role prefixes) are checked against `^[A-Za-z0-9_$."-]+$` and always sent as quoted identifiers: unquoted names in upper case as Snowflake stores them, `"Quoted"` names as they are, `"` doubled. Role names from Snowflake's own answers are quoted as they come.
+- **Rights**: `SHOW GRANTS OF ROLE` shows the grantees to a role with MANAGE GRANTS (e.g. SECURITYADMIN) or the ownership of the role – grant it to Steward's role only if your policy allows; otherwise the review names the roles it could not read. `ACCOUNT_USAGE` needs IMPORTED PRIVILEGES and a warehouse.
+- Roles of account administration (`ACCOUNTADMIN`, `SECURITYADMIN`, `SYSADMIN`, `USERADMIN`, `ORGADMIN`; an input) are named, not followed – they reach every database and are reviewed on their own (62).
+- The process reads the first result partition of the SQL API (some thousand rows), enough for the grants of a project.
+
 ## Demo
 
-The demo has _Snowflake (demo)_, account `DEMO12345` with the databases `SHOP` and `CRM`, a failing task, two warehouses and four users (one technical, one disabled). Demo setup creates a key pair; the mock verifies every JWT with its public key.
+The demo has _Snowflake (demo)_, account `DEMO12345` with the databases `SHOP`, `CRM` and the project database `PRD_SDC_OPQ_PBI_DEV` (roles `…_OWNER`, `…_READONLY`, `…_READWRITE` and the nested `PBI_REPORTING`), a failing task, four warehouses and twelve users: four with short names, seven with employee ids or technical names (one disabled, one with a password and no MFA, one with no login for 200 days, a technical user with a password) and an emergency administrator. Demo setup creates a key pair; the mock verifies every JWT with its public key. It answers `SHOW GRANTS ON DATABASE`, `SHOW GRANTS OF ROLE` and SELECTs from the `ACCOUNT_USAGE` views the templates use (`server/src/mock/mockSnowflake.ts`). The demo also has the access check _Platform access (demo) – Snowflake roles_ and the sample application _Webshop (demo)_ with the database `SHOP`.

@@ -1,0 +1,43 @@
+# A Snowflake account (#115): the newest load of a table, the tasks of a database and the credits of a warehouse.
+# "platform: Snowflake" finds your Snowflake platform when it is the only one (or the only one whose name starts
+# with "Snowflake"); on import you choose it otherwise. Replace the table, database and warehouse with your own.
+# See docs/SNOWFLAKE.md.
+kind: monitor
+key: snowflake-account
+name: Snowflake account
+description: Freshness of a table, failing tasks and the credits of a warehouse in Snowflake.
+tags: [snowflake, data]
+intervalSeconds: 900
+aggregate: { rule: worst }
+checks:
+  - id: orders-fresh
+    name: Orders loaded (SHOP.SALES.ORDERS)
+    type: snowflake
+    platform: Snowflake
+    mode: freshness
+    object: SHOP.SALES.ORDERS
+    maxAgeMinutes: 90
+    x: 0
+    y: 0
+  - id: shop-tasks
+    name: Tasks of SHOP
+    type: snowflake
+    platform: Snowflake
+    mode: tasks
+    object: SHOP
+    withinHours: 24
+    failAs: degraded
+    x: 260
+    y: 0
+  - id: transform-credits
+    name: TRANSFORM_WH credits (24 h)
+    type: snowflake
+    platform: Snowflake
+    mode: credits
+    object: TRANSFORM_WH
+    withinHours: 24
+    maxCredits: 20
+    failAs: degraded
+    critical: false
+    x: 520
+    y: 0

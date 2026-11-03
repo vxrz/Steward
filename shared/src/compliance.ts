@@ -117,6 +117,10 @@ export interface AccessSubject {
   type?: string;
   /** Sorted, unique */
   rights: string[];
+  /** Other names of the subject, e.g. its e-mail address (Snowflake); person reviews match them like id and name */
+  aliases?: string[];
+  /** A hint for reviewers read with the rights, e.g. "last login 2026-10-30 (4 days ago)"; never part of a snapshot */
+  activity?: string;
 }
 
 export interface AccessCheck {
@@ -380,6 +384,8 @@ export interface PersonReviewSource {
   error: string | null;
   /** Subjects of the source that matched the person */
   matched: number;
+  /** Hints for the reviewer per matched subject id, e.g. the last login (sources that know it: Snowflake) */
+  activity?: Record<string, string>;
 }
 
 export interface PersonReviewItem {
@@ -388,6 +394,8 @@ export interface PersonReviewItem {
   subjectId: string;
   subjectName: string;
   subjectType: string | null;
+  /** The source's hint about the subject when the review started, e.g. "last login 2026-10-30 (4 days ago)" */
+  subjectActivity?: string;
   right: string;
   decision: PersonReviewDecision | null;
   comment: string;

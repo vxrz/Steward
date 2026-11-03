@@ -1,4 +1,5 @@
-name: "Dependency-Track – vulnerabilities per project"
+# steward-min-version: 0.2.9
+name: "Dependency-Track – Vulnerabilities per project"
 description: |
   Reads the projects of a Dependency-Track portfolio (read-only API key, see
   docs/DEPENDENCY-TRACK.md): the open findings by severity – not the suppressed
@@ -109,6 +110,7 @@ steps:
       critical: "$sum(vars.rows.critical)"
       high: "$sum(vars.rows.high)"
       policyFail: "$sum(vars.rows.policyFail)"
+    staleAfterMinutes: 720
   - id: noCritical
     type: check
     name: No critical findings or failing policies

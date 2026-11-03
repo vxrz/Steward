@@ -305,6 +305,13 @@ steward_monitor_evaluations_total{type="heartbeat",result="up"} 1234
   for: 2m
 ```
 
+### Prometheus templates
+
+- The monitor example [Error budget burn rate](../examples/monitors/51-error-budget-burn-rate.yaml) alerts on the burn rate of a service's error budget with the check type `prometheus`: down at 14.4× over one hour, degraded at 6× over six hours (the multi-window rule of the Google SRE workbook; the objective is the divisor of the query).
+- The process [Prometheus – SLO and error-budget report](../examples/processes/65-prometheus-slo-report.yaml) (weekly) reads the share of good requests per service over the objective window (28 days by default) from your PromQL (`$window` is replaced), the error budget left and the burn rate over 1 h and 6 h, and publishes `prom.slo` for the dashboard [Service levels](../examples/dashboards/65-service-levels.yaml).
+
+The other monitor examples cover the check types `snowflake` (50), `kubernetes` (52), `git` (53), `kafka` (54), `mqtt` (55), `checkmk` (56) and `tcp` (57, a template); see [examples/README.md](../examples/README.md#monitors).
+
 ### Dashboards
 
 Steward publishes the dataset **`monitors.status`** (one row per monitor; visible to users who may view every monitor) and **`monitor.<key>`** (one row per check; causes in other monitors appear as "another monitor") at most once a minute, with the metrics `up`, `down`, `degraded`, `unknown`, `monitors` / `checks`, `uptime24h`. Use them in table, status and KPI widgets like any other dataset.

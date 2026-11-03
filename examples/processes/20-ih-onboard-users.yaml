@@ -4,6 +4,8 @@ description: |
   combination of roles/user groups ("bundle"). Paste a CSV with the columns
   email, givenName, familyName and optionally bundle. Bundles are defined
   under constants and can be edited in the process editor.
+
+  Recommended schedule: on demand, when new colleagues start.
 tags: [onboarding, users, insights-hub]
 connections:
   - slot: hub

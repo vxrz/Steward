@@ -1,4 +1,4 @@
-name: "Gatus – report Steward check to Gatus"
+name: "Gatus – Report a Steward check to Gatus"
 description: |
   Pushes the result of a Steward check into a Gatus *external endpoint*, so
   Gatus shows it next to the endpoints it monitors itself and alerts on it
@@ -15,9 +15,10 @@ description: |
   `/ _ . , # + &` replaced by `-`. Store the token on the Gatus platform as
   the credential `externalToken` (or name another credential below).
 
-  Writes: one POST to Gatus per run (skipped in dry runs). Suggested
-  schedule: as often as the heartbeat interval in Gatus expects, e.g. every
-  5–15 minutes.
+  Writes: one POST to Gatus per run (skipped in dry runs).
+
+  Recommended schedule: as often as the heartbeat interval in Gatus expects,
+  e.g. every 5–15 minutes (`*/5 * * * *`).
 tags: [status, health, gatus, external-endpoint]
 connections:
   - slot: target

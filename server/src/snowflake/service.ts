@@ -165,18 +165,56 @@ export async function testSnowflake(platform: Platform, secrets: Record<string, 
 const TECHNICAL = new Set(['SERVICE', 'LEGACY_SERVICE']);
 
 /**
+ * The users of the account – with the e-mail address, the last successful login and how they sign in, where the
+ * account's USERS view has these columns (HAS_MFA is newer than the others); otherwise the four columns read since 0.3.0.
+ */
+async function readUsers(c: SnowflakeClient): Promise<Row[]> {
+  try {
+    return await c.query(
+      `/* steward:users */ SELECT NAME, LOGIN_NAME, TYPE, DISABLED, EMAIL, TO_VARCHAR(LAST_SUCCESS_LOGIN, ${ISO}) AS LAST_SUCCESS_LOGIN, HAS_PASSWORD, HAS_MFA, EXT_AUTHN_DUO
+       FROM ${AU}.USERS WHERE DELETED_ON IS NULL`,
+    );
+  } catch (e) {
+    logger.debug({ err: (e as Error).message }, 'Snowflake USERS without EMAIL/LAST_SUCCESS_LOGIN/HAS_MFA – reading the basic columns');
+    return c.query(`/* steward:users */ SELECT NAME, LOGIN_NAME, TYPE, DISABLED FROM ${AU}.USERS WHERE DELETED_ON IS NULL`);
+  }
+}
+
+/** The e-mail address as another name of the user, so person reviews find people by it (#118). */
+function aliasesOf(u: Row): Pick<AccessSubject, 'aliases'> {
+  const mail = (u.EMAIL ?? '').trim();
+  return mail && mail.toLowerCase() !== (u.LOGIN_NAME ?? '').toLowerCase() && mail.toLowerCase() !== (u.NAME ?? '').toLowerCase()
+    ? { aliases: [mail.slice(0, 320)] }
+    : {};
+}
+
+/** A hint for reviewers: the last successful login and a password without MFA – read live, never part of a snapshot. */
+function activityOf(u: Row): Pick<AccessSubject, 'activity'> {
+  if (!('LAST_SUCCESS_LOGIN' in u)) return {};
+  const at = u.LAST_SUCCESS_LOGIN ? Date.parse(u.LAST_SUCCESS_LOGIN) : NaN;
+  const parts = [
+    Number.isNaN(at)
+      ? 'never signed in'
+      : `last login ${new Date(at).toISOString().slice(0, 10)} (${Math.max(0, Math.floor((Date.now() - at) / 86_400_000))} days ago)`,
+  ];
+  if (u.HAS_PASSWORD === 'true' && u.HAS_MFA !== 'true' && u.EXT_AUTHN_DUO !== 'true') parts.push('password without MFA');
+  return { activity: parts.join(', ') };
+}
+
+/**
  * Who has what, for an access review (source "snowflake"):
  *   scope ""                      every user with the roles granted to them directly (rights "role:NAME")
  *   scope DB, DB.SCHEMA, DB.S.T   every user who reaches objects in the scope, through their roles and the roles
  *                                 granted to those (rights "PRIVILEGE OBJECT_TYPE NAME", e.g. "SELECT TABLE SHOP.SALES.ORDERS")
- * Technical users (TYPE SERVICE or LEGACY_SERVICE) get the type "technical", disabled users "disabled".
+ * Technical users (TYPE SERVICE or LEGACY_SERVICE) get the type "technical", disabled users "disabled". The e-mail
+ * address is an alias (person reviews match it); `activity` tells reviewers about the last login (not snapshotted).
  */
 export async function snowflakeAccess(p: Platform, secrets: Record<string, string>, scope: string): Promise<AccessSubject[]> {
   const s = scope.trim();
   if (s && !SNOWFLAKE_SCOPE_RE.test(s))
     throw new HttpError(400, 'The scope is empty (roles of users), DATABASE, DATABASE.SCHEMA or DATABASE.SCHEMA.TABLE', 'SNOWFLAKE_SCOPE');
   const c = snowflakeClient(p, secrets);
-  const users = await c.query(`/* steward:users */ SELECT NAME, LOGIN_NAME, TYPE, DISABLED FROM ${AU}.USERS WHERE DELETED_ON IS NULL`);
+  const users = await readUsers(c);
   const userRoles = await c.query(`/* steward:user-roles */ SELECT GRANTEE_NAME, ROLE FROM ${AU}.GRANTS_TO_USERS WHERE DELETED_ON IS NULL`);
   const typeOf = (u: Row) => (u.DISABLED === 'true' ? 'disabled' : TECHNICAL.has(String(u.TYPE ?? '').toUpperCase()) ? 'technical' : 'user');
   const rolesOf = new Map<string, Set<string>>();
@@ -185,14 +223,15 @@ export async function snowflakeAccess(p: Platform, secrets: Record<string, strin
     if (!rolesOf.has(g.GRANTEE_NAME)) rolesOf.set(g.GRANTEE_NAME, new Set());
     rolesOf.get(g.GRANTEE_NAME)!.add(g.ROLE);
   }
-  if (!s) {
-    return users.map((u) => ({
-      id: u.NAME ?? '',
-      name: u.LOGIN_NAME || u.NAME || '',
-      type: typeOf(u),
-      rights: [...(rolesOf.get(u.NAME ?? '') ?? [])].map((r) => `role:${r}`).sort(),
-    }));
-  }
+  const subject = (u: Row, rights: string[]): AccessSubject => ({
+    id: u.NAME ?? '',
+    name: u.LOGIN_NAME || u.NAME || '',
+    type: typeOf(u),
+    rights,
+    ...aliasesOf(u),
+    ...activityOf(u),
+  });
+  if (!s) return users.map((u) => subject(u, [...(rolesOf.get(u.NAME ?? '') ?? [])].map((r) => `role:${r}`).sort()));
   const [dbName, schema, table] = s.split('.').map(sfName) as [string, string?, string?];
   // the role hierarchy: a role has what the roles granted to it have
   const roleGrants = await c.query(
@@ -240,7 +279,7 @@ export async function snowflakeAccess(p: Platform, secrets: Record<string, strin
   for (const u of users) {
     const rights = new Set<string>();
     for (const r of reach(rolesOf.get(u.NAME ?? '') ?? [])) for (const x of rightsOfRole.get(r) ?? []) rights.add(x);
-    if (rights.size) out.push({ id: u.NAME ?? '', name: u.LOGIN_NAME || u.NAME || '', type: typeOf(u), rights: [...rights].sort() });
+    if (rights.size) out.push(subject(u, [...rights].sort()));
   }
   return out;
 }

@@ -1,0 +1,31 @@
+# Devices reporting over MQTT (#113): every press publishes its status (each topic of the pattern seen so far), and
+# the broker has clients connected. "platform: MQTT" finds your MQTT broker platform when it is the only one (or the
+# only one whose name starts with "MQTT"); on import you choose it otherwise. See docs/MQTT.md.
+kind: monitor
+key: mqtt-presses
+name: Presses reporting over MQTT
+description: Every press publishes its status at least every 5 minutes; the broker has clients.
+tags: [mqtt, plant]
+intervalSeconds: 60
+aggregate: { rule: worst }
+checks:
+  - id: each-press
+    name: Every press reports (plant/+/status)
+    type: mqtt
+    platform: MQTT
+    topic: plant/+/status
+    mode: each
+    withinMinutes: 5
+    quietAs: degraded
+    x: 0
+    y: 0
+  - id: any-press
+    name: Any press reports
+    type: mqtt
+    platform: MQTT
+    topic: plant/+/status
+    mode: any
+    withinMinutes: 5
+    minClients: 1
+    x: 260
+    y: 0

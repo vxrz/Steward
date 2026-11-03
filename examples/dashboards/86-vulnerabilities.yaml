@@ -1,12 +1,12 @@
 name: Vulnerabilities
-description: Open findings and policy violations of the Dependency-Track projects – fed by "Dependency-Track – vulnerabilities per project" (every 6 hours, read-only API key).
+description: Open findings and policy violations of the Dependency-Track projects – fed by "Dependency-Track – Vulnerabilities per project" (every 6 hours, read-only API key).
 refreshSeconds: 300
 widgets:
   - id: intro
     type: markdown
     width: 12
     text: |
-      **Vulnerabilities** – read by the process *Dependency-Track – vulnerabilities per project*. Opening this page never calls Dependency-Track.
+      **Vulnerabilities** – read by the process *Dependency-Track – Vulnerabilities per project*. Opening this page never calls Dependency-Track.
       Findings analysed as not affected or false positive, and suppressed ones, do not count. Per application, the components that name their project show the same on the application page and in the scorecard part "Vulnerabilities".
   - { id: projects, type: kpi, title: Projects, dataset: dt.vulnerabilities, metric: projects, width: 3 }
   - { id: critical, type: kpi, title: Critical findings, dataset: dt.vulnerabilities, metric: critical, goodWhen: down, width: 3 }

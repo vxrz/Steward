@@ -6,7 +6,7 @@ description: |
   Unknown user names are reported as a warning, not an error, so a list from
   HR can be pasted as is.
 
-  Recommended use: on demand (or daily from an HR leaver export).
+  Recommended schedule: on demand (or daily from an HR leaver export).
   Required rights: read users/groups, change group membership (im.g.u) and –
   for mode "delete" – delete users (im.usr.d).
 tags: [offboarding, users, housekeeping, insights-hub]
