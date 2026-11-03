@@ -8,7 +8,7 @@ One Steward can serve several teams: members of a team see and change their team
 - A role applies to the **instance** (the roles on the user) or to a **team** (the roles a member has in that team, set on the team in _Users → Teams_). Within a team's resources, a member has their instance roles _and_ their team roles; the higher one wins.
 - A resource's **owning teams** are its scope. A resource can have several owning teams.
 - **Allowed** means one of these grants it: an instance role on a resource without owning teams, a role in one of the resource's owning teams, or an access list entry. Rights only add up, and there are no deny rules.
-- Administrators may do everything. Auditors may view everything. A resource's own owner (the owner of a process, monitor or dashboard, a record's owner, the named owners of a service or credential, a ticket's responsibles) keeps their rights on it.
+- Administrators may do everything. Auditors may view everything. A resource's own owner (the owner of a process, monitor or dashboard, a document's owner, the named owners of a service or credential, a ticket's responsibles) keeps their rights on it.
 
 Everyone else does not see a team-owned resource. It answers like one that does not exist (404), and it is left out of lists, search, link pickers, backlinks, start page tiles, the daily summary, reports, evidence packs, the scorecard, the public API and MCP tools.
 
@@ -37,10 +37,23 @@ Each team can change that in its settings (_Users → Teams_ → settings → _N
 
 A member of several teams can choose **one** of them for their new resources in their profile (_Owning team of new resources_); the profile shows which teams new resources get now and whether that is their choice, their teams' default or the whole instance. A team set to _Never_ cannot be chosen, and a choice ends when the member leaves the team. Administrators can choose a team the same way; without a choice their new resources stay the whole instance's.
 
+### Duplicating
+
+_Duplicate_ on monitors, processes, dashboards, credentials register entries, applications, services, schedules, report schedules, maintenance windows, access checks and status pages makes a copy with the same rules everywhere (`POST /api/<kind>/:id/duplicate`):
+
+- **The copy is yours**: it gets your default owning teams (above), whoever owned the original. Duplicating needs the right to see the original and to create that kind.
+- **Access settings only for managers**: the original's access list, owners and owning teams are copied only when you may manage the original (_Copy the access settings_; it needs a step-up like granting access). So duplicating never widens anyone's access.
+- **No secrets**: heartbeat secrets, webhook trigger secrets, platform credentials, status page links, secret schedule inputs and MCP tokens are never copied – the copy gets new ones (a monitor's heartbeat checks, shown once) or none.
+- **New name and key**: suggested (`… (copy)`, `…-copy`, `…-copy-2`) and checked before anything is saved.
+- **Nothing of the past**: history, runs, results and the audit trail stay with the original. Schedules, report schedules, maintenance windows and access checks start **disabled**.
+- **Where it came from**: the copy shows _Copied from …_ (the original's name only for who may see it), and the audit log has `<entity>.duplicated` with the original's id.
+
+Applications take options: their components (the stack entered by hand; what was read from SBOMs, clusters or repositories is not copied), _runs on_ systems and the documents that apply to them (each document you may change). Services take their applications and the documents they link to. Platform mappings are never copied: a platform belongs to one application.
+
 ## Setting it up
 
 1. In _Users → Teams_, create a team per service team, add its members, and give each member their roles in the team (e.g. _designer_ in team Orders, _viewer_ in team Payments).
-2. Open a resource and choose its owning teams in the _Owning teams_ panel. It is on the _Access_ tab for processes, platforms, monitors and records, and on the page itself for services, applications, systems, credentials, dashboards and ticket references.
+2. Open a resource and choose its owning teams in the _Owning teams_ panel. It is on the _Access_ tab for processes, platforms, monitors and documents, and on the page itself for services, applications, systems, credentials, dashboards and ticket references.
 3. To move a whole service at once, use **Owning teams for the whole service…** on the service page (or `POST /api/owning-teams/bulk` with `service`). It covers the service, its applications, the records and ticket references linked to them, and the credentials that belong to them. Preview it first (`preview: true` in the API): for every resource it lists who **gains** and who **loses** visibility, and changes nothing.
 
 Only administrators change owning teams. Adding a team is confirmed with a step-up, like other grants. Every change is audited as `access.owning_teams_changed`, and a bulk change audits each resource.

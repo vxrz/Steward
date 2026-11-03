@@ -16,13 +16,13 @@ A team can set its own report branding (_Users → Teams_ → settings → _Repo
 
 - report schedules of the team (choose the team in the schedule; the owner must be a member of it, administrators may choose any team);
 - run reports of a process the team owns, and summary reports whose processes all share that team;
-- PDFs of records the team owns.
+- PDFs of documents the team owns.
 
 A resource owned by several teams with branding uses the first of them by name. A renamed team is followed; a deleted team's schedules use the instance branding again. Reports already generated never change.
 
 ## How PDFs are created
 
-Every PDF – run reports, summary and scheduled reports, PDFs of records and the summary of evidence packs – is drawn in a **worker thread**, apart from the thread that answers requests. A long or unusual document (for example 200 000 characters of text without spaces take several seconds) no longer holds up anyone else.
+Every PDF – run reports, summary and scheduled reports, PDFs of documents and the summary of evidence packs – is drawn in a **worker thread**, apart from the thread that answers requests. A long or unusual document (for example 200 000 characters of text without spaces take several seconds) no longer holds up anyone else.
 
 - **One at a time.** Further PDFs wait their turn; with 20 waiting, the next request gets _Steward is creating other PDFs right now_ (`503 PDF_BUSY`).
 - **At most 60 seconds** per PDF: after that it is stopped with `422 PDF_TIMEOUT`. Shorten very long text, especially long words without spaces.
@@ -68,7 +68,7 @@ A report schedule creates a summary report every day, week or month, archives it
    | Availability of Gatus endpoints | The same per Gatus endpoint, from metrics mode ([GATUS.md](GATUS.md#5-metrics-mode))                                                                                                                 |
    | Credentials register            | Expired and overdue entries and those due within _N_ days after the period ([CREDENTIALS.md](CREDENTIALS.md))                                                                                        |
    | Runs                            | Runs started in the period per process: succeeded, failed, other                                                                                                                                     |
-   | Records and change requests     | Records created, changed, approved or implemented in the period; open change requests by status; planned change windows ([RECORDS.md](RECORDS.md))                                                   |
+   | Documents and change requests   | Documents created, changed, approved or implemented in the period; open change requests by status; planned change windows ([RECORDS.md](RECORDS.md))                                                 |
    | Service duties                  | Periods of service duties that ended in the period with their status, and the duties not done yet at its end ([DUTIES.md](DUTIES.md))                                                                |
    | Service scorecard               | Per service duties, availability, documentation and protection need with _attention needed_; the trend of the stored days; availability objectives and their breaches ([SCORECARD.md](SCORECARD.md)) |
 
@@ -104,7 +104,7 @@ Everyone who may read data may create schedules: a report only contains what its
 - **Monitor response times** come from the stored check results (Steward keeps the newest results per check), so for long periods they describe the end of the period.
 - **Gatus uptime** is the share of successful results among all results Gatus produced in the period (deltas of `gatus_results_total`). **Outages** are periods in which the newest result failed (`gatus_results_endpoint_success = 0`). **p95** needs the per-scrape samples, kept for _raw retention_ days (default 14); for older periods it is shown as –.
 - **Credentials**: the state at the end of the period (or now, for a period that ends in the future).
-- **Records**: _changed_ means a new content version in the period; _approved_ counts approvals of change requests and acceptances of decision records. Statuses are those at the end of the period, replayed from the record history. **Open change requests** are those not closed or cancelled. **Planned change windows** come from the _Planned start_ and _Planned end_ fields of change requests (not cancelled) and cover the period plus _N_ days after it (default 30). You can limit the section to some record types.
+- **Documents**: _changed_ means a new content version in the period; _approved_ counts approvals of change requests and acceptances of decision records. Statuses are those at the end of the period, replayed from the record history. **Open change requests** are those not closed or cancelled. **Planned change windows** come from the _Planned start_ and _Planned end_ fields of change requests (not cancelled) and cover the period plus _N_ days after it (default 30). You can limit the section to some record types.
 - **Service duties**: periods that ended in the report period, with the stored status (closed periods never change, so a report made later shows the same); a period still in its grace period shows its status at the time of the report. You can limit the section to levels or services.
 
 ### Archive and audit

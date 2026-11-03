@@ -1,6 +1,6 @@
 # Git sync
 
-Git sync keeps processes, dashboards, monitors and record types in a Git repository and brings changes into Steward after a review. Use it to version your library in Git, to review changes in pull requests, and to roll the same library out to several Steward installations (local, test, production).
+Git sync keeps processes, dashboards, monitors and document types in a Git repository and brings changes into Steward after a review. Use it to version your library in Git, to review changes in pull requests, and to roll the same library out to several Steward installations (local, test, production).
 
 - **Optional.** Git sync is off until an administrator adds a source or turns on [Steward's example library](#stewards-example-library), which every installation has as a disabled source.
 - **Pull only.** Steward only reads the repository. It never pushes, and it never changes the repository (pushing changes back is planned, see issue #20).
@@ -43,7 +43,7 @@ Use the formats Steward exports and the example library uses, one item per file:
 | Monitor     | `kind: monitor` or `kind: monitorTemplate` (monitor _Export_)            | `key:`                                                               |
 | Record type | `kind: recordType` with `key`, `name`, `workflow`, `template`, `fields`  | `key:`                                                               |
 
-Example record type file:
+Example document type file:
 
 ```yaml
 kind: recordType
@@ -90,7 +90,7 @@ _Settings → Git sync → Manage Git sync → New source._
 | Follow                 | **Branch** (its newest commit) or **Tag** (the commit the tag points to). See [Branches and tags](#branches-and-tags).        |
 | Branch / Tag           | e.g. `main`, `release-2026-10` or `v{version}`                                                                                |
 | Folder                 | e.g. `steward` – only files below it are read. Empty = the whole repository.                                                  |
-| What to sync           | Processes, dashboards, monitors, record types                                                                                 |
+| What to sync           | Processes, dashboards, monitors, document types                                                                               |
 | Access token           | A read-only token (see below). Empty for public repositories.                                                                 |
 | Fetch every (minutes)  | 0 = no schedule. At least 5.                                                                                                  |
 | Accept webhook calls   | On: the Git host calls Steward after every push                                                                               |
@@ -161,7 +161,7 @@ Use Git sync in two roles: Steward's example library as a source of **suggestion
 
 ### Your own repository
 
-- **One repository** (GitLab, GitHub Enterprise or Forgejo) with one folder, e.g. `steward/`, holding your processes, dashboards, monitors and record types – one item per file.
+- **One repository** (GitLab, GitHub Enterprise or Forgejo) with one folder, e.g. `steward/`, holding your processes, dashboards, monitors and document types – one item per file.
 - **The file name is the id** (a leading number like `10-` is ignored). Keep ids stable; the display name (`name:`) can change any time.
 - **Review in Git, apply in Steward:** changes go through merge requests with a reviewer (the four-eyes step happens in Git). _Git sync_ is the second gate, on the instance.
 - **Environments:** the test instance follows `main` (webhook or every 15 minutes); production follows a tag or a release branch (e.g. tags `lib-1.4.0`). You promote a version by tagging it.
@@ -210,4 +210,4 @@ The demo server includes a small Git host (`server/src/mock/mockGit.ts`) that sp
 - GitHub: `…/mock/github/steward/library`.
 - GitLab: `…/mock/gitlab/steward/library` with the API URL `…/mock/gitlab/api/v4`.
 
-The repository holds one process, dashboard, monitor and record type. `steward/private` needs the token `mock-git-token-0123456789`. Tests add commits with `POST /mock/git/_commit` (`signed`, `signer`, `email`, and `objectFormat: "sha256"` for a new SHA-256 repository), create or move tags with `POST /mock/git/_tag` (`annotated: true` for a tag object) and serve wrong file content with `POST /mock/git/_tamper`.
+The repository holds one process, dashboard, monitor and document type. `steward/private` needs the token `mock-git-token-0123456789`. Tests add commits with `POST /mock/git/_commit` (`signed`, `signer`, `email`, and `objectFormat: "sha256"` for a new SHA-256 repository), create or move tags with `POST /mock/git/_tag` (`annotated: true` for a tag object) and serve wrong file content with `POST /mock/git/_tamper`.

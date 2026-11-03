@@ -148,7 +148,7 @@ Once a day, a short summary of what concerns you. It is **off by default**; turn
 - status changes of monitors you may view (root causes in monitors you may not view are shown as "a monitor you cannot view");
 - credentials due soon, overdue or expired that you may see;
 - open ticket references you are responsible for (directly or through a team);
-- records waiting for your approval, and records you own that changed their status;
+- documents waiting for your approval, and documents you own that changed their status;
 - reviews of living documents you review that are due soon or overdue;
 - service duties you are responsible for that are due soon, and periods missed or failed since the last summary ([DUTIES.md](DUTIES.md));
 - scheduled reports you receive that were generated since the last summary;
