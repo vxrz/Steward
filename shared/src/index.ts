@@ -45,3 +45,4 @@ export * from './scorecard.js';
 export * from './outbound.js';
 export * from './notifyPolicy.js';
 export * from './email.js';
+export * from './platformAuth.js';

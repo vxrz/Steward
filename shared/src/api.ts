@@ -427,7 +427,8 @@ export interface Subject {
 
 // ---------- Platforms ----------
 
-export type AuthType = 'none' | 'basic' | 'bearer' | 'apiKey' | 'oauth2_client_credentials' | 'token_request' | 'jwt' | 'aws_sigv4';
+export const AUTH_TYPES = ['none', 'basic', 'bearer', 'apiKey', 'oauth2_client_credentials', 'token_request', 'jwt', 'aws_sigv4'] as const;
+export type AuthType = (typeof AUTH_TYPES)[number];
 
 export interface AuthConfig {
   type: AuthType;
@@ -452,7 +453,10 @@ export interface AuthConfig {
   tokenPath?: string;
   /** token_request: expression for lifetime in seconds (optional) */
   expiresInPath?: string;
-  /** Header added to API calls; template with {{ token }} */
+  /**
+   * Header added to API calls; template with {{ token }}. bearer: the header the token goes in – Authorization (default,
+   * as `Bearer <token>`) or another name, which gets the bare token (GitLab's default: PRIVATE-TOKEN).
+   */
   headerName?: string;
   headerValue?: string;
   /**
@@ -577,7 +581,8 @@ export interface PlatformPreset {
   description: string;
   baseUrl: string;
   config: PlatformConfig;
-  secretFields: { key: string; label: string; help?: string }[];
+  /** `auth`: the authentication the field is for – filled in on a preset with authentication "none", it picks that type */
+  secretFields: { key: string; label: string; help?: string; auth?: AuthType }[];
   docs: { title: string; url: string }[];
   /** Saved/imported connector type (vs. built-in preset) */
   custom?: boolean;
@@ -596,7 +601,7 @@ export interface ConnectorPackage {
   description: string;
   baseUrl: string;
   config: PlatformConfig;
-  secretFields: { key: string; label: string; help?: string }[];
+  secretFields: { key: string; label: string; help?: string; auth?: AuthType }[];
   docs: { title: string; url: string }[];
   specs: { name: string; content: string; pathPrefix?: string }[];
 }

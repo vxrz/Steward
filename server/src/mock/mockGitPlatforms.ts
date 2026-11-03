@@ -10,7 +10,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
  *
  * All three serve the organisation "acme" with the repositories acme/shop-web (pipeline green, a release, Dependabot
  * alerts, a container package) and acme/shop-api (pipeline red); GitLab names them acme/shop/web and acme/shop/api.
- * Authentication: `Authorization: Bearer <DEMO_GIT_PLATFORMS.token>`; the repository acme/secret answers 403.
+ * Authentication: `Authorization: Bearer <DEMO_GIT_PLATFORMS.token>` (GitLab also `PRIVATE-TOKEN`); the repository acme/secret answers 403.
  */
 
 export const DEMO_GIT_PLATFORMS = { token: 'demo-git-platform-token' };
@@ -93,7 +93,9 @@ export function resetGitPlatforms(): void {
 }
 
 function allowed(req: FastifyRequest, reply: FastifyReply, repo?: string): boolean {
-  if (req.headers.authorization !== `Bearer ${DEMO_GIT_PLATFORMS.token}`) {
+  // GitLab: its own header PRIVATE-TOKEN (what Steward sends) or OAuth's Authorization: Bearer
+  const gitlab = req.url.includes('/api/v4/') && req.headers['private-token'] === DEMO_GIT_PLATFORMS.token;
+  if (!gitlab && req.headers.authorization !== `Bearer ${DEMO_GIT_PLATFORMS.token}`) {
     void reply.code(401).send({ message: 'Bad credentials' });
     return false;
   }
@@ -326,6 +328,8 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
   app.get(`${L}/projects/:id/repository/files/:file/raw`, async (req, reply) => {
     const r = glRepo(req, reply);
     if (!r) return reply;
+    // like a GitLab behind a strict proxy: a raw file is no JSON
+    if (req.headers.accept === 'application/json') return reply.code(406).send({ message: '406 Not Acceptable' });
     const f = r.files[decodeURIComponent((req.params as { file: string }).file)];
     return f === undefined ? notFound(reply) : reply.type('text/plain').send(f);
   });

@@ -12,6 +12,7 @@ import { emit } from '../events.js';
 import { guardedLookup } from './outbound.js';
 import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
 import { JWT_ALGS, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
+import { where as originAndPath } from './answers.js';
 
 export interface HttpRequest {
   method: string;
@@ -356,7 +357,9 @@ async function readCapped(res: Awaited<ReturnType<typeof fetch>>, max: number): 
 
 /** Reads at most `max` bytes of a response body; larger bodies fail (and the connection is released). */
 async function readBounded(res: Awaited<ReturnType<typeof fetch>>, max: number, url: string): Promise<string> {
-  const tooLarge = () => Object.assign(new Error(`The response of ${url} is larger than ${max} bytes`), { retryable: false, code: 'ETOOLARGE' });
+  // origin and path only: the query may carry an API key
+  const tooLarge = () =>
+    Object.assign(new Error(`The response of ${originAndPath(url)} is larger than ${max} bytes`), { retryable: false, code: 'ETOOLARGE', max });
   const declared = Number(res.headers.get('content-length') ?? '');
   if (Number.isFinite(declared) && declared > max) {
     await res.body?.cancel().catch(() => undefined);
@@ -387,9 +390,13 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       if (p.kind === 'kafka')
         return ['authorization', 'Basic ' + Buffer.from(`${secrets.registryKey ?? ''}:${secrets.registrySecret ?? ''}`).toString('base64')];
       return ['authorization', 'Basic ' + Buffer.from(`${secrets.username ?? ''}:${secrets.password ?? ''}`).toString('base64')];
-    case 'bearer':
+    case 'bearer': {
       if (!secrets.token) throw new Error('Secret "token" is not set');
-      return ['authorization', `Bearer ${secrets.token}`];
+      // GitLab's own header for personal, group and project access tokens: reverse proxies and sign-in gateways in
+      // front of GitLab often take over Authorization (v0.3.1). headerName "Authorization" there is for OAuth tokens.
+      const name = (auth.headerName || (p.kind === 'gitlab' ? 'PRIVATE-TOKEN' : 'Authorization')).toLowerCase();
+      return name === 'authorization' ? ['authorization', `Bearer ${secrets.token}`] : [name, secrets.token];
+    }
     case 'apiKey':
       if (auth.apiKeyIn === 'query') return null;
       return [(auth.apiKeyName || 'x-api-key').toLowerCase(), secrets.apiKey ?? ''];

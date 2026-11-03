@@ -8,7 +8,10 @@ import * as platforms from '../platforms/service.js';
 import * as connectors from '../platforms/connectors.js';
 import * as recordings from '../platforms/recordings.js';
 import { PATH_PREFIX_MAX } from '../platforms/pathPrefix.js';
-import { platformRequest, renewToken, secretValues, tokenInfo, usesCachedToken } from '../platforms/http.js';
+import { buildUrl, platformRequest, renewToken, secretValues, tokenInfo, usesCachedToken } from '../platforms/http.js';
+import { judgeHttpTest } from '../platforms/connectionTest.js';
+import { snowflakeJwtHint } from '../platforms/jwt.js';
+import { shownHeaders, where } from '../platforms/answers.js';
 import { platformAccess } from '../auth/step-up-rules.js';
 import { requireCapability } from '../auth/permissions.js';
 import { boundedRecord } from '@sm/shared';
@@ -142,18 +145,22 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
     if (p.kind === 'kafka' || p.kind === 'mqtt' || p.kind === 'aws' || p.kind === 'snowflake') {
       const t0 = Date.now();
       try {
+        let checks: { name: string; ok: boolean; message: string }[] | undefined;
         const message =
           p.kind === 'kafka'
             ? await (await import('../kafka/service.js')).testKafka(p, secrets)
             : p.kind === 'aws'
-              ? await (await import('../aws/service.js')).testAws(p, secrets)
+              ? await (await import('../aws/service.js')).testAws(p, secrets).then((r) => ((checks = r.checks), r.message))
               : p.kind === 'snowflake'
                 ? await (await import('../snowflake/service.js')).testSnowflake(p, secrets)
                 : await (await import('../mqtt/listener.js')).testMqtt(p, secrets);
         audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}": ${message}`, details: { ok: true } });
-        return { ok: true, status: 200, durationMs: Date.now() - t0, message, body: null, token: null };
+        // AWS: every part Steward reads, with what is missing (the test passes when STS works)
+        return { ok: true, status: 200, durationMs: Date.now() - t0, message, body: null, token: null, ...(checks ? { checks: redact(checks, secrets) } : {}) };
       } catch (e) {
-        const message = redact((e as Error).message, secrets) as string;
+        let message = redact((e as Error).message, secrets) as string;
+        // Snowflake's "390144 JWT token is invalid" says nothing about why: the usual causes
+        if (p.kind === 'snowflake') message = snowflakeJwtHint(message, p.config.variables);
         audit({
           action: 'platform.tested',
           entityType: 'platform',
@@ -165,23 +172,28 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
       }
     }
     try {
-      const res = await platformRequest(p, secrets, { method: 'GET', url: testPath });
-      const ok = res.status >= 200 && res.status < 400;
+      // at most 1 MB of the answer: enough to tell an API from a page, and to show it
+      const res = await platformRequest(p, secrets, { method: 'GET', url: testPath, truncateResponseBytes: 1024 * 1024 });
+      // say which request was made: without a test path it is the base URL itself (often a portal behind its own login)
+      const what = `GET ${testPath}${p.config.testPath ? '' : ' (no test path set: the base URL itself)'}`;
+      // a status below 400 is not enough: a redirect to a sign-in page or an HTML portal page is no working API (v0.3.1)
+      const verdict = judgeHttpTest(p, what, await buildUrl(p, secrets, testPath), res);
       audit({
         action: 'platform.tested',
         entityType: 'platform',
         entityId: id,
-        summary: `Connection test "${p.name}": GET ${testPath} → HTTP ${res.status} (${res.durationMs} ms)`,
-        details: { ok, status: res.status },
+        summary: `Connection test "${p.name}": GET ${testPath} → HTTP ${res.status} (${res.durationMs} ms)${verdict.ok ? '' : ' – failed'}`,
+        details: { ok: verdict.ok, status: res.status },
       });
-      // say which request was made: without a test path it is the base URL itself (often a portal behind its own login)
-      const what = `GET ${testPath}${p.config.testPath ? '' : ' (no test path set: the base URL itself)'}`;
       return {
-        ok,
+        ok: verdict.ok,
         status: res.status,
         durationMs: res.durationMs,
-        message: ok ? `Connection works – ${what}` : `${what} answered HTTP ${res.status}`,
+        message: redact(verdict.message, secrets),
         body: redact(res.body, secrets),
+        // who answered: content type, server, proxy, sign-in challenge, redirect target
+        headers: redact(shownHeaders(res.headers), secrets),
+        url: where(res.url),
         // when the cached access token was issued: roles granted later need a new one (POST …/token/renew)
         token: tokenInfo(id),
       };

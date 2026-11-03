@@ -51,6 +51,12 @@ interface TestResult {
   durationMs: number;
   message: string;
   body?: unknown;
+  /** Who answered: content type, server, proxy, sign-in challenge, redirect target */
+  headers?: Record<string, string>;
+  /** Origin and path of the final answer (after redirects) */
+  url?: string;
+  /** Per part of a connector (AWS): what works and what is missing */
+  checks?: { name: string; ok: boolean; message: string }[];
   /** The cached access token the test used (OAuth2 or custom login) */
   token?: TokenInfo | null;
 }
@@ -225,13 +231,42 @@ export function PlatformDetailPage() {
               )}
             </Text>
           )}
-          {test.body !== undefined && (
+          {!!test.checks?.length && (
+            <Stack gap={2} mt={4} data-testid="platform-test-checks">
+              {test.checks.map((c) => (
+                <Text key={c.name} size="xs" c={c.ok ? undefined : 'orange.8'}>
+                  {c.ok ? '✓' : '✗'} {c.name}: {c.message}
+                </Text>
+              ))}
+            </Stack>
+          )}
+          {test.body !== undefined && (test.body !== null || !!test.headers) && (
             <>
               <Anchor size="xs" onClick={() => setShowBody((s) => !s)}>
                 {showBody ? t('detail.hideResponse') : t('detail.showResponse')}
               </Anchor>
               <Collapse expanded={showBody}>
-                <JsonView value={test.body} maxHeight={240} />
+                {test.url && (
+                  <Text size="xs" className="mono" mb={4}>
+                    {test.url}
+                  </Text>
+                )}
+                {test.headers && Object.keys(test.headers).length > 0 && (
+                  <Text size="xs" className="mono" mb={4} style={{ wordBreak: 'break-all' }} data-testid="platform-test-headers">
+                    {Object.entries(test.headers).map(([k, v]) => (
+                      <span key={k} style={{ display: 'block' }}>
+                        {k}: {v}
+                      </span>
+                    ))}
+                  </Text>
+                )}
+                {test.body === null || test.body === '' ? (
+                  <Text size="xs" c="dimmed" fs="italic">
+                    {t('detail.emptyResponse')}
+                  </Text>
+                ) : (
+                  <JsonView value={test.body} maxHeight={240} />
+                )}
               </Collapse>
             </>
           )}

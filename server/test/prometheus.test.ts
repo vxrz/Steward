@@ -1,3 +1,5 @@
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
@@ -86,6 +88,97 @@ describe('Prometheus check', () => {
       status: 'unknown',
       message: expect.stringMatching(/^Prometheus could not be read: Prometheus answered HTTP 400: invalid parameter "query"/),
     });
+  });
+
+  it('sends the query as a form POST, and falls back to GET on 405', async () => {
+    mock.resetPrometheus();
+    const long = `up{job="shop", instance=~"${'x|'.repeat(1900)}y"}`;
+    await states([check('long', long)]);
+    expect(mock.promRequests.at(-1)).toMatchObject({ method: 'POST', query: long });
+    mock.setPromPostAllowed(false);
+    const st = await states([check('get', FS, { warn: 85 })]);
+    expect(st.get.status).toBe('up');
+    expect(mock.promRequests.slice(-2).map((r) => r.method)).toEqual(['POST', 'GET']);
+    mock.resetPrometheus();
+  });
+
+  it('+Inf and -Inf are judged against the levels, only NaN is unknown', async () => {
+    mock.resetPrometheus();
+    mock.setPromResult('ratio_inf', [{ metric: { __name__: 'ratio', job: 'a' }, value: Infinity }]);
+    mock.setPromResult('ratio_neginf', [{ metric: { __name__: 'ratio', job: 'b' }, value: -Infinity }]);
+    mock.setPromResult('ratio_nan', [{ metric: { __name__: 'ratio', job: 'c' }, value: NaN }]);
+    const st = await states([
+      check('inf', 'ratio_inf'),
+      check('neginfBelow', 'ratio_neginf', { direction: 'below', crit: 0 }),
+      check('neginfAbove', 'ratio_neginf'),
+      check('nan', 'ratio_nan'),
+    ]);
+    expect(st.inf).toMatchObject({ status: 'down', message: 'Prometheus: ratio{job="a"} +Inf (CRIT 90)' });
+    expect(st.neginfBelow.status).toBe('down');
+    expect(st.neginfAbove.status).toBe('up');
+    expect(st.nan).toMatchObject({ status: 'unknown', message: expect.stringContaining('not a number') });
+  });
+
+  it('a wrong base URL, a missing tenant, credentials not sent and non-JSON answers are explained', async () => {
+    const host = http.createServer((req, res) => {
+      const path = (req.url ?? '').split('?')[0];
+      if (path === '/mimir/api/v1/query') {
+        res.writeHead(401, { 'content-type': 'text/plain' });
+        return res.end('no org id\n');
+      }
+      if (path === '/basic/api/v1/query') {
+        res.writeHead(401, { 'www-authenticate': 'Basic realm="prometheus"' });
+        return res.end();
+      }
+      if (path === '/html/api/v1/query') {
+        res.writeHead(200, { 'content-type': 'text/html' });
+        return res.end('<html><body>Grafana sign in</body></html>');
+      }
+      if (path === '/text/api/v1/query') {
+        res.writeHead(502, { 'content-type': 'text/plain' });
+        return res.end('upstream connect error with secret prom-pass-secret-1 inside');
+      }
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      res.end('404 page not found');
+    });
+    await new Promise<void>((r) => host.listen(0, '127.0.0.1', r));
+    const origin = `http://127.0.0.1:${(host.address() as AddressInfo).port}`;
+    try {
+      const { promInstant } = await import('../src/platforms/prometheus.js');
+      const { getPlatform } = await import('../src/platforms/service.js');
+      const make = async (name: string, path: string, auth = 'none', secrets?: Record<string, string>) => {
+        const p = await s.api('POST', '/platforms', {
+          name,
+          kind: 'prometheus',
+          baseUrl: `${origin}${path}`,
+          config: { auth: { type: auth }, variables: {}, http: { proxy: 'none', retry: { maxRetries: 0 } } },
+          secrets,
+        });
+        return getPlatform(p.id);
+      };
+      const fail = async (p: any, secrets: Record<string, string> = {}) => (await promInstant(p, secrets, 'up').catch((e: Error) => e)) as Error;
+      expect((await fail(await make('P root', ''))).message).toBe(
+        `Prometheus answered HTTP 404: no Prometheus API at ${origin}/api/v1/query – Mimir and Cortex need the prefix …/prometheus in the base URL, VictoriaMetrics cluster …/select/<tenant>/prometheus, Grafana Cloud …/api/prom; Prometheus, Thanos Query and single-node VictoriaMetrics take the server root (docs/PROMETHEUS.md)`,
+      );
+      expect((await fail(await make('P mimir', '/mimir'))).message).toContain('add the default header X-Scope-OrgID: <tenant>');
+      const trap = await fail(await make('P trap', '/basic', 'none', { username: 'reader', password: 'prom-pass-secret-1' }), {
+        username: 'reader',
+        password: 'prom-pass-secret-1',
+      });
+      expect(trap.message).toBe(
+        'Prometheus answered HTTP 401 (an empty response) – Authentication is set to "none" – the username/password you entered are not sent. Choose "basic" under Settings → Authentication.',
+      );
+      expect((await fail(await make('P html', '/html'))).message).toBe(
+        'Prometheus answered HTTP 200 with an HTML page, not the {"status":"success"} of a Prometheus query API – is the base URL the Prometheus API?',
+      );
+      const text = await fail(await make('P text', '/text', 'basic', { username: 'u', password: 'prom-pass-secret-1' }), {
+        username: 'u',
+        password: 'prom-pass-secret-1',
+      });
+      expect(text.message).toBe('Prometheus answered HTTP 502 with text/plain: "upstream connect error with secret *** inside"');
+    } finally {
+      host.close();
+    }
   });
 
   it('offers the platform preset with a connection test', async () => {

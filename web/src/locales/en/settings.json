@@ -53,6 +53,7 @@
     "listPlaceholder": "https://api.example.com\n*.corp.example\n10.0.0.0/8",
     "listHint": "One entry per line: an origin (https://host[:port]), a host or host glob (*.example.com) or a CIDR. Cloud-metadata (169.254.169.254, …) and link-local addresses and the Steward server's own port are always blocked.",
     "note": "Absolute URLs that are not covered here fail with a message telling the author to ask an administrator to allow the origin.",
+    "whenNeeded": "Do I need an entry? Built-in connector reads (repositories, Kubernetes, Prometheus …) and connection tests go to the platform's own address – no. Process steps, access reviews, endoflife.date, Gatus scrapes and the MCP gateway may reach configured platforms with “Configured platforms + allow-list”. Monitor HTTP checks, webhooks, SBOM URLs and Git sync need an entry for hosts that are no platform; TCP/ping checks and Zabbix always do. With “Allow-list only” nothing is implicit. Details: docs/SECURITY-HARDENING.md.",
     "invalidEntry": "“{{entry}}”: {{problem}}",
     "problems": {
       "path": "an origin has no path – use https://host[:port]",

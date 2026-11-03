@@ -94,6 +94,13 @@ export const STEP_META: Record<NodeType, StepMeta> = {
         help: 'Comma separated. Empty = any 2xx.',
       },
       { key: 'mutating', label: 'Treat as write (skip in dry run)', kind: 'boolean', help: 'Default: every method except GET/HEAD' },
+      { key: 'maxResponseMb', label: 'Largest answer (MB)', kind: 'number', help: 'Default 20, at most 200 (per page); a larger answer fails the step' },
+      {
+        key: 'aws',
+        label: 'AWS service (AWS platforms only)',
+        kind: 'json',
+        help: 'service and region, e.g. { service: ec2, region: eu-central-1 }: the path is relative to that endpoint, signed with the platform',
+      },
     ],
     defaults: () => ({ method: 'GET', path: '/' }),
   },

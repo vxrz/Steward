@@ -224,8 +224,10 @@ export async function assertAddressSafe(url: string): Promise<void> {
 /**
  * Throw a clear HttpError if a process may not send a request to `url` under the
  * current policy. Always rejects the metadata ranges and the server's own port.
+ * `platformOrigins`: further origins that count as a platform's own for this call
+ * (policy `platforms` only), e.g. the AWS endpoint an http step names with `aws`.
  */
-export async function assertOutboundAllowed(url: string, ctx: OutboundContext): Promise<void> {
+export async function assertOutboundAllowed(url: string, ctx: OutboundContext, opts: { platformOrigins?: string[] } = {}): Promise<void> {
   const u = originOf(url) ? new URL(url) : null;
   if (!u) throw new HttpError(400, `Invalid outbound URL "${String(url).slice(0, 120)}"`);
 
@@ -239,6 +241,8 @@ export async function assertOutboundAllowed(url: string, ctx: OutboundContext): 
   if (allowList.some((e) => allowListMatches(e, u))) return;
 
   if (policy === 'platforms') {
+    // origins that belong to a platform for this one call (an AWS service endpoint a step names, v0.3.1)
+    if (opts.platformOrigins?.some((o) => originOf(o) === u.origin)) return;
     const origins = await platformOrigins(ctx.platforms, ctx.resolveOrigin);
     if (origins.has(u.origin)) return;
   }

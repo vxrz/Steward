@@ -54,3 +54,24 @@ export function signJwt(
       : crypto.sign(hash, Buffer.from(input), key);
   return { jwt: `${input}.${b64url(sig)}`, exp };
 }
+
+/**
+ * Snowflake refuses a key-pair JWT with `390144 JWT token is invalid` and says no more (v0.3.1). The usual causes, in
+ * the order they happen: the account identifier in iss/sub (variable account) is not what Snowflake expects – the
+ * account locator without the region and cloud (XY12345, not xy12345.eu-central-1.aws) or ORGNAME-ACCOUNTNAME with a
+ * hyphen (not a dot), upper case –, the user name differs, or the user's RSA_PUBLIC_KEY is not the platform's key.
+ * Returns the message with that hint, or the message unchanged for other errors.
+ */
+export function snowflakeJwtHint(message: string, variables: Record<string, unknown> | undefined): string {
+  if (!/390144|JWT token is invalid/i.test(message)) return message;
+  const account = String(variables?.account ?? '').trim();
+  const user = String(variables?.user ?? '').trim();
+  const wrong = /[.]/.test(account)
+    ? ` The variable account is "${account}": in the JWT it must be ${/^[a-z]{2}\d{4,6}\./i.test(account) ? `the account locator without region and cloud ("${account.split('.')[0]!.toUpperCase()}")` : `ORGNAME-ACCOUNTNAME with a hyphen ("${account.replace('.', '-').toUpperCase()}")`}.`
+    : '';
+  return (
+    `${message} – Snowflake did not accept the key-pair JWT.${wrong} Check: the variable account is the account identifier as the JWT needs it ` +
+    `(the account locator without region and cloud suffix, e.g. XY12345, or ORGNAME-ACCOUNTNAME – not the host name), the variable user` +
+    `${user ? ` ("${user}")` : ''} is the Snowflake user's login name, and that user's RSA_PUBLIC_KEY (DESC USER) belongs to the platform's private key (docs/SNOWFLAKE.md).`
+  );
+}

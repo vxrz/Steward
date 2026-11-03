@@ -18,7 +18,8 @@ import { audit } from '../audit.js';
 import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
-import { platformRequest } from '../platforms/http.js';
+import { platformRequest, secretValues, type HttpResult } from '../platforms/http.js';
+import { errorDetail, gitAuthHint, isHtml, redirectHint } from '../platforms/answers.js';
 import { platformFor } from '../monitors/platforms.js';
 import { isKnownProduct, matchSbom, stackSummary, type StackDiff } from './components.js';
 import { mapImages, older, syncStack } from './kubernetes.js';
@@ -48,7 +49,17 @@ class Answer {
   ) {}
 }
 
-/** GET on the platform; 404 (and, when `optional`, 401/403) answer null, other errors throw a readable message. */
+/** The API base URL of each host, for the hints. */
+const API_BASE: Record<string, string> = {
+  github: 'https://api.github.com or https://HOST/api/v3',
+  gitlab: 'https://HOST/api/v4',
+  forgejo: 'https://HOST/api/v1',
+};
+
+/**
+ * GET on the platform; 404 (and, when `optional`, 401/403) answer null, other errors throw a message in plain words:
+ * what happened, the likely cause and the fix (v0.3.1).
+ */
 async function get(
   platform: Platform,
   secrets: Record<string, string>,
@@ -68,14 +79,50 @@ async function get(
     },
     AbortSignal.timeout(30000),
   );
-  if (r.ok) return r.body;
+  if (r.ok) {
+    // a sign-in page or portal answering 200 instead of the API
+    if (!o.raw && isHtml(r))
+      throw new Error(`the Git host answered with an HTML page, not the API – the base URL must be the API (${API_BASE[platform.kind] ?? 'its API'})`);
+    return r.body;
+  }
   if (r.status === 404) return null;
   if (o.optional && (r.status === 401 || r.status === 403)) return new Answer(r.status, null);
-  const msg = (r.body as { message?: string } | null)?.message;
-  const detail = msg ? `: ${String(msg).slice(0, 200)}` : '';
-  if (r.status === 401) throw new Error(`the Git host refused the token (401)${detail}`);
-  if (r.status === 403) throw new Error(`no permission (403)${detail} – see the token rights in docs/GIT-PLATFORMS.md`);
-  throw new Error(`the Git host answered HTTP ${r.status}${detail}`);
+  throw new Error(redact(gitError(platform, r), secrets));
+}
+
+/** A failed answer of a Git host in plain words. */
+function gitError(platform: Platform, r: HttpResult): string {
+  const detail = errorDetail(r);
+  const said = detail ? `: ${detail}` : '';
+  if (r.status >= 300 && r.status < 400) {
+    const loc = r.headers.location;
+    return `the Git host answered HTTP ${r.status}${loc ? ` – ${redirectHint(loc, r.url, API_BASE[platform.kind])}` : ''}`;
+  }
+  if (r.status === 401) return `the Git host refused the token (401)${said}. ${gitAuthHint(platform.kind, 401)}`;
+  if (r.status === 403) return `no permission (403)${said} – ${gitAuthHint(platform.kind, 403)}`;
+  return `the Git host answered HTTP ${r.status}${said}`;
+}
+
+/** A project path in an error message: GitLab encodes the slashes (%2F), which some reverse proxies decode. */
+const notFoundHint = (kind: string) =>
+  kind === 'gitlab' ? ' – if the path is right, a reverse proxy in front of GitLab may decode %2F in the project path (docs/GIT-PLATFORMS.md)' : '';
+
+function redact(text: string, secrets: Record<string, string>): string {
+  return secretValues(secrets).reduce((t, v) => (v && t.includes(v) ? t.split(v).join('***') : t), text);
+}
+
+/**
+ * A file for the tech stack: its text, or null when it is missing or cannot be read – one unreadable file (406,
+ * 5xx, too large) must not fail the whole read of the repository; it is logged.
+ */
+async function stackFile(p: Platform, sec: Record<string, string>, path: string, accept: string): Promise<string | null> {
+  try {
+    const t = await get(p, sec, path, { raw: true, accept, max: GIT_LIMITS.stackFileBytes, optional: true });
+    return typeof t === 'string' ? t : null;
+  } catch (err) {
+    logger.info({ platform: p.name, path: path.split('?')[0], err: (err as Error).message.slice(0, 200) }, 'a repository file could not be read');
+    return null;
+  }
 }
 
 const list = (v: unknown): Obj[] => (Array.isArray(v) ? (v as Obj[]) : []);
@@ -94,7 +141,7 @@ async function allPages(platform: Platform, secrets: Record<string, string>, pat
   for (let page = 1; page <= 20; page++) {
     const r = await get(platform, secrets, `${path}${sep}${size}=${perPage}&page=${page}`);
     if (r === null) {
-      if (page === 1) throw new Error(`not found: ${path.split('?')[0]}`);
+      if (page === 1) throw new Error(`not found: ${path.split('?')[0]}${path.includes('%2F') ? notFoundHint(platform.kind) : ''}`);
       break;
     }
     const items = list(r);
@@ -194,13 +241,7 @@ function github(p: Platform, sec: Record<string, string>): Host {
       }));
     },
     async file(path, ref, name) {
-      const t = await get(p, sec, `${r(path)}/contents/${encPath(name)}?ref=${enc(ref)}`, {
-        raw: true,
-        accept: 'application/vnd.github.raw+json',
-        max: GIT_LIMITS.stackFileBytes,
-        optional: true,
-      });
-      return typeof t === 'string' ? t : null;
+      return stackFile(p, sec, `${r(path)}/contents/${encPath(name)}?ref=${enc(ref)}`, 'application/vnd.github.raw+json');
     },
     async access(scope) {
       if (scope.includes('/')) {
@@ -235,7 +276,7 @@ function gitlab(p: Platform, sec: Record<string, string>): Host {
   return {
     async repo(path) {
       const j = (await get(p, sec, r(path))) as Obj | null;
-      if (!j) throw new Error(`no project "${path}" (or the token may not read it)`);
+      if (!j) throw new Error(`no project "${path}" (or the token may not read it)${notFoundHint('gitlab')}`);
       return { webUrl: s(j.web_url), defaultBranch: s(j.default_branch), archived: !!j.archived };
     },
     async head(path, branch) {
@@ -316,12 +357,8 @@ function gitlab(p: Platform, sec: Record<string, string>): Host {
       ];
     },
     async file(path, ref, name) {
-      const t = await get(p, sec, `${r(path)}/repository/files/${enc(name)}/raw?ref=${enc(ref)}`, {
-        raw: true,
-        max: GIT_LIMITS.stackFileBytes,
-        optional: true,
-      });
-      return typeof t === 'string' ? t : null;
+      // a raw file is text: Accept application/json alone can answer 406 (strict proxies, some GitLab versions)
+      return stackFile(p, sec, `${r(path)}/repository/files/${enc(name)}/raw?ref=${enc(ref)}`, '*/*');
     },
     async access(scope) {
       const level = (x: Obj) => GITLAB_LEVELS[Number(x.access_level)] ?? `level-${x.access_level}`;
@@ -390,8 +427,7 @@ function forgejo(p: Platform, sec: Record<string, string>): Host {
       }));
     },
     async file(path, ref, name) {
-      const t = await get(p, sec, `${r(path)}/raw/${encPath(name)}?ref=${enc(ref)}`, { raw: true, max: GIT_LIMITS.stackFileBytes, optional: true });
-      return typeof t === 'string' ? t : null;
+      return stackFile(p, sec, `${r(path)}/raw/${encPath(name)}?ref=${enc(ref)}`, '*/*');
     },
     async access(scope) {
       if (scope.includes('/')) {

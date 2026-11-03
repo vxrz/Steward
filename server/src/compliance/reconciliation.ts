@@ -589,9 +589,15 @@ async function collectSnowflake(c: CheckRow): Promise<{ subjects: AccessSubject[
     subjects = await snowflakeAccess(platform, getSecrets(c.platform_id), String(c.dataset_key ?? ''));
   } catch (e) {
     if (e instanceof HttpError && e.statusCode < 500) throw e;
-    throw new HttpError(502, `Snowflake could not be read: ${(e as Error).message}`.slice(0, 500), 'ACCESS_CHECK_SNOWFLAKE_READ', {
-      detail: (e as Error).message.slice(0, 300),
-    });
+    const { snowflakeJwtHint } = await import('../platforms/jwt.js');
+    throw new HttpError(
+      502,
+      `Snowflake could not be read: ${snowflakeJwtHint((e as Error).message, platform.config.variables)}`.slice(0, 900),
+      'ACCESS_CHECK_SNOWFLAKE_READ',
+      {
+        detail: (e as Error).message.slice(0, 300),
+      },
+    );
   }
   if (subjects.length > LIMITS.subjects)
     throw new HttpError(400, `The scope has more than ${LIMITS.subjects} members`, 'SNAPSHOT_TOO_LARGE', { max: LIMITS.subjects });
@@ -612,10 +618,16 @@ async function collectAws(c: CheckRow): Promise<{ subjects: AccessSubject[]; sou
       name: platform.name,
     });
   if (platform.kind !== 'aws') throw new HttpError(400, 'The AWS source needs an AWS account platform', 'ACCESS_CHECK_AWS_SOURCE');
-  const { AwsClient } = await import('../aws/client.js');
+  const { AwsClient, IAM_REGION, endpointFor } = await import('../aws/client.js');
+  const secrets = getSecrets(c.platform_id);
+  // the outbound policy like the Git and Snowflake sources (v0.3.1): the base URL (STS) and the IAM endpoint it reads,
+  // which counts as the AWS platform's own origin
+  await assertOutboundAllowed(await buildUrl(platform, secrets, '/', {}), outboundContext());
+  const iam = endpointFor(platform, 'iam', IAM_REGION);
+  await assertOutboundAllowed(`${iam}/`, outboundContext(), { platformOrigins: [iam] });
   let subjects: AccessSubject[];
   try {
-    subjects = await new AwsClient(platform, getSecrets(c.platform_id)).iamAccess();
+    subjects = await new AwsClient(platform, secrets).iamAccess();
   } catch (e) {
     throw new HttpError(502, `AWS could not be read: ${(e as Error).message}`.slice(0, 500), 'ACCESS_CHECK_AWS_READ', {
       detail: (e as Error).message.slice(0, 300),

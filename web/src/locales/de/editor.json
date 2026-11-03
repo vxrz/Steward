@@ -48,6 +48,14 @@
         "mutating": {
           "label": "Als schreibend behandeln (im Probelauf überspringen)",
           "help": "Standard: jede Methode außer GET/HEAD"
+        },
+        "maxResponseMb": {
+          "label": "Größte Antwort (MB)",
+          "help": "Standard 20, höchstens 200 (pro Seite); eine größere Antwort lässt den Schritt fehlschlagen"
+        },
+        "aws": {
+          "label": "AWS-Dienst (nur AWS-Plattformen)",
+          "help": "Dienst und Region, z. B. { service: ec2, region: eu-central-1 }: Der Pfad bezieht sich auf diesen Endpunkt, signiert wird mit der Plattform"
         }
       }
     },
