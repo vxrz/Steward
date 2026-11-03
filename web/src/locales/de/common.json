@@ -179,5 +179,32 @@
   "cron": {
     "next": "Nächste: {{dates}}",
     "use": "Übernehmen"
+  },
+  "listPage": {
+    "search": "Suchen",
+    "view": "Anzeigen als",
+    "table": "Tabelle",
+    "cards": "Karten"
+  },
+  "detailPage": {
+    "moreActions": "Weitere Aktionen"
+  },
+  "whoCanAct": {
+    "runs": "Operatoren, Designer und Administratoren starten Ausführungen der Prozesse, die sie ausführen dürfen.",
+    "processes": "Designer und Administratoren legen Prozesse an.",
+    "schedules": "Wer einen Prozess ausführen darf, plant ihn ein: Operatoren, Designer und Administratoren.",
+    "triggers": "Wer einen Prozess ausführen darf, legt einen Webhook-Auslöser dafür an: Operatoren, Designer und Administratoren.",
+    "monitors": "Designer und Administratoren legen Monitore an.",
+    "dashboards": "Designer und Administratoren legen Dashboards an.",
+    "platforms": "Administratoren fügen Plattformen hinzu.",
+    "services": "Designer und Administratoren legen Services an.",
+    "applications": "Designer und Administratoren legen Anwendungen an.",
+    "systems": "Designer und Administratoren legen Systeme an.",
+    "credentials": "Operatoren, Designer und Administratoren dokumentieren Zugangsdaten.",
+    "records": "Operatoren, Designer und Administratoren schreiben Dokumente.",
+    "tickets": "Operatoren, Designer und Administratoren fügen Ticket-Referenzen hinzu.",
+    "personReviews": "Designer und Administratoren starten Personenprüfungen.",
+    "evidencePacks": "Alle außer Betrachtern exportieren Nachweispakete.",
+    "users": "Administratoren laden Benutzer ein und legen Teams an."
   }
 }

@@ -36,7 +36,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { errorText } from '../i18n/errors';
-import { NAV_GROUPS, type NavKey } from './AppNav';
+import { NAV_PATHS, type NavKey } from './AppNav';
 
 /**
  * One colour vocabulary for every status badge (runs, tasks, monitors, credentials, check severities):
@@ -176,8 +176,6 @@ export function PageHeader({ title, description, actions, back }: { title: React
   );
 }
 
-const NAV_PATHS = Object.fromEntries(NAV_GROUPS.flatMap((g) => g.items.map((i) => [i.key, i.to]))) as Record<NavKey, string>;
-
 function BackLinks({ crumbs }: { crumbs: Crumb[] }) {
   const { t } = useTranslation(['common', 'nav']);
   const links = crumbs.map((c) => (typeof c === 'string' ? { to: NAV_PATHS[c], label: t(`nav:items.${c}`) } : c));
@@ -208,6 +206,7 @@ export function EmptyState({
   children,
   action,
   compact,
+  whoCanAct,
   testId = 'empty-state',
 }: {
   icon?: TablerIcon;
@@ -215,6 +214,8 @@ export function EmptyState({
   children?: ReactNode;
   action?: ReactNode;
   compact?: boolean;
+  /** Who may add the first entry ("Administrators and designers add services."): for everyone who cannot */
+  whoCanAct?: ReactNode;
   testId?: string;
 }) {
   return (
@@ -233,6 +234,11 @@ export function EmptyState({
           <Group mt="xs" gap="xs" justify="center">
             {action}
           </Group>
+        )}
+        {whoCanAct && (
+          <Text size="xs" c="dimmed" ta="center" maw={560} data-testid="empty-who-can-act">
+            {whoCanAct}
+          </Text>
         )}
       </Stack>
     </Paper>

@@ -179,5 +179,32 @@
   "cron": {
     "next": "Next: {{dates}}",
     "use": "Use"
+  },
+  "listPage": {
+    "search": "Search",
+    "view": "Show as",
+    "table": "Table",
+    "cards": "Cards"
+  },
+  "detailPage": {
+    "moreActions": "More actions"
+  },
+  "whoCanAct": {
+    "runs": "Operators, designers and administrators start runs of the processes they may run.",
+    "processes": "Designers and administrators create processes.",
+    "schedules": "Whoever may run a process schedules it: operators, designers and administrators.",
+    "triggers": "Whoever may run a process adds a webhook trigger for it: operators, designers and administrators.",
+    "monitors": "Designers and administrators create monitors.",
+    "dashboards": "Designers and administrators create dashboards.",
+    "platforms": "Administrators add platforms.",
+    "services": "Designers and administrators add services.",
+    "applications": "Designers and administrators add applications.",
+    "systems": "Designers and administrators add systems.",
+    "credentials": "Operators, designers and administrators document credential entries.",
+    "records": "Operators, designers and administrators write documents.",
+    "tickets": "Operators, designers and administrators add ticket references.",
+    "personReviews": "Designers and administrators start person reviews.",
+    "evidencePacks": "Everyone except viewers exports evidence packs.",
+    "users": "Administrators invite users and create teams."
   }
 }

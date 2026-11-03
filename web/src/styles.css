@@ -208,3 +208,49 @@ p .mantine-Anchor-root,
   --cb-size-xs: 24px;
   --cb-size-sm: 28px;
 }
+
+/* Sidebar pins (v0.4.0): the pin of an entry shows on hover and keyboard focus; on touch screens always. */
+.nav-entry .nav-pin {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.nav-entry:hover .nav-pin,
+.nav-entry:focus-within .nav-pin,
+.nav-entry[data-pinned] .nav-pin {
+  opacity: 1;
+}
+@media (hover: none) {
+  .nav-entry .nav-pin {
+    opacity: 1;
+  }
+}
+
+/* Tabs that are links (components/page/LinkTabs.tsx) */
+.link-tabs {
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.link-tab {
+  padding: 8px 12px;
+  margin-bottom: -1px;
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--mantine-color-dimmed);
+  border-bottom: 2px solid transparent;
+  border-top-left-radius: var(--mantine-radius-default);
+  border-top-right-radius: var(--mantine-radius-default);
+}
+.link-tab:hover {
+  color: var(--mantine-color-text);
+  background: var(--mantine-color-default-hover);
+}
+.link-tab[data-active] {
+  color: var(--mantine-color-text);
+  border-bottom-color: var(--mantine-primary-color-filled);
+}
+.link-tab:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
