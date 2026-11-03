@@ -244,7 +244,7 @@ Platforms **without an API specification** can still be read: list GET path pref
 
 ## Approved writes
 
-An assistant can ask for two kinds of change (#11). Neither happens when it asks: each becomes a **request** that a person decides in Steward under **AI requests** (in the sidebar, next to _My tasks_).
+An assistant can ask for two kinds of change (#11). Neither happens when it asks: each becomes a **request** that a person decides in Steward under **AI requests** (in the sidebar under _Operate_, next to _My tasks_).
 
 | Request                                            | Turned on where                                                                                                   | Who decides                                                                                                                                                           |
 | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

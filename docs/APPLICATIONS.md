@@ -28,7 +28,7 @@ One application can have several platforms, for example _Insights Hub_ ← _IH t
 
 ## Create an application
 
-1. _Service management → Applications → New application_ (designers and administrators).
+1. _Catalogue → Applications → New application_ (designers and administrators).
 2. Enter the name and, if you like, vendor, version, URL, description, criticality, the responsible users and teams, the CMDB entry and tags. A tag is a key with an optional value: type the key, **Tab** to the value, **Enter** to add it – `env: prod`, or just `pci`. A key with a value uses letters, digits, `.` `_` `-` `/`; tags from before stay as they are. Clicking a tag in a list or on a page filters the list by it (`?tag=env=prod`), and _any env_ widens the filter to every value of the key. The same tags work on services, processes, monitors, records and credentials.
 3. _Save_. The application page opens.
 
@@ -183,7 +183,7 @@ steps:
 
 ### Systems
 
-A **system** is what applications run on: a server, a VM, a cluster, an appliance, a cloud service. One system often hosts several applications, so it is kept once – with its own tech stack (the operating system and runtimes live on the system, not on each application) – under _Service management → Systems_.
+A **system** is what applications run on: a server, a VM, a cluster, an appliance, a cloud service. One system often hosts several applications, so it is kept once – with its own tech stack (the operating system and runtimes live on the system, not on each application) – under _Catalogue → Systems_.
 
 A system has a **name** and a **kind** (server, virtual machine, cluster, appliance, cloud service, other); everything else is optional: the **vendor or provider** (AWS, Azure, on-premises, the hoster), a link to the **CMDB** entry, the users and teams **responsible**, a note, its **tech stack** (by hand or from an SBOM, exactly like a component's) and the **Steward platform** it is – "this cluster is the platform _Kubernetes (prod)_" – so shared infrastructure that also has an API is described once. Readers who may not see that platform see _A platform you may not see_; saving the system keeps it.
 
@@ -205,7 +205,7 @@ Not part of Steward: IP addresses, ports, firewall rules, hardware details, disc
 
 ## Maintenance windows
 
-_Service management → Maintenance_ lists planned work as a list or a month calendar. A window has a title, a start and an end, and lists what it affects: platforms, systems, applications and services. It happens once or repeats **weekly** or **monthly** (every n weeks or months, optionally up to a last start). Repetition keeps the wall-clock time in the instance's time zone across daylight saving changes; a monthly window on the 29th to 31st falls on the last day of shorter months.
+_Catalogue → Maintenance_ lists planned work as a list or a month calendar. A window has a title, a start and an end, and lists what it affects: platforms, systems, applications and services. It happens once or repeats **weekly** or **monthly** (every n weeks or months, optionally up to a last start). Repetition keeps the wall-clock time in the instance's time zone across daylight saving changes; a monthly window on the 29th to 31st falls on the last day of shorter months.
 
 What a window reaches:
 

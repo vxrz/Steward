@@ -29,7 +29,7 @@ A duty can name the **schedule** that runs it. It does not need one: many proced
 
 ## Define a duty
 
-1. Open the service: _Service management → Services → (service)_.
+1. Open the service: _Catalogue → Services → (service)_, tab _Duties_.
 2. In _Duties_, choose _Add duty_.
 3. Enter a name, choose the process, the interval and the level. Add a grace period, the reminder days, the owners, the application and the schedule if you like.
 4. _Save_. The duty shows its current period, normally _Due_.
@@ -105,7 +105,7 @@ The service scorecard reads these stored periods.
 
 - **Service page → Duties**: each duty with its level, interval, the current and the last period.
 - **Application page → Duties**: the duties of services that are about this application.
-- **Service management → Duties**: every duty, with filters for the level and _Due or missed_.
+- **Catalogue → Duties**: every duty, with filters for the level and _Due or missed_.
 - **Duty page**: the periods (newest first), the exceptions, the process, the schedule and the owners.
 - **Start page → Duties due**: mandatory duties due within a week (or in their grace period) and those whose last period was missed or failed. Designers, administrators and auditors see all; everyone else the duties they are responsible for (no tile when there are none). The tile and the daily summary read the periods the duty job stores – they are at most five minutes old (a change of a duty or an exception is stored at once); the duty pages and the API judge the open periods when you open them.
 

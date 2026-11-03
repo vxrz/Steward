@@ -1,6 +1,6 @@
 # Ticket references
 
-_Tickets_ in the sidebar (German _Ticket-Referenzen_) is where the service team notes tickets that live in other systems:
+_Ticket references_ in the sidebar under _Catalogue_ (German _Ticket-Referenzen_) is where the service team notes tickets that live in other systems:
 
 - **incidents users reported** through ServiceNow, which runs the incident process – Steward only records that the ticket exists, that it is open and who handles it on our side;
 - **tickets the team opened with vendors** of the platforms and services it uses: "This is open with Vendor A for Platform B, responsible from our side is …, here is the link".

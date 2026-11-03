@@ -32,7 +32,7 @@ The values are **Gatus' own uptime figures**. Steward does not calculate service
 
 ## Define an objective
 
-1. Open the service: _Service management → Services → (service)_.
+1. Open the service: _Catalogue → Services → (service)_, tab _Objectives_ (the scorecard has its own tab).
 2. In _Availability objectives_, choose _Add objective_.
 3. Choose the Gatus platform and the endpoint – or a Prometheus platform and the PromQL query with `$window`. The list shows the Gatus platforms with metrics mode and the Prometheus platforms that you may see, and the endpoints Gatus reported to them.
 4. Check the name (it starts as the endpoint's name), set the targets, and choose the application if the objective is about one.
@@ -121,7 +121,7 @@ The list **starts empty**: document types differ per installation, and a rule th
 | ------------- | --------------- | ---------- |
 | `AUTHZ`       | Confidentiality | High       |
 
-_Service management → Scorecard → Expected documents → Add rule_. A rule can be turned off. A rule whose type was archived or whose level is no longer on the scale is kept but not applied (shown as _Not applied_).
+_Catalogue → Scorecard → Expected documents → Add rule_. A rule can be turned off. A rule whose type was archived or whose level is no longer on the scale is kept but not applied (shown as _Not applied_).
 
 ## Rollup and trend
 
@@ -136,7 +136,7 @@ Once an hour, Steward stores **today's scorecard of every service** (a _snapshot
 ## Where you see it
 
 - **Service page**: the _Scorecard_ section (four parts with details and the stored days) and the _Availability objectives_ section.
-- **Service management → Scorecard**: rollup, trend, every service with its parts, the rules. _Attention needed only_ and the owner filter narrow the list.
+- **Catalogue → Scorecard**: rollup, trend, every service with its parts, the rules. _Attention needed only_ and the owner filter narrow the list.
 - **Start page**: the tile _Services needing attention_. Administrators, designers and auditors see every service, everyone else the services they own; people who own no service do not get the tile. The tile reads the newest stored snapshot (written every hour), so a new service shows there within the hour.
 - **Scheduled reports**: the section _Service scorecard_ (see below).
 

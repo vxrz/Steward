@@ -11,7 +11,7 @@ Git sync keeps processes, dashboards, monitors and record types in a Git reposit
 1. An administrator adds a **source**: Git host, repository, branch or tag, folder, what to sync and, for private repositories, a read-only access token.
 2. Steward **fetches** the source by hand (_Fetch now_), on a schedule (every N minutes) or when the Git host calls its **webhook** after a push.
 3. Every `.yaml`, `.yml` and `.json` file below the folder is checked with the same validators as an import (`npm run validate`). Each new or changed file becomes a **pending update**. Files that cannot be used are listed as **invalid** with the reason.
-4. In **Git sync** (sidebar, _Automate_) a reviewer opens an update, reads the diff against the item in Steward and accepts or rejects it.
+4. In **Git sync** (_Automate → Processes_, tab _Git sync_) a reviewer opens an update, reads the diff against the item in Steward and accepts or rejects it.
 5. Accepting creates or updates the item through the normal services, with the reviewer's rights. A process gets a **new version** with the comment `From Git: <source> <file> @ <commit>`. The item shows a **From Git** badge that links to the file at that commit.
 
 A rejected change stays rejected until the file changes again in Git.
