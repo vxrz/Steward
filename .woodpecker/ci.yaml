@@ -62,6 +62,7 @@ steps:
     depends_on: [install]
     commands:
       - npm run openapi -- --check # docs/openapi.json is up to date
+      - npm run config:docs -- --check # README.md / docs/CONFIGURATION.md variable tables match server/src/config-schema.ts
 
   - name: test
     image: *node_image

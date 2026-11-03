@@ -48,6 +48,7 @@ On the first start, set a master passphrase and create an admin account. Then cl
 | `npm run build && npm run test:ui` | Playwright browser tests, including accessibility (axe) checks                                                                             |
 | `npm run validate`                 | Example processes and dashboards                                                                                                           |
 | `npm run openapi -- --check`       | `docs/openapi.json` matches the API (run `npm run openapi` to regenerate)                                                                  |
+| `npm run config:docs -- --check`   | The environment-variable tables (README, `docs/CONFIGURATION.md`) match `server/src/config-schema.ts` (run `npm run config:docs`)          |
 | `scripts/security/scan.sh`         | Optional: the security scanners CI runs (see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md))                                       |
 
 CI runs all of these on every push and pull request: GitHub Actions (`.github/workflows/`), and Woodpecker CI (`.woodpecker/`) on a Forgejo mirror – see [docs/WOODPECKER.md](docs/WOODPECKER.md). A change to one CI system usually needs the same change in the other.
