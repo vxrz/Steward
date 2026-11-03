@@ -147,6 +147,12 @@
         "label": "Anfrage eines KI-Assistenten",
         "info": "Ein KI-Assistent möchte etwas auf einer Plattform ändern oder eine Ausführung starten, und Sie entscheiden"
       }
+    },
+    "platform": {
+      "failing": {
+        "label": "Plattform-Verbindung fehlgeschlagen",
+        "info": "Der regelmäßige Verbindungstest einer Plattform, die Sie verwalten, schlägt fehl"
+      }
     }
   }
 }
