@@ -15,6 +15,16 @@ How Steward signs in to a platform is its **auth type** (_Platforms → a platfo
 
 The connection test, _Get a new token_ (for logins, JWTs and assumed roles) and the MCP gateway work the same for every type.
 
+## Adding a platform
+
+_Platforms → Add platform_ opens a wizard (v0.4.0): **1** choose a connector (search, grouped by area), **2** its address and only the credentials it needs – on a connector that takes several sign-ins (Prometheus, the generic REST API) the auth type follows the fields you fill in –, **3** a **live connection test** with the plain-language diagnosis and the usual fixes inline (credentials, base URL, a sign-in page instead of the API, DNS, outbound policy, certificates), _Change the settings_ and _Test again_ until it works, **4** what's next: the matching template bundles and templates, the monitor check types and examples, access checks and the MCP gateway, one click each. _Skip the wizard_ opens the quick form.
+
+## Platform health
+
+The platform page shows the **last connection test** – passed or failed, when, by whom (or the periodic test), its message. **Test periodically** (off by default; every 15 minutes to once a day, platform managers) runs the same test from the server; when it starts failing, the platform's managers (else administrators) get **Platform connection failing**, routed like every other notification ([NOTIFICATIONS.md](NOTIFICATIONS.md)) – once per failing period. Every test is in the audit log (`platform.tested`, `details.periodic` for the periodic one), the setting too (`platform.health_changed`). API: `GET/PUT /api/platforms/:id/health`.
+
+The tab **Get started** lists the same "what's next" as the wizard's last step (`GET /api/platforms/:id/get-started`).
+
 ## Key-pair JWT
 
 Steward signs a JWT with the platform's private key for every new token: algorithm RS256, RS384, RS512, PS256 (RSA keys) or ES256, ES384 (EC keys), valid for at most an hour (`lifetimeSeconds`, default 3600). The **claims** are templates with `{{ vars.x }}`, `{{ secrets.x }}` and `{{ publicKeyFingerprint }}` (`SHA256:` and the base64 SHA-256 of the DER public key – what Snowflake expects); `iat`, `exp` and a random `jti` are set by Steward.
