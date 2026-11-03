@@ -732,7 +732,11 @@
     "PDF_FAILED": "Creating the PDF failed – try again, or ask an administrator to look at the server log.",
     "INTERNAL_ERROR": "Something went wrong (reference {{requestId}}). Please try again; if it keeps happening, quote the reference to your administrator.",
     "CRON_DAY_OR": "Day of month and day of week are both set, so this runs on every day where either one matches – not only on days where both do. For the nth weekday of a month use the # form, e.g. 0 6 * * 1#1 (the first Monday).",
-    "CRON_DAY_OR_suggestion": "Day of month and day of week are both set, so this runs on every day where either one matches – not only on days where both do. For the nth weekday of a month use {{suggestion}}."
+    "CRON_DAY_OR_suggestion": "Day of month and day of week are both set, so this runs on every day where either one matches – not only on days where both do. For the nth weekday of a month use {{suggestion}}.",
+    "JOB_NOT_FOUND": "This background job does not exist.",
+    "JOB_RUNNING": "This background job is running already. Try again when it has finished.",
+    "SHUTTING_DOWN": "Steward is shutting down: no new runs start now. Try again after the restart.",
+    "WAITING_FOR_DATABASE_LEASE": "Steward is starting: another instance still uses the database. Try again in a moment."
   },
   "boundary": {
     "title": "Something went wrong on this page",

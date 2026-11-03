@@ -732,7 +732,11 @@
     "PDF_FAILED": "Das Erstellen des PDFs ist fehlgeschlagen – versuchen Sie es erneut, oder bitten Sie einen Administrator, das Server-Log zu prüfen.",
     "INTERNAL_ERROR": "Etwas ist schiefgelaufen (Referenz {{requestId}}). Bitte versuchen Sie es erneut; wenn es wieder auftritt, nennen Sie Ihrer Administration die Referenz.",
     "CRON_DAY_OR": "Tag im Monat und Wochentag sind beide gesetzt: Der Zeitplan läuft an jedem Tag, an dem einer der beiden passt – nicht nur, wenn beide passen. Für den n-ten Wochentag eines Monats verwenden Sie die #-Schreibweise, z. B. 0 6 * * 1#1 (der erste Montag).",
-    "CRON_DAY_OR_suggestion": "Tag im Monat und Wochentag sind beide gesetzt: Der Zeitplan läuft an jedem Tag, an dem einer der beiden passt – nicht nur, wenn beide passen. Für den n-ten Wochentag eines Monats verwenden Sie {{suggestion}}."
+    "CRON_DAY_OR_suggestion": "Tag im Monat und Wochentag sind beide gesetzt: Der Zeitplan läuft an jedem Tag, an dem einer der beiden passt – nicht nur, wenn beide passen. Für den n-ten Wochentag eines Monats verwenden Sie {{suggestion}}.",
+    "JOB_NOT_FOUND": "Diese Hintergrundaufgabe gibt es nicht.",
+    "JOB_RUNNING": "Diese Hintergrundaufgabe läuft bereits. Versuchen Sie es erneut, wenn sie beendet ist.",
+    "SHUTTING_DOWN": "Steward wird beendet: Es starten jetzt keine neuen Ausführungen. Versuchen Sie es nach dem Neustart erneut.",
+    "WAITING_FOR_DATABASE_LEASE": "Steward startet: Eine andere Instanz verwendet die Datenbank noch. Versuchen Sie es gleich erneut."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",
