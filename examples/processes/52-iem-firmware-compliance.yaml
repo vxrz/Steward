@@ -56,7 +56,7 @@ steps:
     metrics:
       compliant: "$count(vars.fleet[compliant])"
       outdated: "$count(vars.outdated)"
-    staleAfterMinutes: 1500
+    staleAfterMinutes: 2880
   - id: report
     type: report
     name: Devices to update

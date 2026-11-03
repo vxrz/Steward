@@ -76,7 +76,7 @@ steps:
       ihAssets: "vars.assets.body.page.totalElements"
       iemDevices: "$count(vars.fleet)"
       iemOffline: "vars.offline"
-    staleAfterMinutes: 11520
+    staleAfterMinutes: 20160
   - id: report
     type: report
     name: Service report

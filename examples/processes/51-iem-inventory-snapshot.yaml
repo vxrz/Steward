@@ -107,7 +107,7 @@ steps:
     status: "'good'"
     metrics:
       apps: "$count(vars.apps.body.data ? vars.apps.body.data : vars.apps.body)"
-    staleAfterMinutes: 1500
+    staleAfterMinutes: 180
   - id: offlineCheck
     type: check
     name: All devices online

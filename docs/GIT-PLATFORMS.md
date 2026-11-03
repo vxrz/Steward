@@ -8,7 +8,7 @@ Steward reads GitHub (also GitHub Enterprise Server), GitLab and Forgejo/Gitea (
 | The tech stack from the repository's files (Dockerfile, package.json, go.mod …), end of life | the same components – the stack entries have the source _read from the repository files_      |
 | Does the default branch build, are there too many open alerts                                | monitors with the check type **Repository pipeline**                                          |
 | Who has which rights in an organisation, group or repository                                 | access reviews with the source **Git** ([COMPLIANCE.md](COMPLIANCE.md#access-reconciliation)) |
-| Several repositories at a glance                                                             | the example process _GitHub – repository health_ and the dashboard **Repositories**           |
+| Several repositories at a glance                                                             | the example process _Git – Repository health_ and the dashboard **Repositories**              |
 
 Git sync ([GIT-SYNC.md](GIT-SYNC.md)) – processes and monitors kept in a repository – is separate and has its own sources.
 

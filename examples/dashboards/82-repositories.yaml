@@ -1,12 +1,12 @@
 name: Repositories
-description: Pipelines of the default branches, branch protection, releases, open security alerts and expiring tokens of the repositories you follow on GitHub, GitLab and Forgejo – fed by "Git – repository health" (every hour, one schedule per host, read-only token).
+description: Pipelines of the default branches, branch protection, releases, open security alerts and expiring tokens of the repositories you follow on GitHub, GitLab and Forgejo – fed by "Git – Repository health" (every hour, one schedule per host, read-only token).
 refreshSeconds: 300
 widgets:
   - id: intro
     type: markdown
     width: 12
     text: |
-      **Repositories** – read by the process *Git – repository health*, one part per Git host. Opening this page never calls GitHub, GitLab or Forgejo.
+      **Repositories** – read by the process *Git – Repository health*, one part per Git host. Opening this page never calls GitHub, GitLab or Forgejo.
       The tech stack, end of life, deploy keys and tokens of repositories are on the applications (components of type "Repository"); monitors check pipelines with the check type "Repository pipeline".
   - { id: repositories, type: kpi, title: Repositories, dataset: git.repositories, metric: repositories, width: 2 }
   - { id: failing, type: kpi, title: Default branches failing, dataset: git.repositories, metric: failing, goodWhen: down, width: 2 }

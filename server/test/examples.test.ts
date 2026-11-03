@@ -135,7 +135,7 @@ describe('example library', () => {
     expect(JSON.stringify(r.logs ?? [])).not.toContain('could not be evaluated');
   });
 
-  it('Gatus – uptime overview (from /metrics) publishes what the Gatus metrics say', async () => {
+  it('Gatus – Uptime overview (from /metrics) publishes what the Gatus metrics say', async () => {
     // runs after "runs 74-…" above: the mock Gatus' /metrics (server/src/mock/mockGatusMetrics.ts), no Gatus login
     const d = await s.api('GET', '/datasets/gatus-uptime-metrics');
     const by = Object.fromEntries(d.rows.map((r: any) => [r.Endpoint, r]));
@@ -146,7 +146,7 @@ describe('example library', () => {
     expect(typeof by['MES frontend']['Uptime (%)']).toBe('number');
   });
 
-  it('CheckMk – trend summary finds the level crossed and the series heading for CRIT', async () => {
+  it('CheckMk – Trend summary finds the level crossed and the series heading for CRIT', async () => {
     // runs after "runs 78-…" above, against the mock CheckMk (server/src/mock/mockCheckmk.ts): /var on db01 grows 0.8 % a day to 82 %
     const d = await s.api('GET', '/datasets/checkmk.trends');
     const by = Object.fromEntries(d.rows.map((r: any) => [r.series, r]));
@@ -162,7 +162,7 @@ describe('example library', () => {
     expect(d.metrics).toMatchObject({ series: 3, crossed: 1, trending: 1 });
   });
 
-  it('Kubernetes – namespace health finds the deployment not fully ready, the crash-looping pod and the certificate ending soon', async () => {
+  it('Kubernetes – Namespace health finds the deployment not fully ready, the crash-looping pod and the certificate ending soon', async () => {
     // runs after "runs 79-…" above, against the mock API server (server/src/mock/mockKubernetes.ts)
     const d = await s.api('GET', '/datasets/k8s.health');
     const by = Object.fromEntries(d.rows.map((r: any) => [r._key, r]));
@@ -173,7 +173,7 @@ describe('example library', () => {
     expect(d.metrics).toMatchObject({ deployments: 5, notReady: 1, unhealthyPods: 1, certsEnding: 1 });
   });
 
-  it('GitHub – repository health finds the failing default branch and the high alert', async () => {
+  it('Git – Repository health finds the failing default branch and the high alert', async () => {
     // runs after "runs 82-…" above, against the mock GitHub (server/src/mock/mockGitPlatforms.ts)
     const d = await s.api('GET', '/datasets/git.repositories');
     const by = Object.fromEntries(d.rows.map((r: any) => [r._key, r]));
@@ -187,7 +187,7 @@ describe('example library', () => {
     expect(d.metrics).toMatchObject({ repositories: 2, failing: 1, critical: 0, high: 1 });
   });
 
-  it('Dependency-Track – vulnerabilities per project counts only open findings', async () => {
+  it('Dependency-Track – Vulnerabilities per project counts only open findings', async () => {
     // runs after "runs 86-…" above, against the mock Dependency-Track (server/src/mock/mockDtrack.ts): the latest versions only
     const d = await s.api('GET', '/datasets/dt.vulnerabilities');
     const by = Object.fromEntries(d.rows.map((r: any) => [r.Project, r]));
@@ -200,7 +200,7 @@ describe('example library', () => {
     expect(d.metrics).toMatchObject({ projects: 2, critical: 0, high: 0, policyFail: 0 });
   });
 
-  it('Kafka – topic standards finds the topics not to standard and the lagging consumer', async () => {
+  it('Kafka – Topic standards finds the topics not to standard and the lagging consumer', async () => {
     // topic components read from the simulated cluster (server/src/mock/mockKafka.ts), then the process on that application
     const kafka = platformByKind.kafka!;
     const app = await s.api('POST', '/applications', { name: 'Shop events', owners: [] });

@@ -1,13 +1,13 @@
 name: Uptime (from /metrics)
-description: Endpoint availability as monitored by Gatus – endpoints down, uptime, response times and certificate expiry. Fed by "Gatus – uptime overview (from /metrics)" (every 10 minutes), which needs no Gatus login – for a Gatus behind OIDC. Gatus stays the monitor, Steward only shows its results.
+description: Endpoint availability as monitored by Gatus – endpoints down, uptime, response times and certificate expiry. Fed by "Gatus – Uptime overview (from /metrics)" (every 10 minutes), which needs no Gatus login – for a Gatus behind OIDC. Gatus stays the monitor, Steward only shows its results.
 refreshSeconds: 60
 widgets:
   - id: intro
     type: markdown
     width: 12
     text: |
-      **Uptime** – read from Gatus' `/metrics` and its open uptime API by the process *Gatus – uptime overview (from /metrics)*. Opening this page never calls Gatus.
-      Alerts and the status page stay in Gatus; a Gatus alert can start the runbook *Diagnose endpoint outage* through a webhook trigger.
+      **Uptime** – read from Gatus' `/metrics` and its open uptime API by the process *Gatus – Uptime overview (from /metrics)*. Opening this page never calls Gatus.
+      Alerts and the status page stay in Gatus; a Gatus alert can start the runbook *Gatus – Diagnose an endpoint outage* through a webhook trigger.
   - { id: endpoints, type: kpi, title: Endpoints, dataset: gatus-uptime-metrics, metric: endpoints, width: 3 }
   - { id: down, type: kpi, title: Down, dataset: gatus-uptime-metrics, metric: down, goodWhen: down, width: 3 }
   - { id: avgUptime, type: kpi, title: Average uptime (%), dataset: gatus-uptime-metrics, metric: avgUptime, goodWhen: up, width: 3, days: 30 }

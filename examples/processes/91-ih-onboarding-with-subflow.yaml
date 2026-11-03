@@ -9,6 +9,8 @@ description: |
 
   Unknown users only cause a warning. Adding memberships needs an approval.
   Writes: group memberships (dry run first).
+
+  Recommended schedule: on demand.
 tags: [onboarding, groups, subprocess, insights-hub]
 connections:
   - slot: hub
@@ -89,6 +91,7 @@ steps:
     title: "Add {{ $count(vars.plan) }} user(s) to {{ inputs.group }}?"
     instructions: |
       {{ $join(vars.plan.('- ' & email), '\n') }}
+    saveAs: approval
   - id: add
     type: forEach
     name: Add memberships
@@ -105,6 +108,18 @@ steps:
           type: USER
           value: "{{ vars.p.userId }}"
         expectStatus: [200, 201, 409]
+  - id: documentMemberships
+    type: accessChange
+    name: Document the new memberships
+    when: "$count(vars.plan) > 0"
+    connection: hub
+    kind: grant
+    items: vars.plan
+    subjectId: userId
+    subjectName: email
+    rights: "[$inputs.group]"
+    reason: "Added to {{ inputs.group }}"
+    approvedBy: "{{ vars.approval.decidedBy }}"
   - id: summary
     type: report
     name: Summary

@@ -6,7 +6,8 @@ description: |
   (maker–checker). Work done while the network was down can be entered after
   the fact – such entries are always verified, too.
 
-  Start it when a device has to be replaced. The run protocol PDF lists every
+  Recommended schedule: on demand, when a device has to be replaced. The run
+  protocol PDF lists every
   step with its ticks, values, evidence (name, size, SHA-256), who completed
   it, who verified it and any "not available" reasons.
 tags: [manual, industrial-edge, procedure]

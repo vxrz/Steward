@@ -1,5 +1,5 @@
 # steward-min-version: 0.2.7
-name: "Git – repository health (GitHub, GitLab, Forgejo)"
+name: "Git – Repository health (GitHub, GitLab, Forgejo)"
 description: |
   Reads the repositories you list from GitHub (also Enterprise Server),
   GitLab or Forgejo / Gitea – the connection decides which (read-only token,

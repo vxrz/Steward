@@ -4,6 +4,8 @@ description: |
   credentials of a platform, reads a status text, checks it and keeps a
   screenshot as evidence in the run protocol. Adapt URLs and selectors to
   your portal (Playwright selectors: CSS, text=…, role=…).
+
+  Recommended schedule: daily (`0 8 * * *`).
 tags: [status, browser]
 connections:
   - slot: portal

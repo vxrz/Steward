@@ -9,7 +9,7 @@ description: |
   changes. Publishes `ih.privileged` with the result of the review.
   Required rights: read users/groups and change group membership (im.g.u).
   Removal only touches the privileged roles listed in the inputs.
-tags: [governance, privileged, users, insights-hub]
+tags: [access-review, governance, privileged, users, insights-hub]
 connections:
   - slot: hub
     kind: insights-hub
@@ -138,7 +138,7 @@ steps:
       privileged: "$count(vars.privileged)"
       stale90: "$count(vars.privileged[($ts(lastLogonTime) ? $daysSince(lastLogonTime) >= 90 : true)])"
       removed: "vars.removal.approved = true ? $count(vars.attestation.unselected) : 0"
-    staleAfterMinutes: 46080
+    staleAfterMinutes: 89280
   - id: summary
     type: report
     name: Summary

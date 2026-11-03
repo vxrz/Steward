@@ -341,7 +341,7 @@ export async function setupDemo(): Promise<{
       kind: 'generic',
       environment: 'demo',
       description:
-        'Plain HTTP access without credentials to the demo applications that Gatus watches. Used by "Diagnose endpoint outage" to probe a failing URL.',
+        'Plain HTTP access without credentials to the demo applications that Gatus watches. Used by "Gatus – Diagnose an endpoint outage" to probe a failing URL.',
       baseUrl: base,
       config: { auth: { type: 'none' }, variables: {}, http: { proxy: 'none' }, testPath: '/gatus-apps/mes' },
     });
