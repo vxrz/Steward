@@ -1,7 +1,7 @@
 import { Button, Card, Group, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { IconBrandGit } from '@tabler/icons-react';
+import { IconChevronRight, IconBrandGit } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { SyncSource } from '@sm/shared';
 import { getOptional } from '../../api';
@@ -21,7 +21,7 @@ export function GitSyncSettingsCard() {
         {t('sources.settingsCard')}
       </Text>
       <Group gap="xs">
-        <Button component={Link} to="/settings/git-sync" variant="light" size="xs">
+        <Button component={Link} to="/settings/git-sync" variant="default" size="xs" w="fit-content" rightSection={<IconChevronRight size={14} aria-hidden />}>
           {t('sources.manageLink')}
         </Button>
         {n > 0 && (

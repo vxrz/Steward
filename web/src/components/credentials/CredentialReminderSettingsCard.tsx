@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { CredentialReminderSettings } from '@sm/shared';
 import { getOptional, notifyError, notifyOk, put } from '../../api';
+import { useSaveSection } from '../settings/SaveBar';
 
 /** Settings → Credential reminders (administrators): default reminder days and the "due soon" window. */
 export function CredentialReminderSettingsCard() {
@@ -13,19 +14,21 @@ export function CredentialReminderSettingsCard() {
   const [d, setD] = useState<CredentialReminderSettings | null>(null);
   const [days, setDays] = useState('');
   const [busy, setBusy] = useState(false);
+  const fromServer = (x: CredentialReminderSettings) => {
+    setD(x);
+    setDays(x.daysBefore.join(', '));
+  };
   useEffect(() => {
-    if (q.data) {
-      setD(q.data);
-      setDays(q.data.daysBefore.join(', '));
-    }
+    if (q.data) fromServer(q.data);
   }, [q.data]);
-  if (!d) return null;
   const parsed = days
     .split(/[,\s]+/)
     .filter(Boolean)
     .map(Number);
   const valid = parsed.every((x) => Number.isInteger(x) && x >= 0 && x <= 365) && parsed.length <= 10;
+  const dirty = !!d && !!q.data && (JSON.stringify(d) !== JSON.stringify(q.data) || days !== q.data.daysBefore.join(', '));
   const save = async () => {
+    if (!d) return;
     setBusy(true);
     try {
       const next = await put<CredentialReminderSettings>('/credentials/settings', { ...d, daysBefore: parsed });
@@ -37,6 +40,8 @@ export function CredentialReminderSettingsCard() {
       setBusy(false);
     }
   };
+  const inBar = useSaveSection('credentialReminders', { dirty, valid, save, reset: () => q.data && fromServer(q.data) });
+  if (!d) return null;
   return (
     <Card withBorder>
       <Title order={5} mb="xs">
@@ -72,11 +77,13 @@ export function CredentialReminderSettingsCard() {
             onChange={(v) => setD({ ...d, dueSoonDays: typeof v === 'number' ? v : 30 })}
           />
         </Group>
-        <Group justify="flex-end">
-          <Button size="xs" onClick={save} loading={busy} disabled={!valid}>
-            {t('settings.save')}
-          </Button>
-        </Group>
+        {!inBar && (
+          <Group justify="flex-end">
+            <Button size="xs" onClick={save} loading={busy} disabled={!valid}>
+              {t('settings.save')}
+            </Button>
+          </Group>
+        )}
       </Stack>
     </Card>
   );

@@ -30,7 +30,7 @@
     "title": "Sprache",
     "default": "Standardsprache",
     "defaultHint": "Für Nachrichten an einen Kanal (Microsoft Teams, Webhook) und für Personen, die noch keine Sprache gewählt haben.",
-    "hint": "Jede Person wählt ihre Sprache im Benutzermenü oder im Profil; In-App-Benachrichtigungen und E-Mails verwenden sie. Audit-Einträge und Ausführungsprotokolle bleiben auf Englisch."
+    "hint": "Jede Person wählt ihre Sprache im Benutzermenü oder im Profil; In-App-Benachrichtigungen und E-Mails verwenden sie. Audit-Einträge und die Meldungen von Ausführungen bleiben auf Englisch."
   },
   "browser": {
     "title": "Browser-Automatisierung",

@@ -5,7 +5,7 @@ import { test, expect, USERS } from './support/fixtures';
 import { expectAccessible, settle } from './support/axe';
 import { sessionState, startIsolatedServer, type IsolatedServer } from './support/server';
 import { BRAND } from '../shared/src/brand';
-import { confirmDialog } from './support/helpers';
+import { confirmDialog, settingsSave } from './support/helpers';
 
 /**
  * Theming (Settings → Appearance). The theme applies to everyone, so these tests run against
@@ -96,10 +96,10 @@ test.describe('custom theme (own server)', () => {
     await expect(sample).toHaveCSS('color', BLACK);
     await expect(card.getByText(/too light for text on a white page, so links and text use the darker/)).toBeVisible();
     // the rest of the page keeps the saved theme until saving
-    await expect(card.getByRole('button', { name: 'Save appearance' })).not.toHaveCSS('background-color', YELLOW);
+    await expect(settingsSave(page)).not.toHaveCSS('background-color', YELLOW);
 
     await card.getByRole('textbox', { name: 'Display name' }).fill('ACME Steward');
-    await card.getByRole('button', { name: 'Save appearance' }).click();
+    await settingsSave(page).click();
     await expect(page.getByText(/Appearance saved/)).toBeVisible();
     await expect(page.getByRole('banner').getByText('ACME Steward')).toBeVisible();
     await expect(page).toHaveTitle('ACME Steward');

@@ -113,3 +113,8 @@ export async function confirmDialog(page: Page, button: string, opts: { title?: 
   await dialog.getByRole('button', { name: button, exact: true }).click();
   await expect(dialog).toBeHidden();
 }
+
+/** The Save button of a settings area's save bar (one bar saves every card of the area). */
+export function settingsSave(page: Page): Locator {
+  return page.getByTestId('settings-save-bar').getByRole('button', { name: 'Save', exact: true });
+}

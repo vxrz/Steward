@@ -41,6 +41,7 @@ import { allowListEntryProblem, allowListLines, type ApiToken, type AuthStatus, 
 import { BRAND } from '../../../shared/src/brand';
 import { del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, PageHeader } from '../components/common';
+import { SaveBar, SaveBarProvider, useSaveSection } from '../components/settings/SaveBar';
 import { useMe } from '../auth';
 import { fmtBytes, fmtDate, fmtNumber, fmtRelative } from '../format';
 import { DEFAULT_LOCALE, LANGUAGES, isLocale } from '../i18n/languages';
@@ -126,19 +127,20 @@ function useInstanceSettings(enabled: boolean) {
     }
   };
   const dirty = !!s && !!settings.data && JSON.stringify(s) !== JSON.stringify(settings.data);
-  return { saved: settings.data, s, setS, allowText, setAllowText, allowProblems, save, dirty };
+  const reset = () => {
+    if (!settings.data) return;
+    setS(settings.data);
+    setAllowText((settings.data.outboundAllowList ?? []).join('\n'));
+  };
+  return { saved: settings.data, s, setS, allowText, setAllowText, allowProblems, save, reset, dirty };
 }
 type Draft = ReturnType<typeof useInstanceSettings> & { s: Settings };
 
-function SaveBar({ d }: { d: Draft }) {
-  const { t } = useTranslation(['settings', 'common']);
-  return (
-    <Group>
-      <Button disabled={d.allowProblems.length > 0 || !d.dirty} onClick={d.save}>
-        {t('common:save')}
-      </Button>
-    </Group>
-  );
+/** The instance settings document of an area, saved by the area's save bar. */
+function InstanceSection({ d }: { d: Draft }) {
+  // saved last: it refreshes every query, which would reset the drafts of the other cards
+  useSaveSection('instance', { dirty: d.dirty, valid: d.allowProblems.length === 0, save: d.save, reset: d.reset, saveLast: true });
+  return null;
 }
 
 /** Where a setting applies and who changes it. */
@@ -209,7 +211,14 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
                 </Text>
               )}
             </ScopeNote>
-            {!readOnly && d.s && <Area area={area} d={d as Draft} browserAvailable={browserAvailable} />}
+            {!readOnly && d.s && (
+              // one save bar per area: it saves the instance settings and the changes of every card
+              <SaveBarProvider key={area}>
+                <InstanceSection d={d as Draft} />
+                <Area area={area} d={d as Draft} browserAvailable={browserAvailable} />
+                <SaveBar />
+              </SaveBarProvider>
+            )}
           </Stack>
         </Grid.Col>
       </Grid>
@@ -224,7 +233,6 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
         <>
           <LanguageCard d={d} />
           <BrowserCard d={d} browserAvailable={browserAvailable} />
-          <SaveBar d={d} />
           <UnattendedCard />
         </>
       );
@@ -234,7 +242,6 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
           <SignInCard d={d} />
           <OutboundCard d={d} />
           <PublicApiCard d={d} />
-          <SaveBar d={d} />
           <McpServerCard />
           <VaultPassphraseCard />
           <AdminTokensCard />
@@ -269,7 +276,6 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
       return (
         <>
           <ComplianceCard d={d} />
-          <SaveBar d={d} />
           <Card withBorder id="cia-scale">
             <CiaScalePage embedded />
           </Card>
@@ -283,7 +289,6 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
       return (
         <>
           <RetentionCard d={d} />
-          <SaveBar d={d} />
           <BackupSettingsCard />
         </>
       );

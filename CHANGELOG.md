@@ -17,6 +17,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
   - the settings area _Maintenance_ (retention, cleanup, backups) is _Data & retention_ at `/settings/data`, so it no longer collides with the maintenance windows in the sidebar; `/settings/maintenance` leads there;
   - _Settings → General → Unattended operation_ names each server option in plain words, with its environment variable (`SM_*`) as the detail;
   - the description of person reviews says in plain words what happens (snapshot of the rights, a decision per right, approval by a second person, no changes afterwards).
+- **One way to save settings**: every settings area ends with one save bar – _Unsaved changes_, _Reset_ and _Save_ – that stays at the bottom of the window while something is unsaved and saves every changed card of the area (instance settings, ticket sources, notification channels and their look, credential reminders, appearance, report branding). The cards' own save buttons in between (a grey _Save_ between the cards on _General_, _Save ticket settings_ inside a card) are gone. The buttons that open a page of their own (_Manage Git sync_, _Open migration_, backups) look alike.
 
 ### Fixed
 

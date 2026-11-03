@@ -68,6 +68,13 @@
   },
   "cancel": "Abbrechen",
   "save": "Speichern",
+  "saveBar": {
+    "label": "Änderungen speichern",
+    "unsaved": "Ungespeicherte Änderungen",
+    "invalid": "Ungespeicherte Änderungen – korrigieren Sie die markierten Felder, um sie zu speichern",
+    "saved": "Keine ungespeicherten Änderungen",
+    "reset": "Zurücksetzen"
+  },
   "delete": "Löschen",
   "close": "Schließen",
   "edit": "Bearbeiten",

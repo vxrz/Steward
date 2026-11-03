@@ -30,7 +30,7 @@
     "title": "Language",
     "default": "Default language",
     "defaultHint": "For messages posted to a channel (Microsoft Teams, webhook) and for people who have not chosen a language yet.",
-    "hint": "Everyone picks their own language in the user menu or on their profile; in-app notifications and e-mails use it. Audit entries and run protocols stay in English."
+    "hint": "Everyone picks their own language in the user menu or on their profile; in-app notifications and e-mails use it. Audit entries and the messages of runs stay in English."
   },
   "browser": {
     "title": "Browser automation",
