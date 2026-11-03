@@ -292,7 +292,7 @@ export function AppNav({
     setState(next);
     write(groupsKey(userId), next);
   };
-  // navigating into an area opens it again (the area of the current page is always open first)
+  // the area of the page opens whenever the user gets there (also after they folded it on an earlier visit)
   useEffect(() => {
     if (!activeGroup) return;
     setState((s) => {
