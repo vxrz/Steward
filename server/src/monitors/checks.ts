@@ -559,7 +559,8 @@ async function checkCheckmk(c: CheckOf<'checkmk'>, ctx: ExecContext): Promise<Ra
 
 // ---------- Prometheus ----------
 
-const fmtNum = (v: number) => (Math.abs(v) >= 100 ? String(Math.round(v)) : String(Math.round(v * 100) / 100));
+const fmtNum = (v: number) =>
+  v === Infinity ? '+Inf' : v === -Infinity ? '-Inf' : Math.abs(v) >= 100 ? String(Math.round(v)) : String(Math.round(v * 100) / 100);
 
 /** A PromQL query against WARN and CRIT levels (#110): every series is judged, the worst one counts. */
 async function checkPrometheus(c: CheckOf<'prometheus'>, ctx: ExecContext): Promise<RawResult> {
@@ -577,7 +578,8 @@ async function checkPrometheus(c: CheckOf<'prometheus'>, ctx: ExecContext): Prom
   const bad = (v: number, level: number | undefined) => level !== undefined && (c.direction === 'below' ? v <= level : v >= level);
   const rank = { up: 0, unknown: 1, degraded: 2, down: 3 } as const;
   const judged = series.map((s) => {
-    const status: keyof typeof rank = !Number.isFinite(s.value) ? 'unknown' : bad(s.value, c.crit) ? 'down' : bad(s.value, c.warn) ? 'degraded' : 'up';
+    // +Inf and -Inf are past any level (a division by zero, a histogram's last bucket); only NaN is unknown
+    const status: keyof typeof rank = Number.isNaN(s.value) ? 'unknown' : bad(s.value, c.crit) ? 'down' : bad(s.value, c.warn) ? 'degraded' : 'up';
     return { s, status };
   });
   // the worst series; among equals, the one furthest past the level
@@ -586,7 +588,7 @@ async function checkPrometheus(c: CheckOf<'prometheus'>, ctx: ExecContext): Prom
   );
   const name = seriesName(worst.s, series);
   const levels = [c.warn !== undefined ? `WARN ${fmtNum(c.warn)}` : '', `CRIT ${fmtNum(c.crit)}`].filter(Boolean).join(', ');
-  const value = Number.isFinite(worst.s.value) ? `${fmtNum(worst.s.value)}${unit}` : 'not a number';
+  const value = Number.isNaN(worst.s.value) ? 'not a number' : `${fmtNum(worst.s.value)}${unit}`;
   const count = series.length === 1 ? '' : ` (worst of ${series.length} series)`;
   const failing = judged.filter((j) => j.status === 'down' || j.status === 'degraded').length;
   const message =

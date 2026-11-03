@@ -1,8 +1,9 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 
 /**
  * Simulated Prometheus HTTP API for demo mode and tests, mounted at /mock/prometheus (#110):
- *   GET /api/v1/query?query=…        instant query: { status, data: { resultType: "vector", result: [{ metric, value: [ts, "v"] }] } }
+ *   POST /api/v1/query (form query=…) instant query: { status, data: { resultType: "vector", result: [{ metric, value: [ts, "v"] }] } }
+ *   GET /api/v1/query?query=…        the same (Steward falls back to it when POST answers 405)
  *   GET /api/v1/status/buildinfo     connection test
  * It knows a few fixed queries (the demo's) and whatever a test sets with setPromResult; anything else is an empty
  * vector, and a query with "syntax_error" answers 400 like Prometheus does.
@@ -38,9 +39,20 @@ export function setPromResult(query: string, series: Series[] | null): void {
   if (series) results.set(query, series);
   else results.delete(query);
 }
+/** For tests: requests seen (method and query) and whether POST is allowed (false: 405, like a proxy that only passes GET). */
+export const promRequests: { method: string; query: string }[] = [];
+let postAllowed = true;
+export function setPromPostAllowed(v: boolean): void {
+  postAllowed = v;
+}
 export function resetPrometheus(): void {
   results = defaults();
+  postAllowed = true;
+  promRequests.length = 0;
 }
+
+/** A sample value as Prometheus writes it: +Inf, -Inf and NaN are strings of their own. */
+const sample = (v: number) => (v === Infinity ? '+Inf' : v === -Infinity ? '-Inf' : Number.isNaN(v) ? 'NaN' : String(v));
 
 function answer(query: string): Series[] {
   const known = results.get(query.trim());
@@ -56,14 +68,20 @@ export async function mockPrometheus(app: FastifyInstance): Promise<void> {
     status: 'success',
     data: { version: '3.5.0', revision: 'demo', branch: 'HEAD', buildUser: 'steward', goVersion: 'go1.24' },
   }));
-  app.get('/prometheus/api/v1/query', async (req, reply) => {
-    const query = String((req.query as { query?: unknown }).query ?? '');
+  const query = async (method: string, raw: unknown, reply: FastifyReply) => {
+    const query = String(raw ?? '');
+    promRequests.push({ method, query });
     if (!query || query.includes('syntax_error'))
       return reply.code(400).send({ status: 'error', errorType: 'bad_data', error: `invalid parameter "query": 1:1: parse error: unexpected identifier` });
     const ts = Date.now() / 1000;
     return {
       status: 'success',
-      data: { resultType: 'vector', result: answer(query).map((s) => ({ metric: s.metric, value: [ts, String(s.value)] })) },
+      data: { resultType: 'vector', result: answer(query).map((s) => ({ metric: s.metric, value: [ts, sample(s.value)] })) },
     };
+  };
+  app.get('/prometheus/api/v1/query', async (req, reply) => query('GET', (req.query as { query?: unknown }).query, reply));
+  app.post('/prometheus/api/v1/query', async (req, reply) => {
+    if (!postAllowed) return reply.code(405).send('Method Not Allowed');
+    return query('POST', (req.body as { query?: unknown } | null)?.query, reply);
   });
 }
