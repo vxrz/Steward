@@ -63,6 +63,13 @@ export function DashboardViewPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const d = dash.data;
+  // ?edit=1 (a new dashboard): open in edit mode
+  useEffect(() => {
+    if (!d || params.get('edit') !== '1') return;
+    if (d.canEdit) setDraft(structuredClone(d.definition));
+    params.delete('edit');
+    setParams(params, { replace: true });
+  }, [d, params, setParams]);
   const def = draft ?? d?.definition;
   const refreshMs = Date.now() < fastUntil ? 3000 : (def?.refreshSeconds ?? 60) * 1000;
   const ctx = useMemo(() => ({ refreshMs, statusFilter, setStatusFilter, sources }), [refreshMs, statusFilter, sources]);
@@ -184,8 +191,9 @@ export function DashboardViewPage() {
       {def.widgets.length === 0 ? (
         <Paper withBorder p="lg">
           <Text fw={600}>{t('view.noWidgets')}</Text>
-          <Text size="sm" c="dimmed">
-            {d.canEdit ? `${t('view.clickEdit')} ` : ''}
+          <Text size="sm" c="dimmed" data-testid="dashboard-empty">
+            {/* in edit mode the "Add widget" button is right above; otherwise Edit gets there */}
+            {draft ? `${t('view.addWidgetAbove')} ` : d.canEdit ? `${t('view.clickEdit')} ` : ''}
             <Trans
               t={t}
               i18nKey="view.widgetsHint"

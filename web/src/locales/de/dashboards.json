@@ -67,7 +67,8 @@
     "dataFrom": "Daten von {{when}}",
     "noData": "noch keine Daten",
     "sources": "Quellen",
-    "allSources": "Alle Quellen"
+    "allSources": "Alle Quellen",
+    "addWidgetAbove": "Fügen Sie das erste mit „Widget hinzufügen“ oben hinzu."
   },
   "widgets": {
     "kpi": {
@@ -243,5 +244,19 @@
     "segmentFilter": "{{status}}: {{count}} ({{share}}) – klicken, um Tabellen zu filtern",
     "share": "Anteil",
     "valuesOf": "Werte von {{names}}"
+  },
+  "create": {
+    "title": "Neues Dashboard",
+    "name": "Name",
+    "teams": "Verantwortliche Teams",
+    "teamsHint": "Mitglieder dieser Teams ändern es; leer: es gehört der ganzen Instanz",
+    "wholeInstance": "Keine – die ganze Instanz",
+    "yourTeams": "{{teams}} (das Team, das Ihre neuen Ressourcen bekommen – siehe Profil)",
+    "wholeInstanceText": "Keine – es gehört der ganzen Instanz. Administratoren können das später ändern.",
+    "start": "Start",
+    "blank": "Leer",
+    "fromTemplate": "Aus einer Vorlage",
+    "template": "Vorlage",
+    "submit": "Anlegen und bearbeiten"
   }
 }

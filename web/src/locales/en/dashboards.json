@@ -67,7 +67,8 @@
     "dataFrom": "data from {{when}}",
     "noData": "no data yet",
     "sources": "Sources",
-    "allSources": "All sources"
+    "allSources": "All sources",
+    "addWidgetAbove": "Add the first one with “Add widget” above."
   },
   "widgets": {
     "kpi": {
@@ -243,5 +244,19 @@
     "segmentFilter": "{{status}}: {{count}} ({{share}}) – click to filter tables",
     "share": "Share",
     "valuesOf": "Values of {{names}}"
+  },
+  "create": {
+    "title": "New dashboard",
+    "name": "Name",
+    "teams": "Owning teams",
+    "teamsHint": "Members of these teams change it; empty: it belongs to the whole instance",
+    "wholeInstance": "None – the whole instance",
+    "yourTeams": "{{teams}} (the team your new resources get – see your profile)",
+    "wholeInstanceText": "None – it belongs to the whole instance. Administrators can change this later.",
+    "start": "Start",
+    "blank": "Blank",
+    "fromTemplate": "From a template",
+    "template": "Template",
+    "submit": "Create and edit"
   }
 }
