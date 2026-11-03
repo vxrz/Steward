@@ -21,13 +21,45 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { IconCheck, IconPlus, IconRefresh, IconSend, IconShieldCheck, IconUserSearch } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { PERSON_REVIEW_LIMITS, type AccessCheck, type PersonReview, type PersonReviewDecision, type PersonReviewSummary } from '@sm/shared';
+import {
+  PERSON_REVIEW_LIMITS,
+  type AccessCheck,
+  type PersonReview,
+  type PersonReviewDecision,
+  type PersonReviewItem,
+  type PersonReviewSummary,
+} from '@sm/shared';
 import { get, notifyError, post, put } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE, useCreateParam } from '../components/common';
-import { fmtDate, fmtRelative } from '../format';
+import { fmtDate, fmtDay, fmtRelative } from '../format';
 
 const STATUS_COLOR: Record<PersonReview['status'], string> = { open: TONE.active, submitted: TONE.attention, approved: TONE.ok, closed: TONE.neutral };
+
+/** What the source knows about the account's use (Snowflake: the last login, a password without MFA), in the UI's words. */
+function ActivityHint({ item }: { item: PersonReviewItem }) {
+  const { t } = useTranslation('compliance');
+  const info = item.subjectActivityInfo;
+  if (!info)
+    return item.subjectActivity ? (
+      <Text size="xs" c="dimmed">
+        {item.subjectActivity}
+      </Text>
+    ) : null;
+  const days = info.lastLoginAt ? Math.max(0, Math.floor((Date.now() - Date.parse(info.lastLoginAt)) / 86_400_000)) : null;
+  return (
+    <Group gap={4} mt={2} data-testid="subject-activity">
+      <Text size="xs" c="dimmed">
+        {info.lastLoginAt ? t('personReviews.lastLogin', { date: fmtDay(info.lastLoginAt), count: days ?? 0 }) : t('personReviews.neverSignedIn')}
+      </Text>
+      {info.passwordWithoutMfa && (
+        <Badge size="xs" color="orange" variant="light" tt="none">
+          {t('personReviews.passwordWithoutMfa')}
+        </Badge>
+      )}
+    </Group>
+  );
+}
 
 function StatusBadge({ status }: { status: PersonReview['status'] }) {
   const { t } = useTranslation('compliance');
@@ -430,6 +462,12 @@ export function PersonReviewDetailPage() {
                           {[i.subjectName && i.subjectName !== i.subjectId ? i.subjectId : '', i.subjectType ?? ''].filter(Boolean).join(' · ')}
                         </Text>
                       ) : null}
+                      {i.matchedAliases?.length ? (
+                        <Text size="xs" c="dimmed" data-testid="matched-aliases">
+                          {t('personReviews.matchedBy', { aliases: i.matchedAliases.join(', ') })}
+                        </Text>
+                      ) : null}
+                      <ActivityHint item={i} />
                     </Table.Td>
                     <Table.Td className="mono">{i.right}</Table.Td>
                     <Table.Td>

@@ -354,7 +354,12 @@
     "recheckState": {
       "gone": "Entfernt",
       "present": "Noch vorhanden"
-    }
+    },
+    "matchedBy": "Gefunden über {{aliases}}",
+    "lastLogin_one": "Letzte Anmeldung {{date}} (vor {{count}} Tag)",
+    "lastLogin_other": "Letzte Anmeldung {{date}} (vor {{count}} Tagen)",
+    "neverSignedIn": "Nie angemeldet",
+    "passwordWithoutMfa": "Passwort ohne MFA"
   },
   "packs": {
     "title": "Nachweispakete",
