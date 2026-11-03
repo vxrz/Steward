@@ -125,7 +125,7 @@ Start the demo with `npm run demo`, set it up, then click **Load demo platforms 
 **Auditor (audrey)**
 
 - [ ] Audit log: filter _Decisions_, find who decided what; _Verify chain_ → "Audit chain intact".
-- [ ] Open a run → Protocol → HTML/PDF/JSON; the protocol shows "intact". Export the audit log (CSV/JSONL).
+- [ ] Open a run → Run report → HTML/PDF/JSON; the protocol shows "intact". Export the audit log (CSV/JSONL).
 - [ ] Cannot start runs or change anything (no Run/Save buttons; the API answers 403).
 
 **Viewer (vera)**

@@ -957,7 +957,7 @@
       "ticket": "Ticket reference"
     },
     "evidence": "Evidence files",
-    "evidenceHint": "Screenshots, exports, photos: stored with name, size and SHA-256, content-checked like record attachments.",
+    "evidenceHint": "Screenshots, exports, photos: stored with name, size and SHA-256, content-checked like document attachments.",
     "verification": "Second-person verification",
     "verificationRequired": "Verified by a second person",
     "verificationHint": "Someone other than the person who completed the step checks it before the run continues. Always applies to “not available” and after-the-fact entries.",

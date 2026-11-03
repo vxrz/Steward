@@ -19,7 +19,7 @@ test.describe('sign-in', () => {
     await signIn(page, USERS.dana.username, USERS.dana.password);
     await expectShell(page);
     await expect(page.getByRole('button', { name: 'User menu' })).toContainText(USERS.dana.displayName);
-    await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
 
     const headers = await pageSessionHeaders(page);
     expect((await page.request.get('/api/auth/me', { headers })).status()).toBe(200);

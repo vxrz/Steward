@@ -8,7 +8,7 @@ test.describe('phone @mobile', () => {
 
   test('navigation drawer', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('main').getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
     const link = page.getByRole('navigation').getByRole('link', { name: 'My tasks' });
     // the collapsed navbar is moved off-screen
     await expect(link).not.toBeInViewport();

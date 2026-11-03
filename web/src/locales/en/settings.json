@@ -79,7 +79,28 @@
   },
   "unattended": {
     "title": "Unattended operation",
-    "text": "Schedules only run while the vault is unlocked; scheduled runs use the rights of the person who owns the schedule. To start unlocked after a reboot (e.g. as a Windows service), provide the passphrase in a file only the service account can read and point <c>SM_MASTER_PASSPHRASE_FILE</c> at it (not a user environment variable – every program would inherit it). To let colleagues use the tool over the network, start it with <c>SM_HOST=0.0.0.0</c>, <hosts/> and HTTPS (<c>SM_TLS_CERT</c>/<c>SM_TLS_KEY</c>). Keep the data directory (<c>data/</c>) backed up – it contains the database, encrypted credentials, evidence files and the audit log. See the <readme>README</readme> for details."
+    "intro": "Schedules only run while the vault is unlocked; scheduled runs use the rights of the person who owns the schedule. These options are part of the server configuration and take effect when Steward starts.",
+    "serverSetting": "Server setting:",
+    "folder": "Folder:",
+    "items": {
+      "unlocked": {
+        "label": "Start unlocked after a reboot",
+        "hint": "For example as a Windows service: keep the master passphrase in a file only the service account can read – not in a user environment variable, which every program would inherit."
+      },
+      "network": {
+        "label": "Use over the network",
+        "hint": "Let colleagues open Steward from their computers: listen on all network interfaces and name the host name they use."
+      },
+      "https": {
+        "label": "HTTPS",
+        "hint": "Encrypt the connection with your certificate and its key."
+      },
+      "backup": {
+        "label": "Back up the data directory",
+        "hint": "It contains the database, encrypted credentials, evidence files and the audit log."
+      }
+    },
+    "readme": "See the <readme>README</readme> for details."
   },
   "maintenance": {
     "confirm": "Delete runs and notifications older than the saved retention periods now? This cannot be undone.",
@@ -527,9 +548,9 @@
       "title": "Catalogue & compliance",
       "description": "The CIA scale, scorecard rules, environments and compliance rules."
     },
-    "maintenance": {
-      "title": "Maintenance",
-      "description": "How long data is kept, storage and backups."
+    "data": {
+      "title": "Data & retention",
+      "description": "How long data is kept, storage, cleanup and backups."
     }
   },
   "endOfLife": {

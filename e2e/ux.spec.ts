@@ -188,7 +188,7 @@ test.describe('lists, dialogs and help (admin)', () => {
 
   test('create dialogs: the button stays enabled and names what is missing', async ({ page }) => {
     await page.goto('/records?new=1');
-    const dialog = page.getByRole('dialog', { name: 'New record' });
+    const dialog = page.getByRole('dialog', { name: 'New document' });
     await expect(dialog).toBeVisible();
     const create = dialog.getByRole('button', { name: 'Create draft' });
     await expect(create).toBeEnabled();

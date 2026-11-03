@@ -18,6 +18,12 @@ test('settings: notification routing, retention, maintenance status', async ({ p
 
   // maintenance status (its own area)
   await page.goto('/settings/maintenance');
+  // renamed to "Data & retention" in 0.3.1: the old address leads there
+  await expect(page).toHaveURL(/\/settings\/data$/);
+  await expect(page.getByRole('navigation', { name: 'Settings areas' }).getByRole('link', { name: 'Data & retention' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
   for (const label of ['Database', 'Evidence files', 'Runs', 'Audit entries', 'Last cleanup']) {
     await expect(page.getByRole('main').getByText(label, { exact: true })).toBeVisible();
   }

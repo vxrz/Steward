@@ -22,7 +22,7 @@ Each area has a stable address. Old links to `/settings` open _General_, and `/s
 | Notifications          | `/settings/notifications` | channels, routes and allowed e-mail domains; look of e-mails and Teams messages; daily summaries; credential reminders                                                               |
 | Appearance & branding  | `/settings/appearance`    | colours, name and logo of the app; report branding                                                                                                                                   |
 | Catalogue & compliance | `/settings/catalogue`     | four-eyes rule for dismissing access findings; CIA scale; expected documents (scorecard rules); environments                                                                         |
-| Maintenance            | `/settings/maintenance`   | data retention and storage, cleanup; backups (`/settings/backups`); system status (`/settings/status`)                                                                               |
+| Data & retention       | `/settings/data`          | data retention and storage, cleanup; backups (`/settings/backups`); system status (`/settings/status`). Called _Maintenance_ until 0.3.0: `/settings/maintenance` leads here         |
 
 The CIA scale and the scorecard rules are also shown where they are used: _Applications → CIA scale_ and the scorecard. End of life opens from _Applications_ as well. All of them are the same settings.
 

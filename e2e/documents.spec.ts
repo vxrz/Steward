@@ -9,8 +9,8 @@ test.use({ storageState: authFile('dana') });
 test('a service document gets editions 1.0 and 1.1, a review, and shows on the start page when due', async ({ page, loginAs, apiAs }) => {
   const title = uniq('E2E operations manual');
   await page.goto('/records');
-  await page.getByRole('button', { name: 'New record' }).click();
-  const create = page.getByRole('dialog', { name: 'New record' });
+  await page.getByRole('button', { name: 'New document' }).click();
+  const create = page.getByRole('dialog', { name: 'New document' });
   await create.getByRole('combobox', { name: 'Type' }).click();
   await page.getByRole('option', { name: /^DOC – Service documentation/ }).click();
   await create.getByRole('textbox', { name: 'Title' }).fill(title);

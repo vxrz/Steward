@@ -9,6 +9,14 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - **The sidebar leaves out pages a role cannot use**: viewers and approvers no longer see _Schedules_ and _Triggers_, people without a role that reads the credentials register (and without an entry of their own) no longer see _Credentials_, and _Settings_ shows for administrators and auditors only (everybody else has their profile in the user menu). Roles from a team count. The addresses keep working. `GET /api/auth/status` carries two additional capabilities for it, `viewAutomation` and `viewCredentials`.
+- **Clearer names** (labels only, every address stays):
+  - the run page's main button is _Run report_ (was _Protocol_) and its _Log_ tab _Messages_; in German _Ausführungsbericht_ and _Meldungen_ (both were _Protokoll_);
+  - _Records_ are called _Documents_ in English as in German (_Dokumente_), with _Document types_; _Tickets_ in the sidebar is _Ticket references_ as on its page;
+  - the start page is _Home_ in English, so it no longer reads like _Dashboards_;
+  - _Updates from Git_ is _Git sync_ in the sidebar and _Git sync updates_ on its page, one name with the sources in the settings (German _Git-Synchronisierung_ throughout);
+  - the settings area _Maintenance_ (retention, cleanup, backups) is _Data & retention_ at `/settings/data`, so it no longer collides with the maintenance windows in the sidebar; `/settings/maintenance` leads there;
+  - _Settings → General → Unattended operation_ names each server option in plain words, with its environment variable (`SM_*`) as the detail;
+  - the description of person reviews says in plain words what happens (snapshot of the rights, a decision per right, approval by a second person, no changes afterwards).
 
 ### Fixed
 

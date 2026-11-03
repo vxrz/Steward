@@ -79,7 +79,28 @@
   },
   "unattended": {
     "title": "Unbeaufsichtigter Betrieb",
-    "text": "Zeitpläne laufen nur, solange der Tresor entsperrt ist; geplante Ausführungen verwenden die Rechte des Zeitplan-Eigentümers. Um nach einem Neustart entsperrt zu starten (z. B. als Windows-Dienst), die Passphrase in einer Datei ablegen, die nur das Dienstkonto lesen kann, und <c>SM_MASTER_PASSPHRASE_FILE</c> darauf zeigen lassen (keine Benutzer-Umgebungsvariable – jedes Programm würde sie erben). Damit Kollegen das Tool über das Netzwerk nutzen können, mit <c>SM_HOST=0.0.0.0</c>, <hosts/> und HTTPS (<c>SM_TLS_CERT</c>/<c>SM_TLS_KEY</c>) starten. Das Datenverzeichnis (<c>data/</c>) regelmäßig sichern – es enthält die Datenbank, verschlüsselte Zugangsdaten, Nachweisdateien und das Audit-Log. Details stehen in der <readme>README</readme>."
+    "intro": "Zeitpläne laufen nur, solange der Tresor entsperrt ist; geplante Ausführungen verwenden die Rechte des Zeitplan-Eigentümers. Diese Optionen gehören zur Serverkonfiguration und wirken beim Start von Steward.",
+    "serverSetting": "Servereinstellung:",
+    "folder": "Ordner:",
+    "items": {
+      "unlocked": {
+        "label": "Nach einem Neustart entsperrt starten",
+        "hint": "Zum Beispiel als Windows-Dienst: Legen Sie die Master-Passphrase in einer Datei ab, die nur das Dienstkonto lesen kann – nicht in einer Benutzer-Umgebungsvariable, die jedes Programm erben würde."
+      },
+      "network": {
+        "label": "Über das Netzwerk nutzen",
+        "hint": "Damit Kolleginnen und Kollegen Steward von ihren Rechnern aus öffnen: auf allen Netzwerkschnittstellen lauschen und den Hostnamen angeben, den sie verwenden."
+      },
+      "https": {
+        "label": "HTTPS",
+        "hint": "Verschlüsseln Sie die Verbindung mit Ihrem Zertifikat und dem zugehörigen Schlüssel."
+      },
+      "backup": {
+        "label": "Datenverzeichnis sichern",
+        "hint": "Es enthält die Datenbank, verschlüsselte Zugangsdaten, Nachweisdateien und das Audit-Log."
+      }
+    },
+    "readme": "Details stehen in der <readme>README</readme>."
   },
   "maintenance": {
     "confirm": "Ausführungen und Benachrichtigungen, die älter als die gespeicherten Aufbewahrungsfristen sind, jetzt löschen? Das lässt sich nicht rückgängig machen.",
@@ -513,7 +534,7 @@
     },
     "integrations": {
       "title": "Integrationen",
-      "description": "Ticketsysteme, Git-Synchronisation, Umzug auf eine andere Instanz und die Quelle für Lebenszyklusdaten."
+      "description": "Ticketsysteme, Git-Synchronisierung, Umzug auf eine andere Instanz und die Quelle für Lebenszyklusdaten."
     },
     "notifications": {
       "title": "Benachrichtigungen",
@@ -527,9 +548,9 @@
       "title": "Katalog & Compliance",
       "description": "Die CIA-Skala, Scorecard-Regeln, Umgebungen und Compliance-Regeln."
     },
-    "maintenance": {
-      "title": "Wartung",
-      "description": "Wie lange Daten aufbewahrt werden, Speicher und Sicherungen."
+    "data": {
+      "title": "Daten & Aufbewahrung",
+      "description": "Wie lange Daten aufbewahrt werden, Speicher, Bereinigung und Sicherungen."
     }
   },
   "endOfLife": {

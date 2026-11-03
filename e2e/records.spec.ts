@@ -10,8 +10,8 @@ const CR_FIELDS = { reason: 'Certificate expires', risk: 'low', rollbackPlan: 'R
 test('a change request is approved by someone else and generated as PDF with two signers', async ({ page, loginAs, apiAs }) => {
   const title = uniq('E2E change');
   await page.goto('/records');
-  await page.getByRole('button', { name: 'New record' }).click();
-  const create = page.getByRole('dialog', { name: 'New record' });
+  await page.getByRole('button', { name: 'New document' }).click();
+  const create = page.getByRole('dialog', { name: 'New document' });
   await create.getByRole('combobox', { name: 'Type' }).click();
   await page.getByRole('option', { name: /^CR – / }).click();
   await create.getByRole('textbox', { name: 'Title' }).fill(title);
@@ -62,7 +62,7 @@ test('a change request is approved by someone else and generated as PDF with two
   await names.nth(1).fill('Max Requester');
   await roles.nth(1).fill('Requester');
   await dialog.getByRole('button', { name: 'Generate', exact: true }).click();
-  await expect(dialog.getByText('The PDF was generated and stored with the record.')).toBeVisible();
+  await expect(dialog.getByText('The PDF was generated and stored with the document.')).toBeVisible();
   await dialog.getByRole('button', { name: 'Close', exact: true }).first().click();
   await expect(adam).toHaveURL(/tab=pdfs/);
   const generated = adam.getByRole('table', { name: 'Generated PDFs' });
@@ -98,12 +98,12 @@ test('an ADR in Markdown is imported as a draft', async ({ page }) => {
   await expect(preview).toContainText('Status in the file: accepted (imported as draft)');
   await expectAccessible(page, 'import dialog');
   await dialog.getByRole('button', { name: 'Import 1 file' }).click();
-  await expect(dialog.getByText('1 record created.')).toBeVisible();
+  await expect(dialog.getByText('1 document created.')).toBeVisible();
   await dialog.getByRole('link', { name: title }).click();
   await expect(page.getByRole('heading', { level: 1 })).toContainText(title);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Draft');
   await expect(page.getByText('Several instances share one database.')).toBeVisible();
-  await expect(page.getByText(/imported records start as drafts/i)).toBeVisible();
+  await expect(page.getByText(/imported documents start as drafts/i)).toBeVisible();
 });
 
 test('a service is created and linked to a record, with backlinks both ways', async ({ page, apiAs }) => {
@@ -127,7 +127,7 @@ test('a service is created and linked to a record, with backlinks both ways', as
   // link the record
   await page.getByRole('button', { name: 'Add link' }).click();
   const link = page.getByRole('dialog', { name: 'Add link' });
-  await chooseOption(page, 'Kind', 'Record');
+  await chooseOption(page, 'Kind', 'Document');
   await link.getByRole('combobox', { name: 'Target' }).fill(rec.number);
   await expect(page.getByRole('option', { name: rec.number })).toBeVisible();
   await animationsDone(page);
@@ -189,9 +189,9 @@ test('a frozen record keeps its field labels; the key of a used type is locked',
   const adminPage = await loginAs('admin');
   await adminPage.goto('/records/types');
   await adminPage.getByRole('button', { name: `Edit ${name}` }).click();
-  const dialog = adminPage.getByRole('dialog', { name: `Edit record type ${key}` });
+  const dialog = adminPage.getByRole('dialog', { name: `Edit document type ${key}` });
   await expect(dialog.getByRole('textbox', { name: 'Key' }).first()).toBeDisabled(); // the type's key (then the field keys)
-  await expect(dialog.getByText(/The key cannot change while records of this type exist/)).toBeVisible();
+  await expect(dialog.getByText(/The key cannot change while documents of this type exist/)).toBeVisible();
 });
 
 test('records list is accessible and filters by status', async ({ page, apiAs }) => {
@@ -202,8 +202,8 @@ test('records list is accessible and filters by status', async ({ page, apiAs })
   await page.goto('/records');
   await page.getByRole('textbox', { name: 'Search' }).fill(title);
   await chooseOption(page, 'Status', 'Submitted');
-  await expect(page.getByRole('table', { name: 'Records' }).getByRole('row')).toHaveCount(2);
-  await expect(page.getByRole('table', { name: 'Records' })).toContainText(rec.number);
+  await expect(page.getByRole('table', { name: 'Documents' }).getByRole('row')).toHaveCount(2);
+  await expect(page.getByRole('table', { name: 'Documents' })).toContainText(rec.number);
   await settle(page);
   await expectAccessible(page, 'records list');
 });

@@ -45,8 +45,8 @@ test.describe('human in the loop', () => {
     await expect(olivia.getByText(`${count} ${count === 1 ? 'item' : 'items'} selected by`)).toContainText('adam');
 
     // protocol (HTML) opens in a new tab and contains the decision
-    await olivia.getByRole('button', { name: 'Protocol' }).click();
-    const [protocol] = await Promise.all([olivia.context().waitForEvent('page'), olivia.getByRole('menuitem', { name: 'Open HTML protocol' }).click()]);
+    await olivia.getByRole('button', { name: 'Run report' }).click();
+    const [protocol] = await Promise.all([olivia.context().waitForEvent('page'), olivia.getByRole('menuitem', { name: 'Open the run report (HTML)' }).click()]);
     await protocol.waitForLoadState();
     await expect(protocol.locator('body')).toContainText(ACCESS_REVIEW_1);
     await expect(protocol.locator('body')).toContainText('adam');

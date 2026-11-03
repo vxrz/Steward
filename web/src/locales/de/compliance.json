@@ -261,7 +261,7 @@
   },
   "personReviews": {
     "title": "Personenprüfungen",
-    "description": "Alles, was eine Person auf den Plattformen darf – live aus den Zugriffsabgleichen gelesen, eingefroren, Recht für Recht entschieden, von einer zweiten Person freigegeben und versiegelt. Nach der Freigabe prüft Steward, ob die zu entziehenden Rechte entfernt sind.",
+    "description": "Prüfen Sie alles, was eine Person auf den Plattformen darf. Steward übernimmt ihre aktuellen Rechte aus den Zugriffsabgleichen und hält diesen Stand fest; Sie entscheiden für jedes Recht, ob es bleibt oder entzogen wird, eine zweite Person gibt frei, und danach lässt sich das Ergebnis nicht mehr ändern. Nach der Freigabe prüft Steward, ob die entzogenen Rechte tatsächlich entfernt sind.",
     "new": "Neue Personenprüfung",
     "emptyTitle": "Noch keine Personenprüfungen",
     "emptyText": "Starten Sie eine für einen Austritt, einen Wechsel oder die regelmäßige Prüfung einer einzelnen Person: Wählen Sie die Zugriffsabgleiche und die Namen, unter denen die Person geführt wird.",

@@ -5,7 +5,7 @@ test.use({ storageState: authFile('olivia') });
 
 test('Ctrl+K finds and opens a process; "start run" opens the run dialog', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
 
   await page.keyboard.press('Control+K');
   const search = page.getByRole('textbox', { name: 'Search', exact: true });

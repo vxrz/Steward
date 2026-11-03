@@ -293,7 +293,7 @@ Keep processes, dashboards, monitors and record types in a Git repository (Forge
 
 Steward creates PDF reports without a browser, also in the desktop executable.
 
-- **Run report.** On a run page, open _PDF reports → Generate PDF report_ (or _Protocol → Generate PDF report…_). Choose English or German and add a reviewer comment if you like. The report contains:
+- **Run report.** On a run page, open _PDF reports → Generate PDF report_ (or _Run report → Generate PDF report…_). Choose English or German and add a reviewer comment if you like. The report contains:
   - a summary: process, version and definition hash, who started the run, when and how, the time zone, the status and a prominent _dry run_ banner;
   - the platforms used (names and kinds only, never credentials) and the inputs;
   - every step in order, the write operations (simulated ones are marked), decisions and approvals (who, when, selection, comment, four-eyes rule), checks, the process's own report sections, evidence with thumbnails and errors;

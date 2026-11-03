@@ -98,7 +98,7 @@ test('viewers neither see nor open the Updates from Git inbox', async ({ browser
   const ctx = await browser.newContext({ storageState: authFile('vera'), baseURL: baseURL() });
   const page = await ctx.newPage();
   await page.goto('/git-updates');
-  await expect(page.getByText('Only designers and administrators review updates from Git.')).toBeVisible();
+  await expect(page.getByText('Only designers and administrators review Git sync updates.')).toBeVisible();
   await ctx.close();
 });
 
