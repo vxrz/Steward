@@ -57,6 +57,8 @@ export const TONE = {
 
 const STATUS_COLORS: Record<string, string> = {
   succeeded: TONE.ok,
+  // a run that executed but whose checks failed ("completed with findings"); the stored status stays "succeeded"
+  findings: TONE.attention,
   failed: TONE.bad,
   running: TONE.active,
   waiting: TONE.person,
@@ -69,7 +71,7 @@ const STATUS_COLORS: Record<string, string> = {
   completed: TONE.ok,
 };
 
-const SEVERITY_COLORS: Record<string, string> = { error: TONE.bad, warning: TONE.attention, info: TONE.neutral };
+export const SEVERITY_COLORS: Record<string, string> = { error: TONE.bad, warning: TONE.attention, info: TONE.neutral };
 
 /** Display label of a run, step or task status (unknown values are shown as they are). */
 export function statusLabel(status: string): string {

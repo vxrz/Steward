@@ -275,7 +275,7 @@ export function ProcessesPage() {
                   <Text size="xs" c="dimmed" ml="auto">
                     {t('card.lastRun', { when: fmtRelative(p.lastRun.startedAt) })}
                   </Text>
-                  <StatusBadge status={p.lastRun.status} size="xs" />
+                  <StatusBadge status={p.lastRun.outcome ?? p.lastRun.status} size="xs" />
                 </>
               )}
             </Group>

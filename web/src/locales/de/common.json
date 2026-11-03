@@ -10,6 +10,8 @@
     "running": "läuft",
     "waiting": "wartet",
     "succeeded": "erfolgreich",
+    "findings": "mit Befunden abgeschlossen",
+    "finding": "Befund",
     "failed": "fehlgeschlagen",
     "cancelled": "abgebrochen",
     "interrupted": "unterbrochen",

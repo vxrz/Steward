@@ -15,7 +15,7 @@
     },
     "checks": "Prüfungen",
     "anyChecks": "Alle",
-    "failedChecks": "Mit fehlgeschlagenen Prüfungen"
+    "failedChecks": "Mit Befunden (fehlgeschlagene Prüfungen)"
   },
   "table": {
     "empty": "Noch keine Ausführungen.",
@@ -39,7 +39,19 @@
     "failedSteps_other": "{{count}} Schritte fehlgeschlagen",
     "webhook": "Webhook",
     "monitor": "Monitor",
-    "test": "Test"
+    "test": "Test",
+    "findings_one": "{{count}} Befund",
+    "findings_other": "{{count}} Befunde",
+    "findingsSplit_one": "{{count}} Befund ({{split}})",
+    "findingsSplit_other": "{{count}} Befunde ({{split}})",
+    "severity": {
+      "error_one": "{{count}} Fehler",
+      "error_other": "{{count}} Fehler",
+      "warning_one": "{{count}} Warnung",
+      "warning_other": "{{count}} Warnungen",
+      "info_one": "{{count}} Hinweis",
+      "info_other": "{{count}} Hinweise"
+    }
   },
   "bindings": {
     "noPermission": "{{name}} (keine Berechtigung zur Nutzung)",
@@ -108,8 +120,8 @@
       "changes": "Änderungen",
       "simulated": "Simuliert",
       "checksPassed": "Prüfungen bestanden",
-      "checksFailed": "Prüfungen fehlgeschlagen",
-      "decisions": "Entscheidungen"
+      "decisions": "Entscheidungen",
+      "findings": "Befunde"
     },
     "tabs": {
       "steps": "Schritte",
@@ -135,7 +147,7 @@
       "severity": "Schweregrad",
       "message": "Meldung",
       "passed": "bestanden",
-      "failedLabel": "fehlgeschlagen"
+      "failedLabel": "Befund"
     },
     "artifactLine": "{{step}} · sha256 {{hash}} · {{date}}",
     "connections": "Verbindungen",
@@ -166,7 +178,10 @@
       "more_other": "{{count}} weitere anzeigen",
       "all": "Alle anzeigen"
     },
-    "testRun": "Testlauf (aufgezeichnete Antworten)"
+    "testRun": "Testlauf (aufgezeichnete Antworten)",
+    "findingsTitle": "Mit Befunden abgeschlossen",
+    "findingsText": "Die Ausführung hat alle Schritte ausgeführt, aber ihre Prüfungen haben etwas gefunden: {{findings}}. Details im Reiter „Prüfungen“.",
+    "findingBadge": "Befund · {{severity}}"
   },
   "emptyState": {
     "title": "Noch keine Ausführungen",

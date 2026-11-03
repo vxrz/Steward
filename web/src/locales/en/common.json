@@ -10,6 +10,8 @@
     "running": "running",
     "waiting": "waiting",
     "succeeded": "succeeded",
+    "findings": "completed with findings",
+    "finding": "finding",
     "failed": "failed",
     "cancelled": "cancelled",
     "interrupted": "interrupted",

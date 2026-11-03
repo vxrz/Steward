@@ -20,7 +20,7 @@ const PERIOD_MS: Record<Period, number> = { '24h': 86400000, '7d': 7 * 86400000 
 
 export function RunsPage() {
   const { t } = useTranslation('runs');
-  // ?status=failed, ?processId=… and ?within=24h (links from the start page) preset the filters
+  // ?status=failed (or =findings: completed with findings), ?processId=… and ?within=24h (links from the start page) preset the filters
   const [params] = useSearchParams();
   const [status, setStatus] = useState<string | null>(params.get('status'));
   const [processId, setProcessId] = useState<string | null>(params.get('processId'));
@@ -39,7 +39,8 @@ export function RunsPage() {
     queryFn: ({ pageParam }) => {
       const qs = new URLSearchParams({
         limit: String(pageSize),
-        ...(status ? { status } : {}),
+        // "succeeded" (without findings) and "findings" are outcomes: succeeded runs without or with failed checks
+        ...(status === 'succeeded' || status === 'findings' ? { outcome: status } : status ? { status } : {}),
         ...(processId ? { processId } : {}),
         ...(since ? { since } : {}),
         ...(checks ? { checks } : {}),
@@ -80,10 +81,10 @@ export function RunsPage() {
             label={t('list.status')}
             placeholder={t('list.anyStatus')}
             clearable
-            data={['running', 'waiting', 'succeeded', 'failed', 'cancelled', 'interrupted'].map((s) => ({ value: s, label: statusLabel(s) }))}
+            data={['running', 'waiting', 'succeeded', 'findings', 'failed', 'cancelled', 'interrupted'].map((s) => ({ value: s, label: statusLabel(s) }))}
             value={status}
             onChange={setStatus}
-            w={{ base: '100%', xs: 180 }}
+            w={{ base: '100%', xs: 220 }}
           />
           <Select
             size="xs"
