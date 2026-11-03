@@ -8,6 +8,7 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
 import { config, env } from './config.js';
+import { internalProblemJson } from './problem-json.js';
 import { vault } from './vault.js';
 import { HttpError } from './util.js';
 import { registerRoutes } from './routes/index.js';
@@ -243,6 +244,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     reply.header(REQUEST_ID_HEADER, req.id);
     return payload;
   });
+  // internal API errors as problem details (RFC 9457), with error/code/params/requestId as extension members
+  app.addHook('onSend', internalProblemJson);
   const routeTable: TableRow[] = [];
   ROUTE_TABLES.set(app, routeTable);
   app.addHook('onRoute', (r) => {
