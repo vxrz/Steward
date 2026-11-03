@@ -67,6 +67,10 @@
     "title": "Dashboard data is stale: {{title}}",
     "body": "“{{title}}” was last updated on {{updatedAt}} by “{{process}}” (freshness limit: {{limit}})."
   },
+  "platformFailing": {
+    "title": "Platform connection failing: {{name}}",
+    "body": "The periodic connection test of “{{name}}” fails since {{since}}: {{message}}"
+  },
   "test": {
     "title": "Test notification",
     "body": "If you can read this, notifications from {{brand}} reach this channel."
@@ -152,9 +156,11 @@
       "reports": "Reports for you",
       "reviews": "Document reviews due",
       "duties": "Service duties",
-      "trends": "Trends"
+      "trends": "Trends",
+      "topics": "New Kafka topics"
     },
     "count": "{{section}}: {{count}}",
+    "topicsTitle": "{{application}}: {{count}} new topic(s) under {{prefix}}",
     "runsTotal_one": "{{count}} run, {{failed}} failed",
     "runsTotal_other": "{{count}} runs, {{failed}} failed",
     "runsTotalFindings_one": "{{count}} run, {{failed}} failed, {{findings}} completed with findings",

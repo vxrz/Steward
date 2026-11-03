@@ -229,6 +229,10 @@ const EXPECT: Record<string, Access> = {
   'POST /api/platforms/:id/contract-check': ADMIN,
   'PUT /api/platforms/:id/secrets': ADMIN,
   'POST /api/platforms/:id/test': USE,
+  // what's next with a platform and its health (v0.4.0): like the platform itself; the periodic test by its managers
+  'GET /api/platforms/:id/get-started': USE,
+  'GET /api/platforms/:id/health': USE,
+  'PUT /api/platforms/:id/health': ADMIN,
   'POST /api/platforms/:id/request': USE,
   // recorded responses (#105): read like the explorer, changed like the platform
   'GET /api/platforms/:id/recordings': USE,
@@ -259,6 +263,10 @@ const EXPECT: Record<string, Access> = {
 
   // ---- processes, runs, tasks, schedules, triggers ----
   'GET /api/templates': ALL,
+  // template bundles (v0.4.0): everyone sees the list, who may create processes sets them up
+  'GET /api/template-bundles': ALL,
+  'POST /api/template-bundles/:id/setup': DESIGN,
+  'POST /api/template-bundles/:id/turn-on': DESIGN,
   'GET /api/processes': ALL,
   'POST /api/processes': DESIGN,
   'POST /api/processes/validate': ALL,
@@ -525,6 +533,13 @@ const EXPECT: Record<string, Access> = {
   'POST /api/applications/:id/components/:componentId/cluster': DESIGN,
   'POST /api/applications/:id/components/:componentId/repository': DESIGN,
   'POST /api/applications/:id/components/:componentId/topic': DESIGN,
+  // Kafka topics by prefix (v0.4.0): who may change the application; the synced prefixes are read like the application
+  'POST /api/applications/:id/kafka-topics/list': DESIGN,
+  'POST /api/applications/:id/kafka-topics': DESIGN,
+  'GET /api/applications/:id/topic-prefixes': ALL,
+  'POST /api/applications/:id/topic-prefixes/:syncId/check': DESIGN,
+  'POST /api/applications/:id/topic-prefixes/:syncId/dismiss': DESIGN,
+  'DELETE /api/applications/:id/topic-prefixes/:syncId': DESIGN,
   'POST /api/applications/:id/components/:componentId/aws': DESIGN,
   'POST /api/applications/:id/components/:componentId/snowflake': DESIGN,
   'POST /api/applications/:id/components/:componentId/dependency-track': DESIGN,

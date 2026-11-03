@@ -310,6 +310,7 @@ async function buildArchive(range: Range, by: string): Promise<AuditArchiveInfo>
     await zip.add('public-key.pem', Buffer.from(publicKeyPem(pub)));
     await zip.finish();
   } catch (e) {
+    // the archive failed already; that error is thrown below, a failing abort adds nothing
     await zip.abort().catch(() => undefined);
     fs.rmSync(tmp, { force: true });
     throw e;

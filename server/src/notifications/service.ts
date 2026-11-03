@@ -558,6 +558,23 @@ export function onScheduleSkipped(e: DomainEvents['schedule.skipped']): void {
   });
 }
 
+/** The periodic connection test of a platform started failing (v0.4.0, platforms/health.ts): its managers, once per failing period. */
+export function notifyPlatformFailing(e: { platformId: string; name: string; message: string; since: string; recipients: UserInfo[] }): void {
+  notify({
+    event: 'platform.failing',
+    text: (l) => ({
+      title: t(l, 'platformFailing.title', { name: titleName(e.name) }),
+      body: t(l, 'platformFailing.body', { name: e.name, message: e.message.slice(0, 500), since: formatDateTime(l, e.since) }),
+    }),
+    link: `/platforms/${encodeURIComponent(e.platformId)}`,
+    recipients: e.recipients,
+    inAppKey: `platform:${e.platformId}:${e.since}`,
+    externalKey: `platform:${e.platformId}`,
+    data: { platformId: e.platformId, name: e.name, message: e.message.slice(0, 500), since: e.since },
+    about: { kind: 'platform', id: e.platformId },
+  });
+}
+
 /**
  * Reports each stale partition of a dataset once per stale period (a new publish starts a new period, #142): when the
  * publish step sets `staleAfterMinutes`, or a schedule feeds the partition (2.5 × its interval). Returns how many.
@@ -676,6 +693,9 @@ export function startNotificationJobs(): void {
     import('../aws/service.js').then((m) => m.runAwsJob()).catch((err) => logger.warn({ err }, 'AWS job failed'));
     import('../snowflake/service.js').then((m) => m.runSnowflakeJob()).catch((err) => logger.warn({ err }, 'Snowflake job failed'));
     import('../dtrack/service.js').then((m) => m.runDtrackJob()).catch((err) => logger.warn({ err }, 'Dependency-Track job failed'));
+    // periodic connection tests of platforms that turned them on (v0.4.0, platforms/health.ts); topic prefixes kept in sync (kafka/prefixes.ts)
+    import('../platforms/health.js').then((m) => m.runPlatformHealthJob()).catch((err) => logger.warn({ err }, 'platform health job failed'));
+    import('../kafka/prefixes.js').then((m) => m.runTopicPrefixJob()).catch((err) => logger.warn({ err }, 'Kafka topic prefix job failed'));
     import('./summary.js').then((m) => m.runDailySummaries()).catch((err) => logger.warn({ err }, 'daily summary job failed'));
     // maintenance windows: reminders, start and end messages (catalogue/maintenance.ts, idempotent)
     import('../catalogue/maintenance.js').then((m) => m.runMaintenanceJob()).catch((err) => logger.warn({ err }, 'maintenance job failed'));

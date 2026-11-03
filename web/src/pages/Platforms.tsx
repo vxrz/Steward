@@ -38,6 +38,7 @@ import { confirmDanger } from '../components/confirm';
 import { fmtDate, fmtRelative } from '../format';
 import { ListPage } from '../components/page/ListPage';
 import { platformKeys } from '../queryKeys';
+import { AddPlatformWizard } from '../components/platform/AddPlatformWizard';
 
 export const KIND_COLORS: Record<string, string> = {
   'insights-hub': 'teal',
@@ -72,6 +73,8 @@ export function PlatformsPage() {
   const { t } = useTranslation(['platforms', 'common']);
   const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
+  // the quick form for experts ("Skip the wizard")
+  const [quick, setQuick] = useState(false);
   const [typesOpen, setTypesOpen] = useState(false);
   const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const { caps } = useMe();
@@ -244,7 +247,18 @@ export function PlatformsPage() {
           </Card>
         ))}
       </SimpleGrid>
-      <AddPlatformModal opened={adding} onClose={() => setAdding(false)} onCreated={(id) => navigate(`/platforms/${id}`)} />
+      {/* adding a platform: the setup wizard (v0.4.0), or the quick form */}
+      <AddPlatformWizard
+        opened={adding}
+        onClose={() => setAdding(false)}
+        onSkip={() => {
+          setAdding(false);
+          setQuick(true);
+        }}
+        onDone={(id) => navigate(`/platforms/${id}?tab=start`)}
+        importConnector={importConnector}
+      />
+      <AddPlatformModal opened={quick} onClose={() => setQuick(false)} onCreated={(id) => navigate(`/platforms/${id}`)} />
       <ConnectorTypesModal opened={typesOpen} onClose={() => setTypesOpen(false)} canManage={caps.createPlatforms} />
     </ListPage>
   );

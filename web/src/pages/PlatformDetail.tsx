@@ -14,6 +14,7 @@ import {
   IconPlayerRecord,
   IconRefresh,
   IconRobot,
+  IconRocket,
   IconTicket,
   IconSettings,
   IconTerminal2,
@@ -41,6 +42,7 @@ import { TicketsPanel } from '../components/tickets/TicketsPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { DetailHeader } from '../components/page/DetailPage';
 import { platformKeys } from '../queryKeys';
+import { GetStartedPanel, PlatformHealthPanel, TestHints } from '../components/platform/onboarding';
 
 interface TokenInfo {
   fetchedAt: string;
@@ -118,6 +120,9 @@ export function PlatformDetailPage() {
       notifyError(e, t('detail.testFailed'));
     } finally {
       setTesting(false);
+      // the health panel and the list's "last test" show the new result
+      qc.invalidateQueries({ queryKey: ['platform', id, 'health'] });
+      qc.invalidateQueries({ queryKey: ['platforms'] });
     }
   };
 
@@ -215,6 +220,7 @@ export function PlatformDetailPage() {
           title={test.ok ? t('detail.testOk') : t('detail.testNotOk')}
           mb="md"
           withCloseButton
+          closeButtonLabel={t('common:close')}
           onClose={() => setTest(null)}
         >
           <Text size="sm">
@@ -234,6 +240,7 @@ export function PlatformDetailPage() {
               )}
             </Text>
           )}
+          {!test.ok && <TestHints result={test} />}
           {!!test.checks?.length && (
             <Stack gap={2} mt={4} data-testid="platform-test-checks">
               {test.checks.map((c) => (
@@ -280,6 +287,8 @@ export function PlatformDetailPage() {
           {canUse ? t('detail.useOnly') : t('detail.viewOnly')}
         </Alert>
       )}
+      {/* the last connection test and the periodic test (v0.4.0) */}
+      <PlatformHealthPanel platform={p} canManage={canManage} />
       <div style={{ marginBottom: 'var(--mantine-spacing-md)' }}>
         <MaintenancePanel kind="platform" id={p.id} canPlan={canManage} />
       </div>
@@ -320,6 +329,9 @@ export function PlatformDetailPage() {
           </Tabs.Tab>
           <Tabs.Tab value="tickets" leftSection={<IconTicket size={16} />}>
             {t('tickets:panel.title')}
+          </Tabs.Tab>
+          <Tabs.Tab value="start" leftSection={<IconRocket size={16} />}>
+            {t('start.tab')}
           </Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="settings">
@@ -362,6 +374,9 @@ export function PlatformDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="tickets">
           <TicketsPanel kind="platform" id={p.id} label={p.name} />
+        </Tabs.Panel>
+        <Tabs.Panel value="start">
+          <GetStartedPanel platform={p} />
         </Tabs.Panel>
       </Tabs>
 

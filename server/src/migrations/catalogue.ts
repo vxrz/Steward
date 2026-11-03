@@ -318,4 +318,22 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
     );
     CREATE UNIQUE INDEX status_pages_link ON status_pages(link_hash);`,
   },
+  {
+    // Kafka topics by prefix kept in sync (v0.4.0, kafka/prefixes.ts): new topics under the prefix are offered
+    name: 'catalogue-011-topic-prefixes',
+    sql: `CREATE TABLE application_topic_prefixes (
+      id TEXT PRIMARY KEY,
+      application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+      platform_id TEXT NOT NULL,
+      prefix TEXT NOT NULL,
+      environment TEXT NOT NULL DEFAULT '',
+      offered TEXT NOT NULL DEFAULT '[]',
+      dismissed TEXT NOT NULL DEFAULT '[]',
+      checked_at TEXT,
+      error TEXT,
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX application_topic_prefixes_key ON application_topic_prefixes(application_id, platform_id, prefix, environment);`,
+  },
 ];

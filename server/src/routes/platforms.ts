@@ -8,10 +8,8 @@ import * as platforms from '../platforms/service.js';
 import * as connectors from '../platforms/connectors.js';
 import * as recordings from '../platforms/recordings.js';
 import { PATH_PREFIX_MAX } from '../platforms/pathPrefix.js';
-import { buildUrl, platformRequest, renewToken, secretValues, tokenInfo, usesCachedToken } from '../platforms/http.js';
-import { judgeHttpTest } from '../platforms/connectionTest.js';
-import { snowflakeJwtHint } from '../platforms/jwt.js';
-import { shownHeaders, where } from '../platforms/answers.js';
+import { platformRequest, renewToken, usesCachedToken } from '../platforms/http.js';
+import { runConnectionTest, redactSecrets } from '../platforms/testConnection.js';
 import { platformAccess } from '../auth/step-up-rules.js';
 import { requireCapability } from '../auth/permissions.js';
 import { boundedRecord } from '@sm/shared';
@@ -51,16 +49,7 @@ function inlineDocType(data: Buffer, declared: string | undefined): string | nul
   return null;
 }
 
-function redact<T>(v: T, secrets: Record<string, string>): T {
-  const vals = secretValues(secrets);
-  const walk = (x: unknown): unknown => {
-    if (typeof x === 'string') return vals.reduce((s, sec) => (sec && s.includes(sec) ? s.split(sec).join('***') : s), x);
-    if (Array.isArray(x)) return x.map(walk);
-    if (x && typeof x === 'object') return Object.fromEntries(Object.entries(x).map(([k, val]) => [k, walk(val)]));
-    return x;
-  };
-  return walk(v) as T;
-}
+const redact = redactSecrets;
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -140,75 +129,8 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
   app.post('/platforms/:id/test', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const id = params(req).id!;
     const p = requirePlatform(id, 'use', 'use this platform');
-    const secrets = platforms.getSecrets(id);
-    const testPath = p.config.testPath || '/';
-    // Kafka (#112) and MQTT (#113) are no HTTP APIs: their test connects to the cluster or broker; AWS (#116) asks STS who it is
-    if (p.kind === 'kafka' || p.kind === 'mqtt' || p.kind === 'aws' || p.kind === 'snowflake') {
-      const t0 = Date.now();
-      try {
-        let checks: { name: string; ok: boolean; message: string }[] | undefined;
-        const message =
-          p.kind === 'kafka'
-            ? await (await import('../kafka/service.js')).testKafka(p, secrets)
-            : p.kind === 'aws'
-              ? await (await import('../aws/service.js')).testAws(p, secrets).then((r) => ((checks = r.checks), r.message))
-              : p.kind === 'snowflake'
-                ? await (await import('../snowflake/service.js')).testSnowflake(p, secrets)
-                : await (await import('../mqtt/listener.js')).testMqtt(p, secrets);
-        audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}": ${message}`, details: { ok: true } });
-        // AWS: every part Steward reads, with what is missing (the test passes when STS works)
-        return { ok: true, status: 200, durationMs: Date.now() - t0, message, body: null, token: null, ...(checks ? { checks: redact(checks, secrets) } : {}) };
-      } catch (e) {
-        let message = redact((e as Error).message, secrets) as string;
-        // Snowflake's "390144 JWT token is invalid" says nothing about why: the usual causes
-        if (p.kind === 'snowflake') message = snowflakeJwtHint(message, p.config.variables);
-        audit({
-          action: 'platform.tested',
-          entityType: 'platform',
-          entityId: id,
-          summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}`,
-          details: { ok: false },
-        });
-        return { ok: false, status: 0, durationMs: Date.now() - t0, message };
-      }
-    }
-    try {
-      // at most 1 MB of the answer: enough to tell an API from a page, and to show it
-      const res = await platformRequest(p, secrets, { method: 'GET', url: testPath, truncateResponseBytes: 1024 * 1024 });
-      // say which request was made: without a test path it is the base URL itself (often a portal behind its own login)
-      const what = `GET ${testPath}${p.config.testPath ? '' : ' (no test path set: the base URL itself)'}`;
-      // a status below 400 is not enough: a redirect to a sign-in page or an HTML portal page is no working API (v0.3.1)
-      const verdict = judgeHttpTest(p, what, await buildUrl(p, secrets, testPath), res);
-      audit({
-        action: 'platform.tested',
-        entityType: 'platform',
-        entityId: id,
-        summary: `Connection test "${p.name}": GET ${testPath} → HTTP ${res.status} (${res.durationMs} ms)${verdict.ok ? '' : ' – failed'}`,
-        details: { ok: verdict.ok, status: res.status },
-      });
-      return {
-        ok: verdict.ok,
-        status: res.status,
-        durationMs: res.durationMs,
-        message: redact(verdict.message, secrets),
-        body: redact(res.body, secrets),
-        // who answered: content type, server, proxy, sign-in challenge, redirect target
-        headers: redact(shownHeaders(res.headers), secrets),
-        url: where(res.url),
-        // when the cached access token was issued: roles granted later need a new one (POST …/token/renew)
-        token: tokenInfo(id),
-      };
-    } catch (e) {
-      const message = redact((e as Error).message, secrets) as string;
-      audit({
-        action: 'platform.tested',
-        entityType: 'platform',
-        entityId: id,
-        summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}`,
-        details: { ok: false },
-      });
-      return { ok: false, status: 0, durationMs: 0, message };
-    }
+    // the test itself (and its audit entry) is shared with the periodic connection test (v0.4.0, platforms/health.ts)
+    return runConnectionTest(p, platforms.getSecrets(id));
   });
 
   // Kafka (#112): the newest messages of a topic, for troubleshooting – off unless the platform allows it, platform managers only, audited

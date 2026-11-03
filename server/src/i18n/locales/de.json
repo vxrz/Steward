@@ -67,6 +67,10 @@
     "title": "Dashboard-Daten veraltet: {{title}}",
     "body": "„{{title}}“ wurde zuletzt am {{updatedAt}} von „{{process}}“ aktualisiert (Aktualitätsgrenze: {{limit}})."
   },
+  "platformFailing": {
+    "title": "Plattform-Verbindung fehlgeschlagen: {{name}}",
+    "body": "Der regelmäßige Verbindungstest von „{{name}}“ schlägt seit {{since}} fehl: {{message}}"
+  },
   "test": {
     "title": "Testbenachrichtigung",
     "body": "Wenn Sie diese Nachricht lesen können, erreichen Benachrichtigungen von {{brand}} diesen Kanal."
@@ -152,9 +156,11 @@
       "reports": "Berichte für Sie",
       "reviews": "Fällige Überprüfungen von Dokumenten",
       "duties": "Service-Pflichten",
-      "trends": "Trends"
+      "trends": "Trends",
+      "topics": "Neue Kafka-Topics"
     },
     "count": "{{section}}: {{count}}",
+    "topicsTitle": "{{application}}: {{count}} neue(s) Topic(s) unter {{prefix}}",
     "runsTotal_one": "{{count}} Ausführung, {{failed}} fehlgeschlagen",
     "runsTotal_other": "{{count}} Ausführungen, {{failed}} fehlgeschlagen",
     "runsTotalFindings_one": "{{count}} Ausführung, {{failed}} fehlgeschlagen, {{findings}} mit Befunden abgeschlossen",

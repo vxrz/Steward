@@ -43,7 +43,8 @@
     "dataset": "Dataset (access snapshot)",
     "git": "Git platform members (GitHub, GitLab, Forgejo)",
     "snowflake": "Snowflake roles and grants",
-    "aws": "AWS IAM users, groups and policies"
+    "aws": "AWS IAM users, groups and policies",
+    "confluent": "Confluent Cloud role bindings and ACLs"
   },
   "rights": {
     "granted": "Granted",
@@ -279,7 +280,9 @@
     "showAllChecks": "Show all checks",
     "noOpenAnywhere": "None of your checks has open findings – every access change found is documented or dismissed.",
     "snowflakeScope": "Database, schema or table (optional)",
-    "snowflakeScopeHelp": "Empty: every user with the roles granted to them. SHOP, SHOP.SALES or SHOP.SALES.ORDERS: every user who reaches objects there through their roles (and the roles granted to those), with the privilege. Technical users (type SERVICE) are marked."
+    "snowflakeScopeHelp": "Empty: every user with the roles granted to them. SHOP, SHOP.SALES or SHOP.SALES.ORDERS: every user who reaches objects there through their roles (and the roles granted to those), with the privilege. Technical users (type SERVICE) are marked.",
+    "confluentScope": "Confluent resource (CRN)",
+    "confluentScopeHelp": "The organization, an environment or a cluster whose role bindings are read, e.g. crn://confluent.cloud/organization=…/environment=env-abc12 (Confluent Cloud: Administration → Accounts & access). With kafkaRestUrl, clusterId and the cluster API key on the platform, the cluster’s Kafka ACLs too. Users appear with their e-mail address."
   },
   "personReviews": {
     "title": "Person reviews",

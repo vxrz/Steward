@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActionIcon,
   Alert,
@@ -20,7 +20,7 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   IconPlayerPlay,
@@ -64,6 +64,14 @@ export function ProcessesPage() {
   const [importOpen, importModal] = useDisclosure();
   const [bundleOpen, bundleModal] = useDisclosure();
   const { caps } = useMe();
+  // ?templates=<kind> or ?bundle=<id> (a platform's "Get started", v0.4.0): the gallery opens filtered, or on the bundle
+  const [params] = useSearchParams();
+  const galleryKind = params.get('templates');
+  const galleryBundle = params.get('bundle');
+  useEffect(() => {
+    if (galleryKind !== null || galleryBundle) templates.open();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per link
+  }, [galleryKind, galleryBundle]);
 
   const createBlank = async () => {
     try {
@@ -295,7 +303,7 @@ export function ProcessesPage() {
         ))}
       </SimpleGrid>
       <RunDialog processId={runId} opened={!!runId} onClose={() => setRunId(null)} />
-      <TemplateGallery opened={templatesOpen} onClose={templates.close} />
+      <TemplateGallery opened={templatesOpen} onClose={templates.close} initialKind={galleryKind || null} initialBundle={galleryBundle} />
       <ImportModal opened={importOpen} onClose={importModal.close} />
       <BundleImportModal opened={bundleOpen} onClose={bundleModal.close} />
     </ListPage>

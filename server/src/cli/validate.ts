@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { BUNDLE_FORMATS, dashboardDefinitionSchema, validateProcess } from '@sm/shared';
 import { validateMonitorFile } from '../monitors/validation.js';
+import { bundleFileSchema, looksLikeBundle } from '../onboarding/bundleSchema.js';
 import { config } from '../config.js';
 import { MAX_DEFINITION_TEXT } from '../util.js';
 import { parseYaml } from '../yaml-safe.js';
@@ -39,7 +40,7 @@ Colours are only used on a terminal; NO_COLOR=1 turns them off.
 
 export interface FileResult {
   file: string;
-  kind: 'process' | 'dashboard' | 'monitor' | 'monitor template' | 'bundle' | 'unreadable';
+  kind: 'process' | 'dashboard' | 'monitor' | 'monitor template' | 'bundle' | 'template bundle' | 'unreadable';
   /** Nodes (process), widgets (dashboard) or checks (monitor). */
   ok: boolean;
   count?: number;
@@ -65,6 +66,20 @@ export async function validateFile(file: string): Promise<FileResult> {
   const obj = raw as Record<string, unknown>;
   if (obj && typeof obj === 'object' && (BUNDLE_FORMATS as readonly unknown[]).includes(obj.format)) {
     return { file: rel, kind: 'bundle', ok: true, errors: [], warnings: [] };
+  }
+  // a template bundle (v0.4.0, examples/bundles): processes, dashboards and monitors set up together
+  if (looksLikeBundle(obj)) {
+    const r = bundleFileSchema.safeParse(raw);
+    return r.success
+      ? {
+          file: rel,
+          kind: 'template bundle',
+          ok: true,
+          count: r.data.processes.length + r.data.dashboards.length + r.data.monitors.length,
+          errors: [],
+          warnings: [],
+        }
+      : { file: rel, kind: 'template bundle', ok: false, errors: r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`), warnings: [] };
   }
   if (obj && (obj.kind === 'monitor' || obj.kind === 'monitorTemplate')) {
     const r = await validateMonitorFile(obj);
@@ -135,7 +150,9 @@ export async function main(argv: string[]): Promise<number> {
     else if (!values.quiet) {
       if (r.kind === 'bundle') out.push(`${c.dim('•')} ${r.file}: bundle (skipped)`);
       else
-        out.push(`${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : 'nodes'}`);
+        out.push(
+          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : 'nodes'}`,
+        );
     }
     if (!values.quiet || !r.ok) for (const w of r.warnings) out.push(`  ${c.yellow('⚠')} ${w}`);
   }

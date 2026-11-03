@@ -1,0 +1,15 @@
+# steward-min-version: 0.4.0
+name: AWS (access keys and costs)
+description: |
+  The daily IAM access key check (keys to rotate, unused keys and passwords) and the monthly costs per application,
+  with the "Cloud costs and keys" dashboard. Both read the cloud account components of your applications: add a
+  component of type "Cloud account" for the AWS platform to each application (docs/AWS.md).
+tags: [aws, costs, credentials]
+platforms:
+  - key: aws
+    label: AWS account
+    kinds: [aws]
+processes:
+  - template: 63-aws-iam-key-age
+  - template: 64-aws-costs-per-application
+dashboards: [63-cloud-costs-and-keys]

@@ -50,6 +50,7 @@ import { LifecycleBadge } from './lifecycle';
 import { EnvironmentBadge, EnvironmentInput, sortByEnvironment, useEnvironmentList } from './environments';
 import { CredentialEditor, type CredentialDraft } from '../credentials/CredentialEditor';
 import { platformKeys } from '../../queryKeys';
+import { TopicOffers, TopicPrefixModal } from './TopicPrefix';
 
 export const formatLabel = (f: string) => (f === 'cyclonedx' ? 'CycloneDX' : 'SPDX');
 
@@ -65,6 +66,7 @@ export function useStackProducts() {
 export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSaved: (a: ApplicationDetail) => void }) {
   const { t } = useTranslation(['applications', 'common']);
   const [editing, setEditing] = useState<ApplicationComponent | 'new' | null>(null);
+  const [byPrefix, setByPrefix] = useState(false);
   const [importing, setImporting] = useState<ApplicationComponent | null>(null);
   const [env, setEnv] = useState<string | null>(null);
   const envList = useEnvironmentList();
@@ -138,11 +140,19 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
           {t('components.title')}
         </Text>
         {editable && (
-          <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setEditing('new')}>
-            {t('components.add')}
-          </Button>
+          <Group gap="xs">
+            {/* Kafka topics by prefix (v0.4.0) */}
+            <Button size="xs" variant="subtle" onClick={() => setByPrefix(true)} data-testid="add-topics-by-prefix">
+              {t('topicPrefix.button')}
+            </Button>
+            <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setEditing('new')}>
+              {t('components.add')}
+            </Button>
+          </Group>
         )}
       </Group>
+      {byPrefix && <TopicPrefixModal app={app} onClose={() => setByPrefix(false)} onSaved={onSaved} />}
+      <TopicOffers app={app} editable={editable} onSaved={onSaved} />
       <Text size="xs" c="dimmed">
         {t('components.help')}
       </Text>

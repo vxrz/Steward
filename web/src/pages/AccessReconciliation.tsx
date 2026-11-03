@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Anchor,
@@ -27,6 +27,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { IconArrowsDiff, IconEdit, IconFlask, IconPlayerPlay, IconPlus, IconShieldCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
+  CONFLUENT_KIND,
   GIT_PLATFORM_KINDS,
   type AccessCheck,
   type AccessFinding,
@@ -602,6 +603,9 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
   const qc = useQueryClient();
   const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => getOptional<Subject[]>('/subjects', []) });
+  // ?new=1&platform=<id> (a platform's "Get started", v0.4.0): the new check starts on that platform
+  const [params] = useSearchParams();
+  const fromPlatform = !check ? (platforms.data ?? []).find((p) => p.id === params.get('platform')) : undefined;
   const [f, setF] = useState({
     name: check?.name ?? '',
     description: check?.description ?? '',
@@ -618,13 +622,25 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
   const [busy, setBusy] = useState(false);
   const up = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   const usable = (platforms.data ?? []).filter((p) => p.permissions.includes('use'));
+  // the source that reads a platform directly, else a dataset (Insights Hub keeps the one chosen)
+  const pickPlatform = (v: string | null) => {
+    const p = usable.find((x) => x.id === v);
+    const git = !!p && (GIT_PLATFORM_KINDS as readonly string[]).includes(p.kind);
+    const direct = p?.kind === 'snowflake' || p?.kind === 'aws' ? (p.kind as 'snowflake' | 'aws') : p?.kind === CONFLUENT_KIND ? 'confluent' : null;
+    setF((x) => ({ ...x, platformId: v ?? '', source: git ? 'git' : direct ? direct : p && p.kind !== 'insights-hub' ? 'dataset' : x.source }));
+  };
+  const preset = fromPlatform?.id;
+  useEffect(() => {
+    if (preset && !f.platformId) pickPlatform(preset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the platforms are loaded
+  }, [preset]);
   const submit = async () => {
     setBusy(true);
     try {
       const body = {
         ...f,
         datasetKey: f.source === 'dataset' ? f.datasetKey : null,
-        scope: f.source === 'git' || f.source === 'snowflake' ? f.scope.trim() : null,
+        scope: f.source === 'git' || f.source === 'snowflake' || f.source === 'confluent' ? f.scope.trim() : null,
       };
       const saved = check ? await put<AccessCheck>(`/compliance/access-checks/${check.id}`, body) : await post<AccessCheck>('/compliance/access-checks', body);
       await qc.invalidateQueries({ queryKey: ['access-checks'] });
@@ -654,12 +670,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
           disabled={!!check && check.snapshotCount > 0}
           data={usable.map((p) => ({ value: p.id, label: p.name }))}
           value={f.platformId || null}
-          onChange={(v) => {
-            const p = usable.find((x) => x.id === v);
-            const git = !!p && (GIT_PLATFORM_KINDS as readonly string[]).includes(p.kind);
-            const direct = p?.kind === 'snowflake' || p?.kind === 'aws' ? (p.kind as 'snowflake' | 'aws') : null;
-            setF((x) => ({ ...x, platformId: v ?? '', source: git ? 'git' : direct ? direct : p && p.kind !== 'insights-hub' ? 'dataset' : x.source }));
-          }}
+          onChange={pickPlatform}
         />
         <Select
           label={t('reconciliation.source')}
@@ -672,6 +683,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
             { value: 'git', label: t('sources.git') },
             { value: 'snowflake', label: t('sources.snowflake') },
             { value: 'aws', label: t('sources.aws') },
+            { value: 'confluent', label: t('sources.confluent') },
           ]}
           value={f.source}
           onChange={(v) => up('source', (v as AccessCheck['source']) ?? 'insights-hub')}
@@ -694,6 +706,19 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
             value={f.scope}
             onChange={(e) => up('scope', e.currentTarget.value)}
             maxLength={800}
+            classNames={{ input: 'mono' }}
+          />
+        )}
+        {f.source === 'confluent' && (
+          <TextInput
+            label={t('reconciliation.confluentScope')}
+            description={t('reconciliation.confluentScopeHelp')}
+            required
+            // i18n-ignore: an example resource name, the same in every language
+            placeholder="crn://confluent.cloud/organization=…/environment=env-…"
+            value={f.scope}
+            onChange={(e) => up('scope', e.currentTarget.value)}
+            maxLength={500}
             classNames={{ input: 'mono' }}
           />
         )}

@@ -99,6 +99,17 @@ export function commitKafka(group: string, topic: string, committed: number[]): 
 export function setKafkaNewest(topic: string, at: number): void {
   if (data.topics[topic]) data.topics[topic].newest = at;
 }
+/** For tests and the demo: a new (empty) topic – "Add topics by prefix" offers it (v0.4.0). */
+export function addKafkaTopic(name: string, partitions = 1): void {
+  data.topics[name] ??= {
+    partitions,
+    replication: 3,
+    configs: { 'cleanup.policy': 'delete', 'retention.ms': '604800000' },
+    ends: Array(partitions).fill(0),
+    newest: 0,
+    messages: [],
+  };
+}
 export function resetKafka(): void {
   data = seed();
   schemas = seedSchemas();

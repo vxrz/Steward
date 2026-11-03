@@ -737,7 +737,19 @@
     "AUDIT_ARCHIVE_OFF": "Turn on archiving first: only archived entries are uploaded or deleted.",
     "AUDIT_UPLOAD_UNAVAILABLE": "Uploading needs backups to S3 with a backup passphrase (Settings → Backups).",
     "AUDIT_ARCHIVE_FILE_MISSING": "The archive file is no longer in the data folder.",
-    "MIGRATION_AUDIT_DELETED": "Archived audit entries were deleted from the database (audit retention) – moving such an instance is not supported yet."
+    "MIGRATION_AUDIT_DELETED": "Archived audit entries were deleted from the database (audit retention) – moving such an instance is not supported yet.",
+    "ACCESS_CHECK_CONFLUENT_SOURCE": "The Confluent source needs a Confluent Cloud API platform.",
+    "ACCESS_CHECK_CONFLUENT_READ": "Confluent Cloud could not be read: {{detail}}",
+    "CONFLUENT_REST_URL": "The variable kafkaRestUrl of the platform is not a URL ({{url}}).",
+    "CONFLUENT_CLUSTER_ID": "The variable clusterId has letters, digits, - and _ (e.g. lkc-abc123).",
+    "BUNDLE_NOT_FOUND": "Template bundle {{id}} not found.",
+    "BUNDLE_BINDING_MISSING": "Choose the platform for “{{label}}”.",
+    "BUNDLE_BINDING_KIND": "“{{name}}” does not fit “{{label}}” – it needs a platform of kind {{kinds}}.",
+    "FORBIDDEN_setupBundle": "You are not allowed to set up template bundles (it needs the right to create processes).",
+    "FORBIDDEN_runProcess": "You are not allowed to run this process.",
+    "KAFKA_LIST_FAILED": "The Kafka cluster could not be read: {{detail}}",
+    "TOPIC_PREFIX_LIMIT": "An application keeps at most {{max}} topic prefixes in sync.",
+    "TOPIC_PREFIX_NOT_FOUND": "This topic prefix is not kept in sync for the application."
   },
   "boundary": {
     "title": "Something went wrong on this page",
