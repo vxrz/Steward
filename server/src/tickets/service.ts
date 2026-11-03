@@ -470,7 +470,7 @@ export function addTicketEvent(
 
 /** Distinct vendors of earlier entries (suggestions in the form). */
 /** The start page's "Waiting on vendors" tile (everyone who can sign in reads ticket references). */
-export function vendorAttention(now = Date.now()): { open: number; oldestDays: number | null } {
+export function vendorAttention(now = Date.now()): { open: number; oldestDays: number | null; total: number } {
   me();
   const w = waitingOnVendorSql(ticketSettings());
   const rows = db()
@@ -478,7 +478,9 @@ export function vendorAttention(now = Date.now()): { open: number; oldestDays: n
     .filter(ticketVisible);
   const open = rows.length;
   const oldest = rows.reduce<string | null>((m, r) => (!m || r.opened_at < m ? r.opened_at : m), null);
-  return { open, oldestDays: open && oldest ? ageDays({ opened_at: oldest, resolved_at: null }, now) : null };
+  // whether ticket references are used at all (the start page shows "not set up yet" otherwise)
+  const total = db().all<Pick<TicketRow, 'id' | 'responsible'>>('SELECT id, responsible FROM ticket_refs').filter(ticketVisible).length;
+  return { open, oldestDays: open && oldest ? ageDays({ opened_at: oldest, resolved_at: null }, now) : null, total };
 }
 
 export function vendorSuggestions(): string[] {

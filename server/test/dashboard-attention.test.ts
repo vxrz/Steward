@@ -76,7 +76,7 @@ describe('start page tiles', () => {
     // and owns no service (the scorecard tile)
     expect(v).not.toHaveProperty('scorecard');
     expect(v).toHaveProperty('monitors');
-    expect(v.vendorTickets).toEqual({ open: 0, oldestDays: null });
+    expect(v.vendorTickets).toMatchObject({ open: 0, oldestDays: null });
     // the old fields stay for the getting-started checklist
     expect((await s.api('GET', '/dashboard')).counts).toHaveProperty('platforms');
   });
@@ -117,7 +117,9 @@ describe('start page tiles', () => {
     }).toEqual({ expired: 1, overdue: 1, dueSoon: 1 });
     // vera gets the tile once she owns an entry – and counts only hers
     await s.api('POST', '/credentials', { type: 'technicalUser', name: 'Att vera due soon', ownerSubjects: ['user:vera'], expiresAt: ago(-5) });
-    expect((await attention(vera)).credentials).toEqual({ expired: 0, overdue: 0, dueSoon: 1 });
+    expect((await attention(vera)).credentials).toEqual({ expired: 0, overdue: 0, dueSoon: 1, total: 1 });
+    // how many entries there are at all (the tile says "not set up yet" without any)
+    expect(after.total - before.credentials.total).toBe(4);
   });
 
   it('findings: open findings of readable checks only', async () => {
@@ -143,7 +145,8 @@ describe('start page tiles', () => {
     await t('V-3', 'vendor', 'waitingUs', 30); // ours to do
     await t('V-4', 'servicenow-incident', 'open', 40); // not a vendor ticket
     await t('V-5', 'vendor', 'resolved', 50);
-    for (const c of [s.api, vera]) expect((await attention(c)).vendorTickets).toEqual({ open: 2, oldestDays: 12 });
+    for (const c of [s.api, vera]) expect((await attention(c)).vendorTickets).toMatchObject({ open: 2, oldestDays: 12 });
+    expect((await attention(s.api)).vendorTickets.total).toBeGreaterThanOrEqual(5);
     // the tile's link lists the same tickets
     const list = await vera('GET', '/ticket-references?waitingOn=vendor');
     expect(list.items.map((x: any) => x.externalNumber).sort()).toEqual(['V-1', 'V-2']);
@@ -153,7 +156,9 @@ describe('start page tiles', () => {
   it('runs: failed runs of the last 24 hours out of all; the run list filters by start time', async () => {
     const a = await attention(s.api);
     const d = await s.api('GET', '/dashboard');
-    expect(a.runs).toEqual({ failed: d.counts.failed24h, total: d.counts.runs24h });
+    expect(a.runs).toMatchObject({ failed: d.counts.failed24h, total: d.counts.runs24h });
+    // runs that executed but whose checks failed (outcome "findings") are counted on their own
+    expect((await s.api('GET', `/runs?outcome=findings&since=${encodeURIComponent(ago(1))}&limit=1000`)).length).toBe(a.runs.withFindings);
     expect(a.tasks).toBe(d.openTasks.length);
     const since = ago(1);
     expect((await s.api('GET', `/runs?status=failed&since=${encodeURIComponent(since)}&limit=1000`)).length).toBe(a.runs.failed);

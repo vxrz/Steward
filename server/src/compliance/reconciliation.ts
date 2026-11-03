@@ -1201,7 +1201,7 @@ export function listFindings(
  * The start page's "Undocumented access changes" tile: open findings of the checks the current user may
  * read. null for a user who may read no check (and is no administrator or auditor) – no tile, not a 0.
  */
-export function findingAttention(): { open: number } | null {
+export function findingAttention(): { open: number; checks: number } | null {
   const u = me();
   const readable = db()
     .all<CheckRow>('SELECT * FROM access_checks')
@@ -1213,7 +1213,7 @@ export function findingAttention(): { open: number } | null {
     const rows = db().all<FindingRow>("SELECT * FROM access_findings WHERE check_id = ? AND status IN ('open', 'documented')", c.id);
     open += rows.filter((f) => effectiveStatus(f) === 'open').length;
   }
-  return { open };
+  return { open, checks: readable.length };
 }
 
 function readableFinding(id: string): { f: FindingRow; c: CheckRow } {
