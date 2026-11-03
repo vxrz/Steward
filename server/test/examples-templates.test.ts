@@ -341,3 +341,30 @@ describe('Prometheus – SLO and error-budget report', () => {
     expect(def.checks.map((c: any) => c.platform)).toEqual([platformByKind.prometheus, platformByKind.prometheus]);
   });
 });
+
+describe('monitor examples', () => {
+  it('every example monitor imports in the demo with generic platform names (no "(demo)" in the files)', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const dir = path.resolve(__dirname, '..', '..', 'examples', 'monitors');
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith('.yaml'));
+    for (const f of files) expect(fs.readFileSync(path.join(dir, f), 'utf8'), f).not.toMatch(/platform: .*\(demo\)/);
+    const examples = (await s.api('GET', '/monitors/examples')) as { file: string; key: string | null }[];
+    const have = new Set([...(await s.api('GET', '/monitors')), ...(await s.api('GET', '/monitors?templates=true'))].map((m: { key: string }) => m.key));
+    expect(examples.filter((e) => e.key && !have.has(e.key)).map((e) => e.file)).toEqual([]);
+    // each check type of the examples resolves to the demo platform of its kind
+    for (const key of [
+      'snowflake-account',
+      'kubernetes-namespace',
+      'repository-pipelines',
+      'kafka-orders',
+      'mqtt-presses',
+      'checkmk-database-host',
+      'new-critical-vulnerabilities',
+    ]) {
+      const m = ((await s.api('GET', '/monitors')) as any[]).find((x) => x.key === key);
+      const def = (await s.api('GET', `/monitors/${m.id}`)).definition;
+      for (const c of def.checks) expect(Object.values(platformByKind), `${key}/${c.id}`).toContain(c.platform);
+    }
+  });
+});

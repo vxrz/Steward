@@ -1,0 +1,26 @@
+# A Kubernetes namespace (#111): every deployment ready and no pod crash-looping, and one deployment on its own.
+# "platform: Kubernetes" finds your cluster platform when it is the only one (or the only one whose name starts with
+# "Kubernetes"); on import you choose it otherwise. Replace the namespace and the deployment. See docs/KUBERNETES.md.
+kind: monitor
+key: kubernetes-namespace
+name: Kubernetes namespace shop-prod
+description: Deployments ready and no pod crash-looping in the namespace shop-prod, the web deployment on its own.
+tags: [kubernetes]
+intervalSeconds: 120
+aggregate: { rule: worst }
+checks:
+  - id: namespace
+    name: shop-prod – all deployments
+    type: kubernetes
+    platform: Kubernetes
+    namespace: shop-prod
+    x: 0
+    y: 0
+  - id: web
+    name: shop-prod – web
+    type: kubernetes
+    platform: Kubernetes
+    namespace: shop-prod
+    deployment: web
+    x: 260
+    y: 0

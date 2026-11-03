@@ -1,7 +1,8 @@
 # New critical vulnerabilities (#119): one check per production project in Dependency-Track. Down as soon as a project
 # has an open critical finding (not analysed as not affected or false positive, not suppressed) or a failing policy
 # violation; degraded above three critical or high findings. Add a check per project; the platform is the name of
-# your Dependency-Track platform. See docs/DEPENDENCY-TRACK.md.
+# your Dependency-Track platform (or its beginning: "Dependency-Track" finds it when it is the only one; on import you
+# choose it otherwise). See docs/DEPENDENCY-TRACK.md.
 kind: monitor
 key: new-critical-vulnerabilities
 name: New critical vulnerabilities
@@ -13,7 +14,7 @@ checks:
   - id: shop-web
     name: shop-web (latest)
     type: dependency-track
-    platform: Dependency-Track (demo)
+    platform: Dependency-Track
     project: shop-web@latest
     maxCritical: 0
     maxHigh: 3
@@ -23,7 +24,7 @@ checks:
   - id: crm-api
     name: crm-api (latest)
     type: dependency-track
-    platform: Dependency-Track (demo)
+    platform: Dependency-Track
     project: crm-api@latest
     maxCritical: 0
     maxHigh: 3

@@ -1,0 +1,41 @@
+# A Kafka topic (#112): new messages within a window, the lag of the consumer group and the schema version.
+# "platform: Kafka" finds your Kafka cluster platform when it is the only one (or the only one whose name starts with
+# "Kafka"); on import you choose it otherwise. Replace the topic, the group and the limits. See docs/KAFKA.md.
+kind: monitor
+key: kafka-orders
+name: Kafka – orders topic
+description: New orders arrive, the order service keeps up and the billing group is not stuck.
+tags: [kafka]
+intervalSeconds: 300
+aggregate: { rule: worst }
+checks:
+  - id: orders-flowing
+    name: orders – new messages (15 min)
+    type: kafka
+    platform: Kafka
+    topic: orders
+    messagesWithinMinutes: 15
+    x: 0
+    y: 0
+  - id: order-service
+    name: orders – order-service lag
+    type: kafka
+    platform: Kafka
+    topic: orders
+    group: order-service
+    maxLag: 1000
+    x: 260
+    y: 0
+  - id: billing
+    name: orders – billing
+    type: kafka
+    platform: Kafka
+    topic: orders
+    group: billing
+    maxLag: 1000
+    stuckMinutes: 30
+    critical: false
+    x: 520
+    y: 0
+links:
+  - { from: orders-flowing, to: order-service }
