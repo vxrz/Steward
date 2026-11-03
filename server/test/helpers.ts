@@ -32,8 +32,11 @@ export interface TestServer {
   dataDir: string;
 }
 
-/** `dataDir`: start on an existing data folder (e.g. a copy of an upgrade fixture) instead of a new one. */
-export async function startTestServer(opts: { dataDir?: string } = {}): Promise<TestServer> {
+/**
+ * `dataDir`: start on an existing data folder (e.g. a copy of an upgrade fixture) instead of a new one. `routes`:
+ * test-only routes, added before the server listens.
+ */
+export async function startTestServer(opts: { dataDir?: string; routes?: (app: FastifyInstance) => void } = {}): Promise<TestServer> {
   const dataDir = opts.dataDir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'sm-test-'));
   process.env.SM_DATA_DIR = dataDir;
   // Port 0: the system assigns a free port, so parallel test runs (and outgoing connections, whose
@@ -45,6 +48,7 @@ export async function startTestServer(opts: { dataDir?: string } = {}): Promise<
   ensureDataDirs();
   const { buildApp } = await import('../src/app.js');
   const app = await buildApp();
+  opts.routes?.(app);
   await app.listen({ host: '127.0.0.1', port: 0 });
   const port = (app.server.address() as AddressInfo).port;
   // what main.ts does for SM_PORT=0: the instance proof, the own-API guard and demo URLs use the real port

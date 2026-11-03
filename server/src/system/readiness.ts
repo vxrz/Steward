@@ -4,9 +4,26 @@ import { vault } from '../vault.js';
 import { nowIso } from '../util.js';
 import { runAs } from '../auth/context.js';
 import * as scheduler from '../scheduler.js';
+import { logger } from '../log.js';
 
-/** The checks behind GET /api/ready (also shown on the System status page). */
-export function readinessChecks(): { ready: boolean; checks: ReadinessChecks } {
+/** A failure is logged once until the check passes again (probes ask every few seconds). */
+const logged = new Map<string, string>();
+function failed(check: string, e: unknown, publicMessage: string, detail: boolean): { ok: false; message: string } {
+  const message = (e as Error)?.message ?? String(e);
+  if (logged.get(check) !== message) {
+    logged.set(check, message);
+    logger.error({ err: e, check }, 'readiness check failed');
+  }
+  // GET /api/ready is public: the database error can name paths, hosts or SQL – administrators see it on the
+  // System status page, everyone else the generic reason
+  return { ok: false, message: detail ? `${publicMessage}: ${message}` : publicMessage };
+}
+
+/**
+ * The checks behind GET /api/ready (also shown on the System status page). `detail`: the error messages of failed
+ * checks (administrators only); otherwise a generic reason, and the detail goes to the log.
+ */
+export function readinessChecks(detail = false): { ready: boolean; checks: ReadinessChecks } {
   const checks: ReadinessChecks = {
     vault: { ok: false },
     database: { ok: false },
@@ -18,8 +35,9 @@ export function readinessChecks(): { ready: boolean; checks: ReadinessChecks } {
     db().get('SELECT 1');
     db().run('INSERT INTO engine_probe (id, ts) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET ts = excluded.ts', nowIso());
     checks.database = { ok: true };
+    logged.delete('database');
   } catch (e) {
-    checks.database = { ok: false, message: (e as Error).message };
+    checks.database = failed('database', e, 'Database not available', detail);
   }
   try {
     // schedules are armed once the vault is unlocked
@@ -30,8 +48,9 @@ export function readinessChecks(): { ready: boolean; checks: ReadinessChecks } {
       enabled.length === 0 || armed > 0
         ? { ok: true, message: `${armed} of ${enabled.length} enabled schedule(s) armed` }
         : { ok: false, message: `None of ${enabled.length} enabled schedule(s) is armed` };
+    logged.delete('scheduler');
   } catch (e) {
-    checks.scheduler = { ok: false, message: (e as Error).message };
+    checks.scheduler = failed('scheduler', e, 'Schedules could not be read', detail);
   }
   return { ready: Object.values(checks).every((c) => c.ok), checks };
 }

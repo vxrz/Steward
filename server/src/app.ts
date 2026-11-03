@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import { BlockList, isIPv6 } from 'node:net';
 import path from 'node:path';
@@ -57,6 +58,21 @@ function contentSecurityPolicy(connectExtra: string[] = []): string {
     "manifest-src 'self'",
   ].join('; ');
 }
+
+/**
+ * Request ids: a UUID per request, or the caller's `X-Request-Id` (a proxy or a client correlating its own logs) when
+ * it is short and plain – it is written to logs and error reports, so anything else is replaced. Fastify's default
+ * (`req-1`, `req-2`, … from 1 after each restart) cannot be quoted unambiguously.
+ */
+export const REQUEST_ID_HEADER = 'x-request-id';
+const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,64}$/;
+export function requestId(req: { headers: Record<string, string | string[] | undefined> }): string {
+  const given = req.headers[REQUEST_ID_HEADER];
+  return typeof given === 'string' && SAFE_REQUEST_ID.test(given) ? given : randomUUID();
+}
+
+/** The body of an unexpected error: nothing about its cause (OWASP ASVS V7.4.1), the request id to look it up in the log. */
+export const internalErrorBody = (id: string) => ({ error: `Internal error (request id ${id})`, code: 'INTERNAL_ERROR', params: { requestId: id } });
 
 /** An error raised by SQLite (node:sqlite) or PostgreSQL (see database/pg-bridge.ts), not by Steward itself. */
 export function isDatabaseError(err: unknown): boolean {
@@ -200,6 +216,9 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   const app = Fastify({
     ...(opts.logger ? { loggerInstance: logger } : { logger: false }),
     disableRequestLogging: true,
+    // a UUID, or the caller's X-Request-Id when it is safe (requestId above); returned on every response (onSend)
+    requestIdHeader: false,
+    genReqId: (req) => requestId(req),
     // 1 MB; the import and definition routes that need more name their limit (bodyLimits.ts)
     bodyLimit: DEFAULT_BODY_LIMIT,
     // Under a path prefix (SM_BASE_PATH): strip it once before routing, so every route, check and limit below
@@ -219,6 +238,11 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
         }
       : {}),
   }) as unknown as FastifyInstance;
+  // every answer names its request id (errors, rate limits and 404s included), so it can be quoted and looked up
+  app.addHook('onSend', async (req, reply, payload) => {
+    reply.header(REQUEST_ID_HEADER, req.id);
+    return payload;
+  });
   const routeTable: TableRow[] = [];
   ROUTE_TABLES.set(app, routeTable);
   app.addHook('onRoute', (r) => {
@@ -407,14 +431,16 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     }
     const e = err as Error & { statusCode?: number };
     if (e.statusCode && e.statusCode < 500) return reply.code(e.statusCode).send({ error: e.message });
-    logger.error({ err }, 'unhandled error');
+    // the request's logger: the line carries the request id
+    req.log.error({ err, database: isDatabaseError(err) || undefined }, 'unhandled error');
     reportError(err, {
       tags: { route: req.routeOptions?.url ?? 'unknown', method: req.method, request_id: req.id },
       userId: currentUser()?.id,
       request: { method: req.method, url: req.url },
     });
-    // Database errors can quote SQL, constraint and column names: the details go to the log only.
-    return reply.code(500).send({ error: isDatabaseError(err) ? `Internal error (request id ${req.id})` : e.message || 'Internal error' });
+    // An unexpected error's message can name internals – SQL, a TypeError, an upstream URL: it goes to the log only,
+    // the caller gets the request id to quote. Deliberate errors (HttpError, validation) keep their message above.
+    return reply.code(e.statusCode && e.statusCode >= 500 && e.statusCode <= 599 ? e.statusCode : 500).send(internalErrorBody(req.id));
   });
 
   // Runtime settings for the web UI (one build works with and without error reporting).
