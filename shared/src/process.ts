@@ -10,6 +10,7 @@ import { stepsToGraph } from './graph.js';
 import { REPORT_LANGS } from './reports.js';
 import { boundedRecord } from './zodLimits.js';
 import { tagInput } from './tags.js';
+import { AWS_REGION_RE } from './aws.js';
 
 /**
  * Process definition model.
@@ -138,7 +139,17 @@ export interface HttpConfig {
   operationId?: string;
   /** Override write detection (non-GET/HEAD = write) used for dry runs. */
   mutating?: boolean;
+  /**
+   * AWS (v0.3.1): on an AWS platform, call this AWS service in this region, signed with the platform's SigV4 settings –
+   * the path is relative to the service's endpoint (https://<service>.<region>.amazonaws.com).
+   */
+  aws?: { service: string; region: string };
+  /** Largest answer accepted, in MB (default HTTP_RESPONSE_MB.default, at most HTTP_RESPONSE_MB.max); larger answers fail the step. */
+  maxResponseMb?: number;
 }
+
+/** The size limit of an http step's answer, per page (v0.3.1: it had none and was kept in memory and in the run). */
+export const HTTP_RESPONSE_MB = { default: 20, max: 200 } as const;
 export interface SetConfig {
   type: 'set';
   values: Record<string, unknown>;
@@ -311,8 +322,13 @@ export interface PublishConfig {
   limits?: Record<string, string>;
   /** Metric name → numeric expression of a lower limit, reached by falling (e.g. free storage) */
   floors?: Record<string, string>;
-  /** Data counts as stale when older than this (dashboards show it); default: 2.5 × the schedule interval, else 24 h */
+  /**
+   * Data of a run without a schedule counts as stale when older than this (dashboards show it); default 24 h. Runs
+   * started by a schedule (or a sub-process of one) follow the schedule: 2.5 × its interval, at least 15 minutes.
+   */
   staleAfterMinutes?: number;
+  /** `staleAfterMinutes` applies to scheduled runs too, instead of the schedule's interval (the behaviour before 0.3.1) */
+  staleAfterFixed?: boolean;
   /** Safety limit (default 5000 rows) */
   maxRows?: number;
   /** The connection whose platform is the source of the rows (#142); default: the only one, else all bound platforms */
@@ -428,6 +444,14 @@ const shapes = {
     paginate: paginateSchema.optional(),
     operationId: z.string().optional(),
     mutating: z.boolean().optional(),
+    aws: z
+      .object({
+        service: z.string().regex(/^[a-z][a-z0-9-]{1,40}$/, 'an AWS service name as in its endpoint, e.g. ec2, s3, sts, logs'),
+        region: z.string().regex(AWS_REGION_RE, 'an AWS region, e.g. eu-central-1'),
+      })
+      .strict()
+      .optional(),
+    maxResponseMb: z.number().int().min(1).max(HTTP_RESPONSE_MB.max).optional(),
   },
   set: { type: z.literal('set'), values: boundedRecord(z.unknown(), 500) },
   forEach: {
@@ -498,6 +522,7 @@ const shapes = {
     limits: boundedRecord(z.string(), 100).optional(),
     floors: boundedRecord(z.string(), 100).optional(),
     staleAfterMinutes: z.number().int().min(1).optional(),
+    staleAfterFixed: z.boolean().optional(),
     maxRows: z.number().int().min(1).max(50000).optional(),
     /** The connection whose platform is the source of the rows (#142); default: the only one, else all bound platforms */
     source: z.string().max(64).optional(),

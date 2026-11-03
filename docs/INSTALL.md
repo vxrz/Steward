@@ -188,7 +188,7 @@ npm run db:copy -- --from sqlite:./data/service-manager.db --to postgres://stewa
 
 - The **desktop executable always uses SQLite**. If `SM_DATABASE_URL` is set there, it refuses to start. Use the Node.js or container version for PostgreSQL.
 - The app talks to PostgreSQL through one connection, and each query waits for the answer. On the same host or LAN this costs about 0.2–0.3 ms per query, against about 0.01 ms for SQLite, and is not noticeable in the UI. Keep the database close to the app: a slow network link makes every request slower. A statement that runs longer than about 25 s is cancelled.
-- Size on the _Settings → Maintenance_ page is the size of the schema's tables and indexes. PostgreSQL's autovacuum reclaims space after the retention cleanup.
+- Size on the _Settings → Data & retention_ page is the size of the schema's tables and indexes. PostgreSQL's autovacuum reclaims space after the retention cleanup.
 - `/api/ready` checks that the database is reachable and writable, for both kinds.
 
 ## 6. Updating
@@ -489,14 +489,18 @@ services:
 
 Per platform, _Additional CA certificate (PEM)_ trusts a CA for that platform only. Do not use _Accept self-signed certificates_ for this – it turns the certificate check off. The hint `--use-system-ca` in Node.js' message does not help in the container: its system store does not know your company CA either. Single sign-on and notifications use the same `HTTPS_PROXY`/`NO_PROXY` and `NODE_EXTRA_CA_CERTS`.
 
+## Request ids and error answers
+
+Every response carries an `X-Request-Id` header: a random UUID, or the id your reverse proxy or client sent in `X-Request-Id` when it is at most 64 characters of letters, digits and `. _ : -` (anything else is replaced). The same id is in the server's log lines for the request (`reqId`) and in error reports (`request_id`, [ERROR-REPORTING.md](ERROR-REPORTING.md)). An unexpected error never shows its message to the caller – it may name SQL, internal types or upstream addresses – but `{"error": "Internal error (request id …)", "code": "INTERNAL_ERROR"}`; the web app shows _Something went wrong (reference …)_, so people can quote the reference and you can find the error in the log. Deliberate errors (permissions, validation, a platform's answer) keep their message.
+
 ## Health and readiness
 
 Every installation answers two public endpoints, without signing in:
 
-| Endpoint          | Answers                                                                                                                                                                                                                          | Use it for                                                                                                                            |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/health` | Always `200 {"ok": true, "version": "…"}` while the process runs                                                                                                                                                                 | Liveness: container `HEALTHCHECK`, Kubernetes `livenessProbe`, a simple uptime check                                                  |
-| `GET /api/ready`  | `200` when the vault is unlocked, the database is writable and the enabled schedules are armed; otherwise `503` with the failing checks: `{"ready": false, "checks": {"vault": {"ok": false, "message": "Vault is locked"}, …}}` | Readiness: Kubernetes `readinessProbe`, load balancers, Gatus/Zabbix/Uptime Kuma alerts ("Steward needs someone to unlock the vault") |
+| Endpoint          | Answers                                                                                                                                                                                                                                                                                                                                                                                                 | Use it for                                                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/health` | Always `200 {"ok": true, "version": "…"}` while the process runs                                                                                                                                                                                                                                                                                                                                        | Liveness: container `HEALTHCHECK`, Kubernetes `livenessProbe`, a simple uptime check                                                  |
+| `GET /api/ready`  | `200` when the vault is unlocked, the database is writable and the enabled schedules are armed; otherwise `503` with the failing checks: `{"ready": false, "checks": {"vault": {"ok": false, "message": "Vault is locked"}, …}}`. A database or schedule failure has a generic message here (`Database not available`); the error itself is in the server log and on _System status_ for administrators | Readiness: Kubernetes `readinessProbe`, load balancers, Gatus/Zabbix/Uptime Kuma alerts ("Steward needs someone to unlock the vault") |
 
 ```yaml
 # Kubernetes

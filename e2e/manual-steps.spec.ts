@@ -89,7 +89,8 @@ test.describe('manual steps', () => {
   test('the process editor starts a manual procedure and edits its steps', async ({ loginAs }) => {
     const dana = await loginAs('dana');
     await dana.goto('/processes');
-    await dana.getByRole('button', { name: 'New manual procedure' }).click();
+    await dana.getByRole('button', { name: 'More', exact: true }).click();
+    await dana.getByRole('menuitem', { name: /^New manual procedure/ }).click();
     await expect(dana).toHaveURL(/\/processes\/[^/]+$/);
     const nodes = dana.locator('.react-flow__node');
     await expect(nodes).toHaveCount(4);

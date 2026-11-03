@@ -62,7 +62,7 @@ test('operator creates a schedule, runs it now and deletes it', async ({ page, a
   await row.getByRole('button', { name: 'Run now' }).click();
   await expect(page).toHaveURL(/\/runs\/[^/]+$/);
   const runId = page.url().split('/').pop()!;
-  await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('succeeded', { timeout: 20_000 });
+  await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText(/succeeded|completed with findings/, { timeout: 20_000 });
   const run = await waitForRun(await apiAs('olivia'), runId, ['succeeded']);
   expect(run.actor).toBe('olivia');
 
@@ -80,4 +80,47 @@ test('an invalid cron expression is explained', async ({ page }) => {
   await dialog.getByRole('textbox', { name: 'Cron expression' }).fill('61 * * * *');
   await expect(dialog.getByText(/^Next: /)).toBeHidden();
   await expect(dialog.getByRole('textbox', { name: 'Cron expression' })).toHaveAttribute('aria-invalid', 'true');
+});
+
+test('the cron preview warns when day of month and day of week are both set, and offers the nth weekday', async ({ page }) => {
+  await page.goto('/schedules');
+  await page.getByRole('button', { name: 'New schedule' }).click();
+  const dialog = page.getByRole('dialog', { name: 'New schedule' });
+  const cron = dialog.getByRole('textbox', { name: 'Cron expression' });
+  // "the first Monday" written the vixie way runs on days 1–7 and on every Monday
+  await cron.fill('0 6 1-7 * 1');
+  const warning = dialog.getByTestId('cron-warning');
+  await expect(warning).toContainText('either one matches');
+  await warning.getByRole('button', { name: /^Use/ }).click();
+  await expect(cron).toHaveValue('0 6 * * 1#1');
+  await expect(dialog.getByText(/^Next: /)).toBeVisible();
+  await expect(warning).toHaveCount(0);
+});
+
+test('an unexpected server error shows a reference to quote, not its text', async ({ page, allowConsole }) => {
+  allowConsole(/status of 50\d/);
+  await page.route('**/api/cron/preview', (route) =>
+    route.fulfill({
+      status: 500,
+      headers: { 'content-type': 'application/json', 'x-request-id': '3f2a9c1e-0000-4000-8000-00000000e2e0' },
+      body: JSON.stringify({
+        error: 'Internal error (request id 3f2a9c1e-0000-4000-8000-00000000e2e0)',
+        code: 'INTERNAL_ERROR',
+        params: { requestId: '3f2a9c1e-0000-4000-8000-00000000e2e0' },
+      }),
+    }),
+  );
+  await page.goto('/schedules');
+  await page.getByRole('button', { name: 'New schedule' }).click();
+  const dialog = page.getByRole('dialog', { name: 'New schedule' });
+  await dialog.getByRole('textbox', { name: 'Cron expression' }).fill('0 6 * * *');
+  await expect(dialog.getByText('Something went wrong (reference 3f2a9c1e-0000-4000-8000-00000000e2e0)', { exact: false })).toBeVisible();
+
+  // a proxy's error page (no JSON) with the request id the proxy passed on
+  await page.unroute('**/api/cron/preview');
+  await page.route('**/api/cron/preview', (route) =>
+    route.fulfill({ status: 502, headers: { 'content-type': 'text/html', 'x-request-id': 'lb-12345' }, body: '<html>Bad gateway</html>' }),
+  );
+  await dialog.getByRole('textbox', { name: 'Cron expression' }).fill('0 7 * * *');
+  await expect(dialog.getByText('Something went wrong (reference lb-12345)', { exact: false })).toBeVisible();
 });

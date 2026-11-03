@@ -31,7 +31,25 @@
     "steps_other": "{{count}} Schritte",
     "created": "„{{name}}“ angelegt",
     "use": "Verwenden",
-    "useNamed": "Vorlage {{name}} verwenden"
+    "useNamed": "Vorlage {{name}} verwenden",
+    "anyPlatform": "Beliebige oder keine Plattform",
+    "search": "Suche",
+    "searchPlaceholder": "Name, Beschreibung, Tag oder Plattform",
+    "platform": "Plattform",
+    "allPlatforms": "Alle Plattformen",
+    "mine": "Passt zu Ihren Plattformen",
+    "shown": "{{count}} von {{total}} Vorlagen",
+    "noMatch": "Keine Vorlage passt. Leeren Sie die Suche oder die Filter.",
+    "needs": "benötigt: Plattform {{kind}}",
+    "haveKind": "Sie haben eine Plattform dieser Art",
+    "missingKind": "Noch keine Plattform dieser Art – unter Plattformen hinzufügen",
+    "recommended": "empfohlen: {{schedule}}",
+    "nextText": "Probieren Sie ihn mit einem Probelauf aus – er simuliert jede Änderung und schreibt das vollständige Protokoll – und lassen Sie ihn dann nach Zeitplan laufen.",
+    "missingPlatform": "Der Prozess benötigt eine Plattform {{kind}}. Legen Sie vor der ersten Ausführung eine unter Plattformen an.",
+    "dryRun": "Probelauf starten",
+    "schedule": "Zeitplan anlegen",
+    "openEditor": "Im Editor öffnen",
+    "backToList": "Zurück zu den Vorlagen"
   },
   "import": {
     "title": "Prozess importieren (YAML oder JSON)",
@@ -46,7 +64,6 @@
     "submit": "Importieren"
   },
   "bundle": {
-    "button": "Paket",
     "exportAll": "Alle Prozesse & Dashboards exportieren",
     "importMenu": "Paket importieren…",
     "importTitle": "Paket importieren",
@@ -63,7 +80,8 @@
     "newVersion": "Als neue Version speichern",
     "skip": "Überspringen",
     "copy": "Als Kopie importieren",
-    "result": "{{created}} angelegt, {{updated}} aktualisiert, {{skipped}} übersprungen"
+    "result": "{{created}} angelegt, {{updated}} aktualisiert, {{skipped}} übersprungen",
+    "label": "Bundles: mehrere Prozesse und Dashboards in einer Datei"
   },
   "newManualProcedure": "Neues manuelles Verfahren",
   "manualTemplate": {
@@ -78,5 +96,7 @@
     "ticket": "Change-Ticket",
     "check": "Ergebnis prüfen",
     "checkItem1": "Alles funktioniert wie vorher"
-  }
+  },
+  "more": "Weitere",
+  "newManualProcedureHint": "Checklisten und Nachweise, von Personen erledigt – ohne Plattform"
 }

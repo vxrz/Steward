@@ -9,6 +9,10 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
  * statements Steward sends (recognised by their leading "steward:" comment) from a small ACCOUNT_USAGE. Requests must
  * carry a key-pair JWT signed with the private key whose public key was registered (setSnowflakePublicKey – like
  * ALTER USER … SET RSA_PUBLIC_KEY), with iss ACCOUNT.USER.SHA256:<fingerprint> and sub ACCOUNT.USER.
+ *
+ * Statements of processes (the example templates) are answered without a tag: SHOW GRANTS ON DATABASE, SHOW GRANTS OF
+ * ROLE (from the same grants as GRANTS_TO_ROLES / GRANTS_TO_USERS), and SELECTs from ACCOUNT_USAGE.USERS,
+ * GRANTS_TO_USERS, WAREHOUSE_METERING_HISTORY and TASK_HISTORY – the columns by the aliases of the SELECT list.
  */
 
 export const DEMO_SNOWFLAKE = { account: 'DEMO12345', user: 'STEWARD_READER', role: 'STEWARD_READ', warehouse: 'STEWARD_WH' };
@@ -62,24 +66,96 @@ const METERING = [
   { warehouse: 'TRANSFORM_WH', credits30: 120.5, credits7: 31.25 },
   { warehouse: 'BI_WH', credits30: 40, credits7: 9.5 },
   { warehouse: 'UNUSED_WH', credits30: 3, credits7: 0 },
+  { warehouse: 'PBI_WH', credits30: 18.75, credits7: 6.5 },
 ];
 const USED_BY: Record<string, string[]> = { SHOP: ['TRANSFORM_WH', 'BI_WH'], CRM: ['BI_WH'] };
-const USERS = [
-  { name: 'ALICE', login: 'alice@example.com', type: 'PERSON', disabled: 'false' },
-  { name: 'BOB', login: 'bob@example.com', type: 'PERSON', disabled: 'false' },
-  { name: 'ETL_SVC', login: 'ETL_SVC', type: 'SERVICE', disabled: 'false' },
-  { name: 'OLD_BI', login: 'OLD_BI', type: 'LEGACY_SERVICE', disabled: 'true' },
+/**
+ * Users of the account. The four short names serve the SHOP and CRM databases; the project database
+ * PRD_SDC_OPQ_PBI_DEV (#project access review) is used by people with employee ids and two technical users.
+ * login: days since the last successful login (null: never).
+ */
+interface DemoUser {
+  name: string;
+  login: string;
+  type: string;
+  disabled: 'true' | 'false';
+  displayName?: string;
+  email?: string | null;
+  lastLogin?: number | null;
+  hasPassword?: boolean;
+  hasMfa?: boolean;
+  rsa?: boolean;
+}
+const USERS: DemoUser[] = [
+  { name: 'ALICE', login: 'alice@example.com', type: 'PERSON', disabled: 'false', email: 'alice@example.com', lastLogin: 3 },
+  { name: 'BOB', login: 'bob@example.com', type: 'PERSON', disabled: 'false', email: 'bob@example.com', lastLogin: 1, hasPassword: true, hasMfa: true },
+  { name: 'ETL_SVC', login: 'ETL_SVC', type: 'SERVICE', disabled: 'false', lastLogin: 0.1, rsa: true },
+  { name: 'OLD_BI', login: 'OLD_BI', type: 'LEGACY_SERVICE', disabled: 'true', lastLogin: 400, hasPassword: true },
+  { name: 'Z003ABCD', login: 'Z003ABCD', type: 'PERSON', disabled: 'false', displayName: 'Anna Berger', email: 'anna.berger@example.com', lastLogin: 2 },
+  {
+    name: 'Z004EFGH',
+    login: 'Z004EFGH',
+    type: 'PERSON',
+    disabled: 'false',
+    displayName: 'Hans Ilg',
+    email: 'hans.ilg@example.com',
+    lastLogin: 200,
+    hasPassword: true,
+  },
+  { name: 'Z005IJKL', login: 'Z005IJKL', type: 'PERSON', disabled: 'true', displayName: 'Karla Lang', email: 'karla.lang@example.com', lastLogin: 380 },
+  { name: 'Z006MNOP', login: 'Z006MNOP', type: 'PERSON', disabled: 'false', displayName: 'Mia Neumann', email: 'mia.neumann@example.com', lastLogin: 91 },
+  {
+    name: 'Z007QRST',
+    login: 'Z007QRST',
+    type: 'PERSON',
+    disabled: 'false',
+    displayName: 'Jonas Kraus',
+    email: 'jonas.kraus@example.com',
+    lastLogin: 1,
+    hasPassword: true,
+    hasMfa: true,
+  },
+  {
+    name: 'BREAKGLASS_ADMIN',
+    login: 'BREAKGLASS_ADMIN',
+    type: 'PERSON',
+    disabled: 'false',
+    displayName: 'Emergency access',
+    lastLogin: null,
+    hasPassword: true,
+    hasMfa: true,
+  },
+  { name: 'SVC_PBI_GATEWAY', login: 'SVC_PBI_GATEWAY', type: 'SERVICE', disabled: 'false', lastLogin: 0.1, rsa: true },
+  { name: 'SVC_PBI_ETL', login: 'SVC_PBI_ETL', type: 'LEGACY_SERVICE', disabled: 'false', lastLogin: 1, hasPassword: true },
 ];
+/** [user, role]: roles granted to users (GRANTS_TO_USERS, SHOW GRANTS OF ROLE … granted_to USER) */
 const USER_ROLES = [
   ['ALICE', 'ANALYST'],
   ['BOB', 'SYSADMIN'],
   ['ETL_SVC', 'LOADER'],
   ['OLD_BI', 'REPORTER'],
+  ['Z003ABCD', 'PRD_SDC_OPQ_PBI_DEV_READONLY'],
+  ['Z003ABCD', 'PBI_REPORTING'],
+  ['Z004EFGH', 'PRD_SDC_OPQ_PBI_DEV_READONLY'],
+  ['Z005IJKL', 'PRD_SDC_OPQ_PBI_DEV_READWRITE'],
+  ['Z006MNOP', 'PBI_REPORTING'],
+  ['Z007QRST', 'PRD_SDC_OPQ_PBI_DEV_READWRITE'],
+  ['Z007QRST', 'ACCOUNTADMIN'],
+  ['Z007QRST', 'SECURITYADMIN'],
+  ['BREAKGLASS_ADMIN', 'ACCOUNTADMIN'],
+  ['SVC_PBI_GATEWAY', 'PRD_SDC_OPQ_PBI_DEV_READONLY'],
+  ['SVC_PBI_ETL', 'PRD_SDC_OPQ_PBI_DEV_READWRITE'],
 ];
 /** NAME (a role) granted to GRANTEE_NAME (a role) */
 const ROLE_HIERARCHY = [
   ['REPORTER', 'ANALYST'],
   ['ANALYST', 'SYSADMIN'],
+  ['PRD_SDC_OPQ_PBI_DEV_READONLY', 'PRD_SDC_OPQ_PBI_DEV_READWRITE'],
+  ['PRD_SDC_OPQ_PBI_DEV_READONLY', 'PBI_REPORTING'],
+  ['PRD_SDC_OPQ_PBI_DEV_READWRITE', 'PRD_SDC_OPQ_PBI_DEV_OWNER'],
+  ['PRD_SDC_OPQ_PBI_DEV_OWNER', 'SYSADMIN'],
+  ['SYSADMIN', 'ACCOUNTADMIN'],
+  ['SECURITYADMIN', 'ACCOUNTADMIN'],
 ];
 const OBJECT_GRANTS = [
   { privilege: 'OWNERSHIP', on: 'DATABASE', name: 'SHOP', catalog: null, schema: null, grantee: 'SYSADMIN' },
@@ -91,6 +167,11 @@ const OBJECT_GRANTS = [
   { privilege: 'USAGE', on: 'SCHEMA', name: 'STAGING', catalog: 'SHOP', schema: null, grantee: 'LOADER' },
   { privilege: 'INSERT', on: 'TABLE', name: 'RAW_EVENTS', catalog: 'SHOP', schema: 'STAGING', grantee: 'LOADER' },
   { privilege: 'SELECT', on: 'TABLE', name: 'CONTACTS', catalog: 'CRM', schema: 'CORE', grantee: 'ANALYST' },
+  { privilege: 'OWNERSHIP', on: 'DATABASE', name: 'PRD_SDC_OPQ_PBI_DEV', catalog: null, schema: null, grantee: 'PRD_SDC_OPQ_PBI_DEV_OWNER' },
+  { privilege: 'USAGE', on: 'DATABASE', name: 'PRD_SDC_OPQ_PBI_DEV', catalog: null, schema: null, grantee: 'PRD_SDC_OPQ_PBI_DEV_READONLY' },
+  { privilege: 'MONITOR', on: 'DATABASE', name: 'PRD_SDC_OPQ_PBI_DEV', catalog: null, schema: null, grantee: 'PRD_SDC_OPQ_PBI_DEV_READONLY' },
+  { privilege: 'USAGE', on: 'DATABASE', name: 'PRD_SDC_OPQ_PBI_DEV', catalog: null, schema: null, grantee: 'PRD_SDC_OPQ_PBI_DEV_READWRITE' },
+  { privilege: 'CREATE SCHEMA', on: 'DATABASE', name: 'PRD_SDC_OPQ_PBI_DEV', catalog: null, schema: null, grantee: 'PRD_SDC_OPQ_PBI_DEV_READWRITE' },
 ];
 
 function fingerprint(k: crypto.KeyObject): string {
@@ -123,6 +204,189 @@ const result = (reply: FastifyReply, names: string[], rows: Cell[][]) =>
     resultSetMetaData: { numRows: rows.length, rowType: names.map((name) => ({ name })), partitionInfo: [{ rowCount: rows.length }] },
     data: rows,
   });
+
+const DAY = 24 * H;
+const bool = (b: boolean | undefined) => (b ? 'true' : 'false');
+/** Like the SQL API sends TIMESTAMP_LTZ values: seconds since the epoch with nanoseconds. */
+const epoch = (msAgo: number) => `${((Date.now() - msAgo) / 1000).toFixed(3)}000000`;
+
+/** The output columns of a SELECT list – the alias after AS, or the column itself (top-level commas only). */
+function selectAliases(sql: string): string[] {
+  // a leading /* … */ tag, then SELECT <list> FROM – found with indexOf on normalised whitespace, not a backtracking pattern
+  let s = sql.trim();
+  if (s.startsWith('/*')) {
+    const end = s.indexOf('*/');
+    s = end < 0 ? '' : s.slice(end + 2).trim();
+  }
+  const flat = s.replace(/\s+/g, ' ');
+  const upper = flat.toUpperCase();
+  const from = upper.indexOf(' FROM ');
+  const list = upper.startsWith('SELECT ') && from > 7 ? flat.slice(7, from) : '';
+  const out: string[] = [];
+  let depth = 0;
+  let cur = '';
+  let quoted = false;
+  for (const ch of list) {
+    if (ch === "'") quoted = !quoted;
+    if (!quoted && ch === '(') depth++;
+    if (!quoted && ch === ')') depth--;
+    if (!quoted && depth === 0 && ch === ',') {
+      out.push(cur);
+      cur = '';
+    } else cur += ch;
+  }
+  if (cur.trim()) out.push(cur);
+  return out.map((c) => {
+    const t = c.trim();
+    const as = /\sAS\s+"?([A-Za-z0-9_]+)"?$/i.exec(t);
+    return (as ? as[1]! : (t.split('.').pop() ?? t)).toUpperCase();
+  });
+}
+
+/**
+ * `NAME RLIKE ?` of the mock, anchored like Snowflake's RLIKE – without building a regular expression from the input:
+ * literals, `.`, `.*` and groups of literal alternatives such as `(SVC|TECH|SYS)` (what the templates send), optionally
+ * with `^` and `$`. Any other pattern matches nothing.
+ */
+function rlike(pattern: string): (s: string) => boolean {
+  type Tok = { lit: string } | { any: true; star: boolean } | { alts: string[] };
+  const word = (ch: string | undefined) => !!ch && /^[A-Za-z0-9_$]$/.test(ch);
+  let p = pattern.startsWith('^') ? pattern.slice(1) : pattern;
+  if (p.endsWith('$') && !p.endsWith('\\$')) p = p.slice(0, -1);
+  if (!p || p.length > 200) return () => false;
+  const toks: Tok[] = [];
+  for (let i = 0; i < p.length;) {
+    const ch = p[i]!;
+    if (ch === '.') {
+      const star = p[i + 1] === '*';
+      toks.push({ any: true, star });
+      i += star ? 2 : 1;
+    } else if (ch === '(') {
+      const end = p.indexOf(')', i);
+      if (end < 0) return () => false;
+      const alts = p.slice(i + 1, end).split('|');
+      if (alts.some((a) => ![...a].every(word))) return () => false;
+      toks.push({ alts });
+      i = end + 1;
+    } else if (word(ch)) {
+      let j = i;
+      while (word(p[j])) j++;
+      toks.push({ lit: p.slice(i, j) });
+      i = j;
+    } else return () => false;
+  }
+  return (s) => {
+    const memo = new Map<number, boolean>();
+    const at = (t: number, pos: number): boolean => {
+      const k = t * (s.length + 1) + pos;
+      const known = memo.get(k);
+      if (known !== undefined) return known;
+      const tok = toks[t];
+      let r: boolean;
+      if (!tok) r = pos === s.length;
+      else if ('lit' in tok) r = s.startsWith(tok.lit, pos) && at(t + 1, pos + tok.lit.length);
+      else if ('alts' in tok) r = tok.alts.some((a) => s.startsWith(a, pos) && at(t + 1, pos + a.length));
+      else if (tok.star) {
+        r = false;
+        for (let q = pos; q <= s.length && !r; q++) r = at(t + 1, q);
+      } else r = pos < s.length && at(t + 1, pos + 1);
+      memo.set(k, r);
+      return r;
+    };
+    return at(0, 0);
+  };
+}
+
+/** Untagged statements: SHOW GRANTS ON DATABASE / OF ROLE, SELECTs from the ACCOUNT_USAGE views processes read. */
+function untagged(sql: string, arg: (i: number) => string): { names: string[]; rows: Cell[][] } | { error: string } {
+  const ident = (raw: string) => (raw.startsWith('"') ? raw.slice(1, -1).replaceAll('""', '"') : raw.toUpperCase());
+  // whitespace normalised first; the quoted name's alternatives start differently, so the pattern does not backtrack
+  const show = /^SHOW GRANTS (ON DATABASE|OF ROLE) ("(?:[^"]|"")+"|[A-Za-z0-9_$]+) ?;?$/i.exec(sql.trim().replace(/\s+/g, ' '));
+  if (show) {
+    const name = ident(show[2]!);
+    if (/^ON/i.test(show[1]!)) {
+      const grants = OBJECT_GRANTS.filter((g) => g.on === 'DATABASE' && g.name === name);
+      if (!grants.length) return { error: `SQL compilation error:\nDatabase '${name}' does not exist or not authorized.` };
+      return {
+        names: ['created_on', 'privilege', 'granted_on', 'name', 'granted_to', 'grantee_name', 'grant_option', 'granted_by'],
+        rows: grants.map((g, i) => [epoch((300 + i) * DAY), g.privilege, 'DATABASE', name, 'ROLE', g.grantee, 'false', 'SECURITYADMIN']),
+      };
+    }
+    const known = new Set([...USER_ROLES.map((r) => r[1]), ...ROLE_HIERARCHY.flat(), ...OBJECT_GRANTS.map((g) => g.grantee)]);
+    if (!known.has(name)) return { error: `SQL compilation error:\nRole '${name}' does not exist or not authorized.` };
+    return {
+      names: ['created_on', 'role', 'granted_to', 'grantee_name', 'granted_by'],
+      rows: [
+        ...ROLE_HIERARCHY.filter(([r]) => r === name).map(([, to], i): Cell[] => [epoch((200 + i) * DAY), name, 'ROLE', to!, 'SECURITYADMIN']),
+        ...USER_ROLES.filter(([, r]) => r === name).map(([u], i): Cell[] => [epoch((20 + 30 * i) * DAY), name, 'USER', u!, 'USERADMIN']),
+      ],
+    };
+  }
+  const view = /FROM\s+SNOWFLAKE\.ACCOUNT_USAGE\.([A-Z_]+)/i.exec(sql)?.[1]?.toUpperCase();
+  const names = selectAliases(sql);
+  if (view === 'USERS') {
+    const technical = rlike(/\bRLIKE\s+\?/i.test(sql) ? arg(1) : '');
+    const cell = (u: DemoUser, c: string): Cell => {
+      switch (c) {
+        case 'NAME':
+          return u.name;
+        case 'LOGIN_NAME':
+          return u.login;
+        case 'DISPLAY_NAME':
+          return u.displayName ?? u.name;
+        case 'EMAIL':
+          return u.email ?? null;
+        case 'TYPE':
+          return u.type;
+        case 'DISABLED':
+          return u.disabled;
+        case 'LAST_SUCCESS_LOGIN':
+          return u.lastLogin === null || u.lastLogin === undefined ? null : iso(u.lastLogin * DAY);
+        case 'HAS_PASSWORD':
+          return bool(u.hasPassword);
+        case 'HAS_MFA':
+          return bool(u.hasMfa);
+        case 'EXT_AUTHN_DUO':
+          return 'false';
+        case 'HAS_RSA_PUBLIC_KEY':
+          return bool(u.rsa);
+        case 'NAME_TECHNICAL':
+          return bool(technical(u.name));
+        default:
+          return null;
+      }
+    };
+    return { names, rows: USERS.map((u) => names.map((c) => cell(u, c))) };
+  }
+  if (view === 'GRANTS_TO_USERS') return { names, rows: USER_ROLES.map(([u, r]) => names.map((c) => (c === 'GRANTEE_NAME' ? u! : c === 'ROLE' ? r! : null))) };
+  if (view === 'WAREHOUSE_METERING_HISTORY')
+    return {
+      names,
+      rows: METERING.map((m) =>
+        names.map((c) =>
+          c === 'WAREHOUSE_NAME' ? m.warehouse : c === 'CREDITS_7D' ? String(m.credits7) : c.startsWith('CREDITS') ? String(m.credits30) : null,
+        ),
+      ),
+    };
+  if (view === 'TASK_HISTORY') {
+    const hours = Math.abs(Number(arg(1)) || 24);
+    return {
+      names,
+      rows: TASKS.filter((t) => t.state === 'FAILED' && t.at < hours * H).map((t) =>
+        names.map((c) => {
+          if (c === 'DATABASE_NAME') return t.database;
+          if (c === 'SCHEMA_NAME') return t.schema;
+          if (c === 'NAME') return t.name;
+          if (c === 'FAILURES') return '3';
+          if (c === 'LAST_FAILURE' || c === 'SCHEDULED_TIME') return iso(t.at);
+          if (c === 'ERROR_MESSAGE') return t.error;
+          return null;
+        }),
+      ),
+    };
+  }
+  return { error: `SQL compilation error: the demo does not know this statement (${sql.slice(0, 60)})` };
+}
 
 export async function mockSnowflake(app: FastifyInstance): Promise<void> {
   app.post('/snowflake/api/v2/statements', async (req, reply) => {
@@ -189,12 +453,10 @@ export async function mockSnowflake(app: FastifyInstance): Promise<void> {
         const hours = -Number(arg(2));
         return result(reply, ['CREDITS'], [[m ? String(hours <= 7 * 24 ? m.credits7 : m.credits30) : '0']]);
       }
-      case 'users':
-        return result(
-          reply,
-          ['NAME', 'LOGIN_NAME', 'TYPE', 'DISABLED'],
-          USERS.map((u) => [u.name, u.login, u.type, u.disabled]),
-        );
+      case 'users': {
+        const r = untagged(sql.replace(/^\/\* steward:users \*\/\s*/, ''), arg);
+        return 'error' in r ? reply.code(422).send({ code: '002003', message: r.error }) : result(reply, r.names, r.rows);
+      }
       case 'user-roles':
         return result(reply, ['GRANTEE_NAME', 'ROLE'], USER_ROLES);
       case 'role-hierarchy':
@@ -212,8 +474,10 @@ export async function mockSnowflake(app: FastifyInstance): Promise<void> {
             g.grantee,
           ]),
         );
-      default:
-        return reply.code(422).send({ code: '002003', message: `SQL compilation error: the demo does not know this statement (${sql.slice(0, 60)})` });
+      default: {
+        const r = untagged(sql, arg);
+        return 'error' in r ? reply.code(422).send({ code: '002003', message: r.error }) : result(reply, r.names, r.rows);
+      }
     }
   });
 }

@@ -90,7 +90,7 @@
   },
   "dailySummary": {
     "title": "Daily summary",
-    "intro": "Once a day, a short summary of what concerns you: failed runs, decisions waiting for you, monitor status changes, credentials due, your open tickets, records and reports. Only what you may see.",
+    "intro": "Once a day, a short summary of what concerns you: failed runs, decisions waiting for you, monitor status changes, credentials due, your open tickets, documents and reports. Only what you may see.",
     "enabled": "Send me a daily summary",
     "notAllowed": "An administrator switched daily summaries off.",
     "time": "Time",
@@ -119,7 +119,7 @@
       "monitors": "Monitor status changes",
       "credentials": "Credentials due",
       "tickets": "Open tickets I am responsible for",
-      "records": "Records waiting for me or that changed",
+      "records": "Documents waiting for me or that changed",
       "reports": "Reports for me",
       "reviews": "Document reviews due for me",
       "duties": "Service duties due or missed that I am responsible for",
@@ -144,7 +144,7 @@
   },
   "newResources": {
     "title": "Owning team of new resources",
-    "intro": "Processes, records, credentials and other resources you create belong to these teams. By default your teams decide; you can choose one of them instead.",
+    "intro": "Processes, documents, credentials and other resources you create belong to these teams. By default your teams decide; you can choose one of them instead.",
     "choose": "New resources belong to",
     "default": "My teams' defaults",
     "saved": "Saved",

@@ -368,8 +368,10 @@ describe('MCP protocol: legacy handshake and modern per-request metadata', () =>
 describe("MCP tools: the token owner's rights", () => {
   it("lists read-only tools, depending on the owner's rights, in a stable order", async () => {
     const r = await modern(tok.admin, 'tools/list');
+    // every tool reads only, except those that can create a request a person decides (docs/MCP.md#tools)
+    const asking = new Set(['platform_call_operation', 'request_run', 'propose_control_catalogue', 'propose_control_mappings']);
     for (const t of r.body.result.tools) {
-      expect(t.annotations.readOnlyHint).toBe(true);
+      expect(t.annotations.readOnlyHint).toBe(!asking.has(t.name));
       expect(t.inputSchema.type).toBe('object');
       expect(t.description.length).toBeGreaterThan(40);
       expect(t.name).toMatch(/^[a-z_]{1,64}$/);
@@ -378,8 +380,8 @@ describe("MCP tools: the token owner's rights", () => {
     expect(await toolNames(tok.admin)).toContain('search_audit_log');
     expect(await toolNames(tok.audrey)).toContain('search_audit_log');
     expect(await toolNames(tok.vera)).not.toContain('search_audit_log');
-    // no gateway tools while no platform has the gateway on
-    expect((await toolNames(tok.admin)).some((n) => n.startsWith('platform_'))).toBe(false);
+    // the gateway tools are listed even while no platform has the gateway on (clients keep their first tool list)
+    expect(await toolNames(tok.admin)).toContain('platform_call_operation');
   });
 
   it('processes and runs: only what the owner may view', async () => {
@@ -512,7 +514,8 @@ describe("MCP tools: the token owner's rights", () => {
 
 describe('MCP platform gateway (read-only)', () => {
   it('is off per platform; only "manage" turns it on (audited)', async () => {
-    expect((await toolNames(tok.olivia)).some((n) => n.startsWith('platform_'))).toBe(false);
+    // before any platform opens its gateway, a call says how to get access
+    expect((await call(tok.olivia, 'platform_find_operations', { platformId: ih.id })).isError).toBe(true);
     await expect(vera('PUT', `/platforms/${ih.id}/mcp-gateway`, { enabled: true })).rejects.toMatchObject({ status: 404 });
     await expect(olivia('PUT', `/platforms/${ih.id}/mcp-gateway`, { enabled: true })).rejects.toMatchObject({ status: 403 });
     await expect(s.api('PUT', `/platforms/${ih.id}/mcp-gateway`, { enabled: true, allowedPathPrefixes: ['/x/../y'] })).rejects.toMatchObject({ status: 400 });
@@ -541,14 +544,14 @@ describe('MCP platform gateway (read-only)', () => {
 
   it('needs "use" on the platform', async () => {
     expect(await toolNames(tok.olivia)).toEqual(expect.arrayContaining(['platform_find_operations', 'platform_describe_operation', 'platform_call_operation']));
-    expect((await toolNames(tok.vera)).some((n) => n.startsWith('platform_'))).toBe(false);
-    expect(
-      (await modern(tok.vera, 'tools/call', { name: 'platform_call_operation', arguments: { platformId: ih.id, operation: 'listUsers' } })).body.error.code,
-    ).toBe(-32602);
+    // listed for everyone, but a call without "use" is refused with how to get access
+    const refused = await call(tok.vera, 'platform_call_operation', { platformId: ih.id, operation: 'listUsers' });
+    expect(refused.isError).toBe(true);
+    expect(JSON.stringify(refused)).toContain('use right');
     await s.api('PUT', `/platforms/${ih.id}/access`, { acl: [{ subject: 'user:dana', permissions: ['use'] }] });
     try {
-      // olivia lost "use": the gateway tools disappear for her
-      expect((await modern(tok.olivia, 'tools/call', { name: 'platform_find_operations', arguments: { platformId: ih.id } })).body.error.code).toBe(-32602);
+      // olivia lost "use": her calls are refused
+      expect((await call(tok.olivia, 'platform_find_operations', { platformId: ih.id })).isError).toBe(true);
       expect((await call(tok.dana, 'platform_find_operations', { platformId: ih.id })).isError).toBe(false);
     } finally {
       await s.api('PUT', `/platforms/${ih.id}/access`, { acl: [] });

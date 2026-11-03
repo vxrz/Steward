@@ -38,6 +38,8 @@ const runsQuery = z.object({
     .optional(),
   /** `failed`: only runs with a failed check (the start page's "Failed checks" links) */
   checks: z.enum(['failed']).optional(),
+  /** `findings`: runs that completed with findings; `succeeded`: runs that succeeded without (the Runs page's status filter) */
+  outcome: z.enum(['succeeded', 'findings']).optional(),
 });
 
 function requireProcess(processId: string, perm: 'view' | 'run' | 'edit' | 'approve' | 'manage', what: string) {
@@ -299,6 +301,6 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   });
   app.post('/cron/preview', async (req) => {
     const b = z.object({ cron: z.string().max(100), timezone: z.string().max(64).optional() }).parse(req.body);
-    return { next: scheduler.validateCron(b.cron, b.timezone) };
+    return { next: scheduler.validateCron(b.cron, b.timezone), warnings: scheduler.cronWarnings(b.cron) };
   });
 }

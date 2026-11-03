@@ -16,7 +16,8 @@ let sf: string;
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
-  await s.api('POST', '/demo/setup');
+  // without the sample applications: their Snowflake databases would be read by the background job too
+  await s.api('POST', '/demo/setup', { applications: false });
   sf = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'snowflake').id;
 });
 afterAll(async () => {
@@ -64,6 +65,28 @@ describe('Snowflake platform', () => {
     const p = await s.api('POST', '/platforms', { ...(await s.api('GET', `/platforms/${sf}`)), name: 'Snowflake other key', secrets: { privateKey: other } });
     const t = await s.api('POST', `/platforms/${p.id}/test`, {});
     expect(t).toMatchObject({ ok: false, message: expect.stringMatching(/HTTP 401.*JWT token is invalid/) });
+    // 390144 alone says nothing: the hint names the usual causes
+    expect(t.message).toContain("that user's RSA_PUBLIC_KEY (DESC USER) belongs to the platform's private key");
+  });
+
+  it('a 390144 with a region in the account identifier says what the JWT needs', async () => {
+    const base = await s.api('GET', `/platforms/${sf}`);
+    await s.api('PUT', `/platforms/${sf}`, { config: { ...base.config, variables: { ...base.config.variables, account: 'xy12345.eu-central-1' } } });
+    let t;
+    try {
+      t = await s.api('POST', `/platforms/${sf}/test`, {});
+    } finally {
+      await s.api('PUT', `/platforms/${sf}`, { config: base.config });
+    }
+    expect(t.ok).toBe(false);
+    expect(t.message).toContain(
+      'The variable account is "xy12345.eu-central-1": in the JWT it must be the account locator without region and cloud ("XY12345")',
+    );
+    const { snowflakeJwtHint } = await import('../src/platforms/jwt.js');
+    expect(snowflakeJwtHint('HTTP 401: JWT token is invalid. (390144)', { account: 'myorg.myaccount' })).toContain(
+      'ORGNAME-ACCOUNTNAME with a hyphen ("MYORG-MYACCOUNT")',
+    );
+    expect(snowflakeJwtHint('HTTP 500: something else', { account: 'x.y' })).toBe('HTTP 500: something else');
   });
 });
 
@@ -73,16 +96,54 @@ describe('access reviews with the Snowflake source', () => {
     expect(c).toMatchObject({ source: 'snowflake', datasetKey: null });
     const r = await s.api('POST', `/compliance/access-checks/${c.id}/run`, {});
     const snap = await s.api('GET', `/compliance/access-checks/${c.id}/snapshots/${r.snapshot.id}`);
-    return Object.fromEntries(snap.data.map((x: any) => [x.id, { type: x.type, rights: x.rights }]));
+    expect(JSON.stringify(snap.data)).not.toContain('"activity"'); // the last login changes daily: never in a snapshot
+    return Object.fromEntries(snap.data.map((x: any) => [x.id, { type: x.type, rights: x.rights, ...(x.aliases ? { aliases: x.aliases } : {}) }]));
   };
 
-  it('lists the roles of every user, technical and disabled users marked', async () => {
-    expect(await run('')).toEqual({
+  it('lists the roles of every user, technical and disabled users marked, the e-mail address as an alias', async () => {
+    const all = await run('');
+    expect(all).toMatchObject({
       ALICE: { type: 'user', rights: ['role:ANALYST'] },
       BOB: { type: 'user', rights: ['role:SYSADMIN'] },
       ETL_SVC: { type: 'technical', rights: ['role:LOADER'] },
       OLD_BI: { type: 'disabled', rights: ['role:REPORTER'] },
+      // employee ids as user names: the e-mail address is how person reviews find them
+      Z005IJKL: { type: 'disabled', rights: ['role:PRD_SDC_OPQ_PBI_DEV_READWRITE'], aliases: ['karla.lang@example.com'] },
+      SVC_PBI_ETL: { type: 'technical', rights: ['role:PRD_SDC_OPQ_PBI_DEV_READWRITE'] },
     });
+    expect(all.ALICE.aliases).toBeUndefined(); // the login name is the e-mail address already
+    expect(all.Z007QRST.rights).toEqual(['role:ACCOUNTADMIN', 'role:PRD_SDC_OPQ_PBI_DEV_READWRITE', 'role:SECURITYADMIN']);
+  });
+
+  it('person reviews find a Snowflake user by the e-mail address and show the last login', async () => {
+    const c = await s.api('POST', '/compliance/access-checks', {
+      name: 'Snowflake project',
+      platformId: sf,
+      source: 'snowflake',
+      scope: 'PRD_SDC_OPQ_PBI_DEV',
+    });
+    const r = await s.api('POST', '/compliance/person-reviews', {
+      title: 'Leaver Karla Lang',
+      personName: 'Karla Lang',
+      identifiers: ['karla.lang@example.com'],
+      checkIds: [c.id],
+    });
+    expect(r.sources[0]).toMatchObject({ origin: 'live', matched: 1 });
+    expect(r.items.map((i: any) => [i.subjectId, i.right])).toEqual([
+      ['Z005IJKL', 'CREATE SCHEMA DATABASE PRD_SDC_OPQ_PBI_DEV'],
+      ['Z005IJKL', 'MONITOR DATABASE PRD_SDC_OPQ_PBI_DEV'], // READWRITE has READONLY
+      ['Z005IJKL', 'USAGE DATABASE PRD_SDC_OPQ_PBI_DEV'],
+    ]);
+    expect(r.items[0].subjectActivity).toMatch(/^last login \d{4}-\d{2}-\d{2} \(380 days ago\)$/);
+    const hans = await s.api('POST', '/compliance/person-reviews', {
+      title: 'Review Hans Ilg',
+      personName: 'Hans Ilg',
+      identifiers: ['HANS.ILG@example.com'],
+      checkIds: [c.id],
+    });
+    // through PRD_SDC_OPQ_PBI_DEV_READONLY; signs in with a password and no MFA
+    expect(hans.items.map((i: any) => i.right)).toEqual(['MONITOR DATABASE PRD_SDC_OPQ_PBI_DEV', 'USAGE DATABASE PRD_SDC_OPQ_PBI_DEV']);
+    expect(hans.items[0].subjectActivity).toContain('password without MFA');
   });
 
   it('lists who reaches a schema or a table, through the role hierarchy', async () => {

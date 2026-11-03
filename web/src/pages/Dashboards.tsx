@@ -1,12 +1,31 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ActionIcon, Anchor, Badge, Button, Card, Group, Modal, SimpleGrid, Stack, Table, Text, Textarea, Title, Tooltip } from '@mantine/core';
+import {
+  ActionIcon,
+  Anchor,
+  Badge,
+  Button,
+  Card,
+  Group,
+  Modal,
+  MultiSelect,
+  SegmentedControl,
+  Select,
+  SimpleGrid,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Textarea,
+  Title,
+  Tooltip,
+} from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconAlertTriangle, IconChartBar, IconFlask, IconPlus, IconTemplate, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { Dashboard, DashboardDefinition, DatasetMeta } from '@sm/shared';
-import { del, get, notifyError, notifyOk, post } from '../api';
+import type { Dashboard, DashboardDefinition, DatasetMeta, NewResourceTeams, Team } from '@sm/shared';
+import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, PageHeader, QueryState } from '../components/common';
 import { fmtNumber, fmtRelative } from '../format';
 import { useMe } from '../auth';
@@ -30,16 +49,7 @@ export function DashboardsPage() {
   const datasets = useQuery({ queryKey: ['datasets'], queryFn: () => get<DatasetMeta[]>('/datasets'), refetchInterval: 30000 });
   const [templatesOpen, templates] = useDisclosure();
   const [importOpen, importModal] = useDisclosure();
-
-  const createBlank = async () => {
-    try {
-      const d = await post<Dashboard>('/dashboards', { definition: { name: t('list.newName'), widgets: [] } });
-      qc.invalidateQueries({ queryKey: ['dashboards'] });
-      navigate(`/dashboards/${d.id}`);
-    } catch (e) {
-      notifyError(e);
-    }
-  };
+  const [newOpen, newModal] = useDisclosure();
 
   return (
     <>
@@ -55,7 +65,7 @@ export function DashboardsPage() {
               <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />} onClick={templates.open}>
                 {t('list.fromTemplate')}
               </Button>
-              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createBlank}>
+              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={newModal.open}>
                 {t('list.new')}
               </Button>
             </>
@@ -195,7 +205,129 @@ export function DashboardsPage() {
 
       <TemplatesModal opened={templatesOpen} onClose={templates.close} />
       <ImportModal opened={importOpen} onClose={importModal.close} />
+      <NewDashboardModal opened={newOpen} onClose={newModal.close} />
     </>
+  );
+}
+
+/**
+ * "New dashboard": a name, the owning teams (administrators choose; for others the teams their new resources get) and
+ * a start – blank or a copy of a template – then the dashboard opens in edit mode.
+ */
+function NewDashboardModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+  const { t } = useTranslation(['dashboards', 'common']);
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const { isAdmin } = useMe();
+  const [name, setName] = useState('');
+  const [start, setStart] = useState<'blank' | 'template'>('blank');
+  const [templateId, setTemplateId] = useState<string | null>(null);
+  const [teamIds, setTeamIds] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [tried, setTried] = useState(false);
+  const list = useQuery({ queryKey: ['dashboard-templates'], queryFn: () => get<DashboardTemplate[]>('/dashboard-templates'), enabled: opened });
+  const teams = useQuery({ queryKey: ['teams'], queryFn: () => get<Team[]>('/teams'), enabled: opened && isAdmin });
+  const mine = useQuery({ queryKey: ['new-resource-teams'], queryFn: () => get<NewResourceTeams>('/me/new-resource-teams'), enabled: opened && !isAdmin });
+  const tpl = list.data?.find((x) => x.id === templateId);
+  const nameError = tried && !name.trim() ? t('common:validation.required') : undefined;
+  const templateError = tried && start === 'template' && !tpl ? t('common:validation.required') : undefined;
+  const close = () => {
+    setName('');
+    setStart('blank');
+    setTemplateId(null);
+    setTeamIds([]);
+    setTried(false);
+    onClose();
+  };
+  const create = async () => {
+    setTried(true);
+    if (!name.trim() || (start === 'template' && !tpl)) return;
+    setBusy(true);
+    try {
+      const definition = start === 'template' && tpl ? { ...structuredClone(tpl.definition), name: name.trim() } : { name: name.trim(), widgets: [] };
+      const d = await post<Dashboard>('/dashboards', { definition });
+      if (isAdmin && teamIds.length) await put(`/owning-teams/dashboard/${d.id}`, { teamIds }).catch(notifyError);
+      qc.invalidateQueries({ queryKey: ['dashboards'] });
+      close();
+      // straight into edit mode
+      navigate(`/dashboards/${d.id}?edit=1`);
+    } catch (e) {
+      notifyError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal opened={opened} onClose={close} title={t('create.title')} size="lg">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void create();
+        }}
+      >
+        <Stack>
+          <TextInput data-autofocus label={t('create.name')} withAsterisk value={name} onChange={(e) => setName(e.currentTarget.value)} error={nameError} />
+          {isAdmin ? (
+            <MultiSelect
+              label={t('create.teams')}
+              description={t('create.teamsHint')}
+              placeholder={teamIds.length ? undefined : t('create.wholeInstance')}
+              data={(teams.data ?? []).map((x) => ({ value: x.id, label: x.name }))}
+              value={teamIds}
+              onChange={setTeamIds}
+              searchable
+              clearable
+            />
+          ) : (
+            <div>
+              <Text size="sm" fw={500}>
+                {t('create.teams')}
+              </Text>
+              <Text size="sm" c="dimmed">
+                {mine.data?.teams.length ? t('create.yourTeams', { teams: mine.data.teams.map((x) => x.name).join(', ') }) : t('create.wholeInstanceText')}
+              </Text>
+            </div>
+          )}
+          <div>
+            <Text size="sm" fw={500} mb={4}>
+              {t('create.start')}
+            </Text>
+            <SegmentedControl
+              value={start}
+              onChange={(v) => setStart(v as typeof start)}
+              data={[
+                { value: 'blank', label: t('create.blank') },
+                { value: 'template', label: t('create.fromTemplate') },
+              ]}
+            />
+          </div>
+          {start === 'template' && (
+            <Select
+              label={t('create.template')}
+              withAsterisk
+              searchable
+              data={(list.data ?? []).map((x) => ({ value: x.id, label: x.name }))}
+              value={templateId}
+              onChange={(v) => {
+                setTemplateId(v);
+                const found = list.data?.find((x) => x.id === v);
+                if (found && !name.trim()) setName(found.name);
+              }}
+              error={templateError}
+              description={tpl ? `${tpl.description} · ${t('list.widgets', { count: tpl.definition.widgets.length })}` : undefined}
+            />
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={close}>
+              {t('common:cancel')}
+            </Button>
+            <Button type="submit" loading={busy} leftSection={<IconPlus size={14} />}>
+              {t('create.submit')}
+            </Button>
+          </Group>
+        </Stack>
+      </form>
+    </Modal>
   );
 }
 

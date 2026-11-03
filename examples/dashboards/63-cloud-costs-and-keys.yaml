@@ -1,0 +1,26 @@
+name: Cloud costs and keys
+description: AWS costs per application and month, and the age and use of the IAM access keys of the applications – fed by "AWS – Costs per application" (monthly) and "AWS – IAM access key age and unused credentials" (daily), both from the cloud accounts of the applications.
+refreshSeconds: 300
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **Cloud costs and keys** – read by the processes *AWS – Costs per application* and *AWS – IAM access key age and unused credentials* from what Steward read for the application components of type "Cloud account" (resources and IAM every 6 hours, costs once a day). Opening this page never calls AWS.
+      Keys can be added to the credentials register from the application page; the access reconciliation with the source "AWS" covers every IAM user of an account.
+  - { id: lastMonth, type: kpi, title: Costs last month, dataset: aws.costs, metric: lastMonth, goodWhen: down, width: 3 }
+  - { id: currentMonth, type: kpi, title: This month so far, dataset: aws.costs, metric: currentMonth, goodWhen: down, width: 3 }
+  - { id: growing, type: kpi, title: Applications growing, dataset: aws.costs, metric: growing, goodWhen: down, width: 3 }
+  - { id: applications, type: kpi, title: Applications with costs, dataset: aws.costs, metric: applications, width: 3 }
+  - { id: costTrend, type: trend, title: Costs, dataset: aws.costs, metrics: [lastMonth, currentMonth], days: 365, width: 8 }
+  - { id: costStatus, type: status, title: Costs by state, dataset: aws.costs, width: 4 }
+  - { id: costs, type: table, title: Costs per application, dataset: aws.costs, width: 12 }
+  - { id: keys, type: kpi, title: Access keys, dataset: aws.iam-keys, metric: keys, width: 3 }
+  - { id: oldKeys, type: kpi, title: Keys to rotate, dataset: aws.iam-keys, metric: oldKeys, goodWhen: down, width: 3 }
+  - { id: unusedKeys, type: kpi, title: Active keys unused, dataset: aws.iam-keys, metric: unusedKeys, goodWhen: down, width: 3 }
+  - { id: inactiveKeys, type: kpi, title: Inactive keys left, dataset: aws.iam-keys, metric: inactiveKeys, goodWhen: down, width: 3 }
+  - { id: keyTrend, type: trend, title: Keys to rotate and unused, dataset: aws.iam-keys, metrics: [oldKeys, unusedKeys, inactiveKeys], days: 90, width: 8 }
+  - { id: keyStatus, type: status, title: Keys by state, dataset: aws.iam-keys, width: 4 }
+  - { id: keyProblems, type: table, title: Keys needing attention, dataset: aws.iam-keys, problemsOnly: true, width: 12 }
+  - { id: checks, type: checks, title: Latest key checks, process: aws-iam-key-age, width: 6 }
+  - { id: fresh, type: freshness, title: Data freshness, width: 6 }

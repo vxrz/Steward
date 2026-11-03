@@ -18,6 +18,7 @@ import { logger } from '../log.js';
 import { requestContext } from '../auth/context.js';
 import { toAuthUser } from '../auth/users.js';
 import { HttpError } from '../util.js';
+import { reportError } from '../errorReporting.js';
 import { API_VERSION, DOCS_BASE, setDocsUiAvailable } from './v1/config.js';
 import { apiAuthHook, docsAccess, type ApiPrincipal } from './v1/auth.js';
 import { ProblemError, problemBody, sendProblem, PROBLEM_BASE } from './v1/problem.js';
@@ -215,7 +216,11 @@ async function v1Scope(app: FastifyInstance, opts: { spec: () => Doc }): Promise
       return sendProblem(req, reply, s, { type, detail: err.message });
     }
     if (e.statusCode && e.statusCode < 500) return sendProblem(req, reply, e.statusCode, { detail: e.message });
-    logger.error({ err, reqId: req.id }, 'public API: unhandled error');
+    req.log.error({ err }, 'public API: unhandled error');
+    reportError(err, {
+      tags: { route: req.routeOptions?.url ?? 'unknown', method: req.method, request_id: req.id },
+      request: { method: req.method, url: req.url },
+    });
     return sendProblem(req, reply, 500, { detail: `Internal error (request id ${req.id})` });
   });
   const noEndpoint = (req: FastifyRequest, reply: FastifyReply) =>

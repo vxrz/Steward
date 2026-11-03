@@ -314,6 +314,13 @@ export interface Capabilities {
   createMonitors: boolean;
   /** Export evidence packs (Compliance) */
   exportEvidence?: boolean;
+  /**
+   * The sidebar shows Schedules and Triggers (roles that run, build or audit processes, in the instance or a team).
+   * Only in GET /auth/status; missing means true.
+   */
+  viewAutomation?: boolean;
+  /** The sidebar shows Credentials (a role that may read the register, or an entry the user owns). Missing means true. */
+  viewCredentials?: boolean;
 }
 
 export interface Me {
@@ -420,7 +427,8 @@ export interface Subject {
 
 // ---------- Platforms ----------
 
-export type AuthType = 'none' | 'basic' | 'bearer' | 'apiKey' | 'oauth2_client_credentials' | 'token_request' | 'jwt' | 'aws_sigv4';
+export const AUTH_TYPES = ['none', 'basic', 'bearer', 'apiKey', 'oauth2_client_credentials', 'token_request', 'jwt', 'aws_sigv4'] as const;
+export type AuthType = (typeof AUTH_TYPES)[number];
 
 export interface AuthConfig {
   type: AuthType;
@@ -445,7 +453,10 @@ export interface AuthConfig {
   tokenPath?: string;
   /** token_request: expression for lifetime in seconds (optional) */
   expiresInPath?: string;
-  /** Header added to API calls; template with {{ token }} */
+  /**
+   * Header added to API calls; template with {{ token }}. bearer: the header the token goes in – Authorization (default,
+   * as `Bearer <token>`) or another name, which gets the bare token (GitLab's default: PRIVATE-TOKEN).
+   */
   headerName?: string;
   headerValue?: string;
   /**
@@ -560,6 +571,8 @@ export interface Platform {
   permissions: PlatformPermission[];
   createdAt: string;
   updatedAt: string;
+  /** The latest connection test (from the audit log; GET /platforms only, null: never tested) */
+  lastTest?: { at: string; ok: boolean } | null;
 }
 
 export interface PlatformPreset {
@@ -568,7 +581,8 @@ export interface PlatformPreset {
   description: string;
   baseUrl: string;
   config: PlatformConfig;
-  secretFields: { key: string; label: string; help?: string }[];
+  /** `auth`: the authentication the field is for – filled in on a preset with authentication "none", it picks that type */
+  secretFields: { key: string; label: string; help?: string; auth?: AuthType }[];
   docs: { title: string; url: string }[];
   /** Saved/imported connector type (vs. built-in preset) */
   custom?: boolean;
@@ -587,7 +601,7 @@ export interface ConnectorPackage {
   description: string;
   baseUrl: string;
   config: PlatformConfig;
-  secretFields: { key: string; label: string; help?: string }[];
+  secretFields: { key: string; label: string; help?: string; auth?: AuthType }[];
   docs: { title: string; url: string }[];
   specs: { name: string; content: string; pathPrefix?: string }[];
 }
@@ -659,7 +673,7 @@ export interface ProcessSummary {
   tags: string[];
   currentVersion: number;
   updatedAt: string;
-  lastRun?: { id: string; status: RunStatus; startedAt: string } | null;
+  lastRun?: { id: string; status: RunStatus; outcome?: RunOutcome; startedAt: string } | null;
   owner?: string | null;
   acl: AclEntry<ProcessPermission>[];
   /** What the current user may do with this process. */
@@ -685,6 +699,30 @@ export interface ProcessTemplate {
   description: string;
   tags: string[];
   definition: ProcessDefinition;
+  /**
+   * The connections the template needs (0.3.1): per slot the platform kinds that fit – the slot's `kind`, or the
+   * template's `kinds` hint for slots that take several (e.g. GitHub, GitLab or Forgejo); empty: any platform.
+   */
+  connections?: ProcessTemplateConnection[];
+  /** Every platform kind named by the connections, sorted (for a platform filter) */
+  connectionKinds?: string[];
+  /**
+   * The recommended schedule: `cron` from the template's `recommendedSchedule` (or the first cron expression in
+   * backticks of the "Recommended schedule:" sentence), `text` that sentence of the description; null when it has none
+   */
+  recommendedSchedule?: { cron: string | null; text: string } | null;
+  /** The datasets its publish steps write */
+  datasets?: string[];
+  /** The dashboard templates that read one of these datasets */
+  dashboards?: { id: string; name: string }[];
+  /** `# steward-min-version` of the file, or null */
+  minVersion?: string | null;
+}
+
+export interface ProcessTemplateConnection {
+  slot: string;
+  kinds: string[];
+  description: string;
 }
 
 // ---------- Runs ----------
@@ -692,6 +730,20 @@ export interface ProcessTemplate {
 export type RunStatus = 'queued' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted';
 
 export type StepStatus = 'running' | 'succeeded' | 'failed' | 'skipped' | 'waiting' | 'dryrun';
+
+/**
+ * What a run came to, kept apart from whether it executed: `findings` = the run executed to the end (status
+ * `succeeded`) but check steps failed. Derived on read – the stored `status` keeps its meaning.
+ */
+export type RunOutcome = RunStatus | 'findings';
+
+/** The failed check steps of a run ("findings"), by the check's severity. */
+export interface RunFindings {
+  total: number;
+  error: number;
+  warning: number;
+  info: number;
+}
 
 export interface RunSummary {
   id: string;
@@ -716,6 +768,10 @@ export interface RunSummary {
   finishedAt?: string | null;
   error?: string | null;
   stats: RunStats;
+  /** Derived from status and findings (see RunOutcome); left out by older servers */
+  outcome?: RunOutcome;
+  /** Failed check steps by severity; left out by older servers */
+  findings?: RunFindings;
 }
 
 export interface RunStats {
@@ -1393,25 +1449,36 @@ export interface DashboardData {
  * The start page's tiles, counted with the viewer's permissions (only what they may see). An entry is
  * left out when the viewer has no right to that kind of item at all – the tile is not shown then.
  */
+/** A process that publishes a dataset key ("Publish to dashboard" node in its current version), for empty widgets. */
+export interface DatasetPublisher {
+  processId: string;
+  processName: string;
+  /** An enabled schedule runs it */
+  scheduled: boolean;
+  /** The viewer may edit / run it */
+  canEdit: boolean;
+  canRun: boolean;
+}
+
 export interface DashboardAttention {
   /** Open approvals and decisions the viewer may decide */
   tasks: number;
-  /** Runs of visible processes started in the last 24 hours */
-  runs: { failed: number; total: number };
+  /** Runs of visible processes started in the last 24 hours: failed, completed with findings (failed checks), all */
+  runs: { failed: number; withFindings?: number; total: number };
   /** Monitors the viewer may view (templates and disabled monitors are not counted) */
-  monitors?: { down: number; degraded: number };
+  monitors?: { down: number; degraded: number; total?: number };
   /** Credential register entries the viewer may see */
-  credentials?: { expired: number; overdue: number; dueSoon: number };
-  /** Open findings of the access reconciliation checks the viewer may read */
-  findings?: { open: number };
+  credentials?: { expired: number; overdue: number; dueSoon: number; total?: number };
+  /** Open findings of the access reconciliation checks the viewer may read (checks: how many checks they may read) */
+  findings?: { open: number; checks?: number };
   /** Living documents whose periodic review is due soon or overdue (editors, approvers, auditors; others: the documents they own or review) */
-  reviews?: { overdue: number; dueSoon: number };
+  reviews?: { overdue: number; dueSoon: number; total?: number };
   /** Mandatory service duties due within a week (or in their grace period) and those whose last period was missed or failed (service editors, auditors; others: the duties they are responsible for) */
-  duties?: { missed: number; dueSoon: number };
+  duties?: { missed: number; dueSoon: number; total?: number };
   /** Services whose scorecard needs attention (service editors, auditors: every service; others: the services they own) */
   scorecard?: { attention: number; services: number };
   /** Open ticket references waiting for a vendor (status "waiting for vendor", or open with a vendor source) */
-  vendorTickets?: { open: number; oldestDays: number | null };
+  vendorTickets?: { open: number; oldestDays: number | null; total?: number };
 }
 
 /** Instance-wide numbers of the getting-started checklist (all entries, not only the visible ones). */

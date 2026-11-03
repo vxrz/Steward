@@ -10,6 +10,8 @@
     "running": "läuft",
     "waiting": "wartet",
     "succeeded": "erfolgreich",
+    "findings": "mit Befunden abgeschlossen",
+    "finding": "Befund",
     "failed": "fehlgeschlagen",
     "cancelled": "abgebrochen",
     "interrupted": "unterbrochen",
@@ -68,6 +70,13 @@
   },
   "cancel": "Abbrechen",
   "save": "Speichern",
+  "saveBar": {
+    "label": "Änderungen speichern",
+    "unsaved": "Ungespeicherte Änderungen",
+    "invalid": "Ungespeicherte Änderungen – korrigieren Sie die markierten Felder, um sie zu speichern",
+    "saved": "Keine ungespeicherten Änderungen",
+    "reset": "Zurücksetzen"
+  },
   "delete": "Löschen",
   "close": "Schließen",
   "edit": "Bearbeiten",
@@ -166,5 +175,9 @@
     "clear": "Tag-Filter {{tag}} entfernen",
     "anyValue": "beliebiges {{key}}",
     "noMatch": "Nichts passt zum Tag-Filter."
+  },
+  "cron": {
+    "next": "Nächste: {{dates}}",
+    "use": "Übernehmen"
   }
 }

@@ -181,5 +181,94 @@ describe('cloud-account components on an AWS platform', () => {
   it('tests the connection with STS', async () => {
     const t = await s.api('POST', `/platforms/${platformId}/test`, {});
     expect(t).toMatchObject({ ok: true, message: expect.stringContaining('AWS account 123456789012 as arn:aws:iam::123456789012:user/steward-reader') });
+    // every part Steward reads is probed: GetCallerIdentity needs no permission, so it alone always passed
+    expect(t.checks.map((c: any) => [c.name, c.ok])).toEqual([
+      ['STS GetCallerIdentity', true],
+      ['Resources (tagging GetResources)', true],
+      ['Costs (Cost Explorer GetCostAndUsage)', true],
+      ['IAM users (IAM ListUsers)', true],
+    ]);
+  });
+
+  it('the connection test names the IAM actions a policy lacks, and still passes when STS works', async () => {
+    const mock = await import('../src/mock/mockAws.js');
+    mock.setAwsDenied(['ce:GetCostAndUsage', 'iam:ListUsers']);
+    try {
+      const t = await s.api('POST', `/platforms/${platformId}/test`, {});
+      expect(t.ok).toBe(true);
+      expect(t.message).toMatch(/Not readable: Costs, IAM users – see below\.$/);
+      const byName = Object.fromEntries(t.checks.map((c: any) => [c.name, c]));
+      expect(byName['Resources (tagging GetResources)'].ok).toBe(true);
+      expect(byName['Costs (Cost Explorer GetCostAndUsage)']).toMatchObject({
+        ok: false,
+        message: 'not allowed – the policy of arn:aws:iam::123456789012:user/steward-reader lacks ce:GetCostAndUsage (docs/AWS.md)',
+      });
+      expect(byName['IAM users (IAM ListUsers)'].message).toContain('lacks iam:ListUsers');
+    } finally {
+      mock.setAwsDenied([]);
+    }
+  });
+});
+
+describe('AWS calls in process http steps', () => {
+  const n = (id: string, type: string, extra: Record<string, unknown> = {}) => ({ id, type, x: 0, y: 0, ...extra });
+  const tagging = {
+    method: 'POST',
+    path: '/',
+    headers: { 'content-type': 'application/x-amz-json-1.1', 'x-amz-target': 'ResourceGroupsTaggingAPI_20170126.GetResources' },
+    bodyType: 'text',
+    body: '{"TagFilters":[{"Key":"application"}]}',
+  };
+  const run = async (step: Record<string, unknown>) => {
+    const p = await s.api('POST', '/processes', {
+      definition: {
+        name: `aws-${Math.random().toString(36).slice(2)}`,
+        connections: [{ slot: 'aws' }],
+        inputs: [],
+        nodes: [n('start', 'start'), n('call', 'http', { connection: 'aws', ...step })],
+        wires: [{ from: 'start', port: 'out', to: 'call' }],
+      },
+    });
+    const { id } = await s.api('POST', '/runs', { processId: p.id, bindings: { aws: platformId }, inputs: {} });
+    const r = await s.waitRun(id, ['succeeded', 'failed', 'cancelled']);
+    return { r, call: await s.api('GET', `/runs/${r.id}/steps/${r.steps.find((x: any) => x.key === 'call').id}`) };
+  };
+
+  it('signs the request for the service and region the step names', async () => {
+    const { r, call } = await run({ ...tagging, aws: { service: 'tagging', region: 'eu-west-1' } });
+    expect(r.status).toBe('succeeded');
+    // the mock checks the signature's scope: tagging in eu-west-1 has the DR instance and the CRM service
+    expect(call.output.body.ResourceTagMappingList.map((m: any) => m.ResourceARN)).toEqual([
+      'arn:aws:ec2:eu-west-1:123456789012:instance/i-0f9e8d7c6b5a40003',
+      'arn:aws:ecs:eu-west-1:123456789012:service/crm-cluster/crm-api',
+    ]);
+    // without aws the platform's own scope (sts) is used, which the tagging API does not answer
+    const plain = await run(tagging);
+    expect(plain.r.status).toBe('failed');
+  });
+
+  it('rejects an invalid region', async () => {
+    await expect(
+      s.api('POST', '/processes', {
+        definition: {
+          name: 'aws-bad',
+          connections: [{ slot: 'aws' }],
+          inputs: [],
+          nodes: [n('start', 'start'), n('call', 'http', { connection: 'aws', ...tagging, aws: { service: 'tagging', region: 'mars' } })],
+          wires: [{ from: 'start', port: 'out', to: 'call' }],
+        },
+      }),
+    ).rejects.toThrow(/AWS region/);
+  });
+
+  it('the outbound policy counts the named AWS endpoint as the platform origin only for that call', async () => {
+    const { assertOutboundAllowed } = await import('../src/platforms/outbound.js');
+    const { outboundContext } = await import('../src/platforms/policyContext.js');
+    const ec2 = 'https://ec2.eu-central-1.amazonaws.com/';
+    await expect(assertOutboundAllowed(ec2, outboundContext())).rejects.toThrow(/Blocked by the outbound policy/);
+    await expect(assertOutboundAllowed(ec2, outboundContext(), { platformOrigins: ['https://ec2.eu-central-1.amazonaws.com'] })).resolves.toBeUndefined();
+    await expect(
+      assertOutboundAllowed('https://s3.eu-central-1.amazonaws.com/', outboundContext(), { platformOrigins: ['https://ec2.eu-central-1.amazonaws.com'] }),
+    ).rejects.toThrow(/Blocked/);
   });
 });

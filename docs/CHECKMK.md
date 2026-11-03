@@ -5,7 +5,7 @@ Steward **reads** CheckMk; it does not replace it. Alerting on raw metrics – t
 | What                                                                 | Where                                                                       |
 | -------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | Is this host or service OK right now? Combined with other checks     | a **monitor** with checks of type `checkmk`                                 |
-| Is a disk filling up, a weekly average rising, a level crossed often | the **process** _CheckMk – trend summary_, its dataset and dashboard        |
+| Is a disk filling up, a weekly average rising, a level crossed often | the **process** _CheckMk – Trend summary_, its dataset and dashboard        |
 | A morning summary in Teams, a PDF as evidence                        | a daily **schedule** of that process, and a **report schedule** for the PDF |
 | Alerts on raw metrics, predictive levels, on-call notifications      | CheckMk                                                                     |
 
@@ -34,7 +34,7 @@ checks:
 
 ## Trend summary
 
-The example process _CheckMk – trend summary_ (`examples/processes/78-checkmk-trend-summary.yaml`) reads the metric history of a list of series (host, service, metric id, WARN and CRIT level) with `POST /domain-types/metric/actions/get/invoke` (`type: single_metric`, `reduce: average`, the chosen time range). It is a read sent as POST, marked `mutating: false`, so it also runs in dry runs. Per series it computes:
+The example process _CheckMk – Trend summary_ (`examples/processes/78-checkmk-trend-summary.yaml`) reads the metric history of a list of series (host, service, metric id, WARN and CRIT level) with `POST /domain-types/metric/actions/get/invoke` (`type: single_metric`, `reduce: average`, the chosen time range). It is a read sent as POST, marked `mutating: false`, so it also runs in dry runs. Per series it computes:
 
 - average, peak and latest value;
 - the share of the time at or above WARN and CRIT;

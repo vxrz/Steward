@@ -3,6 +3,8 @@ description: |
   Calls a list of GET endpoints on any connected platform and records one
   check per endpoint (status code and response time). Useful as a quick
   ad-hoc status test for any API.
+
+  Recommended schedule: every 15–60 minutes (`*/15 * * * *`).
 tags: [status, health, generic]
 connections:
   - slot: target

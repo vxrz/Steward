@@ -20,14 +20,18 @@ import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
 import { PRESET_SPECS } from '../platforms/presets.js';
 import { audit } from '../audit.js';
 import { createUser, findUserByName, saveTeam } from '../auth/users.js';
-import type { Role } from '@sm/shared';
+import type { ComponentType, Role } from '@sm/shared';
 import { createDashboard, listDashboardTemplates } from '../dashboards/service.js';
 import { listSchedules, saveSchedule } from '../scheduler.js';
 import { startRun } from '../engine/runner.js';
 import { getProcess } from '../processes/service.js';
 import { setupMonitorDemo } from '../monitors/demo.js';
 import { getSettings, updateSettings } from '../settings.js';
-import { setupComplianceDemo } from '../compliance/demo.js';
+import { setupAccessSourcesDemo, setupComplianceDemo } from '../compliance/demo.js';
+import { applicationInput, canEditApplication, createApplication } from '../catalogue/applications.js';
+import { addComponent, componentInput } from '../catalogue/components.js';
+import { refreshLifecycle } from '../catalogue/lifecycle.js';
+import { currentActor } from '../auth/context.js';
 import { DEMO_AWS } from '../mock/mockAws.js';
 import { DEMO_DTRACK } from '../mock/mockDtrack.js';
 import { DEMO_SNOWFLAKE, setSnowflakePublicKey } from '../mock/mockSnowflake.js';
@@ -46,8 +50,11 @@ const DEMO_USERS: { username: string; displayName: string; roles: Role[] }[] = [
 /**
  * Read-only "feeder" processes that publish dashboard datasets: scheduled in
  * demo mode and run once right away so the example dashboards show data.
+ * `bind` names the platform kind of a slot that takes several kinds; `label`
+ * tells two schedules of one process apart (one per Git host); `apps` feeders
+ * read the sample applications and are left out without them.
  */
-const FEEDERS: { process: string; cron: string; inputs?: Record<string, unknown> }[] = [
+const FEEDERS: { process: string; cron: string; inputs?: Record<string, unknown>; bind?: Record<string, string>; label?: string; apps?: true }[] = [
   { process: 'ih-inventory-snapshot', cron: '5 * * * *' },
   { process: 'ih-data-freshness-monitor', cron: '20 * * * *' },
   { process: 'iem-inventory-snapshot', cron: '35 * * * *' },
@@ -74,9 +81,85 @@ const FEEDERS: { process: string; cron: string; inputs?: Record<string, unknown>
   { process: 'weekly-service-report', cron: '45 6 * * 1' },
   { process: 'gatus-uptime-overview', cron: '*/10 * * * *' },
   { process: 'gatus-uptime-overview-from-metrics', cron: '*/10 * * * *' },
+  // the platforms of 0.2.6 to 0.3.1: CheckMk, Kubernetes, Git hosts, Dependency-Track, Snowflake, Prometheus
+  { process: 'checkmk-trend-summary', cron: '0 7 * * *' },
+  { process: 'kubernetes-namespace-health', cron: '*/15 * * * *' },
+  { process: 'github-repository-health', cron: '0 * * * *', bind: { github: 'github' }, label: 'GitHub' },
+  {
+    process: 'github-repository-health',
+    cron: '10 * * * *',
+    bind: { github: 'gitlab' },
+    label: 'GitLab',
+    inputs: { repositories: ['acme/shop/web', 'acme/shop/api'] },
+  },
+  { process: 'github-repository-health', cron: '20 * * * *', bind: { github: 'forgejo' }, label: 'Forgejo' },
+  { process: 'dependency-track-vulnerabilities', cron: '0 */6 * * *' },
+  { process: 'snowflake-account-hygiene', cron: '15 6 * * *' },
+  { process: 'prometheus-slo-report', cron: '0 7 * * 1' },
+  // from the sample applications (their components' readouts and tech stacks)
+  { process: 'end-of-life-overview', cron: '0 7 * * 1', apps: true },
+  { process: 'kafka-topic-standards', cron: '30 7 * * *', apps: true },
+  { process: 'aws-iam-key-age', cron: '40 6 * * *', apps: true },
+  { process: 'aws-costs-per-application', cron: '0 7 3 * *', apps: true },
 ];
 
-export async function setupDemo(): Promise<{
+/** Sample applications (#103…#119): their components point to the demo platforms and are read once at setup. */
+const DEMO_APPLICATIONS: { name: string; description: string; components: { type: ComponentType; name: string; kind: string }[] }[] = [
+  {
+    name: 'Webshop (demo)',
+    description: 'The shop: web front end and API on GitHub and Kubernetes, events on Kafka, data in Snowflake, runs in AWS (tag application=shop).',
+    components: [
+      { type: 'repository', name: 'acme/shop-web', kind: 'github' },
+      { type: 'kubernetes-namespace', name: 'shop-prod', kind: 'kubernetes' },
+      { type: 'kafka-topic', name: 'orders', kind: 'kafka' },
+      { type: 'kafka-topic', name: 'payments', kind: 'kafka' },
+      { type: 'kafka-topic', name: 'shop-events', kind: 'kafka' },
+      { type: 'snowflake-database', name: 'SHOP', kind: 'snowflake' },
+      { type: 'cloud-account', name: 'shop', kind: 'aws' },
+    ],
+  },
+  {
+    name: 'CRM (demo)',
+    description: 'Customer data: contacts in Snowflake, the sync function and the API in AWS (tag application=crm).',
+    components: [
+      { type: 'snowflake-database', name: 'CRM', kind: 'snowflake' },
+      { type: 'cloud-account', name: 'crm', kind: 'aws' },
+    ],
+  },
+];
+
+async function setupDemoApplications(platformByKind: Map<string, string>, actor: string): Promise<number> {
+  let created = 0;
+  const reads: Promise<unknown>[] = [];
+  for (const a of DEMO_APPLICATIONS) {
+    if (db().get('SELECT 1 FROM applications WHERE lower(name) = lower(?)', a.name)) continue;
+    const app = createApplication(applicationInput.parse({ name: a.name, description: a.description, tags: ['demo'] }));
+    created++;
+    for (const c of a.components) {
+      const platformId = platformByKind.get(c.kind);
+      if (!platformId) continue;
+      const comp = addComponent(app.id, componentInput.parse({ type: c.type, name: c.name, platformId }), canEditApplication);
+      // read every component once now (the background jobs read them again every 6 hours)
+      const read =
+        c.type === 'repository'
+          ? import('../catalogue/repositories.js').then((m) => m.refreshRepository(comp.id, actor))
+          : c.type === 'kubernetes-namespace'
+            ? import('../catalogue/kubernetes.js').then((m) => m.refreshNamespace(comp.id, actor))
+            : c.type === 'kafka-topic'
+              ? import('../kafka/service.js').then((m) => m.refreshTopic(comp.id, actor))
+              : c.type === 'snowflake-database'
+                ? import('../snowflake/service.js').then((m) => m.refreshSnowflakeComponent(comp.id, actor))
+                : import('../aws/service.js').then((m) => m.refreshAwsComponent(comp.id, actor, { force: true }));
+      reads.push(read.catch((err) => logger.warn({ err: (err as Error).message, component: c.name }, 'demo component not read')));
+    }
+  }
+  await Promise.all(reads);
+  // the end of life of the stacks read from the repository and the namespace (endoflife.date demo)
+  if (created) await refreshLifecycle().catch((err) => logger.warn({ err: (err as Error).message }, 'demo end-of-life data not read'));
+  return created;
+}
+
+export async function setupDemo(opts: { applications?: boolean } = {}): Promise<{
   platforms: number;
   processes: number;
   users: string[];
@@ -85,6 +168,7 @@ export async function setupDemo(): Promise<{
   schedules: number;
   runs: number;
   monitors: number;
+  applications: number;
 }> {
   const base = `${loopbackUrl()}/mock`;
   const existing = new Set(
@@ -341,7 +425,7 @@ export async function setupDemo(): Promise<{
       kind: 'generic',
       environment: 'demo',
       description:
-        'Plain HTTP access without credentials to the demo applications that Gatus watches. Used by "Diagnose endpoint outage" to probe a failing URL.',
+        'Plain HTTP access without credentials to the demo applications that Gatus watches. Used by "Gatus – Diagnose an endpoint outage" to probe a failing URL.',
       baseUrl: base,
       config: { auth: { type: 'none' }, variables: {}, http: { proxy: 'none' }, testPath: '/gatus-apps/mes' },
     });
@@ -412,10 +496,14 @@ export async function setupDemo(): Promise<{
       .filter((p) => p.name.endsWith('(demo)'))
       .map((p) => [p.kind, p.id]),
   );
+  // ---- sample applications (components read once, end-of-life data), unless switched off ----
+  const applications = opts.applications === false ? 0 : await setupDemoApplications(platformByKind, currentActor());
+
   const scheduleNames = new Set(listSchedules().map((x) => x.name));
   let schedules = 0;
   let runs = 0;
   for (const f of FEEDERS) {
+    if (f.apps && opts.applications === false) continue;
     let def;
     try {
       def = getProcess(f.process).definition;
@@ -424,16 +512,20 @@ export async function setupDemo(): Promise<{
     }
     const bindings: Record<string, string> = {};
     for (const c of def.connections) {
-      const pid = c.kind ? platformByKind.get(c.kind) : undefined;
+      const kind = f.bind?.[c.slot] ?? c.kind;
+      const pid = kind ? platformByKind.get(kind) : undefined;
       if (pid) bindings[c.slot] = pid;
     }
     if (Object.keys(bindings).length !== def.connections.length) continue;
-    const name = `Demo: ${def.name}`;
+    const name = `Demo: ${def.name}${f.label ? ` – ${f.label}` : ''}`;
+    let createdNow = false;
     if (!scheduleNames.has(name)) {
       saveSchedule({ name, processId: f.process, cron: f.cron, inputs: f.inputs ?? {}, bindings, dryRun: false, enabled: true, allowOverlap: false });
       schedules++;
+      createdNow = true;
     }
-    const ran = db().get('SELECT 1 FROM runs WHERE process_id = ? LIMIT 1', f.process);
+    // once per feeder schedule (a process with several schedules runs once per host)
+    const ran = !createdNow && db().get('SELECT 1 FROM runs WHERE process_id = ? LIMIT 1', f.process);
     if (!ran) {
       await startRun({ processId: f.process, bindings, inputs: f.inputs ?? {}, dryRun: false });
       runs++;
@@ -461,11 +553,23 @@ export async function setupDemo(): Promise<{
 
   // ---- access reconciliation of the simulated Insights Hub (baseline snapshot) ----
   await setupComplianceDemo(platformByKind.get('insights-hub'));
+  // ---- access checks of Snowflake, AWS and GitHub, so person reviews span several platforms ----
+  await setupAccessSourcesDemo(platformByKind);
 
   audit({
     action: 'demo.setup',
     entityType: 'settings',
-    summary: `Demo data loaded (${platforms} platforms, ${processes} processes, ${created.length} users, ${dashboards} dashboards, ${schedules} schedules, ${runs} feeder runs started, ${monitors} monitors)`,
+    summary: `Demo data loaded (${platforms} platforms, ${processes} processes, ${created.length} users, ${dashboards} dashboards, ${applications} applications, ${schedules} schedules, ${runs} feeder runs started, ${monitors} monitors)`,
   });
-  return { platforms, processes, users: DEMO_USERS.map((u) => u.username), password: DEMO_USER_PASSWORD, dashboards, schedules, runs, monitors };
+  return {
+    platforms,
+    processes,
+    users: DEMO_USERS.map((u) => u.username),
+    password: DEMO_USER_PASSWORD,
+    dashboards,
+    schedules,
+    runs,
+    monitors,
+    applications,
+  };
 }

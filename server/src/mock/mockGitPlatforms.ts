@@ -10,7 +10,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
  *
  * All three serve the organisation "acme" with the repositories acme/shop-web (pipeline green, a release, Dependabot
  * alerts, a container package) and acme/shop-api (pipeline red); GitLab names them acme/shop/web and acme/shop/api.
- * Authentication: `Authorization: Bearer <DEMO_GIT_PLATFORMS.token>`; the repository acme/secret answers 403.
+ * Authentication: `Authorization: Bearer <DEMO_GIT_PLATFORMS.token>` (GitLab also `PRIVATE-TOKEN`); the repository acme/secret answers 403.
+ * Members of acme: alice (owner), bob and dave, the outside collaborator carol-ext; bob and carol-ext sign in without
+ * two-factor authentication, bob and carol-ext were last active months ago (member reviews).
  */
 
 export const DEMO_GIT_PLATFORMS = { token: 'demo-git-platform-token' };
@@ -26,6 +28,8 @@ interface Repo {
   packages: { name: string; type: string; version: string }[];
   keys: { id: number; title: string; readOnly: boolean; days: number }[];
   collaborators: { login: string; role: string; outside?: boolean }[];
+  /** The default branch is protected */
+  protected: boolean;
 }
 
 const DAY = 86_400_000;
@@ -55,6 +59,7 @@ function seed(): Record<string, Repo> {
         { login: 'bob', role: 'write' },
         { login: 'carol-ext', role: 'read', outside: true },
       ],
+      protected: true,
     },
     'shop-api': {
       name: 'shop-api',
@@ -71,12 +76,17 @@ function seed(): Record<string, Repo> {
         { login: 'alice', role: 'admin' },
         { login: 'dave', role: 'maintain' },
       ],
+      protected: false,
     },
   };
 }
 
 let repos = seed();
 const ORG = { admins: ['alice'], members: ['bob', 'dave'], outside: ['carol-ext'] };
+/** Member reviews: who signs in without two-factor authentication, and when members were last active (days ago) */
+const NO_2FA = new Set(['bob', 'carol-ext']);
+const ACTIVE_DAYS: Record<string, number> = { alice: 1, bob: 120, dave: 10, 'carol-ext': 200 };
+const USER_IDS: Record<string, number> = { alice: 101, bob: 102, 'carol-ext': 103, dave: 104 };
 
 /** For tests: the pipeline of a repository, or a file. */
 export function setGitPipeline(repo: string, state: Repo['pipeline']): void {
@@ -93,7 +103,9 @@ export function resetGitPlatforms(): void {
 }
 
 function allowed(req: FastifyRequest, reply: FastifyReply, repo?: string): boolean {
-  if (req.headers.authorization !== `Bearer ${DEMO_GIT_PLATFORMS.token}`) {
+  // GitLab: its own header PRIVATE-TOKEN (what Steward sends) or OAuth's Authorization: Bearer
+  const gitlab = req.url.includes('/api/v4/') && req.headers['private-token'] === DEMO_GIT_PLATFORMS.token;
+  if (!gitlab && req.headers.authorization !== `Bearer ${DEMO_GIT_PLATFORMS.token}`) {
     void reply.code(401).send({ message: 'Bad credentials' });
     return false;
   }
@@ -147,6 +159,11 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
     const r = ghRepo(req, reply);
     if (r && !['main', SHA[r.name]].includes((req.params as { ref: string }).ref)) return notFound(reply);
     return r ? { sha: SHA[r.name], commit: { message: 'Merge pull request #42\n\nmore', committer: { date: ago(1) } } } : reply;
+  });
+  app.get(`${G}/repos/:owner/:repo/branches/:branch`, async (req, reply) => {
+    const r = ghRepo(req, reply);
+    if (r && (req.params as { branch: string }).branch !== 'main') return notFound(reply);
+    return r ? { name: 'main', commit: { sha: SHA[r.name] }, protected: r.protected } : reply;
   });
   app.get(`${G}/repos/:owner/:repo/actions/runs`, async (req, reply) => {
     const r = ghRepo(req, reply);
@@ -212,20 +229,22 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
   app.get(`${G}/orgs/:org/members`, async (req, reply) => {
     if (!allowed(req, reply)) return reply;
     if ((req.params as { org: string }).org !== 'acme') return notFound(reply);
-    const role = (req.query as { role?: string }).role;
+    const { role, filter } = req.query as { role?: string; filter?: string };
+    const list = role === 'admin' ? ORG.admins : role === 'member' ? ORG.members : [...ORG.admins, ...ORG.members];
+    // like GitHub: filter=2fa_disabled lists the members without two-factor authentication (organisation owners only)
     return page(
       req,
-      (role === 'admin' ? ORG.admins : role === 'member' ? ORG.members : [...ORG.admins, ...ORG.members]).map((login) => ({ login })),
+      list.filter((l) => filter !== '2fa_disabled' || NO_2FA.has(l)).map((login) => ({ login, id: USER_IDS[login], type: 'User', site_admin: false })),
     );
   });
-  app.get(`${G}/orgs/:org/outside_collaborators`, async (req, reply) =>
-    allowed(req, reply)
-      ? page(
-          req,
-          ORG.outside.map((login) => ({ login })),
-        )
-      : reply,
-  );
+  app.get(`${G}/orgs/:org/outside_collaborators`, async (req, reply) => {
+    if (!allowed(req, reply)) return reply;
+    const filter = (req.query as { filter?: string }).filter;
+    return page(
+      req,
+      ORG.outside.filter((l) => filter !== '2fa_disabled' || NO_2FA.has(l)).map((login) => ({ login, id: USER_IDS[login], type: 'User' })),
+    );
+  });
   app.get(`${G}/orgs/:org/packages`, async (req, reply) => {
     if (!allowed(req, reply)) return reply;
     return Object.values(repos).flatMap((r) =>
@@ -260,6 +279,13 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
     const r = glRepo(req, reply);
     if (r && (req.params as { branch: string }).branch !== 'main') return notFound(reply);
     return r ? { name: 'main', commit: { id: SHA[r.name], title: 'Merge branch feature', committed_date: ago(1) } } : reply;
+  });
+  app.get(`${L}/projects/:id/protected_branches/:branch`, async (req, reply) => {
+    const r = glRepo(req, reply);
+    if (!r) return reply;
+    return r.protected && (req.params as { branch: string }).branch === 'main'
+      ? { id: 1, name: 'main', push_access_levels: [{ access_level: 40 }], merge_access_levels: [{ access_level: 30 }], allow_force_push: false }
+      : notFound(reply);
   });
   app.get(`${L}/projects/:id/pipelines`, async (req, reply) => {
     const r = glRepo(req, reply);
@@ -326,6 +352,8 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
   app.get(`${L}/projects/:id/repository/files/:file/raw`, async (req, reply) => {
     const r = glRepo(req, reply);
     if (!r) return reply;
+    // like a GitLab behind a strict proxy: a raw file is no JSON
+    if (req.headers.accept === 'application/json') return reply.code(406).send({ message: '406 Not Acceptable' });
     const f = r.files[decodeURIComponent((req.params as { file: string }).file)];
     return f === undefined ? notFound(reply) : reply.type('text/plain').send(f);
   });
@@ -339,12 +367,48 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
         )
       : reply;
   });
+  app.get(`${L}/projects/:id/members`, async (req, reply) => {
+    // the project's direct members (also people who are not members of the group)
+    const r = glRepo(req, reply);
+    return r
+      ? page(
+          req,
+          r.collaborators.map((c) => ({ id: USER_IDS[c.login], username: c.login, access_level: LEVEL[c.role] ?? 10, state: 'active', expires_at: null })),
+        )
+      : reply;
+  });
+  app.get(`${L}/groups/:id/billable_members`, async (req, reply) => {
+    // Premium/Ultimate: the members who count for the licence, with their last activity
+    if (!allowed(req, reply)) return reply;
+    if (decodeURIComponent((req.params as { id: string }).id) !== 'acme') return notFound(reply);
+    const day = (d: number) => ago(d).slice(0, 10);
+    return page(req, [
+      ...[...ORG.admins, ...ORG.members].map((u) => ({
+        id: USER_IDS[u],
+        username: u,
+        state: 'active',
+        membership_type: 'group_member',
+        last_activity_on: day(ACTIVE_DAYS[u]!),
+      })),
+      ...ORG.outside.map((u) => ({ id: USER_IDS[u], username: u, state: 'active', membership_type: 'project_member', last_activity_on: day(ACTIVE_DAYS[u]!) })),
+    ]);
+  });
+  app.get(`${L}/users`, async (req, reply) => {
+    // administrators only: two_factor=disabled lists the users without two-factor authentication
+    if (!allowed(req, reply)) return reply;
+    const tf = (req.query as { two_factor?: string }).two_factor;
+    const all = [...ORG.admins, ...ORG.members, ...ORG.outside];
+    return page(
+      req,
+      all.filter((u) => tf !== 'disabled' || NO_2FA.has(u)).map((u) => ({ id: USER_IDS[u], username: u, state: 'active', two_factor_enabled: !NO_2FA.has(u) })),
+    );
+  });
   app.get(`${L}/groups/:id/members/all`, async (req, reply) => {
     if (!allowed(req, reply)) return reply;
     if (decodeURIComponent((req.params as { id: string }).id) !== 'acme') return notFound(reply);
     return page(req, [
-      ...ORG.admins.map((u) => ({ username: u, access_level: 50, state: 'active' })),
-      ...ORG.members.map((u) => ({ username: u, access_level: 30, state: 'active' })),
+      ...ORG.admins.map((u) => ({ id: USER_IDS[u], username: u, access_level: 50, state: 'active', expires_at: null })),
+      ...ORG.members.map((u) => ({ id: USER_IDS[u], username: u, access_level: 30, state: 'active', expires_at: u === 'dave' ? ago(-30).slice(0, 10) : null })),
     ]);
   });
 
@@ -360,6 +424,10 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
     const r = ghRepo(req, reply);
     if (r && (req.params as { branch: string }).branch !== 'main') return notFound(reply);
     return r ? { name: 'main', commit: { id: SHA[r.name], message: 'Update dependencies\n', timestamp: ago(1) } } : reply;
+  });
+  app.get(`${F}/repos/:owner/:repo/branch_protections`, async (req, reply) => {
+    const r = ghRepo(req, reply);
+    return r ? (r.protected ? [{ rule_name: 'main', branch_name: 'main', enable_push: false, required_approvals: 1 }] : []) : reply;
   });
   app.get(`${F}/repos/:owner/:repo/commits/:ref/status`, async (req, reply) => {
     const r = ghRepo(req, reply);
@@ -393,7 +461,7 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
     return r
       ? page(
           req,
-          r.collaborators.map((c) => ({ login: c.login })),
+          r.collaborators.map((c) => ({ id: USER_IDS[c.login], login: c.login, last_login: ago(ACTIVE_DAYS[c.login] ?? 1) })),
         )
       : reply;
   });
@@ -411,6 +479,14 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
         ])
       : reply,
   );
+  app.get(`${F}/orgs/:org/members`, async (req, reply) => {
+    if (!allowed(req, reply)) return reply;
+    if ((req.params as { org: string }).org !== 'acme') return notFound(reply);
+    return page(
+      req,
+      [...ORG.admins, ...ORG.members].map((login) => ({ id: USER_IDS[login], login, full_name: '', last_login: ago(ACTIVE_DAYS[login]!) })),
+    );
+  });
   app.get(`${F}/teams/:id/members`, async (req, reply) =>
     allowed(req, reply)
       ? page(

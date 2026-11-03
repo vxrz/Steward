@@ -53,7 +53,7 @@ export function OAuthAuthorizePage() {
       <Card withBorder p="lg">
         <Group gap="xs" mb="md" wrap="nowrap">
           <IconRobot size={22} />
-          <Title order={2} size="h4">
+          <Title order={1} size="h4">
             {t('consent.title')}
           </Title>
         </Group>

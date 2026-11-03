@@ -56,7 +56,7 @@ test('a document created from the service page shows in its documentation sectio
   const approve = adam.getByRole('dialog', { name: /^Approve: DOC-/ });
   await approve.getByRole('button', { name: 'Approve', exact: true }).click();
   await expect(approve).toBeHidden();
-  await expect(adam.getByRole('heading', { level: 2 })).toContainText('Edition 1.0');
+  await expect(adam.getByRole('heading', { level: 1 })).toContainText('Edition 1.0');
 
   // the service page: edition 1.0, published, review current with the next review date
   await adam.goto(`/services/${svc.id}`);

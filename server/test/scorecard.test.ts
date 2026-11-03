@@ -649,7 +649,10 @@ describe('the scorecard parts', () => {
   it('protection need: rated or not – no applications, unrated members, members to re-rate', async () => {
     const svc = await newService();
     let c = await card(vera, svc.id);
-    expect(c.protection).toMatchObject({ status: 'attention', applications: 0 });
+    // a new service without applications: nothing rated yet – open, not attention (it starts neutral)
+    expect(c.protection).toMatchObject({ status: 'pending', applications: 0 });
+    expect(c.documentation.status).toBe('pending');
+    expect(c.attention).toBe(false);
     const a = await app(svc.id, fullRating);
     c = await card(vera, svc.id);
     expect(c.protection.status).toBe('ok');
@@ -833,7 +836,8 @@ describe('the scorecard parts', () => {
     hidden.set('vera', new Set([doc.id]));
     try {
       const c = await card(vera, svc.id);
-      expect(c.documentation).toMatchObject({ documents: 0, released: 0, status: 'attention' });
+      // nothing readable is left: for vera the service has no documents (and no applications) – open, as a new one
+      expect(c.documentation).toMatchObject({ documents: 0, released: 0, status: 'pending' });
       expect(JSON.stringify(c)).not.toContain('Secret manual');
     } finally {
       hidden.delete('vera');
@@ -864,11 +868,11 @@ describe('overview, rollup, snapshots and trend', () => {
     expect(jobs.snapshotScorecards(day1)).toBeGreaterThan(0);
     expect(jobs.snapshotScorecards(day1 + 60000)).toBeNull(); // the same hour
     const row1 = () => db().get<any>("SELECT * FROM scorecard_snapshots WHERE day = '2026-03-10' AND service_id = ?", svc.id);
-    expect(row1()).toMatchObject({ protection: 'attention', attention: 1 });
+    expect(row1()).toMatchObject({ protection: 'pending', attention: 0 });
     // the service gets rated: the next day shows it, the stored day stays as it was
     await app(svc.id, fullRating);
     jobs.snapshotScorecards(day1 + DAY);
-    expect(row1()).toMatchObject({ protection: 'attention' });
+    expect(row1()).toMatchObject({ protection: 'pending' });
     expect(db().get<any>("SELECT * FROM scorecard_snapshots WHERE day = '2026-03-11' AND service_id = ?", svc.id)).toMatchObject({ protection: 'ok' });
   });
 
@@ -903,7 +907,8 @@ describe('overview, rollup, snapshots and trend', () => {
     // read from the stored snapshot, not computed on every load: the new service shows with the next snapshot
     expect(await att(adam)).toEqual({ services: 0, attention: 0 });
     jobs.snapshotScorecards(Date.now(), true);
-    expect(await att(adam)).toEqual({ services: 1, attention: 1 });
+    // a new, empty service counts, but does not need attention
+    expect(await att(adam)).toEqual({ services: 1, attention: 0 });
     expect((await dana('GET', '/dashboard')).attention.scorecard.services).toBe(all.services + 1);
     // the reader's documentation adjustment of the history view: a part that relied on a document the reader may not
     // read does not count for them
@@ -926,6 +931,7 @@ describe('overview, rollup, snapshots and trend', () => {
 describe('report section and public API', () => {
   it('the "scorecard" report section: services with their parts, the trend, objectives with breaches; a stored day for an ended period', async () => {
     const svc = await newService();
+    await app(svc.id, fullRating); // rated, but without a released document: attention
     await objective(svc.id, { name: 'Report objective' });
     const { reportSection } = await import('../src/reports/sections.js');
     await import('../src/reports/schedules.js');

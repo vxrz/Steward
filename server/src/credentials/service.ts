@@ -39,7 +39,7 @@ import { belongsTarget, belongsToSchema, checkBelongsTo, toBelongsTo } from './b
 import * as processes from '../processes/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { me } from '../auth/access.js';
-import { assignCreatorTeams, forgetOwningTeams, teamScoped } from '../auth/policy.js';
+import { assignCreatorTeams, forgetOwningTeams, memberships, teamScoped } from '../auth/policy.js';
 
 /**
  * Credentials register: documents credentials (what, where kept, who owns them,
@@ -163,6 +163,19 @@ export function credentialAccess(u: AuthUser | null, r: Pick<CredentialRow, 'id'
 }
 
 export const canCreateCredentials = (u: AuthUser | null = currentUser()): boolean => !!u && u.roles.some((x) => EDIT_ROLES.includes(x));
+
+/**
+ * Whether the register is of use to someone (the sidebar entry): a role that reads it – in the instance or one of
+ * their teams – or an entry they own. Everyone may still open the page.
+ */
+export function mayReadSomeCredential(u: AuthUser | null = currentUser()): boolean {
+  if (!u) return false;
+  const roles = [...u.roles, ...[...memberships(u).values()].flatMap((m) => m.roles)];
+  if (roles.some((r) => READ_ROLES.includes(r))) return true;
+  return db()
+    .all<Pick<CredentialRow, 'owner_subjects'>>('SELECT owner_subjects FROM credentials')
+    .some((r) => isOwner(u, r));
+}
 
 /** May the user see any entry at all (list, export, API)? */
 export const canReadRegister = (u: AuthUser | null = currentUser()): boolean => !!u;
@@ -1078,10 +1091,10 @@ export function dueSummary(now = Date.now()): { overdue: number; expired: number
  * The start page's "Credentials due" tile: entries the current user may see. null for a user who reads
  * only the entries they own and owns none (viewers), so they get no tile.
  */
-export function dueAttention(now = Date.now()): { expired: number; overdue: number; dueSoon: number } | null {
+export function dueAttention(now = Date.now()): { expired: number; overdue: number; dueSoon: number; total: number } | null {
   const u = currentUser();
   const list = listCredentials({}, now);
   if (!list.length && !(u && u.roles.some((x) => READ_ROLES.includes(x)))) return null;
   const n = (s: CredentialStatus) => list.filter((c) => c.status === s).length;
-  return { expired: n('expired'), overdue: n('overdue'), dueSoon: n('dueSoon') };
+  return { expired: n('expired'), overdue: n('overdue'), dueSoon: n('dueSoon'), total: list.length };
 }

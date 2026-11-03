@@ -48,6 +48,14 @@
         "mutating": {
           "label": "Treat as write (skip in dry run)",
           "help": "Default: every method except GET/HEAD"
+        },
+        "maxResponseMb": {
+          "label": "Largest answer (MB)",
+          "help": "Default 20, at most 200 (per page); a larger answer fails the step"
+        },
+        "aws": {
+          "label": "AWS service (AWS platforms only)",
+          "help": "service and region, e.g. { service: ec2, region: eu-central-1 }: the path is relative to that endpoint, signed with the platform"
         }
       }
     },
@@ -258,7 +266,11 @@
         },
         "staleAfterMinutes": {
           "label": "Stale after (minutes)",
-          "help": "Default: 2.5 × the interval of the schedule that ran it (at least 15 minutes), else 24 hours"
+          "help": "For runs without a schedule (default 24 hours). Scheduled runs follow their schedule: 2.5 × its interval, at least 15 minutes"
+        },
+        "staleAfterFixed": {
+          "label": "Use “Stale after” for scheduled runs too",
+          "help": "Instead of 2.5 × the schedule interval, e.g. for a tighter or a more tolerant limit than the schedule gives"
         },
         "maxRows": {
           "label": "Max rows (safety limit, default 5000)"
@@ -485,12 +497,14 @@
     "idUsed": "Id already used by another node",
     "startHint": "Inputs (asked when a run starts) and connection slots (which platforms the process uses) are defined in the <b>Settings</b> tab.",
     "nodeId": "Node id",
-    "nodeIdHint": "Unique; used in run protocols",
+    "nodeIdHint": "Unique; used in run reports",
     "name": "Name",
-    "nameHint": "Shown on the canvas and in protocols",
+    "nameHint": "Shown on the canvas and in run reports",
     "description": "Description",
     "outputs": "Outputs",
     "execution": "Execution",
+    "advanced": "Advanced",
+    "advancedHint": "Node id, optional settings, outputs, conditions and retries",
     "retryAttempts": "Retry attempts",
     "retryAttemptsHint": "Total attempts incl. the first (1–10)",
     "retryDelay": "Retry delay (ms)"
@@ -731,6 +745,10 @@
     "exportYaml": "Export YAML",
     "run": "Run",
     "readOnly": "read-only",
+    "fullScreen": "Full screen",
+    "fullScreenHint": "Fold the sidebar away to give the flow more room",
+    "exitFullScreen": "Exit full screen",
+    "phoneReadOnly": "Open on a larger screen to edit. On a phone the flow can be viewed only: tap a step to see its settings.",
     "tabs": {
       "flow": "Flow",
       "settings": "Settings",
@@ -957,7 +975,7 @@
       "ticket": "Ticket reference"
     },
     "evidence": "Evidence files",
-    "evidenceHint": "Screenshots, exports, photos: stored with name, size and SHA-256, content-checked like record attachments.",
+    "evidenceHint": "Screenshots, exports, photos: stored with name, size and SHA-256, content-checked like document attachments.",
     "verification": "Second-person verification",
     "verificationRequired": "Verified by a second person",
     "verificationHint": "Someone other than the person who completed the step checks it before the run continues. Always applies to “not available” and after-the-fact entries.",

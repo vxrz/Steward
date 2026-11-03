@@ -75,6 +75,9 @@ export interface FlowEditorProps {
 
 const nodeTypes: NodeTypes = { flow: FlowNodeView };
 
+/** The smallest zoom the editor opens at: step names (14 px) stay at 11 px or more on screen. */
+const READABLE_ZOOM = 0.8;
+
 export function FlowEditor(props: FlowEditorProps) {
   return (
     <ReactFlowProvider>
@@ -268,25 +271,37 @@ function FlowEditorInner({
     place(type, p.x - NODE_WIDTH / 2, p.y - NODE_HEIGHT / 2);
   };
 
-  /** Fit the whole flow if it stays readable, otherwise start at the Start node. */
-  const initialView = useCallback(() => {
-    const nodes = defRef.current.nodes;
-    const r = wrapper.current?.getBoundingClientRect();
-    if (!nodes.length || !r) return;
-    const minX = Math.min(...nodes.map((n) => n.x));
-    const maxX = Math.max(...nodes.map((n) => n.x)) + NODE_WIDTH;
-    const minY = Math.min(...nodes.map((n) => n.y));
-    const maxY = Math.max(...nodes.map((n) => n.y)) + NODE_HEIGHT;
-    const fitZoom = Math.min(r.width / ((maxX - minX) * 1.15), r.height / ((maxY - minY) * 1.3 + 80));
-    if (fitZoom >= 0.5) {
-      rf.fitView({ padding: 0.15, maxZoom: 1.1 });
-      return;
-    }
-    // Too big to fit readably: fit the width (within limits) and show the top of the flow.
-    const zoom = Math.max(0.45, Math.min(1, r.width / (maxX - minX + 80)));
-    const x = Math.max(20 - minX * zoom, (r.width - (maxX - minX) * zoom) / 2 - minX * zoom);
-    rf.setViewport({ x, y: 40 - minY * zoom, zoom });
-  }, [rf]);
+  /**
+   * Fit the whole flow if its text stays readable (zoom ≥ READABLE_ZOOM: step names ≥ 11 px), otherwise start at the
+   * readable zoom at the top left of the flow, with the Start node in view; the minimap gives the overview.
+   */
+  const initialView = useCallback(
+    (duration?: number) => {
+      const nodes = defRef.current.nodes;
+      const r = wrapper.current?.getBoundingClientRect();
+      if (!nodes.length || !r) return;
+      const minX = Math.min(...nodes.map((n) => n.x));
+      const maxX = Math.max(...nodes.map((n) => n.x)) + NODE_WIDTH;
+      const minY = Math.min(...nodes.map((n) => n.y));
+      const maxY = Math.max(...nodes.map((n) => n.y)) + NODE_HEIGHT;
+      const fitZoom = Math.min(r.width / ((maxX - minX) * 1.15), r.height / ((maxY - minY) * 1.3 + 80));
+      if (fitZoom >= READABLE_ZOOM) {
+        rf.fitView({ padding: 0.15, maxZoom: 1.1, duration });
+        return;
+      }
+      const zoom = READABLE_ZOOM;
+      const start = nodes.find((n) => n.type === 'start');
+      // the top left of the flow, moved right/down as far as needed to keep the Start node in view
+      let x = 40 - minX * zoom;
+      let y = 40 - minY * zoom;
+      if (start) {
+        x = Math.min(x, r.width / 3 - start.x * zoom);
+        y = Math.min(y, r.height / 3 - start.y * zoom);
+      }
+      rf.setViewport({ x, y, zoom }, { duration });
+    },
+    [rf],
+  );
 
   // focus requests (e.g. clicking a validation issue)
   useEffect(() => {
@@ -478,7 +493,7 @@ function FlowEditorInner({
         nodesConnectable={!readOnly}
         edgesReconnectable={!readOnly}
         colorMode={scheme}
-        onInit={initialView}
+        onInit={() => initialView()}
         minZoom={0.15}
         snapToGrid
         snapGrid={[10, 10]}
@@ -526,7 +541,7 @@ function FlowEditorInner({
                   leftSection={<IconLayoutDistributeHorizontal size={14} />}
                   onClick={() => {
                     onChange(tidy(defRef.current));
-                    setTimeout(() => rf.fitView({ padding: 0.2, maxZoom: 1.1, duration: 300 }), 60);
+                    setTimeout(() => initialView(300), 60);
                   }}
                 >
                   {t('flow.tidy')}
@@ -574,7 +589,7 @@ function FlowEditorInner({
   return (
     <Paper withBorder style={{ height, minHeight: 480, overflow: 'hidden', display: 'flex' }}>
       {!readOnly && (
-        <Box p="xs" style={{ width: 180, flexShrink: 0, borderRight: '1px solid var(--mantine-color-default-border)', height: '100%' }}>
+        <Box p="xs" style={{ width: 212, flexShrink: 0, borderRight: '1px solid var(--mantine-color-default-border)', height: '100%' }}>
           <Palette onAdd={addAtCenter} />
         </Box>
       )}

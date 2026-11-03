@@ -1,9 +1,40 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Alert, Anchor, Badge, Box, Button, Center, Collapse, Group, Loader, Modal, Stack, Switch, Tabs, Text, Textarea, UnstyledButton } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Badge,
+  Box,
+  Button,
+  Center,
+  Collapse,
+  Group,
+  Loader,
+  Modal,
+  Stack,
+  Switch,
+  Tabs,
+  Text,
+  Textarea,
+  Tooltip,
+  UnstyledButton,
+} from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { IconAlertTriangle, IconChevronDown, IconChevronRight, IconDeviceFloppy, IconDownload, IconInfoCircle, IconPlayerPlay } from '@tabler/icons-react';
+import {
+  IconAlertTriangle,
+  IconArrowsMaximize,
+  IconArrowsMinimize,
+  IconChevronDown,
+  IconChevronRight,
+  IconDeviceDesktop,
+  IconDeviceFloppy,
+  IconDownload,
+  IconInfoCircle,
+  IconPlayerPlay,
+} from '@tabler/icons-react';
+import { useMediaQuery } from '@mantine/hooks';
+import { useShellLayout } from '../layout';
 import { validateProcess, type ProcessDefinition, type ProcessDetail, type ValidationIssue } from '@sm/shared';
 import { ApiError, get, notifyError, notifyOk, put, apiUrl } from '../api';
 import { PageHeader } from '../components/common';
@@ -50,8 +81,14 @@ export function ProcessEditorPage() {
   const [showRun, setShowRun] = useState(false);
   const lastRun = useLastRun(id ?? '', showRun && !!id);
   const history = useDefHistory(def, setDef);
-  const editable = !!proc.data?.permissions.includes('edit');
+  // phones show the flow read-only: building it needs a larger screen
+  const phone = useMediaQuery('(max-width: 48em)') ?? false;
+  const editable = !!proc.data?.permissions.includes('edit') && !phone;
   useUndoKeys(editable && !!def, history.undo, history.redo);
+  // full screen: the app sidebar folds away (wide screens); back to normal when the editor closes
+  const shell = useShellLayout();
+  const { setWide } = shell;
+  useEffect(() => () => setWide(false), [setWide]);
 
   // initialise working copy once per process
   useEffect(() => {
@@ -95,13 +132,26 @@ export function ProcessEditorPage() {
   }
 
   const p = proc.data;
-  const canEdit = !!p?.permissions.includes('edit');
+  const canEdit = !!p?.permissions.includes('edit') && !phone;
   const onRun = () => (dirty ? setRunWarn(true) : setRunOpen(true));
   const problems = [
     ...validation.issues.map((i) => ({ ...i, severity: 'error' as const })),
     ...validation.warnings.map((w) => ({ ...w, severity: 'warning' as const })),
   ];
 
+  const fullScreen = !phone && (
+    <Tooltip label={shell.wide ? t('page.exitFullScreen') : t('page.fullScreenHint')}>
+      <Button
+        size="compact-xs"
+        variant="default"
+        leftSection={shell.wide ? <IconArrowsMinimize size={14} /> : <IconArrowsMaximize size={14} />}
+        onClick={() => shell.setWide(!shell.wide)}
+        aria-pressed={shell.wide}
+      >
+        {shell.wide ? t('page.exitFullScreen') : t('page.fullScreen')}
+      </Button>
+    </Tooltip>
+  );
   const runToolbar = (
     <Group
       gap={6}
@@ -241,6 +291,11 @@ export function ProcessEditorPage() {
           </Tabs.List>
 
           <Tabs.Panel value="flow">
+            {phone && p.permissions.includes('edit') && (
+              <Alert color="gray" variant="light" p="xs" mb="xs" icon={<IconDeviceDesktop size={16} />} data-testid="editor-phone-note">
+                {t('page.phoneReadOnly')}
+              </Alert>
+            )}
             <FlowEditor
               def={def}
               onChange={history.change}
@@ -254,7 +309,12 @@ export function ProcessEditorPage() {
               warningsByNode={warningsByNode}
               runStatus={showRun ? lastRun.statusByNode : undefined}
               focus={focus}
-              toolbar={runToolbar}
+              toolbar={
+                <>
+                  {fullScreen}
+                  {runToolbar}
+                </>
+              }
               height="calc(100vh - 230px)"
               readOnly={!canEdit}
             />

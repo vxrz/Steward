@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { TICKET_SOURCE_KEY_RE, type TicketSettings } from '@sm/shared';
 import { notifyError, notifyOk, put } from '../../api';
 import { useTicketSettings } from './common';
+import { useSaveSection } from '../settings/SaveBar';
 
 /** Settings → Ticket references (administrators): sources and the default reminder. */
 export function TicketSettingsCard() {
@@ -18,11 +19,10 @@ export function TicketSettingsCard() {
   useEffect(() => {
     if (q.data) setD(q.data);
   }, [q.data]);
-  if (!d) return null;
-  const setSource = (i: number, patch: Partial<TicketSettings['sources'][number]>) =>
-    setD({ ...d, sources: d.sources.map((s, j) => (j === i ? { ...s, ...patch } : s)) });
-  const valid = d.sources.length > 0 && d.sources.every((s) => TICKET_SOURCE_KEY_RE.test(s.key) && s.label.trim());
+  const valid = !!d && d.sources.length > 0 && d.sources.every((s) => TICKET_SOURCE_KEY_RE.test(s.key) && s.label.trim());
+  const dirty = !!d && !!q.data && JSON.stringify(d) !== JSON.stringify(q.data);
   const save = async () => {
+    if (!d) return;
     setBusy(true);
     try {
       const next = await put<TicketSettings>('/ticket-references/settings', { ...d, sources: d.sources.map((s) => ({ ...s, label: s.label.trim() })) });
@@ -34,6 +34,10 @@ export function TicketSettingsCard() {
       setBusy(false);
     }
   };
+  const inBar = useSaveSection('tickets', { dirty, valid, save, reset: () => q.data && setD(q.data) });
+  if (!d) return null;
+  const setSource = (i: number, patch: Partial<TicketSettings['sources'][number]>) =>
+    setD({ ...d, sources: d.sources.map((s, j) => (j === i ? { ...s, ...patch } : s)) });
   return (
     <Card withBorder>
       <Title order={5} mb="xs">
@@ -105,11 +109,13 @@ export function TicketSettingsCard() {
             onChange={(v) => setD({ ...d, reminderDays: typeof v === 'number' ? v : 7 })}
           />
         )}
-        <Group justify="flex-end">
-          <Button size="xs" onClick={save} loading={busy} disabled={!valid}>
-            {t('settings.save')}
-          </Button>
-        </Group>
+        {!inBar && (
+          <Group justify="flex-end">
+            <Button size="xs" onClick={save} loading={busy} disabled={!valid}>
+              {t('settings.save')}
+            </Button>
+          </Group>
+        )}
       </Stack>
     </Card>
   );

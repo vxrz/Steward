@@ -1,4 +1,4 @@
-name: "Gatus – uptime overview"
+name: "Gatus – Uptime overview"
 description: |
   Shows what Gatus monitors, without monitoring anything itself: reads the
   status of every Gatus endpoint, computes per endpoint whether it is healthy

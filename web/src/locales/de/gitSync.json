@@ -1,10 +1,10 @@
 {
   "sources": {
     "title": "Git-Synchronisierung",
-    "description": "Prozesse, Dashboards, Monitore und Dokumentarten aus Git-Repositorys holen. Nichts wird automatisch übernommen: Jede Änderung wartet unter Änderungen aus Git auf eine Prüfung.",
+    "description": "Prozesse, Dashboards, Monitore und Dokumentarten aus Git-Repositorys holen. Nichts wird automatisch übernommen: Jede Änderung wartet unter Änderungen der Git-Synchronisierung auf eine Prüfung.",
     "new": "Neue Quelle",
     "empty": "Noch keine Git-Quellen",
-    "emptyHint": "Die Git-Synchronisierung ist aus, bis Sie eine Quelle anlegen. Steward liest das Repository nur; Änderungen landen im Eingang Änderungen aus Git.",
+    "emptyHint": "Die Git-Synchronisierung ist aus, bis Sie eine Quelle anlegen. Steward liest das Repository nur; Änderungen landen im Eingang Änderungen der Git-Synchronisierung.",
     "readOnly": "Nur Administratoren verwalten Git-Quellen.",
     "fetchNow": "Jetzt abrufen",
     "fetched": "{{commit}} abgerufen: {{staged}} zur Prüfung, {{invalid}} ungültig, {{unchanged}} unverändert",
@@ -32,7 +32,7 @@
     "manageLink": "Git-Synchronisierung verwalten",
     "settingsCard": "Prozesse, Dashboards, Monitore und Dokumentarten aus Forgejo, GitHub oder GitLab holen. Aus, bis Sie eine Quelle anlegen.",
     "builtIn": "Steward-Beispiele",
-    "builtInHint": "Stewards eigene Beispielbibliothek am Tag dieser Version. Schalten Sie sie ein, um verbesserte Beispiele unter Änderungen aus Git zu prüfen. Steward muss github.com erreichen (Einstellungen → Ausgehender Zugriff).",
+    "builtInHint": "Stewards eigene Beispielbibliothek am Tag dieser Version. Schalten Sie sie ein, um verbesserte Beispiele unter Änderungen der Git-Synchronisierung zu prüfen. Steward muss github.com erreichen (Einstellungen → Ausgehender Zugriff).",
     "refTag": "Tag {{ref}}"
   },
   "form": {
@@ -94,7 +94,7 @@
     "done": "Fertig"
   },
   "updates": {
-    "title": "Änderungen aus Git",
+    "title": "Änderungen der Git-Synchronisierung",
     "description": "Aus Git-Quellen abgerufene Änderungen. Prüfen Sie jede und übernehmen Sie sie (eine neue Version) oder lehnen Sie sie ab.",
     "empty": "Keine offenen Änderungen",
     "emptyHint": "Neue oder geänderte Dateien einer Git-Quelle erscheinen hier nach einem Abruf.",
@@ -114,7 +114,7 @@
     "conflict": "Konflikt",
     "invalid": "ungültig",
     "review": "Prüfen",
-    "noAccess": "Nur Designer und Administratoren prüfen Änderungen aus Git.",
+    "noAccess": "Nur Designer und Administratoren prüfen Änderungen der Git-Synchronisierung.",
     "status": {
       "pending": "offen",
       "accepted": "übernommen",

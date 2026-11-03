@@ -1,3 +1,4 @@
+import { runOutcome } from '@sm/shared';
 import { ReportWriter, type CellInput, type Tone } from './pdf/engine.js';
 import { translator, type MsgKey, type Translator } from './i18n.js';
 import { PRODUCT, chrome, langTag, statusTone, type BrandingInput } from './common.js';
@@ -79,6 +80,8 @@ export async function renderRunReport(
   if (m.run.status === 'cancelled') w.banner(t('cancelledTitle'), '', 'warning');
 
   // ---------- summary ----------
+  // what the run came to: "completed with findings" when it succeeded but checks failed (the status stays)
+  const outcome = runOutcome(m.run.status, m.run.stats.checksFailed);
   let n = 0;
   const section = (title: string) => w.section(`${++n}. ${title}`);
   section(t('summary'));
@@ -91,7 +94,7 @@ export async function renderRunReport(
     { label: t('process'), value: m.process.name },
     { label: t('processVersion'), value: String(m.process.version) },
     { label: t('runId'), value: m.run.id, mono: true },
-    { label: t('status'), value: tr.v('status', m.run.status), tone: statusTone(m.run.status) },
+    { label: t('status'), value: tr.v('status', outcome), tone: outcome === 'findings' ? 'warning' : statusTone(m.run.status) },
     { label: t('trigger'), value: trig },
     { label: t('startedBy'), value: personLabel(m.run.actor) },
     { label: t('started'), value: tr.dateTime(m.run.startedAt) },
@@ -127,14 +130,16 @@ export async function renderRunReport(
 
   w.subheading(t('atAGlance'));
   const s = m.run.stats;
+  const errorSteps = Math.max(0, s.failedSteps - s.checksFailed);
   const completed = m.decisions.filter((d) => d.status === 'completed').length;
   w.stats([
     { label: t('statSteps'), value: String(s.steps) },
-    { label: t('statFailedSteps'), value: String(s.failedSteps), tone: s.failedSteps ? 'danger' : 'default' },
+    // failed checks are findings (below), not steps that failed to execute
+    { label: t('statFailedSteps'), value: String(errorSteps), tone: errorSteps ? 'danger' : 'default' },
     { label: t('statChanges'), value: String(s.writes) },
     { label: t('statSimulated'), value: String(s.skippedWrites), tone: s.skippedWrites ? 'warning' : 'default' },
     { label: t('statChecksPassed'), value: String(s.checksPassed), tone: s.checksPassed ? 'success' : 'default' },
-    { label: t('statChecksFailed'), value: String(s.checksFailed), tone: s.checksFailed ? 'danger' : 'default' },
+    { label: t('statChecksFailed'), value: String(s.checksFailed), tone: s.checksFailed ? 'warning' : 'default' },
     { label: t('statDecisions'), value: `${completed}/${m.decisions.length}` },
   ]);
 
@@ -155,8 +160,11 @@ export async function renderRunReport(
       when(st.startedAt),
       { text: st.name, indent: st.depth },
       st.type,
-      { text: tr.v('status', st.status), tone: statusTone(st.status) },
-      { text: st.result, tone: st.failed ? 'danger' : 'default' },
+      // a failed check is a finding
+      st.type === 'check' && st.failed
+        ? { text: tr.v('status', 'finding'), tone: 'warning' }
+        : { text: tr.v('status', st.status), tone: statusTone(st.status) },
+      { text: st.result, tone: st.type === 'check' && st.failed ? 'warning' : st.failed ? 'danger' : 'default' },
     ]),
     { empty: t('none') },
   );

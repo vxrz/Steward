@@ -94,6 +94,13 @@ export const STEP_META: Record<NodeType, StepMeta> = {
         help: 'Comma separated. Empty = any 2xx.',
       },
       { key: 'mutating', label: 'Treat as write (skip in dry run)', kind: 'boolean', help: 'Default: every method except GET/HEAD' },
+      { key: 'maxResponseMb', label: 'Largest answer (MB)', kind: 'number', help: 'Default 20, at most 200 (per page); a larger answer fails the step' },
+      {
+        key: 'aws',
+        label: 'AWS service (AWS platforms only)',
+        kind: 'json',
+        help: 'service and region, e.g. { service: ec2, region: eu-central-1 }: the path is relative to that endpoint, signed with the platform',
+      },
     ],
     defaults: () => ({ method: 'GET', path: '/' }),
   },
@@ -276,7 +283,13 @@ export const STEP_META: Record<NodeType, StepMeta> = {
         key: 'staleAfterMinutes',
         label: 'Stale after (minutes)',
         kind: 'number',
-        help: 'Default: 2.5 × the interval of the schedule that ran it (at least 15 minutes), else 24 hours',
+        help: 'For runs without a schedule (default 24 hours). Scheduled runs follow their schedule: 2.5 × its interval, at least 15 minutes',
+      },
+      {
+        key: 'staleAfterFixed',
+        label: 'Use “Stale after” for scheduled runs too',
+        kind: 'boolean',
+        help: 'Instead of 2.5 × the schedule interval, e.g. for a tighter or a more tolerant limit than the schedule gives',
       },
       { key: 'maxRows', label: 'Max rows (safety limit, default 5000)', kind: 'number' },
       {

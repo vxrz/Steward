@@ -5,6 +5,7 @@ import {
   ActionIcon,
   Anchor,
   Badge,
+  Box,
   Button,
   FileButton,
   Table,
@@ -16,15 +17,16 @@ import {
   Modal,
   Paper,
   PasswordInput,
+  Select,
   SimpleGrid,
   Stack,
   Text,
   TextInput,
   UnstyledButton,
 } from '@mantine/core';
-import { IconPlus, IconServer, IconKey, IconPlug, IconUpload, IconDownload, IconTrash } from '@tabler/icons-react';
+import { IconAlertTriangle, IconPlus, IconSearch, IconServer, IconKey, IconPlug, IconUpload, IconDownload, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { CONNECTOR_FORMATS, type ConnectorPackage, type Platform, type PlatformPreset } from '@sm/shared';
+import { CONNECTOR_FORMATS, impliedAuthType, type AuthType, type ConnectorPackage, type Platform, type PlatformPreset } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, Hint, KeyValueEditor, PageHeader, QueryState } from '../components/common';
@@ -33,12 +35,36 @@ import i18n from '../i18n';
 import { BRAND } from '../../../shared/src/brand';
 import { EnvironmentInput } from '../components/catalogue/environments';
 import { confirmDanger } from '../components/confirm';
+import { fmtDate, fmtRelative } from '../format';
 
 export const KIND_COLORS: Record<string, string> = {
   'insights-hub': 'teal',
   'industrial-edge-management': 'indigo',
   generic: 'gray',
 };
+
+/** The latest connection test as a status dot and words: "Last test OK 5 minutes ago" / "Last test failed …". */
+function LastTest({ test }: { test?: Platform['lastTest'] }) {
+  const { t } = useTranslation('platforms');
+  if (test === undefined) return null;
+  const color = !test ? 'var(--mantine-color-gray-5)' : test.ok ? 'var(--mantine-color-green-6)' : 'var(--mantine-color-red-6)';
+  return (
+    <Group gap={6} mt="xs" wrap="nowrap" data-testid="platform-last-test">
+      {test && !test.ok ? (
+        <IconAlertTriangle size={14} color={color} aria-hidden style={{ flexShrink: 0 }} />
+      ) : (
+        <Box w={10} h={10} style={{ borderRadius: 10, background: color, flexShrink: 0, margin: 2 }} aria-hidden />
+      )}
+      <Text size="xs" c={test && !test.ok ? 'red' : 'dimmed'} title={test ? fmtDate(test.at) : undefined}>
+        {!test
+          ? t('card.neverTested')
+          : test.ok
+            ? t('card.lastTestOk', { when: fmtRelative(test.at) })
+            : t('card.lastTestFailed', { when: fmtRelative(test.at) })}
+      </Text>
+    </Group>
+  );
+}
 
 export function PlatformsPage() {
   const { t } = useTranslation('platforms');
@@ -47,6 +73,20 @@ export function PlatformsPage() {
   const [typesOpen, setTypesOpen] = useState(false);
   const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
   const { caps } = useMe();
+  const [q, setQ] = useState('');
+  const [kind, setKind] = useState<string | null>(null);
+  const [env, setEnv] = useState<string | null>(null);
+  const all = platforms.data ?? [];
+  const kinds = [...new Set(all.map((p) => p.kind))].sort();
+  const envs = [...new Set(all.map((p) => p.environment).filter(Boolean))].sort();
+  const needle = q.trim().toLowerCase();
+  const shown = all.filter(
+    (p) =>
+      (!kind || p.kind === kind) &&
+      (!env || p.environment === env) &&
+      (!needle || [p.name, p.kind, p.baseUrl, p.description, p.environment].some((x) => x?.toLowerCase().includes(needle))),
+  );
+  const filtered = !!(needle || kind || env);
 
   return (
     <>
@@ -83,8 +123,71 @@ export function PlatformsPage() {
           {!caps.createPlatforms && <div>{t('empty.adminsOnly')}</div>}
         </EmptyState>
       )}
+      {all.length > 0 && (
+        <Group gap="sm" align="flex-end" mb="md" wrap="wrap" role="search" aria-label={t('filter.search')}>
+          <TextInput
+            size="xs"
+            label={t('filter.search')}
+            placeholder={t('filter.searchPlaceholder')}
+            leftSection={<IconSearch size={14} />}
+            value={q}
+            onChange={(e) => setQ(e.currentTarget.value)}
+            w={{ base: '100%', xs: 260 }}
+          />
+          {kinds.length > 1 && (
+            <Select
+              size="xs"
+              label={t('filter.kind')}
+              placeholder={t('filter.all')}
+              data={kinds}
+              value={kind}
+              onChange={setKind}
+              clearable
+              searchable
+              w={{ base: '48%', xs: 200 }}
+            />
+          )}
+          {envs.length > 0 && (
+            <Select
+              size="xs"
+              label={t('filter.environment')}
+              placeholder={t('filter.all')}
+              data={envs}
+              value={env}
+              onChange={setEnv}
+              clearable
+              w={{ base: '48%', xs: 160 }}
+            />
+          )}
+          {filtered && (
+            <Text size="xs" c="dimmed" mb={6} aria-live="polite">
+              {t('filter.count', { shown: shown.length, total: all.length })}
+            </Text>
+          )}
+        </Group>
+      )}
+      {filtered && shown.length === 0 && (
+        <EmptyState
+          compact
+          icon={IconSearch}
+          title={t('filter.noMatch')}
+          action={
+            <Button
+              size="xs"
+              variant="default"
+              onClick={() => {
+                setQ('');
+                setKind(null);
+                setEnv(null);
+              }}
+            >
+              {t('filter.clear')}
+            </Button>
+          }
+        />
+      )}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
-        {platforms.data?.map((p) => (
+        {shown.map((p) => (
           <Card key={p.id} withBorder padding="md" className="clickable" onClick={() => navigate(`/platforms/${p.id}`)}>
             <Group justify="space-between" wrap="nowrap" align="flex-start">
               <Anchor
@@ -108,10 +211,12 @@ export function PlatformsPage() {
               <Badge color={KIND_COLORS[p.kind] ?? 'gray'} variant="light" size="sm">
                 {p.kind}
               </Badge>
-              <Badge color="gray" variant="light" size="sm">
+              {/* the kind of sign-in in normal case ("Bearer token", "OAuth2 client credentials") */}
+              <Badge color="gray" variant="light" size="sm" tt="none">
                 {authLabel(p.config.auth?.type)}
               </Badge>
             </Group>
+            <LastTest test={p.lastTest} />
             <Text size="xs" c="dimmed" className="mono" mt="sm" style={{ wordBreak: 'break-all' }}>
               {p.baseUrl || t('card.noBaseUrl')}
             </Text>
@@ -262,6 +367,9 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
   const [baseUrl, setBaseUrl] = useState('');
   const [variables, setVariables] = useState<Record<string, unknown>>({});
   const [secrets, setSecrets] = useState<Record<string, string>>({});
+  // the authentication: the preset's, or – on a preset with "none" – the one the filled-in credential fields are for,
+  // until it is chosen by hand (entered credentials were silently never sent before, v0.3.1)
+  const [authChoice, setAuthChoice] = useState<AuthType | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -270,6 +378,7 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
       setName('');
       setEnvironment('');
       setSecrets({});
+      setAuthChoice(null);
     }
   }, [opened]);
 
@@ -278,7 +387,11 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
     setBaseUrl(p.baseUrl);
     setVariables({ ...p.config.variables });
     setSecrets({});
+    setAuthChoice(null);
   };
+  const authFields = preset?.secretFields.filter((f) => f.auth) ?? [];
+  const authType: AuthType = authChoice ?? impliedAuthType(preset?.config.auth?.type, preset?.secretFields ?? [], secrets);
+  const authOptions = [...new Set<AuthType>([preset?.config.auth?.type ?? 'none', ...authFields.map((f) => f.auth!)])];
 
   const create = async () => {
     if (!preset) return;
@@ -292,7 +405,7 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
         environment,
         description: presetDescription(preset),
         baseUrl,
-        config: { ...preset.config, variables: vars },
+        config: { ...preset.config, auth: { ...preset.config.auth, type: authType }, variables: vars },
         secrets: filtered,
         typeKind: preset.custom ? preset.kind : undefined,
       });
@@ -390,6 +503,17 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
                 />
               ))}
               <Hint>{t('form.credentialsHint')}</Hint>
+              {authFields.length > 0 && (
+                <Select
+                  label={t('form.authType')}
+                  description={t('form.authTypeHint')}
+                  data={authOptions.map((a) => ({ value: a, label: authLabel(a) }))}
+                  value={authType}
+                  allowDeselect={false}
+                  onChange={(v) => v && setAuthChoice(v as AuthType)}
+                  data-testid="add-platform-auth"
+                />
+              )}
             </>
           )}
           <Group justify="space-between">

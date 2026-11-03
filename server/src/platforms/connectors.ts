@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { fetch, Agent } from 'undici';
-import { CONNECTOR_FORMATS, type ConnectorPackage, type PlatformPreset } from '@sm/shared';
+import { AUTH_TYPES, CONNECTOR_FORMATS, type ConnectorPackage, type PlatformPreset } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, nowIso, parseJson, slugify } from '../util.js';
@@ -37,7 +37,7 @@ const packageSchema = z.object({
   baseUrl: z.string().default(''),
   config: z.any(),
   secretFields: z
-    .array(z.object({ key: z.string(), label: z.string(), help: z.string().optional() }))
+    .array(z.object({ key: z.string(), label: z.string(), help: z.string().optional(), auth: z.enum(AUTH_TYPES).optional() }))
     .max(100)
     .default([]),
   docs: z

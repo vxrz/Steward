@@ -1,6 +1,7 @@
 import type { PlatformPreset } from '@sm/shared';
 import { gatusOpenApiSpec } from './gatusSpec.js';
 import { forgejoSpec, githubSpec, gitlabSpec } from './gitSpecs.js';
+import { prometheusSpec } from './prometheusSpec.js';
 import { readAsset } from '../reports/pdf/assets.js';
 
 /**
@@ -128,10 +129,10 @@ export const PRESETS: PlatformPreset[] = [
       testPath: '/api/v1/endpoints/statuses?pageSize=1',
     },
     secretFields: [
-      { key: 'username', label: 'Username (security.basic)', help: 'Only when Gatus has security.basic configured' },
-      { key: 'password', label: 'Password (security.basic)' },
-      { key: 'token', label: 'Bearer token (reverse proxy)', help: 'Only for a proxy in front of Gatus that expects a bearer token' },
-      { key: 'externalToken', label: 'External endpoint token', help: 'external-endpoints[].token, used by "Gatus – report Steward check to Gatus"' },
+      { key: 'username', label: 'Username (security.basic)', help: 'Only when Gatus has security.basic configured', auth: 'basic' },
+      { key: 'password', label: 'Password (security.basic)', auth: 'basic' },
+      { key: 'token', label: 'Bearer token (reverse proxy)', help: 'Only for a proxy in front of Gatus that expects a bearer token', auth: 'bearer' },
+      { key: 'externalToken', label: 'External endpoint token', help: 'external-endpoints[].token, used by "Gatus – Report a Steward check to Gatus"' },
     ],
     docs: [
       { title: 'Gatus README', url: 'https://github.com/TwiN/gatus#readme' },
@@ -161,13 +162,13 @@ export const PRESETS: PlatformPreset[] = [
     kind: 'prometheus',
     label: 'Prometheus (PromQL)',
     description:
-      'A Prometheus-compatible query API: Prometheus, Thanos, Mimir (base URL with its prefix, e.g. …/prometheus) or VictoriaMetrics. Monitors run PromQL queries against WARN and CRIT levels (the worst series counts), and availability objectives can take their figures from a query with [$window]. Only GET /api/v1/query is used. Authentication: none, basic, or a bearer token (e.g. a Grafana Cloud or Mimir token; set auth to bearer). See docs/MONITORS.md.',
+      'A Prometheus-compatible query API: Prometheus, Thanos, Mimir (base URL with its prefix, e.g. …/prometheus) or VictoriaMetrics. Monitors run PromQL queries against WARN and CRIT levels (the worst series counts), and availability objectives can take their figures from a query with [$window]. Queries are sent as POST /api/v1/query. Authentication: none, basic (username/password) or bearer (a token, e.g. Grafana Cloud or Mimir) – filling in the fields below picks it; a multi-tenant Mimir/Cortex needs the default header X-Scope-OrgID. See docs/PROMETHEUS.md.',
     baseUrl: 'https://prometheus.example.com',
     config: { auth: { type: 'none' }, variables: {}, http: {}, testPath: '/api/v1/status/buildinfo' },
     secretFields: [
-      { key: 'username', label: 'Username (basic auth)' },
-      { key: 'password', label: 'Password (basic auth)' },
-      { key: 'token', label: 'Bearer token' },
+      { key: 'username', label: 'Username (basic auth)', auth: 'basic' },
+      { key: 'password', label: 'Password (basic auth)', auth: 'basic' },
+      { key: 'token', label: 'Bearer token', auth: 'bearer' },
     ],
     docs: [
       { title: 'Prometheus HTTP API', url: 'https://prometheus.io/docs/prometheus/latest/querying/api/' },
@@ -429,10 +430,10 @@ export const PRESETS: PlatformPreset[] = [
     baseUrl: 'https://api.example.com',
     config: { auth: { type: 'none' }, variables: {}, http: {} },
     secretFields: [
-      { key: 'token', label: 'Bearer token' },
-      { key: 'apiKey', label: 'API key' },
-      { key: 'username', label: 'Username' },
-      { key: 'password', label: 'Password' },
+      { key: 'token', label: 'Bearer token', auth: 'bearer' },
+      { key: 'apiKey', label: 'API key', auth: 'apiKey' },
+      { key: 'username', label: 'Username', auth: 'basic' },
+      { key: 'password', label: 'Password', auth: 'basic' },
       { key: 'clientId', label: 'OAuth client id' },
       { key: 'clientSecret', label: 'OAuth client secret' },
       { key: 'privateKey', label: 'Private key (PEM, key-pair JWT)' },
@@ -453,4 +454,6 @@ export const PRESET_SPECS: Record<string, () => { name: string; content: string 
   github: () => [{ name: 'GitHub REST API (subset)', content: JSON.stringify(githubSpec(), null, 2) }],
   gitlab: () => [{ name: 'GitLab REST API (subset)', content: JSON.stringify(gitlabSpec(), null, 2) }],
   forgejo: () => [{ name: 'Forgejo / Gitea API (subset)', content: JSON.stringify(forgejoSpec(), null, 2) }],
+  // PromQL through the MCP gateway and in process steps (v0.3.1)
+  prometheus: () => [{ name: 'Prometheus HTTP API (read endpoints)', content: JSON.stringify(prometheusSpec(), null, 2) }],
 };

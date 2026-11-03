@@ -227,7 +227,7 @@ export const DEFAULT_RECORD_TYPES: RecordTypeDefinition[] = [
     key: 'SDR',
     name: 'Security decision record',
     description:
-      'A security decision, e.g. an accepted risk, an exception or a hardening measure. If your team uses SDR for something else, change the name and description (the key cannot change once records exist) or archive the type.',
+      'A security decision, e.g. an accepted risk, an exception or a hardening measure. If your team uses SDR for something else, change the name and description (the key cannot change once documents exist) or archive the type.',
     workflow: 'decision',
     template: decisionTemplate('\n## Risk assessment\n\n\n## Review date\n\n'),
     fields: DECISION_FIELDS,

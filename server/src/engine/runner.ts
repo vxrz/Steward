@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import {
+  HTTP_RESPONSE_MB,
   isMutating,
   nodePorts,
   outgoing,
@@ -139,6 +140,10 @@ class RunContext {
   redactor = new Redactor();
   abort = new AbortController();
   browser?: BrowserSession;
+  /** Page navigations the outbound policy blocked (the browser only sees an aborted request), in order */
+  browserBlocked: string[] = [];
+  /** Redirect hops (followed by Chromium itself) the policy refuses, not yet reported */
+  browserRedirects: string[] = [];
   stats: RunStats;
   nodes: Map<string, FlowNode>;
   activations = new Map<string, number>();
@@ -829,7 +834,9 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
 
   // ----- replay: a finished step is not executed again -----
   const isControl = node.type === 'forEach' || node.type === 'if';
-  if (journaled && TERMINAL.includes(journaled.status) && !isControl) {
+  // a read whose stored output was cut down (too large to keep in the run) is read again rather than replayed short
+  const cutRead = !!journaled && node.type === 'http' && !isMutating(node) && store.isTruncatedOutput(journaled.output);
+  if (journaled && TERMINAL.includes(journaled.status) && !isControl && !cutRead) {
     const output = parseJson<unknown>(journaled.output, undefined);
     if (journaled.status === 'skipped') return skipPorts(node);
     const ports = journaled.status === 'failed' ? failurePorts(node, ctx) : successPorts(node, output);
@@ -1291,15 +1298,29 @@ function secretBindings(ctx: RunContext): SecretBinding[] {
  * outbound policy (SSRF) and must not carry any bound platform's secret to an
  * origin that platform does not allow. Shared by the http and browser nodes.
  */
-async function enforceOutbound(ctx: RunContext, url: string, headers: Record<string, string> = {}, body?: unknown): Promise<void> {
-  await assertOutboundAllowed(url, engineOutboundContext());
+async function enforceOutbound(ctx: RunContext, url: string, headers: Record<string, string> = {}, body?: unknown, platformOrigins?: string[]): Promise<void> {
+  await assertOutboundAllowed(url, engineOutboundContext(), { platformOrigins });
   await assertNoSecretLeak(url, headers, body, secretBindings(ctx));
 }
 
 async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Promise<LeafResult> {
   const b = ctx.bindings[step.connection];
   if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
-  const p = await ctx.str(step.path);
+  // AWS (v0.3.1): another AWS service of the account, signed with the platform – the path is relative to its endpoint
+  const awsScope = step.aws;
+  let awsOrigin: string | undefined;
+  let awsEndpoint = '';
+  if (awsScope) {
+    if (b.platform.config.auth?.type !== 'aws_sigv4')
+      throw new Error(`"aws" needs a platform with AWS request signing (SigV4); "${b.platform.name}" uses ${b.platform.config.auth?.type ?? 'none'}`);
+    if (b.platform.kind === 'aws') {
+      const { endpointFor } = await import('../aws/client.js');
+      awsEndpoint = endpointFor(b.platform, awsScope.service, awsScope.region);
+      if (/^https:\/\/[^/]+\.amazonaws\.com(\.cn)?$/i.test(awsEndpoint)) awsOrigin = awsEndpoint;
+    }
+  }
+  const rawPath = await ctx.str(step.path);
+  const p = awsEndpoint && !/^https?:\/\//i.test(rawPath) ? awsEndpoint + (rawPath.startsWith('/') ? '' : '/') + rawPath : rawPath;
   // Semgrep's res-render-injection takes (step, ctx, key) for Express's (req, res, next): ctx.render() evaluates the
   // step's expressions in the run scope, it never loads a file or template by name (false positive).
   const query = (await ctx.render(step.query ?? {})) as Record<string, unknown>; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
@@ -1327,6 +1348,8 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
   }
 
   ctx.redactor.add(...secretValues(b.secrets));
+  // every answer (page) is read into memory: at most this much (v0.3.1, it had no limit)
+  const maxMb = step.maxResponseMb ?? HTTP_RESPONSE_MB.default;
   const accept = (s: number) => (step.expectStatus?.length ? step.expectStatus.includes(s) : s >= 200 && s < 300);
   let lastRecording: string | null = null;
   const replay = (url: string, q: Record<string, unknown>): HttpResult => {
@@ -1342,8 +1365,32 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
   const doRequest = async (url: string, q: Record<string, unknown>) => {
     if (ctx.recorded) return replay(url, q);
     const target = await buildUrl(b.platform, b.secrets, url, q);
-    await enforceOutbound(ctx, target, headers, body);
-    const res = await platformRequest(b.platform, b.secrets, { method: step.method, url, query: q, headers, body, bodyType: step.bodyType }, ctx.signal);
+    // the AWS endpoint the step names is the platform's own origin for this call – only then, not every amazonaws.com host
+    await enforceOutbound(ctx, target, headers, body, awsOrigin ? [awsOrigin] : undefined);
+    let res: HttpResult;
+    try {
+      res = await platformRequest(
+        b.platform,
+        b.secrets,
+        {
+          method: step.method,
+          url,
+          query: q,
+          headers,
+          body,
+          bodyType: step.bodyType,
+          maxResponseBytes: maxMb * 1024 * 1024,
+          ...(awsScope ? { aws: awsScope } : {}),
+        },
+        ctx.signal,
+      );
+    } catch (e) {
+      if ((e as { code?: string }).code === 'ETOOLARGE')
+        throw new Error(
+          `The answer of ${step.method} ${url.split('?')[0]} is larger than ${maxMb} MB, the step's limit (maxResponseMb: default ${HTTP_RESPONSE_MB.default}, at most ${HTTP_RESPONSE_MB.max}) – read it in pages (pagination, a page size or filter) or raise maxResponseMb`,
+        );
+      throw e;
+    }
     ctx.redactor.add(...secretValues(b.secrets));
     if (res.attempts && res.attempts > 1) ctx.log('warn', `${step.method} ${url} → HTTP ${res.status} after ${res.attempts} attempts`, key);
     if (!accept(res.status)) throw new Error(`HTTP ${res.status} from ${step.method} ${url}: ${snippet(res.body)}`);
@@ -1564,6 +1611,7 @@ async function execPublish(step: NodeOf<'publish'>, ctx: RunContext, key: string
     metrics,
     limits,
     staleAfterMinutes: step.staleAfterMinutes,
+    staleAfterFixed: step.staleAfterFixed,
     sourceSlot: step.source,
   });
   const counts = Object.entries(meta.statusCounts)
@@ -1791,10 +1839,24 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
           if (navigation) await assertOutboundAllowed(url, outCtx);
           else await assertAddressSafe(url);
           return true;
-        } catch {
+        } catch (e) {
+          // the page only sees "net::ERR_BLOCKED_BY_CLIENT": say what was blocked and why (v0.3.1)
+          let origin = url;
+          try {
+            origin = new URL(url).origin;
+          } catch {
+            /* keep the text */
+          }
+          if (navigation) {
+            const msg = blockedNavigation(origin, e);
+            if (!ctx.browserBlocked.includes(msg)) ctx.browserBlocked.push(msg);
+            ctx.log('warn', `Browser: ${msg}`);
+          } else ctx.log('debug', `Browser: a sub-request to ${origin} was blocked (${(e as Error).message.slice(0, 200)})`);
           return false;
         }
       },
+      // a redirect hop the policy refuses has already been sent by Chromium: the step stops using the page
+      onRefusedRedirect: (url) => ctx.browserRedirects.push(url),
     });
   }
   const page = ctx.browser.page;
@@ -1812,6 +1874,8 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
       : sb,
   );
   const extracted: Record<string, unknown> = {};
+  const blockedBefore = ctx.browserBlocked.length;
+  const blockedNow = () => ctx.browserBlocked.slice(blockedBefore);
   const shots: { id: string; name: string; sha256: string }[] = [];
   const done: string[] = [];
   const extraBindings: Bindings = { page: () => ({ url: page.url() }) };
@@ -1908,6 +1972,8 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
           break;
         }
       }
+      // actions that can navigate: a refused redirect hop is reported by the time the action is done (or just after)
+      await refusedRedirects(ctx, page, ['goto', 'click', 'press'].includes(a.action) ? 50 : 0);
       if (a.action !== 'goto') done.push(label);
     } catch (e) {
       // capture evidence of the failure
@@ -1931,7 +1997,8 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
       } catch {
         /* ignore */
       }
-      throw new Error(`Browser action ${label} failed: ${(e as Error).message.split('\n')[0]}`);
+      const blocked = blockedNow();
+      throw new Error(`Browser action ${label} failed: ${(e as Error).message.split('\n')[0]}${blocked.length ? ` – ${blocked.join('; ')}` : ''}`);
     }
   }
   if (shots.length) {
@@ -1945,11 +2012,42 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
       details: { stepKey: key, screenshots: shots },
     });
   }
+  await refusedRedirects(ctx, page, 50).catch((e: Error) => {
+    throw new Error(`Browser step: ${e.message} – ${blockedNow().join('; ')}`);
+  });
   store.updateStepInput(ctx.runId, key, { actions: done });
+  const blocked = blockedNow();
   return {
-    output: { ...extracted, url: page.url(), title: await page.title(), screenshots: shots },
-    summary: `${step.actions.length} action(s)${shots.length ? `, ${shots.length} screenshot(s)` : ''}`,
+    output: { ...extracted, url: page.url(), title: await page.title(), screenshots: shots, ...(blocked.length ? { blockedByPolicy: blocked } : {}) },
+    summary: `${step.actions.length} action(s)${shots.length ? `, ${shots.length} screenshot(s)` : ''}${blocked.length ? `, ${blocked.length} navigation(s) blocked by the outbound policy` : ''}`,
   };
+}
+
+/**
+ * Redirect hops the policy refuses (reported after Chromium sent them): the page is left for about:blank so nothing
+ * of that origin is read or filled in, and the action fails with what was blocked.
+ */
+async function refusedRedirects(ctx: RunContext, page: BrowserSession['page'], waitMs: number): Promise<void> {
+  // the check of a hop finishes just after the navigation that caused it
+  if (!ctx.browserRedirects.length && waitMs) await new Promise((r) => setTimeout(r, waitMs));
+  if (!ctx.browserRedirects.length) return;
+  const urls = ctx.browserRedirects.splice(0);
+  const origins = [...new Set(urls.map((u) => originOfSafe(u) || u))];
+  const msgs = origins.map((o) => blockedNavigation(o, new Error('outbound policy')));
+  for (const m of msgs) {
+    if (!ctx.browserBlocked.includes(m)) ctx.browserBlocked.push(m);
+    ctx.log('warn', `Browser: a redirect was ${m}`);
+  }
+  await page.goto('about:blank').catch(() => undefined);
+  throw new Error(`the page was redirected to ${origins.join(', ')}, which the outbound policy does not allow`);
+}
+
+/** A page navigation the policy refused, in plain words: what, and how to allow it. */
+export function blockedNavigation(origin: string, e: unknown): string {
+  const m = (e as Error)?.message ?? '';
+  if (/outbound policy/i.test(m))
+    return `blocked by the outbound policy: ${origin} – add it to the platform's trusted origins or the allow-list (Settings → Security & sign-in → Outbound access)`;
+  return `blocked: ${origin} – ${m.slice(0, 200)}`;
 }
 
 /** Most items a check keeps for its messages, and characters per item (#144). */

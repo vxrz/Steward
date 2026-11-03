@@ -1,0 +1,623 @@
+# steward-min-version: 0.2.8
+name: "Snowflake – Project access review (database grants)"
+description: |
+  Periodic review of who can reach the databases of a project, the way it is
+  done by hand with
+
+    SHOW GRANTS ON DATABASE PRD_SDC_OPQ_PBI_DEV;
+    SHOW GRANTS OF ROLE "PRD_SDC_OPQ_PBI_DEV_READONLY";
+
+  For every database: the roles with a privilege on it, then for every such
+  role who it is granted to – nested roles are followed (up to four levels) to
+  the users behind them, with the path. Users are enriched from
+  SNOWFLAKE.ACCOUNT_USAGE.USERS (type, disabled, last successful login, e-mail,
+  password and MFA) and marked technical (TYPE SERVICE / LEGACY_SERVICE or the
+  name pattern) or person. The owner ticks who keeps the grant (recently active
+  people and technical users are preselected), a second person confirms the
+  removals (four-eyes), and a manual step shows the REVOKE statements to run in
+  Snowflake – the Snowflake connection is read-only – which a second person
+  verifies (maker–checker). The removals are documented as access changes.
+
+  Recommended schedule: quarterly (`0 7 1 1,4,7,10 *`) and when a project ends.
+  Publishes `snowflake.project-access` (one row per user and granted role) for
+  the "Snowflake account" dashboard. Needs a Snowflake platform (key-pair JWT,
+  docs/SNOWFLAKE.md); the role needs MANAGE GRANTS or ownership of the roles to
+  see their grants (SHOW GRANTS OF ROLE) and IMPORTED PRIVILEGES on the
+  SNOWFLAKE database for the user details. Database names are checked against
+  letters, digits and _ $ . " - and always sent as quoted identifiers.
+recommendedSchedule: "0 7 1 1,4,7,10 *"
+tags: [access-review, governance, snowflake]
+connections:
+  - slot: snowflake
+    kind: snowflake
+    description: Snowflake account (SQL API, key-pair JWT; read-only)
+inputs:
+  - name: databases
+    label: Databases of the project
+    type: list
+    default: [PRD_SDC_OPQ_PBI_DEV]
+    required: true
+  - name: rolePrefixes
+    label: Only database roles starting with (empty = all)
+    type: list
+    default: []
+  - name: stopAtRoles
+    label: Roles not followed further (account administration, reviewed on their own)
+    type: list
+    default: [ACCOUNTADMIN, SECURITYADMIN, SYSADMIN, USERADMIN, ORGADMIN]
+  - name: technicalPattern
+    label: Technical users – name pattern (regular expression, besides TYPE SERVICE)
+    type: string
+    default: "(SVC|TECH|SYS)_.*"
+  - name: activeWithinDays
+    label: Preselect people who signed in within (days)
+    type: number
+    default: 90
+steps:
+  - id: valid
+    type: check
+    name: Database and role names are Snowflake identifiers
+    condition: >-
+      $count(inputs.databases) > 0
+        and $count(inputs.databases[$not($contains($trim($), /^[A-Za-z0-9_$."-]+$/))]) = 0
+        and $count(inputs.rolePrefixes[$not($contains($trim($), /^[A-Za-z0-9_$."-]+$/))]) = 0
+    message: 'Database names and role prefixes may contain only letters, digits and _ $ . " -'
+    failRun: true
+  - id: setup
+    type: set
+    name: Database names as Snowflake stores them
+    values:
+      # unquoted names are upper case in Snowflake; "Quoted" names keep their case
+      dbs: >-
+        {{ [inputs.databases.(
+          $n := $trim($);
+          $length($n) > 1 and $substring($n, 0, 1) = '"' and $substring($n, -1) = '"' ? $substring($n, 1, $length($n) - 2) : $uppercase($n)
+        )] }}
+      prefixes: "{{ [inputs.rolePrefixes.$uppercase($trim($))] }}"
+      edges: "{{ [] }}"
+      seen: "{{ [] }}"
+      stopped: "{{ [] }}"
+      unreadable: "{{ [] }}"
+  - id: grantsOn
+    type: forEach
+    name: SHOW GRANTS ON DATABASE (2 in parallel)
+    items: vars.dbs
+    as: db
+    concurrency: 2
+    maxItems: 50
+    saveAs: grantsOn
+    steps:
+      - id: show
+        type: http
+        name: SHOW GRANTS ON DATABASE
+        connection: snowflake
+        method: POST
+        path: /api/v2/statements
+        mutating: false
+        body:
+          statement: '{{ ''SHOW GRANTS ON DATABASE "'' & $replace(vars.db, ''"'', ''""'') & ''"'' }}'
+          timeout: 60
+          role: "{{ $pvar('snowflake', 'role') }}"
+          warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+        saveAs: shown
+      - id: roles
+        type: set
+        name: Roles with a privilege on the database
+        values:
+          dbRoles: >-
+            {{ (
+              $db := vars.db;
+              $cols := [vars.shown.body.resultSetMetaData.rowType.name];
+              $rows := [$map(vars.shown.body.data, function($r) { $merge($map($cols, function($c, $i) { { $c: $r[$i] } })) })];
+              $grants := $rows[granted_to = 'ROLE'];
+              $names := $distinct($grants.grantee_name);
+              [$names.(
+                $role := $;
+                $count($vars.prefixes) = 0 or $count($vars.prefixes[$substring($uppercase($role), 0, $length($)) = $]) > 0 ? {
+                  "key": $db & '|' & $role,
+                  "database": $db,
+                  "role": $role,
+                  "path": [$role],
+                  "privileges": $join($distinct($grants[grantee_name = $role].privilege), ', ')
+                } : undefined
+              )]
+            ) }}
+  - id: start
+    type: set
+    name: Roles to follow
+    values:
+      todo: "{{ [vars.grantsOn.results.dbRoles] }}"
+      dbRoleCount: "{{ $count(vars.grantsOn.results.dbRoles) }}"
+  - id: level1
+    type: group
+    name: SHOW GRANTS OF ROLE – the database roles
+    when: "$count(vars.todo) > 0"
+    steps:
+      - id: of1
+        type: forEach
+        name: Who has each role (4 in parallel)
+        items: vars.todo
+        as: r
+        concurrency: 4
+        maxItems: 500
+        saveAs: of1
+        steps:
+          - id: showOf1
+            type: http
+            name: SHOW GRANTS OF ROLE
+            connection: snowflake
+            method: POST
+            path: /api/v2/statements
+            mutating: false
+            onError: continue
+            body:
+              statement: '{{ ''SHOW GRANTS OF ROLE "'' & $replace(vars.r.role, ''"'', ''""'') & ''"'' }}'
+              timeout: 60
+              role: "{{ $pvar('snowflake', 'role') }}"
+              warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+            saveAs: of
+          - id: grantees1
+            type: set
+            name: Users and roles the role is granted to
+            values:
+              failed: "{{ $exists(vars.of.error) ? vars.r.role : undefined }}"
+              grantees: >-
+                {{ (
+                  $r := vars.r;
+                  $cols := [vars.of.body.resultSetMetaData.rowType.name];
+                  $exists(vars.of.error) ? [] : [$map(vars.of.body.data, function($x) {(
+                    $o := $merge($map($cols, function($c, $i) { { $c: $x[$i] } }));
+                    {
+                      "database": $r.database,
+                      "path": $r.path,
+                      "privileges": $r.privileges,
+                      "role": $r.role,
+                      "grantedTo": $o.granted_to,
+                      "grantee": $o.grantee_name,
+                      "grantedBy": $o.granted_by,
+                      "createdOn": $o.created_on
+                    }
+                  )})]
+                ) }}
+      - id: next1
+        type: set
+        name: Nested roles for the next level
+        values:
+          found: "{{ [vars.of1.results.grantees] }}"
+          edges: "{{ $append(vars.edges, vars.found) }}"
+          seen: "{{ $append(vars.seen, vars.todo.key) }}"
+          unreadable: "{{ $append(vars.unreadable, [vars.of1.results.failed[$ != null]]) }}"
+          stopped: "{{ $append(vars.stopped, [vars.found[grantedTo = 'ROLE' and grantee in $inputs.stopAtRoles].(database & ': ' & $join($append(path, grantee), ' ← '))]) }}"
+          todo: >-
+            {{ (
+              $new := [vars.found[grantedTo = 'ROLE' and $not(grantee in $inputs.stopAtRoles) and $not((database & '|' & grantee) in $vars.seen)]
+                .{ "key": database & '|' & grantee, "database": database, "role": grantee, "path": $append(path, grantee), "privileges": privileges }];
+              [$distinct($new.key).($k := $; $new[key = $k][0])]
+            ) }}
+  - id: level2
+    type: group
+    name: SHOW GRANTS OF ROLE – nested roles, level 2
+    when: "$count(vars.todo) > 0"
+    steps:
+      - id: of2
+        type: forEach
+        name: Who has each role (4 in parallel)
+        items: vars.todo
+        as: r
+        concurrency: 4
+        maxItems: 500
+        saveAs: of2
+        steps:
+          - id: showOf2
+            type: http
+            name: SHOW GRANTS OF ROLE
+            connection: snowflake
+            method: POST
+            path: /api/v2/statements
+            mutating: false
+            onError: continue
+            body:
+              statement: '{{ ''SHOW GRANTS OF ROLE "'' & $replace(vars.r.role, ''"'', ''""'') & ''"'' }}'
+              timeout: 60
+              role: "{{ $pvar('snowflake', 'role') }}"
+              warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+            saveAs: of
+          - id: grantees2
+            type: set
+            name: Users and roles the role is granted to
+            values:
+              failed: "{{ $exists(vars.of.error) ? vars.r.role : undefined }}"
+              grantees: >-
+                {{ (
+                  $r := vars.r;
+                  $cols := [vars.of.body.resultSetMetaData.rowType.name];
+                  $exists(vars.of.error) ? [] : [$map(vars.of.body.data, function($x) {(
+                    $o := $merge($map($cols, function($c, $i) { { $c: $x[$i] } }));
+                    {
+                      "database": $r.database,
+                      "path": $r.path,
+                      "privileges": $r.privileges,
+                      "role": $r.role,
+                      "grantedTo": $o.granted_to,
+                      "grantee": $o.grantee_name,
+                      "grantedBy": $o.granted_by,
+                      "createdOn": $o.created_on
+                    }
+                  )})]
+                ) }}
+      - id: next2
+        type: set
+        name: Nested roles for the next level
+        values:
+          found: "{{ [vars.of2.results.grantees] }}"
+          edges: "{{ $append(vars.edges, vars.found) }}"
+          seen: "{{ $append(vars.seen, vars.todo.key) }}"
+          unreadable: "{{ $append(vars.unreadable, [vars.of2.results.failed[$ != null]]) }}"
+          stopped: "{{ $append(vars.stopped, [vars.found[grantedTo = 'ROLE' and grantee in $inputs.stopAtRoles].(database & ': ' & $join($append(path, grantee), ' ← '))]) }}"
+          todo: >-
+            {{ (
+              $new := [vars.found[grantedTo = 'ROLE' and $not(grantee in $inputs.stopAtRoles) and $not((database & '|' & grantee) in $vars.seen)]
+                .{ "key": database & '|' & grantee, "database": database, "role": grantee, "path": $append(path, grantee), "privileges": privileges }];
+              [$distinct($new.key).($k := $; $new[key = $k][0])]
+            ) }}
+  - id: level3
+    type: group
+    name: SHOW GRANTS OF ROLE – nested roles, level 3
+    when: "$count(vars.todo) > 0"
+    steps:
+      - id: of3
+        type: forEach
+        name: Who has each role (4 in parallel)
+        items: vars.todo
+        as: r
+        concurrency: 4
+        maxItems: 500
+        saveAs: of3
+        steps:
+          - id: showOf3
+            type: http
+            name: SHOW GRANTS OF ROLE
+            connection: snowflake
+            method: POST
+            path: /api/v2/statements
+            mutating: false
+            onError: continue
+            body:
+              statement: '{{ ''SHOW GRANTS OF ROLE "'' & $replace(vars.r.role, ''"'', ''""'') & ''"'' }}'
+              timeout: 60
+              role: "{{ $pvar('snowflake', 'role') }}"
+              warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+            saveAs: of
+          - id: grantees3
+            type: set
+            name: Users and roles the role is granted to
+            values:
+              failed: "{{ $exists(vars.of.error) ? vars.r.role : undefined }}"
+              grantees: >-
+                {{ (
+                  $r := vars.r;
+                  $cols := [vars.of.body.resultSetMetaData.rowType.name];
+                  $exists(vars.of.error) ? [] : [$map(vars.of.body.data, function($x) {(
+                    $o := $merge($map($cols, function($c, $i) { { $c: $x[$i] } }));
+                    {
+                      "database": $r.database,
+                      "path": $r.path,
+                      "privileges": $r.privileges,
+                      "role": $r.role,
+                      "grantedTo": $o.granted_to,
+                      "grantee": $o.grantee_name,
+                      "grantedBy": $o.granted_by,
+                      "createdOn": $o.created_on
+                    }
+                  )})]
+                ) }}
+      - id: next3
+        type: set
+        name: Nested roles for the next level
+        values:
+          found: "{{ [vars.of3.results.grantees] }}"
+          edges: "{{ $append(vars.edges, vars.found) }}"
+          seen: "{{ $append(vars.seen, vars.todo.key) }}"
+          unreadable: "{{ $append(vars.unreadable, [vars.of3.results.failed[$ != null]]) }}"
+          stopped: "{{ $append(vars.stopped, [vars.found[grantedTo = 'ROLE' and grantee in $inputs.stopAtRoles].(database & ': ' & $join($append(path, grantee), ' ← '))]) }}"
+          todo: >-
+            {{ (
+              $new := [vars.found[grantedTo = 'ROLE' and $not(grantee in $inputs.stopAtRoles) and $not((database & '|' & grantee) in $vars.seen)]
+                .{ "key": database & '|' & grantee, "database": database, "role": grantee, "path": $append(path, grantee), "privileges": privileges }];
+              [$distinct($new.key).($k := $; $new[key = $k][0])]
+            ) }}
+  - id: level4
+    type: group
+    name: SHOW GRANTS OF ROLE – nested roles, level 4
+    when: "$count(vars.todo) > 0"
+    steps:
+      - id: of4
+        type: forEach
+        name: Who has each role (4 in parallel)
+        items: vars.todo
+        as: r
+        concurrency: 4
+        maxItems: 500
+        saveAs: of4
+        steps:
+          - id: showOf4
+            type: http
+            name: SHOW GRANTS OF ROLE
+            connection: snowflake
+            method: POST
+            path: /api/v2/statements
+            mutating: false
+            onError: continue
+            body:
+              statement: '{{ ''SHOW GRANTS OF ROLE "'' & $replace(vars.r.role, ''"'', ''""'') & ''"'' }}'
+              timeout: 60
+              role: "{{ $pvar('snowflake', 'role') }}"
+              warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+            saveAs: of
+          - id: grantees4
+            type: set
+            name: Users and roles the role is granted to
+            values:
+              failed: "{{ $exists(vars.of.error) ? vars.r.role : undefined }}"
+              grantees: >-
+                {{ (
+                  $r := vars.r;
+                  $cols := [vars.of.body.resultSetMetaData.rowType.name];
+                  $exists(vars.of.error) ? [] : [$map(vars.of.body.data, function($x) {(
+                    $o := $merge($map($cols, function($c, $i) { { $c: $x[$i] } }));
+                    {
+                      "database": $r.database,
+                      "path": $r.path,
+                      "privileges": $r.privileges,
+                      "role": $r.role,
+                      "grantedTo": $o.granted_to,
+                      "grantee": $o.grantee_name,
+                      "grantedBy": $o.granted_by,
+                      "createdOn": $o.created_on
+                    }
+                  )})]
+                ) }}
+      - id: next4
+        type: set
+        name: Roles nested deeper than four levels (listed, not followed)
+        values:
+          found: "{{ [vars.of4.results.grantees] }}"
+          edges: "{{ $append(vars.edges, vars.found) }}"
+          seen: "{{ $append(vars.seen, vars.todo.key) }}"
+          unreadable: "{{ $append(vars.unreadable, [vars.of4.results.failed[$ != null]]) }}"
+          stopped: "{{ $append(vars.stopped, [vars.found[grantedTo = 'ROLE' and grantee in $inputs.stopAtRoles].(database & ': ' & $join($append(path, grantee), ' ← '))]) }}"
+          todo: >-
+            {{ (
+              $new := [vars.found[grantedTo = 'ROLE' and $not(grantee in $inputs.stopAtRoles) and $not((database & '|' & grantee) in $vars.seen)]
+                .{ "key": database & '|' & grantee, "database": database, "role": grantee, "path": $append(path, grantee), "privileges": privileges }];
+              [$distinct($new.key).($k := $; $new[key = $k][0])]
+            ) }}
+  - id: readUsers
+    type: http
+    name: Users of the account (ACCOUNT_USAGE.USERS)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    onError: continue
+    body:
+      statement: >-
+        SELECT NAME, LOGIN_NAME, DISPLAY_NAME, EMAIL, TYPE, DISABLED,
+        TO_VARCHAR(LAST_SUCCESS_LOGIN, 'YYYY-MM-DD"T"HH24:MI:SS.FF3TZH:TZM') AS LAST_SUCCESS_LOGIN,
+        HAS_PASSWORD, HAS_MFA, EXT_AUTHN_DUO, HAS_RSA_PUBLIC_KEY, NAME RLIKE ? AS NAME_TECHNICAL
+        FROM SNOWFLAKE.ACCOUNT_USAGE.USERS WHERE DELETED_ON IS NULL
+      bindings:
+        "1": { type: TEXT, value: "{{ $string(inputs.technicalPattern) }}" }
+      timeout: 60
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: usersRead
+  - id: rows
+    type: set
+    name: One row per user and granted role
+    values:
+      notFollowed: "{{ [vars.todo.(database & ': ' & $join(path, ' ← '))] }}"
+      usersReadable: "{{ $not($exists(vars.usersRead.error)) }}"
+      rows: >-
+        {{ (
+          $cols := [vars.usersRead.body.resultSetMetaData.rowType.name];
+          $users := $exists(vars.usersRead.error) ? [] : [$map(vars.usersRead.body.data, function($x) { $merge($map($cols, function($c, $i) { { $c: $x[$i] } })) })];
+          $byName := $merge($users.{ NAME: $ });
+          $sfTime := function($v) { $v ? ($contains($v, '-') ? $ts($v) : $round($number($substringBefore($v & ' ', ' ')) * 1000)) : undefined };
+          [vars.edges[grantedTo = 'USER'].(
+            $u := $lookup($byName, grantee);
+            $last := $u.LAST_SUCCESS_LOGIN;
+            $type := $not($exists($u)) ? 'unknown'
+              : ($u.DISABLED = 'true' ? 'disabled'
+              : ($u.TYPE in ['SERVICE', 'LEGACY_SERVICE'] or $u.NAME_TECHNICAL = 'true' ? 'technical' : 'person'));
+            {
+              "key": database & '|' & role & '|' & grantee,
+              "database": database,
+              "privileges": privileges,
+              "dbRole": path[0],
+              "role": role,
+              "path": $join($append(path, grantee), ' ← '),
+              "user": grantee,
+              "name": $u.DISPLAY_NAME ? $u.DISPLAY_NAME : ($u.LOGIN_NAME ? $u.LOGIN_NAME : grantee),
+              "email": $u.EMAIL ? $u.EMAIL : '',
+              "type": $type,
+              "userType": $u.TYPE ? $u.TYPE : '–',
+              "lastLogin": $ts($last) ? $fromMillis($ts($last), '[Y0001]-[M01]-[D01]') : 'never',
+              "days": $ts($last) ? $daysSince($last) : null,
+              "signIn": $u.HAS_RSA_PUBLIC_KEY = 'true' and $u.HAS_PASSWORD != 'true' ? 'key pair'
+                : ($u.HAS_PASSWORD = 'true' ? ($u.HAS_MFA = 'true' or $u.EXT_AUTHN_DUO = 'true' ? 'password + MFA' : 'password, no MFA') : 'SSO / other'),
+              "granted": $sfTime(createdOn) ? $fromMillis($sfTime(createdOn), '[Y0001]-[M01]-[D01]') : '–',
+              "grantedBy": grantedBy
+            }
+          )]
+        ) }}
+      users: "{{ $count($distinct(vars.rows.user)) }}"
+  - id: problems
+    type: set
+    name: What could not be read
+    values:
+      problems: >-
+        {{ $append($append(
+          $count(vars.unreadable) ? ['SHOW GRANTS OF ROLE failed for ' & $join($distinct(vars.unreadable), ', ') & ' (MANAGE GRANTS or ownership of the role needed)'] : [],
+          $count(vars.notFollowed) ? ['nested deeper than four levels, not followed: ' & $join(vars.notFollowed, '; ')] : []),
+          vars.usersReadable ? [] : ['ACCOUNT_USAGE.USERS could not be read (IMPORTED PRIVILEGES on the SNOWFLAKE database and a warehouse needed) – no user details']) }}
+  - id: readable
+    type: check
+    name: Every role and the users could be read
+    severity: warning
+    condition: "$count(vars.problems) = 0"
+    message: "{{ $count(vars.problems) = 0 ? 'All roles and users could be read' : $join(vars.problems, '; ') }}"
+    headline: "{{ $count(vars.problems) }} part(s) of the review could not be read"
+    items: vars.problems
+  - id: attest
+    type: userTask
+    name: Who keeps the grant?
+    when: "$count(vars.rows) > 0"
+    mode: select
+    title: "Project access review: tick the {{ $count(vars.rows) }} grant(s) of {{ $join(vars.dbs, ', ') }} that stay"
+    instructions: |
+      Each row is a role granted to a user, with the path from the database role.
+      **Unticked** rows are revoked (`REVOKE ROLE … FROM USER …`) after a second person confirms.
+      People who signed in within the last {{ inputs.activeWithinDays }} days and technical users that are not disabled are preselected.
+      {{ $count(vars.stopped) ? 'Not followed (account administration, reviewed on their own): ' & $join($distinct(vars.stopped), '; ') : '' }}
+    items: vars.rows
+    itemKey: key
+    columns:
+      - { label: Database, value: database }
+      - { label: Path, value: path }
+      - { label: Name, value: "name & (email ? ' <' & email & '>' : '')" }
+      - { label: Type, value: type }
+      - { label: Last login, value: lastLogin }
+      - { label: Days, value: "days != null ? days : '–'" }
+      - { label: Sign-in, value: signIn }
+      - { label: Granted, value: granted }
+    preselect: "type = 'technical' or (type = 'person' and days != null and days <= $inputs.activeWithinDays)"
+    saveAs: attestation
+  - id: confirm
+    type: userTask
+    name: Confirm the revocations (four-eyes)
+    when: "$count(vars.attestation.unselected) > 0"
+    mode: approve
+    title: "Revoke {{ $count(vars.attestation.unselected) }} role grant(s) in Snowflake?"
+    instructions: |
+      Reviewed by {{ vars.attestation.decidedBy }}. A different person has to confirm.
+
+      {{ $join(vars.attestation.unselected.('- ' & user & ' (' & name & ', ' & type & ') – role ' & role & ' on ' & database), '\n') }}
+    assignees: [role:approver, role:admin]
+    fourEyes: true
+    onReject: continue
+    saveAs: removal
+  - id: statements
+    type: set
+    name: REVOKE statements
+    when: "vars.removal.approved = true"
+    values:
+      revokes: >-
+        {{ [$distinct(vars.attestation.unselected.(
+          'REVOKE ROLE "' & $replace(role, '"', '""') & '" FROM USER "' & $replace(user, '"', '""') & '";'
+        ))] }}
+  - id: revokeInSnowflake
+    type: userTask
+    mode: manual
+    name: Run the REVOKE statements in Snowflake
+    when: "vars.removal.approved = true"
+    title: "Revoke {{ $count(vars.revokes) }} role grant(s) in Snowflake"
+    instructions: |
+      Steward reads Snowflake only. Run these statements in a worksheet as a role with MANAGE GRANTS
+      (e.g. SECURITYADMIN), then check with `SHOW GRANTS OF ROLE` that the users are gone.
+
+      ```sql
+      {{ $join(vars.revokes, '\n') }}
+      ```
+
+      A second person verifies the result before the access changes are documented.
+    checklist:
+      - Statements run as a role with MANAGE GRANTS
+      - "SHOW GRANTS OF ROLE checked: the revoked users are gone"
+    checklistAllRequired: true
+    fields:
+      - id: ticket
+        type: ticket
+        label: Change ticket
+        hint: e.g. CHG0012345
+      - id: queryId
+        type: text
+        label: Query ID of the worksheet run (optional)
+    evidence: optional
+    verification:
+      required: true
+      onReject: return
+    saveAs: revoked
+  - id: documentRevoked
+    type: accessChange
+    name: Document the revoked grants
+    when: "vars.removal.approved = true and vars.revoked.completed = true"
+    connection: snowflake
+    kind: revoke
+    items: vars.attestation.unselected
+    subjectId: user
+    subjectName: "email ? email : name"
+    rights: "['role:' & role]"
+    reason: "Project access review of {{ $join(vars.dbs, ', ') }}: grant not attested"
+    requestRef: "{{ vars.revoked.fields.ticket ? vars.revoked.fields.ticket : '' }}"
+    approvedBy: "{{ vars.removal.decidedBy }}"
+  - id: publish
+    type: publish
+    name: Publish the review result
+    dataset: snowflake.project-access
+    title: Snowflake project access
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Database, value: database }
+      - { label: Database role, value: dbRole }
+      - { label: Privileges, value: privileges }
+      - { label: Path, value: path }
+      - { label: User, value: user }
+      - { label: Name, value: name }
+      - { label: E-mail, value: email }
+      - { label: Type, value: type }
+      - { label: Last login, value: lastLogin }
+      - { label: Days, value: "days != null ? days : '–'" }
+      - { label: Sign-in, value: signIn }
+      - label: Review
+        value: >-
+          key in $vars.attestation.selectedKeys ? 'kept'
+            : ($vars.removal.approved = true ? ($vars.revoked.completed = true ? 'revoked' : 'to revoke')
+            : ($exists($vars.attestation) ? 'revocation rejected' : 'not reviewed'))
+    status: >-
+      type = 'disabled' ? 'critical'
+        : (type = 'unknown' ? 'unknown'
+        : (type = 'person' and (days = null or days > $inputs.activeWithinDays) ? 'warning'
+        : (signIn = 'password, no MFA' ? 'warning' : 'good')))
+    statusText: >-
+      type = 'disabled' ? 'disabled user still holds ' & role
+        : (type = 'unknown' ? 'user details not readable'
+        : (type = 'person' and days = null ? 'never signed in'
+        : (type = 'person' and days > $inputs.activeWithinDays ? 'no login for ' & days & ' days'
+        : (signIn = 'password, no MFA' ? 'password without MFA' : ''))))
+    metrics:
+      grants: "$count(vars.rows)"
+      users: "vars.users"
+      people: "$count($distinct(vars.rows[type = 'person'].user))"
+      technical: "$count($distinct(vars.rows[type = 'technical'].user))"
+      disabled: "$count($distinct(vars.rows[type = 'disabled'].user))"
+      inactive: "$count($distinct(vars.rows[type = 'person' and (days = null or days > $inputs.activeWithinDays)].user))"
+      revoked: "vars.removal.approved = true and vars.revoked.completed = true ? $count(vars.attestation.unselected) : 0"
+    staleAfterMinutes: 264960
+  - id: summary
+    type: report
+    name: Summary
+    title: "Project access review: {{ $join(vars.dbs, ', ') }}"
+    text: |
+      - Database roles: **{{ vars.dbRoleCount }}**, grants to users: **{{ $count(vars.rows) }}** ({{ vars.users }} users)
+      - Kept: **{{ $count(vars.attestation.selected) }}**
+      - Revoked: **{{ vars.removal.approved = true and vars.revoked.completed = true ? $count(vars.attestation.unselected) : 0 }}**{{ vars.removal.approved = false ? ' (revocation rejected by ' & vars.removal.decidedBy & ')' : '' }}{{ vars.revoked.verifiedBy ? ' – verified by ' & vars.revoked.verifiedBy : '' }}
+      {{ $count(vars.stopped) ? '- Not followed (account administration): ' & $join($distinct(vars.stopped), '; ') : '' }}
+    rows: vars.rows
+    columns:
+      - { label: Path, value: path }
+      - { label: Type, value: type }
+      - { label: Last login, value: lastLogin }
+      - label: Result
+        value: "key in $vars.attestation.selectedKeys ? 'kept' : ($vars.removal.approved = true ? 'revoked' : 'kept (not confirmed)')"

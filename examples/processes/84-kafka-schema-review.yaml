@@ -1,4 +1,5 @@
-name: "Kafka – schema change review"
+# steward-min-version: 0.2.7
+name: "Kafka – Schema change review"
 description: |
   Reviews a schema change before it is registered: reads the current version
   of the subject from the Schema Registry, lets the registry check whether the
@@ -8,8 +9,8 @@ description: |
   that links this run. Steward does not register the schema – the team's
   pipeline does, after approval. Read-only on the registry.
 
-  Start it by hand when a team proposes a change, or from the CI pipeline
-  through a trigger. Monitors with the check type "Kafka topic" and an
+  Recommended schedule: none – start it by hand when a team proposes a change,
+  or from the CI pipeline through a trigger. Monitors with the check type "Kafka topic" and an
   expected schema version notice a version registered without review.
 tags: [kafka, schema, approval]
 connections:

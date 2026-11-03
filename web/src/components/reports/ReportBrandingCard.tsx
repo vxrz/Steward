@@ -14,11 +14,18 @@ import {
 import { useTranslation } from 'react-i18next';
 import { BRAND } from '../../../../shared/src/brand';
 import { api, getOptional, notifyError, notifyOk, put, apiUrl, authHeaders } from '../../api';
+import { useSaveSection } from '../settings/SaveBar';
 import { browserTimeZone, reportLangName } from './RunReports';
 import { withBase } from '../../basePath';
 import { fmtNumber } from '../../format';
 
 type Draft = Pick<ReportBranding, 'companyName' | 'accentColor' | 'classification' | 'footerNote'>;
+const stored = (b: ReportBranding): Draft => ({
+  companyName: b.companyName,
+  accentColor: b.accentColor,
+  classification: b.classification,
+  footerNote: b.footerNote,
+});
 
 /** Settings → Report branding (administrators): company name, logo, colour, classification, footer note. */
 export function ReportBrandingCard() {
@@ -29,14 +36,15 @@ export function ReportBrandingCard() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => {
-    if (branding.data)
-      setDraft({
-        companyName: branding.data.companyName,
-        accentColor: branding.data.accentColor,
-        classification: branding.data.classification,
-        footerNote: branding.data.footerNote,
-      });
+    if (branding.data) setDraft(stored(branding.data));
   }, [branding.data]);
+  const dirty = !!branding.data && !!draft && JSON.stringify(draft) !== JSON.stringify(stored(branding.data));
+  const inBar = useSaveSection('reportBranding', {
+    dirty,
+    valid: !!draft && /^#[0-9a-fA-F]{6}$/.test(draft.accentColor),
+    save: () => save(),
+    reset: () => branding.data && setDraft(stored(branding.data)),
+  });
   if (!branding.data || !draft) return null;
   const b = branding.data;
   const logoUrl = apiUrl(`/reports/branding/logo?v=${encodeURIComponent(b.logoUpdatedAt ?? 'default')}`);
@@ -183,9 +191,11 @@ export function ReportBrandingCard() {
           />
         </SimpleGrid>
         <Group>
-          <Button onClick={save} loading={busy === 'save'} disabled={!validColor}>
-            {t('branding.save')}
-          </Button>
+          {!inBar && (
+            <Button onClick={save} loading={busy === 'save'} disabled={!validColor}>
+              {t('branding.save')}
+            </Button>
+          )}
           <Button
             variant="subtle"
             color="gray"

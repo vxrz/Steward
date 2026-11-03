@@ -12,7 +12,7 @@ test('a status viewer sees only the status pages; the link works without signing
 
   const stella = await loginAs('stella');
   await stella.goto('/');
-  await expect(stella.getByRole('heading', { level: 2 })).toBeVisible();
+  await expect(stella.getByRole('heading', { level: 1 })).toBeVisible();
   await expect(stella.getByRole('button', { name: 'Sign out' })).toBeVisible();
   // no navigation, no other pages
   await expect(stella.getByRole('navigation')).toHaveCount(0);

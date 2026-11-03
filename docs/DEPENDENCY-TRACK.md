@@ -61,7 +61,7 @@ The check reads a project at most every 5 minutes. A typical use is the example 
 
 ## Dashboard
 
-The example process _Dependency-Track – vulnerabilities per project_ reads the whole portfolio (by default the latest version of each project) and publishes `dt.vulnerabilities` – one row per project with its open findings and policy violations, metrics `projects`, `critical`, `high`, `policyFail` – for the dashboard _Vulnerabilities_. Recommended schedule: every 6 hours.
+The example process _Dependency-Track – Vulnerabilities per project_ reads the whole portfolio (by default the latest version of each project) and publishes `dt.vulnerabilities` – one row per project with its open findings and policy violations, metrics `projects`, `critical`, `high`, `policyFail` – for the dashboard _Vulnerabilities_. Recommended schedule: every 6 hours.
 
 ## Demo
 

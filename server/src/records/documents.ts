@@ -477,7 +477,7 @@ const ATTENTION_ROLES = [...new Set([...RECORD_EDITOR_ROLES, ...RECORD_APPROVER_
  * the tile is for people who look after documents – editors, approvers, auditors, and whoever owns or
  * reviews a document; null for the rest (no tile).
  */
-export function reviewAttention(now = Date.now()): { overdue: number; dueSoon: number } | null {
+export function reviewAttention(now = Date.now()): { overdue: number; dueSoon: number; total: number } | null {
   const u = currentUser();
   if (!u) return null;
   // documents the user may see (#131)
@@ -494,12 +494,14 @@ export function reviewAttention(now = Date.now()): { overdue: number; dueSoon: n
   if (!broad && ![...states].some(([id, s]) => mine(s, id))) return null;
   let overdue = 0;
   let dueSoon = 0;
+  let total = 0;
   for (const [id, s] of states) {
     if (!broad && !mine(s, id)) continue;
+    total++;
     if (s.review.status === 'overdue') overdue++;
     else if (s.review.status === 'dueSoon') dueSoon++;
   }
-  return { overdue, dueSoon };
+  return { overdue, dueSoon, total };
 }
 
 /** Documents whose review is due soon or overdue and that the user reviews (review owner, else owner). */

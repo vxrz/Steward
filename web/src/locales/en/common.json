@@ -10,6 +10,8 @@
     "running": "running",
     "waiting": "waiting",
     "succeeded": "succeeded",
+    "findings": "completed with findings",
+    "finding": "finding",
     "failed": "failed",
     "cancelled": "cancelled",
     "interrupted": "interrupted",
@@ -68,6 +70,13 @@
   },
   "cancel": "Cancel",
   "save": "Save",
+  "saveBar": {
+    "label": "Save changes",
+    "unsaved": "Unsaved changes",
+    "invalid": "Unsaved changes – correct the marked fields to save them",
+    "saved": "No unsaved changes",
+    "reset": "Reset"
+  },
   "delete": "Delete",
   "close": "Close",
   "edit": "Edit",
@@ -166,5 +175,9 @@
     "clear": "Clear the tag filter {{tag}}",
     "anyValue": "any {{key}}",
     "noMatch": "Nothing matches the tag filter."
+  },
+  "cron": {
+    "next": "Next: {{dates}}",
+    "use": "Use"
   }
 }

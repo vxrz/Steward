@@ -10,7 +10,7 @@ const SECRETS = ['demo-secret', 'demo-password'];
 test('platform: test connection, API explorer, credentials stay hidden', async ({ page, apiAs }) => {
   await page.goto('/platforms');
   await page.getByText('Insights Hub (demo)', { exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Insights Hub (demo)', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Insights Hub (demo)', level: 1 })).toBeVisible();
 
   await page.getByRole('button', { name: 'Test connection' }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'Connection works' })).toContainText('HTTP 200');
@@ -35,6 +35,16 @@ test('platform: test connection, API explorer, credentials stay hidden', async (
 
   const html = await page.content();
   for (const s of SECRETS) expect(html).not.toContain(s);
+
+  // the list shows the latest test, the sign-in kind in normal case, and filters by name
+  await page.goto('/platforms');
+  await page.getByRole('textbox', { name: 'Search platforms' }).fill('insights hub (demo)');
+  const card = page.locator('.mantine-Card-root').filter({ hasText: 'Insights Hub (demo)' });
+  await expect(page.locator('.mantine-Card-root')).toHaveCount(1);
+  await expect(card.getByTestId('platform-last-test')).toContainText(/^Last test OK /);
+  await expect(card.getByText('OAuth2 client credentials', { exact: true })).toHaveCSS('text-transform', 'none');
+  await page.getByRole('textbox', { name: 'Search platforms' }).fill('zzz-no-such-platform');
+  await expect(page.getByText('No platform matches the filter.')).toBeVisible();
 
   // the API never returns secret values either
   const api = await apiAs('admin');
@@ -154,4 +164,38 @@ test('access: a team or role picked from the list can be added', async ({ page, 
   await expect(add).toBeEnabled();
   await add.click();
   await expect(page.getByRole('table').getByText('Everyone with role operator', { exact: true })).toBeVisible();
+});
+
+test('credentials that authentication "none" does not send: the new dialog picks the type, the settings warn and switch', async ({ page, apiAs }) => {
+  // the add dialog: a token filled in on the Prometheus preset (authentication "none") picks bearer
+  await page.goto('/platforms');
+  await page.getByRole('button', { name: 'Add platform' }).click();
+  await page.getByText('Prometheus (PromQL)', { exact: true }).click();
+  const auth = page.getByTestId('add-platform-auth');
+  await expect(auth).toHaveValue('No auth');
+  await page.getByLabel('Bearer token', { exact: true }).fill('a-prometheus-token');
+  await expect(auth).toHaveValue('Bearer token');
+  await page.keyboard.press('Escape');
+
+  // an existing platform with a password but authentication "none"
+  const api = await apiAs('admin');
+  const name = uniq('Prometheus trap');
+  const p = await json<{ id: string }>(
+    await api.post('/api/platforms', {
+      data: {
+        name,
+        kind: 'prometheus',
+        baseUrl: 'https://prometheus.example.com',
+        config: { auth: { type: 'none' } },
+        secrets: { username: 'u', password: 'p-secret-1' },
+      },
+    }),
+  );
+  await page.goto(`/platforms/${p.id}`);
+  const warning = page.getByTestId('platform-unsent-credentials');
+  await expect(warning).toContainText('credentials are stored (username, password): they are not sent');
+  await warning.getByRole('button', { name: 'Switch to “Basic auth (username / password)”' }).click();
+  await expect(warning).toBeHidden();
+  await expect(page.getByRole('combobox', { name: 'Type' })).toHaveValue('Basic auth (username / password)');
+  await api.delete(`/api/platforms/${p.id}`);
 });

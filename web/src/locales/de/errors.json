@@ -326,7 +326,7 @@
     "SECRET_KIND_random": "ein langes zufälliges Token (es sieht nach einem Schlüssel oder Passwort aus)",
     "SESSION_REQUIRED": "Diese Aktion erfordert eine Anmeldung im Browser – mit API-Tokens ist sie nicht möglich.",
     "FORBIDDEN_manageGitSync": "Nur Administratoren verwalten Git-Quellen.",
-    "FORBIDDEN_reviewGitUpdates": "Nur Designer und Administratoren prüfen Änderungen aus Git.",
+    "FORBIDDEN_reviewGitUpdates": "Nur Designer und Administratoren prüfen Änderungen der Git-Synchronisierung.",
     "FORBIDDEN_decideGitUpdate": "Sie dürfen diese Änderung nicht entscheiden: Dafür ist das Recht nötig, dieses Element anzulegen oder zu ändern.",
     "FORBIDDEN_editProcess": "Sie dürfen diesen Prozess nicht bearbeiten.",
     "FORBIDDEN_createProcess": "Sie dürfen keine Prozesse anlegen.",
@@ -729,7 +729,10 @@
     "PDF_TIMEOUT": "Das Erstellen des PDFs dauerte länger als {{seconds}} s und wurde abgebrochen – kürzen Sie sehr langen Text, vor allem lange Wörter ohne Leerzeichen.",
     "PDF_BUSY": "Steward erstellt gerade andere PDFs – versuchen Sie es gleich noch einmal.",
     "PDF_TOO_LARGE": "Das PDF brauchte mehr als {{mb}} MB Speicher und wurde abgebrochen – kürzen Sie das Dokument.",
-    "PDF_FAILED": "Das Erstellen des PDFs ist fehlgeschlagen – versuchen Sie es erneut, oder bitten Sie einen Administrator, das Server-Log zu prüfen."
+    "PDF_FAILED": "Das Erstellen des PDFs ist fehlgeschlagen – versuchen Sie es erneut, oder bitten Sie einen Administrator, das Server-Log zu prüfen.",
+    "INTERNAL_ERROR": "Etwas ist schiefgelaufen (Referenz {{requestId}}). Bitte versuchen Sie es erneut; wenn es wieder auftritt, nennen Sie Ihrer Administration die Referenz.",
+    "CRON_DAY_OR": "Tag im Monat und Wochentag sind beide gesetzt: Der Zeitplan läuft an jedem Tag, an dem einer der beiden passt – nicht nur, wenn beide passen. Für den n-ten Wochentag eines Monats verwenden Sie die #-Schreibweise, z. B. 0 6 * * 1#1 (der erste Montag).",
+    "CRON_DAY_OR_suggestion": "Tag im Monat und Wochentag sind beide gesetzt: Der Zeitplan läuft an jedem Tag, an dem einer der beiden passt – nicht nur, wenn beide passen. Für den n-ten Wochentag eines Monats verwenden Sie {{suggestion}}."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

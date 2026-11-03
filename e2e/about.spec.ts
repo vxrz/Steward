@@ -15,7 +15,7 @@ test.describe('About page', () => {
     await page.getByRole('button', { name: 'User menu' }).click();
     await page.getByRole('menuitem', { name: `About ${BRAND.name}` }).click();
     await expect(page).toHaveURL(/\/about$/);
-    await expect(page.getByRole('heading', { name: `About ${BRAND.name}`, level: 2 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: `About ${BRAND.name}`, level: 1 })).toBeVisible();
     await expect(page.getByTestId('version-web')).toHaveText(VERSION);
     await expect(page.getByTestId('version-server')).toHaveText(VERSION);
     await expect(page.getByText('A newer version is running')).toHaveCount(0);
@@ -51,7 +51,7 @@ test.describe('System status', () => {
     await page.goto('/settings');
     await page.getByRole('link', { name: 'System status' }).click();
     await expect(page).toHaveURL(/\/settings\/status$/);
-    await expect(page.getByRole('heading', { name: 'System status', level: 2 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'System status', level: 1 })).toBeVisible();
     await expect(page.getByTestId('readiness')).toHaveText('ready');
     await expect(page.getByText(/\/api\/health$/)).toBeVisible();
     await expect(page.getByRole('button', { name: new RegExp(`^Copy http://127\\.0\\.0\\.1:\\d+${appHref('/api/ready')}$`) })).toBeVisible();

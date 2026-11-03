@@ -16,6 +16,7 @@ import {
   Tooltip,
   UnstyledButton,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import {
   IconAlertTriangle,
@@ -43,21 +44,21 @@ import {
   type MetricSeries,
   type RunDetail,
   type RunSummary,
-  type Schedule,
   type Trend,
   sumSeries,
 } from '@sm/shared';
 import type { TFunction } from 'i18next';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { get } from '../../api';
-import { errorText } from '../../i18n/errors';
 import { severityLabel } from '../common';
 import { fmtRelative } from '../../format';
 import { Markdown } from '../common';
 import { StatusBar, StatusTable, Sparkline, TrendChart, TrendTable } from './charts';
-import { useDashboardCtx, useDataset, useDatasetMetas, useMetrics, isNotFound, useScope, scopeMeta, perSource } from './data';
+import { useDashboardCtx, useDataset, useDatasetMetas, useMetrics, useScope, scopeMeta, perSource } from './data';
 import { compact, dateTime, download, toCsv } from './format';
+import { NoData } from './NoData';
 import { SEVERITY_RANK, STATUS_META, StatusLabel, asStatus } from './status';
+import { SourceFreshness, intervalText, staleRuleText } from './freshness';
 
 // ---------------------------------------------------------------------------
 // Card wrapper
@@ -131,30 +132,6 @@ function WidgetCard({
   );
 }
 
-function NoData({ dataset, error }: { dataset?: string; error?: unknown }) {
-  const { t } = useTranslation(['dashboards', 'common', 'editor']);
-  if (!dataset)
-    return (
-      <Text size="sm" c="dimmed">
-        {t('w.chooseDataset')}
-      </Text>
-    );
-  return (
-    <Stack gap={4}>
-      <Text size="sm" c="dimmed">
-        {isNotFound(error) || !error ? (
-          <Trans t={t} i18nKey="w.noData" values={{ dataset, node: t('editor:steps.publish.label') }} components={{ c: <span className="mono" /> }} />
-        ) : (
-          errorText(error)
-        )}
-      </Text>
-      <Anchor component={Link} to="/processes" size="xs">
-        {t('w.goToProcesses')}
-      </Anchor>
-    </Stack>
-  );
-}
-
 function Freshness({ meta }: { meta?: DatasetMeta }) {
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
   if (!meta) return null;
@@ -184,10 +161,10 @@ function Freshness({ meta }: { meta?: DatasetMeta }) {
   );
 }
 
-/** "Tenant EU: expected every 10 min · last 25 min ago" (#142) */
+/** "Tenant EU: hourly · last 25 min ago · stale after 2 h 30 min (…)" (#142) */
 function sourceAge(t: TFunction<['dashboards', 'common', 'editor']>, s: DatasetSource): string {
   const last = t('w.last', { when: fmtRelative(s.updatedAt) });
-  return `${s.name}: ${s.expectedMinutes ? `${t('w.expectedEvery', { count: s.expectedMinutes })} · ` : ''}${last}`;
+  return `${s.name}: ${s.expectedMinutes ? `${intervalText(t, s.expectedMinutes)} · ` : ''}${last} · ${staleRuleText(t, s)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -449,6 +426,8 @@ function TableWidget({ w }: { w: DashboardWidget }) {
   const [problems, setProblems] = useState(!!w.problemsOnly);
   const [sort, setSort] = useState<Sort>({ col: '_status', dir: 1 });
   const [limit, setLimit] = useState(w.limit ?? 50);
+  // phones: one card per row instead of a table that scrolls sideways (as the runs list)
+  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const d = ds.data;
   const cols = useMemo(() => (w.columns?.length ? w.columns.filter((c) => d?.columns.includes(c)) : (d?.columns ?? [])), [w.columns, d]);
   const hasStatus = !!d?.rows.some((r) => r._status);
@@ -570,52 +549,63 @@ function TableWidget({ w }: { w: DashboardWidget }) {
           {t('w.rowsOf', { shown: rows.length, total: d.rowCount })}
         </Text>
       </Group>
-      <div className="table-scroll" tabIndex={0} role="region" aria-label={typeof title === 'string' ? title : t('w.table')}>
-        <Table fz="sm" striped highlightOnHover verticalSpacing={4} miw={(hasStatus ? 130 : 0) + (multi ? 140 : 0) + cols.length * 140}>
-          <Table.Thead>
-            <Table.Tr>
-              {multi && header('_source', t('datasets.sourcePlatform'))}
-              {hasStatus && header('_status', t('datasets.status'))}
-              {cols.map((c) => header(c, c, numeric(c)))}
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows.slice(0, limit).map((r, i) => (
-              <Table.Tr key={`${r._source?.platformId ?? ''}:${r._key ?? i}`}>
-                {multi && (
-                  <Table.Td className="nowrap">
-                    <Text size="xs">{r._source?.platform}</Text>
-                  </Table.Td>
-                )}
-                {hasStatus && (
-                  <Table.Td className="nowrap">
-                    <StatusLabel status={asStatus(r._status)} text={r._statusText || undefined} size="xs" />
-                  </Table.Td>
-                )}
-                {cols.map((c) => (
-                  <Table.Td
-                    key={c}
-                    ta={numeric(c) ? 'right' : undefined}
-                    className={numeric(c) ? 'viz-num' : undefined}
-                    style={{ maxWidth: 360, overflowWrap: 'break-word' }}
-                  >
-                    {typeof r[c] === 'boolean' ? (r[c] ? t('common:yes') : t('common:no')) : cellText(r[c])}
-                  </Table.Td>
-                ))}
-              </Table.Tr>
-            ))}
-            {rows.length === 0 && (
+      {narrow ? (
+        <TableCards
+          rows={rows.slice(0, limit)}
+          cols={cols}
+          hasStatus={hasStatus}
+          multi={multi}
+          label={typeof title === 'string' ? title : t('w.table')}
+          empty={problems || filterStatus ? t('w.allGood') : t('w.noRows')}
+        />
+      ) : (
+        <div className="table-scroll" tabIndex={0} role="region" aria-label={typeof title === 'string' ? title : t('w.table')}>
+          <Table fz="sm" striped highlightOnHover verticalSpacing={4} miw={(hasStatus ? 130 : 0) + (multi ? 140 : 0) + cols.length * 140}>
+            <Table.Thead>
               <Table.Tr>
-                <Table.Td colSpan={cols.length + (hasStatus ? 1 : 0) + (multi ? 1 : 0)}>
-                  <Text size="sm" c="dimmed">
-                    {problems || filterStatus ? t('w.allGood') : t('w.noRows')}
-                  </Text>
-                </Table.Td>
+                {multi && header('_source', t('datasets.sourcePlatform'))}
+                {hasStatus && header('_status', t('datasets.status'))}
+                {cols.map((c) => header(c, c, numeric(c)))}
               </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
-      </div>
+            </Table.Thead>
+            <Table.Tbody>
+              {rows.slice(0, limit).map((r, i) => (
+                <Table.Tr key={`${r._source?.platformId ?? ''}:${r._key ?? i}`}>
+                  {multi && (
+                    <Table.Td className="nowrap">
+                      <Text size="xs">{r._source?.platform}</Text>
+                    </Table.Td>
+                  )}
+                  {hasStatus && (
+                    <Table.Td className="nowrap">
+                      <StatusLabel status={asStatus(r._status)} text={r._statusText || undefined} size="xs" />
+                    </Table.Td>
+                  )}
+                  {cols.map((c) => (
+                    <Table.Td
+                      key={c}
+                      ta={numeric(c) ? 'right' : undefined}
+                      className={numeric(c) ? 'viz-num' : undefined}
+                      style={{ maxWidth: 360, overflowWrap: 'break-word' }}
+                    >
+                      {typeof r[c] === 'boolean' ? (r[c] ? t('common:yes') : t('common:no')) : cellText(r[c])}
+                    </Table.Td>
+                  ))}
+                </Table.Tr>
+              ))}
+              {rows.length === 0 && (
+                <Table.Tr>
+                  <Table.Td colSpan={cols.length + (hasStatus ? 1 : 0) + (multi ? 1 : 0)}>
+                    <Text size="sm" c="dimmed">
+                      {problems || filterStatus ? t('w.allGood') : t('w.noRows')}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              )}
+            </Table.Tbody>
+          </Table>
+        </div>
+      )}
       {rows.length > limit && (
         <Group justify="center" mt={6}>
           <Button size="compact-xs" variant="subtle" onClick={() => setLimit((l) => l + 50)}>
@@ -624,6 +614,63 @@ function TableWidget({ w }: { w: DashboardWidget }) {
         </Group>
       )}
     </WidgetCard>
+  );
+}
+
+/**
+ * The table widget on a phone: one card per row, the identifying (first) column as its title and the status
+ * beside it, the other columns as "name: value" lines and the source last – nothing is cut off at the edge.
+ */
+function TableCards({
+  rows,
+  cols,
+  hasStatus,
+  multi,
+  label,
+  empty,
+}: {
+  rows: DatasetRow[];
+  cols: string[];
+  hasStatus: boolean;
+  multi: boolean;
+  label: string;
+  empty: string;
+}) {
+  const { t } = useTranslation(['dashboards', 'common']);
+  const value = (v: unknown) => (typeof v === 'boolean' ? (v ? t('common:yes') : t('common:no')) : cellText(v));
+  if (!rows.length)
+    return (
+      <Text size="sm" c="dimmed">
+        {empty}
+      </Text>
+    );
+  const [first, ...rest] = cols;
+  return (
+    <Stack gap={6} role="list" aria-label={label} data-testid="table-cards">
+      {rows.map((r, i) => (
+        <Paper key={`${r._source?.platformId ?? ''}:${r._key ?? i}`} withBorder p="xs" role="listitem">
+          <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
+            <Text size="sm" fw={600} style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+              {first ? value(r[first]) || '–' : ''}
+            </Text>
+            {hasStatus && <StatusLabel status={asStatus(r._status)} text={r._statusText || undefined} size="xs" />}
+          </Group>
+          {rest.map((c) => (
+            <Text key={c} size="xs" style={{ overflowWrap: 'anywhere' }}>
+              <Text span c="dimmed" size="xs">
+                {c}:
+              </Text>{' '}
+              {value(r[c]) || '–'}
+            </Text>
+          ))}
+          {multi && (
+            <Text size="xs" c="dimmed">
+              {t('datasets.sourcePlatform')}: {r._source?.platform}
+            </Text>
+          )}
+        </Paper>
+      ))}
+    </Stack>
   );
 }
 
@@ -713,109 +760,60 @@ function ChecksWidget({ w }: { w: DashboardWidget }) {
 function FreshnessWidget({ w, datasets }: { w: DashboardWidget; datasets: string[] }) {
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const metas = useDatasetMetas();
-  const schedules = useQuery({ queryKey: ['schedules'], queryFn: () => get<Schedule[]>('/schedules') });
-  const nextRun = (processId: string) =>
-    (schedules.data ?? [])
-      .filter((s) => s.enabled && s.processId === processId && s.nextRunAt)
-      .map((s) => s.nextRunAt!)
-      .sort()[0];
+  const scope = useScope(w);
   return (
     <WidgetCard title={w.title || t('widgets.freshness.label')} fetching={metas.isFetching}>
-      <div className="table-scroll" tabIndex={0} role="region" aria-label={w.title || t('widgets.freshness.label')}>
-        <Table fz="sm" verticalSpacing={4} miw={520}>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t('datasets.dataset')}</Table.Th>
-              <Table.Th>{t('datasets.updated')}</Table.Th>
-              <Table.Th>{t('datasets.source')}</Table.Th>
-              <Table.Th>{t('w.nextRefresh')}</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {datasets.map((key) => {
-              const m = metas.data?.find((x) => x.key === key);
-              const next = m ? nextRun(m.processId) : undefined;
-              return (
-                <Table.Tr key={key}>
-                  <Table.Td>
-                    <Text size="sm">{m?.title ?? key}</Text>
-                    <Text size="xs" c="dimmed" className="mono">
+      <Stack gap="sm" role="list" aria-label={w.title || t('widgets.freshness.label')}>
+        {datasets.map((key) => {
+          const m = scopeMeta(
+            metas.data?.find((x) => x.key === key),
+            scope,
+          );
+          const sources = m?.sources ?? [];
+          return (
+            <Stack key={key} gap={4} role="listitem" data-testid="dataset-freshness" data-dataset={key}>
+              <Group justify="space-between" align="flex-start" gap="xs" wrap="wrap">
+                <div style={{ minWidth: 0 }}>
+                  <Text size="sm" fw={600} style={{ overflowWrap: 'anywhere' }}>
+                    {m?.title ?? key}
+                  </Text>
+                  {m?.title && m.title !== key && (
+                    <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
                       {key}
                     </Text>
-                  </Table.Td>
-                  <Table.Td className="nowrap">
-                    {m ? (
-                      <Stack gap={2}>
-                        {(m.sources?.length ?? 0) > 1 ? (
-                          (m.sources ?? []).map((src) => (
-                            <Tooltip key={src.id} label={dateTime(src.updatedAt)}>
-                              <Text size="xs" c={src.stale ? 'yellow.8' : undefined} data-testid="source-freshness">
-                                {sourceAge(t, src)}
-                                {src.stale ? ` · ${t('datasets.stale')}` : ''}
-                              </Text>
-                            </Tooltip>
-                          ))
-                        ) : (
-                          <Tooltip label={dateTime(m.updatedAt)}>
-                            <Text size="sm">
-                              {fmtRelative(m.updatedAt)}
-                              {m.sources?.[0]?.expectedMinutes ? ` · ${t('w.expectedEvery', { count: m.sources[0].expectedMinutes })}` : ''}
-                            </Text>
-                          </Tooltip>
-                        )}
-                        <Group gap={4}>
-                          {m.stale && (
-                            <Badge size="xs" color="yellow" variant="light" leftSection={<IconAlertTriangle size={10} />}>
-                              {t('datasets.stale')}
-                            </Badge>
-                          )}
-                          {m.dryRun && (
-                            <Badge size="xs" color="gray" variant="light" leftSection={<IconFlask size={10} />}>
-                              {t('common:status.dryrun')}
-                            </Badge>
-                          )}
-                        </Group>
-                      </Stack>
-                    ) : (
-                      <Text size="sm" c="dimmed">
-                        {t('w.noDataShort')}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    {m ? (
-                      <Stack gap={0}>
-                        <Anchor component={Link} to={`/processes/${m.processId}`} size="sm">
-                          {m.processName}
-                        </Anchor>
-                        <Anchor component={Link} to={`/runs/${m.runId}`} size="xs" c="dimmed">
-                          {t('w.run')}
-                        </Anchor>
-                      </Stack>
-                    ) : (
-                      '–'
-                    )}
-                  </Table.Td>
-                  <Table.Td className="nowrap">
-                    <Text size="sm" c={next ? undefined : 'dimmed'}>
-                      {next ? fmtRelative(next) : t('w.notScheduled')}
-                    </Text>
-                  </Table.Td>
-                </Table.Tr>
-              );
-            })}
-            {datasets.length === 0 && (
-              <Table.Tr>
-                <Table.Td colSpan={4}>
-                  <Text size="sm" c="dimmed">
-                    {t('w.noDatasets')}
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
-      </div>
+                  )}
+                </div>
+                {m && (
+                  <Group gap={8} wrap="wrap">
+                    <Anchor component={Link} to={`/processes/${m.processId}`} size="xs">
+                      {m.processName}
+                    </Anchor>
+                    <Anchor component={Link} to={`/runs/${m.runId}`} size="xs" c="dimmed">
+                      {t('w.run')}
+                    </Anchor>
+                  </Group>
+                )}
+              </Group>
+              {!m || sources.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  {t('w.noDataShort')}
+                </Text>
+              ) : (
+                <Stack gap={6} pl="xs" style={{ borderLeft: '2px solid var(--viz-gridline, var(--mantine-color-default-border))' }}>
+                  {sources.map((src) => (
+                    <SourceFreshness key={src.id} source={src} showName={sources.length > 1 || src.id !== 'instance'} />
+                  ))}
+                </Stack>
+              )}
+            </Stack>
+          );
+        })}
+        {datasets.length === 0 && (
+          <Text size="sm" c="dimmed">
+            {t('w.noDatasets')}
+          </Text>
+        )}
+      </Stack>
     </WidgetCard>
   );
 }

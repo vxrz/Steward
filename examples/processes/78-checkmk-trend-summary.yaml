@@ -1,4 +1,5 @@
-name: "CheckMk – trend summary"
+# steward-min-version: 0.2.6
+name: "CheckMk – Trend summary"
 description: |
   Follows slow signals that CheckMk itself does not decide on: reads the metric
   history of the chosen hosts and services from CheckMk (REST API 1.0,
@@ -14,7 +15,7 @@ description: |
   on change" in the schedule's notification policy they are sent once, with a
   reminder while they last.
 
-  Recommended: a daily schedule at 07:00 (`0 7 * * *`) as the morning summary
+  Recommended schedule: daily at 07:00 (`0 7 * * *`) as the morning summary
   – route "Process failed checks" to Teams – and a report schedule for the PDF
   as evidence. Publishes `checkmk.trends` (one row per series; metrics series,
   crossed, trending) for the "CheckMk trends" dashboard; set the dataset's
@@ -125,6 +126,7 @@ steps:
       series: "$count(vars.rows)"
       crossed: "$count(vars.crossed)"
       trending: "$count(vars.trending)"
+    staleAfterMinutes: 2880
   - id: noneCrossed
     type: check
     name: No WARN or CRIT level crossed

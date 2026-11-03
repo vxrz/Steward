@@ -319,6 +319,20 @@
                       "interrupted"
                     ]
                   },
+                  "outcome": {
+                    "type": "string",
+                    "enum": [
+                      "queued",
+                      "running",
+                      "waiting",
+                      "succeeded",
+                      "failed",
+                      "cancelled",
+                      "interrupted",
+                      "findings"
+                    ],
+                    "description": "`findings`: it succeeded, but check steps failed; otherwise the status"
+                  },
                   "startedAt": {
                     "type": "string",
                     "format": "date-time",
@@ -418,6 +432,20 @@
                       "cancelled",
                       "interrupted"
                     ]
+                  },
+                  "outcome": {
+                    "type": "string",
+                    "enum": [
+                      "queued",
+                      "running",
+                      "waiting",
+                      "succeeded",
+                      "failed",
+                      "cancelled",
+                      "interrupted",
+                      "findings"
+                    ],
+                    "description": "`findings`: it succeeded, but check steps failed; otherwise the status"
                   },
                   "startedAt": {
                     "type": "string",
@@ -664,6 +692,45 @@
               "openTasks"
             ],
             "additionalProperties": false
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "interrupted",
+              "findings"
+            ],
+            "description": "What the run came to, apart from whether it executed: `findings` = it succeeded (status `succeeded`) but check steps failed; otherwise the status. Derived – `status` keeps its meaning"
+          },
+          "findings": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "error": {
+                "type": "integer"
+              },
+              "warning": {
+                "type": "integer"
+              },
+              "info": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "error",
+              "warning",
+              "info"
+            ],
+            "additionalProperties": false,
+            "description": "Failed check steps (\"findings\") by the check's severity"
           }
         },
         "required": [
@@ -682,7 +749,9 @@
           "startedAt",
           "finishedAt",
           "error",
-          "stats"
+          "stats",
+          "outcome",
+          "findings"
         ],
         "additionalProperties": false,
         "examples": [
@@ -709,6 +778,13 @@
               "checksPassed": 5,
               "checksFailed": 0,
               "openTasks": 0
+            },
+            "outcome": "succeeded",
+            "findings": {
+              "total": 0,
+              "error": 0,
+              "warning": 0,
+              "info": 0
             }
           }
         ]
@@ -843,6 +919,45 @@
               "openTasks"
             ],
             "additionalProperties": false
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "interrupted",
+              "findings"
+            ],
+            "description": "What the run came to, apart from whether it executed: `findings` = it succeeded (status `succeeded`) but check steps failed; otherwise the status. Derived – `status` keeps its meaning"
+          },
+          "findings": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "error": {
+                "type": "integer"
+              },
+              "warning": {
+                "type": "integer"
+              },
+              "info": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "error",
+              "warning",
+              "info"
+            ],
+            "additionalProperties": false,
+            "description": "Failed check steps (\"findings\") by the check's severity"
           },
           "inputs": {
             "type": "object",
@@ -1207,6 +1322,8 @@
           "finishedAt",
           "error",
           "stats",
+          "outcome",
+          "findings",
           "inputs",
           "bindings",
           "definitionHash",
@@ -2629,7 +2746,16 @@
                 },
                 "staleAfterMinutes": {
                   "type": "integer",
-                  "description": "The step setting, else 2.5 × the schedule interval (at least 15), else 24 h"
+                  "description": "A run started by a schedule: 2.5 × the schedule interval (at least 15); a run without one: the publish step setting, else 24 h (see staleReason)"
+                },
+                "staleReason": {
+                  "type": "string",
+                  "enum": [
+                    "schedule",
+                    "fixed",
+                    "default"
+                  ],
+                  "description": "Where staleAfterMinutes comes from: the schedule interval, the publish step setting, or the 24-hour default"
                 },
                 "expectedMinutes": {
                   "anyOf": [
@@ -2640,7 +2766,20 @@
                       "type": "null"
                     }
                   ],
-                  "description": "Interval of the schedule that feeds it"
+                  "description": "Interval of the schedule that feeds it (its current cron)"
+                },
+                "nextRunAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Next run of the schedule that feeds it; null when not scheduled (no schedule, disabled or deleted)"
                 },
                 "stale": {
                   "type": "boolean"
@@ -2656,7 +2795,9 @@
                 "rowCount",
                 "metrics",
                 "staleAfterMinutes",
+                "staleReason",
                 "expectedMinutes",
+                "nextRunAt",
                 "stale"
               ],
               "additionalProperties": false

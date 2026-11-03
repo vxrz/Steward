@@ -18,6 +18,7 @@ import {
   PROCESS_PERMISSIONS,
   QUERY_LIST_MAX,
   ROLES,
+  type RunOutcome,
   type RunStatus,
   type RunSummary,
   type StepStatus,
@@ -32,6 +33,7 @@ import { DUTY_COMPONENTS } from '../../duties/api-schemas.js';
 import { SCORECARD_COMPONENTS } from '../../scorecard/api-schemas.js';
 
 export const RUN_STATUSES = ['queued', 'running', 'waiting', 'succeeded', 'failed', 'cancelled', 'interrupted'] as const satisfies readonly RunStatus[];
+export const RUN_OUTCOMES = [...RUN_STATUSES, 'findings'] as const satisfies readonly RunOutcome[];
 export const RUN_TRIGGERS = ['manual', 'schedule', 'resume', 'subprocess', 'webhook', 'monitor'] as const satisfies readonly RunSummary['trigger'][];
 export const STEP_STATUSES = ['running', 'succeeded', 'failed', 'skipped', 'waiting', 'dryrun'] as const satisfies readonly StepStatus[];
 export const TASK_STATUSES = ['open', 'completed', 'cancelled'] as const;
@@ -93,7 +95,14 @@ export const Me = z.object({
   apiVersion: z.string(),
 });
 
-const LastRun = z.object({ id: z.string(), status: z.enum(RUN_STATUSES), startedAt: ts() }).nullable();
+const LastRun = z
+  .object({
+    id: z.string(),
+    status: z.enum(RUN_STATUSES),
+    outcome: z.enum(RUN_OUTCOMES).optional().describe('`findings`: it succeeded, but check steps failed; otherwise the status'),
+    startedAt: ts(),
+  })
+  .nullable();
 
 export const Process = z.object({
   id: z.string(),
@@ -152,6 +161,19 @@ export const Run = z.object({
   finishedAt: nullableTs('Null while the run is not finished'),
   error: z.string().nullable(),
   stats: RunStats,
+  outcome: z
+    .enum(RUN_OUTCOMES)
+    .describe(
+      'What the run came to, apart from whether it executed: `findings` = it succeeded (status `succeeded`) but check steps failed; otherwise the status. Derived – `status` keeps its meaning',
+    ),
+  findings: z
+    .object({
+      total: z.number().int(),
+      error: z.number().int(),
+      warning: z.number().int(),
+      info: z.number().int(),
+    })
+    .describe('Failed check steps ("findings") by the check\'s severity'),
 });
 
 const RunChild = z.object({
@@ -430,8 +452,17 @@ export const Dataset = z.object({
         updatedAt: ts(),
         rowCount: z.number().int(),
         metrics: z.record(z.string(), z.number()),
-        staleAfterMinutes: z.number().int().describe('The step setting, else 2.5 × the schedule interval (at least 15), else 24 h'),
-        expectedMinutes: z.number().int().nullable().describe('Interval of the schedule that feeds it'),
+        staleAfterMinutes: z
+          .number()
+          .int()
+          .describe(
+            'A run started by a schedule: 2.5 × the schedule interval (at least 15); a run without one: the publish step setting, else 24 h (see staleReason)',
+          ),
+        staleReason: z
+          .enum(['schedule', 'fixed', 'default'])
+          .describe('Where staleAfterMinutes comes from: the schedule interval, the publish step setting, or the 24-hour default'),
+        expectedMinutes: z.number().int().nullable().describe('Interval of the schedule that feeds it (its current cron)'),
+        nextRunAt: ts().nullable().describe('Next run of the schedule that feeds it; null when not scheduled (no schedule, disabled or deleted)'),
         stale: z.boolean(),
       }),
     )
@@ -598,6 +629,8 @@ const EXAMPLES: Record<string, unknown> = {
     finishedAt: '2026-10-22T06:00:04.871Z',
     error: null,
     stats: { steps: 12, failedSteps: 0, writes: 0, skippedWrites: 0, checksPassed: 5, checksFailed: 0, openTasks: 0 },
+    outcome: 'succeeded',
+    findings: { total: 0, error: 0, warning: 0, info: 0 },
   },
   Platform: {
     id: 'pf_2bV9xLq0aYc1',

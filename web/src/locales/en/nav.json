@@ -1,6 +1,6 @@
 {
   "items": {
-    "dashboard": "Dashboard",
+    "dashboard": "Home",
     "dashboards": "Dashboards",
     "tasks": "My tasks",
     "mcpRequests": "AI requests",
@@ -16,14 +16,14 @@
     "monitors": "Monitors",
     "credentials": "Credentials",
     "reports": "Reports",
-    "records": "Records",
+    "records": "Documents",
     "services": "Services",
     "applications": "Applications",
     "systems": "Systems",
     "maintenance": "Maintenance",
     "statusPages": "Status pages",
-    "gitUpdates": "Updates from Git",
-    "tickets": "Tickets",
+    "gitUpdates": "Git sync",
+    "tickets": "Ticket references",
     "controls": "Controls",
     "accessChanges": "Access changes",
     "reconciliation": "Access reconciliation",
@@ -66,7 +66,7 @@
       "platforms": "Platforms",
       "monitors": "Monitors",
       "services": "Services",
-      "records": "Records",
+      "records": "Documents",
       "credentials": "Credentials",
       "tickets": "Ticket references",
       "settings": "Settings"
@@ -75,7 +75,7 @@
     "dryRunBy": "Dry run by {{actor}} · {{when}}",
     "startRunOf": "Start run of {{name}}",
     "nothingFound": "Nothing found",
-    "placeholder": "Search pages, processes, monitors, records…",
+    "placeholder": "Search pages, processes, monitors, documents…",
     "search": "Search",
     "searchWithShortcut": "Search ({{shortcut}})",
     "searchButton": "Search…",
@@ -86,14 +86,14 @@
     },
     "pages": {
       "monitorWall": "Monitor status wall",
-      "recordTypes": "Record types",
+      "recordTypes": "Document types",
       "systemStatus": "System status",
       "about": "About",
       "linkTypes": "Link types"
     },
     "create": {
       "monitor": "New monitor",
-      "record": "New record",
+      "record": "New document",
       "credential": "New credential entry",
       "service": "New service",
       "schedule": "New schedule",
@@ -108,9 +108,10 @@
     "compliance": "Compliance"
   },
   "mainNavigation": "Main navigation",
+  "skipToContent": "Skip to content",
   "collapseSidebar": "Collapse sidebar",
   "expandSidebar": "Expand sidebar",
-  "backToDashboard": "Go to the dashboard",
+  "backToDashboard": "Go to Home",
   "help": {
     "label": "Help",
     "whatsNew": "What's new",
@@ -127,7 +128,7 @@
     },
     "then": "then",
     "keys": {
-      "search": "Search pages, processes, monitors, records …",
+      "search": "Search pages, processes, monitors, documents …",
       "help": "Show this list",
       "goTo": "Go to {{page}}",
       "close": "Close a dialog or menu"
@@ -138,7 +139,7 @@
     "news": {
       "lists": {
         "title": "Better lists",
-        "text": "Sort by any column, load older runs and more records, cards instead of wide tables on phones, a shortcut list (press ?) and this Help menu."
+        "text": "Sort by any column, load older runs and more documents, cards instead of wide tables on phones, a shortcut list (press ?) and this Help menu."
       },
       "confirm": {
         "title": "Clear confirmations",
@@ -146,11 +147,11 @@
       },
       "gitSync": {
         "title": "Git sync",
-        "text": "Fetch processes, dashboards, monitors and record types from Git and review each update before it is applied."
+        "text": "Fetch processes, dashboards, monitors and document types from Git and review each update before it is applied."
       },
       "tickets": {
         "title": "Ticket references",
-        "text": "Document ServiceNow incidents and vendor tickets and link them to services, platforms and records."
+        "text": "Document ServiceNow incidents and vendor tickets and link them to services, platforms and documents."
       },
       "dailySummary": {
         "title": "Daily summary",

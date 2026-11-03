@@ -77,8 +77,12 @@ describe('error reporting (Sentry-compatible)', () => {
       },
     });
     expect(res.status).toBe(500);
+    // the caller gets the request id, not the error text; the event carries the same id
+    const requestId = res.headers.get('x-request-id');
+    expect(await res.json()).toEqual({ error: `Internal error (request id ${requestId})`, code: 'INTERNAL_ERROR', params: { requestId } });
     const [event] = await sentry.waitForEvents(1);
     expect(event).toBeTruthy();
+    expect(event.tags.request_id).toBe(requestId);
     const all = sentry.raw.join('\n');
     for (const leaked of [
       API_TOKEN,

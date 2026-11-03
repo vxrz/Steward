@@ -39,7 +39,7 @@ test('an application with a platform and a CIA rating gives its service a protec
     await form.getByRole('button', { name: 'Save' }).click();
     await expect(page).toHaveURL(/\/applications\/app_[^/]+$/);
     const appId = page.url().split('/').pop()!;
-    await expect(page.getByRole('heading', { level: 2 })).toContainText(name);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(name);
 
     // map the platform (integration)
     const integrations = page.getByTestId('application-integrations');
@@ -138,7 +138,7 @@ test.describe('CIA scale (administrator)', () => {
 
   test('shows the BSI default levels and opens the editor', async ({ page }) => {
     await page.goto('/applications/cia-scale');
-    await expect(page.getByRole('heading', { level: 2 })).toHaveText('CIA scale');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('CIA scale');
     const levels = page.getByRole('table', { name: 'Levels' });
     await expect(levels.getByRole('row')).toHaveCount(4);
     await expect(levels).toContainText('Very high');

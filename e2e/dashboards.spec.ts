@@ -12,7 +12,7 @@ test.describe('dashboards', () => {
     for (const name of ['Platform operations', 'Access governance', 'Edge fleet']) {
       await page.goto('/dashboards');
       await page.getByText(name, { exact: true }).click();
-      await expect(page.getByRole('heading', { name, level: 2 })).toBeVisible();
+      await expect(page.getByRole('heading', { name, level: 1 })).toBeVisible();
       await expect(page.getByText(/data from .+ ago/)).toBeVisible();
       await expect(page.locator('.viz-root').first()).toBeVisible();
       await expect(page.getByRole('alert')).toHaveCount(0);
@@ -54,7 +54,7 @@ test.describe('dashboards', () => {
     await expect(table.getByRole('cell', { name: 'edge-lab' })).toBeVisible();
 
     // every widget has data (ih.privileged is only filled once a privileged access review ran)
-    await expect(page.getByText(/^No data in (?!ih\.privileged)/)).toHaveCount(0);
+    await expect(page.getByTestId('widget-no-data').filter({ hasNotText: /Privileged access review/ })).toHaveCount(0);
   });
   test('Vega-Lite widgets draw from the dataset only, with a table twin (#120)', async ({ page }) => {
     const requests: string[] = [];

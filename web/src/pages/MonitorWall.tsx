@@ -29,7 +29,9 @@ export function MonitorWallPage() {
           <ActionIcon component={Link} to="/monitors" variant="subtle" aria-label={t('wall.back')}>
             <IconArrowLeft size={18} />
           </ActionIcon>
-          <Title order={2}>{t('wall.title')}</Title>
+          <Title order={1} size="h2">
+            {t('wall.title')}
+          </Title>
         </Group>
         <Group gap="md">
           <Text size="lg" fw={700} c={problems ? 'red' : 'green'} aria-live="polite">

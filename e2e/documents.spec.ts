@@ -9,8 +9,8 @@ test.use({ storageState: authFile('dana') });
 test('a service document gets editions 1.0 and 1.1, a review, and shows on the start page when due', async ({ page, loginAs, apiAs }) => {
   const title = uniq('E2E operations manual');
   await page.goto('/records');
-  await page.getByRole('button', { name: 'New record' }).click();
-  const create = page.getByRole('dialog', { name: 'New record' });
+  await page.getByRole('button', { name: 'New document' }).click();
+  const create = page.getByRole('dialog', { name: 'New document' });
   await create.getByRole('combobox', { name: 'Type' }).click();
   await page.getByRole('option', { name: /^DOC – Service documentation/ }).click();
   await create.getByRole('textbox', { name: 'Title' }).fill(title);
@@ -31,7 +31,7 @@ test('a service document gets editions 1.0 and 1.1, a review, and shows on the s
   await submit.getByRole('textbox', { name: /What changed in this edition/ }).fill('First edition');
   await submit.getByRole('button', { name: 'Submit', exact: true }).click();
   await expect(submit).toBeHidden();
-  await expect(page.getByRole('heading', { level: 2 })).toContainText('In review');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('In review');
   await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(0);
 
   // four-eyes: Adam approves
@@ -41,8 +41,8 @@ test('a service document gets editions 1.0 and 1.1, a review, and shows on the s
   const approve = adam.getByRole('dialog', { name: /^Approve: DOC-/ });
   await approve.getByRole('button', { name: 'Approve', exact: true }).click();
   await expect(approve).toBeHidden();
-  await expect(adam.getByRole('heading', { level: 2 })).toContainText('Published');
-  await expect(adam.getByRole('heading', { level: 2 })).toContainText('Edition 1.0');
+  await expect(adam.getByRole('heading', { level: 1 })).toContainText('Published');
+  await expect(adam.getByRole('heading', { level: 1 })).toContainText('Edition 1.0');
 
   // a minor edition: drafted while 1.0 stays valid
   await page.reload();
@@ -68,7 +68,7 @@ test('a service document gets editions 1.0 and 1.1, a review, and shows on the s
   const approve2 = adam.getByRole('dialog', { name: /^Approve: DOC-/ });
   await approve2.getByRole('button', { name: 'Approve', exact: true }).click();
   await expect(approve2).toBeHidden();
-  await expect(adam.getByRole('heading', { level: 2 })).toContainText('Edition 1.1');
+  await expect(adam.getByRole('heading', { level: 1 })).toContainText('Edition 1.1');
 
   // the changelog: both editions, the diff and the frozen 1.0
   await adam.getByRole('tab', { name: /Changelog/ }).click();

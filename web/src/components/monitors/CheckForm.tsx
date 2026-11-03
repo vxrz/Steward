@@ -2,7 +2,8 @@ import { Alert, Divider, Group, NumberInput, SegmentedControl, Select, Stack, Sw
 import { useTranslation } from 'react-i18next';
 import { HIDDEN_MONITOR_REF, type CheckDef, type CheckOf, type MonitorSummary, type Platform } from '@sm/shared';
 import { ExpressionInput } from '../editor/ExpressionInput';
-import { Hint, KeyValueEditor } from '../common';
+import { Hint, JsonView, KeyValueEditor } from '../common';
+import { fmtDate, fmtRelative } from '../../format';
 import { checkTypeHelp, checkTypeLabel } from './status';
 
 type Patch = (p: Partial<CheckDef>) => void;
@@ -191,10 +192,12 @@ export interface CheckFormProps {
   isNew?: boolean;
   /** Problems of this card by field ('' = the whole card), shown on the fields (#141) */
   errors?: Map<string, string>;
+  /** Heartbeat checks of a saved monitor: the last report received, to write the condition against (v0.3.1) */
+  lastReport?: { at: string | null; report: unknown } | null;
 }
 
 /** Settings of one check (the monitor editor's inspector). */
-export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey, disabled, isNew, errors }: CheckFormProps) {
+export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey, disabled, isNew, errors, lastReport }: CheckFormProps) {
   const set: Patch = (p) => onChange({ ...c, ...p } as CheckDef);
   const { t } = useTranslation('monitors');
   const err: FieldError = (field) => errors?.get(field);
@@ -527,6 +530,23 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
             classNames={{ input: 'mono' }}
           />
           <FreshnessFields c={c} set={set} disabled={disabled} what="reports" err={err} />
+          <div data-testid="last-report">
+            <Text size="sm" fw={500}>
+              {t('form.lastReport')}
+            </Text>
+            {lastReport?.report != null ? (
+              <>
+                <Text size="xs" c="dimmed">
+                  {t('form.lastReportHint', { when: lastReport.at ? `${fmtDate(lastReport.at)} (${fmtRelative(lastReport.at)})` : '' })}
+                </Text>
+                <JsonView value={lastReport.report} maxHeight={140} />
+              </>
+            ) : (
+              <Text size="xs" c="dimmed">
+                {t('form.lastReportNone')}
+              </Text>
+            )}
+          </div>
           <ExpressionInput
             error={err('condition')}
             data-field="condition"

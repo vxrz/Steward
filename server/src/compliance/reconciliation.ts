@@ -443,7 +443,9 @@ const clip = (s: unknown) =>
     .slice(0, LIMITS.text);
 
 /** Sorted subjects with sorted unique rights; duplicates of a subject id (case-insensitive) are merged. */
-export function normalizeSubjects(list: { id: string; name?: string; type?: string; rights: unknown[] }[]): AccessSubject[] {
+export function normalizeSubjects(
+  list: { id: string; name?: string; type?: string; rights: unknown[]; aliases?: string[]; activity?: string }[],
+): AccessSubject[] {
   const byId = new Map<string, AccessSubject>();
   for (const s of list) {
     const id = clip(s.id);
@@ -451,6 +453,11 @@ export function normalizeSubjects(list: { id: string; name?: string; type?: stri
     const key = id.toLowerCase();
     const cur = byId.get(key) ?? { id, name: clip(s.name), ...(s.type ? { type: clip(s.type) } : {}), rights: [] };
     cur.rights = uniqueRights([...cur.rights, ...s.rights.map(clip)]);
+    // other names (e.g. the e-mail address): only sources that know them set them, so other snapshots stay as they were
+    const aliases = [...new Set([...(cur.aliases ?? []), ...(s.aliases ?? []).map(clip).filter(Boolean)])].sort().slice(0, 10);
+    if (aliases.length) cur.aliases = aliases;
+    // a hint for person reviews read live; runCheck drops it before the snapshot
+    if (s.activity && !cur.activity) cur.activity = clip(s.activity);
     if (cur.rights.length > LIMITS.rightsPerSubject)
       throw new HttpError(400, `${id} has more than ${LIMITS.rightsPerSubject} rights`, 'SNAPSHOT_TOO_MANY_RIGHTS', { id, max: LIMITS.rightsPerSubject });
     if (!cur.name && s.name) cur.name = clip(s.name);
@@ -589,14 +596,22 @@ async function collectSnowflake(c: CheckRow): Promise<{ subjects: AccessSubject[
     subjects = await snowflakeAccess(platform, getSecrets(c.platform_id), String(c.dataset_key ?? ''));
   } catch (e) {
     if (e instanceof HttpError && e.statusCode < 500) throw e;
-    throw new HttpError(502, `Snowflake could not be read: ${(e as Error).message}`.slice(0, 500), 'ACCESS_CHECK_SNOWFLAKE_READ', {
-      detail: (e as Error).message.slice(0, 300),
-    });
+    const { snowflakeJwtHint } = await import('../platforms/jwt.js');
+    throw new HttpError(
+      502,
+      `Snowflake could not be read: ${snowflakeJwtHint((e as Error).message, platform.config.variables)}`.slice(0, 900),
+      'ACCESS_CHECK_SNOWFLAKE_READ',
+      {
+        detail: (e as Error).message.slice(0, 300),
+      },
+    );
   }
   if (subjects.length > LIMITS.subjects)
     throw new HttpError(400, `The scope has more than ${LIMITS.subjects} members`, 'SNAPSHOT_TOO_LARGE', { max: LIMITS.subjects });
   return {
-    subjects: normalizeSubjects(subjects.map((x) => ({ id: clip(x.id), name: clip(x.name), type: x.type, rights: x.rights.map(clip) }))),
+    subjects: normalizeSubjects(
+      subjects.map((x) => ({ id: clip(x.id), name: clip(x.name), type: x.type, rights: x.rights.map(clip), aliases: x.aliases, activity: x.activity })),
+    ),
     sourceRunId: null,
   };
 }
@@ -612,10 +627,16 @@ async function collectAws(c: CheckRow): Promise<{ subjects: AccessSubject[]; sou
       name: platform.name,
     });
   if (platform.kind !== 'aws') throw new HttpError(400, 'The AWS source needs an AWS account platform', 'ACCESS_CHECK_AWS_SOURCE');
-  const { AwsClient } = await import('../aws/client.js');
+  const { AwsClient, IAM_REGION, endpointFor } = await import('../aws/client.js');
+  const secrets = getSecrets(c.platform_id);
+  // the outbound policy like the Git and Snowflake sources (v0.3.1): the base URL (STS) and the IAM endpoint it reads,
+  // which counts as the AWS platform's own origin
+  await assertOutboundAllowed(await buildUrl(platform, secrets, '/', {}), outboundContext());
+  const iam = endpointFor(platform, 'iam', IAM_REGION);
+  await assertOutboundAllowed(`${iam}/`, outboundContext(), { platformOrigins: [iam] });
   let subjects: AccessSubject[];
   try {
-    subjects = await new AwsClient(platform, getSecrets(c.platform_id)).iamAccess();
+    subjects = await new AwsClient(platform, secrets).iamAccess();
   } catch (e) {
     throw new HttpError(502, `AWS could not be read: ${(e as Error).message}`.slice(0, 500), 'ACCESS_CHECK_AWS_READ', {
       detail: (e as Error).message.slice(0, 300),
@@ -789,9 +810,10 @@ export async function runCheck(id: string, o: { actor: string; trigger: 'schedul
     }
     // rights the check leaves out (e.g. a review marker group); the subjects stay
     const ignored = new Set(parseJson<string[]>(c.ignore_rights, []).map((x) => x.toLowerCase()));
-    const subjects = ignored.size
-      ? collected.subjects.map((x) => ({ ...x, rights: x.rights.filter((r) => !ignored.has(r.toLowerCase())) }))
-      : collected.subjects;
+    // the activity hint (last login) changes every day: it is never part of a snapshot
+    const subjects = collected.subjects.map(({ activity: _activity, ...x }) =>
+      ignored.size ? { ...x, rights: x.rights.filter((r) => !ignored.has(r.toLowerCase())) } : x,
+    );
     const hash = snapshotHash(subjects);
     const prev = db().get<SnapshotRow>('SELECT * FROM access_snapshots WHERE check_id = ? ORDER BY seq DESC LIMIT 1', id);
     let takenAt = nowIso();
@@ -1201,7 +1223,7 @@ export function listFindings(
  * The start page's "Undocumented access changes" tile: open findings of the checks the current user may
  * read. null for a user who may read no check (and is no administrator or auditor) – no tile, not a 0.
  */
-export function findingAttention(): { open: number } | null {
+export function findingAttention(): { open: number; checks: number } | null {
   const u = me();
   const readable = db()
     .all<CheckRow>('SELECT * FROM access_checks')
@@ -1213,7 +1235,7 @@ export function findingAttention(): { open: number } | null {
     const rows = db().all<FindingRow>("SELECT * FROM access_findings WHERE check_id = ? AND status IN ('open', 'documented')", c.id);
     open += rows.filter((f) => effectiveStatus(f) === 'open').length;
   }
-  return { open };
+  return { open, checks: readable.length };
 }
 
 function readableFinding(id: string): { f: FindingRow; c: CheckRow } {

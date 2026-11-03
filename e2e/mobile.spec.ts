@@ -8,7 +8,7 @@ test.describe('phone @mobile', () => {
 
   test('navigation drawer', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('main').getByRole('heading', { name: 'Dashboard', level: 2 })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
     const link = page.getByRole('navigation').getByRole('link', { name: 'My tasks' });
     // the collapsed navbar is moved off-screen
     await expect(link).not.toBeInViewport();
@@ -16,7 +16,7 @@ test.describe('phone @mobile', () => {
     await expect(link).toBeInViewport();
     await link.tap();
     await expect(page).toHaveURL(/\/tasks$/);
-    await expect(page.getByRole('main').getByRole('heading', { name: 'My tasks', level: 2 })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('heading', { name: 'My tasks', level: 1 })).toBeVisible();
     await expect(link).not.toBeInViewport();
   });
 
@@ -39,12 +39,32 @@ test.describe('phone @mobile', () => {
 
   test('dashboard is readable', async ({ page }) => {
     await page.goto('/dashboards/platform-operations');
-    await expect(page.getByRole('heading', { name: 'Platform operations', level: 2 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Platform operations', level: 1 })).toBeVisible();
     const kpi = page.getByRole('region', { name: 'Insights Hub users', exact: true });
     await expect(kpi.locator('.viz-kpi-value')).toHaveText(/^\d+$/);
     const box = (await kpi.boundingBox())!;
     expect(box.width).toBeLessThanOrEqual(390);
     await expectNoHorizontalScroll(page);
+  });
+
+  test('users and dashboard tables are cards: nothing is cut off', async ({ loginAs }) => {
+    const admin = await loginAs('admin');
+    await admin.goto('/users');
+    const users = admin.getByRole('list', { name: 'Users & teams' });
+    const adam = users.getByRole('listitem').filter({ hasText: 'Adam Approver' });
+    // the role in full (the table cut it to "AP…") and the last sign-in on the card
+    await adam.scrollIntoViewIfNeeded();
+    await expect(adam.getByText(/^approver$/i)).toBeInViewport({ ratio: 1 });
+    await expect(adam).toContainText('Last sign-in:');
+    await expectNoHorizontalScroll(admin);
+
+    // a table widget: the identifying column first, then status and the other columns
+    await admin.goto('/dashboards/access-governance');
+    const cards = admin.getByTestId('table-cards').first();
+    await cards.scrollIntoViewIfNeeded();
+    const first = cards.getByRole('listitem').first();
+    await expect(first.locator('p').first()).toHaveText(/@example\.com$/);
+    await expectNoHorizontalScroll(admin);
   });
 
   for (const path of [
@@ -68,7 +88,7 @@ test.describe('phone @mobile', () => {
   ]) {
     test(`no horizontal scroll on ${path}`, async ({ page }) => {
       await page.goto(path);
-      await expect(page.getByRole('main').getByRole('heading', { level: 2 }).first()).toBeVisible();
+      await expect(page.getByRole('main').getByRole('heading', { level: 1 }).first()).toBeVisible();
       await page.waitForLoadState('networkidle');
       await expectNoHorizontalScroll(page);
     });
@@ -76,7 +96,7 @@ test.describe('phone @mobile', () => {
 
   test('list filters fold behind a button', async ({ page }) => {
     await page.goto('/credentials');
-    await expect(page.getByRole('main').getByRole('heading', { name: 'Credentials', level: 2 })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('heading', { name: 'Credentials', level: 1 })).toBeVisible();
     const filters = page.getByRole('button', { name: 'Filters', exact: true });
     const search = page.getByRole('textbox', { name: 'Search', exact: true });
     await expect(search).toBeHidden();
@@ -91,7 +111,7 @@ test.describe('phone @mobile', () => {
     const runId = await startRunApi(await apiAs('olivia'), PROCESS.healthCheck, { dryRun: true });
     await waitForRun(await apiAs('olivia'), runId, ['succeeded']);
     await page.goto(`/runs/${runId}`);
-    await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('succeeded');
+    await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText('succeeded');
     await expectNoHorizontalScroll(page);
   });
 });

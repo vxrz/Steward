@@ -157,6 +157,8 @@
     "count": "{{section}}: {{count}}",
     "runsTotal_one": "{{count}} run, {{failed}} failed",
     "runsTotal_other": "{{count}} runs, {{failed}} failed",
+    "runsTotalFindings_one": "{{count}} run, {{failed}} failed, {{findings}} completed with findings",
+    "runsTotalFindings_other": "{{count}} runs, {{failed}} failed, {{findings}} completed with findings",
     "runFailed": "{{process}} failed",
     "dryRun": "dry run",
     "task": "{{title}}",

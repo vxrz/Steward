@@ -73,5 +73,20 @@ test('duplicate ids, required fields, problem summary, duplicate, check now and 
   const id = page.url().split('/').pop()!;
   const saved = await json(await api.get(`/api/monitors/${id}`));
   expect(saved.definition.checks.map((c: { id: string }) => c.id)).toEqual(['tcp-1', 'tcp-2']);
+
+  // editing the saved monitor: a new card that gets the id of a saved check by accident can still be corrected
+  // (only the saved check keeps its id fixed)
+  await page.goto(`/monitors/${id}/edit`);
+  await settle(page);
+  await page.getByTestId('monitor-node-tcp-1').click();
+  await expect(form.getByLabel('Check id')).toBeDisabled();
+  await form.getByRole('button', { name: 'Duplicate' }).click();
+  await form.getByLabel('Check id').fill('tcp-2');
+  await expect(form.getByText('duplicate check id "tcp-2"')).toBeVisible();
+  await expect(form.getByLabel('Check id')).toBeEnabled();
+  await form.getByLabel('Check id').fill('tcp-3');
+  await expect(form.getByText(/duplicate check id/)).toHaveCount(0);
+  await page.getByTestId('monitor-node-tcp-2').click();
+  await expect(form.getByLabel('Check id')).toBeDisabled();
   await api.delete(`/api/monitors/${id}`);
 });

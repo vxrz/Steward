@@ -792,7 +792,7 @@ const missedLast = (x: { open: PeriodRow[]; last: PeriodRow | null }, now: numbe
   !!x.last && DUTY_NOT_MET.includes(x.last.status) && !x.open.some((r) => Date.parse(r.period_end) <= now);
 
 /** The start page tile: mandatory duties due within a week or missed (their last period); null without any for the user. */
-export function dutyAttention(now = Date.now()): { missed: number; dueSoon: number } | null {
+export function dutyAttention(now = Date.now()): { missed: number; dueSoon: number; total: number } | null {
   const u = currentUser();
   if (!u) return null;
   const all = storedState().filter((x) => x.d.level === 'mandatory');
@@ -801,6 +801,7 @@ export function dutyAttention(now = Date.now()): { missed: number; dueSoon: numb
   return {
     missed: mine.filter((x) => missedLast(x, now)).length,
     dueSoon: mine.filter((x) => dueRows(x.open, now, 7).length > 0).length,
+    total: mine.length,
   };
 }
 

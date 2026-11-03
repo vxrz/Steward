@@ -1,5 +1,5 @@
 name: Access governance
-description: Who has access to Insights Hub and is it still justified? Users, privileged roles and group hygiene – fed by the inventory snapshot, privileged access review and group hygiene processes.
+description: Who has access to Insights Hub, Snowflake and the Git hosts, and is it still justified? Users, privileged roles, group hygiene and the latest access reviews – fed by the inventory snapshot, privileged access review, group hygiene, Snowflake project access review and Git member review processes.
 refreshSeconds: 120
 widgets:
   - { id: total, type: kpi, title: Users, dataset: ih.users, metric: total, width: 3 }
@@ -15,10 +15,16 @@ widgets:
   - { id: inactiveUsers, type: table, title: Users to review, dataset: ih.users, problemsOnly: true, width: 12 }
   - { id: privileged, type: table, title: Privileged access, dataset: ih.privileged, width: 6 }
   - { id: groups, type: table, title: Group hygiene, dataset: ih.groups, problemsOnly: true, width: 6 }
+  - { id: gitMembers, type: kpi, title: Git memberships, dataset: git.members, metric: members, width: 3 }
+  - { id: gitNo2fa, type: kpi, title: Git members without 2FA, dataset: git.members, metric: no2fa, goodWhen: down, width: 3 }
+  - { id: gitOutside, type: kpi, title: Outside collaborators, dataset: git.members, metric: outside, goodWhen: down, width: 3 }
+  - { id: sfInactive, type: kpi, title: Snowflake project users inactive, dataset: snowflake.project-access, metric: inactive, goodWhen: down, width: 3 }
+  - { id: git, type: table, title: Git members (latest review), dataset: git.members, problemsOnly: true, width: 6 }
+  - { id: snowflake, type: table, title: Snowflake project access (latest review), dataset: snowflake.project-access, problemsOnly: true, width: 6 }
   - id: howto
     type: markdown
     width: 12
     text: |
-      **Cadence:** inventory hourly · access review 1 + 2 quarterly · privileged review monthly · group hygiene weekly.
+      **Cadence:** inventory hourly · access review 1 + 2 quarterly · privileged review monthly · group hygiene weekly · Snowflake project and Git member reviews quarterly.
       Destructive steps (removing roles, offboarding) always require a second person (four-eyes).
   - { id: fresh, type: freshness, width: 12 }

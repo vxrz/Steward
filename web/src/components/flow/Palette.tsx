@@ -75,7 +75,8 @@ export function Palette({ onAdd, compact = false }: { onAdd: (type: NodeType) =>
                             >
                               <Icon size={13} />
                             </Box>
-                            <Text size="xs" px={8} py={5} truncate>
+                            {/* the full name, on two lines if needed ("User task / approval", "Publish to dashboard") */}
+                            <Text size="xs" px={8} py={5} lh={1.25} style={{ overflowWrap: 'anywhere' }}>
                               {stepLabel(t, STEP_META[t])}
                             </Text>
                           </Group>

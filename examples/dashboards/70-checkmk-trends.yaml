@@ -1,12 +1,12 @@
 name: CheckMk trends
-description: Slow signals from CheckMk – levels crossed, series heading for CRIT, averages and peaks. Fed daily by "CheckMk – trend summary"; alerting on raw metrics stays in CheckMk.
+description: Slow signals from CheckMk – levels crossed, series heading for CRIT, averages and peaks. Fed daily by "CheckMk – Trend summary"; alerting on raw metrics stays in CheckMk.
 refreshSeconds: 300
 widgets:
   - id: intro
     type: markdown
     width: 12
     text: |
-      **CheckMk trends** – read from CheckMk by the process *CheckMk – trend summary* (daily). Opening this page never calls CheckMk.
+      **CheckMk trends** – read from CheckMk by the process *CheckMk – Trend summary* (daily). Opening this page never calls CheckMk.
       Thresholds and predictive levels stay in CheckMk; this page shows what needs a decision: levels crossed and series that reach CRIT soon at this rate.
   - { id: series, type: kpi, title: Series followed, dataset: checkmk.trends, metric: series, width: 4 }
   - { id: crossed, type: kpi, title: Above WARN, dataset: checkmk.trends, metric: crossed, goodWhen: down, width: 4, days: 7 }

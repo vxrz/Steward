@@ -230,4 +230,10 @@ export const OPS_MIGRATIONS: NamedMigration[] = [
     CREATE INDEX mcp_requests_user ON mcp_requests(requested_by, status);
     CREATE INDEX mcp_requests_status ON mcp_requests(status, created_at);`,
   },
+  {
+    // 0.3.1: a scheduled run's partition follows its schedule; 1 = the publish step's staleAfterMinutes applies to
+    // scheduled runs too (its staleAfterFixed). Existing partitions (NULL) follow their schedule from now on.
+    name: 'ops-013-dataset-stale-fixed',
+    sql: `ALTER TABLE dataset_parts ADD COLUMN stale_fixed INTEGER;`,
+  },
 ];

@@ -1,0 +1,29 @@
+# Repository pipelines (#107): the pipeline of the default branch and the open security alerts (GitHub Dependabot)
+# of a repository on GitHub, GitLab or Forgejo. "platform: GitHub" finds your GitHub platform when it is the only one
+# (or the only one whose name starts with "GitHub"); on import you choose it otherwise – a GitLab or Forgejo platform
+# works the same (GitLab paths are group/project). See docs/GIT-PLATFORMS.md.
+kind: monitor
+key: repository-pipelines
+name: Repository pipelines
+description: The default-branch pipelines and the critical and high security alerts of the shop repositories.
+tags: [git, ci]
+intervalSeconds: 600
+aggregate: { rule: worst }
+checks:
+  - id: shop-web
+    name: acme/shop-web
+    type: git
+    platform: GitHub
+    repository: acme/shop-web
+    maxCritical: 0
+    maxHigh: 3
+    x: 0
+    y: 0
+  - id: shop-api
+    name: acme/shop-api
+    type: git
+    platform: GitHub
+    repository: acme/shop-api
+    failedAs: degraded
+    x: 260
+    y: 0

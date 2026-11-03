@@ -230,7 +230,7 @@ The tab _Changelog_ lists every edition (edition, kind, date, authors, approver,
 ### Where documents show up
 
 - **Records list**: filters _Workflow_ and _Review_ (e.g. "Due soon or overdue"); documents show their edition and a due review.
-- **Start page**: the tile _Reviews due_ (editors, approvers and auditors see all documents; others the documents they own or review; zero: "All quiet").
+- **Start page**: the tile _Reviews due_ (editors, approvers and auditors see all documents; others the documents they own or review; zero: "All quiet"; without any document with a review cycle: "Not set up yet").
 - **Daily summary**: the section _Document reviews due_ for the reviews you own. Documents in review count as waiting for your approval.
 - **Scheduled reports**: the records section lists living documents with the edition and the review status at the end of the period, and the editions and reviews in it.
 - **Links** to a document show its current edition.

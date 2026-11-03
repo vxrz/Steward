@@ -48,6 +48,14 @@
         "mutating": {
           "label": "Als schreibend behandeln (im Probelauf überspringen)",
           "help": "Standard: jede Methode außer GET/HEAD"
+        },
+        "maxResponseMb": {
+          "label": "Größte Antwort (MB)",
+          "help": "Standard 20, höchstens 200 (pro Seite); eine größere Antwort lässt den Schritt fehlschlagen"
+        },
+        "aws": {
+          "label": "AWS-Dienst (nur AWS-Plattformen)",
+          "help": "Dienst und Region, z. B. { service: ec2, region: eu-central-1 }: Der Pfad bezieht sich auf diesen Endpunkt, signiert wird mit der Plattform"
         }
       }
     },
@@ -258,7 +266,11 @@
         },
         "staleAfterMinutes": {
           "label": "Veraltet nach (Minuten)",
-          "help": "Standard: 2,5 × das Intervall des Zeitplans, der den Lauf gestartet hat (mindestens 15 Minuten), sonst 24 Stunden"
+          "help": "Für Läufe ohne Zeitplan (Standard 24 Stunden). Geplante Läufe richten sich nach ihrem Zeitplan: 2,5 × sein Intervall, mindestens 15 Minuten"
+        },
+        "staleAfterFixed": {
+          "label": "„Veraltet nach“ auch für geplante Läufe verwenden",
+          "help": "Statt 2,5 × das Intervall des Zeitplans, z. B. für eine engere oder großzügigere Grenze, als der Zeitplan ergibt"
         },
         "maxRows": {
           "label": "Max. Zeilen (Sicherheitsgrenze, Standard 5000)"
@@ -485,12 +497,14 @@
     "idUsed": "ID wird bereits von einem anderen Knoten verwendet",
     "startHint": "Eingaben (werden beim Start einer Ausführung abgefragt) und Verbindungen (welche Plattformen der Prozess nutzt) werden im Reiter <b>Einstellungen</b> festgelegt.",
     "nodeId": "Knoten-ID",
-    "nodeIdHint": "Eindeutig; wird in Ausführungsprotokollen verwendet",
+    "nodeIdHint": "Eindeutig; wird in Ausführungsberichten verwendet",
     "name": "Name",
-    "nameHint": "Wird auf der Arbeitsfläche und in Protokollen angezeigt",
+    "nameHint": "Wird auf der Arbeitsfläche und in Ausführungsberichten angezeigt",
     "description": "Beschreibung",
     "outputs": "Ausgänge",
     "execution": "Ausführung",
+    "advanced": "Erweitert",
+    "advancedHint": "Knoten-ID, optionale Einstellungen, Ausgänge, Bedingungen und Wiederholungen",
     "retryAttempts": "Versuche",
     "retryAttemptsHint": "Versuche insgesamt einschl. des ersten (1–10)",
     "retryDelay": "Wartezeit zwischen Versuchen (ms)"
@@ -731,6 +745,10 @@
     "exportYaml": "YAML exportieren",
     "run": "Ausführen",
     "readOnly": "schreibgeschützt",
+    "fullScreen": "Vollbild",
+    "fullScreenHint": "Seitenleiste ausblenden, damit der Ablauf mehr Platz hat",
+    "exitFullScreen": "Vollbild beenden",
+    "phoneReadOnly": "Öffnen Sie den Prozess auf einem größeren Bildschirm, um ihn zu bearbeiten. Auf dem Smartphone lässt sich der Ablauf nur ansehen: Tippen Sie auf einen Schritt, um seine Einstellungen zu sehen.",
     "tabs": {
       "flow": "Ablauf",
       "settings": "Einstellungen",

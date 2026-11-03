@@ -43,6 +43,7 @@ import { themeQueryKey } from '../../theme';
 import { Logo } from '../brand/Logo';
 import { fmtDate, fmtNumber } from '../../format';
 import { confirmDanger } from '../confirm';
+import { useSaveSection } from '../settings/SaveBar';
 import { BASE_PATH } from '../../basePath';
 
 const SWATCHES = ['#1c7ed6', '#0b7285', '#2f9e44', '#e8590c', '#e30613', '#7950f2', '#ffd400', '#343a40'];
@@ -95,9 +96,15 @@ export function ThemeSettingsCard() {
   const accent = draft ? normalizeHex(draft.accentColor) : null;
   const valid = !!primary && !!accent;
   const notes = useMemo(() => (primary && accent ? themeContrastNotes({ primaryColor: primary, accentColor: accent }) : []), [primary, accent]);
+  const dirty = !!settings.data && !!draft && !same(draft, draftOf(settings.data));
+  const inBar = useSaveSection('theme', {
+    dirty,
+    valid,
+    save: () => (draft ? save() : undefined),
+    reset: () => settings.data && setDraft(draftOf(settings.data)),
+  });
   if (!settings.data || !draft) return null;
   const s = settings.data;
-  const dirty = !same(draft, draftOf(s));
 
   const applied = (next: ThemeSettings) => {
     qc.setQueryData(['settings', 'theme'], next);
@@ -257,17 +264,19 @@ export function ThemeSettingsCard() {
             </SimpleGrid>
           </Box>
         )}
-        <Group justify="space-between">
-          <Group gap="xs">
-            <Button onClick={save} loading={busy === 'save'} disabled={!valid || !dirty}>
-              {t('theme.save')}
-            </Button>
-            {dirty && (
-              <Button variant="default" onClick={() => setDraft(draftOf(s))}>
-                {t('theme.discard')}
+        <Group justify={inBar ? 'flex-end' : 'space-between'}>
+          {!inBar && (
+            <Group gap="xs">
+              <Button onClick={save} loading={busy === 'save'} disabled={!valid || !dirty}>
+                {t('theme.save')}
               </Button>
-            )}
-          </Group>
+              {dirty && (
+                <Button variant="default" onClick={() => setDraft(draftOf(s))}>
+                  {t('theme.discard')}
+                </Button>
+              )}
+            </Group>
+          )}
           <Button variant="subtle" color="gray" leftSection={<IconRestore size={16} />} loading={busy === 'reset'} onClick={reset}>
             {t('theme.reset', { brand: BRAND.name })}
           </Button>

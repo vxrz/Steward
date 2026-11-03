@@ -6,7 +6,8 @@
     "days365": "Last 12 months",
     "custom": "Custom",
     "from": "From",
-    "to": "To"
+    "to": "To",
+    "range": "{{from}} – {{to}}"
   },
   "coverage": {
     "covered": "Covered",
@@ -50,7 +51,7 @@
   },
   "evidenceKinds": {
     "run": "Run",
-    "record": "Record",
+    "record": "Document",
     "accessChange": "Access change",
     "snapshot": "Snapshot",
     "finding": "Finding",
@@ -60,8 +61,8 @@
   },
   "tagKinds": {
     "process": "Process",
-    "recordType": "Record type",
-    "record": "Record",
+    "recordType": "Document type",
+    "record": "Document",
     "monitor": "Monitor",
     "reportSchedule": "Report schedule",
     "accessCheck": "Access reconciliation"
@@ -78,8 +79,29 @@
     "countCovered_other": "{{count}} covered",
     "countGap_one": "{{count}} gap",
     "countGap_other": "{{count}} gaps",
-    "countUnmapped_one": "{{count}} not mapped",
-    "countUnmapped_other": "{{count}} not mapped",
+    "countUnmapped_one": "{{count}} not mapped – not assessed yet",
+    "countUnmapped_other": "{{count}} not mapped – not assessed yet",
+    "summary": "{{covered}} of {{total}} controls have evidence in the period",
+    "unmappedHint": "Not mapped means that no Steward item (process, document type, monitor, report schedule or access check) is linked to the control yet: Steward cannot tell whether it is met, so it is not assessed – not fine. Open a control to map items to it.",
+    "coverageOf": "Coverage of {{name}}",
+    "section": "Section {{ref}}",
+    "sectionNamed": "{{ref}} {{name}}",
+    "sectionCounts": "{{covered}} covered · {{gaps}} gaps · {{unmapped}} not mapped · {{total}} controls",
+    "sections": {
+      "ISO27001": {
+        "5": "Organizational controls",
+        "6": "People controls",
+        "7": "Physical controls",
+        "8": "Technological controls"
+      },
+      "IEC62443-2-1": {
+        "4_2": "Risk analysis",
+        "4_3_2": "Security policy, organization and awareness",
+        "4_3_3": "Selected security countermeasures",
+        "4_3_4": "Implementation",
+        "4_4": "Monitoring and improving the CSMS"
+      }
+    },
     "exportSelected_one": "Evidence pack for {{count}} control",
     "exportSelected_other": "Evidence pack for {{count}} controls",
     "empty": "This catalogue has no controls.",
@@ -108,7 +130,7 @@
     "addTag": "Map to this control",
     "evidenceInPeriod": "Evidence in the period",
     "gapText": "Gap: the mapped items produced no evidence in this period.",
-    "noEvidence": "No evidence – map processes, record types, monitors, report schedules or access reconciliation checks to this control.",
+    "noEvidence": "No evidence – map processes, document types, monitors, report schedules or access reconciliation checks to this control.",
     "truncated_one": "… and {{count}} more",
     "truncated_other": "… and {{count}} more",
     "kind": "Kind",
@@ -261,7 +283,7 @@
   },
   "personReviews": {
     "title": "Person reviews",
-    "description": "Everything one person may do on the platforms – read live from the access checks, frozen, decided right by right, approved by a second person and sealed. After approval Steward checks whether the rights to remove are gone.",
+    "description": "Review everything one person may do on the platforms. Steward takes their current rights from the access checks and keeps this snapshot; you decide for each right whether it stays or is removed, a second person approves, and the result can no longer be changed. After approval Steward checks that the removed rights are really gone.",
     "new": "New person review",
     "emptyTitle": "No person reviews yet",
     "emptyText": "Start one for a leaver, a mover or a periodic review of a single person: choose the access checks and the names the person goes by.",
@@ -342,7 +364,7 @@
     "verifyTitle": "Check a pack",
     "verifyText": "Every file is listed with its SHA-256 in manifest.json, signed with the key of the audit checkpoints. Check it offline:",
     "emptyTitle": "No evidence packs",
-    "emptyText": "Choose controls (or a platform or service) and a period. Steward collects run protocols, records, access changes, reconciliation snapshots and findings, reports and an audit log excerpt.",
+    "emptyText": "Choose controls (or a platform or service) and a period. Steward collects run protocols, documents, access changes, reconciliation snapshots and findings, reports and an audit log excerpt.",
     "download": "Download",
     "delete": "Delete {{title}}",
     "status": {
@@ -370,7 +392,7 @@
     "language": "Language of the PDFs",
     "langEn": "English",
     "langDe": "German",
-    "contentsHelp": "The pack holds an index (PDF/A and index.json), run protocols, record PDFs with their files, access change entries, reconciliation snapshots and findings, scheduled reports and – for auditors and administrators – an audit log excerpt with a signed checkpoint.",
+    "contentsHelp": "The pack holds an index (PDF/A and index.json), run protocols, document PDFs with their files, access change entries, reconciliation snapshots and findings, scheduled reports and – for auditors and administrators – an audit log excerpt with a signed checkpoint.",
     "create": "Create pack",
     "permissionsNote": "The pack only holds what you may see. Creating and downloading it is recorded in the audit log."
   }

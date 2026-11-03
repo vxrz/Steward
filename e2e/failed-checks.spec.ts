@@ -44,7 +44,10 @@ test('failed checks are grouped per check and the card folds and stays folded', 
     const entry = card.getByTestId('failed-check').filter({ hasText: `${name} – endpoints healthy` });
     await expect(entry).toHaveCount(1);
     await expect(entry).toContainText('3 runs');
-    await expect(entry.getByRole('link', { name: 'runs with failed checks' })).toHaveAttribute('href', new RegExp(`checks=failed`));
+    // the result leads, the expectation (the check's name) follows
+    await expect(entry.getByTestId('failed-check-result')).toHaveText('Historian API, MES frontend down');
+    await expect(entry.getByTestId('failed-check-expected')).toHaveText(`Expected: ${name} – endpoints healthy`);
+    await expect(entry.getByRole('link', { name: 'runs with findings' })).toHaveAttribute('href', new RegExp(`checks=failed`));
     await expectAccessible(page, 'start page failed checks');
 
     // folded: the counts stay in the header, the choice is remembered
@@ -63,7 +66,7 @@ test('failed checks are grouped per check and the card folds and stays folded', 
     await page
       .getByTestId('failed-check')
       .filter({ hasText: `${name} – endpoints healthy` })
-      .getByRole('link', { name: 'runs with failed checks' })
+      .getByRole('link', { name: 'runs with findings' })
       .click();
     await expect(page).toHaveURL(/\/runs\?processId=.*&checks=failed$/);
     await expect(page.getByRole('row').filter({ hasText: name })).toHaveCount(3);

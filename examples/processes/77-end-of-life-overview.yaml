@@ -1,4 +1,5 @@
-name: "End of life – tech stack overview"
+# steward-min-version: 0.2.6
+name: "End of life – Tech stack overview"
 description: |
   Which components and systems run on a release cycle that reached its end of
   life, or reaches it soon – one row per application, component or system and
@@ -19,7 +20,7 @@ description: |
   Application owners and the people responsible for a system also get their
   own message from Steward when a release cycle ends (Applications → End of
   life → Messages).
-tags: [catalogue, lifecycle, end-of-life]
+tags: [catalogue, lifecycle, end-of-life, endoflife-date]
 connections: []
 inputs:
   - name: apps
@@ -97,4 +98,4 @@ steps:
       eol: "$count(vars.rows[state = 'eol'])"
       ending: "$count(vars.rows[state = 'ending'])"
       noData: "$count(vars.rows[state = 'noData' or state = 'unknown'])"
-    staleAfterMinutes: 10080
+    staleAfterMinutes: 20160

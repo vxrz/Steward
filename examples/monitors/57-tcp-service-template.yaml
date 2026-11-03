@@ -1,0 +1,25 @@
+# Template for services that only answer on a TCP port (databases, brokers, OPC UA, PLC gateways): create one monitor
+# per service under Monitors → Templates with a form or a CSV upload, e.g.
+#   name,title,host,port
+#   pg-orders,Orders database,10.20.30.5,5432
+# A refused or timed-out connection is down; slower than the degraded limit is degraded. See docs/MONITORS.md.
+kind: monitorTemplate
+key: tcp-service
+name: "{{ params.title }}"
+description: "TCP port {{ params.port }} of {{ params.host }} answers."
+tags: [tcp]
+intervalSeconds: 60
+parameters:
+  - { name: title, label: Monitor name, description: "e.g. Orders database" }
+  - { name: host, label: Host name or IP address }
+  - { name: port, label: TCP port, type: number, default: 5432 }
+  - { name: degradedMs, label: Degraded above (ms), type: number, default: 500 }
+checks:
+  - id: port
+    name: "{{ params.host }}:{{ params.port }}"
+    type: tcp
+    host: "{{ params.host }}"
+    port: "{{ params.port }}"
+    degradedMs: "{{ params.degradedMs }}"
+    x: 0
+    y: 0

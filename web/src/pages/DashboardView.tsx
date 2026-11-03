@@ -11,7 +11,7 @@ import { DetailState, PageHeader } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { fmtRelative } from '../format';
 import { useMe } from '../auth';
-import { DashboardContext, useDatasetMetas } from '../components/dashboard/data';
+import { DashboardContext, useDashboardCtx, useDatasetMetas } from '../components/dashboard/data';
 import { WidgetGrid } from '../components/dashboard/widgets';
 import { DashboardEditor } from '../components/dashboard/DashboardEditor';
 import { confirmDanger } from '../components/confirm';
@@ -63,6 +63,13 @@ export function DashboardViewPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const d = dash.data;
+  // ?edit=1 (a new dashboard): open in edit mode
+  useEffect(() => {
+    if (!d || params.get('edit') !== '1') return;
+    if (d.canEdit) setDraft(structuredClone(d.definition));
+    params.delete('edit');
+    setParams(params, { replace: true });
+  }, [d, params, setParams]);
   const def = draft ?? d?.definition;
   const refreshMs = Date.now() < fastUntil ? 3000 : (def?.refreshSeconds ?? 60) * 1000;
   const ctx = useMemo(() => ({ refreshMs, statusFilter, setStatusFilter, sources }), [refreshMs, statusFilter, sources]);
@@ -184,8 +191,9 @@ export function DashboardViewPage() {
       {def.widgets.length === 0 ? (
         <Paper withBorder p="lg">
           <Text fw={600}>{t('view.noWidgets')}</Text>
-          <Text size="sm" c="dimmed">
-            {d.canEdit ? `${t('view.clickEdit')} ` : ''}
+          <Text size="sm" c="dimmed" data-testid="dashboard-empty">
+            {/* in edit mode the "Add widget" button is right above; otherwise Edit gets there */}
+            {draft ? `${t('view.addWidgetAbove')} ` : d.canEdit ? `${t('view.clickEdit')} ` : ''}
             <Trans
               t={t}
               i18nKey="view.widgetsHint"
@@ -202,15 +210,16 @@ export function DashboardViewPage() {
   );
 }
 
+/** How old the dashboard's data is: its oldest source (in the source filter), so one late tenant is not hidden by fresh ones. */
 function LastUpdate({ keys }: { keys: string[] }) {
   const { t } = useTranslation('dashboards');
   const metas = useDatasetMetas();
-  const latest = (metas.data ?? [])
+  const { sources } = useDashboardCtx();
+  const oldest = (metas.data ?? [])
     .filter((m) => keys.includes(m.key))
-    .map((m) => m.updatedAt)
-    .sort()
-    .pop();
-  return <span>{latest ? t('view.dataFrom', { when: fmtRelative(latest) }) : t('view.noData')}</span>;
+    .flatMap((m) => (m.sources?.length ? m.sources.filter((s) => !sources?.length || sources.includes(s.id)).map((s) => s.updatedAt) : [m.updatedAt]))
+    .sort()[0];
+  return <span>{oldest ? t('view.dataFrom', { when: fmtRelative(oldest) }) : t('view.noData')}</span>;
 }
 
 /** The dashboard's source filter (#142): shown when its datasets come from more than one source. */

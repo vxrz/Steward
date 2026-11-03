@@ -1,4 +1,4 @@
-name: "Diagnose endpoint outage (from Gatus alert)"
+name: "Gatus – Diagnose an endpoint outage (from an alert)"
 description: |
   Runbook started by a **webhook trigger** when Gatus raises an alert for an
   endpoint (Gatus custom alerting provider → `POST /api/hooks/<trigger id>`,
@@ -17,6 +17,8 @@ description: |
   Replace it with your own steps (e.g. an API call that restarts the
   service) – they run only after an approver other than the trigger owner
   agrees.
+
+  Recommended schedule: none – started by a Gatus alert (webhook trigger).
 tags: [incident, runbook, webhook, gatus]
 connections:
   - slot: gatus

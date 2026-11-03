@@ -49,6 +49,20 @@ describe('AWS IAM access source', () => {
   });
 });
 
+describe('AWS IAM access source and the outbound policy', () => {
+  it('is checked like the Git and Snowflake sources: under allowList the host needs an entry', async () => {
+    const settings = await s.api('GET', '/settings');
+    try {
+      await s.api('PUT', '/settings', { outboundPolicy: 'allowList', outboundAllowList: [] });
+      await expect(s.api('POST', `/compliance/access-checks/${awsCheck}/run`, {})).rejects.toThrow(/Blocked by the outbound policy/);
+      await s.api('PUT', '/settings', { outboundPolicy: 'allowList', outboundAllowList: [new URL(s.base).origin] });
+      expect((await s.api('POST', `/compliance/access-checks/${awsCheck}/run`, {})).snapshot.id).toBeTruthy();
+    } finally {
+      await s.api('PUT', '/settings', { outboundPolicy: settings.outboundPolicy, outboundAllowList: settings.outboundAllowList });
+    }
+  });
+});
+
 describe('person access reviews', () => {
   let id: string;
 

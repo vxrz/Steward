@@ -395,8 +395,10 @@ function documentationPart(d: Data, serviceId: string, c: DocCtx): ScorecardDocu
   }
   const overdue = released.filter((x) => x.reviewStatus === 'overdue').length;
   const missing = expected.filter((e) => !e.satisfiedBy.length).length;
+  // a new service – no applications, no documents yet – is open, not failing: there is nothing to judge so far
+  const empty = !apps.length && !list.length;
   return {
-    status: !released.length || overdue || missing ? 'attention' : 'ok',
+    status: overdue || missing ? 'attention' : !released.length ? (empty ? 'pending' : 'attention') : 'ok',
     documents: list.length,
     released: released.length,
     overdue,
@@ -423,7 +425,9 @@ function protectionPart(need: ReturnType<typeof protectionNeeds> extends Map<str
       override,
     };
   });
-  return { status: dimensions.every((x) => x.ok) ? 'ok' : 'attention', applications: apps, scaleInvalid, dimensions };
+  // a service without applications has nothing rated yet: open, not a failure (a new service starts neutral)
+  const status = dimensions.every((x) => x.ok) ? 'ok' : !apps && !scaleInvalid ? 'pending' : 'attention';
+  return { status, applications: apps, scaleInvalid, dimensions };
 }
 
 // ---------- tech stack (end of life, #104) ----------

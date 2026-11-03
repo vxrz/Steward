@@ -6,7 +6,7 @@ Steward reads Kubernetes clusters (also OpenShift, Rancher, AKS, EKS, GKE) with 
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Which images run in an application's namespaces – tech stack, end of life | application components of type **Kubernetes namespace** (read every 6 hours, or _Read now_) |
 | Are the deployments ready, is a pod crash-looping                         | monitors with the check type **Kubernetes deployments**                                     |
-| Deployments, pods and certificates of several namespaces at a glance      | the example process _Kubernetes – namespace health_ and the dashboard **Kubernetes**        |
+| Deployments, pods and certificates of several namespaces at a glance      | the example process _Kubernetes – Namespace health_ and the dashboard **Kubernetes**        |
 
 ## Connect a cluster
 

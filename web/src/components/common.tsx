@@ -57,6 +57,8 @@ export const TONE = {
 
 const STATUS_COLORS: Record<string, string> = {
   succeeded: TONE.ok,
+  // a run that executed but whose checks failed ("completed with findings"); the stored status stays "succeeded"
+  findings: TONE.attention,
   failed: TONE.bad,
   running: TONE.active,
   waiting: TONE.person,
@@ -69,7 +71,7 @@ const STATUS_COLORS: Record<string, string> = {
   completed: TONE.ok,
 };
 
-const SEVERITY_COLORS: Record<string, string> = { error: TONE.bad, warning: TONE.attention, info: TONE.neutral };
+export const SEVERITY_COLORS: Record<string, string> = { error: TONE.bad, warning: TONE.attention, info: TONE.neutral };
 
 /** Display label of a run, step or task status (unknown values are shown as they are). */
 export function statusLabel(status: string): string {
@@ -155,7 +157,7 @@ export function PageHeader({ title, description, actions, back }: { title: React
       {crumbs.length > 0 && <BackLinks crumbs={crumbs} />}
       <Group justify="space-between" align="flex-start" mb="md" wrap="wrap" gap="sm">
         <Box style={{ minWidth: 0, flex: '1 1 18rem' }}>
-          <Title order={2} fz={{ base: 'h3', sm: 'h2' }} style={{ overflowWrap: 'anywhere' }}>
+          <Title order={1} fz={{ base: 'h3', sm: 'h2' }} style={{ overflowWrap: 'anywhere' }}>
             {title}
           </Title>
           {description && (

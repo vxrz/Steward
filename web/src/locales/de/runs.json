@@ -1,7 +1,7 @@
 {
   "list": {
     "title": "Ausführungen",
-    "description": "Jede Ausführung eines Prozesses mit vollständigem Protokoll.",
+    "description": "Jede Ausführung eines Prozesses mit vollständigem Ausführungsbericht.",
     "allProcesses": "Alle Prozesse",
     "anyStatus": "Jeder Status",
     "summaryReport": "Zusammenfassender Bericht",
@@ -15,7 +15,7 @@
     },
     "checks": "Prüfungen",
     "anyChecks": "Alle",
-    "failedChecks": "Mit fehlgeschlagenen Prüfungen"
+    "failedChecks": "Mit Befunden (fehlgeschlagene Prüfungen)"
   },
   "table": {
     "empty": "Noch keine Ausführungen.",
@@ -39,7 +39,19 @@
     "failedSteps_other": "{{count}} Schritte fehlgeschlagen",
     "webhook": "Webhook",
     "monitor": "Monitor",
-    "test": "Test"
+    "test": "Test",
+    "findings_one": "{{count}} Befund",
+    "findings_other": "{{count}} Befunde",
+    "findingsSplit_one": "{{count}} Befund ({{split}})",
+    "findingsSplit_other": "{{count}} Befunde ({{split}})",
+    "severity": {
+      "error_one": "{{count}} Fehler",
+      "error_other": "{{count}} Fehler",
+      "warning_one": "{{count}} Warnung",
+      "warning_other": "{{count}} Warnungen",
+      "info_one": "{{count}} Hinweis",
+      "info_other": "{{count}} Hinweise"
+    }
   },
   "bindings": {
     "noPermission": "{{name}} (keine Berechtigung zur Nutzung)",
@@ -69,7 +81,7 @@
     "csvHint": "CSV mit Kopfzeile (durch Komma, Semikolon oder Tabulator getrennt)",
     "csvHintColumns": "CSV mit Kopfzeile: {{columns}} (durch Komma, Semikolon oder Tabulator getrennt)",
     "loadCsv": "CSV-Datei laden",
-    "secretHint": "Wird nur verschlüsselt gespeichert; im Protokoll, in Berichten und im Audit-Log als *** angezeigt",
+    "secretHint": "Wird nur verschlüsselt gespeichert; im Ausführungsbericht, in anderen Berichten und im Audit-Log als *** angezeigt",
     "applicationHint": "Der Lauf liest die Komponenten und den Tech-Stack der Anwendung beim Start",
     "noApplications": "Keine Anwendung gefunden",
     "allApplications": "Alle Anwendungen",
@@ -91,8 +103,8 @@
     "resume": "Fortsetzen",
     "resumeHint": "Spielt abgeschlossene Schritte aus dem Journal ab und setzt mit dem unterbrochenen Schritt fort (er wird ggf. erneut ausgeführt).",
     "runAgain": "Erneut ausführen",
-    "protocol": "Protokoll",
-    "openHtml": "HTML-Protokoll öffnen",
+    "protocol": "Ausführungsbericht",
+    "openHtml": "Ausführungsbericht öffnen (HTML)",
     "downloadPdf": "PDF herunterladen",
     "downloadHtml": "HTML herunterladen",
     "downloadJson": "JSON herunterladen (alle Daten)",
@@ -108,8 +120,8 @@
       "changes": "Änderungen",
       "simulated": "Simuliert",
       "checksPassed": "Prüfungen bestanden",
-      "checksFailed": "Prüfungen fehlgeschlagen",
-      "decisions": "Entscheidungen"
+      "decisions": "Entscheidungen",
+      "findings": "Befunde"
     },
     "tabs": {
       "steps": "Schritte",
@@ -121,8 +133,8 @@
       "decisions_other": "Entscheidungen ({{count}})",
       "evidence_one": "Nachweise ({{count}})",
       "evidence_other": "Nachweise ({{count}})",
-      "log_one": "Protokoll ({{count}})",
-      "log_other": "Protokoll ({{count}})",
+      "log_one": "Meldungen ({{count}})",
+      "log_other": "Meldungen ({{count}})",
       "inputs": "Eingaben",
       "audit": "Audit-Log",
       "pdf": "PDF-Berichte"
@@ -135,7 +147,7 @@
       "severity": "Schweregrad",
       "message": "Meldung",
       "passed": "bestanden",
-      "failedLabel": "fehlgeschlagen"
+      "failedLabel": "Befund"
     },
     "artifactLine": "{{step}} · sha256 {{hash}} · {{date}}",
     "connections": "Verbindungen",
@@ -160,17 +172,24 @@
     "showMore": {
       "steps_one": "{{shown}} von {{total}} Schritt",
       "steps_other": "{{shown}} von {{total}} Schritten",
-      "logLines_one": "{{shown}} von {{total}} Protokollzeile",
-      "logLines_other": "{{shown}} von {{total}} Protokollzeilen",
+      "logLines_one": "{{shown}} von {{total}} Meldung",
+      "logLines_other": "{{shown}} von {{total}} Meldungen",
       "more_one": "{{count}} weitere anzeigen",
       "more_other": "{{count}} weitere anzeigen",
       "all": "Alle anzeigen"
     },
-    "testRun": "Testlauf (aufgezeichnete Antworten)"
+    "testRun": "Testlauf (aufgezeichnete Antworten)",
+    "findingsTitle": "Mit Befunden abgeschlossen",
+    "findingsText": "Die Ausführung hat alle Schritte ausgeführt, aber ihre Prüfungen haben etwas gefunden: {{findings}}. Alle Prüfungen: Reiter „Prüfungen“.",
+    "findingBadge": "Befund · {{severity}}",
+    "checkFailed": "Nicht erfüllt: {{name}}",
+    "expected": "erwartet: {{name}}",
+    "moreFindings_one": "und {{count}} weiterer Befund",
+    "moreFindings_other": "und {{count}} weitere Befunde"
   },
   "emptyState": {
     "title": "Noch keine Ausführungen",
-    "text": "Eine Ausführung ist ein Durchlauf eines Prozesses mit vollständigem Protokoll. Starten Sie sie bei einem Prozess – ein Probelauf simuliert vorher jede Änderung.",
+    "text": "Eine Ausführung ist ein Durchlauf eines Prozesses mit vollständigem Ausführungsbericht. Starten Sie sie bei einem Prozess – ein Probelauf simuliert vorher jede Änderung.",
     "action": "Zu den Prozessen",
     "noMatch": "Keine Ausführungen passen zum Filter."
   },

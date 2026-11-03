@@ -504,9 +504,9 @@ describe('start page tile', () => {
     expect(after.reviews.dueSoon - before.reviews.dueSoon).toBe(1);
     // vera reviews one document: her tile counts only that one
     await adam('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'vera' });
-    expect((await attention(vera)).reviews).toEqual({ overdue: 1, dueSoon: 0 });
+    expect((await attention(vera)).reviews).toMatchObject({ overdue: 1, dueSoon: 0 });
     expect(await status(vera('POST', `/records/${pub.id}/review`, { outcome: 'no_change' }))).toBe(200);
-    expect((await attention(vera)).reviews).toEqual({ overdue: 0, dueSoon: 0 });
+    expect((await attention(vera)).reviews).toMatchObject({ overdue: 0, dueSoon: 0 });
   });
 });
 

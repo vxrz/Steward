@@ -133,6 +133,8 @@ A **person review** (#118) answers "what may this one person do, and should they
 - **Access checks**: the [reconciliation checks](#access-reconciliation) to read – any source: Insights Hub, datasets, Git platforms, Snowflake, AWS IAM. Each is read **live** when the review starts, with the rights of the person starting it; if that fails, the check's latest snapshot is used and the review says so per source.
 - **Four-eyes approval** (on by default).
 
+An account matches when its id, its name or one of its other names equals one of the person's names. Snowflake adds the user's e-mail address as another name (users named by employee id are found by it) and the last login as a hint next to each right (`subjectActivity`; "password without MFA" too) – read when the review starts, never part of a snapshot.
+
 What was found is **frozen**: one line per account and right, and a subject without rights as _(no rights)_. Later changes on the platforms do not change the review.
 
 1. The reviewer decides each right: **keep** or **remove**. A removal needs a reason. Nobody decides about their own access (matched by the Steward user and by their user name and e-mail address).

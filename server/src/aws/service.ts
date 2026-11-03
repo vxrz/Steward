@@ -5,7 +5,7 @@ import { vault } from '../vault.js';
 import { logger } from '../log.js';
 import { HttpError, parseJson } from '../util.js';
 import { platformFor } from '../monitors/platforms.js';
-import { AwsClient, homeRegion, parseArn } from './client.js';
+import { AwsClient, CE_REGION, IAM_REGION, homeRegion, parseArn } from './client.js';
 
 /**
  * AWS accounts (#116). One platform is one AWS account (optionally reached by assuming a role). Application
@@ -255,9 +255,80 @@ export async function runAwsJob(now = Date.now()): Promise<number> {
   return n;
 }
 
-/** Connection test: STS says which account and principal the credentials (or the assumed role) are. */
-export async function testAws(platform: Platform, secrets: Record<string, string>): Promise<string> {
-  const id = await new AwsClient(platform, secrets).callerIdentity();
+/** One part of a connector in the connection test: works, or what is missing (v0.3.1). */
+export interface TestCheck {
+  name: string;
+  ok: boolean;
+  message: string;
+}
+
+/** An AWS error in plain words: a missing IAM action names the action and who needs it. */
+function partError(e: unknown, action: string, principal: string): string {
+  const err = e as Error & { awsCode?: string; status?: number };
+  const code = err.awsCode ?? '';
+  if (/AccessDenied|UnauthorizedOperation|NotAuthorized|AuthorizationError/i.test(code) || /not authorized to perform/i.test(err.message))
+    return `not allowed – the policy of ${principal || 'the principal'} lacks ${action} (docs/AWS.md)`;
+  if (/cost explorer/i.test(err.message)) return `Cost Explorer is not enabled for the account – enable it in the Billing console (docs/AWS.md)`;
+  return err.message.slice(0, 300);
+}
+
+/**
+ * Connection test: STS says which account and principal the credentials (or the assumed role) are – GetCallerIdentity
+ * needs no permission, so it alone said nothing about what Steward can read. Each part Steward uses is probed once
+ * (tagging GetResources in the first region, Cost Explorer for one day, IAM ListUsers with one item). The test passes
+ * when STS works; a missing part is a warning that names the IAM action.
+ */
+export async function testAws(platform: Platform, secrets: Record<string, string>): Promise<{ message: string; checks: TestCheck[] }> {
+  const c = new AwsClient(platform, secrets);
+  const role = platform.config.auth?.aws?.roleArn;
+  let id: Awaited<ReturnType<AwsClient['callerIdentity']>>;
+  try {
+    id = await c.callerIdentity();
+  } catch (e) {
+    const m = (e as Error).message;
+    if (role && /^AssumeRole/.test(m))
+      throw new Error(
+        `${m.slice(0, 300)} – the caller needs sts:AssumeRole on ${role}, and the role's trust policy must trust the caller (with the same external ID, if one is set; docs/AWS.md)`,
+      );
+    throw e;
+  }
   const { regions, tagKey } = accountSettings(platform);
-  return `AWS account ${id.account} as ${id.arn} – regions ${regions.join(', ')}, resources linked by the tag "${tagKey}"`;
+  const checks: TestCheck[] = [
+    {
+      name: role ? 'STS AssumeRole' : 'STS GetCallerIdentity',
+      ok: true,
+      message: role ? `${role} assumed, as ${id.arn}` : `account ${id.account} as ${id.arn}`,
+    },
+  ];
+  const probe = async (name: string, action: string, ok: string, call: () => Promise<unknown>) => {
+    try {
+      await call();
+      checks.push({ name, ok: true, message: ok });
+    } catch (e) {
+      checks.push({ name, ok: false, message: partError(e, action, id.arn) });
+    }
+  };
+  const region = regions[0]!;
+  await probe('Resources (tagging GetResources)', 'tag:GetResources', `readable in ${region}`, () =>
+    c.json('tagging', region, 'ResourceGroupsTaggingAPI_20170126.GetResources', { TagFilters: [{ Key: tagKey }], ResourcesPerPage: 1 }),
+  );
+  const today = new Date();
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  await probe('Costs (Cost Explorer GetCostAndUsage)', 'ce:GetCostAndUsage', 'readable (one request, $0.01)', () =>
+    c.json('ce', CE_REGION, 'AWSInsightsIndexService.GetCostAndUsage', {
+      TimePeriod: { Start: day(new Date(today.getTime() - 86400_000)), End: day(today) },
+      Granularity: 'DAILY',
+      Metrics: ['UnblendedCost'],
+      GroupBy: [{ Type: 'DIMENSION', Key: 'SERVICE' }],
+    }),
+  );
+  await probe('IAM users (IAM ListUsers)', 'iam:ListUsers (and iam:ListUserTags, iam:ListAccessKeys, iam:GetAccessKeyLastUsed)', 'readable', () =>
+    c.query('iam', IAM_REGION, { Action: 'ListUsers', Version: '2010-05-08', MaxItems: '1' }),
+  );
+  const missing = checks.filter((x) => !x.ok);
+  const base = `AWS account ${id.account} as ${id.arn} – regions ${regions.join(', ')}, resources linked by the tag "${tagKey}"`;
+  return {
+    message: missing.length ? `${base}. Not readable: ${missing.map((x) => x.name.replace(/ \(.*$/, '')).join(', ')} – see below.` : base,
+    checks,
+  };
 }

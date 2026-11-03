@@ -38,6 +38,7 @@ import {
   type NotificationLookPreview,
 } from '@sm/shared';
 import { api, apiUrl, getOptional, notifyError, notifyOk, post, put } from '../../api';
+import { useSaveSection } from '../settings/SaveBar';
 
 const KEYS = Object.keys(NOTIFICATION_LOOK_DEFAULTS) as (keyof NotificationLookInput)[];
 const toDraft = (l: NotificationLook): NotificationLookInput => Object.fromEntries(KEYS.map((k) => [k, l[k]])) as unknown as NotificationLookInput;
@@ -146,12 +147,9 @@ export function NotificationLookCard() {
     // the logo is part of the preview: refresh it when an own logo is uploaded or removed
   }, [debounced, showPreview, sample, q.data?.customLogo?.updatedAt, q.data?.customLogo]);
 
-  if (!q.data || !d) return null;
-  const look = q.data;
-  const dirty = JSON.stringify(d) !== JSON.stringify(toDraft(look));
-  const isDefault = JSON.stringify(d) === JSON.stringify(NOTIFICATION_LOOK_DEFAULTS);
-
+  const dirty = !!q.data && !!d && JSON.stringify(d) !== JSON.stringify(toDraft(q.data));
   const save = async () => {
+    if (!d) return;
     setBusy(true);
     try {
       const next = await put<NotificationLook>('/settings/notifications/look', d);
@@ -163,6 +161,15 @@ export function NotificationLookCard() {
       setBusy(false);
     }
   };
+  const inBar = useSaveSection('notificationLook', {
+    dirty,
+    valid: !!d && validColor(d.color) && validColor(d.buttonColor),
+    save,
+    reset: () => q.data && setD(toDraft(q.data)),
+  });
+  if (!q.data || !d) return null;
+  const look = q.data;
+  const isDefault = JSON.stringify(d) === JSON.stringify(NOTIFICATION_LOOK_DEFAULTS);
 
   const uploadLogo = async (file: File | null) => {
     if (!file) return;
@@ -369,14 +376,16 @@ export function NotificationLookCard() {
           </Stack>
         </Radio.Group>
         <Group>
-          <Button
-            leftSection={<IconDeviceFloppy size={16} />}
-            onClick={save}
-            loading={busy}
-            disabled={!dirty || !validColor(d.color) || !validColor(d.buttonColor)}
-          >
-            {t('look.save')}
-          </Button>
+          {!inBar && (
+            <Button
+              leftSection={<IconDeviceFloppy size={16} />}
+              onClick={save}
+              loading={busy}
+              disabled={!dirty || !validColor(d.color) || !validColor(d.buttonColor)}
+            >
+              {t('look.save')}
+            </Button>
+          )}
           <Button
             variant="subtle"
             color="gray"

@@ -104,7 +104,7 @@ test.describe('update notice (own server)', () => {
     await expect(notice).toBeHidden();
     // the other browser does not show it again either
     await phone.reload();
-    await expect(phone.getByRole('main').getByRole('heading', { level: 2 }).first()).toBeVisible();
+    await expect(phone.getByRole('main').getByRole('heading', { level: 1 }).first()).toBeVisible();
     await expect(phone.getByRole('alert', { name: /was updated/ })).toBeHidden();
   });
 

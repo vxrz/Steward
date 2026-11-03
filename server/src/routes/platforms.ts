@@ -8,7 +8,10 @@ import * as platforms from '../platforms/service.js';
 import * as connectors from '../platforms/connectors.js';
 import * as recordings from '../platforms/recordings.js';
 import { PATH_PREFIX_MAX } from '../platforms/pathPrefix.js';
-import { platformRequest, renewToken, secretValues, tokenInfo, usesCachedToken } from '../platforms/http.js';
+import { buildUrl, platformRequest, renewToken, secretValues, tokenInfo, usesCachedToken } from '../platforms/http.js';
+import { judgeHttpTest } from '../platforms/connectionTest.js';
+import { snowflakeJwtHint } from '../platforms/jwt.js';
+import { shownHeaders, where } from '../platforms/answers.js';
 import { platformAccess } from '../auth/step-up-rules.js';
 import { requireCapability } from '../auth/permissions.js';
 import { boundedRecord } from '@sm/shared';
@@ -17,6 +20,7 @@ import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ACCESS, me } from '../auth/access.js';
 import { requirePlatform } from './helpers.js';
+import { PRESET_SPECS } from '../platforms/presets.js';
 
 const platformBody = z.object({
   name: z.string().min(1).max(200),
@@ -96,7 +100,13 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
   // Platforms (names, base URLs, docs) are only visible to users with some permission on them.
-  app.get('/platforms', async () => platforms.listPlatforms().filter((p) => p.permissions.length > 0));
+  app.get('/platforms', async () => {
+    const tests = platforms.lastConnectionTests();
+    return platforms
+      .listPlatforms()
+      .filter((p) => p.permissions.length > 0)
+      .map((p) => ({ ...p, lastTest: tests.get(p.id) ?? null }));
+  });
   app.post('/platforms', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'createPlatforms', 'add platforms');
     return connectors.createPlatformFromType(platformBody.extend({ typeKind: z.string().optional() }).parse(req.body));
@@ -136,45 +146,67 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
     if (p.kind === 'kafka' || p.kind === 'mqtt' || p.kind === 'aws' || p.kind === 'snowflake') {
       const t0 = Date.now();
       try {
+        let checks: { name: string; ok: boolean; message: string }[] | undefined;
         const message =
           p.kind === 'kafka'
             ? await (await import('../kafka/service.js')).testKafka(p, secrets)
             : p.kind === 'aws'
-              ? await (await import('../aws/service.js')).testAws(p, secrets)
+              ? await (await import('../aws/service.js')).testAws(p, secrets).then((r) => ((checks = r.checks), r.message))
               : p.kind === 'snowflake'
                 ? await (await import('../snowflake/service.js')).testSnowflake(p, secrets)
                 : await (await import('../mqtt/listener.js')).testMqtt(p, secrets);
-        audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}": ${message}` });
-        return { ok: true, status: 200, durationMs: Date.now() - t0, message, body: null, token: null };
+        audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}": ${message}`, details: { ok: true } });
+        // AWS: every part Steward reads, with what is missing (the test passes when STS works)
+        return { ok: true, status: 200, durationMs: Date.now() - t0, message, body: null, token: null, ...(checks ? { checks: redact(checks, secrets) } : {}) };
       } catch (e) {
-        const message = redact((e as Error).message, secrets) as string;
-        audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}` });
+        let message = redact((e as Error).message, secrets) as string;
+        // Snowflake's "390144 JWT token is invalid" says nothing about why: the usual causes
+        if (p.kind === 'snowflake') message = snowflakeJwtHint(message, p.config.variables);
+        audit({
+          action: 'platform.tested',
+          entityType: 'platform',
+          entityId: id,
+          summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}`,
+          details: { ok: false },
+        });
         return { ok: false, status: 0, durationMs: Date.now() - t0, message };
       }
     }
     try {
-      const res = await platformRequest(p, secrets, { method: 'GET', url: testPath });
-      const ok = res.status >= 200 && res.status < 400;
+      // at most 1 MB of the answer: enough to tell an API from a page, and to show it
+      const res = await platformRequest(p, secrets, { method: 'GET', url: testPath, truncateResponseBytes: 1024 * 1024 });
+      // say which request was made: without a test path it is the base URL itself (often a portal behind its own login)
+      const what = `GET ${testPath}${p.config.testPath ? '' : ' (no test path set: the base URL itself)'}`;
+      // a status below 400 is not enough: a redirect to a sign-in page or an HTML portal page is no working API (v0.3.1)
+      const verdict = judgeHttpTest(p, what, await buildUrl(p, secrets, testPath), res);
       audit({
         action: 'platform.tested',
         entityType: 'platform',
         entityId: id,
-        summary: `Connection test "${p.name}": GET ${testPath} → HTTP ${res.status} (${res.durationMs} ms)`,
+        summary: `Connection test "${p.name}": GET ${testPath} → HTTP ${res.status} (${res.durationMs} ms)${verdict.ok ? '' : ' – failed'}`,
+        details: { ok: verdict.ok, status: res.status },
       });
-      // say which request was made: without a test path it is the base URL itself (often a portal behind its own login)
-      const what = `GET ${testPath}${p.config.testPath ? '' : ' (no test path set: the base URL itself)'}`;
       return {
-        ok,
+        ok: verdict.ok,
         status: res.status,
         durationMs: res.durationMs,
-        message: ok ? `Connection works – ${what}` : `${what} answered HTTP ${res.status}`,
+        message: redact(verdict.message, secrets),
         body: redact(res.body, secrets),
+        // who answered: content type, server, proxy, sign-in challenge, redirect target
+        headers: redact(shownHeaders(res.headers), secrets),
+        url: where(res.url),
         // when the cached access token was issued: roles granted later need a new one (POST …/token/renew)
         token: tokenInfo(id),
       };
     } catch (e) {
       const message = redact((e as Error).message, secrets) as string;
-      audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}` });
+      audit({
+        action: 'platform.tested',
+        entityType: 'platform',
+        entityId: id,
+        summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}`,
+        details: { ok: false },
+      });
       return { ok: false, status: 0, durationMs: 0, message };
     }
   });
@@ -279,6 +311,20 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
       .strict()
       .parse(req.body);
     return platforms.setSpecPathPrefix(params(req).id!, params(req).specId!, b.pathPrefix);
+  });
+  // The specifications a built-in preset brings (e.g. Prometheus since 0.3.1) for platforms made before it had them;
+  // names the platform already has are skipped, so this can be clicked again.
+  app.post('/platforms/:id/specs/built-in', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+    const id = params(req).id!;
+    const p = requirePlatform(id, 'manage', 'add API specifications');
+    const have = new Set(platforms.listSpecs(id).map((s) => s.name));
+    const added: string[] = [];
+    for (const s of PRESET_SPECS[p.kind]?.() ?? []) {
+      if (have.has(s.name)) continue;
+      platforms.addSpec(id, s.name, s.content);
+      added.push(s.name);
+    }
+    return { added };
   });
   // Copies, not links: platforms of one kind can run different API versions, so each target gets its own spec.
   app.post('/platforms/:id/specs/:specId/copy', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {

@@ -37,6 +37,12 @@ export interface BrowserSession {
  */
 export type BrowserRequestGuard = (url: string, navigation: boolean) => Promise<boolean> | boolean;
 
+interface PwRequest {
+  url(): string;
+  isNavigationRequest(): boolean;
+  redirectedFrom(): PwRequest | null;
+}
+
 interface PwRoute {
   request(): { url(): string; isNavigationRequest(): boolean };
   continue(): Promise<void>;
@@ -57,8 +63,13 @@ export async function browserAvailable(): Promise<boolean> {
   return available;
 }
 
+type PwContext = {
+  newPage(): Promise<PwPage>;
+  route(pattern: string, handler: (r: PwRoute) => Promise<void>): Promise<void>;
+  on(event: 'request', handler: (r: PwRequest) => void): void;
+};
 type PwBrowser = {
-  newContext(o: unknown): Promise<{ newPage(): Promise<PwPage>; route(pattern: string, handler: (r: PwRoute) => Promise<void>): Promise<void> }>;
+  newContext(o: unknown): Promise<PwContext>;
   close(): Promise<void>;
 };
 
@@ -67,15 +78,13 @@ export async function openBrowser(opts: {
   timeoutMs: number;
   ignoreHttpsErrors?: boolean;
   requestGuard?: BrowserRequestGuard;
+  /**
+   * The hops of an HTTP redirect do not pass the route handler (Chromium follows them itself): each one is checked
+   * once it is sent, and one the guard refuses is reported here – the caller stops using the page (v0.3.1).
+   */
+  onRefusedRedirect?: (url: string) => void;
 }): Promise<BrowserSession> {
-  let pw: {
-    chromium: {
-      launch(o: unknown): Promise<{
-        newContext(o: unknown): Promise<{ newPage(): Promise<PwPage>; route(pattern: string, handler: (r: PwRoute) => Promise<void>): Promise<void> }>;
-        close(): Promise<void>;
-      }>;
-    };
-  };
+  let pw: { chromium: { launch(o: unknown): Promise<PwBrowser> } };
   try {
     pw = (await import('playwright')) as never;
   } catch {
@@ -96,6 +105,15 @@ export async function openBrowser(opts: {
         ok = false;
       }
       await (ok ? route.continue() : route.abort('blockedbyclient')).catch(() => undefined);
+    });
+    context.on('request', (req) => {
+      if (!req.redirectedFrom()) return;
+      void Promise.resolve()
+        .then(() => guard(req.url(), req.isNavigationRequest()))
+        .catch(() => false)
+        .then((ok) => {
+          if (!ok) opts.onRefusedRedirect?.(req.url());
+        });
     });
   }
   const page = await context.newPage();

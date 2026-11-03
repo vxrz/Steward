@@ -82,14 +82,14 @@ Each part has its own status. There is **no weighting** and no score:
 | **Open**         | Nothing failed, but something is still open or has no data |
 | Nothing to judge | The part has nothing to judge (no duties, no objectives)   |
 
-A service shows **Attention needed** when any part has the status _Attention_.
+A service shows **Attention needed** when any part has the status _Attention_. A new service – no applications, no documents, no duties or objectives yet – starts neutral (_Open_ or _Nothing to judge_): it needs attention once there is something to judge.
 
 | Part                | Attention when …                                                                                                                                                                                                     |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Duties**          | a **mandatory** duty was not met in its last closed period (missed or failed). _Open_ while a current period is still due ([DUTIES.md](DUTIES.md))                                                                   |
 | **Availability**    | an objective is below target, or has had no data for more than 24 hours. _Open_ when one has no data for a shorter time                                                                                              |
-| **Documentation**   | no living document is released, a review is overdue, or an expected document is missing ([RECORDS.md](RECORDS.md))                                                                                                   |
-| **Protection need** | it is not rated: the service has no applications, a dimension has no level, applications are not rated or must be re-rated after a scale change, or the CIA scale is not valid                                       |
+| **Documentation**   | no living document is released, a review is overdue, or an expected document is missing ([RECORDS.md](RECORDS.md)). _Open_ for a new service without applications and documents                                      |
+| **Protection need** | it is not rated: a dimension has no level, applications are not rated or must be re-rated after a scale change, or the CIA scale is not valid. _Open_ while the service has no applications                          |
 | **Tech stack**      | (only when turned on, below) a component of the service's applications runs a version past its end of life. _Open_ when one ends within the warning period                                                           |
 | **Vulnerabilities** | (only when linked, below) a component's Dependency-Track project has open **critical** findings or **failing** policy violations. _Open_ on open high findings, or when the last read failed or is older than 2 days |
 

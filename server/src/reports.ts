@@ -75,8 +75,8 @@ function manualHtml(t: RunDetail['tasks'][number]): string {
   return parts.join('') + checklist + fields + files;
 }
 
-function statusBadge(s: string): string {
-  return `<span class="badge s-${esc(s)}">${esc(s)}</span>`;
+function statusBadge(s: string, label = s): string {
+  return `<span class="badge s-${esc(s)}">${esc(label)}</span>`;
 }
 
 export function runReportHtml(runId: string): string {
@@ -112,7 +112,7 @@ h3,h4{font-size:14px}table{border-collapse:collapse;width:100%;margin:8px 0}th,t
 th{background:#f3f5f8}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}.muted{color:#6b7785}
 .badge{display:inline-block;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:600;background:#e4e8ee}
 .s-succeeded{background:#d3f4dd;color:#11643a}.s-failed{background:#fde0e0;color:#a11}.s-dryrun{background:#fff0c2;color:#7a5600}
-.s-skipped{background:#eef0f3;color:#667}.s-waiting{background:#e2ebff;color:#2347a8}.s-cancelled,.s-interrupted{background:#eee;color:#555}
+.s-findings,.s-finding{background:#ffe8cc;color:#8a3b00}.s-skipped{background:#eef0f3;color:#667}.s-waiting{background:#e2ebff;color:#2347a8}.s-cancelled,.s-interrupted{background:#eee;color:#555}
 .kv td:first-child{width:200px;color:#556}.ok{color:#11643a;font-weight:600}.bad{color:#a11;font-weight:600}
 figure{margin:12px 0;page-break-inside:avoid}img{max-width:100%;border:1px solid #d9dee5}figcaption{font-size:11px;color:#6b7785}
 .dry{background:#fff7d6;border:1px solid #f0d77a;padding:8px 12px;border-radius:6px;margin:12px 0}
@@ -123,13 +123,20 @@ ${run.dryRun ? '<div class="dry"><strong>DRY RUN</strong> – write operations w
 <h2>Summary</h2>
 <table class="kv">
 <tr><td>Run ID</td><td class="mono">${esc(run.id)}</td></tr>
-<tr><td>Status</td><td>${statusBadge(run.status)} ${run.error ? esc(run.error) : ''}</td></tr>
+<tr><td>Status</td><td>${run.outcome === 'findings' ? statusBadge('findings', 'completed with findings') : statusBadge(run.status)} ${run.error ? esc(run.error) : ''}</td></tr>
 <tr><td>Process</td><td>${esc(run.processName)} (<span class="mono">${esc(run.processId)}</span>) version ${run.processVersion}</td></tr>
 <tr><td>Definition hash</td><td class="mono">${esc(run.definitionHash)}</td></tr>
 <tr><td>Started by</td><td>${esc(run.actor)} (${esc(run.trigger)}${run.triggerName ? `: ${esc(run.triggerName)}` : ''})</td></tr>
 <tr><td>Started / finished</td><td>${fmtDate(run.startedAt)} / ${fmtDate(run.finishedAt)}</td></tr>
-<tr><td>Steps</td><td>${run.stats.steps} executed, ${run.stats.failedSteps} failed · ${run.stats.writes} write call(s), ${run.stats.skippedWrites} simulated</td></tr>
-<tr><td>Checks</td><td>${run.stats.checksPassed} passed, ${run.stats.checksFailed} failed</td></tr>
+<tr><td>Steps</td><td>${run.stats.steps} executed, ${Math.max(0, run.stats.failedSteps - run.stats.checksFailed)} failed · ${run.stats.writes} write call(s), ${run.stats.skippedWrites} simulated</td></tr>
+<tr><td>Checks</td><td>${run.stats.checksPassed} passed, ${run.stats.checksFailed} with findings${
+    run.findings?.total
+      ? ` (${(['error', 'warning', 'info'] as const)
+          .filter((k) => run.findings![k])
+          .map((k) => `${run.findings![k]} ${k}`)
+          .join(', ')})`
+      : ''
+  }</td></tr>
 <tr><td>Protocol integrity</td><td>${
     intact === null
       ? '<span class="muted">Run not finished – no sealed fingerprint yet</span>'
@@ -220,9 +227,10 @@ ${
 ${run.steps
   .map(
     (s) =>
-      `<tr><td style="padding-left:${6 + depth(s.key) * 16}px">${esc(s.name)}<div class="muted mono">${esc(s.key)}</div></td><td>${esc(s.type)}</td><td>${statusBadge(
-        s.status,
-      )}</td><td>${fmtDate(s.startedAt)}</td><td>${s.durationMs ?? ''} ms</td><td>${esc(s.error ?? s.summary ?? '')}</td></tr>`,
+      `<tr><td style="padding-left:${6 + depth(s.key) * 16}px">${esc(s.name)}<div class="muted mono">${esc(s.key)}</div></td><td>${esc(s.type)}</td><td>${
+        // a failed check is a finding of the run, not a step that failed to execute
+        s.type === 'check' && s.status === 'failed' && !s.error ? statusBadge('finding') : statusBadge(s.status)
+      }</td><td>${fmtDate(s.startedAt)}</td><td>${s.durationMs ?? ''} ms</td><td>${esc(s.error ?? s.summary ?? '')}</td></tr>`,
   )
   .join('')}
 </table>

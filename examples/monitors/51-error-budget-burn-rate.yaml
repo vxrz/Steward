@@ -1,0 +1,35 @@
+# Error budget burn rate (#110): how fast a service uses its error budget right now, from Prometheus – the
+# multi-window rule of the Google SRE workbook: down at 14.4× over one hour (the budget of 28 days would be gone in
+# two days), degraded at 6× over six hours. The objective (99.9 %) is in the divisor; replace the service and the
+# metric with your own, one check per service. "platform: Prometheus" finds your Prometheus platform when it is the
+# only one; on import you choose it otherwise. The weekly report is the example process "Prometheus – SLO and
+# error-budget report". See docs/MONITORS.md.
+kind: monitor
+key: error-budget-burn-rate
+name: Error budget burn rate
+description: Fast and slow burn of the error budget (objective 99.9 %) of a service, from Prometheus.
+tags: [prometheus, slo, reliability]
+intervalSeconds: 300
+aggregate: { rule: worst }
+checks:
+  - id: fast-burn
+    name: shop-api – fast burn (1 h)
+    type: prometheus
+    platform: Prometheus
+    query: '(1 - sum(rate(http_requests_total{code!~"5..",service="shop-api"}[1h])) / sum(rate(http_requests_total{service="shop-api"}[1h]))) / (1 - 0.999)'
+    warn: 6
+    crit: 14.4
+    unit: ×
+    x: 0
+    y: 0
+  - id: slow-burn
+    name: shop-api – slow burn (6 h)
+    type: prometheus
+    platform: Prometheus
+    query: '(1 - sum(rate(http_requests_total{code!~"5..",service="shop-api"}[6h])) / sum(rate(http_requests_total{service="shop-api"}[6h]))) / (1 - 0.999)'
+    warn: 1
+    crit: 6
+    unit: ×
+    critical: false
+    x: 260
+    y: 0

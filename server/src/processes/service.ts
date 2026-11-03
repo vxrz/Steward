@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
 import {
+  SYNC_MIN_VERSION_RE,
   validateProcess,
   type ProcessDefinition,
   type ProcessDetail,
@@ -16,10 +17,11 @@ import { config } from '../config.js';
 import { currentActor, currentUser } from '../auth/context.js';
 import { logger } from '../log.js';
 import { cleanAcl, processPermissions } from '../auth/permissions.js';
-import { PROCESS_PERMISSIONS, type AclEntry, type ProcessPermission } from '@sm/shared';
+import { PROCESS_PERMISSIONS, runOutcome, type AclEntry, type ProcessPermission } from '@sm/shared';
 import { HttpError, MAX_DEFINITION_TEXT, canonicalJson, nowIso, parseJson, sha256, slugify } from '../util.js';
 import { parseYaml } from '../yaml-safe.js';
 import { assignCreatorTeams } from '../auth/policy.js';
+import { datasetsOf, listDashboardTemplates } from '../dashboards/service.js';
 
 interface ProcessRow {
   id: string;
@@ -37,11 +39,14 @@ interface ProcessRow {
 export const definitionHash = (d: ProcessDefinition): string => sha256(canonicalJson(d));
 
 function lastRun(processId: string): ProcessSummary['lastRun'] {
-  const r = db().get<{ id: string; status: RunStatus; started_at: string }>(
-    'SELECT id, status, started_at FROM runs WHERE process_id = ? ORDER BY started_at DESC LIMIT 1',
+  const r = db().get<{ id: string; status: RunStatus; started_at: string; stats: string }>(
+    'SELECT id, status, started_at, stats FROM runs WHERE process_id = ? ORDER BY started_at DESC LIMIT 1',
     processId,
   );
-  return r ? { id: r.id, status: r.status, startedAt: r.started_at } : null;
+  if (!r) return null;
+  // outcome: "findings" when it succeeded with failed checks (the status stays)
+  const outcome = runOutcome(r.status, parseJson<{ checksFailed?: number }>(r.stats, {}).checksFailed ?? 0);
+  return { id: r.id, status: r.status, outcome, startedAt: r.started_at };
 }
 
 function toSummary(r: ProcessRow): ProcessSummary {
@@ -230,22 +235,85 @@ export function toYaml(def: ProcessDefinition): string {
 
 export function listTemplates(): ProcessTemplate[] {
   if (!fs.existsSync(config.templatesDir)) return [];
+  const dashboards = templateDashboards();
   return fs
     .readdirSync(config.templatesDir)
     .filter((f) => /\.ya?ml$/.test(f))
     .sort()
     .map((f) => {
-      const def = parseDefinitionText(fs.readFileSync(path.join(config.templatesDir, f), 'utf8')) as ProcessDefinition;
+      const text = fs.readFileSync(path.join(config.templatesDir, f), 'utf8');
+      const def = parseDefinitionText(text) as ProcessDefinition;
       const res = validateProcess(def);
       if (!res.ok) logger.warn({ template: f, issues: res.issues }, 'invalid template');
+      const definition = res.definition ?? def;
+      const meta = templateMeta(def as unknown as Record<string, unknown>, definition, text);
       return {
         id: f.replace(/\.ya?ml$/, ''),
         name: def.name,
         description: def.description ?? '',
         tags: def.tags ?? [],
-        definition: res.definition ?? def,
+        definition,
+        ...meta,
+        dashboards: dashboards.filter((d) => d.datasets.some((x) => meta.datasets.includes(x))).map(({ id, name }) => ({ id, name })),
       };
     });
+}
+
+/** The dashboard templates with the datasets they read (for "feeds these dashboards"). */
+function templateDashboards(): { id: string; name: string; datasets: string[] }[] {
+  try {
+    return listDashboardTemplates().map((t) => ({ id: t.id, name: t.name, datasets: datasetsOf(t.definition) }));
+  } catch (e) {
+    logger.warn({ err: (e as Error).message }, 'dashboard templates not readable');
+    return [];
+  }
+}
+
+const CRON_RE = /^(\S+\s+){4}\S+$/;
+
+/**
+ * Gallery metadata of a template (0.3.1): what it needs, when to run it, what it writes. Read from the raw file, so
+ * hints the definition schema does not keep (`recommendedSchedule`, `connections[].kinds`) are seen; a process created
+ * from the template does not carry them, and older versions ignore them.
+ */
+function templateMeta(
+  raw: Record<string, unknown>,
+  def: ProcessDefinition,
+  text: string,
+): Pick<Required<ProcessTemplate>, 'connections' | 'connectionKinds' | 'recommendedSchedule' | 'datasets' | 'minVersion'> {
+  const rawSlots = Array.isArray(raw.connections) ? (raw.connections as Record<string, unknown>[]) : [];
+  const connections = (def.connections ?? []).map((c) => {
+    const hint = rawSlots.find((x) => x && x.slot === c.slot)?.kinds;
+    const kinds = c.kind ? [c.kind] : Array.isArray(hint) ? [...new Set(hint.filter((k): k is string => typeof k === 'string' && !!k))] : [];
+    return { slot: c.slot, kinds, description: c.description ?? '' };
+  });
+  // the sentence ends at a full stop (not the one of "e.g." or "i.e.") or an empty line
+  const sentence = /Recommended schedule:\s*([\s\S]*?)(?:(?<!\b(?:e\.g|i\.e))\.(?=\s|$)|\n\s*\n|$)/i
+    .exec(def.description ?? '')?.[1]
+    ?.replace(/\s+/g, ' ')
+    .trim();
+  const declared = typeof raw.recommendedSchedule === 'string' && CRON_RE.test(raw.recommendedSchedule.trim()) ? raw.recommendedSchedule.trim() : null;
+  const inText = sentence ? [...sentence.matchAll(/`([^`]+)`/g)].map((m) => m[1]!.trim()).find((x) => CRON_RE.test(x)) : undefined;
+  const datasets = new Set<string>();
+  for (const n of def.nodes ?? []) if (n.type === 'publish' && n.dataset) datasets.add(n.dataset);
+  let minVersion: string | null = null;
+  for (const line of text.split(/\r?\n/, 30)) {
+    const l = line.trim();
+    if (l === '' || l === '---') continue;
+    if (!l.startsWith('#')) break;
+    const m = SYNC_MIN_VERSION_RE.exec(l);
+    if (m) {
+      minVersion = m[1]!;
+      break;
+    }
+  }
+  return {
+    connections,
+    connectionKinds: [...new Set(connections.flatMap((c) => c.kinds))].sort(),
+    recommendedSchedule: sentence || declared ? { cron: declared ?? inText ?? null, text: sentence ?? '' } : null,
+    datasets: [...datasets].sort(),
+    minVersion,
+  };
 }
 
 export function createFromTemplate(templateId: string): ProcessDetail {

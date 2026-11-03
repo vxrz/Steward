@@ -32,6 +32,9 @@ import { useAppName } from '../theme';
 
 type PolicyError = 'policyTooShort' | 'policyCharacters';
 
+/** The shortest master passphrase the server accepts (POST /auth/setup). */
+const PASSPHRASE_MIN = 12;
+
 function policyError(pw: string): PolicyError | null {
   if (pw.length < 10) return 'policyTooShort';
   if (!/[A-Za-z]/.test(pw) || !/[^A-Za-z]/.test(pw)) return 'policyCharacters';
@@ -47,7 +50,7 @@ function Card({ icon, title, intro, children }: { icon: ReactNode; title: string
       <Paper withBorder shadow="sm" p="xl" w="100%" maw={440}>
         <Stack>
           <Center>{icon}</Center>
-          <Title order={3} ta="center">
+          <Title order={1} size="h3" ta="center">
             {title}
           </Title>
           {intro && (
@@ -81,6 +84,7 @@ export function SetupPage({ status }: { status: AuthStatus }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const existingVault = status.initialized;
+  const [passphraseTouched, setPassphraseTouched] = useState(false);
 
   const submit = async () => {
     setError(null);
@@ -117,9 +121,33 @@ export function SetupPage({ status }: { status: AuthStatus }) {
               <Trans t={t} i18nKey="setup.passphraseInfo" components={{ b: <b />, code: <code /> }} />
             </Text>
           </Alert>
-          <PasswordInput label={t('masterPassphrase')} required value={passphrase} onChange={(e) => setPassphrase(e.currentTarget.value)} autoFocus />
+          <PasswordInput
+            label={t('masterPassphrase')}
+            required
+            value={passphrase}
+            onChange={(e) => setPassphrase(e.currentTarget.value)}
+            autoFocus
+            // the rule under the field, checked while typing (it was a note under the disabled button)
+            description={
+              existingVault
+                ? undefined
+                : passphrase.length > 0 && passphrase.length < PASSPHRASE_MIN
+                  ? t('setup.passphraseRuleMore', { count: PASSPHRASE_MIN - passphrase.length })
+                  : t('setup.passphraseRule', { count: PASSPHRASE_MIN })
+            }
+            error={
+              !existingVault && passphraseTouched && passphrase.length < PASSPHRASE_MIN ? t('setup.passphraseTooShort', { count: PASSPHRASE_MIN }) : undefined
+            }
+            onBlur={() => setPassphraseTouched(true)}
+          />
           {!existingVault && (
-            <PasswordInput label={t('setup.repeatPassphrase')} required value={passphrase2} onChange={(e) => setPassphrase2(e.currentTarget.value)} />
+            <PasswordInput
+              label={t('setup.repeatPassphrase')}
+              required
+              value={passphrase2}
+              onChange={(e) => setPassphrase2(e.currentTarget.value)}
+              error={passphrase2 && passphrase.startsWith(passphrase2) === false ? t('passphrasesDiffer') : undefined}
+            />
           )}
           <Text fw={600} size="sm" mt="xs">
             {t('setup.firstAdmin')}
@@ -154,7 +182,7 @@ export function SetupPage({ status }: { status: AuthStatus }) {
             autoComplete="new-password"
           />
           {error && <Alert color="red">{error}</Alert>}
-          <Button type="submit" loading={busy} disabled={passphrase.length < (existingVault ? 1 : 12) || !username.trim() || !password}>
+          <Button type="submit" loading={busy} disabled={passphrase.length < (existingVault ? 1 : PASSPHRASE_MIN) || !username.trim() || !password}>
             {existingVault ? t('setup.createAdmin') : t('setup.submit')}
           </Button>
           {status.demo && (

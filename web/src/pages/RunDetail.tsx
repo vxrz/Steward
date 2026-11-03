@@ -15,10 +15,22 @@ import {
   IconBoxMultiple,
   IconFileCertificate,
 } from '@tabler/icons-react';
-import type { AuditEntry, ProcessDetail, RunChild, RunDetail, RunStepRecord } from '@sm/shared';
+import { outcomeOf, topSeverity, type AuditEntry, type ProcessDetail, type RunChild, type RunDetail, type RunStepRecord } from '@sm/shared';
 import { get, notifyError, post, apiUrl } from '../api';
 import { fmtDate, fmtDuration, fmtNumber, fmtTime, runDuration } from '../format';
-import { DetailState, JsonView, Markdown, PageHeader, SeverityBadge, StatusBadge, statusLabel } from '../components/common';
+import {
+  DetailState,
+  JsonView,
+  Markdown,
+  PageHeader,
+  SEVERITY_COLORS,
+  SeverityBadge,
+  StatusBadge,
+  TONE,
+  severityLabel,
+  statusLabel,
+} from '../components/common';
+import { errorSteps, findingsOf, findingsText } from '../components/RunTable';
 import { TaskPanel } from '../components/TaskPanel';
 import { RunDialog } from '../components/RunDialog';
 import { GenerateReportDialog, RunReportsPanel, canReport } from '../components/reports/RunReports';
@@ -27,6 +39,8 @@ const ACTIVE = ['running', 'waiting', 'queued'];
 /** Long runs (for-each over thousands of items) render their steps and log lines in pages. */
 const STEP_PAGE = 500;
 const LOG_PAGE = 1000;
+/** Findings listed at the top of a run that completed with findings (all of them: the Checks tab). */
+const FINDINGS_SHOWN = 5;
 
 export function RunDetailPage() {
   const { t } = useTranslation(['runs', 'common']);
@@ -67,6 +81,9 @@ export function RunDetailPage() {
   };
   const openTasks = r.tasks.filter((task) => task.status === 'open');
   const checks = r.steps.filter((s) => s.type === 'check');
+  const findings = findingsOf(r);
+  const failedChecks = checks.filter((s) => s.status === 'failed' && !s.error);
+  const failedSteps = errorSteps(r);
 
   return (
     <>
@@ -75,7 +92,7 @@ export function RunDetailPage() {
         title={
           <Group gap="xs">
             <span>{r.processName}</span>
-            <StatusBadge status={r.status} size="md" />
+            <StatusBadge status={outcomeOf(r)} size="md" />
             {r.dryRun && (
               <Badge color="yellow" variant="light" size="md">
                 {r.recorded ? t('detail.testRun') : t('common:status.dryrun')}
@@ -167,6 +184,34 @@ export function RunDetailPage() {
             {r.error}
           </Alert>
         )}
+        {outcomeOf(r) === 'findings' && (
+          <Alert color={SEVERITY_COLORS[topSeverity(findings) ?? 'error']} title={t('detail.findingsTitle')} data-testid="run-findings" p="sm">
+            <Text size="sm">{t('detail.findingsText', { findings: findingsText(t, findings) })}</Text>
+            <Stack gap={2} mt={6}>
+              {/* what was found first, the expectation (the check's name) after it */}
+              {failedChecks.slice(0, FINDINGS_SHOWN).map((c) => {
+                const o = (c.output ?? {}) as { severity?: string; message?: string };
+                return (
+                  <Group key={c.id} gap={6} wrap="nowrap" align="flex-start">
+                    <SeverityBadge severity={o.severity ?? 'error'} />
+                    <Text size="sm" style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+                      {o.message || t('detail.checkFailed', { name: c.name })}
+                      <Text span size="xs" c="dimmed">
+                        {' · '}
+                        {t('detail.expected', { name: c.name })}
+                      </Text>
+                    </Text>
+                  </Group>
+                );
+              })}
+              {failedChecks.length > FINDINGS_SHOWN && (
+                <Text size="xs" c="dimmed">
+                  {t('detail.moreFindings', { count: failedChecks.length - FINDINGS_SHOWN })}
+                </Text>
+              )}
+            </Stack>
+          </Alert>
+        )}
         {r.status === 'interrupted' && (
           <Alert color="orange" title={t('detail.interrupted')}>
             {t('detail.interruptedText')}
@@ -180,13 +225,26 @@ export function RunDetailPage() {
           <Stat
             label={t('detail.stats.steps')}
             value={fmtNumber(r.stats.steps)}
-            sub={r.stats.failedSteps ? t('detail.stats.failed', { count: r.stats.failedSteps }) : undefined}
-            bad={r.stats.failedSteps > 0}
+            // check findings are no failed steps: only what failed while executing
+            sub={failedSteps ? t('detail.stats.failed', { count: failedSteps }) : undefined}
+            tone={failedSteps > 0 ? TONE.bad : undefined}
           />
           <Stat label={t('detail.stats.changes')} value={fmtNumber(r.stats.writes)} />
           <Stat label={t('detail.stats.simulated')} value={fmtNumber(r.stats.skippedWrites)} />
           <Stat label={t('detail.stats.checksPassed')} value={fmtNumber(r.stats.checksPassed)} />
-          <Stat label={t('detail.stats.checksFailed')} value={fmtNumber(r.stats.checksFailed)} bad={r.stats.checksFailed > 0} />
+          <Stat
+            label={t('detail.stats.findings')}
+            value={fmtNumber(findings.total)}
+            sub={
+              findings.total
+                ? (['error', 'warning', 'info'] as const)
+                    .filter((s) => findings[s])
+                    .map((s) => t(`table.severity.${s}`, { count: findings[s] }))
+                    .join(', ')
+                : undefined
+            }
+            tone={findings.total ? SEVERITY_COLORS[topSeverity(findings) ?? 'error'] : undefined}
+          />
           <Stat label={t('detail.stats.decisions')} value={`${r.tasks.filter((task) => task.status === 'completed').length}/${r.tasks.length}`} />
         </SimpleGrid>
 
@@ -279,7 +337,11 @@ export function RunDetailPage() {
                           {o.passed ? (
                             <IconCircleCheck color="var(--mantine-color-green-6)" size={18} aria-label={t('detail.checks.passed')} />
                           ) : (
-                            <IconCircleX color="var(--mantine-color-red-6)" size={18} aria-label={t('detail.checks.failedLabel')} />
+                            <IconCircleX
+                              color={`var(--mantine-color-${SEVERITY_COLORS[o.severity ?? 'error'] ?? 'red'}-6)`}
+                              size={18}
+                              aria-label={t('detail.checks.failedLabel')}
+                            />
                           )}
                         </Table.Td>
                         <Table.Td>{c.name}</Table.Td>
@@ -425,17 +487,19 @@ function ShowMore({
   );
 }
 
-function Stat({ label, value, sub, bad }: { label: string; value: string; sub?: string; bad?: boolean }) {
+/** One number of the run; `tone` (TONE / severity colour) marks it as needing attention. */
+function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
+  const color = tone && tone !== TONE.neutral ? `var(--mantine-color-${tone}-text)` : undefined;
   return (
     <Paper withBorder p="xs">
       <Text size="xs" c="dimmed">
         {label}
       </Text>
-      <Text fw={700} size="lg" c={bad ? 'red' : undefined}>
+      <Text fw={700} size="lg" c={color}>
         {value}
       </Text>
       {sub && (
-        <Text size="xs" c={bad ? 'red' : 'dimmed'}>
+        <Text size="xs" c={color ?? 'dimmed'}>
           {sub}
         </Text>
       )}
@@ -484,11 +548,26 @@ const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: strin
   const [full, setFull] = useState<RunStepRecord | null>(null);
   const depth = step.key.split('/').length - 1;
   const s = full ?? step;
+  // a failed check is a finding of the run (with the check's severity), not a step that failed to execute
+  const findingSeverity =
+    step.type === 'check' && step.status === 'failed' && !step.error ? ((step.output as { severity?: string } | null)?.severity ?? 'error') : null;
   return (
     <Paper withBorder p={6} ml={Math.min(depth, 6) * 16}>
       <Group gap="xs" wrap="nowrap" className="clickable" onClick={() => setOpen((o) => !o)}>
         {open ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-        <StatusBadge status={step.status} size="xs" />
+        {findingSeverity ? (
+          <Badge
+            color={SEVERITY_COLORS[findingSeverity] ?? TONE.attention}
+            variant="light"
+            size="xs"
+            style={{ minWidth: 'max-content' }}
+            data-testid="step-finding"
+          >
+            {t('detail.findingBadge', { severity: severityLabel(findingSeverity) })}
+          </Badge>
+        ) : (
+          <StatusBadge status={step.status} size="xs" />
+        )}
         <Badge size="xs" variant="outline" color="gray">
           {step.type}
         </Badge>

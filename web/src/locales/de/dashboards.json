@@ -67,7 +67,8 @@
     "dataFrom": "Daten von {{when}}",
     "noData": "noch keine Daten",
     "sources": "Quellen",
-    "allSources": "Alle Quellen"
+    "allSources": "Alle Quellen",
+    "addWidgetAbove": "Fügen Sie das erste mit „Widget hinzufügen“ oben hinzu."
   },
   "widgets": {
     "kpi": {
@@ -176,8 +177,6 @@
     "table": "Tabelle",
     "viewToggle": "Ansicht: Diagramm oder Tabelle",
     "chooseDataset": "Eine Datenquelle für dieses Widget wählen.",
-    "noData": "Noch keine Daten in <c>{{dataset}}</c> (oder kein Zugriff). Den Prozess ausführen, der sie veröffentlicht – mit einem Knoten „{{node}}“ und diesem Schlüssel.",
-    "goToProcesses": "Zu den Prozessen",
     "olderThan_one": "Älter als {{count}} Minute",
     "olderThan_other": "Älter als {{count}} Minuten",
     "rows": "Zeilen",
@@ -212,8 +211,6 @@
     "noDatasets": "Keine Datenquellen auf diesem Dashboard.",
     "unknownType": "Unbekannter Widget-Typ",
     "last": "zuletzt {{when}}",
-    "expectedEvery_one": "erwartet jede Minute",
-    "expectedEvery_other": "erwartet alle {{count}} Min.",
     "trendInDays_one": "Trend über {{count}} Tag",
     "trendInDays_other": "Trend über {{count}} Tage",
     "trendBasis_one": "Aus {{count}} Messpunkt über {{days}} Tage",
@@ -233,7 +230,15 @@
     },
     "chartError": "Das Diagramm konnte nicht gezeichnet werden: {{error}}",
     "sumOfSources_one": "Summe aus {{count}} Quelle",
-    "sumOfSources_other": "Summe aus {{count}} Quellen"
+    "sumOfSources_other": "Summe aus {{count}} Quellen",
+    "noDataNoProcess": "Noch keine Daten – bisher füllt kein Prozess dieses Widget. Bitten Sie einen Designer, einen einzurichten.",
+    "noDataScheduled": "Noch keine Daten – <b>{{process}}</b> füllt es bei der nächsten geplanten Ausführung.",
+    "noDataRunIt": "Noch keine Daten – führen Sie <b>{{process}}</b> aus oder planen Sie es ein, es füllt dieses Widget.",
+    "noDataAsk": "Noch keine Daten – bitten Sie einen Designer, <b>{{process}}</b> einzuplanen.",
+    "noDataHowTo": "Für Designer: Ein Prozess mit einem Knoten „{{node}}“ für den Datensatz <c>{{dataset}}</c> füllt es.",
+    "openProcess": "Prozess öffnen",
+    "scheduleIt": "Einplanen",
+    "datasetKey": "Datensatz <c>{{dataset}}</c>"
   },
   "charts": {
     "trendLabel": "Trend von {{names}}. Werte mit den Pfeiltasten ablesen.",
@@ -243,5 +248,54 @@
     "segmentFilter": "{{status}}: {{count}} ({{share}}) – klicken, um Tabellen zu filtern",
     "share": "Anteil",
     "valuesOf": "Werte von {{names}}"
+  },
+  "create": {
+    "title": "Neues Dashboard",
+    "name": "Name",
+    "teams": "Verantwortliche Teams",
+    "teamsHint": "Mitglieder dieser Teams ändern es; leer: es gehört der ganzen Instanz",
+    "wholeInstance": "Keine – die ganze Instanz",
+    "yourTeams": "{{teams}} (das Team, das Ihre neuen Ressourcen bekommen – siehe Profil)",
+    "wholeInstanceText": "Keine – es gehört der ganzen Instanz. Administratoren können das später ändern.",
+    "start": "Start",
+    "blank": "Leer",
+    "fromTemplate": "Aus einer Vorlage",
+    "template": "Vorlage",
+    "submit": "Anlegen und bearbeiten"
+  },
+  "fresh": {
+    "fresh": "Aktuell",
+    "due": "Fällig",
+    "dueHint": "Der Zeitplan hätte die Daten inzwischen aktualisieren sollen – sie gelten nach der unten genannten Grenze als veraltet.",
+    "staleSince": "Veraltet seit {{when}}",
+    "next": "nächste Aktualisierung {{when}}",
+    "hourly": "stündlich",
+    "daily": "täglich",
+    "weekly": "wöchentlich",
+    "monthly": "monatlich",
+    "quarterly": "vierteljährlich",
+    "yearly": "jährlich",
+    "everyMinutes_one": "jede Minute",
+    "everyMinutes_other": "alle {{count}} Minuten",
+    "everyHours_one": "jede Stunde",
+    "everyHours_other": "alle {{count}} Stunden",
+    "everyDays_one": "jeden Tag",
+    "everyDays_other": "alle {{count}} Tage",
+    "every": "alle {{duration}}",
+    "days_one": "{{count}} Tag",
+    "days_other": "{{count}} Tage",
+    "hours_one": "{{count}} Std.",
+    "hours_other": "{{count}} Std.",
+    "minutes_one": "{{count}} Min.",
+    "minutes_other": "{{count}} Min.",
+    "staleAfter": "veraltet nach {{duration}} ({{reason}})",
+    "reason": {
+      "schedule": "aus dem Zeitplan „{{name}}“",
+      "scheduleUnnamed": "aus seinem Zeitplan",
+      "via": "über den Zeitplan von „{{process}}“",
+      "fixedScheduled": "fest im Veröffentlichungsschritt",
+      "fixed": "fest, Lauf ohne Zeitplan",
+      "default": "Standard, Lauf ohne Zeitplan"
+    }
   }
 }

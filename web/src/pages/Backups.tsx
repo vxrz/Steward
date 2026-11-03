@@ -24,6 +24,7 @@ import type { BackupRun, BackupSettings, BackupStatus, Platform, StoredBackup } 
 import { get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
 import { PageHeader, QueryState, TONE } from '../components/common';
+import { CronPreview } from '../components/CronPreview';
 import { fmtBytes, fmtDate, fmtRelative, runDuration } from '../format';
 
 const MIN_PASSPHRASE = 16;
@@ -257,6 +258,7 @@ export function BackupsPage() {
                 />
                 <TextInput label={t('backups.timezone')} value={draft.timezone} onChange={(e) => setDraft({ ...draft, timezone: e.currentTarget.value })} />
               </SimpleGrid>
+              <CronPreview cron={draft.cron} timezone={draft.timezone} onUse={(c) => setDraft({ ...draft, cron: c })} />
               <Text size="sm" fw={500}>
                 {t('backups.retention')}
               </Text>
@@ -300,6 +302,13 @@ export function BackupsPage() {
                   onChange={(e) => setDraft({ ...draft, restoreTest: { ...draft.restoreTest, cron: e.currentTarget.value } })}
                 />
               </SimpleGrid>
+              {draft.restoreTest.enabled && (
+                <CronPreview
+                  cron={draft.restoreTest.cron}
+                  timezone={draft.timezone}
+                  onUse={(c) => setDraft({ ...draft, restoreTest: { ...draft.restoreTest, cron: c } })}
+                />
+              )}
               <Group>
                 <Button
                   size="xs"

@@ -1,0 +1,147 @@
+# steward-min-version: 0.2.8
+name: "AWS – IAM access key age and unused credentials"
+description: |
+  The IAM users of your applications' AWS accounts and their access keys:
+  active keys older than N days (rotate them), active keys never used or not
+  used for N days, inactive keys still lying around (delete them) and console
+  passwords not used for N days. It reads what Steward already knows about
+  each account (application components of type "Cloud account", read every
+  6 hours: the IAM users that carry the application tag) – no call to AWS
+  from the process. Read-only.
+
+  IAM users without the application tag are not part of any readout: the
+  access reconciliation with the source "AWS" lists every IAM user of an
+  account. Once process http steps can sign for other AWS services, the
+  process can read IAM directly as well.
+
+  Recommended schedule: daily (`40 6 * * *`), with "message on change" in the
+  schedule's notification policy. Publishes `aws.iam-keys` (one row per
+  access key, or per user without keys) for the "Cloud costs and keys"
+  dashboard.
+recommendedSchedule: "40 6 * * *"
+tags: [aws, security, credentials, catalogue]
+inputs:
+  - name: apps
+    label: Applications (empty = all)
+    type: applications
+  - name: maxKeyAgeDays
+    label: Rotate access keys older than (days)
+    type: number
+    default: 90
+  - name: unusedDays
+    label: Unused after (days)
+    type: number
+    default: 90
+steps:
+  - id: rows
+    type: set
+    name: One row per access key
+    values:
+      rows: >-
+        {{ [inputs.apps.(
+          $app := name;
+          components[type = 'cloud-account' and $exists(readout.readAt)].(
+            $account := readout.account ? readout.account : '–';
+            $tag := readout.tagKey & '=' & readout.tagValue;
+            readout.users.(
+              $u := $;
+              $pwDays := $u.passwordLastUsed ? $daysSince($u.passwordLastUsed) : null;
+              $base := {
+                "application": $app,
+                "account": $account,
+                "tag": $tag,
+                "user": $u.userName,
+                "password": $u.passwordLastUsed ? 'used ' & $pwDays & ' days ago' : '–',
+                "passwordDays": $pwDays
+              };
+              $count($u.keys) = 0
+                ? $merge([$base, { "key": $account & '/' & $u.userName, "keyId": '–', "state": '–', "ageDays": null, "lastUsed": '–', "lastUsedDays": null, "service": '–' }])
+                : $u.keys.(
+                    $age := $daysSince(createdAt);
+                    $used := lastUsedAt ? $daysSince(lastUsedAt) : null;
+                    $merge([$base, {
+                      "key": $account & '/' & $u.userName & '/' & accessKeyId,
+                      "keyId": '…' & $substring(accessKeyId, -4),
+                      "state": status,
+                      "ageDays": $age,
+                      "lastUsed": lastUsedAt ? $fromMillis($ts(lastUsedAt), '[Y0001]-[M01]-[D01]') : 'never',
+                      "lastUsedDays": $used,
+                      "service": lastService ? lastService : '–'
+                    }])
+                  )
+            )
+          )
+        )] }}
+  - id: findings
+    type: set
+    name: Findings
+    values:
+      rows: >-
+        {{ [vars.rows.(
+          $r := $;
+          $f := [
+            $r.state = 'Active' and $r.ageDays > $inputs.maxKeyAgeDays ? 'active key ' & $r.ageDays & ' days old – rotate' : undefined,
+            $r.state = 'Active' and ($r.lastUsedDays = null or $r.lastUsedDays > $inputs.unusedDays) ? ($r.lastUsedDays = null ? 'active key never used' : 'active key unused for ' & $r.lastUsedDays & ' days') : undefined,
+            $r.state = 'Inactive' ? 'inactive key – delete it' : undefined,
+            $r.passwordDays != null and $r.passwordDays > $inputs.unusedDays ? 'console password unused for ' & $r.passwordDays & ' days' : undefined
+          ];
+          $merge([$r, { "findings": $f }])
+        )] }}
+      old: "{{ [vars.rows[state = 'Active' and ageDays > $inputs.maxKeyAgeDays]] }}"
+      unused: "{{ [vars.rows[state = 'Active' and (lastUsedDays = null or lastUsedDays > $inputs.unusedDays)]] }}"
+      inactive: "{{ [vars.rows[state = 'Inactive']] }}"
+      passwords: "{{ [$distinct(vars.rows[passwordDays != null and passwordDays > $inputs.unusedDays].user)] }}"
+  - id: publish
+    type: publish
+    name: Publish the access keys
+    dataset: aws.iam-keys
+    title: AWS IAM access keys
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Application, value: application }
+      - { label: Account, value: account }
+      - { label: IAM user, value: user }
+      - { label: Access key, value: keyId }
+      - { label: State, value: state }
+      - { label: Age (days), value: "ageDays != null ? ageDays : '–'" }
+      - { label: Last used, value: lastUsed }
+      - { label: Service, value: service }
+      - { label: Console password, value: password }
+      - { label: Findings, value: "$count(findings) ? $join(findings, '; ') : '–'" }
+    status: "$count(findings[$contains($, 'rotate') or $contains($, 'never used')]) > 0 ? 'critical' : ($count(findings) > 0 ? 'warning' : 'good')"
+    statusText: "$join(findings, '; ')"
+    metrics:
+      keys: "$count(vars.rows[keyId != '–'])"
+      users: "$count($distinct(vars.rows.user))"
+      oldKeys: "$count(vars.old)"
+      unusedKeys: "$count(vars.unused)"
+      inactiveKeys: "$count(vars.inactive)"
+      unusedPasswords: "$count(vars.passwords)"
+    staleAfterMinutes: 2880
+  - id: rotated
+    type: check
+    name: Access keys are rotated
+    severity: warning
+    condition: "$count(vars.old) = 0"
+    message: "{{ $count(vars.old) = 0 ? 'No active access key is older than ' & inputs.maxKeyAgeDays & ' days' : $join(vars.old.(user & ' ' & keyId & ': ' & ageDays & ' days'), '; ') }}"
+    headline: "{{ $count(vars.old) }} active access keys older than {{ inputs.maxKeyAgeDays }} days"
+    value: "$count(vars.old)"
+    items: "vars.old.(application & ': ' & user & ' ' & keyId & ' (' & ageDays & ' days)')"
+  - id: used
+    type: check
+    name: Active keys are in use
+    severity: warning
+    condition: "$count(vars.unused) = 0"
+    message: "{{ $count(vars.unused) = 0 ? 'Every active key was used within ' & inputs.unusedDays & ' days' : $join(vars.unused.(user & ' ' & keyId & ': last used ' & lastUsed), '; ') }}"
+    headline: "{{ $count(vars.unused) }} active access keys unused"
+    value: "$count(vars.unused)"
+    items: "vars.unused.(application & ': ' & user & ' ' & keyId & ' (last used ' & lastUsed & ')')"
+  - id: cleaned
+    type: check
+    name: No inactive keys and unused passwords left
+    severity: info
+    condition: "$count(vars.inactive) = 0 and $count(vars.passwords) = 0"
+    message: "{{ $count(vars.inactive) = 0 and $count(vars.passwords) = 0 ? 'Nothing to clean up' : $join($append(vars.inactive.(user & ' ' & keyId & ': inactive key'), vars.passwords.($ & ': console password unused')), '; ') }}"
+    headline: "{{ $count(vars.inactive) }} inactive keys, {{ $count(vars.passwords) }} unused console passwords"
+    value: "$count(vars.inactive) + $count(vars.passwords)"

@@ -1,10 +1,10 @@
 {
   "sources": {
     "title": "Git sync",
-    "description": "Fetch processes, dashboards, monitors and record types from Git repositories. Nothing is applied automatically: every change waits in Updates from Git for a review.",
+    "description": "Fetch processes, dashboards, monitors and document types from Git repositories. Nothing is applied automatically: every change waits in Git sync updates for a review.",
     "new": "New source",
     "empty": "No Git sync sources yet",
-    "emptyHint": "Git sync is off until you add a source. Steward only reads from the repository; changes go to the Updates from Git inbox.",
+    "emptyHint": "Git sync is off until you add a source. Steward only reads from the repository; changes go to the Git sync updates inbox.",
     "readOnly": "Only administrators can manage Git sync sources.",
     "fetchNow": "Fetch now",
     "fetched": "Fetched {{commit}}: {{staged}} staged for review, {{invalid}} invalid, {{unchanged}} unchanged",
@@ -30,9 +30,9 @@
     "webhookOn": "webhook",
     "disabled": "disabled",
     "manageLink": "Manage Git sync",
-    "settingsCard": "Fetch processes, dashboards, monitors and record types from Forgejo, GitHub or GitLab. Off until you add a source.",
+    "settingsCard": "Fetch processes, dashboards, monitors and document types from Forgejo, GitHub or GitLab. Off until you add a source.",
     "builtIn": "Steward examples",
-    "builtInHint": "Steward's own example library at the tag of this version. Turn it on to review improved examples in Updates from Git. Steward needs to reach github.com (Settings → Outbound access).",
+    "builtInHint": "Steward's own example library at the tag of this version. Turn it on to review improved examples in Git sync updates. Steward needs to reach github.com (Settings → Outbound access).",
     "refTag": "tag {{ref}}"
   },
   "form": {
@@ -57,7 +57,7 @@
       "process": "Processes",
       "dashboard": "Dashboards",
       "monitor": "Monitors",
-      "recordType": "Record types"
+      "recordType": "Document types"
     },
     "token": "Access token",
     "tokenHint": "Read-only access to the repository contents. Stored encrypted in the vault, never shown again. Empty for public repositories.",
@@ -94,7 +94,7 @@
     "done": "Done"
   },
   "updates": {
-    "title": "Updates from Git",
+    "title": "Git sync updates",
     "description": "Changes fetched from Git sync sources. Review each one and accept it (a new version) or reject it.",
     "empty": "No open updates",
     "emptyHint": "New or changed files in a Git sync source appear here after a fetch.",
@@ -114,7 +114,7 @@
     "conflict": "conflict",
     "invalid": "invalid",
     "review": "Review",
-    "noAccess": "Only designers and administrators review updates from Git.",
+    "noAccess": "Only designers and administrators review Git sync updates.",
     "status": {
       "pending": "open",
       "accepted": "accepted",

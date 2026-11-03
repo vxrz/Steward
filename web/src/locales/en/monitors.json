@@ -257,7 +257,10 @@
     "dtrackMaxHigh": "At most critical or high",
     "dtrackMaxHighHint": "Degraded above; empty: high findings are not checked",
     "dtrackFailAs": "When there are too many",
-    "dtrackPolicyFail": "A failing policy violation counts like a critical finding"
+    "dtrackPolicyFail": "A failing policy violation counts like a critical finding",
+    "lastReport": "Last report received",
+    "lastReportHint": "{{when}} – the condition and status expression see exactly these fields",
+    "lastReportNone": "No report received yet (or the check is not saved yet). Once the gateway reports, its last report is shown here."
   },
   "detail": {
     "template": "template",

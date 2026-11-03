@@ -134,10 +134,15 @@ export function MonitorEditorPage() {
   const [fromServer, setFromServer] = useState<{ def: MonitorDefinition; issues: EditorIssue[] } | null>(null);
   const [previews, setPreviews] = useState<Map<string, Preview | 'busy'>>(new Map());
   const savedIds = useMemo(() => new Set((existing.data?.definition.checks ?? []).map((c) => c.id)), [existing.data]);
+  // the cards loaded from the saved monitor (card key → saved id): only these keep their id fixed – a new card that
+  // got the id of a saved one (by accident) stays editable, or it could never be corrected
+  const savedCards = useRef(new Map<string, string>());
 
   useEffect(() => {
     if (existing.data && !draft) {
-      setDraft(draftOf(existing.data.definition));
+      const d = draftOf(existing.data.definition);
+      savedCards.current = new Map(d.keys.map((k, i) => [k, d.def.checks[i]!.id]));
+      setDraft(d);
       setKey(existing.data.key);
       setIsTemplate(existing.data.isTemplate);
       if (existing.data.isTemplate) setTab('yaml');
@@ -198,6 +203,13 @@ export function MonitorEditorPage() {
   // Outputs (notifications, runbooks, external systems) need the manage right; new monitors belong to the creator.
   const canManage = isNew || !!existing.data?.permissions.includes('manage');
   const selIndex = selected ? keys.indexOf(selected) : -1;
+  /** Whether a card's id is fixed: it is the saved check of that id (after a YAML edit the cards are new: the first card with a saved id). */
+  const idFixed = (k: string, i: number): boolean => {
+    const id = def?.checks[i]?.id;
+    if (!id || !savedIds.has(id)) return false;
+    if (savedCards.current.has(k)) return savedCards.current.get(k) === id;
+    return def!.checks.findIndex((c) => c.id === id) === i;
+  };
   const sel = selIndex >= 0 ? def.checks[selIndex]! : null;
   const setCheck = (c: CheckDef) => {
     if (!sel || !selected) return;
@@ -251,8 +263,11 @@ export function MonitorEditorPage() {
     const copy = { ...structuredClone(sel), id: uniqueId(`${sel.id}-copy`), name: t('editor.copyName', { name: sel.name }) } as CheckDef;
     // the gateway key and the heartbeat secret belong to the original
     delete (copy as { key?: string }).key;
+    // next to the original, or below that in the first free place: a copy must not cover another card
     copy.x = (sel.x ?? 0) + NODE_W + 40;
     copy.y = sel.y ?? 0;
+    const covers = (y: number) => def.checks.some((x) => Math.abs((x.x ?? 0) - copy.x!) < NODE_W && Math.abs((x.y ?? 0) - y) < NODE_H);
+    while (covers(copy.y)) copy.y += NODE_H + 40;
     addCard(copy);
   };
   const tidy = () => {
@@ -485,7 +500,11 @@ export function MonitorEditorPage() {
                       platforms={platforms.data ?? []}
                       monitors={monitors.data ?? []}
                       monitorKey={key || 'monitor'}
-                      isNew={!savedIds.has(sel.id)}
+                      isNew={!idFixed(selected!, selIndex)}
+                      lastReport={(() => {
+                        const hb = idFixed(selected!, selIndex) ? existing.data?.checks.find((x) => x.checkId === sel.id)?.heartbeat : undefined;
+                        return hb ? { at: hb.lastPushAt, report: hb.lastPush } : null;
+                      })()}
                       errors={errorsOf(selIndex)}
                     />
                   </Stack>
