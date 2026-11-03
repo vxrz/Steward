@@ -49,7 +49,7 @@ test.describe('System status', () => {
   test('administrators: readiness, health check URLs and runtime details', async ({ loginAs }) => {
     const page = await loginAs('admin');
     await page.goto('/settings');
-    await page.getByRole('link', { name: 'System status' }).click();
+    await page.getByRole('main').getByRole('link', { name: 'System status' }).click();
     await expect(page).toHaveURL(/\/settings\/status$/);
     await expect(page.getByRole('heading', { name: 'System status', level: 1 })).toBeVisible();
     await expect(page.getByTestId('readiness')).toHaveText('ready');

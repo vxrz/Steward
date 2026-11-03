@@ -19,6 +19,8 @@ async function areas(page: Page): Promise<Record<string, string[]>> {
     const toggle = group.getByRole('button', { name, exact: true });
     if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    // the links are hidden until the area has unfolded (an area without entries is not shown at all)
+    await expect(group.getByRole('link').first()).toBeVisible();
     // the open-task count beside "My tasks" is not part of the name
     out[name] = (await group.getByRole('link').allInnerTexts()).map((x) => x.split('\n')[0]!.trim());
   }
