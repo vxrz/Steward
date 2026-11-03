@@ -41,7 +41,21 @@
     "dutiesSplit": "{{missed}} missed · {{dueSoon}} due soon",
     "scorecard": "Services needing attention",
     "scorecardOf_one": "of {{services}} service",
-    "scorecardOf_other": "of {{services}} services"
+    "scorecardOf_other": "of {{services}} services",
+    "runFindings": "Runs with findings (24 h)",
+    "findingsQuiet": "No failed checks",
+    "notSetUpYet": "Not set up yet",
+    "notSetUp": {
+      "processes": "No processes yet",
+      "monitors": "No monitors yet",
+      "credentials": "No credentials documented yet",
+      "accessChecks": "No access checks yet",
+      "documents": "No documents with a review cycle yet",
+      "duties": "No mandatory duties yet",
+      "services": "No services yet",
+      "tickets": "No ticket references yet"
+    },
+    "notSetUpList": "Not set up yet:"
   },
   "waiting": "Waiting for your decision",
   "failedChecks": "Check findings (last 7 days)",
@@ -123,5 +137,40 @@
     "showFewer": "Show fewer",
     "failedName": "Failed: {{name}}",
     "expected": "Expected: {{name}}"
+  },
+  "focus": {
+    "description": {
+      "operations": "What needs your attention, what is running and what is planned.",
+      "compliance": "Findings, reviews and evidence: what an audit needs from you.",
+      "viewer": "Your dashboards and the state of the services."
+    },
+    "name": {
+      "compliance": "compliance",
+      "viewer": "dashboards"
+    },
+    "showAll": "Show the full operations start page",
+    "showMine": "Back to the {{focus}} start page",
+    "compliance": {
+      "title": "Compliance",
+      "reviews": "Person reviews",
+      "reviewsOpen": "{{open}} open · {{submitted}} waiting for approval",
+      "reviewsNone": "No open reviews",
+      "evidence": "Evidence packs",
+      "evidenceReady_one": "{{count}} pack ready to download",
+      "evidenceReady_other": "{{count}} packs ready to download",
+      "evidenceNone": "Put together the evidence for an audit period",
+      "controls": "Controls",
+      "controlsText": "Which controls are covered, and by what",
+      "audit": "Audit log",
+      "auditText": "Every change, tamper-evident"
+    },
+    "viewer": {
+      "title": "Dashboards",
+      "all": "All dashboards",
+      "none": "No dashboards yet – ask a designer to create one.",
+      "updated": "updated {{when}}",
+      "more_one": "and {{count}} more dashboard",
+      "more_other": "and {{count}} more dashboards"
+    }
   }
 }

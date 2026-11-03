@@ -41,7 +41,21 @@
     "dutiesSplit": "{{missed}} versäumt · {{dueSoon}} bald fällig",
     "scorecard": "Services mit Handlungsbedarf",
     "scorecardOf_one": "von {{services}} Service",
-    "scorecardOf_other": "von {{services}} Services"
+    "scorecardOf_other": "von {{services}} Services",
+    "runFindings": "Ausführungen mit Befunden (24 h)",
+    "findingsQuiet": "Keine fehlgeschlagenen Prüfungen",
+    "notSetUpYet": "Noch nicht eingerichtet",
+    "notSetUp": {
+      "processes": "Noch keine Prozesse",
+      "monitors": "Noch keine Monitore",
+      "credentials": "Noch keine Zugangsdaten dokumentiert",
+      "accessChecks": "Noch keine Zugriffsprüfungen",
+      "documents": "Noch keine Dokumente mit Überprüfungszyklus",
+      "duties": "Noch keine verpflichtenden Service-Pflichten",
+      "services": "Noch keine Services",
+      "tickets": "Noch keine Ticket-Referenzen"
+    },
+    "notSetUpList": "Noch nicht eingerichtet:"
   },
   "waiting": "Wartet auf Ihre Entscheidung",
   "failedChecks": "Befunde aus Prüfungen (letzte 7 Tage)",
@@ -123,5 +137,40 @@
     "showFewer": "Weniger zeigen",
     "failedName": "Nicht erfüllt: {{name}}",
     "expected": "Erwartet: {{name}}"
+  },
+  "focus": {
+    "description": {
+      "operations": "Was Ihre Aufmerksamkeit braucht, was gerade läuft und was geplant ist.",
+      "compliance": "Befunde, Überprüfungen und Nachweise: was ein Audit von Ihnen braucht.",
+      "viewer": "Ihre Dashboards und der Zustand der Services."
+    },
+    "name": {
+      "compliance": "Compliance",
+      "viewer": "Dashboards"
+    },
+    "showAll": "Vollständige Betriebs-Startseite zeigen",
+    "showMine": "Zurück zur Startseite „{{focus}}“",
+    "compliance": {
+      "title": "Compliance",
+      "reviews": "Personenprüfungen",
+      "reviewsOpen": "{{open}} offen · {{submitted}} warten auf Freigabe",
+      "reviewsNone": "Keine offenen Überprüfungen",
+      "evidence": "Nachweispakete",
+      "evidenceReady_one": "{{count}} Paket zum Herunterladen bereit",
+      "evidenceReady_other": "{{count}} Pakete zum Herunterladen bereit",
+      "evidenceNone": "Nachweise für einen Prüfzeitraum zusammenstellen",
+      "controls": "Kontrollen",
+      "controlsText": "Welche Kontrollen abgedeckt sind, und wodurch",
+      "audit": "Audit-Log",
+      "auditText": "Jede Änderung, manipulationssicher"
+    },
+    "viewer": {
+      "title": "Dashboards",
+      "all": "Alle Dashboards",
+      "none": "Noch keine Dashboards – bitten Sie einen Designer, eines anzulegen.",
+      "updated": "aktualisiert {{when}}",
+      "more_one": "und {{count}} weiteres Dashboard",
+      "more_other": "und {{count}} weitere Dashboards"
+    }
   }
 }

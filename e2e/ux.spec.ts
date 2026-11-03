@@ -6,6 +6,30 @@ import { BRAND } from '../shared/src/brand';
 
 /** The UX backlog: confirmation dialog, sortable lists with "Load more", phone cards, shortcuts, Help menu, validation. */
 
+/**
+ * Answer the start page as if every feature were set up (which ones are depends on the specs that ran before on the
+ * shared demo server); `patch` changes the answer further.
+ */
+async function allSetUp(page: import('@playwright/test').Page, patch?: (body: any) => void) {
+  await page.route('**/api/dashboard', async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    const a = body.attention;
+    const totals: [string, string][] = [
+      ['monitors', 'total'],
+      ['credentials', 'total'],
+      ['findings', 'checks'],
+      ['reviews', 'total'],
+      ['duties', 'total'],
+      ['scorecard', 'services'],
+      ['vendorTickets', 'total'],
+    ];
+    for (const [k, f] of totals) if (a[k]?.[f] === 0) a[k][f] = 1;
+    patch?.(body);
+    await route.fulfill({ response: res, json: body });
+  });
+}
+
 test.describe('lists, dialogs and help (admin)', () => {
   test.use({ storageState: authFile('admin') });
 
@@ -68,7 +92,7 @@ test.describe('lists, dialogs and help (admin)', () => {
     await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('failed');
   });
 
-  test('start page: nine tiles of what needs attention, each opening its filtered list', async ({ page, apiAs }) => {
+  test('start page: ten tiles of what needs attention, each opening its filtered list', async ({ page, apiAs }) => {
     // a ticket waiting for a vendor since 12 days, so that tile needs attention
     const number = uniq('VEND');
     const openedAt = new Date(Date.now() - 12 * 86400000).toISOString();
@@ -79,16 +103,18 @@ test.describe('lists, dialogs and help (admin)', () => {
         data: { source: 'vendor', externalNumber: number, title: 'Firmware bug in the edge runtime', status: 'waitingVendor', openedAt },
       }),
     );
+    await allSetUp(page);
     await page.goto('/');
     await settle(page);
     const tiles = page.getByTestId('start-tiles');
     const links = tiles.getByRole('link');
-    await expect(links).toHaveCount(9);
+    await expect(links).toHaveCount(10);
     // the approved order; every link is named by its visible label, number and detail
     const names = await links.evaluateAll((l) => l.map((a) => (a as HTMLElement).innerText.replace(/\s+/g, ' ').trim()));
     expect(names.map((n) => n.replace(/ \d.*/, ''))).toEqual([
       'Waiting for you',
       'Failed runs (24 h)',
+      'Runs with findings (24 h)',
       'Monitors down',
       'Credentials due',
       'Undocumented access changes',
@@ -102,6 +128,7 @@ test.describe('lists, dialogs and help (admin)', () => {
       [
         '/tasks',
         '/runs?status=failed&within=24h',
+        '/runs?status=findings&within=24h',
         '/monitors?status=down,degraded',
         '/credentials?status=expired,overdue,dueSoon',
         '/compliance/reconciliation?findings=open',
@@ -114,7 +141,7 @@ test.describe('lists, dialogs and help (admin)', () => {
     const vendor = tiles.getByRole('link', { name: /^Waiting on vendors [1-9]\d* oldest \d+ days$/ });
     await expect(vendor).toHaveAttribute('data-state', 'attention');
     // keyboard: the tiles are in the tab order
-    await links.nth(7).focus();
+    await links.nth(8).focus();
     await page.keyboard.press('Tab');
     await expect(vendor).toBeFocused();
     await expectAccessible(page, 'start page tiles');
@@ -220,7 +247,7 @@ test.describe('lists, dialogs and help (admin)', () => {
 test.describe('start page zero state (viewer)', () => {
   test.use({ storageState: authFile('vera') });
 
-  test('a quiet day: green zeros with a check, and no tiles the viewer has no right for', async ({ page, apiAs }) => {
+  test('a quiet day: green zeros with a check, no tiles the viewer has no right for, and their dashboards', async ({ page, apiAs }) => {
     // vera may read no access check and owns no credential: the server leaves those tiles out
     const real = await json(await (await apiAs('vera')).get('/api/dashboard'));
     expect(Object.keys(real.attention).sort()).toEqual(['monitors', 'runs', 'tasks', 'vendorTickets']);
@@ -234,15 +261,54 @@ test.describe('start page zero state (viewer)', () => {
     await page.goto('/');
     await settle(page);
     const tiles = page.getByTestId('start-tiles');
-    await expect(tiles.getByRole('link')).toHaveCount(4);
-    await expect(tiles.locator('[data-state="quiet"]')).toHaveCount(4);
+    // a viewer's start page: what they use – their tasks, the monitors, vendors – and their dashboards, no run lists
+    await expect(tiles.getByRole('link')).toHaveCount(3);
+    await expect(tiles.locator('[data-state="quiet"]')).toHaveCount(3);
     await expect(tiles.getByRole('link', { name: 'Waiting for you 0 All quiet' })).toBeVisible();
-    await expect(tiles.getByRole('link', { name: 'Failed runs (24 h) 0 All quiet · 3 runs' })).toBeVisible();
     await expect(tiles.getByRole('link', { name: 'Monitors down 0 All quiet' })).toBeVisible();
+    await expect(page.getByTestId('start-dashboards').getByRole('link', { name: /Access governance/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Recent runs' })).toHaveCount(0);
     await expect(tiles.getByRole('link', { name: 'Waiting on vendors 0 All quiet' })).toBeVisible();
     await expect(tiles.getByText(/Undocumented access changes|Credentials due/)).toHaveCount(0);
     await expectAccessible(page, 'start page zero state');
+    // the full operations start page stays one click away (and is remembered)
+    await page.getByTestId('start-focus-toggle').click();
+    await expect(tiles.getByRole('link', { name: 'Failed runs (24 h) 0 All quiet · 3 runs' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Recent runs' })).toBeVisible();
+    await page.getByTestId('start-focus-toggle').click();
+    await expect(page.getByRole('heading', { name: 'Recent runs' })).toHaveCount(0);
     // the start page refreshes the counts in the background: let a refresh still in the handler end quietly
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+});
+
+test.describe('start page for auditors', () => {
+  test.use({ storageState: authFile('audrey') });
+
+  test('compliance first: findings, reviews and evidence; features nobody set up say so', async ({ page }) => {
+    await page.route('**/api/dashboard', async (route) => {
+      const res = await route.fetch();
+      const body = await res.json();
+      // nothing documented yet: the credentials tile is neutral, not "All quiet"
+      body.attention.credentials = { expired: 0, overdue: 0, dueSoon: 0, total: 0 };
+      await route.fulfill({ response: res, json: body });
+    });
+    await page.goto('/');
+    await settle(page);
+    await expect(page.getByRole('main')).toContainText('Findings, reviews and evidence');
+    const tiles = page.getByTestId('start-tiles');
+    await expect(tiles.getByRole('link').first()).toContainText('Undocumented access changes');
+    await expect(tiles.getByTestId('tile-run-findings')).toBeVisible();
+    await expect(tiles.getByTestId('tile-monitors')).toHaveCount(0);
+    const credentials = tiles.getByTestId('tile-credentials');
+    await expect(credentials).toHaveAttribute('data-state', 'not-set-up');
+    await expect(credentials).toContainText('Not set up yet');
+    await expect(credentials).toHaveAttribute('href', /\/credentials$/);
+    const compliance = page.getByTestId('start-compliance');
+    await expect(compliance.getByRole('link', { name: /Person reviews/ })).toHaveAttribute('href', /\/compliance\/person-reviews$/);
+    await expect(compliance.getByRole('link', { name: /Evidence packs/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Recent runs' })).toHaveCount(0);
+    await expectAccessible(page, 'auditor start page');
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
 });
@@ -251,6 +317,8 @@ test.describe('phone @mobile', () => {
   test.use({ storageState: authFile('olivia') });
 
   test('start page tiles: two balanced columns at 390 px', async ({ page }) => {
+    // seven tiles: without the runs-with-findings count (an older server)
+    await allSetUp(page, (body) => delete body.attention.runs.withFindings);
     await page.goto('/');
     await settle(page);
     const links = page.getByTestId('start-tiles').getByRole('link');
@@ -262,6 +330,19 @@ test.describe('phone @mobile', () => {
     // seven tiles: the last one takes the whole row
     expect(boxes[4]!.width).toBeGreaterThan(boxes[0]!.width * 1.5);
     await expectNoHorizontalScroll(page);
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+
+    // features nobody set up yet fold into one line on phones instead of a screen of empty tiles
+    await allSetUp(page, (body) => {
+      body.attention.monitors.total = 0;
+      body.attention.vendorTickets.total = 0;
+    });
+    await page.reload();
+    await settle(page);
+    const folded = page.getByTestId('tiles-not-set-up');
+    await expect(folded.getByRole('link')).toHaveText(['Monitors down', 'Waiting on vendors']);
+    await expect(page.getByTestId('start-tiles').getByTestId('tile-monitors')).toHaveCount(0);
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
 
   test('runs and credentials are cards with a sort menu on phones', async ({ page, apiAs }) => {
