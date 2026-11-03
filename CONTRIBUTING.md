@@ -25,6 +25,8 @@ On the first start, set a master passphrase and create an admin account. Then cl
 
 ## Project layout
 
+The architecture – C4 diagrams, a module map of `server/src` and the decision records – is described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). A change that alters one of the decisions in [docs/adr/](docs/adr/README.md) gets a new record.
+
 | Folder      | What it contains                                                                                                                                                                  |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `shared/`   | Process model and validation (zod), API types, branding, scrubbing helpers. Used by server and web.                                                                               |
