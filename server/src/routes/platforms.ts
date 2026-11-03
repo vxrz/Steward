@@ -8,7 +8,9 @@ import * as platforms from '../platforms/service.js';
 import * as connectors from '../platforms/connectors.js';
 import * as recordings from '../platforms/recordings.js';
 import { PATH_PREFIX_MAX } from '../platforms/pathPrefix.js';
-import { platformRequest, renewToken, secretValues, tokenInfo, usesCachedToken } from '../platforms/http.js';
+import { buildUrl, platformRequest, renewToken, secretValues, tokenInfo, usesCachedToken } from '../platforms/http.js';
+import { judgeHttpTest } from '../platforms/connectionTest.js';
+import { shownHeaders, where } from '../platforms/answers.js';
 import { platformAccess } from '../auth/step-up-rules.js';
 import { requireCapability } from '../auth/permissions.js';
 import { boundedRecord } from '@sm/shared';
@@ -153,8 +155,8 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
       }
     }
     try {
-      const res = await platformRequest(p, secrets, { method: 'GET', url: testPath });
-      const ok = res.status >= 200 && res.status < 400;
+      // at most 1 MB of the answer: enough to tell an API from a page, and to show it
+      const res = await platformRequest(p, secrets, { method: 'GET', url: testPath, truncateResponseBytes: 1024 * 1024 });
       audit({
         action: 'platform.tested',
         entityType: 'platform',
@@ -163,12 +165,17 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
       });
       // say which request was made: without a test path it is the base URL itself (often a portal behind its own login)
       const what = `GET ${testPath}${p.config.testPath ? '' : ' (no test path set: the base URL itself)'}`;
+      // a status below 400 is not enough: a redirect to a sign-in page or an HTML portal page is no working API (v0.3.1)
+      const verdict = judgeHttpTest(p, what, await buildUrl(p, secrets, testPath), res);
       return {
-        ok,
+        ok: verdict.ok,
         status: res.status,
         durationMs: res.durationMs,
-        message: ok ? `Connection works – ${what}` : `${what} answered HTTP ${res.status}`,
+        message: redact(verdict.message, secrets),
         body: redact(res.body, secrets),
+        // who answered: content type, server, proxy, sign-in challenge, redirect target
+        headers: redact(shownHeaders(res.headers), secrets),
+        url: where(res.url),
         // when the cached access token was issued: roles granted later need a new one (POST …/token/renew)
         token: tokenInfo(id),
       };

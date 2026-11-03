@@ -102,7 +102,9 @@
     "variables": "Variables",
     "credentials": "Credentials (encrypted at rest)",
     "storedAs": "Stored as secret \"{{key}}\"",
-    "credentialsHint": "Leave fields empty that you don't need. You can add or replace credentials later."
+    "credentialsHint": "Leave fields empty that you don't need. You can add or replace credentials later.",
+    "authType": "Authentication",
+    "authTypeHint": "Chosen from the credentials you fill in (a token: bearer, username and password: basic). Credentials of another type are stored but not sent."
   },
   "detail": {
     "notFound": "Not found",
@@ -123,6 +125,7 @@
     "tokenAge": "Access token from {{fetched}}, expires {{expires}}. Roles granted since then need a new token.",
     "hideResponse": "Hide response",
     "showResponse": "Show response",
+    "emptyResponse": "(empty response)",
     "useOnly": "You may use this platform in runs and send read-only requests. Changing its configuration, credentials or access requires the “manage” right.",
     "viewOnly": "You may look at this platform but not use it in runs. Ask an administrator for access.",
     "tabs": {
@@ -209,6 +212,8 @@
     "baseUrlHint": "May contain templates such as {{example}}",
     "tokenUrlHint": "Templates allowed, e.g. {{example}}",
     "queryParam": "Query parameter",
+    "unsentCredentials": "Authentication is set to “None”, but credentials are stored ({{keys}}): they are not sent, and the platform will answer 401. Choose “{{type}}” if the API needs them.",
+    "switchAuth": "Switch to “{{type}}”",
     "authOptions": {
       "none": "None",
       "basic": "Basic auth (username / password)",

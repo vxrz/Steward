@@ -26,7 +26,8 @@ describe('connection test messages', () => {
 
     const api = await platform('Test path', { auth: { type: 'none' }, testPath: '/api/v1/me' });
     const r2 = await s.api('POST', `/platforms/${api.id}/test`);
-    expect(r2).toMatchObject({ ok: false, status: 401, message: 'GET /api/v1/me answered HTTP 401' });
+    expect(r2).toMatchObject({ ok: false, status: 401 });
+    expect(r2.message).toMatch(/^GET \/api\/v1\/me answered HTTP 401 – Authentication is set to "none", but the platform wants credentials/);
   });
 
   it('a failed login request names its method and address, never its query', async () => {

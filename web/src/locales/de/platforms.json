@@ -102,7 +102,9 @@
     "variables": "Variablen",
     "credentials": "Zugangsdaten (verschlüsselt gespeichert)",
     "storedAs": "Wird als Geheimnis „{{key}}“ gespeichert",
-    "credentialsHint": "Nicht benötigte Felder leer lassen. Zugangsdaten lassen sich später hinzufügen oder ersetzen."
+    "credentialsHint": "Nicht benötigte Felder leer lassen. Zugangsdaten lassen sich später hinzufügen oder ersetzen.",
+    "authType": "Authentifizierung",
+    "authTypeHint": "Ergibt sich aus den Zugangsdaten, die Sie eintragen (ein Token: Bearer, Benutzername und Passwort: Basic). Zugangsdaten eines anderen Typs werden gespeichert, aber nicht gesendet."
   },
   "detail": {
     "notFound": "Nicht gefunden",
@@ -123,6 +125,7 @@
     "tokenAge": "Zugriffstoken von {{fetched}}, läuft {{expires}} ab. Seitdem vergebene Rollen brauchen ein neues Token.",
     "hideResponse": "Antwort ausblenden",
     "showResponse": "Antwort anzeigen",
+    "emptyResponse": "(leere Antwort)",
     "useOnly": "Sie dürfen diese Plattform in Ausführungen nutzen und lesende Anfragen senden. Für Änderungen an Konfiguration, Zugangsdaten oder Zugriff ist das Recht „Verwalten“ nötig.",
     "viewOnly": "Sie dürfen diese Plattform ansehen, aber nicht in Ausführungen nutzen. Bitten Sie einen Administrator um Zugriff.",
     "tabs": {
@@ -209,6 +212,8 @@
     "baseUrlHint": "Darf Vorlagen wie {{example}} enthalten",
     "tokenUrlHint": "Vorlagen erlaubt, z. B. {{example}}",
     "queryParam": "Query-Parameter",
+    "unsentCredentials": "Als Authentifizierung ist „Keine“ eingestellt, aber Zugangsdaten sind gespeichert ({{keys}}): Sie werden nicht gesendet, und die Plattform antwortet mit 401. Wählen Sie „{{type}}“, wenn die API sie braucht.",
+    "switchAuth": "Auf „{{type}}“ umstellen",
     "authOptions": {
       "none": "Keine",
       "basic": "Basic Auth (Benutzername / Passwort)",

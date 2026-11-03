@@ -21,7 +21,7 @@ import {
 import { IconDeviceFloppy } from '@tabler/icons-react';
 import YAML from 'yaml';
 import { useTranslation } from 'react-i18next';
-import type { AuthConfig, AuthType, HttpOptions, Platform, PlatformConfig } from '@sm/shared';
+import { unsentCredentials, type AuthConfig, type AuthType, type HttpOptions, type Platform, type PlatformConfig } from '@sm/shared';
 import { notifyError, notifyOk, put } from '../../api';
 import { EnvironmentInput } from '../catalogue/environments';
 import { Hint, KeyValueEditor } from '../common';
@@ -96,6 +96,8 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
 
   const needed = useMemo(() => requiredSecrets(cfg.auth ?? { type: 'none' }), [cfg.auth]);
   const missing = needed.filter((k) => !platform.secretKeys.includes(k));
+  // stored credentials that authentication "none" never sends (v0.3.1)
+  const unsent = unsentCredentials({ kind, config: { auth } }, platform.secretKeys);
 
   const save = async () => {
     let config = cfg;
@@ -194,6 +196,16 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
               allowDeselect={false}
               onChange={(v) => setAuth({ type: (v as AuthType) ?? 'none' })}
             />
+            {unsent && (
+              <Alert color="orange" variant="light" data-testid="platform-unsent-credentials">
+                <Text size="sm">{t('settings.unsentCredentials', { keys: unsent.keys.join(', '), type: t(`settings.authOptions.${unsent.suggest}`) })}</Text>
+                {!readOnly && (
+                  <Button size="xs" variant="light" color="orange" mt="xs" onClick={() => setAuth({ type: unsent.suggest })}>
+                    {t('settings.switchAuth', { type: t(`settings.authOptions.${unsent.suggest}`) })}
+                  </Button>
+                )}
+              </Alert>
+            )}
             {needed.length > 0 && (
               <Alert color={missing.length ? 'orange' : 'gray'} variant="light">
                 <Text size="sm">

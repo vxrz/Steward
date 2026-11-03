@@ -16,6 +16,7 @@ import {
   Modal,
   Paper,
   PasswordInput,
+  Select,
   SimpleGrid,
   Stack,
   Text,
@@ -24,7 +25,7 @@ import {
 } from '@mantine/core';
 import { IconPlus, IconServer, IconKey, IconPlug, IconUpload, IconDownload, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { CONNECTOR_FORMATS, type ConnectorPackage, type Platform, type PlatformPreset } from '@sm/shared';
+import { CONNECTOR_FORMATS, impliedAuthType, type AuthType, type ConnectorPackage, type Platform, type PlatformPreset } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, Hint, KeyValueEditor, PageHeader, QueryState } from '../components/common';
@@ -262,6 +263,9 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
   const [baseUrl, setBaseUrl] = useState('');
   const [variables, setVariables] = useState<Record<string, unknown>>({});
   const [secrets, setSecrets] = useState<Record<string, string>>({});
+  // the authentication: the preset's, or – on a preset with "none" – the one the filled-in credential fields are for,
+  // until it is chosen by hand (entered credentials were silently never sent before, v0.3.1)
+  const [authChoice, setAuthChoice] = useState<AuthType | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -270,6 +274,7 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
       setName('');
       setEnvironment('');
       setSecrets({});
+      setAuthChoice(null);
     }
   }, [opened]);
 
@@ -278,7 +283,11 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
     setBaseUrl(p.baseUrl);
     setVariables({ ...p.config.variables });
     setSecrets({});
+    setAuthChoice(null);
   };
+  const authFields = preset?.secretFields.filter((f) => f.auth) ?? [];
+  const authType: AuthType = authChoice ?? impliedAuthType(preset?.config.auth?.type, preset?.secretFields ?? [], secrets);
+  const authOptions = [...new Set<AuthType>([preset?.config.auth?.type ?? 'none', ...authFields.map((f) => f.auth!)])];
 
   const create = async () => {
     if (!preset) return;
@@ -292,7 +301,7 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
         environment,
         description: presetDescription(preset),
         baseUrl,
-        config: { ...preset.config, variables: vars },
+        config: { ...preset.config, auth: { ...preset.config.auth, type: authType }, variables: vars },
         secrets: filtered,
         typeKind: preset.custom ? preset.kind : undefined,
       });
@@ -390,6 +399,17 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
                 />
               ))}
               <Hint>{t('form.credentialsHint')}</Hint>
+              {authFields.length > 0 && (
+                <Select
+                  label={t('form.authType')}
+                  description={t('form.authTypeHint')}
+                  data={authOptions.map((a) => ({ value: a, label: authLabel(a) }))}
+                  value={authType}
+                  allowDeselect={false}
+                  onChange={(v) => v && setAuthChoice(v as AuthType)}
+                  data-testid="add-platform-auth"
+                />
+              )}
             </>
           )}
           <Group justify="space-between">
