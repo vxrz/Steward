@@ -162,6 +162,7 @@ const toItem = (i: ItemRow): PersonReviewItem => ({
 function toReview(u: AuthUser, r: ReviewRow): PersonReview {
   const items = itemsOf(r.id);
   const sources = parseJson<PersonReviewSource[]>(r.sources, []).map((s) => ({ ...s, platformName: visiblePlatformName(u, s.platformId) ?? s.platformName }));
+  const activity = new Map(sources.flatMap((s) => Object.entries(s.activity ?? {}).map(([id, a]) => [`${s.checkId}|${id}`, a])));
   return {
     id: r.id,
     title: r.title,
@@ -169,7 +170,10 @@ function toReview(u: AuthUser, r: ReviewRow): PersonReview {
     personName: r.person_name,
     identifiers: parseJson<string[]>(r.identifiers, []),
     sources,
-    items: items.map(toItem),
+    items: items.map((i) => {
+      const a = activity.get(`${i.check_id}|${i.subject_id}`);
+      return a ? { ...toItem(i), subjectActivity: a } : toItem(i);
+    }),
     status: r.status,
     fourEyes: !!r.four_eyes,
     createdBy: r.created_by,
@@ -221,9 +225,9 @@ export function getReview(id: string): PersonReview {
   return toReview(u, r);
 }
 
-/** Subjects of a source that are the person: their id or name equals one of the identifiers (case-insensitive). */
-function matches(ids: Set<string>, s: { id: string; name: string }): boolean {
-  return ids.has(norm(s.id)) || (!!s.name && ids.has(norm(s.name)));
+/** Subjects of a source that are the person: their id, name or an alias (e.g. the e-mail address) equals one of the identifiers (case-insensitive). */
+function matches(ids: Set<string>, s: { id: string; name: string; aliases?: string[] }): boolean {
+  return ids.has(norm(s.id)) || (!!s.name && ids.has(norm(s.name))) || (s.aliases ?? []).some((a) => ids.has(norm(a)));
 }
 
 export async function createReview(input: z.infer<typeof reviewInput>): Promise<PersonReview> {
@@ -262,7 +266,15 @@ export async function createReview(input: z.infer<typeof reviewInput>): Promise<
         for (const right of rights)
           found.push({ check_id: c.id, subject_id: s.id, subject_name: s.name ?? '', subject_type: s.type ?? null, right_name: right });
       }
-      sources.push({ ...base, origin: got.origin, readAt: got.takenAt, error: got.error, matched: mine.length });
+      const activity = Object.fromEntries(mine.filter((s) => s.activity).map((s) => [s.id, s.activity!]));
+      sources.push({
+        ...base,
+        origin: got.origin,
+        readAt: got.takenAt,
+        error: got.error,
+        matched: mine.length,
+        ...(Object.keys(activity).length ? { activity } : {}),
+      });
     } catch (e) {
       sources.push({ ...base, origin: 'failed', readAt: null, error: (e as Error).message.slice(0, 300), matched: 0 });
     }

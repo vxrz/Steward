@@ -443,7 +443,9 @@ const clip = (s: unknown) =>
     .slice(0, LIMITS.text);
 
 /** Sorted subjects with sorted unique rights; duplicates of a subject id (case-insensitive) are merged. */
-export function normalizeSubjects(list: { id: string; name?: string; type?: string; rights: unknown[] }[]): AccessSubject[] {
+export function normalizeSubjects(
+  list: { id: string; name?: string; type?: string; rights: unknown[]; aliases?: string[]; activity?: string }[],
+): AccessSubject[] {
   const byId = new Map<string, AccessSubject>();
   for (const s of list) {
     const id = clip(s.id);
@@ -451,6 +453,11 @@ export function normalizeSubjects(list: { id: string; name?: string; type?: stri
     const key = id.toLowerCase();
     const cur = byId.get(key) ?? { id, name: clip(s.name), ...(s.type ? { type: clip(s.type) } : {}), rights: [] };
     cur.rights = uniqueRights([...cur.rights, ...s.rights.map(clip)]);
+    // other names (e.g. the e-mail address): only sources that know them set them, so other snapshots stay as they were
+    const aliases = [...new Set([...(cur.aliases ?? []), ...(s.aliases ?? []).map(clip).filter(Boolean)])].sort().slice(0, 10);
+    if (aliases.length) cur.aliases = aliases;
+    // a hint for person reviews read live; runCheck drops it before the snapshot
+    if (s.activity && !cur.activity) cur.activity = clip(s.activity);
     if (cur.rights.length > LIMITS.rightsPerSubject)
       throw new HttpError(400, `${id} has more than ${LIMITS.rightsPerSubject} rights`, 'SNAPSHOT_TOO_MANY_RIGHTS', { id, max: LIMITS.rightsPerSubject });
     if (!cur.name && s.name) cur.name = clip(s.name);
@@ -596,7 +603,9 @@ async function collectSnowflake(c: CheckRow): Promise<{ subjects: AccessSubject[
   if (subjects.length > LIMITS.subjects)
     throw new HttpError(400, `The scope has more than ${LIMITS.subjects} members`, 'SNAPSHOT_TOO_LARGE', { max: LIMITS.subjects });
   return {
-    subjects: normalizeSubjects(subjects.map((x) => ({ id: clip(x.id), name: clip(x.name), type: x.type, rights: x.rights.map(clip) }))),
+    subjects: normalizeSubjects(
+      subjects.map((x) => ({ id: clip(x.id), name: clip(x.name), type: x.type, rights: x.rights.map(clip), aliases: x.aliases, activity: x.activity })),
+    ),
     sourceRunId: null,
   };
 }
@@ -789,9 +798,10 @@ export async function runCheck(id: string, o: { actor: string; trigger: 'schedul
     }
     // rights the check leaves out (e.g. a review marker group); the subjects stay
     const ignored = new Set(parseJson<string[]>(c.ignore_rights, []).map((x) => x.toLowerCase()));
-    const subjects = ignored.size
-      ? collected.subjects.map((x) => ({ ...x, rights: x.rights.filter((r) => !ignored.has(r.toLowerCase())) }))
-      : collected.subjects;
+    // the activity hint (last login) changes every day: it is never part of a snapshot
+    const subjects = collected.subjects.map(({ activity: _activity, ...x }) =>
+      ignored.size ? { ...x, rights: x.rights.filter((r) => !ignored.has(r.toLowerCase())) } : x,
+    );
     const hash = snapshotHash(subjects);
     const prev = db().get<SnapshotRow>('SELECT * FROM access_snapshots WHERE check_id = ? ORDER BY seq DESC LIMIT 1', id);
     let takenAt = nowIso();
