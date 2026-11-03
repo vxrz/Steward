@@ -1,0 +1,29 @@
+# steward-min-version: 0.4.0
+# A template bundle (v0.4.0): processes, a dashboard and their schedules that belong together, set up in one go under
+# Processes → From template → "Set up together". Schedules are created switched off; the setup's result page turns
+# them on. See examples/README.md (Template bundles).
+name: Access governance (Insights Hub)
+description: |
+  Who has access to the Insights Hub tenant, and is it still justified? The inventory and access snapshots feed the
+  "Access governance" dashboard; the privileged access review, the group hygiene check and the two-part access review
+  keep it clean. Destructive steps always need a second person (four-eyes).
+tags: [access-review, governance, insights-hub]
+platforms:
+  - key: hub
+    label: Insights Hub tenant
+    kinds: [insights-hub]
+processes:
+  - template: 15-ih-inventory-snapshot
+    # the template recommends "hourly" without a cron expression
+    schedule: "7 * * * *"
+  - template: 16-ih-access-snapshot
+    schedule: "30 5 * * *"
+  - template: 14-ih-group-hygiene
+  - template: 12-ih-privileged-access-review
+    schedule: "0 7 1 * *"
+  - template: 10-ih-access-review-1-flag
+  - template: 11-ih-access-review-2-decide
+    schedule: "0 7 22 1,4,7,10 *"
+    # decides on the users part 1 flagged: a dry run before part 1 ran has nothing to decide
+    dryRun: false
+dashboards: [20-access-governance]

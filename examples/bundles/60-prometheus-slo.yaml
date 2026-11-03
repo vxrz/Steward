@@ -1,0 +1,16 @@
+# steward-min-version: 0.4.0
+name: Service levels (Prometheus)
+description: |
+  The weekly SLO and error-budget report from your PromQL, with the "Service levels" dashboard and, optionally, the
+  error-budget burn-rate monitor (replace its metric with your own). See docs/PROMETHEUS.md.
+tags: [slo, prometheus]
+platforms:
+  - key: prometheus
+    label: Prometheus
+    kinds: [prometheus]
+processes:
+  - template: 65-prometheus-slo-report
+dashboards: [65-service-levels]
+monitors:
+  - file: 51-error-budget-burn-rate.yaml
+    optional: true

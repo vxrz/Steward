@@ -120,6 +120,7 @@ export const HISTORY_COLUMNS: string[] = [
   'application_components.created_by',
   'platform_recordings.created_by',
   'platform_recordings.updated_by',
+  'platform_health.updated_by',
   'application_components.updated_by',
   'application_components.sbom_imported_by',
   'application_platforms.created_by',

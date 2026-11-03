@@ -67,6 +67,10 @@
     "title": "Dashboard-Daten veraltet: {{title}}",
     "body": "„{{title}}“ wurde zuletzt am {{updatedAt}} von „{{process}}“ aktualisiert (Aktualitätsgrenze: {{limit}})."
   },
+  "platformFailing": {
+    "title": "Plattform-Verbindung fehlgeschlagen: {{name}}",
+    "body": "Der regelmäßige Verbindungstest von „{{name}}“ schlägt seit {{since}} fehl: {{message}}"
+  },
   "test": {
     "title": "Testbenachrichtigung",
     "body": "Wenn Sie diese Nachricht lesen können, erreichen Benachrichtigungen von {{brand}} diesen Kanal."
