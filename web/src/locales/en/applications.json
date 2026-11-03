@@ -585,8 +585,8 @@
     },
     "responsible": "Responsible",
     "responsibleHelp": "Told with the owners of what it affects.",
-    "changeRecord": "Change record",
-    "changeRecordHelp": "The record that approves the change (optional).",
+    "changeRecord": "Change document",
+    "changeRecordHelp": "The document that approves the change (optional).",
     "quietMonitors": "Monitors stay quiet",
     "quietMonitorsHelp": "Affected monitors show “maintenance” and send no alerts. Checks are still recorded.",
     "pauseMessages": "Pause run messages",
@@ -632,7 +632,7 @@
     "colWhen": "Current or next",
     "colRepeat": "Repeats",
     "colTargets": "Affects",
-    "clearChangeRecord": "Remove the change record",
+    "clearChangeRecord": "Remove the change document",
     "endBeforeStart": "The window must end after it starts."
   }
 }

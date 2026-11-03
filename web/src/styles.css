@@ -173,3 +173,38 @@ p .mantine-Anchor-root,
     grid-column: span 2;
   }
 }
+
+/* "Skip to content" (App.tsx): off-screen until it receives keyboard focus */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 1000;
+  padding: 8px 14px;
+  border-radius: var(--mantine-radius-default);
+  background: var(--mantine-color-body);
+  color: var(--mantine-color-anchor);
+  font-weight: 600;
+  text-decoration: underline;
+  box-shadow: var(--mantine-shadow-md);
+  transform: translateY(-200%);
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: none;
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
+/*
+ * Target size (WCAG 2.2, 2.5.8): icon-only buttons are at least 24 × 24 px, toolbar ones 28 px
+ * (Mantine's xs/sm sizes are 18 and 22 px).
+ */
+:root .mantine-ActionIcon-root {
+  --ai-size-xs: 24px;
+  --ai-size-sm: 28px;
+}
+:root .mantine-CloseButton-root {
+  --cb-size-xs: 24px;
+  --cb-size-sm: 28px;
+}

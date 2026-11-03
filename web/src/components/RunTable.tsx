@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Anchor, Badge, Group, Paper, Text } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { IconAlertTriangle } from '@tabler/icons-react';
 import { outcomeOf, type RunFindings, type RunSummary } from '@sm/shared';
 import type { TFunction } from 'i18next';
 import { fmtDate, runDuration } from '../format';
@@ -102,11 +103,16 @@ export function RunTable({ runs, compact = false, footer }: { runs: RunSummary[]
       {r.processName}
     </Anchor>
   );
-  const resultCell = (r: RunSummary) => (
-    <Text size="xs" c={resultColor(r)}>
-      {result(r)}
-    </Text>
-  );
+  // a problem is not told by the colour alone (WCAG 1.4.1): a warning icon goes with the coloured text
+  const resultCell = (r: RunSummary) => {
+    const color = resultColor(r);
+    return (
+      <Text size="xs" c={color}>
+        {color !== 'dimmed' && <IconAlertTriangle size={12} aria-hidden style={{ verticalAlign: '-1px', marginInlineEnd: 3 }} />}
+        {result(r)}
+      </Text>
+    );
+  };
   const extra: DataColumn<RunSummary>[] = compact
     ? []
     : [

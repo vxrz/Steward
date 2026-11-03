@@ -188,7 +188,7 @@ npm run db:copy -- --from sqlite:./data/service-manager.db --to postgres://stewa
 
 - The **desktop executable always uses SQLite**. If `SM_DATABASE_URL` is set there, it refuses to start. Use the Node.js or container version for PostgreSQL.
 - The app talks to PostgreSQL through one connection, and each query waits for the answer. On the same host or LAN this costs about 0.2–0.3 ms per query, against about 0.01 ms for SQLite, and is not noticeable in the UI. Keep the database close to the app: a slow network link makes every request slower. A statement that runs longer than about 25 s is cancelled.
-- Size on the _Settings → Maintenance_ page is the size of the schema's tables and indexes. PostgreSQL's autovacuum reclaims space after the retention cleanup.
+- Size on the _Settings → Data & retention_ page is the size of the schema's tables and indexes. PostgreSQL's autovacuum reclaims space after the retention cleanup.
 - `/api/ready` checks that the database is reachable and writable, for both kinds.
 
 ## 6. Updating

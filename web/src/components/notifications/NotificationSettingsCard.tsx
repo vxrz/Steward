@@ -31,6 +31,7 @@ import {
   type NotificationSettingsInput,
 } from '@sm/shared';
 import { getOptional, notifyError, notifyOk, post, put } from '../../api';
+import { useSaveSection } from '../settings/SaveBar';
 import { useMe } from '../../auth';
 import { Hint } from '../common';
 import i18n from '../../i18n';
@@ -176,16 +177,19 @@ export function NotificationSettingsCard() {
     }
   }, [q.data]);
 
-  if (!q.data || !d) return null;
-  const stored = q.data;
-  const dirty = JSON.stringify(d) !== JSON.stringify(toDraft(stored)) || smtpPassword !== undefined || teamsUrl !== undefined || webhookUrl !== undefined;
-  const setEmail = (patch: Partial<Draft['email']>) => setD({ ...d, email: { ...d.email, ...patch } });
-  const toggleRoute = (ev: NotificationEvent, ch: NotificationChannel, on: boolean) => {
-    const cur = d.routes[ev] ?? [];
-    setD({ ...d, routes: { ...d.routes, [ev]: on ? [...new Set([...cur, ch])] : cur.filter((c) => c !== ch) } });
+  const dirty =
+    !!q.data &&
+    !!d &&
+    (JSON.stringify(d) !== JSON.stringify(toDraft(q.data)) || smtpPassword !== undefined || teamsUrl !== undefined || webhookUrl !== undefined);
+  const resetDraft = () => {
+    if (!q.data) return;
+    setD(toDraft(q.data));
+    setSmtpPassword(undefined);
+    setTeamsUrl(undefined);
+    setWebhookUrl(undefined);
   };
-
   const save = async () => {
+    if (!d) return;
     const body: NotificationSettingsInput = {
       email: { ...d.email, user: d.email.user || undefined, ...(smtpPassword !== undefined ? { password: smtpPassword } : {}) },
       teams: { enabled: d.teamsEnabled, ...(teamsUrl !== undefined ? { webhookUrl: teamsUrl } : {}) },
@@ -205,6 +209,15 @@ export function NotificationSettingsCard() {
     } finally {
       setBusy(false);
     }
+  };
+  const inBar = useSaveSection('notifications', { dirty, save, reset: resetDraft });
+
+  if (!q.data || !d) return null;
+  const stored = q.data;
+  const setEmail = (patch: Partial<Draft['email']>) => setD({ ...d, email: { ...d.email, ...patch } });
+  const toggleRoute = (ev: NotificationEvent, ch: NotificationChannel, on: boolean) => {
+    const cur = d.routes[ev] ?? [];
+    setD({ ...d, routes: { ...d.routes, [ev]: on ? [...new Set([...cur, ch])] : cur.filter((c) => c !== ch) } });
   };
 
   const unsaved = dirty ? t('notify.unsaved') : undefined;
@@ -363,11 +376,13 @@ export function NotificationSettingsCard() {
           </Table>
         </Table.ScrollContainer>
         <Hint>{t('notify.routesHint')}</Hint>
-        <Group justify="flex-end" gap="sm">
-          <Button leftSection={<IconDeviceFloppy size={16} />} onClick={save} loading={busy} disabled={!dirty}>
-            {t('notify.save')}
-          </Button>
-        </Group>
+        {!inBar && (
+          <Group justify="flex-end" gap="sm">
+            <Button leftSection={<IconDeviceFloppy size={16} />} onClick={save} loading={busy} disabled={!dirty}>
+              {t('notify.save')}
+            </Button>
+          </Group>
+        )}
         {unsaved && (
           <Alert color="yellow" variant="light" p="xs">
             {unsaved}

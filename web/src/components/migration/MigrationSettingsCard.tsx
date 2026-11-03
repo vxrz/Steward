@@ -1,6 +1,6 @@
 import { Button, Card, Group, Text, Title } from '@mantine/core';
 import { Link } from 'react-router-dom';
-import { IconTruckDelivery } from '@tabler/icons-react';
+import { IconChevronRight, IconTruckDelivery } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 
 /** Settings → Migration: moving this instance to another one, or bringing one in. */
@@ -15,7 +15,7 @@ export function MigrationSettingsCard() {
       <Text size="sm" c="dimmed" mb="sm">
         {t('migration.card')}
       </Text>
-      <Button component={Link} to="/settings/migration" variant="light" size="xs">
+      <Button component={Link} to="/settings/migration" variant="default" size="xs" w="fit-content" rightSection={<IconChevronRight size={14} aria-hidden />}>
         {t('migration.open')}
       </Button>
     </Card>

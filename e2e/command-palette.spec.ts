@@ -5,7 +5,7 @@ test.use({ storageState: authFile('olivia') });
 
 test('Ctrl+K finds and opens a process; "start run" opens the run dialog', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Dashboard', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
 
   await page.keyboard.press('Control+K');
   const search = page.getByRole('textbox', { name: 'Search', exact: true });
@@ -14,7 +14,7 @@ test('Ctrl+K finds and opens a process; "start run" opens the run dialog', async
   await search.fill('process health check');
   await page.getByRole('button', { name: /^Insights Hub – Platform health check/ }).click();
   await expect(page).toHaveURL(/\/processes\/ih-health-check$/);
-  await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('Insights Hub – Platform health check');
+  await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText('Insights Hub – Platform health check');
 
   // the header button opens it, too
   await page.getByRole('button', { name: /^Search… / }).click();

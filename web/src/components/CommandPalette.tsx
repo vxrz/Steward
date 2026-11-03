@@ -73,8 +73,8 @@ const SETTING_ENTRIES: [string, string][] = [
   ['catalogue', 'applications:scale.title'],
   ['catalogue', 'scorecard:rules.title'],
   ['catalogue', 'applications:environments.title'],
-  ['maintenance', 'settings:retention.title'],
-  ['maintenance', 'settings:backups.title'],
+  ['data', 'settings:retention.title'],
+  ['data', 'settings:backups.title'],
 ];
 
 const RunDialog = lazy(() => import('./RunDialog').then((m) => ({ default: m.RunDialog })));

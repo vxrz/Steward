@@ -44,8 +44,8 @@
       "hint": "Succeeded and failed runs per process"
     },
     "records": {
-      "title": "Records and change requests",
-      "hint": "Records created, changed, approved or implemented; open change requests by status; planned change windows"
+      "title": "Documents and change requests",
+      "hint": "Documents created, changed, approved or implemented; open change requests by status; planned change windows"
     },
     "tickets": {
       "title": "Ticket references",
@@ -102,7 +102,7 @@
     "noGatus": "Turn on metrics mode for a Gatus platform first (Platform → Metrics).",
     "dueWithinDays": "Also list entries due within (days)",
     "processes": "Processes",
-    "recordTypes": "Record types",
+    "recordTypes": "Document types",
     "allTypes": "All types",
     "windowDays": "Change windows up to (days after the period)",
     "windowDaysHint": "Planned change windows from the start of the period until this many days after its end",
@@ -122,7 +122,7 @@
   },
   "emptyState": {
     "title": "No report schedules yet",
-    "text": "Send a summary PDF (availability, credentials, runs, records) to your team every week or month.",
+    "text": "Send a summary PDF (availability, credentials, runs, documents) to your team every week or month.",
     "action": "Create your first report schedule"
   }
 }

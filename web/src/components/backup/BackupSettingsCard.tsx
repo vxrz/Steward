@@ -1,6 +1,6 @@
 import { Button, Card, Group, Text, Title } from '@mantine/core';
 import { Link } from 'react-router-dom';
-import { IconCloudUpload } from '@tabler/icons-react';
+import { IconChevronRight, IconCloudUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 
 /** Settings → Backups (#117): encrypted backups to S3. */
@@ -15,7 +15,7 @@ export function BackupSettingsCard() {
       <Text size="sm" c="dimmed" mb="sm">
         {t('backups.card')}
       </Text>
-      <Button component={Link} to="/settings/backups" variant="light" size="xs">
+      <Button component={Link} to="/settings/backups" variant="default" size="xs" w="fit-content" rightSection={<IconChevronRight size={14} aria-hidden />}>
         {t('backups.open')}
       </Button>
     </Card>

@@ -12,6 +12,7 @@ import {
   Group,
   Modal,
   Paper,
+  Progress,
   SegmentedControl,
   Select,
   Stack,
@@ -19,16 +20,18 @@ import {
   Text,
   TextInput,
   Textarea,
+  Tooltip,
+  UnstyledButton,
 } from '@mantine/core';
 import { useDebouncedValue, useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { IconChecklist, IconFileImport, IconPackageExport, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconChecklist, IconChevronDown, IconFileImport, IconPackageExport, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ControlCatalogue, ControlCoverage, ControlTagKind, ControlsMeta, EvidenceItem } from '@sm/shared';
 import { get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
-import { EmptyState, PageHeader, QueryState } from '../components/common';
+import { EmptyState, PageHeader, QueryState, TONE } from '../components/common';
 import { CoverageBadge, PeriodPicker, periodRange, presetPeriod, validPeriod, type Period } from '../components/compliance/common';
 import { fmtDate } from '../format';
 
@@ -55,11 +58,7 @@ export function ComplianceControlsPage() {
     enabled: !!catalogue && !!range,
   });
   const list = (coverage.data ?? []).filter((c) => !onlyGaps || c.status === 'gap');
-  const counts = useMemo(() => {
-    const out = { covered: 0, gap: 0, unmapped: 0, notVisible: 0 };
-    for (const c of coverage.data ?? []) out[c.status]++;
-    return out;
-  }, [coverage.data]);
+  const counts = useMemo(() => countOf(coverage.data ?? []), [coverage.data]);
   const open = params.get('control');
   const openCoverage = coverage.data?.find((c) => c.control.id === open);
   const setOpen = (id: string | null) => {
@@ -118,23 +117,36 @@ export function ComplianceControlsPage() {
         <PeriodPicker value={period} onChange={setPeriod} />
         <Checkbox label={t('controls.onlyGaps')} checked={onlyGaps} onChange={(e) => setOnlyGaps(e.currentTarget.checked)} mb={6} />
       </Group>
-      {coverage.data && (
-        <Group gap="xs" mb="sm" aria-live="polite">
-          <Badge color="green" variant="light">
-            {t('controls.countCovered', { count: counts.covered })}
-          </Badge>
-          <Badge color="red" variant={counts.gap ? 'filled' : 'light'}>
-            {t('controls.countGap', { count: counts.gap })}
-          </Badge>
-          {counts.notVisible > 0 && (
-            <Badge color="orange" variant="light">
-              {t('controls.countNotVisible', { count: counts.notVisible })}
-            </Badge>
+      {coverage.data && coverage.data.length > 0 && (
+        <Paper withBorder p="sm" mb="md" data-testid="controls-summary">
+          <Group justify="space-between" gap="xs" mb={6} wrap="wrap">
+            <Text size="sm" fw={600}>
+              {t('controls.summary', { covered: counts.covered, total: coverage.data.length })}
+            </Text>
+            <Group gap="xs" aria-live="polite">
+              <Badge color={TONE.ok} variant="light">
+                {t('controls.countCovered', { count: counts.covered })}
+              </Badge>
+              <Badge color={TONE.bad} variant={counts.gap ? 'filled' : 'light'}>
+                {t('controls.countGap', { count: counts.gap })}
+              </Badge>
+              {counts.notVisible > 0 && (
+                <Badge color={TONE.attention} variant="light">
+                  {t('controls.countNotVisible', { count: counts.notVisible })}
+                </Badge>
+              )}
+              <Badge color={TONE.soon} variant="light">
+                {t('controls.countUnmapped', { count: counts.unmapped })}
+              </Badge>
+            </Group>
+          </Group>
+          <CoverageBar counts={counts} label={t('controls.title')} />
+          {counts.unmapped > 0 && (
+            <Text size="xs" c="dimmed" mt={6}>
+              {t('controls.unmappedHint')}
+            </Text>
           )}
-          <Badge color="gray" variant="light">
-            {t('controls.countUnmapped', { count: counts.unmapped })}
-          </Badge>
-        </Group>
+        </Paper>
       )}
       <QueryState query={catalogues} />
       <QueryState query={coverage} />
@@ -150,6 +162,7 @@ export function ComplianceControlsPage() {
           onSelect={caps.exportEvidence ? setSelected : undefined}
           onOpen={(id) => setOpen(id)}
           catalogueParam={catalogue}
+          onlyGaps={onlyGaps}
         />
       )}
       {openCoverage && <ControlDrawer cov={openCoverage} meta={meta.data} onClose={() => setOpen(null)} />}
@@ -158,54 +171,171 @@ export function ComplianceControlsPage() {
   );
 }
 
+type Counts = Record<ControlCoverage['status'], number>;
+const countOf = (rows: ControlCoverage[]): Counts => {
+  const out: Counts = { covered: 0, gap: 0, unmapped: 0, notVisible: 0 };
+  for (const c of rows) out[c.status]++;
+  return out;
+};
+
+/** Covered, gaps, not visible and not mapped as one bar (the share of controls in each state). */
+function CoverageBar({ counts, label }: { counts: Counts; label: string }) {
+  const { t } = useTranslation('compliance');
+  const total = counts.covered + counts.gap + counts.unmapped + counts.notVisible;
+  if (!total) return null;
+  const parts: [keyof Counts, string][] = [
+    ['covered', 'var(--mantine-color-green-6)'],
+    ['gap', 'var(--mantine-color-red-6)'],
+    ['notVisible', 'var(--mantine-color-orange-5)'],
+    ['unmapped', 'var(--mantine-color-gray-3)'],
+  ];
+  return (
+    <Progress.Root size="md">
+      {parts.map(([k, color]) =>
+        counts[k] ? (
+          <Tooltip key={k} label={`${t(`coverage.${k}`)}: ${counts[k]}`}>
+            <Progress.Section
+              value={(counts[k] / total) * 100}
+              color={color}
+              aria-label={`${t('controls.coverageOf', { name: label })} – ${t(`coverage.${k}`)}: ${counts[k]}`}
+            />
+          </Tooltip>
+        ) : null,
+      )}
+    </Progress.Root>
+  );
+}
+
+/**
+ * The section of a control in its catalogue: everything before the last part of the reference
+ * (ISO/IEC 27001 "5.15" → "5", IEC 62443-2-1 "4.3.3.5" → "4.3.3"); references without parts have none.
+ */
+const sectionOf = (ref: string) => {
+  const parts = ref.split('.');
+  return parts.length > 1 ? parts.slice(0, -1).join('.') : '';
+};
+
+interface Section {
+  key: string;
+  title: string;
+  rows: ControlCoverage[];
+  counts: Counts;
+}
+
+function useSections(rows: ControlCoverage[], catalogue: string): Section[] {
+  const { t } = useTranslation('compliance');
+  return useMemo(() => {
+    const by = new Map<string, ControlCoverage[]>();
+    for (const c of rows) {
+      const k = sectionOf(c.control.ref);
+      by.set(k, [...(by.get(k) ?? []), c]);
+    }
+    // one section only (or references without parts): a flat list
+    if (by.size < 2) return [{ key: '', title: '', rows, counts: countOf(rows) }];
+    return [...by.entries()].map(([key, list]) => {
+      const name = t(`controls.sections.${catalogue}.${key.replace(/\./g, '_')}`, { defaultValue: '' });
+      return { key, title: name ? t('controls.sectionNamed', { ref: key, name }) : t('controls.section', { ref: key }), rows: list, counts: countOf(list) };
+    });
+  }, [rows, catalogue, t]);
+}
+
 function CoverageTable({
   rows,
   selected,
   onSelect,
   onOpen,
   catalogueParam,
+  onlyGaps,
 }: {
   rows: ControlCoverage[];
   selected: string[];
   onSelect?: (ids: string[]) => void;
   onOpen: (id: string) => void;
   catalogueParam: string;
+  onlyGaps: boolean;
 }) {
   const { t } = useTranslation('compliance');
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
+  const sections = useSections(rows, catalogueParam);
+  // sections with something mapped start open, the others closed; a click changes it for this page view
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  const isOpen = (s: Section) => toggled[s.key] ?? (onlyGaps || !s.key || s.counts.unmapped < s.rows.length);
+  const flip = (s: Section) => setToggled({ ...toggled, [s.key]: !isOpen(s) });
   const toggle = (id: string, on: boolean) => onSelect?.(on ? [...selected, id] : selected.filter((x) => x !== id));
   const link = (c: ControlCoverage) => `/compliance/controls?catalogue=${encodeURIComponent(catalogueParam)}&control=${encodeURIComponent(c.control.id)}`;
   const total = (c: ControlCoverage) => Object.values(c.counts).reduce((n, x) => n + (x ?? 0), 0);
+  const header = (s: Section) =>
+    s.key ? (
+      <Group gap="sm" wrap="nowrap" w="100%">
+        <UnstyledButton
+          onClick={() => flip(s)}
+          aria-expanded={isOpen(s)}
+          aria-controls={`controls-section-${s.key}`}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 28, flex: '1 1 auto', minWidth: 0 }}
+        >
+          <IconChevronDown
+            size={16}
+            aria-hidden
+            style={{ transform: isOpen(s) ? undefined : 'rotate(-90deg)', transition: 'transform 150ms ease', flexShrink: 0 }}
+          />
+          <Text fw={600} size="sm" style={{ overflowWrap: 'anywhere' }}>
+            {s.title}
+          </Text>
+          <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+            {t('controls.sectionCounts', { covered: s.counts.covered, gaps: s.counts.gap, unmapped: s.counts.unmapped, total: s.rows.length })}
+          </Text>
+        </UnstyledButton>
+        <Box w={{ base: 80, sm: 160 }} style={{ flexShrink: 0 }}>
+          <CoverageBar counts={s.counts} label={s.title} />
+        </Box>
+      </Group>
+    ) : null;
   if (narrow) {
     return (
-      <Stack gap="xs" role="list" aria-label={t('controls.title')}>
-        {rows.map((c) => (
-          <Paper key={c.control.id} withBorder p="sm" role="listitem" style={c.status === 'gap' ? { borderColor: 'var(--mantine-color-red-6)' } : undefined}>
-            <Group justify="space-between" wrap="nowrap" align="flex-start">
-              <Group gap="xs" wrap="nowrap" align="flex-start" style={{ minWidth: 0 }}>
-                {onSelect && (
-                  <Checkbox
-                    aria-label={t('controls.select', { ref: c.control.ref })}
-                    checked={selected.includes(c.control.id)}
-                    onChange={(e) => toggle(c.control.id, e.currentTarget.checked)}
-                  />
-                )}
-                <Box style={{ minWidth: 0 }}>
-                  <Anchor component={Link} to={link(c)} onClick={() => onOpen(c.control.id)} fw={600} size="sm">
-                    {c.control.ref} – {c.control.title}
-                  </Anchor>
-                  <Text size="xs" c="dimmed">
-                    {t('controls.evidenceCount', { count: total(c) })} · {t('controls.mappedCount', { count: c.control.tags.length })}
-                  </Text>
-                </Box>
-              </Group>
-              <CoverageBadge status={c.status} hidden={c.hidden} size="xs" />
-            </Group>
-          </Paper>
+      <Stack gap="md">
+        {sections.map((s) => (
+          <Stack key={s.key || 'all'} gap="xs" role="group" aria-label={s.title || t('controls.title')}>
+            {header(s)}
+            {isOpen(s) && (
+              <Stack gap="xs" role="list" id={`controls-section-${s.key}`} aria-label={s.title || t('controls.title')}>
+                {s.rows.map((c) => (
+                  <Paper
+                    key={c.control.id}
+                    withBorder
+                    p="sm"
+                    role="listitem"
+                    style={c.status === 'gap' ? { borderColor: 'var(--mantine-color-red-6)' } : undefined}
+                  >
+                    <Group justify="space-between" wrap="nowrap" align="flex-start">
+                      <Group gap="xs" wrap="nowrap" align="flex-start" style={{ minWidth: 0 }}>
+                        {onSelect && (
+                          <Checkbox
+                            aria-label={t('controls.select', { ref: c.control.ref })}
+                            checked={selected.includes(c.control.id)}
+                            onChange={(e) => toggle(c.control.id, e.currentTarget.checked)}
+                          />
+                        )}
+                        <Box style={{ minWidth: 0 }}>
+                          <Anchor component={Link} to={link(c)} onClick={() => onOpen(c.control.id)} fw={600} size="sm">
+                            {c.control.ref} – {c.control.title}
+                          </Anchor>
+                          <Text size="xs" c="dimmed">
+                            {t('controls.evidenceCount', { count: total(c) })} · {t('controls.mappedCount', { count: c.control.tags.length })}
+                          </Text>
+                        </Box>
+                      </Group>
+                      <CoverageBadge status={c.status} hidden={c.hidden} size="xs" />
+                    </Group>
+                  </Paper>
+                ))}
+              </Stack>
+            )}
+          </Stack>
         ))}
       </Stack>
     );
   }
+  const cols = onSelect ? 5 : 4;
   return (
     <div className="table-scroll">
       <Table highlightOnHover fz="sm" aria-label={t('controls.title')}>
@@ -218,54 +348,64 @@ function CoverageTable({
             <Table.Th>{t('controls.mapped')}</Table.Th>
           </Table.Tr>
         </Table.Thead>
-        <Table.Tbody>
-          {rows.map((c) => (
-            <Table.Tr key={c.control.id} bg={c.status === 'gap' ? 'var(--mantine-color-red-light)' : undefined}>
-              {onSelect && (
-                <Table.Td>
-                  <Checkbox
-                    aria-label={t('controls.select', { ref: c.control.ref })}
-                    checked={selected.includes(c.control.id)}
-                    onChange={(e) => toggle(c.control.id, e.currentTarget.checked)}
-                  />
-                </Table.Td>
-              )}
-              <Table.Td>
-                <Anchor size="sm" component={Link} to={link(c)} onClick={() => onOpen(c.control.id)} fw={500}>
-                  <Text span className="mono" size="sm">
-                    {c.control.ref}
-                  </Text>{' '}
-                  – {c.control.title}
-                </Anchor>
-              </Table.Td>
-              <Table.Td>
-                <CoverageBadge status={c.status} hidden={c.hidden} />
-              </Table.Td>
-              <Table.Td>
-                <Group gap={4}>
-                  {Object.entries(c.counts).map(([k, n]) => (
-                    <Badge key={k} size="xs" variant="default">
-                      {t(`evidenceKinds.${k as 'run'}`)}: {n}
-                    </Badge>
-                  ))}
-                  {total(c) === 0 && (
-                    <Text size="xs" c="dimmed">
-                      –
-                    </Text>
+        {sections.map((s) => (
+          <Table.Tbody key={s.key || 'all'} id={s.key ? `controls-section-${s.key}` : undefined}>
+            {s.key && (
+              <Table.Tr bg="var(--mantine-color-default-hover)">
+                <Table.Th colSpan={cols} scope="rowgroup">
+                  {header(s)}
+                </Table.Th>
+              </Table.Tr>
+            )}
+            {isOpen(s) &&
+              s.rows.map((c) => (
+                <Table.Tr key={c.control.id} bg={c.status === 'gap' ? 'var(--mantine-color-red-light)' : undefined}>
+                  {onSelect && (
+                    <Table.Td>
+                      <Checkbox
+                        aria-label={t('controls.select', { ref: c.control.ref })}
+                        checked={selected.includes(c.control.id)}
+                        onChange={(e) => toggle(c.control.id, e.currentTarget.checked)}
+                      />
+                    </Table.Td>
                   )}
-                </Group>
-              </Table.Td>
-              <Table.Td>
-                <Text size="xs">
-                  {c.control.tags
-                    .filter((x) => x.visible)
-                    .map((x) => x.label)
-                    .join(', ') || '–'}
-                </Text>
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
+                  <Table.Td>
+                    <Anchor size="sm" component={Link} to={link(c)} onClick={() => onOpen(c.control.id)} fw={500}>
+                      <Text span className="mono" size="sm">
+                        {c.control.ref}
+                      </Text>{' '}
+                      – {c.control.title}
+                    </Anchor>
+                  </Table.Td>
+                  <Table.Td>
+                    <CoverageBadge status={c.status} hidden={c.hidden} />
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap={4}>
+                      {Object.entries(c.counts).map(([k, n]) => (
+                        <Badge key={k} size="xs" variant="default">
+                          {t(`evidenceKinds.${k as 'run'}`)}: {n}
+                        </Badge>
+                      ))}
+                      {total(c) === 0 && (
+                        <Text size="xs" c="dimmed">
+                          –
+                        </Text>
+                      )}
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="xs">
+                      {c.control.tags
+                        .filter((x) => x.visible)
+                        .map((x) => x.label)
+                        .join(', ') || '–'}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+          </Table.Tbody>
+        ))}
       </Table>
     </div>
   );

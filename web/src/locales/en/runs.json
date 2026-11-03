@@ -1,7 +1,7 @@
 {
   "list": {
     "title": "Runs",
-    "description": "Every execution of a process with its full protocol.",
+    "description": "Every execution of a process with its full run report.",
     "allProcesses": "All processes",
     "anyStatus": "Any status",
     "summaryReport": "Summary report",
@@ -81,7 +81,7 @@
     "csvHint": "CSV with header row (comma, semicolon or tab separated)",
     "csvHintColumns": "CSV with header row: {{columns}} (comma, semicolon or tab separated)",
     "loadCsv": "Load CSV file",
-    "secretHint": "Stored encrypted only; shown as *** in the protocol, reports and the audit log",
+    "secretHint": "Stored encrypted only; shown as *** in the run report, other reports and the audit log",
     "applicationHint": "The run reads the application’s components and tech stack when it starts",
     "noApplications": "No application found",
     "allApplications": "All applications",
@@ -103,8 +103,8 @@
     "resume": "Resume",
     "resumeHint": "Replays completed steps from the journal and continues with the interrupted step (it may be executed again).",
     "runAgain": "Run again",
-    "protocol": "Protocol",
-    "openHtml": "Open HTML protocol",
+    "protocol": "Run report",
+    "openHtml": "Open the run report (HTML)",
     "downloadPdf": "Download PDF",
     "downloadHtml": "Download HTML",
     "downloadJson": "Download JSON (full data)",
@@ -133,8 +133,8 @@
       "decisions_other": "Decisions ({{count}})",
       "evidence_one": "Evidence ({{count}})",
       "evidence_other": "Evidence ({{count}})",
-      "log_one": "Log ({{count}})",
-      "log_other": "Log ({{count}})",
+      "log_one": "Messages ({{count}})",
+      "log_other": "Messages ({{count}})",
       "inputs": "Inputs",
       "audit": "Audit",
       "pdf": "PDF reports"
@@ -172,8 +172,8 @@
     "showMore": {
       "steps_one": "Showing {{shown}} of {{total}} step",
       "steps_other": "Showing {{shown}} of {{total}} steps",
-      "logLines_one": "Showing {{shown}} of {{total}} log line",
-      "logLines_other": "Showing {{shown}} of {{total}} log lines",
+      "logLines_one": "Showing {{shown}} of {{total}} message",
+      "logLines_other": "Showing {{shown}} of {{total}} messages",
       "more_one": "Show {{count}} more",
       "more_other": "Show {{count}} more",
       "all": "Show all"
@@ -189,7 +189,7 @@
   },
   "emptyState": {
     "title": "No runs yet",
-    "text": "A run is one execution of a process, with its full protocol. Start one from a process – a dry run simulates every change first.",
+    "text": "A run is one execution of a process, with its full run report. Start one from a process – a dry run simulates every change first.",
     "action": "Open processes",
     "noMatch": "No runs match the filter."
   },

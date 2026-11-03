@@ -1,7 +1,7 @@
 {
   "list": {
     "title": "Ausführungen",
-    "description": "Jede Ausführung eines Prozesses mit vollständigem Protokoll.",
+    "description": "Jede Ausführung eines Prozesses mit vollständigem Ausführungsbericht.",
     "allProcesses": "Alle Prozesse",
     "anyStatus": "Jeder Status",
     "summaryReport": "Zusammenfassender Bericht",
@@ -81,7 +81,7 @@
     "csvHint": "CSV mit Kopfzeile (durch Komma, Semikolon oder Tabulator getrennt)",
     "csvHintColumns": "CSV mit Kopfzeile: {{columns}} (durch Komma, Semikolon oder Tabulator getrennt)",
     "loadCsv": "CSV-Datei laden",
-    "secretHint": "Wird nur verschlüsselt gespeichert; im Protokoll, in Berichten und im Audit-Log als *** angezeigt",
+    "secretHint": "Wird nur verschlüsselt gespeichert; im Ausführungsbericht, in anderen Berichten und im Audit-Log als *** angezeigt",
     "applicationHint": "Der Lauf liest die Komponenten und den Tech-Stack der Anwendung beim Start",
     "noApplications": "Keine Anwendung gefunden",
     "allApplications": "Alle Anwendungen",
@@ -103,8 +103,8 @@
     "resume": "Fortsetzen",
     "resumeHint": "Spielt abgeschlossene Schritte aus dem Journal ab und setzt mit dem unterbrochenen Schritt fort (er wird ggf. erneut ausgeführt).",
     "runAgain": "Erneut ausführen",
-    "protocol": "Protokoll",
-    "openHtml": "HTML-Protokoll öffnen",
+    "protocol": "Ausführungsbericht",
+    "openHtml": "Ausführungsbericht öffnen (HTML)",
     "downloadPdf": "PDF herunterladen",
     "downloadHtml": "HTML herunterladen",
     "downloadJson": "JSON herunterladen (alle Daten)",
@@ -133,8 +133,8 @@
       "decisions_other": "Entscheidungen ({{count}})",
       "evidence_one": "Nachweise ({{count}})",
       "evidence_other": "Nachweise ({{count}})",
-      "log_one": "Protokoll ({{count}})",
-      "log_other": "Protokoll ({{count}})",
+      "log_one": "Meldungen ({{count}})",
+      "log_other": "Meldungen ({{count}})",
       "inputs": "Eingaben",
       "audit": "Audit-Log",
       "pdf": "PDF-Berichte"
@@ -172,8 +172,8 @@
     "showMore": {
       "steps_one": "{{shown}} von {{total}} Schritt",
       "steps_other": "{{shown}} von {{total}} Schritten",
-      "logLines_one": "{{shown}} von {{total}} Protokollzeile",
-      "logLines_other": "{{shown}} von {{total}} Protokollzeilen",
+      "logLines_one": "{{shown}} von {{total}} Meldung",
+      "logLines_other": "{{shown}} von {{total}} Meldungen",
       "more_one": "{{count}} weitere anzeigen",
       "more_other": "{{count}} weitere anzeigen",
       "all": "Alle anzeigen"
@@ -189,7 +189,7 @@
   },
   "emptyState": {
     "title": "Noch keine Ausführungen",
-    "text": "Eine Ausführung ist ein Durchlauf eines Prozesses mit vollständigem Protokoll. Starten Sie sie bei einem Prozess – ein Probelauf simuliert vorher jede Änderung.",
+    "text": "Eine Ausführung ist ein Durchlauf eines Prozesses mit vollständigem Ausführungsbericht. Starten Sie sie bei einem Prozess – ein Probelauf simuliert vorher jede Änderung.",
     "action": "Zu den Prozessen",
     "noMatch": "Keine Ausführungen passen zum Filter."
   },

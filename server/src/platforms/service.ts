@@ -60,6 +60,26 @@ export function listPlatforms(): Platform[] {
   return db().all<PlatformRow>('SELECT * FROM platforms ORDER BY name').map(toPlatform);
 }
 
+/**
+ * The latest connection test of every platform, from the audit log (POST /platforms/:id/test writes `platform.tested`).
+ * Entries from before 0.3.1 have no `details.ok`: their summary tells.
+ */
+export function lastConnectionTests(): Map<string, { at: string; ok: boolean }> {
+  const rows = db().all<{ entity_id: string; ts: string; summary: string; details: string | null }>(
+    `SELECT a.entity_id, a.ts, a.summary, a.details FROM audit_log a
+       JOIN (SELECT entity_id, MAX(seq) AS seq FROM audit_log WHERE entity_type = 'platform' AND action = 'platform.tested' GROUP BY entity_id) l
+         ON a.seq = l.seq`,
+  );
+  const out = new Map<string, { at: string; ok: boolean }>();
+  for (const r of rows) {
+    const d = parseJson<{ ok?: unknown }>(r.details, {});
+    const http = /→ HTTP (\d{3})/.exec(r.summary);
+    const ok = typeof d.ok === 'boolean' ? d.ok : http ? Number(http[1]) < 400 : !/" failed: /.test(r.summary);
+    out.set(r.entity_id, { at: r.ts, ok });
+  }
+  return out;
+}
+
 export function getPlatform(id: string): Platform {
   const r = db().get<PlatformRow>('SELECT * FROM platforms WHERE id = ?', id);
   if (!r) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });

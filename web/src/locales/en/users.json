@@ -332,7 +332,7 @@
       "monitors": "Monitors",
       "schedules": "Schedules",
       "dashboards": "Dashboards",
-      "records": "Records",
+      "records": "Documents",
       "record_documents": "Document reviews",
       "ticket_refs": "Ticket references",
       "report_schedules": "Report schedules",
@@ -411,7 +411,7 @@
     },
     "branding": {
       "title": "Report branding",
-      "hint": "Reports of the team use it instead of the instance branding: scheduled reports of the team, run reports of its processes and PDFs of its records.",
+      "hint": "Reports of the team use it instead of the instance branding: scheduled reports of the team, run reports of its processes and PDFs of its documents.",
       "companyName": "Company name",
       "accentColor": "Accent colour",
       "classification": "Default classification",

@@ -10,7 +10,7 @@ const SECRETS = ['demo-secret', 'demo-password'];
 test('platform: test connection, API explorer, credentials stay hidden', async ({ page, apiAs }) => {
   await page.goto('/platforms');
   await page.getByText('Insights Hub (demo)', { exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Insights Hub (demo)', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Insights Hub (demo)', level: 1 })).toBeVisible();
 
   await page.getByRole('button', { name: 'Test connection' }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'Connection works' })).toContainText('HTTP 200');
@@ -35,6 +35,16 @@ test('platform: test connection, API explorer, credentials stay hidden', async (
 
   const html = await page.content();
   for (const s of SECRETS) expect(html).not.toContain(s);
+
+  // the list shows the latest test, the sign-in kind in normal case, and filters by name
+  await page.goto('/platforms');
+  await page.getByRole('textbox', { name: 'Search platforms' }).fill('insights hub (demo)');
+  const card = page.locator('.mantine-Card-root').filter({ hasText: 'Insights Hub (demo)' });
+  await expect(page.locator('.mantine-Card-root')).toHaveCount(1);
+  await expect(card.getByTestId('platform-last-test')).toContainText(/^Last test OK /);
+  await expect(card.getByText('OAuth2 client credentials', { exact: true })).toHaveCSS('text-transform', 'none');
+  await page.getByRole('textbox', { name: 'Search platforms' }).fill('zzz-no-such-platform');
+  await expect(page.getByText('No platform matches the filter.')).toBeVisible();
 
   // the API never returns secret values either
   const api = await apiAs('admin');

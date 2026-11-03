@@ -9,10 +9,14 @@ test('settings are split into areas with their own addresses, and each says its 
   await page.goto('/settings');
   await expect(page).toHaveURL(/\/settings\/general$/);
   const nav = page.getByRole('navigation', { name: 'Settings areas' });
-  for (const area of ['General', 'Security & sign-in', 'Integrations', 'Notifications', 'Appearance & branding', 'Catalogue & compliance', 'Maintenance'])
+  for (const area of ['General', 'Security & sign-in', 'Integrations', 'Notifications', 'Appearance & branding', 'Catalogue & compliance', 'Data & retention'])
     await expect(nav.getByRole('link', { name: area })).toBeVisible();
   await expect(page.getByTestId('settings-scope')).toContainText('Instance settings apply to the whole installation');
   await expect(page.getByRole('heading', { name: 'Language' })).toBeVisible();
+  // server options in plain words first, the variable name as the detail
+  const unattended = page.getByTestId('unattended-card');
+  await expect(unattended.getByText('Start unlocked after a reboot')).toBeVisible();
+  await expect(unattended.getByText('SM_MASTER_PASSPHRASE_FILE', { exact: true })).toBeVisible();
   await expectAccessible(page, 'settings: general');
 
   // each area at its own address, with its settings
@@ -35,11 +39,11 @@ test('settings are split into areas with their own addresses, and each says its 
 
   // a single setting from the command palette
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Dashboard', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
   await page.keyboard.press('Control+K');
   await page.getByRole('textbox', { name: 'Search', exact: true }).fill('data retention');
   await page.getByRole('button', { name: /^Data retention/ }).click();
-  await expect(page).toHaveURL(/\/settings\/maintenance$/);
+  await expect(page).toHaveURL(/\/settings\/data$/);
   await expect(page.getByRole('heading', { name: 'Data retention' })).toBeVisible();
 });
 

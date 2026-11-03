@@ -78,7 +78,15 @@ interface NavItemDef {
   key: NavKey;
   icon: Icon;
   cap?: keyof Capabilities;
+  /** Shown only when this holds: pages of no use to the user's roles are left out (the address still works) */
+  when?: (caps: Capabilities) => boolean;
 }
+
+// The server leaves these out for API clients and older sessions: then the entry shows.
+const automation = (c: Capabilities) => c.viewAutomation !== false;
+const credentialsRegister = (c: Capabilities) => c.viewCredentials !== false;
+// Settings are the administrators'; auditors find the system status there. Everyone else has their profile.
+const settingsArea = (c: Capabilities) => c.manageSettings || c.viewAudit;
 
 /**
  * The sidebar in sections, ordered by how often a service team needs them: the start page and the
@@ -106,8 +114,8 @@ export const NAV_GROUPS: { key: NavGroupKey | null; items: NavItemDef[] }[] = [
     key: 'automate',
     items: [
       { to: '/processes', key: 'processes', icon: IconSitemap },
-      { to: '/schedules', key: 'schedules', icon: IconCalendarTime },
-      { to: '/triggers', key: 'triggers', icon: IconWebhook },
+      { to: '/schedules', key: 'schedules', icon: IconCalendarTime, when: automation },
+      { to: '/triggers', key: 'triggers', icon: IconWebhook, when: automation },
       { to: '/git-updates', key: 'gitUpdates', icon: IconBrandGit, cap: 'createProcesses' },
     ],
   },
@@ -122,7 +130,7 @@ export const NAV_GROUPS: { key: NavGroupKey | null; items: NavItemDef[] }[] = [
       { to: '/duties', key: 'duties', icon: IconCalendarCheck },
       { to: '/scorecard', key: 'scorecard', icon: IconGauge },
       { to: '/platforms', key: 'platforms', icon: IconServer },
-      { to: '/credentials', key: 'credentials', icon: IconKey },
+      { to: '/credentials', key: 'credentials', icon: IconKey, when: credentialsRegister },
       { to: '/tickets', key: 'tickets', icon: IconTicket },
       { to: '/records', key: 'records', icon: IconFileCertificate },
       { to: '/reports', key: 'reports', icon: IconReportAnalytics },
@@ -143,7 +151,7 @@ export const NAV_GROUPS: { key: NavGroupKey | null; items: NavItemDef[] }[] = [
     items: [
       { to: '/audit', key: 'audit', icon: IconShieldCheck, cap: 'viewAudit' },
       { to: '/users', key: 'users', icon: IconUsers, cap: 'manageUsers' },
-      { to: '/settings', key: 'settings', icon: IconSettings },
+      { to: '/settings', key: 'settings', icon: IconSettings, when: settingsArea },
     ],
   },
 ];
@@ -168,7 +176,9 @@ export function useNavGroups(caps: Capabilities): { key: NavGroupKey | null; lab
         return {
           key: g.key,
           label,
-          items: g.items.filter((n) => !n.cap || caps[n.cap]).map((n) => ({ to: n.to, key: n.key, icon: n.icon, label: t(`items.${n.key}`), group: label })),
+          items: g.items
+            .filter((n) => (!n.cap || caps[n.cap]) && (!n.when || n.when(caps)))
+            .map((n) => ({ to: n.to, key: n.key, icon: n.icon, label: t(`items.${n.key}`), group: label })),
         };
       }).filter((g) => g.items.length > 0),
     [t, caps],
@@ -291,6 +301,8 @@ export function AppNav({
                 w="100%"
                 px="sm"
                 py={3}
+                // 28 px high: a comfortable target (WCAG 2.2, 2.5.8)
+                mih={28}
                 style={{ borderRadius: 'var(--mantine-radius-default)' }}
                 className="nav-group-toggle"
               >

@@ -1,5 +1,5 @@
 {
-  "title": "Dashboard",
+  "title": "Home",
   "description": "What needs your attention, what is running and what is planned.",
   "demoAccounts": {
     "title": "Demo accounts created",
@@ -101,7 +101,7 @@
       },
       "report": {
         "title": "Send a summary report",
-        "text": "A weekly or monthly PDF for the service meeting: availability, credentials, runs and records."
+        "text": "A weekly or monthly PDF for the service meeting: availability, credentials, runs and documents."
       }
     },
     "discover": "Also worth knowing:",

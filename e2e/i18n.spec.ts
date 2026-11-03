@@ -18,9 +18,9 @@ const ENGLISH = [
   'Close',
   'Search',
   'Settings',
-  'Records',
-  'Record types',
-  'New record',
+  'Documents',
+  'Document types',
+  'New document',
   'Change request',
   'Decision record',
   'Credentials',
@@ -155,7 +155,7 @@ async function checkPages(page: Page, headers: Record<string, string>) {
 
   // Records: list, import dialog, types and the type editor
   await page.goto('/records');
-  await expect(page.getByRole('heading', { name: 'Dokumente', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dokumente', level: 1 })).toBeVisible();
   await expectGerman(page, 'records list');
   await page.getByRole('button', { name: 'Markdown importieren' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -171,7 +171,7 @@ async function checkPages(page: Page, headers: Record<string, string>) {
   await page.keyboard.press('Escape');
 
   await page.goto('/records/types');
-  await expect(page.getByRole('heading', { name: 'Dokumentarten', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dokumentarten', level: 1 })).toBeVisible();
   await expectGerman(page, 'record types');
 
   // Record detail: built-in field labels and values, the four-eyes reason and a translated server error
@@ -195,16 +195,16 @@ async function checkPages(page: Page, headers: Record<string, string>) {
 
   // Services
   await page.goto('/services');
-  await expect(page.getByRole('heading', { name: 'Services', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Services', level: 1 })).toBeVisible();
   await expectGerman(page, 'services');
   await page.goto(`/services/${service.id}`);
-  await expect(page.getByRole('heading', { level: 2 })).toContainText('Kundenportal');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Kundenportal');
   await expectGerman(page, 'service detail');
 
   // Credentials, reports, monitors, settings (incl. MCP), profile
   for (const path of ['/credentials', '/reports', '/monitors', '/monitors/new', '/settings', '/profile']) {
     await page.goto(path);
-    await expect(page.getByRole('heading', { level: 2 }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
     await page.waitForLoadState('networkidle');
     await expectGerman(page, path);
   }

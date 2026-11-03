@@ -79,7 +79,7 @@ test('a record has owning teams on its access tab; a whole service is moved with
   try {
     await page.goto(`/records/${rec.id}`);
     await page.getByRole('tab', { name: 'Access' }).click();
-    await expect(page.getByText(/This record belongs to the whole instance/)).toBeVisible();
+    await expect(page.getByText(/This document belongs to the whole instance/)).toBeVisible();
     await expectAccessible(page, 'record access tab');
 
     await page.goto(`/services/${service.id}`);
@@ -96,7 +96,7 @@ test('a record has owning teams on its access tab; a whole service is moved with
     await expect(page.getByText(/Owning teams changed on \d+ resources/)).toBeVisible();
     await page.goto(`/records/${rec.id}`);
     await page.getByRole('tab', { name: 'Access' }).click();
-    await expect(page.getByText(/Only members of these teams see this record/)).toBeVisible();
+    await expect(page.getByText(/Only members of these teams see this document/)).toBeVisible();
   } finally {
     await api.post('/api/owning-teams/bulk', { data: { service: service.id, teamIds: [] } });
     await api.delete(`/api/services/${service.id}`);

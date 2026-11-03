@@ -39,7 +39,7 @@ import { belongsTarget, belongsToSchema, checkBelongsTo, toBelongsTo } from './b
 import * as processes from '../processes/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { me } from '../auth/access.js';
-import { assignCreatorTeams, forgetOwningTeams, teamScoped } from '../auth/policy.js';
+import { assignCreatorTeams, forgetOwningTeams, memberships, teamScoped } from '../auth/policy.js';
 
 /**
  * Credentials register: documents credentials (what, where kept, who owns them,
@@ -163,6 +163,19 @@ export function credentialAccess(u: AuthUser | null, r: Pick<CredentialRow, 'id'
 }
 
 export const canCreateCredentials = (u: AuthUser | null = currentUser()): boolean => !!u && u.roles.some((x) => EDIT_ROLES.includes(x));
+
+/**
+ * Whether the register is of use to someone (the sidebar entry): a role that reads it – in the instance or one of
+ * their teams – or an entry they own. Everyone may still open the page.
+ */
+export function mayReadSomeCredential(u: AuthUser | null = currentUser()): boolean {
+  if (!u) return false;
+  const roles = [...u.roles, ...[...memberships(u).values()].flatMap((m) => m.roles)];
+  if (roles.some((r) => READ_ROLES.includes(r))) return true;
+  return db()
+    .all<Pick<CredentialRow, 'owner_subjects'>>('SELECT owner_subjects FROM credentials')
+    .some((r) => isOwner(u, r));
+}
 
 /** May the user see any entry at all (list, export, API)? */
 export const canReadRegister = (u: AuthUser | null = currentUser()): boolean => !!u;

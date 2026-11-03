@@ -62,7 +62,7 @@ test('operator creates a schedule, runs it now and deletes it', async ({ page, a
   await row.getByRole('button', { name: 'Run now' }).click();
   await expect(page).toHaveURL(/\/runs\/[^/]+$/);
   const runId = page.url().split('/').pop()!;
-  await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText(/succeeded|completed with findings/, { timeout: 20_000 });
+  await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText(/succeeded|completed with findings/, { timeout: 20_000 });
   const run = await waitForRun(await apiAs('olivia'), runId, ['succeeded']);
   expect(run.actor).toBe('olivia');
 

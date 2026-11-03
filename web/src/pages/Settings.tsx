@@ -30,7 +30,7 @@ import {
   IconScale,
   IconSettings,
   IconShieldLock,
-  IconTool,
+  IconDatabase,
   IconTrashX,
   IconWorld,
   type Icon,
@@ -41,6 +41,7 @@ import { allowListEntryProblem, allowListLines, type ApiToken, type AuthStatus, 
 import { BRAND } from '../../../shared/src/brand';
 import { del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, PageHeader } from '../components/common';
+import { SaveBar, SaveBarProvider, useSaveSection } from '../components/settings/SaveBar';
 import { useMe } from '../auth';
 import { fmtBytes, fmtDate, fmtNumber, fmtRelative } from '../format';
 import { DEFAULT_LOCALE, LANGUAGES, isLocale } from '../i18n/languages';
@@ -71,7 +72,7 @@ import { RulesPanel } from './Scorecard';
  * Settings by area (#136). Each area has a stable URL (/settings/<area>); everything here is an instance setting that
  * administrators change. Personal settings are on the profile, team settings on the team.
  */
-export const SETTINGS_AREAS = ['general', 'security', 'integrations', 'notifications', 'appearance', 'catalogue', 'maintenance'] as const;
+export const SETTINGS_AREAS = ['general', 'security', 'integrations', 'notifications', 'appearance', 'catalogue', 'data'] as const;
 export type SettingsArea = (typeof SETTINGS_AREAS)[number];
 const AREA_ICONS: Record<SettingsArea, Icon> = {
   general: IconSettings,
@@ -80,8 +81,10 @@ const AREA_ICONS: Record<SettingsArea, Icon> = {
   notifications: IconBell,
   appearance: IconPalette,
   catalogue: IconScale,
-  maintenance: IconTool,
+  data: IconDatabase,
 };
+/** Areas that were renamed: their old addresses lead to the new ones. */
+const FORMER_AREAS: Record<string, SettingsArea> = { maintenance: 'data' };
 const isArea = (x: string | undefined): x is SettingsArea => !!x && (SETTINGS_AREAS as readonly string[]).includes(x);
 
 /** /settings and the old anchors (/settings#notifications in messages) lead to an area. */
@@ -124,19 +127,20 @@ function useInstanceSettings(enabled: boolean) {
     }
   };
   const dirty = !!s && !!settings.data && JSON.stringify(s) !== JSON.stringify(settings.data);
-  return { saved: settings.data, s, setS, allowText, setAllowText, allowProblems, save, dirty };
+  const reset = () => {
+    if (!settings.data) return;
+    setS(settings.data);
+    setAllowText((settings.data.outboundAllowList ?? []).join('\n'));
+  };
+  return { saved: settings.data, s, setS, allowText, setAllowText, allowProblems, save, reset, dirty };
 }
 type Draft = ReturnType<typeof useInstanceSettings> & { s: Settings };
 
-function SaveBar({ d }: { d: Draft }) {
-  const { t } = useTranslation(['settings', 'common']);
-  return (
-    <Group>
-      <Button disabled={d.allowProblems.length > 0 || !d.dirty} onClick={d.save}>
-        {t('common:save')}
-      </Button>
-    </Group>
-  );
+/** The instance settings document of an area, saved by the area's save bar. */
+function InstanceSection({ d }: { d: Draft }) {
+  // saved last: it refreshes every query, which would reset the drafts of the other cards
+  useSaveSection('instance', { dirty: d.dirty, valid: d.allowProblems.length === 0, save: d.save, reset: d.reset, saveLast: true });
+  return null;
 }
 
 /** Where a setting applies and who changes it. */
@@ -160,6 +164,9 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
   // settings are the administrators' (the server checks it); others see where their own settings are
   const readOnly = !caps.manageSettings;
   const d = useInstanceSettings(!readOnly);
+  // the area's former address (0.3.0) and links in messages
+  const renamed = area && FORMER_AREAS[area];
+  if (renamed) return <Navigate to={`/settings/${renamed}`} replace />;
   if (!isArea(area))
     return (
       <EmptyState
@@ -204,7 +211,14 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
                 </Text>
               )}
             </ScopeNote>
-            {!readOnly && d.s && <Area area={area} d={d as Draft} browserAvailable={browserAvailable} />}
+            {!readOnly && d.s && (
+              // one save bar per area: it saves the instance settings and the changes of every card
+              <SaveBarProvider key={area}>
+                <InstanceSection d={d as Draft} />
+                <Area area={area} d={d as Draft} browserAvailable={browserAvailable} />
+                <SaveBar />
+              </SaveBarProvider>
+            )}
           </Stack>
         </Grid.Col>
       </Grid>
@@ -219,7 +233,6 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
         <>
           <LanguageCard d={d} />
           <BrowserCard d={d} browserAvailable={browserAvailable} />
-          <SaveBar d={d} />
           <UnattendedCard />
         </>
       );
@@ -229,7 +242,6 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
           <SignInCard d={d} />
           <OutboundCard d={d} />
           <PublicApiCard d={d} />
-          <SaveBar d={d} />
           <McpServerCard />
           <VaultPassphraseCard />
           <AdminTokensCard />
@@ -264,7 +276,6 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
       return (
         <>
           <ComplianceCard d={d} />
-          <SaveBar d={d} />
           <Card withBorder id="cia-scale">
             <CiaScalePage embedded />
           </Card>
@@ -274,11 +285,10 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
           <EnvironmentsCard />
         </>
       );
-    case 'maintenance':
+    case 'data':
       return (
         <>
           <RetentionCard d={d} />
-          <SaveBar d={d} />
           <BackupSettingsCard />
         </>
       );
@@ -530,24 +540,47 @@ function EndOfLifeCard() {
   );
 }
 
+/** Server configuration for unattended operation: what each option does first, its variable as the detail. */
+const UNATTENDED: { key: 'unlocked' | 'network' | 'https' | 'backup'; env?: string[]; folder?: string }[] = [
+  { key: 'unlocked', env: ['SM_MASTER_PASSPHRASE_FILE'] },
+  { key: 'network', env: ['SM_HOST=0.0.0.0', 'SM_ALLOWED_HOSTS=<hostname>'] },
+  { key: 'https', env: ['SM_TLS_CERT', 'SM_TLS_KEY'] },
+  { key: 'backup', folder: 'data/' },
+];
+
 function UnattendedCard() {
   const { t } = useTranslation('settings');
   return (
-    <Card withBorder>
+    <Card withBorder data-testid="unattended-card">
       <Title order={5} mb="xs">
         {t('unattended.title')}
       </Title>
-      <Text size="sm">
-        <Trans
-          t={t}
-          i18nKey="unattended.text"
-          components={{
-            c: <Code />,
-            hosts: <Code>{'SM_ALLOWED_HOSTS=<hostname>'}</Code>,
-            readme: <Anchor inherit href={`${BRAND.repoUrl}#readme`} target="_blank" />,
-          }}
-        />
+      <Text size="sm" mb="sm">
+        {t('unattended.intro')}
       </Text>
+      <Stack gap="sm">
+        {UNATTENDED.map((u) => (
+          <div key={u.key}>
+            <Text size="sm" fw={600}>
+              {t(`unattended.items.${u.key}.label`)}
+            </Text>
+            <Text size="sm" c="dimmed">
+              {t(`unattended.items.${u.key}.hint`)}
+            </Text>
+            <Group gap={6} mt={2}>
+              <Text size="xs" c="dimmed">
+                {u.env ? t('unattended.serverSetting') : t('unattended.folder')}
+              </Text>
+              {(u.env ?? [u.folder!]).map((v) => (
+                <Code key={v}>{v}</Code>
+              ))}
+            </Group>
+          </div>
+        ))}
+        <Text size="sm">
+          <Trans t={t} i18nKey="unattended.readme" components={{ readme: <Anchor inherit href={`${BRAND.repoUrl}#readme`} target="_blank" /> }} />
+        </Text>
+      </Stack>
     </Card>
   );
 }

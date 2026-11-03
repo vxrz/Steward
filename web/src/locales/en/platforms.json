@@ -62,7 +62,20 @@
     "secrets_one": "{{count}} stored secret",
     "secrets_other": "{{count}} stored secrets",
     "restricted": "restricted",
-    "noAccess": "no access"
+    "noAccess": "no access",
+    "lastTestOk": "Last test OK {{when}}",
+    "lastTestFailed": "Last test failed {{when}}",
+    "neverTested": "Connection not tested yet"
+  },
+  "filter": {
+    "search": "Search platforms",
+    "searchPlaceholder": "Name, URL or description",
+    "kind": "Kind",
+    "environment": "Environment",
+    "all": "All",
+    "noMatch": "No platform matches the filter.",
+    "clear": "Clear filter",
+    "count": "{{shown}} of {{total}}"
   },
   "types": {
     "button": "Connector types",

@@ -20,7 +20,7 @@ test.describe('navigation (admin)', () => {
       await expect(nav.getByRole('group', { name })).toBeVisible();
     }
     const automate = nav.getByRole('group', { name: 'Automate' });
-    await expect(automate.getByRole('link')).toHaveText(['Processes', 'Schedules', 'Triggers', 'Updates from Git']);
+    await expect(automate.getByRole('link')).toHaveText(['Processes', 'Schedules', 'Triggers', 'Git sync']);
     await expect(nav.getByRole('group', { name: 'Service management' }).getByRole('link')).toHaveText([
       'Services',
       'Applications',
@@ -31,8 +31,8 @@ test.describe('navigation (admin)', () => {
       'Scorecard',
       'Platforms',
       'Credentials',
-      'Tickets',
-      'Records',
+      'Ticket references',
+      'Documents',
       'Reports',
     ]);
 
@@ -121,12 +121,12 @@ test.describe('navigation (admin)', () => {
 
     await page.goto('/records/types');
     await settle(page);
-    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Records' })).toHaveAttribute('href', appHref('/records'));
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Documents' })).toHaveAttribute('href', appHref('/records'));
 
     // unknown addresses explain themselves and lead home
     await page.goto('/no-such-page');
     await expect(page.getByTestId('empty-state')).toContainText('Page not found');
-    await page.getByRole('link', { name: 'Go to the dashboard' }).click();
+    await page.getByRole('link', { name: 'Go to Home' }).click();
     await expect(page).toHaveURL(/\/$/);
   });
 
@@ -136,7 +136,7 @@ test.describe('navigation (admin)', () => {
     const search = page.getByRole('textbox', { name: 'Search', exact: true });
 
     await page.keyboard.press('Control+K');
-    await search.fill('record types');
+    await search.fill('document types');
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/records\/types$/);
     // let the palette finish closing before it is opened again
@@ -147,15 +147,15 @@ test.describe('navigation (admin)', () => {
     await search.fill('monitor machine 17 powermeter');
     await page.getByRole('button', { name: /^Machine 17 – PowerMeter/ }).click();
     await expect(page).toHaveURL(/\/monitors\/[^/]+$/);
-    await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('Machine 17 – PowerMeter');
+    await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText('Machine 17 – PowerMeter');
     await settle(page);
     // Ctrl+K toggles: pressed while the palette is still closing, it would close it instead of opening it
     await expect(search).toBeHidden();
 
     await page.keyboard.press('Control+K');
-    await search.fill('new record');
-    await page.getByRole('button', { name: 'New record', exact: true }).click();
-    await expect(page.getByRole('dialog', { name: 'New record' })).toBeVisible();
+    await search.fill('new document');
+    await page.getByRole('button', { name: 'New document', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'New document' })).toBeVisible();
     // the ?new=1 parameter is consumed: reloading does not open the dialog again
     await expect(page).toHaveURL(/\/records$/);
   });
@@ -167,9 +167,17 @@ test.describe('navigation (viewer)', () => {
   test('sections only list the pages the user may open', async ({ page }) => {
     await page.goto('/');
     await settle(page);
-    const admin = sidebar(page).getByRole('group', { name: 'Administration' });
-    await expect(admin.getByRole('link')).toHaveText(['Settings']);
-    await expect(sidebar(page).getByRole('link', { name: 'Updates from Git' })).toHaveCount(0);
+    // nothing a viewer cannot use: no schedules, triggers, credentials or settings – and no empty Administration section
+    await expect(sidebar(page).getByRole('group', { name: 'Administration' })).toHaveCount(0);
+    for (const name of ['Git sync', 'Schedules', 'Triggers', 'Credentials', 'Settings'])
+      await expect(sidebar(page).getByRole('link', { name, exact: true })).toHaveCount(0);
+    await expect(sidebar(page).getByRole('group', { name: 'Automate' }).getByRole('link')).toHaveText(['Processes']);
+    // the addresses still work
+    await page.goto('/schedules');
+    await settle(page);
+    await expect(page.getByRole('heading', { name: 'Schedules', level: 1 })).toBeVisible();
+    await page.goto('/');
+    await settle(page);
     await page.keyboard.press('Control+K');
     await page.getByRole('textbox', { name: 'Search', exact: true }).fill('new monitor');
     await expect(page.getByRole('button', { name: 'New monitor', exact: true })).toHaveCount(0);
@@ -221,7 +229,7 @@ test.describe('first steps on an empty installation (own server)', () => {
     await checklist.getByRole('button', { name: 'Hide the getting-started checklist' }).click();
     await expect(checklist).toBeHidden();
     await page.reload();
-    await expect(page.getByRole('main').getByRole('heading', { name: 'Dashboard', level: 2 })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
     await expect(checklist).toBeHidden();
   });
 
@@ -233,7 +241,7 @@ test.describe('first steps on an empty installation (own server)', () => {
       ['/triggers', 'No webhook triggers yet', 'Create your first webhook trigger'],
       ['/monitors', 'No monitors yet', 'Create your first monitor'],
       ['/services', 'No services yet', 'Add your first service'],
-      ['/records', 'No records yet', 'Write your first record'],
+      ['/records', 'No documents yet', 'Write your first document'],
       ['/reports', 'No report schedules yet', 'Create your first report schedule'],
       ['/processes', 'No processes yet', 'Browse templates'],
       ['/platforms', 'No platforms yet', 'Add your first platform'],

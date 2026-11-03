@@ -4,14 +4,14 @@ Git sync keeps processes, dashboards, monitors and record types in a Git reposit
 
 - **Optional.** Git sync is off until an administrator adds a source or turns on [Steward's example library](#stewards-example-library), which every installation has as a disabled source.
 - **Pull only.** Steward only reads the repository. It never pushes, and it never changes the repository (pushing changes back is planned, see issue #20).
-- **Nothing is applied by itself.** Every new or changed file waits in **Updates from Git**. A designer or administrator looks at the difference and accepts it (a new version) or rejects it.
+- **Nothing is applied by itself.** Every new or changed file waits in **Git sync**. A designer or administrator looks at the difference and accepts it (a new version) or rejects it.
 
 ## How it works
 
 1. An administrator adds a **source**: Git host, repository, branch or tag, folder, what to sync and, for private repositories, a read-only access token.
 2. Steward **fetches** the source by hand (_Fetch now_), on a schedule (every N minutes) or when the Git host calls its **webhook** after a push.
 3. Every `.yaml`, `.yml` and `.json` file below the folder is checked with the same validators as an import (`npm run validate`). Each new or changed file becomes a **pending update**. Files that cannot be used are listed as **invalid** with the reason.
-4. In **Updates from Git** (sidebar, _Automate_) a reviewer opens an update, reads the diff against the item in Steward and accepts or rejects it.
+4. In **Git sync** (sidebar, _Automate_) a reviewer opens an update, reads the diff against the item in Steward and accepts or rejects it.
 5. Accepting creates or updates the item through the normal services, with the reviewer's rights. A process gets a **new version** with the comment `From Git: <source> <file> @ <commit>`. The item shows a **From Git** badge that links to the file at that commit.
 
 A rejected change stays rejected until the file changes again in Git.
@@ -107,7 +107,7 @@ _Settings → Git sync → Manage Git sync → New source._
 
 ### Steward's example library
 
-Every installation has the source **Steward example library** (badge _Steward examples_): GitHub, `https://github.com/vxrz/Steward`, tag `v{version}`, folder `examples`, processes, dashboards and monitors. It brings improved example templates of your version into **Updates from Git**, where you review them like any other change; with `v{version}` it only shows examples made for the Steward you run.
+Every installation has the source **Steward example library** (badge _Steward examples_): GitHub, `https://github.com/vxrz/Steward`, tag `v{version}`, folder `examples`, processes, dashboards and monitors. It brings improved example templates of your version into **Git sync**, where you review them like any other change; with `v{version}` it only shows examples made for the Steward you run.
 
 - It is **disabled**: nothing is fetched until an administrator turns it on (_Edit source → Enabled_). No token, no schedule, no webhook, no automatic acceptance.
 - To use it, allow `api.github.com` in the outbound policy (_Settings → Outbound access_).
@@ -163,7 +163,7 @@ Use Git sync in two roles: Steward's example library as a source of **suggestion
 
 - **One repository** (GitLab, GitHub Enterprise or Forgejo) with one folder, e.g. `steward/`, holding your processes, dashboards, monitors and record types – one item per file.
 - **The file name is the id** (a leading number like `10-` is ignored). Keep ids stable; the display name (`name:`) can change any time.
-- **Review in Git, apply in Steward:** changes go through merge requests with a reviewer (the four-eyes step happens in Git). _Updates from Git_ is the second gate, on the instance.
+- **Review in Git, apply in Steward:** changes go through merge requests with a reviewer (the four-eyes step happens in Git). _Git sync_ is the second gate, on the instance.
 - **Environments:** the test instance follows `main` (webhook or every 15 minutes); production follows a tag or a release branch (e.g. tags `lib-1.4.0`). You promote a version by tagging it.
 - **Edit synced items in Git, not in Steward.** A local edit turns the next change into a conflict.
 - **Mark files that need a newer Steward** with `# steward-min-version: x.y.z`, so instances on an older version list them instead of importing them.

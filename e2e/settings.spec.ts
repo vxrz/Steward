@@ -1,12 +1,12 @@
 import { test, expect, sessionHeaders } from './support/fixtures';
 import { authFile } from './support/env';
-import { confirmDialog } from './support/helpers';
+import { confirmDialog, settingsSave } from './support/helpers';
 
 test.use({ storageState: authFile('admin') });
 
 test('settings: notification routing, retention, maintenance status', async ({ page }) => {
   await page.goto('/settings/notifications');
-  await expect(page.getByRole('heading', { name: 'Settings', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
 
   // notification routing table
   const routing = page.getByRole('table').filter({ hasText: 'task.assigned' });
@@ -18,6 +18,12 @@ test('settings: notification routing, retention, maintenance status', async ({ p
 
   // maintenance status (its own area)
   await page.goto('/settings/maintenance');
+  // renamed to "Data & retention" in 0.3.1: the old address leads there
+  await expect(page).toHaveURL(/\/settings\/data$/);
+  await expect(page.getByRole('navigation', { name: 'Settings areas' }).getByRole('link', { name: 'Data & retention' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
   for (const label of ['Database', 'Evidence files', 'Runs', 'Audit entries', 'Last cleanup']) {
     await expect(page.getByRole('main').getByText(label, { exact: true })).toBeVisible();
   }
@@ -40,6 +46,25 @@ test('settings: notification routing, retention, maintenance status', async ({ p
   await expect(page.getByText('Settings saved').first()).toBeVisible();
 });
 
+test('settings: one save bar per area says what is unsaved, saves and resets', async ({ page }) => {
+  await page.goto('/settings/integrations');
+  const bar = page.getByTestId('settings-save-bar');
+  await expect(bar).toContainText('No unsaved changes');
+  await expect(settingsSave(page)).toBeDisabled();
+  // the cards have no save buttons of their own
+  await expect(page.getByRole('button', { name: 'Save ticket settings' })).toHaveCount(0);
+  const name = page.getByRole('textbox', { name: 'Name' }).first();
+  const before = await name.inputValue();
+  await name.fill(`${before} (changed)`);
+  await expect(bar).toContainText('Unsaved changes');
+  await expect(settingsSave(page)).toBeEnabled();
+  // the bar stays in view at the bottom of the window
+  await expect(bar).toBeInViewport();
+  await bar.getByRole('button', { name: 'Reset' }).click();
+  await expect(name).toHaveValue(before);
+  await expect(bar).toContainText('No unsaved changes');
+});
+
 test('settings: allowed e-mail domains for addresses outside Steward', async ({ page }) => {
   await page.goto('/settings/notifications');
   const domains = page.getByRole('combobox', { name: 'Allowed e-mail domains for addresses outside Steward' });
@@ -48,7 +73,7 @@ test('settings: allowed e-mail domains for addresses outside Steward', async ({ 
   await domains.press('Enter');
   await domains.fill('*.partner.example');
   await domains.press('Enter');
-  await page.getByRole('button', { name: 'Save notification settings' }).click();
+  await settingsSave(page).click();
   await expect(page.getByText('Notification settings saved')).toBeVisible();
   await page.reload();
   const card = page.getByRole('main');
@@ -58,7 +83,7 @@ test('settings: allowed e-mail domains for addresses outside Steward', async ({ 
   await page.getByRole('combobox', { name: 'Allowed e-mail domains for addresses outside Steward' }).focus();
   await page.keyboard.press('Backspace');
   await page.keyboard.press('Backspace');
-  await page.getByRole('button', { name: 'Save notification settings' }).click();
+  await settingsSave(page).click();
   await expect(page.getByText('Notification settings saved').first()).toBeVisible();
 });
 
@@ -88,13 +113,13 @@ test.describe('look of e-mails and Teams messages', () => {
     await expect(mail.getByText('E2E Service desk', { exact: true })).toBeVisible();
     await expect(mail.getByText('Internal – E2E')).toBeVisible();
     await expect(card.getByText('Open in E2E Service desk')).toBeVisible();
-    await card.getByRole('button', { name: 'Save look' }).click();
+    await settingsSave(page).click();
     await expect(page.getByText('Look of e-mails and Teams messages saved')).toBeVisible();
     await page.reload();
     await expect(card.getByRole('textbox', { name: 'Name' })).toHaveValue('E2E Service desk');
     // back to the Appearance settings
     await card.getByRole('button', { name: 'Back to the Appearance settings' }).click();
-    await card.getByRole('button', { name: 'Save look' }).click();
+    await settingsSave(page).click();
     await expect(page.getByText('Look of e-mails and Teams messages saved').first()).toBeVisible();
     await page.reload();
     await expect(card.getByRole('textbox', { name: 'Name' })).toHaveValue('');
@@ -119,7 +144,7 @@ test.describe('look of e-mails and Teams messages', () => {
     await card.getByText('Failed dry run', { exact: true }).click();
     await expect(card.getByText(/^Subject: \[.+\] Dry run – Run failed: /)).toBeVisible();
     await expect(card.frameLocator('iframe[title="E-mail"]').getByText('Dry run – a test, nothing was changed. No action needed.')).toBeVisible();
-    await card.getByRole('button', { name: 'Save look' }).click();
+    await settingsSave(page).click();
     await expect(page.getByText('Look of e-mails and Teams messages saved')).toBeVisible();
     await page.reload();
     await expect(card.getByRole('radio', { name: 'Only in the app' })).toBeChecked();
@@ -127,7 +152,7 @@ test.describe('look of e-mails and Teams messages', () => {
     await card.getByRole('button', { name: 'Remove' }).click();
     await expect(page.getByText('Notification logo removed')).toBeVisible();
     await card.getByRole('button', { name: 'Back to the Appearance settings' }).click();
-    await card.getByRole('button', { name: 'Save look' }).click();
+    await settingsSave(page).click();
     await expect(page.getByText('Look of e-mails and Teams messages saved').first()).toBeVisible();
     await page.reload();
     await expect(card.getByRole('radio', { name: 'E-mail, Teams and webhook, marked as a test' })).toBeChecked();

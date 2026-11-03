@@ -70,6 +70,13 @@
   },
   "cancel": "Cancel",
   "save": "Save",
+  "saveBar": {
+    "label": "Save changes",
+    "unsaved": "Unsaved changes",
+    "invalid": "Unsaved changes – correct the marked fields to save them",
+    "saved": "No unsaved changes",
+    "reset": "Reset"
+  },
   "delete": "Delete",
   "close": "Close",
   "edit": "Edit",

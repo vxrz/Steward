@@ -62,7 +62,7 @@ test('admin configures a Git source, reviews the diff and accepts a new process 
   await expect(page.getByTestId('version-diff')).toContainText('first version');
   await page.getByRole('button', { name: 'Accept', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/processes/${id}$`));
-  const heading = page.getByRole('main').getByRole('heading', { level: 2 });
+  const heading = page.getByRole('main').getByRole('heading', { level: 1 });
   await expect(heading).toContainText('v1');
   await expect(page.getByTestId('git-origin')).toBeVisible();
 
@@ -76,7 +76,7 @@ test('admin configures a Git source, reviews the diff and accepts a new process 
 
   await page.goto('/git-updates');
   await page.getByTestId('sync-update').filter({ hasText: name }).getByRole('link', { name }).click();
-  await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('change');
+  await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText('change');
   const diff = page.getByTestId('version-diff');
   await expect(diff).toContainText('first version');
   await expect(diff).toContainText('second version');
@@ -85,7 +85,7 @@ test('admin configures a Git source, reviews the diff and accepts a new process 
   await page.getByRole('textbox', { name: 'Comment (optional)' }).fill('Reviewed in the UI test');
   await page.getByRole('button', { name: 'Accept', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/processes/${id}$`));
-  await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('v2');
+  await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText('v2');
   const versions = await json<{ version: number; comment: string }[]>(await api.get(`/api/processes/${id}/versions`));
   expect(versions[0]).toMatchObject({ version: 2, comment: expect.stringContaining('Reviewed in the UI test') });
   expect(versions[0]!.comment).toContain(`From Git: ${sourceName} ${file}`);
@@ -98,7 +98,7 @@ test('viewers neither see nor open the Updates from Git inbox', async ({ browser
   const ctx = await browser.newContext({ storageState: authFile('vera'), baseURL: baseURL() });
   const page = await ctx.newPage();
   await page.goto('/git-updates');
-  await expect(page.getByText('Only designers and administrators review updates from Git.')).toBeVisible();
+  await expect(page.getByText('Only designers and administrators review Git sync updates.')).toBeVisible();
   await ctx.close();
 });
 

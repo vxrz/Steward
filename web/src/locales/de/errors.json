@@ -326,7 +326,7 @@
     "SECRET_KIND_random": "ein langes zufälliges Token (es sieht nach einem Schlüssel oder Passwort aus)",
     "SESSION_REQUIRED": "Diese Aktion erfordert eine Anmeldung im Browser – mit API-Tokens ist sie nicht möglich.",
     "FORBIDDEN_manageGitSync": "Nur Administratoren verwalten Git-Quellen.",
-    "FORBIDDEN_reviewGitUpdates": "Nur Designer und Administratoren prüfen Änderungen aus Git.",
+    "FORBIDDEN_reviewGitUpdates": "Nur Designer und Administratoren prüfen Änderungen der Git-Synchronisierung.",
     "FORBIDDEN_decideGitUpdate": "Sie dürfen diese Änderung nicht entscheiden: Dafür ist das Recht nötig, dieses Element anzulegen oder zu ändern.",
     "FORBIDDEN_editProcess": "Sie dürfen diesen Prozess nicht bearbeiten.",
     "FORBIDDEN_createProcess": "Sie dürfen keine Prozesse anlegen.",
