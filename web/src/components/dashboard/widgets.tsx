@@ -16,6 +16,7 @@ import {
   Tooltip,
   UnstyledButton,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import {
   IconAlertTriangle,
@@ -449,6 +450,8 @@ function TableWidget({ w }: { w: DashboardWidget }) {
   const [problems, setProblems] = useState(!!w.problemsOnly);
   const [sort, setSort] = useState<Sort>({ col: '_status', dir: 1 });
   const [limit, setLimit] = useState(w.limit ?? 50);
+  // phones: one card per row instead of a table that scrolls sideways (as the runs list)
+  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const d = ds.data;
   const cols = useMemo(() => (w.columns?.length ? w.columns.filter((c) => d?.columns.includes(c)) : (d?.columns ?? [])), [w.columns, d]);
   const hasStatus = !!d?.rows.some((r) => r._status);
@@ -570,52 +573,63 @@ function TableWidget({ w }: { w: DashboardWidget }) {
           {t('w.rowsOf', { shown: rows.length, total: d.rowCount })}
         </Text>
       </Group>
-      <div className="table-scroll" tabIndex={0} role="region" aria-label={typeof title === 'string' ? title : t('w.table')}>
-        <Table fz="sm" striped highlightOnHover verticalSpacing={4} miw={(hasStatus ? 130 : 0) + (multi ? 140 : 0) + cols.length * 140}>
-          <Table.Thead>
-            <Table.Tr>
-              {multi && header('_source', t('datasets.sourcePlatform'))}
-              {hasStatus && header('_status', t('datasets.status'))}
-              {cols.map((c) => header(c, c, numeric(c)))}
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows.slice(0, limit).map((r, i) => (
-              <Table.Tr key={`${r._source?.platformId ?? ''}:${r._key ?? i}`}>
-                {multi && (
-                  <Table.Td className="nowrap">
-                    <Text size="xs">{r._source?.platform}</Text>
-                  </Table.Td>
-                )}
-                {hasStatus && (
-                  <Table.Td className="nowrap">
-                    <StatusLabel status={asStatus(r._status)} text={r._statusText || undefined} size="xs" />
-                  </Table.Td>
-                )}
-                {cols.map((c) => (
-                  <Table.Td
-                    key={c}
-                    ta={numeric(c) ? 'right' : undefined}
-                    className={numeric(c) ? 'viz-num' : undefined}
-                    style={{ maxWidth: 360, overflowWrap: 'break-word' }}
-                  >
-                    {typeof r[c] === 'boolean' ? (r[c] ? t('common:yes') : t('common:no')) : cellText(r[c])}
-                  </Table.Td>
-                ))}
-              </Table.Tr>
-            ))}
-            {rows.length === 0 && (
+      {narrow ? (
+        <TableCards
+          rows={rows.slice(0, limit)}
+          cols={cols}
+          hasStatus={hasStatus}
+          multi={multi}
+          label={typeof title === 'string' ? title : t('w.table')}
+          empty={problems || filterStatus ? t('w.allGood') : t('w.noRows')}
+        />
+      ) : (
+        <div className="table-scroll" tabIndex={0} role="region" aria-label={typeof title === 'string' ? title : t('w.table')}>
+          <Table fz="sm" striped highlightOnHover verticalSpacing={4} miw={(hasStatus ? 130 : 0) + (multi ? 140 : 0) + cols.length * 140}>
+            <Table.Thead>
               <Table.Tr>
-                <Table.Td colSpan={cols.length + (hasStatus ? 1 : 0) + (multi ? 1 : 0)}>
-                  <Text size="sm" c="dimmed">
-                    {problems || filterStatus ? t('w.allGood') : t('w.noRows')}
-                  </Text>
-                </Table.Td>
+                {multi && header('_source', t('datasets.sourcePlatform'))}
+                {hasStatus && header('_status', t('datasets.status'))}
+                {cols.map((c) => header(c, c, numeric(c)))}
               </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
-      </div>
+            </Table.Thead>
+            <Table.Tbody>
+              {rows.slice(0, limit).map((r, i) => (
+                <Table.Tr key={`${r._source?.platformId ?? ''}:${r._key ?? i}`}>
+                  {multi && (
+                    <Table.Td className="nowrap">
+                      <Text size="xs">{r._source?.platform}</Text>
+                    </Table.Td>
+                  )}
+                  {hasStatus && (
+                    <Table.Td className="nowrap">
+                      <StatusLabel status={asStatus(r._status)} text={r._statusText || undefined} size="xs" />
+                    </Table.Td>
+                  )}
+                  {cols.map((c) => (
+                    <Table.Td
+                      key={c}
+                      ta={numeric(c) ? 'right' : undefined}
+                      className={numeric(c) ? 'viz-num' : undefined}
+                      style={{ maxWidth: 360, overflowWrap: 'break-word' }}
+                    >
+                      {typeof r[c] === 'boolean' ? (r[c] ? t('common:yes') : t('common:no')) : cellText(r[c])}
+                    </Table.Td>
+                  ))}
+                </Table.Tr>
+              ))}
+              {rows.length === 0 && (
+                <Table.Tr>
+                  <Table.Td colSpan={cols.length + (hasStatus ? 1 : 0) + (multi ? 1 : 0)}>
+                    <Text size="sm" c="dimmed">
+                      {problems || filterStatus ? t('w.allGood') : t('w.noRows')}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              )}
+            </Table.Tbody>
+          </Table>
+        </div>
+      )}
       {rows.length > limit && (
         <Group justify="center" mt={6}>
           <Button size="compact-xs" variant="subtle" onClick={() => setLimit((l) => l + 50)}>
@@ -624,6 +638,63 @@ function TableWidget({ w }: { w: DashboardWidget }) {
         </Group>
       )}
     </WidgetCard>
+  );
+}
+
+/**
+ * The table widget on a phone: one card per row, the identifying (first) column as its title and the status
+ * beside it, the other columns as "name: value" lines and the source last – nothing is cut off at the edge.
+ */
+function TableCards({
+  rows,
+  cols,
+  hasStatus,
+  multi,
+  label,
+  empty,
+}: {
+  rows: DatasetRow[];
+  cols: string[];
+  hasStatus: boolean;
+  multi: boolean;
+  label: string;
+  empty: string;
+}) {
+  const { t } = useTranslation(['dashboards', 'common']);
+  const value = (v: unknown) => (typeof v === 'boolean' ? (v ? t('common:yes') : t('common:no')) : cellText(v));
+  if (!rows.length)
+    return (
+      <Text size="sm" c="dimmed">
+        {empty}
+      </Text>
+    );
+  const [first, ...rest] = cols;
+  return (
+    <Stack gap={6} role="list" aria-label={label} data-testid="table-cards">
+      {rows.map((r, i) => (
+        <Paper key={`${r._source?.platformId ?? ''}:${r._key ?? i}`} withBorder p="xs" role="listitem">
+          <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
+            <Text size="sm" fw={600} style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+              {first ? value(r[first]) || '–' : ''}
+            </Text>
+            {hasStatus && <StatusLabel status={asStatus(r._status)} text={r._statusText || undefined} size="xs" />}
+          </Group>
+          {rest.map((c) => (
+            <Text key={c} size="xs" style={{ overflowWrap: 'anywhere' }}>
+              <Text span c="dimmed" size="xs">
+                {c}:
+              </Text>{' '}
+              {value(r[c]) || '–'}
+            </Text>
+          ))}
+          {multi && (
+            <Text size="xs" c="dimmed">
+              {t('datasets.sourcePlatform')}: {r._source?.platform}
+            </Text>
+          )}
+        </Paper>
+      ))}
+    </Stack>
   );
 }
 

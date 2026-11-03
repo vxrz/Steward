@@ -47,6 +47,26 @@ test.describe('phone @mobile', () => {
     await expectNoHorizontalScroll(page);
   });
 
+  test('users and dashboard tables are cards: nothing is cut off', async ({ loginAs }) => {
+    const admin = await loginAs('admin');
+    await admin.goto('/users');
+    const users = admin.getByRole('list', { name: 'Users & teams' });
+    const adam = users.getByRole('listitem').filter({ hasText: 'Adam Approver' });
+    // the role in full (the table cut it to "AP…") and the last sign-in on the card
+    await adam.scrollIntoViewIfNeeded();
+    await expect(adam.getByText(/^approver$/i)).toBeInViewport({ ratio: 1 });
+    await expect(adam).toContainText('Last sign-in:');
+    await expectNoHorizontalScroll(admin);
+
+    // a table widget: the identifying column first, then status and the other columns
+    await admin.goto('/dashboards/access-governance');
+    const cards = admin.getByTestId('table-cards').first();
+    await cards.scrollIntoViewIfNeeded();
+    const first = cards.getByRole('listitem').first();
+    await expect(first.locator('p').first()).toHaveText(/@example\.com$/);
+    await expectNoHorizontalScroll(admin);
+  });
+
   for (const path of [
     '/',
     '/tasks',

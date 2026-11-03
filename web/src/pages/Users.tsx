@@ -3,6 +3,7 @@ import {
   ActionIcon,
   Alert,
   Badge,
+  Box,
   Button,
   Card,
   Code,
@@ -11,24 +12,26 @@ import {
   List,
   Modal,
   MultiSelect,
+  Paper,
   PasswordInput,
   Select,
   SimpleGrid,
   Stack,
   Switch,
-  Table,
   Text,
   TextInput,
   Textarea,
   Title,
   Tooltip,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconCheck, IconCopy, IconEdit, IconKey, IconPlus, IconSettings, IconTrash, IconUsersGroup } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { ROLES, ROLE_INFO, TEAM_ROLES, type AuthStatus, type Role, type Team, type UserInfo } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { PageHeader, useFieldErrors } from '../components/common';
+import { DataTable, type DataColumn } from '../components/DataTable';
 import { fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { SsoSection, useSsoProviders } from '../components/sso/SsoSection';
@@ -162,79 +165,9 @@ export function UsersPage() {
         }
       />
       <Stack>
-        <Card withBorder p={0}>
-          <div className="table-scroll">
-            <Table highlightOnHover fz="sm" verticalSpacing={6}>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>{t('table.user')}</Table.Th>
-                  <Table.Th>{t('table.roles')}</Table.Th>
-                  <Table.Th>{t('table.teams')}</Table.Th>
-                  <Table.Th>{t('table.lastSignIn')}</Table.Th>
-                  <Table.Th>{t('table.active')}</Table.Th>
-                  <Table.Th />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {users.data?.map((u) => (
-                  <Table.Tr key={u.id} data-inactive={!u.active || undefined}>
-                    <Table.Td>
-                      <Group gap={6} wrap="nowrap">
-                        <Text size="sm" fw={500}>
-                          {u.displayName}
-                        </Text>
-                        {u.authSource && u.authSource !== 'local' && (
-                          <Tooltip label={t('table.signsInWith', { provider: ssoName(u.authSource) })}>
-                            <Badge size="xs" variant="light" color="blue">
-                              SSO · {ssoName(u.authSource)}
-                            </Badge>
-                          </Tooltip>
-                        )}
-                      </Group>
-                      <Text size="xs" c="dimmed">
-                        {u.username}
-                        {u.email ? ` · ${u.email}` : ''}
-                        {u.mustChangePassword ? ` · ${t('table.mustChange')}` : ''}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <RoleBadges roles={u.roles} />
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="xs">{u.teams.join(', ') || '–'}</Text>
-                    </Table.Td>
-                    <Table.Td className="nowrap">{u.lastLoginAt ? fmtRelative(u.lastLoginAt) : t('table.never')}</Table.Td>
-                    <Table.Td>
-                      <Switch
-                        size="xs"
-                        checked={u.active}
-                        disabled={u.username === myName}
-                        onChange={(e) => setActive(u, e.currentTarget.checked)}
-                        aria-label={t('table.active')}
-                      />
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap={2} wrap="nowrap" justify="flex-end">
-                        <Tooltip label={t('common:edit')}>
-                          <ActionIcon variant="subtle" onClick={() => setEditing(u)} aria-label={t('common:edit')}>
-                            <IconEdit size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                        {(!u.authSource || u.authSource === 'local') && !passwordsOff && (
-                          <Tooltip label={t('table.resetPassword')}>
-                            <ActionIcon variant="subtle" onClick={() => reset(u)} aria-label={t('table.resetPassword')}>
-                              <IconKey size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                        )}
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </div>
-        </Card>
+        {users.data && (
+          <UserList users={users.data} myName={myName} passwordsOff={passwordsOff} ssoName={ssoName} onEdit={setEditing} onReset={reset} onActive={setActive} />
+        )}
 
         <Group justify="space-between" mt="md">
           <Title order={4}>{t('teams.title')}</Title>
@@ -354,6 +287,126 @@ export function UsersPage() {
 }
 
 /** Password sign-in is turned off (single sign-on only): no passwords to set or reset. */
+/**
+ * The user list: a table on wide screens, one card per person on phones (as the runs) – name first, then roles
+ * in full, teams and the last sign-in, so nothing is cut off.
+ */
+function UserList({
+  users,
+  myName,
+  passwordsOff,
+  ssoName,
+  onEdit,
+  onReset,
+  onActive,
+}: {
+  users: UserInfo[];
+  myName: string;
+  passwordsOff: boolean;
+  ssoName: (id: string) => string;
+  onEdit: (u: UserInfo) => void;
+  onReset: (u: UserInfo) => void;
+  onActive: (u: UserInfo, active: boolean) => void;
+}) {
+  const { t } = useTranslation(['users', 'common']);
+  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
+  const who = (u: UserInfo) => (
+    <>
+      <Group gap={6} wrap="wrap">
+        <Text size="sm" fw={500}>
+          {u.displayName}
+        </Text>
+        {u.authSource && u.authSource !== 'local' && (
+          <Tooltip label={t('table.signsInWith', { provider: ssoName(u.authSource) })}>
+            <Badge size="xs" variant="light" color="blue">
+              SSO · {ssoName(u.authSource)}
+            </Badge>
+          </Tooltip>
+        )}
+      </Group>
+      <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+        {u.username}
+        {u.email ? ` · ${u.email}` : ''}
+        {u.mustChangePassword ? ` · ${t('table.mustChange')}` : ''}
+      </Text>
+    </>
+  );
+  const lastSignIn = (u: UserInfo) => (u.lastLoginAt ? fmtRelative(u.lastLoginAt) : t('table.never'));
+  const active = (u: UserInfo) => (
+    <Switch
+      size="xs"
+      checked={u.active}
+      disabled={u.username === myName}
+      onChange={(e) => onActive(u, e.currentTarget.checked)}
+      aria-label={t('table.active')}
+    />
+  );
+  const actions = (u: UserInfo) => (
+    <Group gap={2} wrap="nowrap" justify="flex-end">
+      <Tooltip label={t('common:edit')}>
+        <ActionIcon variant="subtle" onClick={() => onEdit(u)} aria-label={t('common:edit')}>
+          <IconEdit size={16} />
+        </ActionIcon>
+      </Tooltip>
+      {(!u.authSource || u.authSource === 'local') && !passwordsOff && (
+        <Tooltip label={t('table.resetPassword')}>
+          <ActionIcon variant="subtle" onClick={() => onReset(u)} aria-label={t('table.resetPassword')}>
+            <IconKey size={16} />
+          </ActionIcon>
+        </Tooltip>
+      )}
+    </Group>
+  );
+  const columns: DataColumn<UserInfo>[] = [
+    { key: 'user', header: t('table.user'), cell: who, sortValue: (u) => u.displayName },
+    { key: 'roles', header: t('table.roles'), cell: (u) => <RoleBadges roles={u.roles} /> },
+    { key: 'teams', header: t('table.teams'), cell: (u) => <Text size="xs">{u.teams.join(', ') || '–'}</Text>, sortValue: (u) => u.teams.join(', ') },
+    { key: 'lastSignIn', header: t('table.lastSignIn'), cell: lastSignIn, nowrap: true, sortValue: (u) => u.lastLoginAt ?? '' },
+    { key: 'active', header: t('table.active'), cell: active },
+    { key: 'actions', header: '', cell: actions },
+  ];
+  const table = (
+    <DataTable
+      rows={users}
+      columns={columns}
+      rowKey={(u) => u.id}
+      ariaLabel={t('title')}
+      verticalSpacing={6}
+      rowProps={(u) => ({ 'data-inactive': !u.active || undefined })}
+      card={(u) => (
+        <Paper withBorder p="sm" data-inactive={!u.active || undefined}>
+          <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
+            <Box style={{ minWidth: 0 }}>{who(u)}</Box>
+            {actions(u)}
+          </Group>
+          <Box mt={6}>
+            <RoleBadges roles={u.roles} />
+          </Box>
+          <Group justify="space-between" mt={6} gap="xs" wrap="nowrap">
+            <Text size="xs" c="dimmed" style={{ minWidth: 0 }}>
+              {[u.teams.length ? u.teams.join(', ') : null, `${t('table.lastSignIn')}: ${lastSignIn(u)}`].filter(Boolean).join(' · ')}
+            </Text>
+            <Group gap={6} wrap="nowrap">
+              <Text size="xs" c="dimmed">
+                {t('table.active')}
+              </Text>
+              {active(u)}
+            </Group>
+          </Group>
+        </Paper>
+      )}
+    />
+  );
+  // the cards bring their own borders on phones
+  return narrow ? (
+    table
+  ) : (
+    <Card withBorder p={0}>
+      {table}
+    </Card>
+  );
+}
+
 function usePasswordsOff(): boolean {
   const auth = useQuery({ queryKey: ['auth'], queryFn: () => get<AuthStatus>('/auth/status') });
   return auth.data?.passwordLogin === 'none';
