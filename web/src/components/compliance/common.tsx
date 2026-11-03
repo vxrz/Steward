@@ -1,7 +1,8 @@
-import { Badge, Group, Select, TextInput } from '@mantine/core';
+import { Badge, Group, Select, Text, TextInput } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { AccessFindingStatus, CoverageStatus } from '@sm/shared';
 import { TONE } from '../common';
+import { fmtDay } from '../../format';
 
 /** Shared pieces of the compliance pages: the period picker and the badges. */
 
@@ -28,6 +29,12 @@ export function periodRange(p: Period): { from: string; to: string } {
   return { from: new Date(fy!, fm! - 1, fd!, 0, 0, 0).toISOString(), to: new Date(ty!, tm! - 1, td!, 23, 59, 59, 999).toISOString() };
 }
 
+/** A YYYY-MM-DD day as a local date (new Date('2026-11-03') would be midnight UTC). */
+const localDay = (s: string) => {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y!, m! - 1, d!);
+};
+
 export const validPeriod = (p: Period) => /^\d{4}-\d{2}-\d{2}$/.test(p.from) && /^\d{4}-\d{2}-\d{2}$/.test(p.to) && p.from <= p.to;
 
 export function PeriodPicker({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
@@ -51,22 +58,32 @@ export function PeriodPicker({ value, onChange }: { value: Period; onChange: (p:
           onChange(v === 'custom' ? { ...value, preset: 'custom' } : presetPeriod(v as '30'));
         }}
       />
-      <TextInput
-        size="xs"
-        type="date"
-        label={t('period.from')}
-        value={value.from}
-        onChange={(e) => onChange({ ...value, preset: 'custom', from: e.currentTarget.value })}
-        w={{ base: '48%', xs: 150 }}
-      />
-      <TextInput
-        size="xs"
-        type="date"
-        label={t('period.to')}
-        value={value.to}
-        onChange={(e) => onChange({ ...value, preset: 'custom', to: e.currentTarget.value })}
-        w={{ base: '48%', xs: 150 }}
-      />
+      {/* the browser's date fields show the date in the browser's format: only for a custom period, with the range in the app's format beside them */}
+      {value.preset === 'custom' && (
+        <>
+          <TextInput
+            size="xs"
+            type="date"
+            label={t('period.from')}
+            value={value.from}
+            onChange={(e) => onChange({ ...value, preset: 'custom', from: e.currentTarget.value })}
+            w={{ base: '48%', xs: 150 }}
+          />
+          <TextInput
+            size="xs"
+            type="date"
+            label={t('period.to')}
+            value={value.to}
+            onChange={(e) => onChange({ ...value, preset: 'custom', to: e.currentTarget.value })}
+            w={{ base: '48%', xs: 150 }}
+          />
+        </>
+      )}
+      {validPeriod(value) && (
+        <Text size="sm" mb={4} data-testid="period-range">
+          {t('period.range', { from: fmtDay(localDay(value.from)), to: fmtDay(localDay(value.to)) })}
+        </Text>
+      )}
     </Group>
   );
 }

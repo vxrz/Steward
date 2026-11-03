@@ -6,7 +6,8 @@
     "days365": "Last 12 months",
     "custom": "Custom",
     "from": "From",
-    "to": "To"
+    "to": "To",
+    "range": "{{from}} – {{to}}"
   },
   "coverage": {
     "covered": "Covered",
@@ -78,8 +79,29 @@
     "countCovered_other": "{{count}} covered",
     "countGap_one": "{{count}} gap",
     "countGap_other": "{{count}} gaps",
-    "countUnmapped_one": "{{count}} not mapped",
-    "countUnmapped_other": "{{count}} not mapped",
+    "countUnmapped_one": "{{count}} not mapped – not assessed yet",
+    "countUnmapped_other": "{{count}} not mapped – not assessed yet",
+    "summary": "{{covered}} of {{total}} controls have evidence in the period",
+    "unmappedHint": "Not mapped means that no Steward item (process, document type, monitor, report schedule or access check) is linked to the control yet: Steward cannot tell whether it is met, so it is not assessed – not fine. Open a control to map items to it.",
+    "coverageOf": "Coverage of {{name}}",
+    "section": "Section {{ref}}",
+    "sectionNamed": "{{ref}} {{name}}",
+    "sectionCounts": "{{covered}} covered · {{gaps}} gaps · {{unmapped}} not mapped · {{total}} controls",
+    "sections": {
+      "ISO27001": {
+        "5": "Organizational controls",
+        "6": "People controls",
+        "7": "Physical controls",
+        "8": "Technological controls"
+      },
+      "IEC62443-2-1": {
+        "4_2": "Risk analysis",
+        "4_3_2": "Security policy, organization and awareness",
+        "4_3_3": "Selected security countermeasures",
+        "4_3_4": "Implementation",
+        "4_4": "Monitoring and improving the CSMS"
+      }
+    },
     "exportSelected_one": "Evidence pack for {{count}} control",
     "exportSelected_other": "Evidence pack for {{count}} controls",
     "empty": "This catalogue has no controls.",

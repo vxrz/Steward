@@ -56,6 +56,14 @@ test('an access change made outside Steward shows up as undocumented, is documen
   await expect(control).toContainText('Covered');
   await settle(page);
   await expectAccessible(page, 'controls');
+  // grouped by the catalogue's sections; a section without mapped controls starts folded
+  await expect(page.getByTestId('controls-summary')).toContainText('not assessed yet');
+  await expect(page.getByTestId('period-range')).toHaveText(/^\d{1,2} \w{3} \d{4} – \d{1,2} \w{3} \d{4}$/);
+  const people = page.getByRole('button', { name: /^6 People controls/ });
+  await expect(people).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByRole('link', { name: /^6\.1 – screening/ })).toHaveCount(0);
+  await people.click();
+  await expect(page.getByRole('link', { name: /^6\.1 – screening/ })).toBeVisible();
   await control.getByRole('checkbox', { name: 'Select control 5.18' }).check();
   await page.getByRole('button', { name: 'Evidence pack for 1 control' }).click();
   const create = page.getByRole('dialog', { name: 'New evidence pack' });

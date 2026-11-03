@@ -6,7 +6,8 @@
     "days365": "Letzte 12 Monate",
     "custom": "Benutzerdefiniert",
     "from": "Von",
-    "to": "Bis"
+    "to": "Bis",
+    "range": "{{from}} – {{to}}"
   },
   "coverage": {
     "covered": "Abgedeckt",
@@ -78,8 +79,29 @@
     "countCovered_other": "{{count}} abgedeckt",
     "countGap_one": "{{count}} Lücke",
     "countGap_other": "{{count}} Lücken",
-    "countUnmapped_one": "{{count}} nicht zugeordnet",
-    "countUnmapped_other": "{{count}} nicht zugeordnet",
+    "countUnmapped_one": "{{count}} nicht zugeordnet – noch nicht bewertet",
+    "countUnmapped_other": "{{count}} nicht zugeordnet – noch nicht bewertet",
+    "summary": "{{covered}} von {{total}} Kontrollen haben Nachweise im Zeitraum",
+    "unmappedHint": "Nicht zugeordnet heißt: Der Kontrolle ist noch kein Steward-Element (Prozess, Dokumentart, Monitor, Berichtsplan oder Zugriffsabgleich) zugeordnet. Steward kann nicht sagen, ob sie erfüllt ist – sie ist nicht bewertet, nicht in Ordnung. Öffnen Sie eine Kontrolle, um ihr Elemente zuzuordnen.",
+    "coverageOf": "Abdeckung von {{name}}",
+    "section": "Abschnitt {{ref}}",
+    "sectionNamed": "{{ref}} {{name}}",
+    "sectionCounts": "{{covered}} abgedeckt · {{gaps}} Lücken · {{unmapped}} nicht zugeordnet · {{total}} Kontrollen",
+    "sections": {
+      "ISO27001": {
+        "5": "Organisatorische Maßnahmen",
+        "6": "Personenbezogene Maßnahmen",
+        "7": "Physische Maßnahmen",
+        "8": "Technologische Maßnahmen"
+      },
+      "IEC62443-2-1": {
+        "4_2": "Risikoanalyse",
+        "4_3_2": "Sicherheitsrichtlinie, Organisation und Bewusstsein",
+        "4_3_3": "Ausgewählte Sicherheitsmaßnahmen",
+        "4_3_4": "Umsetzung",
+        "4_4": "Überwachung und Verbesserung des CSMS"
+      }
+    },
     "exportSelected_one": "Nachweispaket für {{count}} Kontrolle",
     "exportSelected_other": "Nachweispaket für {{count}} Kontrollen",
     "empty": "Dieser Katalog hat keine Kontrollen.",
