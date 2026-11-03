@@ -16,7 +16,8 @@ let sf: string;
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
-  await s.api('POST', '/demo/setup');
+  // without the sample applications: their Snowflake databases would be read by the background job too
+  await s.api('POST', '/demo/setup', { applications: false });
   sf = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'snowflake').id;
 });
 afterAll(async () => {
