@@ -51,6 +51,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - **Monitor editor: a check id taken by accident could not be corrected.** A new card that got the id of an already saved check (typed, or after duplicating) showed _duplicate check id_ but its id field was locked as _Fixed once saved_. Only the saved check keeps its id fixed now; the new card's id stays editable.
+- **Monitor editor: _Duplicate_ could place the copy on top of another card**, hiding it; the copy now goes to the first free place next to or below the original.
 - **MCP gateway tools were missing until the client reconnected**: MCP clients keep the tool list of their first connection, and the gateway tools (`platform_find_operations`, `platform_describe_operation`, `platform_call_operation`) only appeared once a platform had opened its gateway – a client connected before that never saw them. They are now always listed; a call without a platform the token owner may use through the gateway says how to get one (turn it on under _Platform → MCP_, the `use` right).
 - A new service without applications and documents was flagged _Attention needed_ at once: its protection need and documentation are now _Open_ until there is something to judge.
 - Process and template descriptions showed raw Markdown (`**webhook trigger**`, backticks) and broke lines mid-sentence: they are running text with bold, italics and code.

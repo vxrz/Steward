@@ -263,8 +263,11 @@ export function MonitorEditorPage() {
     const copy = { ...structuredClone(sel), id: uniqueId(`${sel.id}-copy`), name: t('editor.copyName', { name: sel.name }) } as CheckDef;
     // the gateway key and the heartbeat secret belong to the original
     delete (copy as { key?: string }).key;
+    // next to the original, or below that in the first free place: a copy must not cover another card
     copy.x = (sel.x ?? 0) + NODE_W + 40;
     copy.y = sel.y ?? 0;
+    const covers = (y: number) => def.checks.some((x) => Math.abs((x.x ?? 0) - copy.x!) < NODE_W && Math.abs((x.y ?? 0) - y) < NODE_H);
+    while (covers(copy.y)) copy.y += NODE_H + 40;
     addCard(copy);
   };
   const tidy = () => {
