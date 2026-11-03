@@ -222,6 +222,8 @@ Announcements (notification event _Maintenance_, see [NOTIFICATIONS.md](NOTIFICA
 
 The details offer the window as a calendar file (_Add to calendar (.ics)_, with its repetition), the next occurrences and how many platforms, monitors, applications and services it reaches. A window can name the change record that approves it. Platform, system, application and service pages show the maintenance going on and the next windows, with _Plan maintenance_ for those who may change the item.
 
+**Disabled windows:** _Enabled_ in the form switches a window off without cancelling it: a disabled window neither quiets monitors nor pauses messages nor counts as planned minutes, and announces nothing; it is announced as planned when it is enabled. A copy (_Duplicate_ in the details) starts disabled. The public API lists only enabled windows.
+
 **Who may plan:** designers and administrators, and anyone who may change every listed item (owners of services, applications and systems; the _manage_ right on platforms). The same people change or cancel a window; cancelling removes the coming occurrences and keeps the window for the record. Everyone signed in reads windows; platforms the reader may not see are listed without a name. Every change is in the audit trail (`maintenance.*`). API: `/api/maintenance-windows` (web UI), `GET /api/v1/maintenance-windows` (public, read-only, with the occurrences in a range).
 
 ## Example: a Snowflake project
@@ -320,14 +322,14 @@ A stored scale that does not validate – for example from a migration package �
 
 ## Documents that apply to an application
 
-A living document (a record type with the workflow _document_) that belongs to a service can name the applications it **applies to** – an ICAM concept for _Insights Hub_, an authorization concept for _Industrial Edge_.
+A living document (a document type with the workflow _document_) that belongs to a service can name the applications it **applies to** – an ICAM concept for _Insights Hub_, an authorization concept for _Industrial Edge_.
 
 - On the document page, _Applies to → Change_, choose the applications and _Save_ (whoever may edit the document; not for withdrawn documents). Leave it empty when it applies to the whole service.
 - _New document_ on the service page offers the applications of the service.
 - The service page groups its documents by application, and lists the rest under _Whole service_.
 - The application page lists its documents with edition, status and review status.
 
-The scope is not part of the document's content: changing it needs no new edition. It is audited on the record and on each application concerned (`application.document_added`, `application.document_removed`): whoever may edit the document can name any application, and the application's history shows it.
+The scope is not part of the document's content: changing it needs no new edition. It is audited on the document and on each application concerned (`application.document_added`, `application.document_removed`): whoever may edit the document can name any application, and the application's history shows it.
 
 ## Who may do what
 
@@ -344,7 +346,7 @@ The scope is not part of the document's content: changing it needs no new editio
 | Change the environment list                                                    | Administrators                                                                            |
 | Add applications to a service, change their role, override its protection need | Whoever may edit the service (designers, administrators, its responsible users and teams) |
 | Change the CIA scale                                                           | Administrators, with a fresh confirmation (step-up)                                       |
-| Change the applications a document applies to                                  | Whoever may edit the record                                                               |
+| Change the applications a document applies to                                  | Whoever may edit the document                                                             |
 
 Applications have no access lists, like services: the catalogue is readable for everyone. Only platforms keep their own access lists – an application never shows a platform to someone who may not see it.
 

@@ -45,6 +45,7 @@ import { fmtDate, fmtRelative } from '../format';
 import { localNow } from './AccessChanges';
 import { useMe } from '../auth';
 import { platformKeys } from '../queryKeys';
+import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 
 /** Compliance → Access reconciliation: who has which access (snapshots) compared with the documented access changes. */
 export function AccessReconciliationPage() {
@@ -54,6 +55,16 @@ export function AccessReconciliationPage() {
   const meta = useQuery({ queryKey: ['reconciliation-meta'], queryFn: () => get<AccessReconciliationMeta>('/compliance/reconciliation/meta') });
   const checks = useQuery({ queryKey: ['access-checks'], queryFn: () => get<AccessCheck[]>('/compliance/access-checks') });
   useCreateParam(meta.data?.canCreate, () => setEditing('new'));
+  // ?check=<id>&edit=1: a copy opens in edit mode (Duplicate)
+  useEffect(() => {
+    const id = params.get('check');
+    const found = params.get('edit') === '1' && id && checks.data?.find((c) => c.id === id);
+    if (!found) return;
+    if (found.canEdit) setEditing(found);
+    const next = new URLSearchParams(params);
+    next.delete('edit');
+    setParams(next, { replace: true });
+  }, [params, checks.data, setParams]);
   const all = checks.data ?? [];
   // ?findings=open (the start page's "Undocumented access changes" tile): only checks with open findings
   const onlyOpen = params.get('findings') === 'open';
@@ -157,7 +168,9 @@ export function AccessReconciliationPage() {
           ))}
         </SimpleGrid>
       )}
-      {selected && <CheckDetail key={selected.id} check={selected} demo={!!meta.data?.demo} onEdit={() => setEditing(selected)} />}
+      {selected && (
+        <CheckDetail key={selected.id} check={selected} demo={!!meta.data?.demo} canCreate={!!meta.data?.canCreate} onEdit={() => setEditing(selected)} />
+      )}
       {editing && <CheckModal check={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={(c) => select(c.id)} />}
     </>
   );
@@ -190,7 +203,7 @@ function CheckStatusBadge({ c }: { c: AccessCheck }) {
   );
 }
 
-function CheckDetail({ check, demo, onEdit }: { check: AccessCheck; demo: boolean; onEdit: () => void }) {
+function CheckDetail({ check, demo, canCreate, onEdit }: { check: AccessCheck; demo: boolean; canCreate: boolean; onEdit: () => void }) {
   const { t } = useTranslation(['compliance', 'common']);
   const qc = useQueryClient();
   const [tab, setTab] = useState<string | null>('open');
@@ -244,6 +257,7 @@ function CheckDetail({ check, demo, onEdit }: { check: AccessCheck; demo: boolea
           <Text size="xs" c="dimmed" mt={2}>
             {t('reconciliation.schedule')}: <Code>{check.cron}</Code> ({check.timezone}) · {t('reconciliation.owner')}: {check.owner}
           </Text>
+          <CopiedFromNote kind="access-check" id={check.id} pathOf={(x) => `/compliance/reconciliation?check=${x}`} />
           {check.lastError && (
             <Text size="xs" c="red" mt={2}>
               {check.lastError}
@@ -261,6 +275,7 @@ function CheckDetail({ check, demo, onEdit }: { check: AccessCheck; demo: boolea
               {t('reconciliation.simulate')}
             </Button>
           )}
+          {canCreate && <DuplicateButton kind="access-check" id={check.id} />}
           {check.canEdit && (
             <Button size="xs" variant="default" leftSection={<IconEdit size={14} />} onClick={onEdit}>
               {t('common:edit')}

@@ -109,13 +109,13 @@ Archived services have no scorecard.
 
 Administrators can say which document types an application needs because of its protection need, for example: _applications rated confidentiality **high** or above should have an authorization concept_. A rule names
 
-- a **document type** – a record type with the living-document workflow ([RECORDS.md](RECORDS.md));
+- a **document type** – a type with the living-document workflow ([RECORDS.md](RECORDS.md));
 - a **dimension** – confidentiality, integrity or availability;
 - a **minimum level** of that dimension's CIA scale.
 
 For each application of a service rated at least that level (a valid rating; ratings to re-rate do not count), the scorecard expects a **released** document of the type that applies to the application – or that is linked to the service and not limited to other applications. A missing one sets _Attention_ for documentation.
 
-The list **starts empty**: document types differ per installation, and a rule that names a type you do not have would only produce noise. A sensible first rule, after you created a record type `AUTHZ` (_Authorization concept_, workflow _living document_):
+The list **starts empty**: document types differ per installation, and a rule that names a type you do not have would only produce noise. A sensible first rule, after you created a document type `AUTHZ` (_Authorization concept_, workflow _living document_):
 
 | Document type | Dimension       | From level |
 | ------------- | --------------- | ---------- |

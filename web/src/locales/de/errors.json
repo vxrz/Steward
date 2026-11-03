@@ -753,7 +753,19 @@
     "JOB_NOT_FOUND": "Diese Hintergrundaufgabe gibt es nicht.",
     "JOB_RUNNING": "Diese Hintergrundaufgabe läuft bereits. Versuchen Sie es erneut, wenn sie beendet ist.",
     "SHUTTING_DOWN": "Steward wird beendet: Es starten jetzt keine neuen Ausführungen. Versuchen Sie es nach dem Neustart erneut.",
-    "WAITING_FOR_DATABASE_LEASE": "Steward startet: Eine andere Instanz verwendet die Datenbank noch. Versuchen Sie es gleich erneut."
+    "WAITING_FOR_DATABASE_LEASE": "Steward startet: Eine andere Instanz verwendet die Datenbank noch. Versuchen Sie es gleich erneut.",
+    "DUPLICATE_NAME_TAKEN": "Der Name „{{name}}“ ist schon vergeben – wählen Sie einen anderen für die Kopie.",
+    "DUPLICATE_KEY_TAKEN": "Der Schlüssel „{{key}}“ ist schon vergeben (oder hier nicht erlaubt) – wählen Sie einen anderen für die Kopie.",
+    "DUPLICATE_KEY_UNSUPPORTED": "Diese Kopie erhält ihre ID automatisch.",
+    "DUPLICATE_NO_ACCESS_SETTINGS": "Hier gibt es keine Zugriffseinstellungen zum Kopieren.",
+    "DUPLICATE_OPTION_UNKNOWN": "Diese Optionen gibt es hier nicht: {{options}}.",
+    "DUPLICATE_TEMPLATE_UNSUPPORTED": "Dies kann nicht als Vorlage gespeichert werden.",
+    "DUPLICATE_TEMPLATE_PARAM": "Parametername „{{name}}“: Buchstaben, Ziffern und _ (nicht „name“ oder „key“).",
+    "DUPLICATE_TEMPLATE_FIELD": "Die Prüfung „{{checkId}}“ hat kein Feld „{{field}}“, das ein Parameter werden kann.",
+    "DUPLICATE_NO_SERVICES": "Sie dürfen keinen der Services dieser Statusseite veröffentlichen.",
+    "FORBIDDEN_duplicate": "Sie dürfen hiervon keine Kopie anlegen.",
+    "FORBIDDEN_duplicateAccess": "Nur wer das Original verwalten darf, kann dessen Zugriffseinstellungen kopieren.",
+    "SCHEDULE_NOT_FOUND": "Zeitplan {{id}} nicht gefunden."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

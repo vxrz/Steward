@@ -38,6 +38,9 @@ import { useShellLayout } from '../layout';
 import { validateProcess, type ProcessDefinition, type ProcessDetail, type ValidationIssue } from '@sm/shared';
 import { ApiError, get, notifyError, notifyOk, put, apiUrl } from '../api';
 import {} from '../components/common';
+import { statusLabel } from '../components/common';
+import { useMe } from '../auth';
+import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { RunDialog } from '../components/RunDialog';
 import { AccessEditor } from '../components/AccessEditor';
@@ -50,7 +53,6 @@ import { ExprProvider } from '../components/editor/ExprContext';
 import { useDefHistory, useUndoKeys } from '../components/editor/useDefHistory';
 import { fmtRelative } from '../format';
 import { issueText } from '../i18n/meta';
-import { statusLabel } from '../components/common';
 import { DetailHeader } from '../components/page/DetailPage';
 import { processKeys } from '../queryKeys';
 
@@ -85,6 +87,7 @@ export function ProcessEditorPage() {
   const history = useDefHistory(def, setDef);
   // phones show the flow read-only: building it needs a larger screen
   const phone = useMediaQuery('(max-width: 48em)') ?? false;
+  const { caps } = useMe();
   const editable = !!proc.data?.permissions.includes('edit') && !phone;
   useUndoKeys(editable && !!def, history.undo, history.redo);
   // full screen: the app sidebar folds away (wide screens); back to normal when the editor closes
@@ -193,7 +196,12 @@ export function ProcessEditorPage() {
             )}
           </Group>
         }
-        description={<span className="mono">{p.id}</span>}
+        description={
+          <>
+            <span className="mono">{p.id}</span>
+            <CopiedFromNote kind="process" id={p.id} pathOf={(id) => `/processes/${id}`} />
+          </>
+        }
         actions={
           <>
             {problems.length > 0 && (
@@ -222,6 +230,7 @@ export function ProcessEditorPage() {
             >
               {t('page.exportYaml')}
             </Button>
+            {caps.createProcesses && <DuplicateButton kind="process" id={p.id} />}
             {p.permissions.includes('run') && (
               <Button size="xs" variant="light" leftSection={<IconPlayerPlay size={14} />} onClick={onRun}>
                 {t('page.run')}

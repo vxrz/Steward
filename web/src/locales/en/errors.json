@@ -753,7 +753,19 @@
     "JOB_NOT_FOUND": "This background job does not exist.",
     "JOB_RUNNING": "This background job is running already. Try again when it has finished.",
     "SHUTTING_DOWN": "Steward is shutting down: no new runs start now. Try again after the restart.",
-    "WAITING_FOR_DATABASE_LEASE": "Steward is starting: another instance still uses the database. Try again in a moment."
+    "WAITING_FOR_DATABASE_LEASE": "Steward is starting: another instance still uses the database. Try again in a moment.",
+    "DUPLICATE_NAME_TAKEN": "The name “{{name}}” is already used – choose another one for the copy.",
+    "DUPLICATE_KEY_TAKEN": "The key “{{key}}” is already used (or not allowed here) – choose another one for the copy.",
+    "DUPLICATE_KEY_UNSUPPORTED": "This copy gets its id automatically.",
+    "DUPLICATE_NO_ACCESS_SETTINGS": "There are no access settings to copy here.",
+    "DUPLICATE_OPTION_UNKNOWN": "These options are not available here: {{options}}.",
+    "DUPLICATE_TEMPLATE_UNSUPPORTED": "This cannot be saved as a template.",
+    "DUPLICATE_TEMPLATE_PARAM": "Parameter name “{{name}}”: letters, digits and _ (not “name” or “key”).",
+    "DUPLICATE_TEMPLATE_FIELD": "Check “{{checkId}}” has no field “{{field}}” that can become a parameter.",
+    "DUPLICATE_NO_SERVICES": "You may not publish any of the services of this status page.",
+    "FORBIDDEN_duplicate": "You may not create a copy of this.",
+    "FORBIDDEN_duplicateAccess": "Only someone who may manage the original can copy its access settings.",
+    "SCHEDULE_NOT_FOUND": "Schedule {{id}} not found."
   },
   "boundary": {
     "title": "Something went wrong on this page",

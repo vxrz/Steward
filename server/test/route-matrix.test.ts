@@ -776,6 +776,24 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/settings/mcp-oauth/clients/:clientId': ADMIN,
   'DELETE /api/settings/mcp-oauth/grants/:grantId': ADMIN,
   'PUT /api/settings/daily-summary': ADMIN,
+
+  // ---- duplicating (0.4.0): who may see the original and create the kind (duplicate.test.ts checks the rules) ----
+  'POST /api/monitors/:id/duplicate': DESIGN,
+  'POST /api/processes/:id/duplicate': DESIGN,
+  'POST /api/dashboards/:id/duplicate': DESIGN,
+  'POST /api/credentials/:id/duplicate': RUN,
+  'POST /api/applications/:id/duplicate': DESIGN,
+  'POST /api/services/:id/duplicate': DESIGN,
+  // the run right on the schedule's process
+  'POST /api/schedules/:id/duplicate': RUN,
+  // the fixture schedule is the administrator's: auditors see it, everyone but viewers creates report schedules
+  'POST /api/report-schedules/:id/duplicate': ADMIN_AUDITOR,
+  'POST /api/maintenance-windows/:id/duplicate': DESIGN,
+  'POST /api/compliance/access-checks/:accessCheckId/duplicate': DESIGN,
+  'POST /api/status-pages/:pageId/duplicate': DESIGN,
+  // the suggestion for the dialog (fixture: the demo process) and where a copy came from (everyone who sees it)
+  'GET /api/duplicates/:kind/:id': DESIGN,
+  'GET /api/duplicates/:kind/:id/source': ALL,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
@@ -832,6 +850,19 @@ const SESSION_ONLY = [
  * one that does not (`harmless`, never STEP_UP_REQUIRED). A route that loses its step-up fails this test.
  */
 const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown }> = {
+  // copying the access settings of an original shares the copy with its access list and owning teams (0.4.0);
+  // harmless: no access settings, refused for the key (nothing is created)
+  ...Object.fromEntries(
+    [
+      'POST /api/monitors/:id/duplicate',
+      'POST /api/processes/:id/duplicate',
+      'POST /api/dashboards/:id/duplicate',
+      'POST /api/credentials/:id/duplicate',
+      'POST /api/applications/:id/duplicate',
+      'POST /api/services/:id/duplicate',
+      'POST /api/report-schedules/:id/duplicate',
+    ].map((k) => [k, { sensitive: { copyAccess: true }, harmless: { copyAccess: false, key: '!' } }]),
+  ),
   // allowing an MCP client gives it lasting access as the person (#12); denying needs no confirmation
   'POST /api/oauth/authorize': {
     sensitive: { request: { response_type: 'code', client_id: 'mcpc_matrix', redirect_uri: 'http://127.0.0.1:1/cb' }, approve: true },
@@ -948,6 +979,7 @@ function fill(url: string): string {
     .replace(/\*/g, 'nothing-here')
     .replace(/\/api\/platform-types\/:kind/, `/api/platform-types/${fx.platformKind}`)
     .replace(/\/api\/owning-teams\/:kind\/:id/, `/api/owning-teams/process/${fx.process}`)
+    .replace(/\/api\/duplicates\/:kind\/:id/, `/api/duplicates/process/${fx.process}`)
     .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : fx.platform!)
     .replace(/:specId/g, fx.spec!)
     .replace(/:docId/g, fx.doc!)

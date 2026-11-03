@@ -633,7 +633,10 @@
     "colRepeat": "Wiederholung",
     "colTargets": "Betrifft",
     "clearChangeRecord": "Change-Eintrag entfernen",
-    "endBeforeStart": "Das Fenster muss nach seinem Beginn enden."
+    "endBeforeStart": "Das Fenster muss nach seinem Beginn enden.",
+    "enabled": "Aktiv",
+    "enabledHelp": "Ein deaktiviertes Fenster schaltet keine Monitore stumm, pausiert keine Meldungen und kündigt nichts an (eine Kopie ist zunächst deaktiviert).",
+    "disabledBadge": "Deaktiviert"
   },
   "topicPrefix": {
     "button": "Kafka-Topics nach Präfix hinzufügen",

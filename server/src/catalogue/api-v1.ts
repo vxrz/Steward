@@ -346,7 +346,14 @@ export function serviceApiRoutes(get: Get): void {
     async (req) => {
       const q = req.query as z.infer<typeof MaintenanceListQuery>;
       const l = listMaintenance({ from: q.from, to: q.to, target: q.target });
-      return { from: l.from, to: l.to, windows: l.windows.map(({ canEdit: _c, ...w }) => w), occurrences: l.occurrences };
+      // disabled windows (0.4.0: copies start so) do not take place: left out, like cancelled ones
+      const off = new Set(l.windows.filter((w) => !w.enabled).map((w) => w.id));
+      return {
+        from: l.from,
+        to: l.to,
+        windows: l.windows.filter((w) => !off.has(w.id)).map(({ canEdit: _c, enabled: _e, ...w }) => w),
+        occurrences: l.occurrences.filter((o) => !off.has(o.windowId)),
+      };
     },
   );
 

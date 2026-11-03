@@ -30,7 +30,7 @@ The _Compliance_ section of the sidebar has five pages:
 
 ## How it maps to the standards
 
-The table shows which Steward evidence is typically relevant to which requirement. Map your own processes, record types, monitors, report schedules and checks under _Controls_.
+The table shows which Steward evidence is typically relevant to which requirement. Map your own processes, document types, monitors, report schedules and checks under _Controls_.
 
 | Requirement                                                                        | Steward evidence                                                                                                                                                        |
 | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -42,20 +42,20 @@ The table shows which Steward evidence is typically relevant to which requiremen
 | NIS2 Art. 21(2)(i) (access control policies, asset management)                     | As above                                                                                                                                                                |
 | ISO/IEC 27001 A.5.37 (documented operating procedures), A.8.32 (change management) | Manual procedures: checklists, fields and evidence files per step, second-person verification (maker–checker), sealed PDF protocol ([MANUAL-STEPS.md](MANUAL-STEPS.md)) |
 
-By default, the access change record type and the demo reconciliation check are mapped to ISO/IEC 27001 5.15, 5.16, 5.18 and 8.2, IEC 62443-2-1 4.3.3.5 and 4.3.3.7 and NIS2 21(2)(i).
+By default, the access change document type and the demo reconciliation check are mapped to ISO/IEC 27001 5.15, 5.16, 5.18 and 8.2, IEC 62443-2-1 4.3.3.5 and 4.3.3.7 and NIS2 21(2)(i).
 
 ## Access change entries
 
-An access change entry is a record of the built-in type **Access change** (key `AC`, numbers like `AC-2026-0001`). Like all records it has versions, a content hash when it is frozen, a PDF, links and attachments (see [RECORDS.md](RECORDS.md)).
+An access change entry is a document of the built-in type **Access change** (key `AC`, numbers like `AC-2026-0001`). Like all documents it has versions, a content hash when it is frozen, a PDF, links and attachments (see [RECORDS.md](RECORDS.md)).
 
 Fields: platform, subject (user name, user id or technical user id, and a display name), change (grant, revoke, change, onboarding, offboarding), rights before and after (one role, group or scope per line), reason, requested by, request reference (e.g. a ServiceNow ticket), approved by, performed by, performed at, origin (manual, run, after the fact). Steward computes the granted and removed rights from _before_ and _after_.
 
 Only Steward sets the origin (other than _manual_), the run and the finding of an entry: entries a person writes – on the _Access changes_ page or through the records API – are manual entries, and these fields never change afterwards. Every entry also shows who documented it (_documented by_, `system` for automatic entries) and who wrote its newest version (_last edited by_).
 
-**Who may write and read entries.** Entries name people and their rights, so they are not open to everyone like other records:
+**Who may write and read entries.** Entries name people and their rights, so they are not open to everyone like other documents:
 
 - Write, change and document an entry: operators, designers and administrators who may **use the platform** of the entry.
-- Read an entry (lists, record page, search, links, backlinks, coverage, packs, public API): administrators, auditors, approvers (they verify entries), the owner of the entry and everyone with a right on its platform. Others do not see that the entry exists.
+- Read an entry (lists, document page, search, links, backlinks, coverage, packs, public API): administrators, auditors, approvers (they verify entries), the owner of the entry and everyone with a right on its platform. Others do not see that the entry exists.
 
 Workflow:
 
@@ -161,14 +161,14 @@ The Controls page, the read API (`GET /api/v1/control-coverage`, fields `status`
 
 Evidence per kind of mapped item:
 
-| Mapped item           | Evidence in the period                                          |
-| --------------------- | --------------------------------------------------------------- |
-| Process               | Runs (not dry runs) and whether they have a PDF protocol        |
-| Record type           | Records with activity (created, changed, transitions, comments) |
-| Record                | The record, when it had activity                                |
-| Monitor               | Results and status changes (with the availability)              |
-| Report schedule       | Scheduled reports generated                                     |
-| Access reconciliation | Snapshots and findings                                          |
+| Mapped item           | Evidence in the period                                            |
+| --------------------- | ----------------------------------------------------------------- |
+| Process               | Runs (not dry runs) and whether they have a PDF protocol          |
+| Document type         | Documents with activity (created, changed, transitions, comments) |
+| Document              | The document, when it had activity                                |
+| Monitor               | Results and status changes (with the availability)                |
+| Report schedule       | Scheduled reports generated                                       |
+| Access reconciliation | Snapshots and findings                                            |
 
 Designers and administrators map items to controls in the control's panel; they see (and can remove) only items they may see – a mapped item someone may not see is shown as _not visible_, without its id. Administrators edit control texts and import catalogues.
 

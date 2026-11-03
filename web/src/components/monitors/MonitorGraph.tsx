@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Background,
   BackgroundVariant,
@@ -148,6 +148,12 @@ export interface MonitorGraphProps {
   nodeKeys?: string[];
   /** Editing: keys of the cards with a problem */
   problems?: Set<string>;
+  /**
+   * Editing: several cards selected (shift-click, or shift-drag a box): their keys. `onMultiSelect` hears every change
+   * of the selection (one card, several, none).
+   */
+  multiSelected?: string[];
+  onMultiSelect?: (keys: string[]) => void;
 }
 
 export function MonitorGraph(props: MonitorGraphProps) {
@@ -159,14 +165,29 @@ export function MonitorGraph(props: MonitorGraphProps) {
 }
 
 const NO_ROOTS: string[] = [];
+const NO_KEYS: string[] = [];
 
-function GraphInner({ def, states, rootCauseIds = NO_ROOTS, selected, onSelect, onChange, onLinkClick, height = 460, nodeKeys, problems }: MonitorGraphProps) {
+function GraphInner({
+  def,
+  states,
+  rootCauseIds = NO_ROOTS,
+  selected,
+  onSelect,
+  onChange,
+  onLinkClick,
+  height = 460,
+  nodeKeys,
+  problems,
+  multiSelected = NO_KEYS,
+  onMultiSelect,
+}: MonitorGraphProps) {
   const scheme = useComputedColorScheme('light');
   const { t } = useTranslation('monitors');
   const editable = !!onChange;
   const layout = useMemo(() => autoLayout(def), [def]);
   const stateOf = useMemo(() => new Map((states ?? []).map((s) => [s.checkId, s])), [states]);
   const rootKey = rootCauseIds.join('|');
+  const multiKey = multiSelected.join('|');
   // node key per check: the editor's stable keys, otherwise the check ids
   const keys = useMemo(() => def.checks.map((c, i) => nodeKeys?.[i] ?? c.id), [def.checks, nodeKeys]);
   const indexOfKey = useMemo(() => new Map(keys.map((k, i) => [k, i])), [keys]);
@@ -176,9 +197,14 @@ function GraphInner({ def, states, rootCauseIds = NO_ROOTS, selected, onSelect, 
     def.checks.forEach((c, i) => !m.has(c.id) && m.set(c.id, keys[i]!));
     return m;
   }, [def.checks, keys]);
+  // What the person selected in the graph itself (a click, shift-click, a box): React Flow shows that already, so a
+  // rebuild keeps its selection. A selection the editor sets (a new card, a problem it leads to) is applied.
+  const clicked = useRef<string | null | undefined>(undefined);
+  const reported = useRef<string | undefined>(undefined);
   const build = useCallback(
     (prev: CheckRfNode[] = []): CheckRfNode[] => {
       const before = new Map(prev.map((n) => [n.id, n]));
+      const own = editable && prev.length > 0 && (selected === clicked.current || (!!multiKey && multiKey === reported.current));
       return def.checks.map((c, i) => {
         const id = keys[i]!;
         return {
@@ -186,7 +212,7 @@ function GraphInner({ def, states, rootCauseIds = NO_ROOTS, selected, onSelect, 
           type: 'check',
           position: c.x !== undefined && c.y !== undefined ? { x: c.x, y: c.y } : (layout.get(c.id) ?? { x: 0, y: i * (NODE_H + 70) }),
           data: { check: c, state: stateOf.get(c.id), root: rootKey.split('|').includes(c.id), editable, problem: problems?.has(id) },
-          selected: id === selected,
+          selected: own && before.has(id) ? !!before.get(id)!.selected : id === selected || (!!multiKey && multiKey.split('|').includes(id)),
           draggable: editable,
           deletable: false,
           // keep the measured size, otherwise the node is hidden until it is measured again
@@ -194,8 +220,18 @@ function GraphInner({ def, states, rootCauseIds = NO_ROOTS, selected, onSelect, 
         };
       });
     },
-    [def, keys, layout, stateOf, rootKey, selected, editable, problems],
+    [def, keys, layout, stateOf, rootKey, selected, editable, problems, multiKey],
   );
+  // one handler for the whole life of the graph: React Flow reports the selection again whenever its handler changes
+  const multiRef = useRef(onMultiSelect);
+  useEffect(() => {
+    multiRef.current = onMultiSelect;
+  });
+  const hasMulti = !!onMultiSelect;
+  const onSelectionChange = useCallback(({ nodes: ns }: { nodes: Node[] }) => {
+    reported.current = ns.map((n) => n.id).join('|');
+    multiRef.current?.(ns.map((n) => n.id));
+  }, []);
   const [nodes, setNodes] = useState<CheckRfNode[]>(() => build());
   useEffect(() => setNodes((prev) => build(prev)), [build]);
 
@@ -241,8 +277,11 @@ function GraphInner({ def, states, rootCauseIds = NO_ROOTS, selected, onSelect, 
         onNodesChange={onNodesChange}
         onConnect={onConnect}
         onEdgeClick={onEdgeClick}
-        onNodeClick={(_e, n) => onSelect?.(n.id)}
-        onPaneClick={() => onSelect?.(null)}
+        onNodeClick={(_e, n) => ((clicked.current = n.id), onSelect?.(n.id))}
+        onPaneClick={() => ((clicked.current = null), onSelect?.(null))}
+        onSelectionChange={hasMulti ? onSelectionChange : undefined}
+        // several cards: shift-click (or the usual Ctrl/Cmd), or shift-drag a box around them (React Flow's default)
+        multiSelectionKeyCode={editable ? ['Shift', 'Meta', 'Control'] : undefined}
         nodesConnectable={editable}
         elementsSelectable
         fitView

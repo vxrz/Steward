@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Anchor, Badge, Button, Grid, Group, Paper, Stack, Text } from '@mantine/core';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   IconApps,
   IconArchive,
@@ -27,6 +27,8 @@ import { Field, LinksPanel } from '../components/records/common';
 import { fmtDate } from '../format';
 import { CriticalityBadge, ServiceFormModal } from './Services';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
+import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
+import { useMe } from '../auth';
 import { ServiceDocumentsPanel } from '../components/records/ServiceDocuments';
 import { confirmDanger } from '../components/confirm';
 import { ProtectionNeedPanel } from '../components/catalogue/cia';
@@ -63,6 +65,16 @@ export function ServiceDetailPage() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['service', id], queryFn: () => get<ServiceDetail>(`/services/${id}`) });
   const [editing, setEditing] = useState(false);
+  // ?edit=1: a copy opens in edit mode (Duplicate)
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    if (params.get('edit') !== '1') return;
+    setEditing(true);
+    params.delete('edit');
+    setParams(params, { replace: true });
+  }, [params, setParams]);
+  const { hasRole } = useMe();
+  const canCreate = hasRole('admin') || hasRole('designer');
   const refresh = (s?: ServiceDetail) => {
     if (s) qc.setQueryData(['service', id], s);
     else void qc.invalidateQueries({ queryKey: ['service', id] });
@@ -100,17 +112,27 @@ export function ServiceDetailPage() {
           )}
         </>
       }
-      description={t('detailLine', { user: s.updatedBy, date: fmtDate(s.updatedAt) })}
+      description={
+        <>
+          {t('detailLine', { user: s.updatedBy, date: fmtDate(s.updatedAt) })}
+          <CopiedFromNote kind="service" id={s.id} pathOf={(id) => `/services/${id}`} />
+        </>
+      }
       recent={{ label: s.name, kind: 'service', to: base }}
       actions={
-        s.canEdit && (
+        (s.canEdit || canCreate) && (
           <>
-            <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}>
-              {t('common:edit')}
-            </Button>
-            <Button size="xs" variant="default" leftSection={s.archived ? <IconArchiveOff size={14} /> : <IconArchive size={14} />} onClick={archive}>
-              {s.archived ? t('restore') : t('archive')}
-            </Button>
+            {canCreate && <DuplicateButton kind="service" id={s.id} />}
+            {s.canEdit && (
+              <>
+                <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}>
+                  {t('common:edit')}
+                </Button>
+                <Button size="xs" variant="default" leftSection={s.archived ? <IconArchiveOff size={14} /> : <IconArchive size={14} />} onClick={archive}>
+                  {s.archived ? t('restore') : t('archive')}
+                </Button>
+              </>
+            )}
           </>
         )
       }
@@ -184,7 +206,7 @@ export function ServiceDetailPage() {
             <ScorecardPanel serviceId={s.id} />
           ))}
       </div>
-      {editing && <ServiceFormModal service={s} onClose={() => setEditing(false)} onSaved={(x) => refresh(x)} />}
+      {editing && s.canEdit && <ServiceFormModal service={s} onClose={() => setEditing(false)} onSaved={(x) => refresh(x)} />}
     </DetailPage>
   );
 }

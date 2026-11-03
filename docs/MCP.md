@@ -193,7 +193,7 @@ All tools read only (`annotations.readOnlyHint: true`), except `platform_call_op
 | `platform_call_operation`     | Calls one GET/HEAD operation through Steward                                                                                                                                    | platform `use`, gateway on                               |
 | `list_control_catalogues`     | Control catalogues: key, name, version, number of controls ([control proposals](#control-proposals))                                                                            |
 | `get_control_catalogue`       | The controls of one catalogue with the number of mapped items                                                                                                                   |
-| `find_mapping_targets`        | Items of one kind to map to controls (processes, record types, records, monitors, report schedules, access checks) – only what you may see                                      |
+| `find_mapping_targets`        | Items of one kind to map to controls (processes, document types, documents, monitors, report schedules, access checks) – only what you may see                                  |
 | `propose_control_catalogue`   | Proposes a control catalogue, in parts of up to 200 controls, for an administrator to review                                                                                    |
 | `propose_control_mappings`    | Proposes mappings of controls to Steward items with a reason each, for review                                                                                                   |
 

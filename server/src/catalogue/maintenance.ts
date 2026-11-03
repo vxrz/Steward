@@ -62,6 +62,8 @@ interface WindowRow {
   reminder_hours: number;
   cancelled_at: string | null;
   cancelled_by: string | null;
+  /** 0: disabled (a copy starts so): it neither applies nor announces anything */
+  enabled: number;
   created_at: string;
   created_by: string;
   updated_at: string;
@@ -108,6 +110,8 @@ export const maintenanceInput = z
     quietMonitors: z.boolean().default(true),
     pauseMessages: z.boolean().default(false),
     reminderHours: z.number().int().min(0).max(MAINTENANCE_LIMITS.reminderHoursMax).default(24),
+    /** A disabled window neither applies nor announces anything (missing: enabled when planned, unchanged when changed) */
+    enabled: z.boolean().optional(),
   })
   .strict();
 export type MaintenanceInput = z.infer<typeof maintenanceInput>;
@@ -271,6 +275,7 @@ function toSummary(r: WindowRow, u: AuthUser | null, now: number): MaintenanceWi
     reminderHours: Number(r.reminder_hours),
     cancelledAt: r.cancelled_at,
     cancelledBy: r.cancelled_by,
+    enabled: r.enabled !== 0,
     current: r.cancelled_at && Date.parse(r.cancelled_at) <= now ? null : currentOf(r, now),
     createdAt: r.created_at,
     createdBy: r.created_by,
@@ -422,8 +427,8 @@ export function createMaintenance(input: MaintenanceInput): MaintenanceWindowDet
   db().tx(() => {
     db().run(
       `INSERT INTO maintenance_windows (id, title, note, starts_at, ends_at, recurrence, time_zone, responsible, change_record_id, quiet_monitors,
-         pause_messages, reminder_hours, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         pause_messages, reminder_hours, enabled, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       input.title,
       input.note,
@@ -436,6 +441,7 @@ export function createMaintenance(input: MaintenanceInput): MaintenanceWindowDet
       input.quietMonitors ? 1 : 0,
       input.pauseMessages ? 1 : 0,
       input.reminderHours,
+      input.enabled === false ? 0 : 1,
       now,
       u.username,
       now,
@@ -446,12 +452,12 @@ export function createMaintenance(input: MaintenanceInput): MaintenanceWindowDet
       action: 'maintenance.created',
       entityType: 'maintenance',
       entityId: id,
-      summary: `Maintenance "${input.title}" planned (${describe(input)}; ${input.targets.length} item(s))`,
+      summary: `Maintenance "${input.title}" planned (${describe(input)}; ${input.targets.length} item(s)${input.enabled === false ? ', disabled' : ''})`,
       details: { ...input },
     });
   });
   invalidate();
-  announce(row(id), 'planned', Date.parse(input.startsAt));
+  if (input.enabled !== false) announce(row(id), 'planned', Date.parse(input.startsAt));
   return getMaintenance(id);
 }
 
@@ -466,10 +472,11 @@ export function updateMaintenance(id: string, input: MaintenanceInput): Maintena
   checkTargets(input.targets, u, before);
   assertKnownSubjects(input.responsible, parseJson<string[]>(cur.responsible, []));
   checkChangeRecord(input.changeRecordId, u, cur.change_record_id);
+  const enabled = input.enabled ?? cur.enabled !== 0;
   db().tx(() => {
     db().run(
       `UPDATE maintenance_windows SET title = ?, note = ?, starts_at = ?, ends_at = ?, recurrence = ?, responsible = ?, change_record_id = ?,
-         quiet_monitors = ?, pause_messages = ?, reminder_hours = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
+         quiet_monitors = ?, pause_messages = ?, reminder_hours = ?, enabled = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
       input.title,
       input.note,
       input.startsAt,
@@ -480,6 +487,7 @@ export function updateMaintenance(id: string, input: MaintenanceInput): Maintena
       input.quietMonitors ? 1 : 0,
       input.pauseMessages ? 1 : 0,
       input.reminderHours,
+      enabled ? 1 : 0,
       nowIso(),
       u.username,
       id,
@@ -489,11 +497,13 @@ export function updateMaintenance(id: string, input: MaintenanceInput): Maintena
       action: 'maintenance.changed',
       entityType: 'maintenance',
       entityId: id,
-      summary: `Maintenance "${input.title}" changed (${describe(input)})`,
-      details: { before: { ...shape(cur), title: cur.title, targets: before }, after: input },
+      summary: `Maintenance "${input.title}" changed (${describe(input)}${enabled !== (cur.enabled !== 0) ? (enabled ? ', enabled' : ', disabled') : ''})`,
+      details: { before: { ...shape(cur), title: cur.title, enabled: cur.enabled !== 0, targets: before }, after: { ...input, enabled } },
     });
   });
   invalidate();
+  // enabled now: announced as a newly planned window (once)
+  if (enabled && cur.enabled === 0) announce(row(id), 'planned', Date.parse(input.startsAt));
   return getMaintenance(id);
 }
 
@@ -543,7 +553,7 @@ const invalidate = () => {
 function activeNow(now: number): Active[] {
   if (cache && Math.abs(now - cache.at) < CACHE_MS) return cache.list;
   const list: Active[] = [];
-  for (const r of db().all<WindowRow>('SELECT * FROM maintenance_windows WHERE cancelled_at IS NULL OR cancelled_at > ?', iso(now))) {
+  for (const r of db().all<WindowRow>('SELECT * FROM maintenance_windows WHERE enabled = 1 AND (cancelled_at IS NULL OR cancelled_at > ?)', iso(now))) {
     const o = occurrencesOf(r, now, now + 1)[0];
     if (o && o.start <= now && now < o.end) list.push({ row: r, start: o.start, end: o.end, reach: reachOf(targetsOf(r.id)) });
   }
@@ -590,7 +600,7 @@ let allCache: { at: number; list: { row: WindowRow; reach: Reach }[] } | null = 
 function allWithReach(now: number) {
   if (allCache && Math.abs(now - allCache.at) < CACHE_MS) return allCache.list;
   const list = db()
-    .all<WindowRow>('SELECT * FROM maintenance_windows')
+    .all<WindowRow>('SELECT * FROM maintenance_windows WHERE enabled = 1')
     .map((row) => ({ row, reach: reachOf(targetsOf(row.id)) }));
   allCache = { at: now, list };
   return list;
@@ -696,7 +706,7 @@ function announce(r: WindowRow, kind: NoticeKind, start: number): boolean {
 /** The job (every minute): reminders before, and messages at the start and end of each occurrence. */
 export function runMaintenanceJob(now = Date.now()): number {
   let sent = 0;
-  for (const r of db().all<WindowRow>('SELECT * FROM maintenance_windows WHERE cancelled_at IS NULL')) {
+  for (const r of db().all<WindowRow>('SELECT * FROM maintenance_windows WHERE cancelled_at IS NULL AND enabled = 1')) {
     const ahead = Math.max(Number(r.reminder_hours), 0) * 3600000;
     for (const o of occurrencesOf(r, now - 2 * 3600000, now + ahead + 60000)) {
       const due: NoticeKind | null =

@@ -102,12 +102,14 @@ Viewers do not see the register: it shows where credentials are kept and who hol
 
 All checks happen on the server; the API answers 404 for entries you may not see.
 
-## Links to services and records
+<a id="links-to-services-and-records"></a>
+
+## Links to services and documents
 
 - An entry that **belongs to** an application, a component or a system is listed on the application page (entries of its components with the component's name) and on the system page, with status and next due date. Removing a component hands its entries to the application; a system with entries is not deleted until they are moved or archived. The list filters by it (`?belongs=application:<id>`, `component:<id>`, `system:<id>`), the search finds the name, the CSV has a `belongs_to` column.
 - An entry's **Used by** links can name catalogue services and applications. The service page shows the entry under _Linked from_, the application page under _Credentials_ (with status and next due date) – but only to people who may read the entry (viewers see only the entries they own).
-- Records and services can link to an entry (_Add link → Credential_). The link picker only offers entries you may see. For readers who may not see the entry, the link shows as "not visible", without its name.
-- The entry's detail panel lists the records and services that link to it under _Linked from_ (`GET /api/backlinks?kind=credential&id=…`).
+- Documents and services can link to an entry (_Add link → Credential_). The link picker only offers entries you may see. For readers who may not see the entry, the link shows as "not visible", without its name.
+- The entry's detail panel lists the documents and services that link to it under _Linked from_ (`GET /api/backlinks?kind=credential&id=…`).
 
 ## Export and API
 

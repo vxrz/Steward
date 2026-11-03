@@ -162,7 +162,11 @@ const toItem = (i: ItemRow): PersonReviewItem => ({
 function toReview(u: AuthUser, r: ReviewRow): PersonReview {
   const items = itemsOf(r.id);
   const sources = parseJson<PersonReviewSource[]>(r.sources, []).map((s) => ({ ...s, platformName: visiblePlatformName(u, s.platformId) ?? s.platformName }));
-  const activity = new Map(sources.flatMap((s) => Object.entries(s.activity ?? {}).map(([id, a]) => [`${s.checkId}|${id}`, a])));
+  const perSubject = <T>(pick: (s: PersonReviewSource) => Record<string, T> | undefined) =>
+    new Map<string, T>(sources.flatMap((s) => Object.entries(pick(s) ?? {}).map(([id, a]): [string, T] => [`${s.checkId}|${id}`, a])));
+  const activity = perSubject((s) => s.activity);
+  const activityInfo = perSubject((s) => s.activityInfo);
+  const aliases = perSubject((s) => s.aliases);
   return {
     id: r.id,
     title: r.title,
@@ -171,8 +175,14 @@ function toReview(u: AuthUser, r: ReviewRow): PersonReview {
     identifiers: parseJson<string[]>(r.identifiers, []),
     sources,
     items: items.map((i) => {
-      const a = activity.get(`${i.check_id}|${i.subject_id}`);
-      return a ? { ...toItem(i), subjectActivity: a } : toItem(i);
+      const k = `${i.check_id}|${i.subject_id}`;
+      const [a, info, al] = [activity.get(k), activityInfo.get(k), aliases.get(k)];
+      return {
+        ...toItem(i),
+        ...(a ? { subjectActivity: a } : {}),
+        ...(info ? { subjectActivityInfo: info } : {}),
+        ...(al?.length ? { matchedAliases: al } : {}),
+      };
     }),
     status: r.status,
     fourEyes: !!r.four_eyes,
@@ -267,6 +277,11 @@ export async function createReview(input: z.infer<typeof reviewInput>): Promise<
           found.push({ check_id: c.id, subject_id: s.id, subject_name: s.name ?? '', subject_type: s.type ?? null, right_name: right });
       }
       const activity = Object.fromEntries(mine.filter((s) => s.activity).map((s) => [s.id, s.activity!]));
+      const activityInfo = Object.fromEntries(mine.filter((s) => s.activityInfo).map((s) => [s.id, s.activityInfo!]));
+      // why a subject is the person when its id and name are not: the alias (e-mail address) that matched
+      const aliases = Object.fromEntries(
+        mine.map((s) => [s.id, (s.aliases ?? []).filter((a) => idSet.has(norm(a)))] as const).filter(([, list]) => list.length > 0),
+      );
       sources.push({
         ...base,
         origin: got.origin,
@@ -274,6 +289,8 @@ export async function createReview(input: z.infer<typeof reviewInput>): Promise<
         error: got.error,
         matched: mine.length,
         ...(Object.keys(activity).length ? { activity } : {}),
+        ...(Object.keys(activityInfo).length ? { activityInfo } : {}),
+        ...(Object.keys(aliases).length ? { aliases } : {}),
       });
     } catch (e) {
       sources.push({ ...base, origin: 'failed', readAt: null, error: (e as Error).message.slice(0, 300), matched: 0 });

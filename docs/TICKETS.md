@@ -29,7 +29,7 @@ Steward is not a ticketing tool. There is no workflow, no approval and no freezi
 | Status                  | _Open_, _Waiting for vendor_, _Waiting for us_, _Resolved_, _Closed_. Any status can follow any other.                               |
 | Opened, resolved        | _Resolved_ is filled in when the status changes to resolved or closed (you can correct it), and cleared when the ticket opens again. |
 | Last checked            | Set by _Mark checked_ and by every status change.                                                                                    |
-| Affected items          | Services, platforms, credentials, records, monitors and processes. Stored in the same link model as record links.                    |
+| Affected items          | Services, platforms, credentials, documents, monitors and processes. Stored in the same link model as document links.                |
 | Reminder                | The default, off, or a number of days for this entry (see below).                                                                    |
 
 Every change is in the entry's history and in the audit log (`ticket.created`, `ticket.updated`, `ticket.status_changed`, `ticket.checked`, `ticket.deleted`, `ticket.link_added`, `ticket.link_removed`).
@@ -65,7 +65,7 @@ Each reminder is sent once – also across restarts. While the vault is locked n
 
 ## Where tickets show up
 
-- **Service, platform and record pages**: _Open tickets_ lists the entries that name the item as affected (resolved and closed ones on request).
+- **Service, platform and document pages**: _Open tickets_ lists the entries that name the item as affected (resolved and closed ones on request).
 - **Service catalogue**: a badge with the number of open tickets from vendor sources.
 - **Daily summary**: open tickets you are responsible for (see [NOTIFICATIONS.md](NOTIFICATIONS.md)).
 - **Scheduled reports**: the section _Ticket references_ shows the tickets open at the end of the period per service and per vendor with their age, the tickets opened and resolved in the period, and the mean time to resolution per vendor. The figures follow from the opening and resolution dates and the status history, so a report generated later for the same period shows the same numbers.

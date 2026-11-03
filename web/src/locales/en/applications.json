@@ -633,7 +633,10 @@
     "colRepeat": "Repeats",
     "colTargets": "Affects",
     "clearChangeRecord": "Remove the change document",
-    "endBeforeStart": "The window must end after it starts."
+    "endBeforeStart": "The window must end after it starts.",
+    "enabled": "Enabled",
+    "enabledHelp": "A disabled window neither quiets monitors nor pauses messages, and announces nothing (a copy starts disabled).",
+    "disabledBadge": "Disabled"
   },
   "topicPrefix": {
     "button": "Add Kafka topics by prefix",

@@ -42,3 +42,20 @@ test('a user turns on the daily summary, previews it, and administrators see the
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Daily summary settings saved')).toBeVisible();
 });
+
+test('the switch that allows daily summaries is saved with the save bar, not at once', async ({ loginAs, apiAs }) => {
+  const admin = await loginAs('admin');
+  await admin.goto('/settings/notifications');
+  await settle(admin);
+  const toggle = admin.getByRole('switch', { name: 'Allow daily summaries' });
+  await expect(toggle).toBeChecked();
+  await admin.getByLabel('Allow daily summaries').click();
+  await expect(toggle).not.toBeChecked();
+  const bar = admin.getByTestId('settings-save-bar');
+  await expect(bar).toContainText('Unsaved changes');
+  // nothing was saved yet: the server still allows them
+  expect((await (await (await apiAs('admin')).get('/api/settings/daily-summary')).json()).allowed).toBe(true);
+  await bar.getByRole('button', { name: 'Reset' }).click();
+  await expect(toggle).toBeChecked();
+  await expect(bar).toContainText('No unsaved changes');
+});

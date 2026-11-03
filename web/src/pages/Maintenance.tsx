@@ -28,6 +28,7 @@ export function MaintenancePage() {
       (p) => {
         if (id) p.set('open', id);
         else p.delete('open');
+        p.delete('edit');
         return p;
       },
       { replace: true },
@@ -135,6 +136,11 @@ export function MaintenancePage() {
                         >
                           {w.title}
                         </UnstyledButton>
+                        {!w.enabled && (
+                          <Badge ml={6} size="xs" color="gray" variant="outline">
+                            {t('maintenance.disabledBadge')}
+                          </Badge>
+                        )}
                       </Table.Td>
                       <Table.Td>
                         <WhenLine w={w} />
@@ -161,7 +167,7 @@ export function MaintenancePage() {
           onOpen={setOpen}
         />
       )}
-      {open && <MaintenanceDetailModal id={open} onClose={() => setOpen(null)} />}
+      {open && <MaintenanceDetailModal key={open} id={open} startEditing={params.get('edit') === '1'} onClose={() => setOpen(null)} />}
       {creating && (
         <MaintenanceFormModal
           onClose={() => setCreating(false)}

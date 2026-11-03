@@ -31,6 +31,7 @@ import { DUTY_MIGRATIONS } from './migrations/duties.js';
 import { SCORECARD_MIGRATIONS } from './migrations/scorecard.js';
 import { PLATFORM_MIGRATIONS } from './migrations/platforms.js';
 import { AUDIT_MIGRATIONS } from './migrations/audit.js';
+import { DUPLICATE_MIGRATIONS } from './migrations/duplicates.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -108,6 +109,7 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...PROPOSAL_MIGRATIONS,
   ...AUDIT_MIGRATIONS,
   ...RUNTIME_MIGRATIONS,
+  ...DUPLICATE_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [

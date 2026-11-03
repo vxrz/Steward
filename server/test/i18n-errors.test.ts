@@ -24,6 +24,7 @@ const CODED_AREAS = [
   'gatus/',
   'mcp/',
   'monitors/',
+  'duplicate/',
   'routes/reports.ts',
   'routes/report-schedules.ts',
 ];

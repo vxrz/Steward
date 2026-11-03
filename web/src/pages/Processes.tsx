@@ -52,6 +52,7 @@ import { useMe } from '../auth';
 import { confirmDanger } from '../components/confirm';
 import { ListPage } from '../components/page/ListPage';
 import { dashboardKeys, processKeys } from '../queryKeys';
+import { DuplicateMenuItem, useDuplicate } from '../components/duplicate/DuplicateButton';
 
 export function ProcessesPage() {
   const { t } = useTranslation(['processes', 'common']);
@@ -72,6 +73,7 @@ export function ProcessesPage() {
     if (galleryKind !== null || galleryBundle) templates.open();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per link
   }, [galleryKind, galleryBundle]);
+  const duplicate = useDuplicate();
 
   const createBlank = async () => {
     try {
@@ -256,6 +258,7 @@ export function ProcessesPage() {
                     <Menu.Item leftSection={<IconFileExport size={14} />} component="a" href={apiUrl(`/processes/${p.id}/export`)}>
                       {t('card.exportYaml')}
                     </Menu.Item>
+                    {caps.createProcesses && <DuplicateMenuItem onClick={() => duplicate.open('process', p.id)} />}
                     {p.permissions.includes('manage') && (
                       <Menu.Item
                         color="red"
@@ -306,6 +309,7 @@ export function ProcessesPage() {
       <TemplateGallery opened={templatesOpen} onClose={templates.close} initialKind={galleryKind || null} initialBundle={galleryBundle} />
       <ImportModal opened={importOpen} onClose={importModal.close} />
       <BundleImportModal opened={bundleOpen} onClose={bundleModal.close} />
+      {duplicate.dialog}
     </ListPage>
   );
 }

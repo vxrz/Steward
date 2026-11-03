@@ -82,7 +82,7 @@ _Monitors → New monitor_ (or _Edit_) shows the checks as cards on a canvas.
 - **Adding checks.** A check type from the palette adds a card. With a card selected, the new one is placed below it and depends on it (a soft link) – remove the link when it does not. Otherwise drag from the lower edge of a card to the card that depends on it.
 - **Cards and ids.** Every card keeps its identity in the editor; the check id is just a field. A duplicate or invalid id is shown on the field, and both cards stay.
 - **Problems.** The editor checks the definition as you type, with the same rules as the server, and shows a problem on the field you changed. Saving lists all problems (e.g. _Check "Power Meter – Insights Hub" (pm-ih) – Variables: Required_); an entry selects the card and puts the cursor in the field. Required fields are marked for the check type and mode. Errors from the server name the card too, never `checks.1`.
-- **Duplicate, Tidy up, Undo/Redo, Delete.** _Duplicate_ copies the selected card (id with `-copy`, without its gateway key). _Tidy up_ arranges the cards by their dependencies. Undo and redo with the buttons or Ctrl/⌘+Z and Ctrl/⌘+Shift+Z; Delete removes the selected card or link (outside text fields).
+- **Duplicate, Tidy up, Undo/Redo, Delete.** _Duplicate_ copies the selected card (id with `-copy`, without its gateway key). **Several cards at once:** shift-click them (or drag a box with Shift held) and choose _Duplicate selection_ – the copies keep the links between the selected cards and are placed next to the graph. _Tidy up_ arranges the cards by their dependencies. Undo and redo with the buttons or Ctrl/⌘+Z and Ctrl/⌘+Shift+Z; Delete removes the selected card or link (outside text fields).
 - **Check now before saving.** _Check now_ on a card runs that check as it is in the editor (`POST /api/monitors/check-preview`) and shows the result on the card's form. Nothing is stored. It runs with the rights of the monitor's owner (a new monitor: yours), the outbound policy applies, it is rate-limited and audited as `monitor.check_previewed`. Heartbeat and sub-monitor checks have no call to try.
 
 ## Check types
@@ -323,6 +323,8 @@ A template is a monitor definition with parameters. `{{ params.<name> }}` placeh
 - _Monitors → Templates → New monitors_: one instance with a form, or **many from CSV** (header line = parameter names, optional `name` and `key` columns; `,` or `;`). All rows are validated first; a bad row creates nothing.
 - An instance remembers its template, the template version and its parameters. When the template changes, the instance shows _template updated_; **Re-sync** renders the current version again (heartbeat endpoints and secrets stay).
 - `examples/monitors/30-powermeter-machine-template.yaml` is a complete template for a machine with a PowerMeter.
+
+**Save as template** (in the editor of a saved monitor): turns the monitor into a new template. Choose the fields that become parameters – host names, URLs, asset ids and keys are chosen from the start – and their names; the same name for several fields makes one parameter. Each parameter's default is the value it had. The monitor stays as it is; the template records that it was copied from it (`monitor.duplicated` with `asTemplate`).
 
 A process can create instances too: `POST /api/monitors/<template id>/instances` with `{ "rows": [ { "params": { … }, "name": "…" } ] }` (or `{ "csv": "…" }`) and an API token with scope _full_.
 

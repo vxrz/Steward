@@ -29,6 +29,7 @@ import { auditRoutes } from './audit.js';
 import { dashboardHomeRoutes } from './dashboard-home.js';
 import { demoSetupRoutes } from './demo-setup.js';
 import { onboardingRoutes } from '../onboarding/routes.js';
+import { duplicateRoutes } from '../duplicate/routes.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await authRoutes(app);
@@ -61,6 +62,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await complianceRoutes(app);
   await migrationRoutes(app);
   await onboardingRoutes(app);
+  await duplicateRoutes(app);
 
   await demoSetupRoutes(app);
 }

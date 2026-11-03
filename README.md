@@ -301,7 +301,7 @@ Where Steward is heading, and what it deliberately does not do: [`docs/ROADMAP.m
 
 ## Git sync (optional)
 
-Keep processes, dashboards, monitors and record types in a Git repository (Forgejo/Gitea, GitHub or GitLab) and bring changes into Steward after a review. An administrator adds a source under _Settings → Git sync_; Steward fetches it by hand, on a schedule or after a push webhook. Steward only reads the repository, validates every file and stages it in **Updates from Git**, where a designer reviews the diff and accepts it as a new version or rejects it. Local edits show as conflicts instead of being overwritten. Setup, token scopes and webhooks: [docs/GIT-SYNC.md](docs/GIT-SYNC.md).
+Keep processes, dashboards, monitors and document types in a Git repository (Forgejo/Gitea, GitHub or GitLab) and bring changes into Steward after a review. An administrator adds a source under _Settings → Git sync_; Steward fetches it by hand, on a schedule or after a push webhook. Steward only reads the repository, validates every file and stages it in **Updates from Git**, where a designer reviews the diff and accepts it as a new version or rejects it. Local edits show as conflicts instead of being overwritten. Setup, token scopes and webhooks: [docs/GIT-SYNC.md](docs/GIT-SYNC.md).
 
 ## PDF reports
 
@@ -329,9 +329,11 @@ API: `POST /api/runs/:id/reports` `{ lang, comment, classification, timeZone }`,
 
 Work people do outside Steward can be documented step by step: **manual steps** have Markdown instructions, a checklist, fields (text, number, date and time, link, ticket reference) and evidence files, and a second person can verify them before the run continues (maker–checker). Work done earlier can be entered after the fact with its real time. _Processes → New manual procedure_ starts one; the run protocol PDF and the audit log record everything. See [docs/MANUAL-STEPS.md](docs/MANUAL-STEPS.md).
 
-## Records and services
+<a id="records-and-services"></a>
 
-_Records_ holds the team's **change requests** and **decision records** (ADR, DR, SDR), numbered per type and year (`CR-2026-0001`):
+## Documents and services
+
+_Documents_ holds the team's **change requests** and **decision records** (ADR, DR, SDR), numbered per type and year (`CR-2026-0001`):
 
 - a workflow per type (change: draft → submitted → approved/rejected → implemented → closed; decision: draft → proposed → accepted/rejected → superseded/deprecated), with four-eyes approval by approvers;
 - versions with a diff; leaving the draft status freezes the content and records its SHA-256 – changes need an audited new revision;
@@ -350,13 +352,13 @@ The _Scorecard_ shows per service whether it is in good shape – duties met, av
 
 _Tickets_ documents tickets that live elsewhere – incidents users reported through ServiceNow and cases opened with vendors: source, number and link, status, who looks after it on our side, and the affected services, platforms, credentials and records. No workflow, just tracking with a history, optional "not checked for N days" reminders, a report section and a badge of open vendor tickets in the service catalogue. See [docs/TICKETS.md](docs/TICKETS.md).
 
-Everyone can turn on an optional **daily summary** on their profile page (failed runs, decisions waiting, monitor changes, credentials due, their open tickets, records, reports – only what they may see), in the app or by e-mail. See [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#daily-summary).
+Everyone can turn on an optional **daily summary** on their profile page (failed runs, decisions waiting, monitor changes, credentials due, their open tickets, documents, reports – only what they may see), in the app or by e-mail. See [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#daily-summary).
 
 ## Compliance: access governance evidence
 
 For ISO/IEC 27001, IEC 62443-2-1 and NIS2 audits, _Compliance_ collects the evidence of how access is managed – Steward provides evidence, it does not make you compliant:
 
-- **Access changes**: documented grants, revocations and changes of access rights (a record type with four-eyes verification), also created automatically by runs of processes that change access;
+- **Access changes**: documented grants, revocations and changes of access rights (a document type with four-eyes verification), also created automatically by runs of processes that change access;
 - **Access reconciliation**: scheduled snapshots of who has which access, compared with the documented changes; changes made outside Steward show up as findings and are documented after the fact with one click;
 - **Controls**: catalogues (identifiers and short topic names only) with the mapped Steward items and the evidence coverage per period, gaps highlighted;
 - **Evidence packs**: signed ZIP exports for auditors, checked offline with `npm run evidence:verify -- pack.zip --public-key <the installation's key>`.

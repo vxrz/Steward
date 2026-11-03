@@ -357,7 +357,12 @@
     "recheckState": {
       "gone": "Removed",
       "present": "Still there"
-    }
+    },
+    "matchedBy": "Found by {{aliases}}",
+    "lastLogin_one": "Last login {{date}} ({{count}} day ago)",
+    "lastLogin_other": "Last login {{date}} ({{count}} days ago)",
+    "neverSignedIn": "Never signed in",
+    "passwordWithoutMfa": "Password without MFA"
   },
   "packs": {
     "title": "Evidence packs",

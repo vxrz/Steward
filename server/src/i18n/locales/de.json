@@ -401,5 +401,9 @@
   },
   "review": {
     "timelineHeading": "Zeitlicher Ablauf"
+  },
+  "duplicate": {
+    "copyName": "{{name}} (Kopie)",
+    "copyNameN": "{{name}} (Kopie {{n}})"
   }
 }
