@@ -133,7 +133,8 @@ function recordVerification(mode: AuditVerifyMode, r: VerifyOutcome, by: string)
     mode,
     ok: r.ok,
     checked: r.checked,
-    fromSeq: r.ok && r.head ? r.head.seq - r.checked + 1 : (r.fromSeq ?? null),
+    // the first entry checked: after the checkpoint (incremental), after the deleted entries, or #1
+    fromSeq: (r.fromSeq ?? r.deletedThroughSeq ?? 0) + 1,
     toSeq: r.head?.seq ?? null,
     message: r.message,
     ...(r.firstBadSeq ? { firstBadSeq: r.firstBadSeq } : {}),
