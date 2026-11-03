@@ -589,9 +589,15 @@ async function collectSnowflake(c: CheckRow): Promise<{ subjects: AccessSubject[
     subjects = await snowflakeAccess(platform, getSecrets(c.platform_id), String(c.dataset_key ?? ''));
   } catch (e) {
     if (e instanceof HttpError && e.statusCode < 500) throw e;
-    throw new HttpError(502, `Snowflake could not be read: ${(e as Error).message}`.slice(0, 500), 'ACCESS_CHECK_SNOWFLAKE_READ', {
-      detail: (e as Error).message.slice(0, 300),
-    });
+    const { snowflakeJwtHint } = await import('../platforms/jwt.js');
+    throw new HttpError(
+      502,
+      `Snowflake could not be read: ${snowflakeJwtHint((e as Error).message, platform.config.variables)}`.slice(0, 900),
+      'ACCESS_CHECK_SNOWFLAKE_READ',
+      {
+        detail: (e as Error).message.slice(0, 300),
+      },
+    );
   }
   if (subjects.length > LIMITS.subjects)
     throw new HttpError(400, `The scope has more than ${LIMITS.subjects} members`, 'SNAPSHOT_TOO_LARGE', { max: LIMITS.subjects });

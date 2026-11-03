@@ -10,6 +10,7 @@ import * as recordings from '../platforms/recordings.js';
 import { PATH_PREFIX_MAX } from '../platforms/pathPrefix.js';
 import { buildUrl, platformRequest, renewToken, secretValues, tokenInfo, usesCachedToken } from '../platforms/http.js';
 import { judgeHttpTest } from '../platforms/connectionTest.js';
+import { snowflakeJwtHint } from '../platforms/jwt.js';
 import { shownHeaders, where } from '../platforms/answers.js';
 import { platformAccess } from '../auth/step-up-rules.js';
 import { requireCapability } from '../auth/permissions.js';
@@ -151,7 +152,9 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
         // AWS: every part Steward reads, with what is missing (the test passes when STS works)
         return { ok: true, status: 200, durationMs: Date.now() - t0, message, body: null, token: null, ...(checks ? { checks: redact(checks, secrets) } : {}) };
       } catch (e) {
-        const message = redact((e as Error).message, secrets) as string;
+        let message = redact((e as Error).message, secrets) as string;
+        // Snowflake's "390144 JWT token is invalid" says nothing about why: the usual causes
+        if (p.kind === 'snowflake') message = snowflakeJwtHint(message, p.config.variables);
         audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}` });
         return { ok: false, status: 0, durationMs: Date.now() - t0, message };
       }

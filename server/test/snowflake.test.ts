@@ -64,6 +64,28 @@ describe('Snowflake platform', () => {
     const p = await s.api('POST', '/platforms', { ...(await s.api('GET', `/platforms/${sf}`)), name: 'Snowflake other key', secrets: { privateKey: other } });
     const t = await s.api('POST', `/platforms/${p.id}/test`, {});
     expect(t).toMatchObject({ ok: false, message: expect.stringMatching(/HTTP 401.*JWT token is invalid/) });
+    // 390144 alone says nothing: the hint names the usual causes
+    expect(t.message).toContain("that user's RSA_PUBLIC_KEY (DESC USER) belongs to the platform's private key");
+  });
+
+  it('a 390144 with a region in the account identifier says what the JWT needs', async () => {
+    const base = await s.api('GET', `/platforms/${sf}`);
+    await s.api('PUT', `/platforms/${sf}`, { config: { ...base.config, variables: { ...base.config.variables, account: 'xy12345.eu-central-1' } } });
+    let t;
+    try {
+      t = await s.api('POST', `/platforms/${sf}/test`, {});
+    } finally {
+      await s.api('PUT', `/platforms/${sf}`, { config: base.config });
+    }
+    expect(t.ok).toBe(false);
+    expect(t.message).toContain(
+      'The variable account is "xy12345.eu-central-1": in the JWT it must be the account locator without region and cloud ("XY12345")',
+    );
+    const { snowflakeJwtHint } = await import('../src/platforms/jwt.js');
+    expect(snowflakeJwtHint('HTTP 401: JWT token is invalid. (390144)', { account: 'myorg.myaccount' })).toContain(
+      'ORGNAME-ACCOUNTNAME with a hyphen ("MYORG-MYACCOUNT")',
+    );
+    expect(snowflakeJwtHint('HTTP 500: something else', { account: 'x.y' })).toBe('HTTP 500: something else');
   });
 });
 

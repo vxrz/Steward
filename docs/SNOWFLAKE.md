@@ -40,6 +40,8 @@ The ACCOUNT_USAGE views cover the whole account, also dropped objects and histor
 
 _Test connection_ shows account, user, role and warehouse, and whether the ACCOUNT_USAGE views can be read.
 
+**`401 JWT token is invalid (390144)`** – Snowflake gives no reason; the test and access reviews add the usual ones. The variable `account` goes into the JWT's `iss` and `sub` (`<ACCOUNT>.<USER>[.SHA256:<fingerprint>]`) and must be the account identifier as Snowflake checks it there: the **account locator without region and cloud** (`XY12345`, not `xy12345.eu-central-1` or `xy12345.eu-central-1.aws` from the old host name) or **`ORGNAME-ACCOUNTNAME` with a hyphen** (not `orgname.accountname`) – not the host name. Then check that `user` is the user's login name and that `DESC USER` shows the `RSA_PUBLIC_KEY_FP` of the platform's key (`SHA256:…`).
+
 The queries are small, but they run on the warehouse: an XSMALL warehouse with `AUTO_SUSPEND = 60` costs a few credits a month for Steward's reads.
 
 ## Databases of an application
