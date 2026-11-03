@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, type ComponentType } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
 import { Link, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AppShell, Badge, Burger, Button, Center, Group, Loader, Text, ActionIcon, Tooltip, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure, useLocalStorage, useMediaQuery } from '@mantine/hooks';
@@ -24,6 +24,7 @@ import { UpdateNotice } from './components/UpdateNotice';
 import { currentLanguage, setLanguage } from './i18n';
 import { useAppName } from './theme';
 import { withBase } from './basePath';
+import { ShellLayoutContext } from './layout';
 
 // Pages are loaded on demand to keep the first download small.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -188,145 +189,150 @@ function Shell({ status }: { status: AuthStatus }) {
   // The burger drawer on phones always shows the full sidebar.
   const isDesktop = useMediaQuery('(min-width: 48em)') ?? false;
   const railActive = rail && isDesktop;
+  // full-screen pages (the process editor) collapse the sidebar on wide screens
+  const [wide, setWide] = useState(false);
+  const layout = useMemo(() => ({ wide, setWide }), [wide]);
 
   return (
-    <AppShell header={{ height: 52 }} navbar={{ width: railActive ? 64 : 232, breakpoint: 'sm', collapsed: { mobile: !opened } }} padding="md">
-      <SkipLink />
-      <AppShell.Header>
-        <Group h="100%" px={{ base: 'xs', xs: 'md' }} justify="space-between" wrap="nowrap" gap="xs">
-          <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label={t('toggleNavigation')} />
-            <a
-              href={withBase('/')}
-              onClick={(e) => (e.preventDefault(), navigate('/'))}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: 'inherit', minWidth: 0 }}
-            >
-              <AppLogo size={26} />
-              <Text fw={700} truncate>
-                {appName}
-              </Text>
-            </a>
-            {status.demo && (
-              <Badge color="yellow" variant="light" visibleFrom="xs" style={{ flexShrink: 0 }}>
-                {t('demo')}
-              </Badge>
-            )}
-          </Group>
-          <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
-            <CommandPaletteButton />
-            <HelpMenu />
-            <NotificationCenter />
-            <Tooltip label={colorScheme === 'dark' ? t('lightMode') : t('darkMode')}>
-              <ActionIcon
-                variant="subtle"
-                onClick={() => setColorScheme(colorScheme === 'dark' ? 'light' : 'dark')}
-                aria-label={t('toggleColorScheme')}
-                visibleFrom="xs"
+    <ShellLayoutContext.Provider value={layout}>
+      <AppShell header={{ height: 52 }} navbar={{ width: railActive ? 64 : 232, breakpoint: 'sm', collapsed: { mobile: !opened, desktop: wide } }} padding="md">
+        <SkipLink />
+        <AppShell.Header>
+          <Group h="100%" px={{ base: 'xs', xs: 'md' }} justify="space-between" wrap="nowrap" gap="xs">
+            <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+              <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label={t('toggleNavigation')} />
+              <a
+                href={withBase('/')}
+                onClick={(e) => (e.preventDefault(), navigate('/'))}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: 'inherit', minWidth: 0 }}
               >
-                {colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
-              </ActionIcon>
-            </Tooltip>
-            <UserMenu />
+                <AppLogo size={26} />
+                <Text fw={700} truncate>
+                  {appName}
+                </Text>
+              </a>
+              {status.demo && (
+                <Badge color="yellow" variant="light" visibleFrom="xs" style={{ flexShrink: 0 }}>
+                  {t('demo')}
+                </Badge>
+              )}
+            </Group>
+            <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
+              <CommandPaletteButton />
+              <HelpMenu />
+              <NotificationCenter />
+              <Tooltip label={colorScheme === 'dark' ? t('lightMode') : t('darkMode')}>
+                <ActionIcon
+                  variant="subtle"
+                  onClick={() => setColorScheme(colorScheme === 'dark' ? 'light' : 'dark')}
+                  aria-label={t('toggleColorScheme')}
+                  visibleFrom="xs"
+                >
+                  {colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
+                </ActionIcon>
+              </Tooltip>
+              <UserMenu />
+            </Group>
           </Group>
-        </Group>
-        <CommandPalette pages={navItems} />
-      </AppShell.Header>
-      <AppShell.Navbar p="xs" aria-label={t('mainNavigation')}>
-        <AppNav
-          caps={caps}
-          pathname={location.pathname}
-          openTasks={openTasks}
-          rail={railActive}
-          onToggleRail={isDesktop ? () => setRail(!rail) : undefined}
-          onNavigate={close}
-        />
-      </AppShell.Navbar>
-      <AppShell.Main id={MAIN_ID} tabIndex={-1} style={{ display: 'flex', flexDirection: 'column', outline: 'none' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {status.me!.emergency && <EmergencyBanner expiresAt={status.me!.emergency.expiresAt} onSignOut={() => signOut(qc)} />}
-          {caps.manageSettings && <UpdateNotice />}
-          <ErrorBoundary resetKey={location.pathname}>
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
-                <Route path="/" element={<DashboardPage demo={status.demo} />} />
-                <Route path="/dashboards" element={<DashboardsPage />} />
-                <Route path="/dashboards/:id" element={<DashboardViewPage />} />
-                <Route path="/tasks" element={<TasksPage />} />
-                <Route path="/mcp-requests" element={<McpRequestsPage />} />
-                <Route path="/mcp-requests/:id" element={<McpRequestDetailPage />} />
-                <Route path="/runs" element={<RunsPage />} />
-                <Route path="/runs/:id" element={<RunDetailPage />} />
-                <Route path="/processes" element={<ProcessesPage />} />
-                <Route path="/processes/:id" element={<ProcessEditorPage />} />
-                <Route path="/schedules" element={<SchedulesPage />} />
-                <Route path="/triggers" element={<TriggersPage />} />
-                <Route path="/git-updates" element={<GitUpdatesPage />} />
-                <Route path="/git-updates/:id" element={<GitUpdateDetailPage />} />
-                <Route path="/monitors" element={<MonitorsPage />} />
-                <Route path="/monitors/new" element={<MonitorEditorPage />} />
-                <Route path="/monitors/wall" element={<MonitorWallPage />} />
-                <Route path="/monitors/:id" element={<MonitorDetailPage />} />
-                <Route path="/monitors/:id/edit" element={<MonitorEditorPage />} />
-                <Route path="/platforms" element={<PlatformsPage />} />
-                <Route path="/platforms/:id" element={<PlatformDetailPage />} />
-                <Route path="/records" element={<RecordsPage />} />
-                <Route path="/records/types" element={<RecordTypesPage />} />
-                <Route path="/records/link-types" element={<LinkTypesPage />} />
-                <Route path="/records/:id" element={<RecordDetailPage />} />
-                <Route path="/records/:id/edit" element={<RecordEditorPage />} />
-                <Route path="/services" element={<ServicesPage />} />
-                <Route path="/services/:id" element={<ServiceDetailPage />} />
-                <Route path="/applications" element={<ApplicationsPage />} />
-                <Route path="/applications/cia-scale" element={<CiaScalePage />} />
-                <Route path="/applications/:id" element={<ApplicationDetailPage />} />
-                <Route path="/systems" element={<SystemsPage />} />
-                <Route path="/systems/:id" element={<SystemDetailPage />} />
-                <Route path="/maintenance" element={<MaintenancePage />} />
-                <Route path="/status-pages" element={<StatusPagesPage />} />
-                <Route path="/status-pages/:id" element={<StatusPageViewPage />} />
-                <Route path="/duties" element={<DutiesPage />} />
-                <Route path="/duties/:id" element={<DutyDetailPage />} />
-                <Route path="/scorecard" element={<ScorecardPage />} />
-                <Route path="/credentials" element={<CredentialsPage />} />
-                <Route path="/tickets" element={<TicketsPage />} />
-                <Route path="/tickets/:id" element={<TicketDetailPage />} />
-                <Route path="/compliance/controls" element={<ComplianceControlsPage />} />
-                <Route path="/compliance/access-changes" element={<AccessChangesPage />} />
-                <Route path="/compliance/reconciliation" element={<AccessReconciliationPage />} />
-                <Route path="/compliance/person-reviews" element={<PersonReviewsPage />} />
-                <Route path="/compliance/person-reviews/:id" element={<PersonReviewDetailPage />} />
-                <Route path="/compliance/evidence-packs" element={<EvidencePacksPage />} />
-                <Route path="/reports" element={<ReportsPage />} />
-                {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
-                {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
-                <Route path="/settings" element={<SettingsIndex />} />
-                <Route path="/settings/git-sync" element={<GitSyncPage />} />
-                <Route path="/settings/migration" element={<MigrationPage />} />
-                <Route path="/settings/backups" element={<BackupsPage />} />
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/oauth/authorize" element={<OAuthAuthorizePage />} />
-                <Route path="/about" element={<AboutPage />} />
-                {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}
-                <Route path="/settings/:area" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
-                <Route
-                  path="*"
-                  element={
-                    <EmptyState
-                      icon={IconMapPinOff}
-                      title={t('pageNotFound')}
-                      action={
-                        <Button component={Link} to="/">
-                          {t('backToDashboard')}
-                        </Button>
-                      }
-                    />
-                  }
-                />
-              </Routes>
-            </Suspense>
-          </ErrorBoundary>
-        </div>
-      </AppShell.Main>
-    </AppShell>
+          <CommandPalette pages={navItems} />
+        </AppShell.Header>
+        <AppShell.Navbar p="xs" aria-label={t('mainNavigation')}>
+          <AppNav
+            caps={caps}
+            pathname={location.pathname}
+            openTasks={openTasks}
+            rail={railActive}
+            onToggleRail={isDesktop ? () => setRail(!rail) : undefined}
+            onNavigate={close}
+          />
+        </AppShell.Navbar>
+        <AppShell.Main id={MAIN_ID} tabIndex={-1} style={{ display: 'flex', flexDirection: 'column', outline: 'none' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {status.me!.emergency && <EmergencyBanner expiresAt={status.me!.emergency.expiresAt} onSignOut={() => signOut(qc)} />}
+            {caps.manageSettings && <UpdateNotice />}
+            <ErrorBoundary resetKey={location.pathname}>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  <Route path="/" element={<DashboardPage demo={status.demo} />} />
+                  <Route path="/dashboards" element={<DashboardsPage />} />
+                  <Route path="/dashboards/:id" element={<DashboardViewPage />} />
+                  <Route path="/tasks" element={<TasksPage />} />
+                  <Route path="/mcp-requests" element={<McpRequestsPage />} />
+                  <Route path="/mcp-requests/:id" element={<McpRequestDetailPage />} />
+                  <Route path="/runs" element={<RunsPage />} />
+                  <Route path="/runs/:id" element={<RunDetailPage />} />
+                  <Route path="/processes" element={<ProcessesPage />} />
+                  <Route path="/processes/:id" element={<ProcessEditorPage />} />
+                  <Route path="/schedules" element={<SchedulesPage />} />
+                  <Route path="/triggers" element={<TriggersPage />} />
+                  <Route path="/git-updates" element={<GitUpdatesPage />} />
+                  <Route path="/git-updates/:id" element={<GitUpdateDetailPage />} />
+                  <Route path="/monitors" element={<MonitorsPage />} />
+                  <Route path="/monitors/new" element={<MonitorEditorPage />} />
+                  <Route path="/monitors/wall" element={<MonitorWallPage />} />
+                  <Route path="/monitors/:id" element={<MonitorDetailPage />} />
+                  <Route path="/monitors/:id/edit" element={<MonitorEditorPage />} />
+                  <Route path="/platforms" element={<PlatformsPage />} />
+                  <Route path="/platforms/:id" element={<PlatformDetailPage />} />
+                  <Route path="/records" element={<RecordsPage />} />
+                  <Route path="/records/types" element={<RecordTypesPage />} />
+                  <Route path="/records/link-types" element={<LinkTypesPage />} />
+                  <Route path="/records/:id" element={<RecordDetailPage />} />
+                  <Route path="/records/:id/edit" element={<RecordEditorPage />} />
+                  <Route path="/services" element={<ServicesPage />} />
+                  <Route path="/services/:id" element={<ServiceDetailPage />} />
+                  <Route path="/applications" element={<ApplicationsPage />} />
+                  <Route path="/applications/cia-scale" element={<CiaScalePage />} />
+                  <Route path="/applications/:id" element={<ApplicationDetailPage />} />
+                  <Route path="/systems" element={<SystemsPage />} />
+                  <Route path="/systems/:id" element={<SystemDetailPage />} />
+                  <Route path="/maintenance" element={<MaintenancePage />} />
+                  <Route path="/status-pages" element={<StatusPagesPage />} />
+                  <Route path="/status-pages/:id" element={<StatusPageViewPage />} />
+                  <Route path="/duties" element={<DutiesPage />} />
+                  <Route path="/duties/:id" element={<DutyDetailPage />} />
+                  <Route path="/scorecard" element={<ScorecardPage />} />
+                  <Route path="/credentials" element={<CredentialsPage />} />
+                  <Route path="/tickets" element={<TicketsPage />} />
+                  <Route path="/tickets/:id" element={<TicketDetailPage />} />
+                  <Route path="/compliance/controls" element={<ComplianceControlsPage />} />
+                  <Route path="/compliance/access-changes" element={<AccessChangesPage />} />
+                  <Route path="/compliance/reconciliation" element={<AccessReconciliationPage />} />
+                  <Route path="/compliance/person-reviews" element={<PersonReviewsPage />} />
+                  <Route path="/compliance/person-reviews/:id" element={<PersonReviewDetailPage />} />
+                  <Route path="/compliance/evidence-packs" element={<EvidencePacksPage />} />
+                  <Route path="/reports" element={<ReportsPage />} />
+                  {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
+                  {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
+                  <Route path="/settings" element={<SettingsIndex />} />
+                  <Route path="/settings/git-sync" element={<GitSyncPage />} />
+                  <Route path="/settings/migration" element={<MigrationPage />} />
+                  <Route path="/settings/backups" element={<BackupsPage />} />
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/oauth/authorize" element={<OAuthAuthorizePage />} />
+                  <Route path="/about" element={<AboutPage />} />
+                  {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}
+                  <Route path="/settings/:area" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
+                  <Route
+                    path="*"
+                    element={
+                      <EmptyState
+                        icon={IconMapPinOff}
+                        title={t('pageNotFound')}
+                        action={
+                          <Button component={Link} to="/">
+                            {t('backToDashboard')}
+                          </Button>
+                        }
+                      />
+                    }
+                  />
+                </Routes>
+              </Suspense>
+            </ErrorBoundary>
+          </div>
+        </AppShell.Main>
+      </AppShell>
+    </ShellLayoutContext.Provider>
   );
 }

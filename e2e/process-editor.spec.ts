@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { test, expect } from './support/fixtures';
-import { authFile } from './support/env';
+import { PROCESS, authFile } from './support/env';
 import { json, startRunFromDialog, uniq, waitForRun } from './support/helpers';
 
 test.use({ storageState: authFile('dana') });
@@ -54,6 +54,11 @@ test.describe('process editor (designer)', () => {
     // the redone node is not selected any more – select it on the canvas
     const logNode = nodes.filter({ hasText: 'Log message' }).last();
     await logNode.click();
+    // the properties: the basic ones first, the node id with the other advanced settings folded
+    const advanced = page.getByRole('button', { name: /^Advanced/ });
+    await expect(advanced).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByRole('textbox', { name: 'Node id' })).toBeHidden();
+    await advanced.click();
     const nodeId = await page.getByRole('textbox', { name: 'Node id' }).inputValue();
     expect(nodeId).toBeTruthy();
 
@@ -111,5 +116,38 @@ test.describe('process editor (designer)', () => {
     await expect(page).toHaveURL(/\/processes\/[^/]+$/);
     await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText(name);
     await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText('v1');
+  });
+});
+
+test.describe('process editor shell', () => {
+  test('opens at a readable zoom, goes full screen without the sidebar, names every step in the palette', async ({ page }) => {
+    await page.goto(`/processes/${PROCESS.accessReview1}`);
+    const viewport = page.locator('.react-flow__viewport');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible();
+    // step names stay readable (zoom ≥ 0.8) even when the whole flow does not fit
+    await expect.poll(async () => Number(/scale\(([\d.]+)\)/.exec((await viewport.getAttribute('style')) ?? '')?.[1] ?? 0)).toBeGreaterThanOrEqual(0.8);
+    // palette entries are not cut off
+    const palette = page.getByRole('button', { name: 'User task / approval' });
+    await expect(palette).toBeVisible();
+    expect(await palette.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+
+    const nav = page.getByRole('navigation', { name: 'Main navigation' });
+    await expect(nav).toBeInViewport();
+    await page.getByRole('button', { name: 'Full screen' }).click();
+    await expect(nav).not.toBeInViewport();
+    await page.getByRole('button', { name: 'Exit full screen' }).click();
+    await expect(nav).toBeInViewport();
+    // leaving the editor in full screen gives the sidebar back
+    await page.getByRole('button', { name: 'Full screen' }).click();
+    await page.getByTestId('breadcrumb').getByRole('link', { name: 'Processes' }).click();
+    await expect(nav).toBeInViewport();
+  });
+
+  test('on a phone the flow is read-only @mobile', async ({ page }) => {
+    await page.goto(`/processes/${PROCESS.accessReview1}`);
+    await expect(page.getByTestId('editor-phone-note')).toContainText('Open on a larger screen to edit');
+    await expect(page.locator('.react-flow__node').first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add node' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(0);
   });
 });
