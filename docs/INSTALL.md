@@ -68,6 +68,8 @@ This works for `localhost` and for HTTPS addresses. The app shell is cached, but
 
 See _Quick start_ and _Everyday use_ in the [README](../README.md). `npm run desktop` starts the desktop launcher from source, i.e. per-user data folder and app window.
 
+`npm start` runs the server from its TypeScript sources (with `tsx`, a development dependency). `npm run build` also compiles the server to plain JavaScript in `server/dist/` (`npm run build:server`, esbuild); `npm run start:dist` runs that – what the container image runs (`node --enable-source-maps server/dist/index.js`), without a TypeScript loader. The command-line tools are compiled next to it: `node server/dist/admin.js`, `migrate.js`, `backup.js`, `db-copy.js`, `evidence-verify.js`, `audit-verify-export.js`, `mcp.js` and `healthcheck.js`.
+
 ## 4. Container
 
 Every release publishes a signed image to the GitHub Container Registry, for linux/amd64 and linux/arm64:
@@ -103,6 +105,7 @@ docker build --build-arg WITH_BROWSER=1 -t steward .   # with Chromium for brows
 Images are published from 0.2.0 on. For older versions, build the image from the checkout.
 
 - Data lives in the `sm-data` volume (`/data`). Back it up.
+- The image runs the compiled server (`node server/dist/index.js`); the command-line tools are `node server/dist/<tool>.js` (`admin`, `migrate`, `backup`, `db-copy`, `evidence-verify`, `audit-verify-export`). The image has no TypeScript sources and no `tsx` any more – from 0.4.0 on, `node --import tsx server/src/cli/….ts` no longer works in it.
 - The compose file publishes the port on `127.0.0.1` only. To serve colleagues:
   - put it behind a reverse proxy with TLS, or set `SM_TLS_CERT`/`SM_TLS_KEY`;
   - set `SM_ALLOWED_HOSTS` to the DNS name and `SM_PUBLIC_URL` to the external URL;
@@ -182,7 +185,7 @@ npm run db:copy -- --from sqlite:./data/service-manager.db --to postgres://stewa
 - Both databases are first brought to the current schema version.
 - Rows are copied verbatim, in foreign-key order and in batches, in one transaction on the target, and the row counts are checked before the commit. So the tamper-evident audit chain still verifies (Admin → Audit → Verify).
 - Afterwards, start the app with `SM_DATABASE_URL` and the same data directory.
-- In a container: `docker compose -f docker-compose.postgres.yml run --rm steward node --import tsx server/src/cli/db-copy.ts --from sqlite:/data/service-manager.db`. The target then defaults to `SM_DATABASE_URL`.
+- In a container: `docker compose -f docker-compose.postgres.yml run --rm steward node server/dist/db-copy.js --from sqlite:/data/service-manager.db`. The target then defaults to `SM_DATABASE_URL`.
 
 **Things to know.**
 
@@ -272,7 +275,7 @@ steward admin reset-password alice --activate  # also reactivates a deactivated 
 npm run admin -- reset-password admin          # from the source tree
 ```
 
-In the container: `docker compose stop steward && docker compose run --rm steward node --import tsx server/src/cli/admin.ts reset-password admin`, then start it again.
+In the container: `docker compose stop steward && docker compose run --rm steward node server/dist/admin.js reset-password admin`, then start it again.
 
 The passphrase comes from `SM_MASTER_PASSPHRASE_FILE`/`SM_MASTER_PASSPHRASE`, `--passphrase-stdin` or a prompt. Run `steward admin --help` for all options; `--json` gives machine-readable output.
 
@@ -307,7 +310,7 @@ Step by step:
 
 1. **Desktop executable.** Open a terminal on the computer where Steward runs and run `steward admin emergency-access <your user name>` (Windows: `steward.exe admin …`; add `--data-dir` if you use your own data folder). Enter the master passphrase. Open the printed link.
 2. **Node.js.** In the project folder, as the account that runs Steward: `npm run admin -- emergency-access <your user name>`. Use the same `SM_DATA_DIR`, `SM_DATABASE_URL` and `SM_PUBLIC_URL` as the service.
-3. **Container.** While it runs: `docker compose exec steward node --import tsx server/src/cli/admin.ts emergency-access alice` (with `SM_MASTER_PASSPHRASE_FILE` set in the compose file the command reads the passphrase from the secret, otherwise it asks for it). If it does not run: `docker compose run --rm steward node --import tsx server/src/cli/admin.ts emergency-access alice`, then `docker compose up -d`.
+3. **Container.** While it runs: `docker compose exec steward node server/dist/admin.js emergency-access alice` (with `SM_MASTER_PASSPHRASE_FILE` set in the compose file the command reads the passphrase from the secret, otherwise it asks for it). If it does not run: `docker compose run --rm steward node server/dist/admin.js emergency-access alice`, then `docker compose up -d`.
 4. Sign in with the link, repair the sign-in (_Users & teams → Single sign-on_: client secret, issuer, mappings), check that a single sign-on administrator gets in again, and **sign out**.
 
 If the provider stays down for longer, switch password sign-in back on from the emergency session (_Settings → Sign-in_) or on the server with Steward stopped:

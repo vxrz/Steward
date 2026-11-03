@@ -107,11 +107,15 @@ let timer: NodeJS.Timeout | null = null;
 const waiting: Job[] = [];
 let seq = 0;
 
-/** Where the worker's code is: the bundled file in the desktop executable, else the TypeScript entry (run with tsx). */
+/**
+ * Where the worker's code is: the bundled file in the desktop executable, the compiled worker next to the server
+ * bundle (server/dist/pdf-worker.js, scripts/build-server.mjs), else the TypeScript entry (run with tsx).
+ */
 function workerSource(): { src: string | URL; eval: boolean } {
   if (sourceOverride) return { src: sourceOverride, eval: false };
   // the desktop executable carries the bundled worker as an asset (scripts/build-exe.mjs)
   if (sea.isSea()) return { src: sea.getAsset('pdf-worker.cjs', 'utf8'), eval: true };
+  if (import.meta.url.endsWith('.js')) return { src: new URL('./pdf-worker.js', import.meta.url), eval: false };
   return { src: new URL('./worker-boot.mjs', import.meta.url), eval: false };
 }
 

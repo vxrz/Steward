@@ -15,8 +15,10 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "build": "npm run build -w web",
+    "build": "npm run build -w web && npm run build:server",
+    "build:server": "node scripts/build-server.mjs",
     "start": "npm run start -w server",
+    "start:dist": "node --enable-source-maps server/dist/index.js",
     "demo": "npm run build && cross-env SM_DEMO=1 npm run start -w server",
     "test": "npm run test -w server",
     "test:coverage": "npm run test:coverage -w server",

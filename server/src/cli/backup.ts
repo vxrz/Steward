@@ -1,7 +1,7 @@
 /**
  * Offline tools for backups (#117) – no server, vault or database needed, only the backup passphrase.
  * `npm run backup -- decrypt <file.smbackup> --out <file.zip>` / `npm run backup -- verify <file.smbackup>`,
- * in the container `node --import tsx server/src/cli/backup.ts …`, in the desktop app `steward backup …`.
+ * in the container `node server/dist/backup.js …`, in the desktop app `steward backup …`.
  */
 import fs from 'node:fs';
 import os from 'node:os';

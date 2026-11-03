@@ -90,8 +90,10 @@ jobs:
           path: server/coverage/
           retention-days: 14
           if-no-files-found: ignore
-      - name: Build web UI
+      - name: Build web UI and server (web/dist, server/dist)
         run: npm run build
+      - name: Smoke test of the compiled server (node server/dist/index.js, health check, PDF worker)
+        run: node scripts/smoke-server.mjs
       - name: Bundle the desktop executable's server (CommonJS)
         run: node scripts/build-exe.mjs --bundle-only
       - name: Dependency audit (production dependencies)
