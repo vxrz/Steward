@@ -26,6 +26,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - **Accessibility (WCAG 2.2 AA)**: every page title is now the page's level-1 heading (it was a level-2 heading, so pages had no `h1`; the size is unchanged), a _Skip to content_ link is the first element reached with the Tab key (visible while focused) and moves the focus to the page content, icon-only buttons are at least 24 × 24 px (small ones 28 px; _Download CSV_, _Undo_/_Redo_ were 22 px) and the sidebar's section headings 28 px high, and a run's result in run lists shows a warning icon next to the red text of failed checks and steps. The axe tests also check for one `h1` per page and the target size of buttons.
+- **First-run setup**: the length rule of the master passphrase (at least 12 characters) is shown under the field and counts down while you type, with an error once you leave the field too short and when the repeated passphrase differs – it used to be a note under the disabled _Set up_ button.
 
 ## [0.3.0] - 2026-11-02
 
