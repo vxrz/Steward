@@ -41,7 +41,7 @@ function savePlatform(key: string, id: string | null) {
   try {
     if (id) localStorage.setItem(key, id);
   } catch {
-    /* ignore */
+    /* storage blocked: the choice is not remembered */
   }
 }
 

@@ -6,6 +6,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+import catchReason from './scripts/eslint/catch-reason.js';
 
 /** V8 flags are fixed at start-up: Node documents changing them at runtime as undefined behaviour (the experimental regexp
  * engine flags set this way crashed Node 26 when a worker thread started). */
@@ -50,6 +51,17 @@ export default defineConfig(
       // V8 flags are fixed at start-up: Node documents changing them at runtime as undefined behaviour
       // (the experimental regexp engine flags set this way crashed Node 26 when a worker thread started)
       'no-restricted-syntax': ['error', ...noV8Flags],
+    },
+  },
+
+  // Errors that are caught and dropped say why (scripts/eslint/catch-reason.js); tests may drop them freely
+  {
+    files: ['server/src/**', 'web/src/**', 'shared/src/**', 'scripts/**'],
+    plugins: { 'catch-reason': catchReason },
+    rules: {
+      'no-empty': ['error', { allowEmptyCatch: false }],
+      'catch-reason/empty-catch': 'error',
+      'catch-reason/noop-catch': 'error',
     },
   },
 

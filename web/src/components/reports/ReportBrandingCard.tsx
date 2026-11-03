@@ -108,7 +108,7 @@ export function ReportBrandingCard() {
         headers: { ...authHeaders(), 'content-type': 'application/json' },
         body: JSON.stringify({ ...draft, lang, timeZone: browserTimeZone() }),
       });
-      if (!res.ok) throw new Error(((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? `HTTP ${res.status}`); // not JSON: the HTTP status is shown
       const url = URL.createObjectURL(await res.blob());
       const a = document.createElement('a');
       a.href = url;

@@ -36,7 +36,7 @@ export function initTelemetry(opts: { exporter?: SpanExporter; simple?: boolean 
 }
 
 export async function shutdownTelemetry(): Promise<void> {
-  await provider?.shutdown().catch(() => undefined);
+  await provider?.shutdown().catch(() => undefined); // shutting down: spans that cannot be sent are lost either way
 }
 
 export const tracer = () => trace.getTracer(BRAND.slug, config.version);

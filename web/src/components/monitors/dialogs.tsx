@@ -295,7 +295,7 @@ function usePlatformRefs(source: { example: string } | { yaml: string } | null) 
           'example' in source
             ? post<{ platforms: MonitorPlatformReference[] }>(`/monitors/examples/${encodeURIComponent(source.example)}/preview`)
             : post<{ platforms: MonitorPlatformReference[] }>('/monitors/import/preview', { yaml: source.yaml });
-        req.then((r) => live && setRefs(r.platforms)).catch(() => undefined);
+        req.then((r) => live && setRefs(r.platforms)).catch(() => undefined); // a preview only: importing reports the problem
       },
       'example' in source ? 0 : 500,
     );

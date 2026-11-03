@@ -44,7 +44,7 @@ export function MonitorWallPage() {
             <ActionIcon
               variant="subtle"
               aria-label={t('wall.fullScreen')}
-              onClick={() => document.documentElement.requestFullscreen?.().catch(() => undefined)}
+              onClick={() => document.documentElement.requestFullscreen?.().catch(() => undefined /* full screen refused: the wall stays as it is */)}
             >
               <IconMaximize size={18} />
             </ActionIcon>

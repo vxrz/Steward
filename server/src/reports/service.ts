@@ -116,13 +116,13 @@ export function requestLang(explicit?: string | null): ReportLang {
 const locks = new Map<string, Promise<unknown>>();
 function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const prev = locks.get(key) ?? Promise.resolve();
-  const next = prev.catch(() => undefined).then(fn);
+  const next = prev.catch(() => undefined).then(fn); // the previous job's failure was reported to its caller
   locks.set(key, next);
   void next
     .finally(() => {
       if (locks.get(key) === next) locks.delete(key);
     })
-    .catch(() => undefined);
+    .catch(() => undefined); // only the bookkeeping: the caller gets the failure from next
   return next;
 }
 

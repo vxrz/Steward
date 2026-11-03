@@ -76,7 +76,8 @@ export function fetchSource(id: string, trigger: 'manual' | 'schedule' | 'webhoo
   }
   const p = doFetch(id, trigger, actor).finally(() => {
     running.delete(id);
-    if (again.delete(id)) void fetchSource(id, 'webhook').catch(() => undefined);
+    if (again.delete(id))
+      void fetchSource(id, 'webhook').catch((e) => logger.warn({ sourceId: id, err: (e as Error).message }, 'git sync after a webhook failed'));
   });
   running.set(id, p);
   return p;

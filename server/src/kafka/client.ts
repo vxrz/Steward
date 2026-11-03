@@ -129,7 +129,7 @@ async function oauthToken(platform: Platform, secrets: Record<string, string>): 
       ...(platform.config.variables?.scope ? { scope: String(platform.config.variables.scope) } : {}),
     }),
   });
-  const j = (await res.json().catch(() => null)) as { access_token?: string } | null;
+  const j = (await res.json().catch(() => null)) as { access_token?: string } | null; // not JSON: reported as a missing token below
   if (!res.ok || !j?.access_token)
     throw new HttpError(502, `The identity provider answered HTTP ${res.status} without a token`, 'KAFKA_OAUTH_TOKEN', { status: res.status });
   return j.access_token;
@@ -263,12 +263,12 @@ async function openNative(platform: Platform, secrets: Record<string, string>): 
           if (out.length >= offsets.reduce((n, o) => n + Number(o.end - o.offset), 0) || out.length >= count * offsets.length || Date.now() > deadline) break;
         }
       } finally {
-        await (stream as { close?: () => Promise<void> }).close?.().catch(() => undefined);
+        await (stream as { close?: () => Promise<void> }).close?.().catch(() => undefined); // closing the stream is best effort
       }
       return out.sort((a, b) => Number((b.timestamp ?? 0n) - (a.timestamp ?? 0n))).slice(0, count);
     },
     async close() {
-      await Promise.all([admin.close().catch(() => undefined), ...consumers.map((c) => c.close(true).catch(() => undefined))]);
+      await Promise.all([admin.close().catch(() => undefined), ...consumers.map((c) => c.close(true).catch(() => undefined))]); // closing is best effort: the connections end with the client
     },
   };
 }

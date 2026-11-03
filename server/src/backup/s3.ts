@@ -98,7 +98,7 @@ export class S3Client {
       if (!done.ok || (typeof done.body === 'string' && done.body.includes('<Error>'))) throw s3Error(`completing the upload of ${key}`, done);
       return { parts: etags.length };
     } catch (e) {
-      await this.req('DELETE', `/${key}?uploadId=${id}`).catch(() => undefined);
+      await this.req('DELETE', `/${key}?uploadId=${id}`).catch(() => undefined); // best effort: the bucket expires unfinished uploads; the upload error is rethrown
       throw e;
     }
   }

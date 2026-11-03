@@ -149,7 +149,7 @@ export async function createArchive(out: string, o: { now?: Date } = {}): Promis
     await zip.finish();
     return manifest;
   } catch (e) {
-    await zip.abort().catch(() => undefined);
+    await zip.abort().catch(() => undefined); // cleanup after a failure: the original error is thrown below
     fs.rmSync(snap.file, { force: true });
     throw e;
   }

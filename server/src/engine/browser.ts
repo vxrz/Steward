@@ -105,7 +105,7 @@ export async function openBrowser(opts: {
       } catch {
         ok = false;
       }
-      await (ok ? route.continue() : route.abort('blockedbyclient')).catch(() => undefined);
+      await (ok ? route.continue() : route.abort('blockedbyclient')).catch(() => undefined); // the page or browser closed meanwhile
     });
     context.on('request', (req) => {
       if (!req.redirectedFrom()) return;

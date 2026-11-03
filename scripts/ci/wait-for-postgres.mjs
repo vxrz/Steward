@@ -29,7 +29,7 @@ while (Date.now() < deadline) {
     process.exit(0);
   } catch (e) {
     lastError = e.message;
-    await client.end().catch(() => {});
+    await client.end().catch(() => {}); // the connection failed anyway: the next attempt opens a new one
     await new Promise((r) => setTimeout(r, 1000));
   }
 }

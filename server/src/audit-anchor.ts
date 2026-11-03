@@ -128,7 +128,7 @@ let running: Promise<AuditCheckpoint | null> | null = null;
  * or the chain is broken (then it is logged as an error, never signed).
  */
 export function createCheckpoint(reason: 'interval' | 'verify' | 'export' | 'manual', verified?: VerifyOutcome): Promise<AuditCheckpoint | null> {
-  const next = (running ?? Promise.resolve(null)).catch(() => null).then(() => doCheckpoint(reason, verified));
+  const next = (running ?? Promise.resolve(null)).catch(() => null).then(() => doCheckpoint(reason, verified)); // the previous checkpoint's failure was reported to its caller
   running = next;
   void next.finally(() => {
     if (running === next) running = null;

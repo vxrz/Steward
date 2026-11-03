@@ -72,7 +72,7 @@ const iso = (ms: number) => new Date(ms).toISOString();
 
 function track<T>(p: Promise<T>): Promise<T> {
   tracked.add(p);
-  void p.finally(() => tracked.delete(p)).catch(() => undefined);
+  void p.finally(() => tracked.delete(p)).catch(() => undefined); // only the bookkeeping: the caller handles the promise's failure
   return p;
 }
 

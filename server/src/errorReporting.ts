@@ -288,5 +288,5 @@ export async function flushErrorReporting(timeoutMs = 2000): Promise<boolean> {
 export async function closeErrorReporting(timeoutMs = 2000): Promise<void> {
   const s = sentry;
   sentry = undefined;
-  await s?.close(timeoutMs).catch(() => undefined);
+  await s?.close(timeoutMs).catch(() => undefined); // shutting down: nothing left to report to
 }

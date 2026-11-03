@@ -95,7 +95,7 @@ export function invalidatePlatformCaches(platformId: string): void {
   const d = dispatcherCache.get(platformId);
   if (d) {
     dispatcherCache.delete(platformId);
-    d.dispatcher.close().catch(() => undefined);
+    d.dispatcher.close().catch(() => undefined); // an old dispatcher: closing it is best effort
   }
 }
 
@@ -327,7 +327,7 @@ async function saveBody(res: Awaited<ReturnType<typeof fetch>>, file: string): P
     await new Promise<void>((resolve, reject) => out.end((e?: Error | null) => (e ? reject(e) : resolve())));
   } catch (e) {
     out.destroy();
-    await res.body?.cancel().catch(() => undefined);
+    await res.body?.cancel().catch(() => undefined); // the body is not read: a failed cancel changes nothing
     throw e;
   }
   return { bytes, sha256: hash.digest('hex') };
@@ -346,7 +346,7 @@ async function readCapped(res: Awaited<ReturnType<typeof fetch>>, max: number): 
     if (size + value.length > max) {
       chunks.push(value.subarray(0, max - size));
       truncated = true;
-      await reader.cancel().catch(() => undefined);
+      await reader.cancel().catch(() => undefined); // the rest is not read: a failed cancel changes nothing
       break;
     }
     chunks.push(value);
@@ -362,7 +362,7 @@ async function readBounded(res: Awaited<ReturnType<typeof fetch>>, max: number, 
     Object.assign(new Error(`The response of ${originAndPath(url)} is larger than ${max} bytes`), { retryable: false, code: 'ETOOLARGE', max });
   const declared = Number(res.headers.get('content-length') ?? '');
   if (Number.isFinite(declared) && declared > max) {
-    await res.body?.cancel().catch(() => undefined);
+    await res.body?.cancel().catch(() => undefined); // the body is not read: a failed cancel changes nothing
     throw tooLarge();
   }
   if (!res.body) return '';
@@ -371,7 +371,7 @@ async function readBounded(res: Awaited<ReturnType<typeof fetch>>, max: number, 
   for await (const chunk of res.body) {
     size += (chunk as Uint8Array).length;
     if (size > max) {
-      await res.body.cancel().catch(() => undefined);
+      await res.body.cancel().catch(() => undefined); // the rest is not read: a failed cancel changes nothing
       throw tooLarge();
     }
     chunks.push(Buffer.from(chunk as Uint8Array));

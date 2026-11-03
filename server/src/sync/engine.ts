@@ -30,7 +30,8 @@ export async function tick(): Promise<void> {
 
 export function startGitSync(): void {
   if (timer) return;
-  timer = setInterval(() => void tick().catch(() => undefined), 60_000);
+  // a source's own failure is logged in tick(); this catches what fails around it (e.g. the database)
+  timer = setInterval(() => void tick().catch((err) => logger.warn({ err }, 'git sync tick failed')), 60_000);
   timer.unref();
 }
 

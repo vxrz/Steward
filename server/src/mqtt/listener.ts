@@ -75,7 +75,7 @@ export async function testMqtt(platform: Platform, secrets: Record<string, strin
   const client = await mqtt.connectAsync(u.toString(), { ...options(platform, secrets), reconnectPeriod: 0 }).catch((e: Error) => {
     throw new Error(`the broker could not be reached: ${e.message}`);
   });
-  await client.endAsync(true).catch(() => undefined);
+  await client.endAsync(true).catch(() => undefined); // the test connection worked: closing it is best effort
   return `Connection works – ${u.protocol.replace(':', '')}://${u.host} accepted the connection`;
 }
 
@@ -206,7 +206,7 @@ export async function mqttState(
 /** Tests and shutdown: close every listener (after writing what they saw). */
 export async function closeMqtt(): Promise<void> {
   flushMqtt();
-  await Promise.all([...listeners.values()].map((l) => l.client?.endAsync(true).catch(() => undefined)));
+  await Promise.all([...listeners.values()].map((l) => l.client?.endAsync(true).catch(() => undefined))); // shutting down: closing is best effort
   listeners.clear();
   if (flushTimer) clearInterval(flushTimer);
   flushTimer = null;

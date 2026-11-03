@@ -96,7 +96,7 @@ function readToken(file: string | undefined): string {
       try {
         if (fs.statSync(file).mode & 0o077) err(`warning: ${file} is readable by other users – restrict it (chmod 600)`);
       } catch {
-        /* ignore */
+        /* cannot stat it: reading it below reports the problem */
       }
     }
     token = text.trim();

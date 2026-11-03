@@ -566,7 +566,7 @@ export async function cancelRun(runId: string, actor = currentActor()): Promise<
     await cancelRun(child, actor).catch((e) => logger.warn({ err: e, runId: child }, 'could not cancel sub-process run'));
   }
   if (a) {
-    await a.done.catch(() => undefined);
+    await a.done.catch(() => undefined); // the earlier run reports its own failure
   } else {
     store.setRunStatus(runId, 'cancelled', { finished: true });
     audit({ actor, action: 'run.cancelled', entityType: 'run', entityId: runId, runId, summary: 'Run cancelled' });
@@ -700,7 +700,7 @@ async function execute(ctx: RunContext): Promise<void> {
       if (!(e instanceof StepFailure) && isInternalError(e)) reportError(e, { tags: { phase: 'run', run_id: ctx.runId }, secrets: ctx.redactor.list() });
     }
   } finally {
-    if (ctx.browser) await ctx.browser.close().catch(() => undefined);
+    if (ctx.browser) await ctx.browser.close().catch(() => undefined); // best effort at the end of the run: the browser process ends with it
   }
   store.saveStats(ctx.runId, ctx.stats);
   store.setRunStatus(ctx.runId, status, { error: error ?? null, finished: true });
@@ -882,7 +882,7 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
       }
       if (attempt < attempts) {
         ctx.log('warn', `Attempt ${attempt} failed: ${(e as Error).message}. Retrying…`, key);
-        await sleep(node.retry?.delayMs ?? 2000, ctx.signal).catch(() => undefined);
+        await sleep(node.retry?.delayMs ?? 2000, ctx.signal).catch(() => undefined); // cancelled while waiting: the loop checks the signal
       }
     }
   }
@@ -1016,7 +1016,7 @@ async function runItemsInParallel(
       if (wait > 0 && !stop()) await sleep(wait, ctx.signal);
       lastStart = Date.now();
     });
-    gate = mine.catch(() => undefined);
+    gate = mine.catch(() => undefined); // only the order matters here: the caller gets the failure
     try {
       await mine;
       return !stop();
@@ -1148,7 +1148,7 @@ async function waitForChild(childId: string, ctx: RunContext, key: string): Prom
           ctx.log('warn', `Sub-process run ${childId} was interrupted – resume or cancel it to continue`, key);
         }
       }
-      await sleep(500, ctx.signal).catch(() => undefined);
+      await sleep(500, ctx.signal).catch(() => undefined); // cancelled while waiting: the loop checks the signal
     }
   } finally {
     if (waiting) {
@@ -1865,7 +1865,7 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
   try {
     if (portal) portalOrigin = new URL(portal).origin;
   } catch {
-    /* ignore */
+    /* not a URL: no portal origin is allowed */
   }
   // The bound platform's own portal is a legitimate destination for its secrets (e.g. a login form).
   const browserBindings = secretBindings(ctx).map((sb) =>
@@ -1994,8 +1994,9 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
           sha256: sha256(buf),
           size: buf.length,
         });
-      } catch {
-        /* ignore */
+      } catch (err) {
+        // the step's own error is what the run reports; a missing screenshot only shows in the log
+        logger.warn({ err, runId: ctx.runId, step: key }, 'could not save the failure screenshot');
       }
       const blocked = blockedNow();
       throw new Error(`Browser action ${label} failed: ${(e as Error).message.split('\n')[0]}${blocked.length ? ` – ${blocked.join('; ')}` : ''}`);
@@ -2038,7 +2039,7 @@ async function refusedRedirects(ctx: RunContext, page: BrowserSession['page'], w
     if (!ctx.browserBlocked.includes(m)) ctx.browserBlocked.push(m);
     ctx.log('warn', `Browser: a redirect was ${m}`);
   }
-  await page.goto('about:blank').catch(() => undefined);
+  await page.goto('about:blank').catch(() => undefined); // leaving the page is best effort: the error below is what counts
   throw new Error(`the page was redirected to ${origins.join(', ')}, which the outbound policy does not allow`);
 }
 

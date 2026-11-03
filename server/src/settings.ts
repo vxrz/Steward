@@ -104,7 +104,7 @@ export function getSettings(): Settings {
     try {
       s[r.key] = JSON.parse(r.value);
     } catch {
-      /* ignore */
+      /* not JSON: the default applies */
     }
   }
   // An explicit environment override always wins over the stored value.

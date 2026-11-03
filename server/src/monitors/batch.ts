@@ -30,7 +30,7 @@ class SharedFetch<P, R> {
 
   /** Registers interest without waiting (lets the cycle collect everything before the call). */
   plan(key: string, want: P): void {
-    void this.get(key, want).catch(() => undefined);
+    void this.get(key, want).catch(() => undefined); // the failure reaches the check that waits for it (get)
   }
 
   get(key: string, want: P, now = Date.now()): Promise<R> {

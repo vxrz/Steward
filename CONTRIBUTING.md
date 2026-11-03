@@ -105,6 +105,8 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
 
 - TypeScript strict mode. No `any` unless unavoidable and commented.
 - Small, focused functions. Comments explain _why_, not _what_.
+- **Errors you catch and drop say why.** An empty `catch` block has a comment with a reason (`/* already gone */`, not `/* ignore */`), and so does `.catch(() => undefined)` (on the same line or the line above). If someone should see the failure, log it instead (`logger.debug` / `logger.warn`). ESLint checks this (`scripts/eslint/catch-reason.js`).
+- **Configuration:** read environment variables from `env` in `server/src/config.ts`, never from `process.env`; a new variable goes into `server/src/config-schema.ts` (type, default, description) and `npm run config:docs` updates the tables.
 - **Security first:**
   - Never log, return or put secrets in error messages; use the existing redaction helpers.
   - Check permissions on the server for every route. Who may reach a route at all goes into its config – `{ config: { access: ACCESS.admin } }`, `ACCESS.public`, `ACCESS.session` (no API tokens), `statusViewer` – and is checked before the body is read; rights on a given object are checked in the service with `me()`, `forbid()` and the helpers of `server/src/auth/permissions.ts`. Both live in [`server/src/auth/access.ts`](server/src/auth/access.ts); the route permission test (`server/test/route-matrix.test.ts`) compares the declarations with its table.
