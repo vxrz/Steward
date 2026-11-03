@@ -732,7 +732,19 @@
     "PDF_FAILED": "Das Erstellen des PDFs ist fehlgeschlagen – versuchen Sie es erneut, oder bitten Sie einen Administrator, das Server-Log zu prüfen.",
     "INTERNAL_ERROR": "Etwas ist schiefgelaufen (Referenz {{requestId}}). Bitte versuchen Sie es erneut; wenn es wieder auftritt, nennen Sie Ihrer Administration die Referenz.",
     "CRON_DAY_OR": "Tag im Monat und Wochentag sind beide gesetzt: Der Zeitplan läuft an jedem Tag, an dem einer der beiden passt – nicht nur, wenn beide passen. Für den n-ten Wochentag eines Monats verwenden Sie die #-Schreibweise, z. B. 0 6 * * 1#1 (der erste Montag).",
-    "CRON_DAY_OR_suggestion": "Tag im Monat und Wochentag sind beide gesetzt: Der Zeitplan läuft an jedem Tag, an dem einer der beiden passt – nicht nur, wenn beide passen. Für den n-ten Wochentag eines Monats verwenden Sie {{suggestion}}."
+    "CRON_DAY_OR_suggestion": "Tag im Monat und Wochentag sind beide gesetzt: Der Zeitplan läuft an jedem Tag, an dem einer der beiden passt – nicht nur, wenn beide passen. Für den n-ten Wochentag eines Monats verwenden Sie {{suggestion}}.",
+    "DUPLICATE_NAME_TAKEN": "Der Name „{{name}}“ ist schon vergeben – wählen Sie einen anderen für die Kopie.",
+    "DUPLICATE_KEY_TAKEN": "Der Schlüssel „{{key}}“ ist schon vergeben (oder hier nicht erlaubt) – wählen Sie einen anderen für die Kopie.",
+    "DUPLICATE_KEY_UNSUPPORTED": "Diese Kopie erhält ihre ID automatisch.",
+    "DUPLICATE_NO_ACCESS_SETTINGS": "Hier gibt es keine Zugriffseinstellungen zum Kopieren.",
+    "DUPLICATE_OPTION_UNKNOWN": "Diese Optionen gibt es hier nicht: {{options}}.",
+    "DUPLICATE_TEMPLATE_UNSUPPORTED": "Dies kann nicht als Vorlage gespeichert werden.",
+    "DUPLICATE_TEMPLATE_PARAM": "Parametername „{{name}}“: Buchstaben, Ziffern und _ (nicht „name“ oder „key“).",
+    "DUPLICATE_TEMPLATE_FIELD": "Die Prüfung „{{checkId}}“ hat kein Feld „{{field}}“, das ein Parameter werden kann.",
+    "DUPLICATE_NO_SERVICES": "Sie dürfen keinen der Services dieser Statusseite veröffentlichen.",
+    "FORBIDDEN_duplicate": "Sie dürfen hiervon keine Kopie anlegen.",
+    "FORBIDDEN_duplicateAccess": "Nur wer das Original verwalten darf, kann dessen Zugriffseinstellungen kopieren.",
+    "SCHEDULE_NOT_FOUND": "Zeitplan {{id}} nicht gefunden."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

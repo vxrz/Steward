@@ -57,6 +57,8 @@ export interface MaintenanceWindowSummary {
   reminderHours: number;
   cancelledAt: string | null;
   cancelledBy: string | null;
+  /** False: disabled (a copy starts so) – it neither applies nor announces anything until enabled */
+  enabled: boolean;
   /** The occurrence going on now, or the next one */
   current: { startsAt: string; endsAt: string; active: boolean } | null;
   createdAt: string;

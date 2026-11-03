@@ -732,7 +732,19 @@
     "PDF_FAILED": "Creating the PDF failed – try again, or ask an administrator to look at the server log.",
     "INTERNAL_ERROR": "Something went wrong (reference {{requestId}}). Please try again; if it keeps happening, quote the reference to your administrator.",
     "CRON_DAY_OR": "Day of month and day of week are both set, so this runs on every day where either one matches – not only on days where both do. For the nth weekday of a month use the # form, e.g. 0 6 * * 1#1 (the first Monday).",
-    "CRON_DAY_OR_suggestion": "Day of month and day of week are both set, so this runs on every day where either one matches – not only on days where both do. For the nth weekday of a month use {{suggestion}}."
+    "CRON_DAY_OR_suggestion": "Day of month and day of week are both set, so this runs on every day where either one matches – not only on days where both do. For the nth weekday of a month use {{suggestion}}.",
+    "DUPLICATE_NAME_TAKEN": "The name “{{name}}” is already used – choose another one for the copy.",
+    "DUPLICATE_KEY_TAKEN": "The key “{{key}}” is already used (or not allowed here) – choose another one for the copy.",
+    "DUPLICATE_KEY_UNSUPPORTED": "This copy gets its id automatically.",
+    "DUPLICATE_NO_ACCESS_SETTINGS": "There are no access settings to copy here.",
+    "DUPLICATE_OPTION_UNKNOWN": "These options are not available here: {{options}}.",
+    "DUPLICATE_TEMPLATE_UNSUPPORTED": "This cannot be saved as a template.",
+    "DUPLICATE_TEMPLATE_PARAM": "Parameter name “{{name}}”: letters, digits and _ (not “name” or “key”).",
+    "DUPLICATE_TEMPLATE_FIELD": "Check “{{checkId}}” has no field “{{field}}” that can become a parameter.",
+    "DUPLICATE_NO_SERVICES": "You may not publish any of the services of this status page.",
+    "FORBIDDEN_duplicate": "You may not create a copy of this.",
+    "FORBIDDEN_duplicateAccess": "Only someone who may manage the original can copy its access settings.",
+    "SCHEDULE_NOT_FOUND": "Schedule {{id}} not found."
   },
   "boundary": {
     "title": "Something went wrong on this page",
