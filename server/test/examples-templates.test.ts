@@ -278,3 +278,39 @@ describe('Git – repository health on GitLab and Forgejo', () => {
     expect(checks).toEqual({ pipelinesPass: 'failed', noSevereAlerts: 'succeeded', branchesProtected: 'failed', tokensValid: 'failed' });
   });
 });
+
+describe('AWS – keys and costs from the cloud accounts of applications', () => {
+  it('finds old, unused and inactive keys and the costs per month', async () => {
+    const aws = platformByKind.aws!;
+    const ids: string[] = [];
+    for (const name of ['shop', 'crm']) {
+      const app = await s.api('POST', '/applications', { name: `Cloud ${name}`, owners: [] });
+      const a = await s.api('POST', `/applications/${app.id}/components`, { type: 'cloud-account', name, platformId: aws });
+      await s.api('POST', `/applications/${app.id}/components/${a.components.find((c: any) => c.name === name).id}/aws`, {});
+      ids.push(app.id);
+    }
+    const keys = await finish(await start('aws-iam-key-age', {}, { apps: ids }));
+    expect([keys.status, keys.error]).toEqual(['succeeded', null]);
+    const d = await s.api('GET', '/datasets/aws.iam-keys');
+    const by = Object.fromEntries(d.rows.map((x: any) => [x['IAM user'], x]));
+    // ci-deploy (application=shop): an active key of 410 days, used yesterday
+    expect(by['ci-deploy']).toMatchObject({ Application: 'Cloud shop', 'Access key': '…Y001', State: 'Active', 'Age (days)': 410, _status: 'critical' });
+    expect(by['ci-deploy'].Findings).toBe('active key 410 days old – rotate');
+    // old-intern (application=crm): an inactive key never used, a console password unused for 700 days
+    expect(by['old-intern'].Findings).toBe('inactive key – delete it; console password unused for 700 days');
+    expect(d.metrics).toMatchObject({ keys: 2, users: 2, oldKeys: 1, unusedKeys: 0, inactiveKeys: 1, unusedPasswords: 1 });
+
+    const costs = await finish(await start('aws-costs-per-application', {}, { apps: ids, maxGrowthPercent: 2 }));
+    expect([costs.status, costs.error]).toEqual(['succeeded', null]);
+    const c = await s.api('GET', '/datasets/aws.costs');
+    const shop = c.rows.find((x: any) => x.Application === 'Cloud shop');
+    // the mock: 1840 USD a month for shop, 3 % more every month, the current month half through
+    expect(shop.Currency).toBe('USD');
+    expect(shop['Change (%)']).toBeGreaterThan(2);
+    expect(shop['Change (%)']).toBeLessThan(4);
+    expect(shop.Costs).toBeGreaterThan(1840);
+    expect(shop._status).toBe('warning');
+    expect(c.metrics).toMatchObject({ applications: 2, growing: 2 });
+    expect(costs.steps.find((x: any) => x.stepId === 'growth').status).toBe('failed');
+  });
+});
