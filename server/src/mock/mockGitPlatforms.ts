@@ -28,6 +28,8 @@ interface Repo {
   packages: { name: string; type: string; version: string }[];
   keys: { id: number; title: string; readOnly: boolean; days: number }[];
   collaborators: { login: string; role: string; outside?: boolean }[];
+  /** The default branch is protected */
+  protected: boolean;
 }
 
 const DAY = 86_400_000;
@@ -57,6 +59,7 @@ function seed(): Record<string, Repo> {
         { login: 'bob', role: 'write' },
         { login: 'carol-ext', role: 'read', outside: true },
       ],
+      protected: true,
     },
     'shop-api': {
       name: 'shop-api',
@@ -73,6 +76,7 @@ function seed(): Record<string, Repo> {
         { login: 'alice', role: 'admin' },
         { login: 'dave', role: 'maintain' },
       ],
+      protected: false,
     },
   };
 }
@@ -153,6 +157,11 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
     const r = ghRepo(req, reply);
     if (r && !['main', SHA[r.name]].includes((req.params as { ref: string }).ref)) return notFound(reply);
     return r ? { sha: SHA[r.name], commit: { message: 'Merge pull request #42\n\nmore', committer: { date: ago(1) } } } : reply;
+  });
+  app.get(`${G}/repos/:owner/:repo/branches/:branch`, async (req, reply) => {
+    const r = ghRepo(req, reply);
+    if (r && (req.params as { branch: string }).branch !== 'main') return notFound(reply);
+    return r ? { name: 'main', commit: { sha: SHA[r.name] }, protected: r.protected } : reply;
   });
   app.get(`${G}/repos/:owner/:repo/actions/runs`, async (req, reply) => {
     const r = ghRepo(req, reply);
@@ -268,6 +277,13 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
     const r = glRepo(req, reply);
     if (r && (req.params as { branch: string }).branch !== 'main') return notFound(reply);
     return r ? { name: 'main', commit: { id: SHA[r.name], title: 'Merge branch feature', committed_date: ago(1) } } : reply;
+  });
+  app.get(`${L}/projects/:id/protected_branches/:branch`, async (req, reply) => {
+    const r = glRepo(req, reply);
+    if (!r) return reply;
+    return r.protected && (req.params as { branch: string }).branch === 'main'
+      ? { id: 1, name: 'main', push_access_levels: [{ access_level: 40 }], merge_access_levels: [{ access_level: 30 }], allow_force_push: false }
+      : notFound(reply);
   });
   app.get(`${L}/projects/:id/pipelines`, async (req, reply) => {
     const r = glRepo(req, reply);
@@ -404,6 +420,10 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
     const r = ghRepo(req, reply);
     if (r && (req.params as { branch: string }).branch !== 'main') return notFound(reply);
     return r ? { name: 'main', commit: { id: SHA[r.name], message: 'Update dependencies\n', timestamp: ago(1) } } : reply;
+  });
+  app.get(`${F}/repos/:owner/:repo/branch_protections`, async (req, reply) => {
+    const r = ghRepo(req, reply);
+    return r ? (r.protected ? [{ rule_name: 'main', branch_name: 'main', enable_push: false, required_approvals: 1 }] : []) : reply;
   });
   app.get(`${F}/repos/:owner/:repo/commits/:ref/status`, async (req, reply) => {
     const r = ghRepo(req, reply);

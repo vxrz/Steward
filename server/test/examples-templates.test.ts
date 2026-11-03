@@ -246,3 +246,35 @@ describe('Git – member review', () => {
     expect(entries[0]).toMatchObject({ kind: 'revoke', revoked: ['member'], approvedBy: 'adam' });
   });
 });
+
+describe('Git – repository health on GitLab and Forgejo', () => {
+  it('reads pipelines, branch protection, releases and expiring tokens into the same dataset as GitHub', async () => {
+    const gh = await finish(await start('github-repository-health', { github: platformByKind.github! }));
+    expect(gh.status).toBe('succeeded');
+    const gl = await finish(await start('github-repository-health', { github: platformByKind.gitlab! }, { repositories: ['acme/shop/web', 'acme/shop/api'] }));
+    expect([gl.status, gl.error]).toEqual(['succeeded', null]);
+    const fj = await finish(await start('github-repository-health', { github: platformByKind.forgejo! }));
+    expect([fj.status, fj.error]).toEqual(['succeeded', null]);
+    const d = await s.api('GET', '/datasets/git.repositories');
+    const by = Object.fromEntries(d.rows.map((x: any) => [`${x.Host} ${x._key}`, x]));
+    expect(by['GitHub acme/shop-web']).toMatchObject({
+      Protected: 'yes',
+      Pipeline: 'passed',
+      'Open alerts': '0 critical, 1 high, 2 other',
+      _status: 'warning',
+    });
+    expect(by['GitHub acme/shop-api']).toMatchObject({ Protected: 'no', Pipeline: 'failed: CI', _status: 'critical' });
+    expect(by['GitLab acme/shop/web']).toMatchObject({
+      Protected: 'yes',
+      Pipeline: 'passed',
+      'Latest release': 'v2.4.1',
+      'Tokens expiring': 'access token renovate (in 20 days)',
+      _status: 'warning',
+    });
+    expect(by['GitLab acme/shop/api']).toMatchObject({ Protected: 'no', Pipeline: 'failed: pipeline 9000', 'Latest release': '–', _status: 'critical' });
+    expect(by['Forgejo acme/shop-web']).toMatchObject({ Protected: 'yes', Pipeline: 'passed', 'Latest release': 'v2.4.1', _status: 'good' });
+    expect(by['Forgejo acme/shop-api']).toMatchObject({ Protected: 'no', Pipeline: 'failed: ci/woodpecker/push/build', _status: 'critical' });
+    const checks = Object.fromEntries(gl.steps.filter((x: any) => x.type === 'check').map((x: any) => [x.stepId, x.status]));
+    expect(checks).toEqual({ pipelinesPass: 'failed', noSevereAlerts: 'succeeded', branchesProtected: 'failed', tokensValid: 'failed' });
+  });
+});
