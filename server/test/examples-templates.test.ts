@@ -56,6 +56,68 @@ async function finish(runId: string, select?: (items: any[]) => string[]): Promi
 const start = async (processId: string, bindings: Record<string, string>, inputs: Record<string, unknown> = {}, dryRun = false) =>
   (await s.api('POST', '/runs', { processId, bindings, inputs, dryRun })).id as string;
 
+describe('demo data', () => {
+  it('fills the dashboards of every example from the sample applications and the simulated platforms', async () => {
+    for (let i = 0; i < 600; i++) {
+      if (!(await s.api('GET', '/runs?status=queued,running')).length) break;
+      await sleep(100);
+    }
+    const apps = (await s.api('GET', '/applications')).map((a: any) => a.name);
+    expect(apps).toEqual(expect.arrayContaining(['Webshop (demo)', 'CRM (demo)']));
+    const empty: string[] = [];
+    for (const key of [
+      'eol-overview',
+      'kafka.topics',
+      'aws.iam-keys',
+      'aws.costs',
+      'snowflake.users',
+      'snowflake.credits',
+      'prom.slo',
+      'k8s.health',
+      'checkmk.trends',
+      'dt.vulnerabilities',
+      'git.repositories',
+    ])
+      if (!((await s.api('GET', `/datasets/${key}`)).rowCount > 0)) empty.push(key);
+    expect(empty).toEqual([]);
+    const repos = await s.api('GET', '/datasets/git.repositories');
+    expect(new Set(repos.rows.map((r: any) => r.Host))).toEqual(new Set(['GitHub', 'GitLab', 'Forgejo']));
+    // the end of life of the stacks read from the repository and the namespace
+    const eol = await s.api('GET', '/datasets/eol-overview');
+    expect(eol.rows.some((r: any) => r.Application === 'Webshop (demo)' && r._status !== 'unknown')).toBe(true);
+    const runs = (await s.api('GET', '/runs?limit=100')).filter((r: any) => r.status !== 'succeeded');
+    expect(runs.map((r: any) => `${r.processName}: ${r.status} ${r.error ?? ''}`)).toEqual([]);
+  });
+
+  it('person reviews find a person on several platforms of the demo', async () => {
+    const checks = (await s.api('GET', '/compliance/access-checks')) as any[];
+    // the Insights Hub check stays the first one
+    expect(checks[0].source).toBe('insights-hub');
+    const id = (source: string) => checks.find((c) => c.source === source).id;
+    const karla = await s.api('POST', '/compliance/person-reviews', {
+      title: 'Leaver Karla Lang',
+      personName: 'Karla Lang',
+      identifiers: ['karla.lang@example.com'],
+      checkIds: [id('insights-hub'), id('snowflake')],
+    });
+    expect(karla.sources.map((x: any) => [x.source, x.matched])).toEqual([
+      ['insights-hub', 1],
+      ['snowflake', 1],
+    ]);
+    const bob = await s.api('POST', '/compliance/person-reviews', {
+      title: 'Review Bob',
+      personName: 'Bob',
+      identifiers: ['bob@example.com', 'bob'],
+      checkIds: [id('snowflake'), id('git'), id('aws')],
+    });
+    expect(bob.sources.map((x: any) => [x.source, x.matched])).toEqual([
+      ['snowflake', 1],
+      ['git', 1],
+      ['aws', 0],
+    ]);
+  });
+});
+
 describe('Snowflake – project access review', () => {
   it('follows nested roles to the users, marks technical users and documents the revocations', async () => {
     let seen: any[] = [];
