@@ -60,11 +60,23 @@ function readText(p: string): string {
   return p === '-' ? fs.readFileSync(0, 'utf8') : fs.readFileSync(p, 'utf8');
 }
 
-function parseExport(text: string): { entries: AuditEntry[]; checkpoint: AuditCheckpoint | null; publicKey: string | null } {
+function parseExport(text: string): {
+  entries: AuditEntry[];
+  checkpoint: AuditCheckpoint | null;
+  startCheckpoint: AuditCheckpoint | null;
+  publicKey: string | null;
+} {
   const trimmed = text.trim();
   if (trimmed.startsWith('{') && !trimmed.includes('\n{')) {
-    const doc = JSON.parse(trimmed) as { format?: string; entries?: AuditEntry[]; checkpoint?: AuditCheckpoint | null; publicKeyPem?: string | null };
-    if (Array.isArray(doc.entries)) return { entries: doc.entries, checkpoint: doc.checkpoint ?? null, publicKey: doc.publicKeyPem ?? null };
+    const doc = JSON.parse(trimmed) as {
+      format?: string;
+      entries?: AuditEntry[];
+      checkpoint?: AuditCheckpoint | null;
+      startCheckpoint?: AuditCheckpoint | null;
+      publicKeyPem?: string | null;
+    };
+    if (Array.isArray(doc.entries))
+      return { entries: doc.entries, checkpoint: doc.checkpoint ?? null, startCheckpoint: doc.startCheckpoint ?? null, publicKey: doc.publicKeyPem ?? null };
   }
   const entries = trimmed
     .split(/\r?\n/)
@@ -76,7 +88,7 @@ function parseExport(text: string): { entries: AuditEntry[]; checkpoint: AuditCh
         throw new UsageError(`line ${i + 1} of the export is not JSON`);
       }
     });
-  return { entries, checkpoint: null, publicKey: null };
+  return { entries, checkpoint: null, startCheckpoint: null, publicKey: null };
 }
 
 function parseCheckpoint(text: string): AuditCheckpoint {
@@ -104,23 +116,34 @@ export function verifyExport(input: {
   checkpoints: { source: string; cp: AuditCheckpoint }[];
   publicKey: string | null;
   keySource: 'option' | 'export';
+  /** The signed checkpoint the export continues (archived entries were deleted before it) */
+  startCheckpoint?: AuditCheckpoint | null;
 }): VerifyExportResult {
   const problems: string[] = [];
   const entries = [...input.entries].sort((a, b) => a.seq - b.seq);
   const bySeq = new Map(entries.map((e) => [e.seq, e]));
+  // where the chain starts: #1, or the signed checkpoint the export continues
+  const start = input.startCheckpoint ?? null;
+  if (start) {
+    const { signature, ...body } = start;
+    if (!input.publicKey || !signature || !verifySignature(input.publicKey, checkpointPayload(body), signature))
+      problems.push(`The start checkpoint #${start.seq} has an invalid signature for this public key`);
+  }
+  const firstSeq = (start?.seq ?? 0) + 1;
   // chain linkage and the public digest up to each entry
   const digests = new Map<number, string>();
-  let digest = DIGEST_SEED;
+  let digest = start?.digest ?? DIGEST_SEED;
   let prev: AuditEntry | undefined;
-  let chainOk = entries.length === 0 || entries[0]!.seq === 1;
-  if (entries.length && entries[0]!.seq !== 1) problems.push(`The export starts at entry #${entries[0]!.seq}, not #1 – checkpoints cannot be checked`);
+  let chainOk = entries.length === 0 || entries[0]!.seq === firstSeq;
+  if (entries.length && entries[0]!.seq !== firstSeq)
+    problems.push(`The export starts at entry #${entries[0]!.seq}, not #${firstSeq} – checkpoints cannot be checked`);
   for (const e of entries) {
     if (prev && e.seq !== prev.seq + 1) {
       problems.push(`Entry #${prev.seq + 1} is missing`);
       chainOk = false;
       break;
     }
-    const expectedPrev = prev ? prev.hash : GENESIS;
+    const expectedPrev = prev ? prev.hash : (start?.hash ?? GENESIS);
     if (e.prevHash !== undefined && e.prevHash !== expectedPrev) {
       problems.push(`Entry #${e.seq} does not link to entry #${e.seq - 1} (prevHash differs)`);
       chainOk = false;
@@ -171,7 +194,7 @@ export function verifyExport(input: {
       continue;
     }
     if (!chainOk || digests.get(cp.seq) !== cp.digest) {
-      fail(`entries 1–${cp.seq} differ from what the checkpoint covers (digest)`);
+      fail(`entries ${firstSeq}–${cp.seq} differ from what the checkpoint covers (digest)`);
       continue;
     }
     if (cp.count !== cp.seq) {
@@ -179,7 +202,13 @@ export function verifyExport(input: {
       continue;
     }
     covered = Math.max(covered, cp.seq);
-    results.push({ source, seq: cp.seq, ts: cp.ts, ok: true, message: `entries 1–${cp.seq} match the signed checkpoint of ${cp.ts}` });
+    results.push({
+      source,
+      seq: cp.seq,
+      ts: cp.ts,
+      ok: true,
+      message: `entries ${firstSeq}–${cp.seq} match the signed checkpoint of ${cp.ts}${start ? ` (continuing the signed checkpoint #${start.seq}; the entries before it are archived)` : ''}`,
+    });
   }
   if (!input.checkpoints.length) problems.push('No checkpoint to check against: use the JSON export or pass --anchor');
   const lastSeq = entries.at(-1)?.seq ?? null;
@@ -245,6 +274,7 @@ export function main(argv = process.argv.slice(2)): number {
       checkpoints,
       publicKey: optionKey ?? exported.publicKey,
       keySource: optionKey ? 'option' : 'export',
+      startCheckpoint: exported.startCheckpoint,
     });
     if (values.json) {
       process.stdout.write(JSON.stringify(result, null, 2) + '\n');

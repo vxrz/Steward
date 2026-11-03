@@ -8,6 +8,7 @@ import {
   EVIDENCE_PACK_FORMAT,
   REPORT_LANGS,
   type AccessChange,
+  type AuditCheckpoint as AuditCheckpointLike,
   type AuditEntry,
   type EvidenceItem,
   type EvidencePack,
@@ -17,8 +18,9 @@ import {
 } from '@sm/shared';
 import { config } from '../config.js';
 import { db } from '../db.js';
-import { DIGEST_SEED, audit, digestStep, publicResult, toEntry, verifyAuditAsync, type AuditRow } from '../audit.js';
-import { createCheckpoint } from '../audit-anchor.js';
+import { DIGEST_SEED, audit, digestStep, prunedBase, publicResult, toEntry, verifyAuditAsync, type AuditRow } from '../audit.js';
+import { createCheckpoint, failedFullVerification, incrementalStart, validCheckpoint } from '../audit-anchor.js';
+import { archivesCovering } from '../audit-archive.js';
 import { logger } from '../log.js';
 import { publicKeyFingerprint, publicKeyPem, vault } from '../vault.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
@@ -735,9 +737,17 @@ async function fileSha256(file: string): Promise<string> {
  * The audit entries from the start of the period up to a fresh signed checkpoint, with the public
  * digest before the first entry: the offline check continues the digest over the excerpt and must
  * reach the checkpoint's signed digest – so no entry of the excerpt can be changed or left out.
+ *
+ * The chain is verified incrementally (from the newest signed checkpoint), and the start digest is continued from the
+ * newest signed checkpoint before the excerpt rather than from entry #1. When the period reaches back into entries
+ * that were archived and deleted (retention), the excerpt starts at the first entry still in the database (its start
+ * digest is the one the archive's signed end checkpoint holds) and the archives of the period are put into the pack:
+ * the offline check verifies each of them and that they link up with the excerpt.
  */
 async function addAuditExcerpt(b: PackBuilder, from: string, to: string): Promise<Record<string, unknown>> {
-  const verified = await verifyAuditAsync({});
+  // after a failed full verification only a full one counts (audit-anchor.ts)
+  const start = failedFullVerification() ? undefined : incrementalStart();
+  const verified = await verifyAuditAsync({ from: start ? { seq: start.seq, hash: start.hash, digest: start.digest } : undefined });
   const checkpoint = verified.ok ? await createCheckpoint('export', verified) : null;
   const pub = vault().signingPublicKey()!;
   if (!checkpoint) {
@@ -745,7 +755,10 @@ async function addAuditExcerpt(b: PackBuilder, from: string, to: string): Promis
     await b.json('audit/verification.json', publicResult(verified));
     return { included: false, verification: publicResult(verified) };
   }
-  const first = db().get<{ seq: number }>('SELECT MIN(seq) AS seq FROM audit_log WHERE seq >= 1 AND ts >= ?', from)?.seq;
+  const based = prunedBase();
+  const base = based && !('problem' in based) ? based : null;
+  const baseSeq = base?.seq ?? 0;
+  const first = db().get<{ seq: number }>('SELECT MIN(seq) AS seq FROM audit_log WHERE seq > ? AND ts >= ?', baseSeq, from)?.seq;
   const startSeq = first === null || first === undefined ? checkpoint.seq : Math.min(Number(first), checkpoint.seq);
   const count = checkpoint.seq - startSeq + 1;
   if (count > PACK_LIMITS.auditEntries) {
@@ -756,15 +769,37 @@ async function addAuditExcerpt(b: PackBuilder, from: string, to: string): Promis
     await b.json('audit/checkpoint.json', checkpoint);
     return { included: false, verification: publicResult(verified), checkpoint };
   }
-  // public digest of entries 1 … startSeq-1, in batches
-  let digest = DIGEST_SEED;
-  for (let seq = 1; seq < startSeq;) {
+  // public digest before the excerpt: from the newest signed checkpoint before it (or the deletion base, or #1)
+  let digest = base?.digest ?? DIGEST_SEED;
+  let seq = baseSeq + 1;
+  const before = db().all<{ details: string | null }>(
+    "SELECT details FROM audit_log WHERE action = 'audit.checkpoint' AND seq <= ? ORDER BY seq DESC LIMIT 50",
+    startSeq,
+  );
+  for (const r of before) {
+    const c = parseJson<AuditCheckpointLike | null>(r.details, null);
+    if (c && typeof c.seq === 'number' && c.seq < startSeq && c.seq >= baseSeq && validCheckpoint(c)) {
+      digest = c.digest;
+      seq = c.seq + 1;
+      break;
+    }
+  }
+  while (seq < startSeq) {
     const rows = db().all<AuditRow>('SELECT * FROM audit_log WHERE seq >= ? AND seq < ? ORDER BY seq LIMIT 5000', seq, startSeq);
     if (!rows.length) break;
     for (const r of rows) digest = digestStep(digest, toEntry(r));
     seq = Number(rows.at(-1)!.seq) + 1;
   }
   const entries: AuditEntry[] = db().all<AuditRow>('SELECT * FROM audit_log WHERE seq >= ? AND seq <= ? ORDER BY seq', startSeq, checkpoint.seq).map(toEntry);
+  // archived and deleted entries of the period: their archives up to the excerpt (verified offline, linked to it)
+  const archives: NonNullable<AuditExcerpt['archives']> = [];
+  if (base && startSeq === base.seq + 1) {
+    for (const a of archivesCovering(1, base.seq).filter((x) => x.lastSeq <= base.seq && x.lastTs >= from)) {
+      const p = `audit/archives/${safe(a.file)}`;
+      const added = await b.file(p, a.path, a.sha256);
+      archives.push({ file: a.file, path: added, firstSeq: a.firstSeq, lastSeq: a.lastSeq, sha256: a.sha256, checkpoint: a.checkpoint });
+    }
+  }
   const excerpt: AuditExcerpt & Record<string, unknown> = {
     format: 'steward-audit-excerpt',
     version: 1,
@@ -776,10 +811,24 @@ async function addAuditExcerpt(b: PackBuilder, from: string, to: string): Promis
     publicKeyPem: publicKeyPem(pub),
     fingerprint: publicKeyFingerprint(pub),
     checkpoint,
+    ...(archives.length
+      ? {
+          archives,
+          archivedNote: `Entries of the period up to #${base!.seq} were archived and deleted from the database; their archives are in audit/archives/ (the excerpt continues the signed checkpoint the last one ends at).`,
+        }
+      : {}),
     entries,
   };
   await b.json(AUDIT_EXCERPT_FILE, excerpt);
   await b.json('audit/checkpoint.json', checkpoint);
   await b.json('audit/verification.json', { verifiedAt: nowIso(), ...publicResult(verified) });
-  return { included: true, startSeq, endSeq: checkpoint.seq, entries: entries.length, checkpointSeq: checkpoint.seq, verification: publicResult(verified) };
+  return {
+    included: true,
+    startSeq,
+    endSeq: checkpoint.seq,
+    entries: entries.length,
+    checkpointSeq: checkpoint.seq,
+    archives: archives.length,
+    verification: publicResult(verified),
+  };
 }

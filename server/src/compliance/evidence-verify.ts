@@ -1,6 +1,12 @@
 import { EVIDENCE_PACK_FORMAT, type AuditCheckpoint, type AuditEntry } from '@sm/shared';
 import { DIGEST_SEED, checkpointPayload, digestStep } from '../audit.js';
 import { publicKeyFingerprint, verifySignature } from '../vault.js';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
+import { verifyArchive } from '../audit-archive-verify.js';
 import { ZipFormatError, ZipReader, type ZipEntry } from './zip.js';
 
 /**
@@ -40,6 +46,12 @@ export interface AuditExcerpt {
   startDigest: string;
   entries: AuditEntry[];
   checkpoint: AuditCheckpoint | null;
+  /**
+   * Entries of the period that were archived and deleted from the database (0.4.0): their archives, oldest first; the
+   * last one ends at the signed checkpoint the excerpt continues. `path`: the archive in the pack (null: not included,
+   * e.g. the file was moved out of the data folder).
+   */
+  archives?: { file: string; path: string | null; firstSeq: number; lastSeq: number; sha256: string; checkpoint: AuditCheckpoint }[];
 }
 
 export interface PackVerifyResult {
@@ -52,7 +64,15 @@ export interface PackVerifyResult {
   publicKey: { source: 'option' | 'pack'; fingerprint: string } | null;
   signatureOk: boolean;
   files: { listed: number; ok: number };
-  audit: { present: boolean; ok: boolean; entries: number; checkpointSeq: number | null; message: string } | null;
+  audit: {
+    present: boolean;
+    ok: boolean;
+    entries: number;
+    checkpointSeq: number | null;
+    message: string;
+    /** Archives of the period in the pack (entries archived and deleted from the database) */
+    archives?: { file: string; ok: boolean; message: string }[];
+  } | null;
   problems: string[];
 }
 
@@ -80,6 +100,55 @@ export function verifyExcerpt(x: AuditExcerpt, publicKey: string): { ok: boolean
     prev = e;
   }
   return { ok: false, message: `The excerpt ends before the checkpoint entry #${cp.seq}` };
+}
+
+/**
+ * The archives an excerpt names: each one in the pack verifies (signature, files, chain to its checkpoints), is the
+ * archive the excerpt lists (SHA-256, end checkpoint), and they link up – each starts where the one before ends, the
+ * last ends where the excerpt starts.
+ */
+async function verifyPackArchives(
+  zip: ZipReader,
+  x: AuditExcerpt,
+  key: string,
+  listed: Map<string, PackManifest['files'][number]>,
+): Promise<{ results: { file: string; ok: boolean; message: string }[]; problems: string[] }> {
+  const results: { file: string; ok: boolean; message: string }[] = [];
+  const problems: string[] = [];
+  const list = [...x.archives!].sort((a, b) => a.firstSeq - b.firstSeq);
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i]!;
+    const next = list[i + 1];
+    if (next && next.firstSeq !== a.lastSeq + 1) problems.push(`${next.file} does not continue ${a.file}`);
+    if (!next && (a.lastSeq + 1 !== x.entries[0]?.seq || a.checkpoint.digest !== x.startDigest || a.checkpoint.hash !== x.entries[0]?.prevHash))
+      problems.push(`${a.file} does not end where the excerpt starts`);
+    if (!a.path) {
+      results.push({
+        file: a.file,
+        ok: true,
+        message: `Entries #${a.firstSeq}–#${a.lastSeq} are in ${a.file} (not in the pack – verify it with steward audit verify-archive)`,
+      });
+      continue;
+    }
+    const e = zip.find(a.path);
+    if (!e || listed.get(a.path)?.sha256 !== a.sha256) {
+      problems.push(`${a.file} is not in the pack as listed`);
+      results.push({ file: a.file, ok: false, message: 'missing or different' });
+      continue;
+    }
+    const tmp = path.join(os.tmpdir(), `steward-archive-${process.pid}-${crypto.randomUUID()}.zip`);
+    try {
+      await pipeline(await zip.stream(e), fs.createWriteStream(tmp, { flags: 'wx', mode: 0o600 }));
+      const v = await verifyArchive(tmp, { publicKey: key });
+      const endOk = v.end?.seq === a.checkpoint.seq && v.end.hash === a.checkpoint.hash && v.end.digest === a.checkpoint.digest;
+      if (!v.ok) problems.push(`${a.file}: ${v.message}`);
+      else if (!endOk) problems.push(`${a.file} does not end at the checkpoint the excerpt names`);
+      results.push({ file: a.file, ok: v.ok && endOk, message: v.message });
+    } finally {
+      fs.rmSync(tmp, { force: true });
+    }
+  }
+  return { results, problems };
 }
 
 const pemToDer = (k: string) => (k.includes('BEGIN') ? k.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '') : k.trim());
@@ -207,6 +276,12 @@ export async function verifyPack(file: string, o: VerifyOptions = {}): Promise<P
       const r = verifyExcerpt(x, key);
       res.audit = { present: true, ok: r.ok, entries: x.entries?.length ?? 0, checkpointSeq: x.checkpoint?.seq ?? null, message: r.message };
       if (!r.ok) problems.push(`Audit log excerpt: ${r.message}`);
+      if (Array.isArray(x.archives) && x.archives.length) {
+        const a = await verifyPackArchives(zip, x, key, listed);
+        res.audit.archives = a.results;
+        for (const p of a.problems) problems.push(`Audit archive: ${p}`);
+        if (a.problems.length) res.audit.ok = false;
+      }
     } catch (err) {
       res.audit = { present: true, ok: false, entries: 0, checkpointSeq: null, message: (err as Error).message };
       problems.push(`Audit log excerpt cannot be read: ${(err as Error).message}`);

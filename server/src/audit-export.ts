@@ -28,11 +28,20 @@ export interface AuditExportBundle {
   fingerprint: string | null;
   /** Signed checkpoint covering entries 1..checkpoint.seq (entries after it are not covered yet) */
   checkpoint: AuditCheckpoint | null;
+  /**
+   * After archived entries were deleted (retention): the signed checkpoint the entries continue – the first entry
+   * links to its hash and the digest continues from its digest. The entries before it are in the audit archives.
+   */
+  startCheckpoint?: AuditCheckpoint;
   entries: AuditEntry[];
 }
 
 /** The JSON export: entries with prevHash and details plus the latest signed checkpoint (offline check: npm run audit:verify-export). */
-export function auditExportBundle(entries: AuditEntry[], checkpoint: AuditCheckpoint | null): AuditExportBundle {
+export function auditExportBundle(
+  entries: AuditEntry[],
+  checkpoint: AuditCheckpoint | null,
+  startCheckpoint: AuditCheckpoint | null = null,
+): AuditExportBundle {
   const pub = vault().signingPublicKey();
   return {
     format: EXPORT_FORMAT,
@@ -43,6 +52,7 @@ export function auditExportBundle(entries: AuditEntry[], checkpoint: AuditCheckp
     publicKeyPem: pub ? publicKeyPem(pub) : null,
     fingerprint: pub ? publicKeyFingerprint(pub) : null,
     checkpoint,
+    ...(startCheckpoint ? { startCheckpoint } : {}),
     entries,
   };
 }

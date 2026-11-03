@@ -160,6 +160,42 @@ export async function setBackupPassphrase(passphrase: string): Promise<{ keyId: 
   return { keyId };
 }
 
+// ---------- other files to the backup target (audit archives, audit-archive.ts) ----------
+
+/** Whether files can go to the backup target: an S3 platform is chosen and the backup passphrase is set. */
+export function backupTargetAvailable(): boolean {
+  const s = backupSettings();
+  if (!s.platformId || !storedKey()) return false;
+  try {
+    storagePlatform(s.platformId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Uploads a file to `<prefix><folder>/<name>.smbackup`, encrypted with the backup key like a backup (read it with
+ * `steward backup decrypt`). Never overwrites: an existing object of that name is an error. Outside the folder the
+ * retention of backups looks at, which only touches objects directly under the prefix.
+ */
+export async function uploadToBackupTarget(file: string, folder: string, name: string): Promise<{ key: string; bytes: number; sha256: string }> {
+  const s = backupSettings();
+  const { key, stored } = backupKey();
+  // next to the file (the backup work folder is emptied when a backup starts)
+  const enc = path.join(path.dirname(file), `.upload-${newId()}.smbackup`);
+  try {
+    const e = await encryptFile(file, enc, key, { kdf: stored.kdf, now: new Date(), info: { product: BRAND.name, version: config.version, content: folder } });
+    const c = client(s);
+    const objectKey = `${s.prefix}${folder}/${name}.smbackup`;
+    if ((await c.list(objectKey)).some((o) => o.key === objectKey)) throw new Error(`${objectKey} already exists in the bucket`);
+    await c.putFile(objectKey, enc, { sha256: e.sha256, keyid: e.header.keyId });
+    return { key: objectKey, bytes: e.bytes, sha256: e.sha256 };
+  } finally {
+    fs.rmSync(enc, { force: true });
+  }
+}
+
 // ---------- runs ----------
 
 interface RunRow {

@@ -732,7 +732,12 @@
     "PDF_FAILED": "Creating the PDF failed – try again, or ask an administrator to look at the server log.",
     "INTERNAL_ERROR": "Something went wrong (reference {{requestId}}). Please try again; if it keeps happening, quote the reference to your administrator.",
     "CRON_DAY_OR": "Day of month and day of week are both set, so this runs on every day where either one matches – not only on days where both do. For the nth weekday of a month use the # form, e.g. 0 6 * * 1#1 (the first Monday).",
-    "CRON_DAY_OR_suggestion": "Day of month and day of week are both set, so this runs on every day where either one matches – not only on days where both do. For the nth weekday of a month use {{suggestion}}."
+    "CRON_DAY_OR_suggestion": "Day of month and day of week are both set, so this runs on every day where either one matches – not only on days where both do. For the nth weekday of a month use {{suggestion}}.",
+    "AUDIT_RETENTION_SHORT": "Keep archived entries at least {{min}} days in the database.",
+    "AUDIT_ARCHIVE_OFF": "Turn on archiving first: only archived entries are uploaded or deleted.",
+    "AUDIT_UPLOAD_UNAVAILABLE": "Uploading needs backups to S3 with a backup passphrase (Settings → Backups).",
+    "AUDIT_ARCHIVE_FILE_MISSING": "The archive file is no longer in the data folder.",
+    "MIGRATION_AUDIT_DELETED": "Archived audit entries were deleted from the database (audit retention) – moving such an instance is not supported yet."
   },
   "boundary": {
     "title": "Something went wrong on this page",

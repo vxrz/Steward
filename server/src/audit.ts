@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import type { AuditCheckpoint, AuditEntry, AuditVerifyResult, ImportedHistoryRef } from '@sm/shared';
 import { db } from './db.js';
 import { likeEscape } from './database/sql.js';
-import { vault } from './vault.js';
+import { vault, verifySignature } from './vault.js';
 import { canonicalJson, nowIso, parseJson, sha256 } from './util.js';
 import { currentActor, currentUser } from './auth/context.js';
 import { logger } from './log.js';
@@ -203,6 +203,7 @@ function write(input: Capped): AuditEntry {
 /** Tests: forget what this process wrote (simulates a restart). */
 export function resetAuditMemory(): void {
   lastWritten = null;
+  resetPrunedBase();
 }
 
 export interface AuditRow {
@@ -275,6 +276,11 @@ export function queryAudit(f: {
     .map(toEntry);
 }
 
+/** The entries after `afterSeq` in order (the chain an export holds). */
+export function chainEntriesAscending(afterSeq: number): AuditEntry[] {
+  return db().all<AuditRow>(`SELECT * FROM audit_log WHERE seq > ? AND ${VALID_SEQ} ORDER BY seq`, afterSeq).map(toEntry);
+}
+
 export function allAuditAscending(runId?: string): AuditEntry[] {
   return runId
     ? db().all<AuditRow>(`SELECT * FROM audit_log WHERE run_id = ? AND ${VALID_SEQ} ORDER BY seq`, runId).map(toEntry)
@@ -291,7 +297,16 @@ export function isAuthentic(r: AuditRow | undefined): boolean {
   const seq = Number(r.seq);
   if (!Number.isInteger(seq) || seq < 1) return false;
   const prev = seq === 1 ? { hash: GENESIS } : db().get<{ hash: string }>('SELECT hash FROM audit_log WHERE seq = ?', seq - 1);
-  if (!prev || r.prev_hash !== prev.hash) return false;
+  if (prev) {
+    if (r.prev_hash !== prev.hash) return false;
+  } else {
+    // the predecessor was archived and deleted (retention): the first remaining entry links to the signed checkpoint
+    // the deletion started from; an entry kept in the deleted range (evidence other content relies on) is checked by
+    // its HMAC alone – its place in the chain is proven by the archive
+    const base = prunedBase();
+    if (!base || 'problem' in base || seq - 1 > base.seq) return false;
+    if (seq - 1 === base.seq && r.prev_hash !== base.hash) return false;
+  }
   const expected = Buffer.from(computeHash(vault().auditKey(), r.prev_hash, toEntry(r)));
   const actual = Buffer.from(String(r.hash));
   return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
@@ -381,6 +396,62 @@ export function sealedProtocolHash(runId: string): string | null {
   return sealedProtocol(runId)?.hash ?? null;
 }
 
+// ---------- archived and deleted entries (retention, audit-archive.ts) ----------
+
+/**
+ * Entries that other evidence relies on stay in the database when archived entries are deleted: records (approvals,
+ * frozen revisions, generated PDFs), access checks and findings, generated reports, run results (protocol seals),
+ * imports, checkpoints and the deletion records themselves. Each is still authentic by its HMAC (isAuthentic).
+ */
+export const KEPT_ON_DELETE_SQL =
+  "(entity_type IN ('record', 'access_check', 'access_finding') OR action IN ('report.generated', 'run.succeeded', 'run.failed', 'run.cancelled', 'instance.imported', 'audit.checkpoint', 'audit.entries_delete_started', 'audit.entries_deleted'))";
+
+/** The record written (in the chain) before archived entries are deleted; verification requires it. */
+export const DELETE_STARTED_ACTION = 'audit.entries_delete_started';
+
+/**
+ * Where the entries still in the database start: the signed checkpoint of the newest archive whose entries are
+ * being or were deleted. Entries up to `seq` are in the archives; the first remaining entry links to `hash`, and the
+ * public digest continues from `digest`.
+ */
+export interface PrunedBase {
+  archiveId: string;
+  seq: number;
+  hash: string;
+  digest: string;
+  ts: string;
+  checkpoint: AuditCheckpoint;
+}
+
+type Source = NonNullable<VerifyOptions['source']>;
+
+/** The pruned base of a database (the live one or a snapshot); `problem` when its record cannot be trusted. */
+export function prunedBaseOf(d: Source): PrunedBase | { problem: string } | null {
+  let r: { id: string; last_seq: number; checkpoint: string } | undefined;
+  try {
+    r = d.get('SELECT id, last_seq, checkpoint FROM audit_archives WHERE prune_started_at IS NOT NULL ORDER BY last_seq DESC LIMIT 1');
+  } catch {
+    return null; // a database from before 0.4.0 (a backup's snapshot)
+  }
+  if (!r) return null;
+  const cp = parseJson<AuditCheckpoint | null>(r.checkpoint, null);
+  const key = vault().unlocked ? vault().signingPublicKey() : undefined;
+  const { signature, ...body } = cp ?? ({} as AuditCheckpoint);
+  if (!cp || cp.seq !== Number(r.last_seq) || !key || !signature || !verifySignature(key, checkpointPayload(body), signature))
+    return { problem: `The archive ${r.id} that entries were deleted up to has no valid signed checkpoint – the deletion cannot be trusted` };
+  return { archiveId: r.id, seq: cp.seq, hash: cp.hash, digest: cp.digest, ts: cp.ts, checkpoint: cp };
+}
+
+let baseCache: ReturnType<typeof prunedBaseOf> | undefined;
+/** The live database's pruned base (cached; audit-archive.ts resets it when a deletion starts). */
+export function prunedBase(): ReturnType<typeof prunedBaseOf> {
+  if (baseCache === undefined) baseCache = prunedBaseOf(db());
+  return baseCache;
+}
+export function resetPrunedBase(): void {
+  baseCache = undefined;
+}
+
 // ---------- verification ----------
 
 export interface Anchor {
@@ -397,50 +468,115 @@ export interface VerifyOptions {
   from?: { seq: number; hash: string; digest: string };
   /** Another copy of the database to check (a backup's snapshot, #117) instead of the live one. */
   source?: { get<T>(sql: string, ...params: unknown[]): T | undefined; all<T>(sql: string, ...params: unknown[]): T[] };
+  /** Called after each page of 5000 entries: entries checked so far, of about `total` */
+  onProgress?: (checked: number, total: number) => void;
 }
 
 export type VerifyOutcome = AuditVerifyResult & { head?: { seq: number; hash: string; digest: string } };
 
-function fail(checked: number, firstBadSeq: number | undefined, message: string): VerifyOutcome {
-  return { ok: false, checked, firstBadSeq, message };
+function fail(checked: number, firstBadSeq: number | undefined, message: string, extra: Partial<AuditVerifyResult> = {}): VerifyOutcome {
+  return { ok: false, checked, firstBadSeq, message, ...extra };
 }
+
+const PAGE = 5000;
 
 /**
  * Verifies the chain in pages of 5000 rows. The generator yields after each page,
  * so the async variant can let the server breathe on large logs.
+ *
+ * Without `from` (full): every entry from #1 – or, when archived entries were deleted, from the signed checkpoint of
+ * the newest archive they were deleted up to (its deletion record must be in the chain, and the entries kept in the
+ * deleted range must still carry their HMAC). With `from` (incremental): the entries after that verified entry.
+ * Anchors before the start are checked against the entry they name (hash; the digest needs a full verification).
  */
 function* verifySteps(o: VerifyOptions = {}): Generator<void, VerifyOutcome> {
   const key = vault().auditKey();
   const d = o.source ?? db();
-  const stats = d.get<{ n: number; bad: number | null }>('SELECT COUNT(*) AS n, SUM(CASE WHEN seq < 1 THEN 1 ELSE 0 END) AS bad FROM audit_log')!;
-  const total = Number(stats.n);
-  if (Number(stats.bad ?? 0) > 0) {
+  const bad = d.get<{ n: number }>('SELECT COUNT(*) AS n FROM audit_log WHERE seq < 1')!;
+  if (Number(bad.n) > 0) {
     const r = d.get<{ seq: number }>('SELECT seq FROM audit_log WHERE seq < 1 ORDER BY seq LIMIT 1')!;
-    return fail(0, Number(r.seq), `Unexpected entry #${r.seq}: sequence numbers start at 1 – ${stats.bad} row(s) were inserted outside the application`);
+    return fail(0, Number(r.seq), `Unexpected entry #${r.seq}: sequence numbers start at 1 – ${bad.n} row(s) were inserted outside the application`);
   }
+  const based = o.source ? prunedBaseOf(d) : prunedBase();
+  if (based && 'problem' in based) return fail(0, undefined, based.problem, { mode: o.from ? 'incremental' : 'full' });
+  const base = based;
+  const deleted = base ? { deletedThroughSeq: base.seq } : {};
   let prev = GENESIS;
   let digest = DIGEST_SEED;
   let expectedSeq = 1;
-  if (o.from) {
+  let from: { seq: number; hash: string; digest: string } | undefined;
+  if (o.from && (!base || o.from.seq > base.seq)) {
     const r = d.get<AuditRow>('SELECT * FROM audit_log WHERE seq = ?', o.from.seq);
-    if (!r || r.hash !== o.from.hash) return fail(o.from.seq - 1, o.from.seq, `Entry #${o.from.seq} (last signed checkpoint) was removed or modified`);
-    prev = o.from.hash;
-    digest = o.from.digest;
-    expectedSeq = o.from.seq + 1;
+    if (!r || r.hash !== o.from.hash)
+      return fail(o.from.seq - 1, o.from.seq, `Entry #${o.from.seq} (last signed checkpoint) was removed or modified`, { mode: 'incremental', ...deleted });
+    from = o.from;
+  } else if (base) {
+    from = { seq: base.seq, hash: base.hash, digest: base.digest };
   }
+  if (from) {
+    prev = from.hash;
+    digest = from.digest;
+    expectedSeq = from.seq + 1;
+  }
+  const mode = o.from ? 'incremental' : 'full';
+  // the deletion record of the base must be among the (verified) entries walked
+  let deletionRecord = !(base && expectedSeq === base.seq + 1);
   const anchors = [...(o.anchors ?? [])].sort((a, b) => a.seq - b.seq);
   const anchorResults: NonNullable<AuditVerifyResult['anchors']> = [];
   let ai = 0;
-  while (ai < anchors.length && anchors[ai]!.seq < expectedSeq) ai++; // covered by the incremental start
+  // anchors before the start: the entry they name (or, deleted, its archive)
+  for (; ai < anchors.length && anchors[ai]!.seq < expectedSeq; ai++) {
+    const a = anchors[ai]!;
+    if (from && a.seq === from.seq && a.hash === from.hash && (!a.digest || a.digest === from.digest)) {
+      anchorResults.push({ source: a.source, seq: a.seq, ok: true, message: `Entry #${a.seq} matches the ${a.source}` });
+      continue;
+    }
+    const r = d.get<{ hash: string }>('SELECT hash FROM audit_log WHERE seq = ?', a.seq);
+    let problem: string | null = null;
+    let message: string;
+    if (r) {
+      problem =
+        r.hash !== a.hash ? `Entry #${a.seq} differs from the ${a.source} (hash ${String(r.hash).slice(0, 12)}… instead of ${a.hash.slice(0, 12)}…)` : null;
+      message = `Entry #${a.seq} matches the ${a.source} (hash; a full verification also compares the digest)`;
+    } else if (base && a.seq <= base.seq) {
+      message = `Entry #${a.seq} of the ${a.source} was archived and deleted from the database – check it against the archive (steward audit verify-archive)`;
+    } else {
+      problem = `Entry #${a.seq} of the ${a.source} is missing – entries were removed`;
+      message = problem;
+    }
+    if (problem)
+      return { ...fail(0, a.seq, problem, { mode, ...deleted }), anchors: [...anchorResults, { source: a.source, seq: a.seq, ok: false, message: problem }] };
+    anchorResults.push({ source: a.source, seq: a.seq, ok: true, message });
+  }
+  // full: entries kept in the deleted range must still be authentic (HMAC; their place is proven by the archive)
+  if (base && !o.from) {
+    for (let seq = 1; ;) {
+      const rows = d.all<AuditRow>('SELECT * FROM audit_log WHERE seq >= ? AND seq <= ? ORDER BY seq LIMIT ?', seq, base.seq, PAGE);
+      if (!rows.length) break;
+      for (const r of rows) {
+        if (computeHash(key, r.prev_hash, toEntry(r)) !== r.hash)
+          return fail(0, Number(r.seq), `Entry #${r.seq} (kept when the archived entries were deleted) was modified`, { mode, ...deleted });
+      }
+      seq = Number(rows.at(-1)!.seq) + 1;
+      yield;
+    }
+  }
+  const start = expectedSeq;
+  const total = Number(d.get<{ n: number }>('SELECT COUNT(*) AS n FROM audit_log WHERE seq >= ?', start)!.n);
+  const extra = { mode, ...(o.from ? { fromSeq: start - 1 } : {}), ...deleted } as const;
   for (;;) {
-    const rows = d.all<AuditRow>('SELECT * FROM audit_log WHERE seq >= ? ORDER BY seq LIMIT 5000', expectedSeq);
+    const rows = d.all<AuditRow>('SELECT * FROM audit_log WHERE seq >= ? ORDER BY seq LIMIT ?', expectedSeq, PAGE);
     if (!rows.length) break;
     for (const r of rows) {
-      if (Number(r.seq) !== expectedSeq) return fail(expectedSeq - 1, expectedSeq, `Entry #${expectedSeq} is missing`);
+      if (Number(r.seq) !== expectedSeq) return fail(expectedSeq - start, expectedSeq, `Entry #${expectedSeq} is missing`, extra);
       const e = toEntry(r);
       const hash = computeHash(key, prev, e);
-      if (r.prev_hash !== prev || hash !== r.hash) return fail(expectedSeq - 1, e.seq, `Entry #${e.seq} was modified or re-ordered`);
+      if (r.prev_hash !== prev || hash !== r.hash) return fail(expectedSeq - start, e.seq, `Entry #${e.seq} was modified or re-ordered`, extra);
       digest = digestStep(digest, e);
+      if (!deletionRecord && e.action === DELETE_STARTED_ACTION) {
+        const x = e.details as { archiveId?: string; throughSeq?: number; checkpointHash?: string } | null;
+        deletionRecord = x?.archiveId === base!.archiveId && x.throughSeq === base!.seq && x.checkpointHash === base!.hash;
+      }
       while (ai < anchors.length && anchors[ai]!.seq === e.seq) {
         const a = anchors[ai++]!;
         const problem =
@@ -449,29 +585,49 @@ function* verifySteps(o: VerifyOptions = {}): Generator<void, VerifyOutcome> {
             : a.digest && a.digest !== digest
               ? `Entries up to #${a.seq} differ from the ${a.source} (digest mismatch)`
               : null;
-        if (problem) return { ...fail(e.seq - 1, e.seq, problem), anchors: [...anchorResults, { source: a.source, seq: a.seq, ok: false, message: problem }] };
+        if (problem)
+          return { ...fail(e.seq - start, e.seq, problem, extra), anchors: [...anchorResults, { source: a.source, seq: a.seq, ok: false, message: problem }] };
         anchorResults.push({ source: a.source, seq: a.seq, ok: true, message: `Entry #${a.seq} matches the ${a.source}` });
       }
       prev = r.hash;
       expectedSeq++;
     }
+    o.onProgress?.(expectedSeq - start, total);
     yield;
   }
   const last = expectedSeq - 1;
+  const checked = last - (start - 1);
   if (ai < anchors.length) {
     const a = anchors[ai]!;
     const message = `The log ends at entry #${last}, but the ${a.source} proves that entry #${a.seq} existed – entries were removed`;
-    return { ...fail(last, last + 1, message), anchors: [...anchorResults, { source: a.source, seq: a.seq, ok: false, message }] };
+    return { ...fail(checked, last + 1, message, extra), anchors: [...anchorResults, { source: a.source, seq: a.seq, ok: false, message }] };
   }
   // (entries written during the walk are part of it, so only "fewer in the chain than in the table" is a finding)
-  if (!o.from && last < total) return fail(last, last + 1, `The log holds ${total} rows but only ${last} form the chain – unexpected rows were inserted`);
+  if (checked < total)
+    return fail(checked, last + 1, `The log holds ${total} rows after #${start - 1} but only ${checked} form the chain – unexpected rows were inserted`, extra);
   if (!o.source && lastWritten && last < lastWritten.seq) {
-    return fail(last, last + 1, `Entries after #${last} were removed while the server was running (it wrote entry #${lastWritten.seq})`);
+    return fail(checked, last + 1, `Entries after #${last} were removed while the server was running (it wrote entry #${lastWritten.seq})`, extra);
   }
+  if (!deletionRecord)
+    return fail(
+      checked,
+      base!.seq,
+      `Entries up to #${base!.seq} were deleted, but the log has no authentic record of that deletion (archive ${base!.archiveId})`,
+      extra,
+    );
+  const message = o.from
+    ? checked
+      ? `Entries #${start}–#${last} are intact (checked from the signed checkpoint at entry #${start - 1})`
+      : `No new entries since the signed checkpoint at entry #${start - 1}`
+    : base
+      ? `All ${checked} entries in the database are intact (entries #1–#${base.seq} were archived and deleted; the signed checkpoint of archive ${base.archiveId} links to entry #${base.seq + 1})`
+      : `All ${last} entries are intact`;
+  o.onProgress?.(checked, total);
   return {
     ok: true,
-    checked: o.from ? last - o.from.seq : last,
-    message: `All ${last} entries are intact`,
+    checked,
+    message,
+    ...extra,
     anchors: anchorResults.length ? anchorResults : undefined,
     head: { seq: last, hash: prev, digest },
   };

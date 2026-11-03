@@ -198,6 +198,11 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/audit/anchoring': ADMIN,
   'GET /api/audit/anchor.json': ADMIN_AUDITOR,
   'POST /api/audit/checkpoint': ADMIN_AUDITOR,
+  'POST /api/audit/verify/full': ADMIN,
+  'GET /api/audit/archive': ADMIN_AUDITOR,
+  'PUT /api/audit/archive': ADMIN,
+  'POST /api/audit/archive/run': ADMIN,
+  'GET /api/audit/archives/:archiveId/file': ADMIN_AUDITOR,
   'GET /api/backups': ADMIN,
   'GET /api/backups/stored': ADMIN,
   'PUT /api/backups/settings': ADMIN,
@@ -865,6 +870,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/compliance/evidence-packs': 'always',
   'GET /api/audit/export': 'always',
   'PUT /api/audit/anchoring': 'always',
+  'PUT /api/audit/archive': 'always',
+  'GET /api/audit/archives/:archiveId/file': 'always',
   'GET /api/credentials/export.csv': 'always',
   'POST /api/migration/export': 'always',
   'POST /api/migration/imports/staged/:id/apply': 'always',
@@ -896,6 +903,7 @@ const NO_POSITIVE = new Set([
   'GET /api/auth/oidc/callback', // redirects
   'GET /api/auth/oidc/:id/start',
   'GET /api/audit/anchor.json', // no checkpoint file yet
+  'GET /api/audit/archives/:archiveId/file', // no audit archive (archiving is off)
   'GET /api/reports/branding/logo', // no logo uploaded
   'GET /api/settings/notifications/look/logo',
   'GET /api/theme/logo',
@@ -1151,6 +1159,7 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/settings': { outboundPolicy: 'open' },
   'PUT /api/settings/instance': { outboundPolicy: 'open' },
   'PUT /api/audit/anchoring': { emailRecipients: [] },
+  'PUT /api/audit/archive': { archive: false, upload: false, retentionDays: 0 },
   'PUT /api/credentials/settings': {},
   'POST /api/vault/passphrase': { current: 'correct horse battery', next: 'correct horse battery 2' },
   'POST /api/vault/unlock': { passphrase: 'correct horse battery' },
