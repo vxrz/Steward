@@ -1564,6 +1564,7 @@ async function execPublish(step: NodeOf<'publish'>, ctx: RunContext, key: string
     metrics,
     limits,
     staleAfterMinutes: step.staleAfterMinutes,
+    staleAfterFixed: step.staleAfterFixed,
     sourceSlot: step.source,
   });
   const counts = Object.entries(meta.statusCounts)

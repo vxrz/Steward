@@ -311,8 +311,13 @@ export interface PublishConfig {
   limits?: Record<string, string>;
   /** Metric name → numeric expression of a lower limit, reached by falling (e.g. free storage) */
   floors?: Record<string, string>;
-  /** Data counts as stale when older than this (dashboards show it); default: 2.5 × the schedule interval, else 24 h */
+  /**
+   * Data of a run without a schedule counts as stale when older than this (dashboards show it); default 24 h. Runs
+   * started by a schedule (or a sub-process of one) follow the schedule: 2.5 × its interval, at least 15 minutes.
+   */
   staleAfterMinutes?: number;
+  /** `staleAfterMinutes` applies to scheduled runs too, instead of the schedule's interval (the behaviour before 0.3.1) */
+  staleAfterFixed?: boolean;
   /** Safety limit (default 5000 rows) */
   maxRows?: number;
   /** The connection whose platform is the source of the rows (#142); default: the only one, else all bound platforms */
@@ -498,6 +503,7 @@ const shapes = {
     limits: boundedRecord(z.string(), 100).optional(),
     floors: boundedRecord(z.string(), 100).optional(),
     staleAfterMinutes: z.number().int().min(1).optional(),
+    staleAfterFixed: z.boolean().optional(),
     maxRows: z.number().int().min(1).max(50000).optional(),
     /** The connection whose platform is the source of the rows (#142); default: the only one, else all bound platforms */
     source: z.string().max(64).optional(),

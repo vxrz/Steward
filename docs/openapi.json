@@ -2629,7 +2629,16 @@
                 },
                 "staleAfterMinutes": {
                   "type": "integer",
-                  "description": "The step setting, else 2.5 × the schedule interval (at least 15), else 24 h"
+                  "description": "A run started by a schedule: 2.5 × the schedule interval (at least 15); a run without one: the publish step setting, else 24 h (see staleReason)"
+                },
+                "staleReason": {
+                  "type": "string",
+                  "enum": [
+                    "schedule",
+                    "fixed",
+                    "default"
+                  ],
+                  "description": "Where staleAfterMinutes comes from: the schedule interval, the publish step setting, or the 24-hour default"
                 },
                 "expectedMinutes": {
                   "anyOf": [
@@ -2640,7 +2649,20 @@
                       "type": "null"
                     }
                   ],
-                  "description": "Interval of the schedule that feeds it"
+                  "description": "Interval of the schedule that feeds it (its current cron)"
+                },
+                "nextRunAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Next run of the schedule that feeds it; null when not scheduled (no schedule, disabled or deleted)"
                 },
                 "stale": {
                   "type": "boolean"
@@ -2656,7 +2678,9 @@
                 "rowCount",
                 "metrics",
                 "staleAfterMinutes",
+                "staleReason",
                 "expectedMinutes",
+                "nextRunAt",
                 "stale"
               ],
               "additionalProperties": false

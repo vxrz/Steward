@@ -258,7 +258,11 @@
         },
         "staleAfterMinutes": {
           "label": "Veraltet nach (Minuten)",
-          "help": "Standard: 2,5 × das Intervall des Zeitplans, der den Lauf gestartet hat (mindestens 15 Minuten), sonst 24 Stunden"
+          "help": "Für Läufe ohne Zeitplan (Standard 24 Stunden). Geplante Läufe richten sich nach ihrem Zeitplan: 2,5 × sein Intervall, mindestens 15 Minuten"
+        },
+        "staleAfterFixed": {
+          "label": "„Veraltet nach“ auch für geplante Läufe verwenden",
+          "help": "Statt 2,5 × das Intervall des Zeitplans, z. B. für eine engere oder großzügigere Grenze, als der Zeitplan ergibt"
         },
         "maxRows": {
           "label": "Max. Zeilen (Sicherheitsgrenze, Standard 5000)"

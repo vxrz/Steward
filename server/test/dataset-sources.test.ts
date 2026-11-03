@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Cron } from 'croner';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -169,5 +170,101 @@ describe('datasets per source platform', () => {
     ]);
     const series = await s.api('GET', '/datasets/test.legacy/metrics?names=total');
     expect(series).toEqual([expect.objectContaining({ name: 'total', source: platforms[1] })]);
+  });
+});
+
+/**
+ * Freshness (0.3.1): a run that a schedule started follows the schedule (2.5 × its interval), the step's
+ * `staleAfterMinutes` applies to runs without one (or with `staleAfterFixed`); the interval and the next run come from
+ * the schedule as it is now, per source; a sub-process names the parent whose schedule started it.
+ */
+describe('freshness follows the schedule', () => {
+  const backdate = async (key: string, minutes: number) => {
+    const { db } = await import('../src/db.js');
+    db().run('UPDATE dataset_parts SET updated_at = ? WHERE dataset_key = ?', new Date(Date.now() - minutes * 60000).toISOString(), key);
+  };
+  const schedule = (proc: string, name: string, cron: string, enabled = false) =>
+    s.api('POST', '/schedules', { name, processId: proc, cron, inputs: { users: ['a'] }, bindings: {}, enabled });
+  const fire = async (sch: { id: string }) => s.waitRun((await s.api('POST', `/schedules/${sch.id}/run`, {})).id, DONE);
+  const source = async (key: string) => (await s.api('GET', `/datasets/${key}`)).sources[0];
+
+  it('a weekly schedule is not stale 3 hours after its run, whatever the step says; a run by hand uses the step', async () => {
+    const proc = (await publisher('Weekly report', [], { dataset: 'test.weekly', staleAfterMinutes: 180 })).id;
+    const sch = await schedule(proc, 'Weekly', '0 6 * * 1', true);
+    await fire(sch);
+    await backdate('test.weekly', 4 * 60);
+    const d = await s.api('GET', '/datasets/test.weekly');
+    expect(d.sources[0]).toMatchObject({
+      scheduleId: sch.id,
+      scheduleName: 'Weekly',
+      viaProcess: null,
+      expectedMinutes: 7 * 24 * 60,
+      staleAfterMinutes: 2.5 * 7 * 24 * 60,
+      staleReason: 'schedule',
+      stale: false,
+    });
+    expect(d.stale).toBe(false);
+    // the next run of this source's schedule
+    expect(d.sources[0].nextRunAt).toBe(new Cron('0 6 * * 1', { paused: true }).nextRun()!.toISOString());
+    // no stale message for it
+    const { allParts } = await import('../src/dashboards/datasets.js');
+    expect(allParts().find((p) => p.key === 'test.weekly')).toMatchObject({ notify: true, source: { stale: false } });
+
+    // the same process started by hand: the step's limit
+    await run(proc, {}, ['b']);
+    await backdate('test.weekly', 4 * 60);
+    expect(await source('test.weekly')).toMatchObject({
+      scheduleId: null,
+      expectedMinutes: null,
+      nextRunAt: null,
+      staleAfterMinutes: 180,
+      staleReason: 'fixed',
+      stale: true,
+    });
+  });
+
+  it('reads the interval from the schedule as it is now; the stored one once the schedule is deleted', async () => {
+    const proc = (await publisher('Changing schedule', [], { dataset: 'test.changing' })).id;
+    const sch = await schedule(proc, 'Daily', '0 5 * * *');
+    await fire(sch);
+    expect(await source('test.changing')).toMatchObject({ expectedMinutes: 1440, staleAfterMinutes: 3600, nextRunAt: null });
+    // hourly from now on: the dashboard says so before the next run
+    await s.api('PUT', `/schedules/${sch.id}`, { name: 'Hourly', processId: proc, cron: '15 * * * *', inputs: { users: ['a'] }, bindings: {}, enabled: true });
+    await backdate('test.changing', 3 * 60);
+    expect(await source('test.changing')).toMatchObject({
+      scheduleName: 'Hourly',
+      expectedMinutes: 60,
+      staleAfterMinutes: 150,
+      staleReason: 'schedule',
+      nextRunAt: new Cron('15 * * * *', { paused: true }).nextRun()!.toISOString(),
+      stale: true,
+    });
+    await s.api('DELETE', `/schedules/${sch.id}`);
+    expect(await source('test.changing')).toMatchObject({ scheduleName: null, nextRunAt: null, expectedMinutes: 1440, staleReason: 'schedule', stale: false });
+  });
+
+  it('staleAfterFixed keeps the step limit for scheduled runs too', async () => {
+    const proc = (await publisher('Tight check', [], { dataset: 'test.tight', staleAfterMinutes: 70, staleAfterFixed: true })).id;
+    await fire(await schedule(proc, 'Hourly check', '0 * * * *'));
+    expect(await source('test.tight')).toMatchObject({ expectedMinutes: 60, staleAfterMinutes: 70, staleReason: 'fixed' });
+  });
+
+  it('a sub-process follows the schedule of the parent that ran it, and names the parent', async () => {
+    const child = (await publisher('Child inventory', [], { dataset: 'test.child', rows: "['x', 'y']", staleAfterMinutes: 30 })).id;
+    const parent = (
+      await s.api('POST', '/processes', {
+        definition: { name: 'Nightly parent', inputs: [{ name: 'users', type: 'list' }], steps: [{ id: 'child', type: 'subprocess', process: child }] },
+      })
+    ).id;
+    const run = await fire(await schedule(parent, 'Nightly', '0 2 * * *'));
+    expect(run.status).toBe('succeeded');
+    expect(await source('test.child')).toMatchObject({
+      rowCount: 2,
+      scheduleName: 'Nightly',
+      viaProcess: { id: parent, name: 'Nightly parent' },
+      expectedMinutes: 1440,
+      staleAfterMinutes: 3600,
+      staleReason: 'schedule',
+    });
   });
 });

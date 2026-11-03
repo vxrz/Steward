@@ -61,12 +61,25 @@ export interface DatasetSource {
   metrics: Record<string, number>;
   /** Limits of metrics from the publish step (#145): an upper limit, or a lower one (`lower`) reached by falling */
   limits: Record<string, MetricLimit>;
-  /** Stale after this many minutes: the publish step's setting, else 2.5 × the schedule interval (at least 15), else 24 h */
+  /**
+   * Stale after this many minutes (see `staleReason`): a run started by a schedule (or a sub-process of one) follows
+   * the schedule, 2.5 × its interval (at least 15); a run without one the publish step's `staleAfterMinutes`, else 24 h
+   */
   staleAfterMinutes: number;
-  /** The schedule's interval, when a schedule fed it */
+  /** `schedule`: 2.5 × the schedule's interval; `fixed`: the publish step's setting; `default`: 24 hours */
+  staleReason: DatasetStaleReason;
+  /** The interval of the schedule that fed it, from the schedule's current cron (when a schedule fed it) */
   expectedMinutes: number | null;
+  /** The next run of that schedule; null: not scheduled (no schedule, or it is disabled or deleted) */
+  nextRunAt: string | null;
+  /** That schedule's name (null: none, deleted, or its process is hidden from the reader) */
+  scheduleName: string | null;
+  /** The schedule belongs to another process that runs this one as a sub-process (e.g. a daily parent) */
+  viaProcess: { id: string; name: string } | null;
   stale: boolean;
 }
+
+export type DatasetStaleReason = 'schedule' | 'fixed' | 'default';
 
 export interface DatasetMeta {
   key: string;
