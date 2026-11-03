@@ -132,7 +132,7 @@ let denied = new Set<string>();
 export function setAwsDenied(actions: string[]): void {
   denied = new Set(actions);
 }
-const notAuthorized = (action: string) => `User: arn:aws:iam::${DEMO_AWS.account}:user/steward-reader is not authorized to perform: ${action} on resource: *`;
+const deniedMessage = (action: string) => `User: arn:aws:iam::${DEMO_AWS.account}:user/steward-reader is not authorized to perform: ${action} on resource: *`;
 
 /** For tests: the IAM groups of a demo user (a right removed in AWS). */
 export function setIamGroups(user: string, groups: string[]): void {
@@ -170,7 +170,7 @@ export async function mockAws(app: FastifyInstance): Promise<void> {
           }
           reply.type('application/x-amz-json-1.1');
           const action = target.endsWith('.GetResources') ? 'tag:GetResources' : target.endsWith('.GetCostAndUsage') ? 'ce:GetCostAndUsage' : '';
-          if (denied.has(action)) return reply.code(400).send({ __type: 'AccessDeniedException', Message: notAuthorized(action) });
+          if (denied.has(action)) return reply.code(400).send({ __type: 'AccessDeniedException', Message: deniedMessage(action) });
           if (target === 'ResourceGroupsTaggingAPI_20170126.GetResources' && sc.service === 'tagging') {
             const key = body.TagFilters?.[0]?.Key as string | undefined;
             const all = (RESOURCES[sc.region] ?? []).filter((r) => !key || key in r.tags);
@@ -193,7 +193,8 @@ export async function mockAws(app: FastifyInstance): Promise<void> {
             .code(403)
             .type('text/xml')
             .send(
-              `<ErrorResponse><Error><Type>Sender</Type><Code>AccessDenied</Code><Message>${escapeXml(notAuthorized(`${sc.service}:${p.Action}`))}</Message></Error></ErrorResponse>`,
+              // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- XML of a dev/demo-only mock, the value is XML-escaped; not HTML
+              `<ErrorResponse><Error><Type>Sender</Type><Code>AccessDenied</Code><Message>${escapeXml(deniedMessage(`${sc.service}:${p.Action}`))}</Message></Error></ErrorResponse>`,
             );
         if (p.Action === 'GetCallerIdentity' && sc.service === 'sts')
           return xml(

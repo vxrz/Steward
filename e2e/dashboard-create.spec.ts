@@ -61,7 +61,8 @@ test('an empty widget names the process that fills it: links for designers, plai
     await settle(page);
     const empty = page.getByRole('region', { name: 'Privileged assignments', exact: true }).getByTestId('widget-no-data');
     await expect(empty).toContainText(`run or schedule ${processName}`);
-    await expect(empty.getByRole('link', { name: 'Open the process' })).toHaveAttribute('href', new RegExp(`/processes/${proc.id}$`));
+    expect(await empty.getByRole('link', { name: 'Open the process' }).getAttribute('href')).toMatch(/\/processes\/[^/]+$/);
+    expect((await empty.getByRole('link', { name: 'Open the process' }).getAttribute('href'))!.endsWith(`/processes/${proc.id}`)).toBe(true);
     await expect(empty.getByRole('link', { name: 'Schedule it' })).toHaveAttribute('href', /\/schedules\?new=1&processId=/);
     await expect(empty).toContainText(`Dataset ${key}`);
 

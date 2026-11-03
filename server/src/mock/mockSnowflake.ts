@@ -212,7 +212,16 @@ const epoch = (msAgo: number) => `${((Date.now() - msAgo) / 1000).toFixed(3)}000
 
 /** The output columns of a SELECT list – the alias after AS, or the column itself (top-level commas only). */
 function selectAliases(sql: string): string[] {
-  const list = /^\s*(?:\/\*.*?\*\/\s*)?SELECT\s+([\s\S]+?)\s+FROM\s/i.exec(sql)?.[1] ?? '';
+  // a leading /* … */ tag, then SELECT <list> FROM – found with indexOf on normalised whitespace, not a backtracking pattern
+  let s = sql.trim();
+  if (s.startsWith('/*')) {
+    const end = s.indexOf('*/');
+    s = end < 0 ? '' : s.slice(end + 2).trim();
+  }
+  const flat = s.replace(/\s+/g, ' ');
+  const upper = flat.toUpperCase();
+  const from = upper.indexOf(' FROM ');
+  const list = upper.startsWith('SELECT ') && from > 7 ? flat.slice(7, from) : '';
   const out: string[] = [];
   let depth = 0;
   let cur = '';
@@ -234,22 +243,65 @@ function selectAliases(sql: string): string[] {
   });
 }
 
-/** The pattern of `NAME RLIKE ?` – anchored like Snowflake's RLIKE; an invalid pattern matches nothing. */
+/**
+ * `NAME RLIKE ?` of the mock, anchored like Snowflake's RLIKE – without building a regular expression from the input:
+ * literals, `.`, `.*` and groups of literal alternatives such as `(SVC|TECH|SYS)` (what the templates send), optionally
+ * with `^` and `$`. Any other pattern matches nothing.
+ */
 function rlike(pattern: string): (s: string) => boolean {
-  if (!pattern) return () => false;
-  try {
-    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- the mock only, a test or demo input
-    const re = new RegExp(`^(?:${pattern})$`, 's');
-    return (s) => re.test(s);
-  } catch {
-    return () => false;
+  type Tok = { lit: string } | { any: true; star: boolean } | { alts: string[] };
+  const word = (ch: string | undefined) => !!ch && /^[A-Za-z0-9_$]$/.test(ch);
+  let p = pattern.startsWith('^') ? pattern.slice(1) : pattern;
+  if (p.endsWith('$') && !p.endsWith('\\$')) p = p.slice(0, -1);
+  if (!p || p.length > 200) return () => false;
+  const toks: Tok[] = [];
+  for (let i = 0; i < p.length;) {
+    const ch = p[i]!;
+    if (ch === '.') {
+      const star = p[i + 1] === '*';
+      toks.push({ any: true, star });
+      i += star ? 2 : 1;
+    } else if (ch === '(') {
+      const end = p.indexOf(')', i);
+      if (end < 0) return () => false;
+      const alts = p.slice(i + 1, end).split('|');
+      if (alts.some((a) => ![...a].every(word))) return () => false;
+      toks.push({ alts });
+      i = end + 1;
+    } else if (word(ch)) {
+      let j = i;
+      while (word(p[j])) j++;
+      toks.push({ lit: p.slice(i, j) });
+      i = j;
+    } else return () => false;
   }
+  return (s) => {
+    const memo = new Map<number, boolean>();
+    const at = (t: number, pos: number): boolean => {
+      const k = t * (s.length + 1) + pos;
+      const known = memo.get(k);
+      if (known !== undefined) return known;
+      const tok = toks[t];
+      let r: boolean;
+      if (!tok) r = pos === s.length;
+      else if ('lit' in tok) r = s.startsWith(tok.lit, pos) && at(t + 1, pos + tok.lit.length);
+      else if ('alts' in tok) r = tok.alts.some((a) => s.startsWith(a, pos) && at(t + 1, pos + a.length));
+      else if (tok.star) {
+        r = false;
+        for (let q = pos; q <= s.length && !r; q++) r = at(t + 1, q);
+      } else r = pos < s.length && at(t + 1, pos + 1);
+      memo.set(k, r);
+      return r;
+    };
+    return at(0, 0);
+  };
 }
 
 /** Untagged statements: SHOW GRANTS ON DATABASE / OF ROLE, SELECTs from the ACCOUNT_USAGE views processes read. */
 function untagged(sql: string, arg: (i: number) => string): { names: string[]; rows: Cell[][] } | { error: string } {
   const ident = (raw: string) => (raw.startsWith('"') ? raw.slice(1, -1).replaceAll('""', '"') : raw.toUpperCase());
-  const show = /^\s*SHOW\s+GRANTS\s+(ON\s+DATABASE|OF\s+ROLE)\s+("(?:[^"]|"")+"|[A-Za-z0-9_$]+)\s*;?\s*$/i.exec(sql);
+  // whitespace normalised first; the quoted name's alternatives start differently, so the pattern does not backtrack
+  const show = /^SHOW GRANTS (ON DATABASE|OF ROLE) ("(?:[^"]|"")+"|[A-Za-z0-9_$]+) ?;?$/i.exec(sql.trim().replace(/\s+/g, ' '));
   if (show) {
     const name = ident(show[2]!);
     if (/^ON/i.test(show[1]!)) {

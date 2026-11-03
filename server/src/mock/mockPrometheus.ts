@@ -68,8 +68,12 @@ const GOOD_RATIO: Record<string, Record<string, number>> = {
  */
 function requestRatio(query: string): Series[] | null {
   const q = query.trim();
-  const range = /http_requests_total[^[]*\[(\d+[smhdw])\]/.exec(q)?.[1];
-  if (!range) return null;
+  // the range of the first http_requests_total selector, found without a backtracking pattern
+  const at = q.indexOf('http_requests_total');
+  const open = at < 0 ? -1 : q.indexOf('[', at);
+  const close = open < 0 ? -1 : q.indexOf(']', open);
+  const range = close > open ? q.slice(open + 1, close) : '';
+  if (!/^\d{1,6}[smhdw]$/.test(range)) return null;
   const only = /service="([^"]+)"/.exec(q)?.[1];
   const errors = /^\(?\s*1\s*-/.test(q);
   const target = /\/\s*\(\s*1\s*-\s*(0\.\d+)\s*\)\s*$/.exec(q)?.[1];
