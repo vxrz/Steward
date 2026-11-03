@@ -83,14 +83,22 @@ function gatewayPlatform(id: string): Platform {
   try {
     p = platforms.getPlatform(id);
   } catch {
-    throw new ToolError(`Platform ${id} not found, or the MCP gateway is not turned on for it`);
+    throw new ToolError(`Platform ${id} not found, or not open to MCP clients for you. ${GATEWAY_HINT}`);
   }
   if (!p.config.mcpGateway?.enabled || !p.permissions.includes('use'))
-    throw new ToolError(`Platform ${id} not found, or the MCP gateway is not turned on for it`);
+    throw new ToolError(`Platform ${id} not found, or not open to MCP clients for you. ${GATEWAY_HINT}`);
   return p;
 }
 
-/** Whether the current token owner may use the gateway of at least one platform (tools/list). */
+/**
+ * The gateway tools are always listed (MCP clients keep the tool list of their first connection, so tools that
+ * appear later – once a platform opens its gateway – would stay unknown until the client reconnects); a call
+ * without a usable platform says how to get one.
+ */
+const GATEWAY_HINT =
+  "list_platforms shows the platforms with mcpGateway: true. A platform's managers turn it on under Platform → MCP (Allow access for MCP clients), and the token owner needs the use right on the platform.";
+
+/** Whether the current token owner may use the gateway of at least one platform. */
 export function anyGatewayPlatform(): boolean {
   try {
     return platforms.listPlatforms().some((p) => p.config.mcpGateway?.enabled && p.permissions.includes('use'));
@@ -346,7 +354,6 @@ export const gatewayTools: ToolDef[] = [
       })
       .strict(),
     gateway: true,
-    visible: () => anyGatewayPlatform(),
     handler: (a) => {
       const p = gatewayPlatform(a.platformId);
       const all = platforms.listOperations(p.id);
@@ -392,7 +399,6 @@ export const gatewayTools: ToolDef[] = [
       })
       .strict(),
     gateway: true,
-    visible: () => anyGatewayPlatform(),
     handler: (a) => {
       const p = gatewayPlatform(a.platformId);
       const op = findOperation(p.id, a.operation);
@@ -456,7 +462,6 @@ export const gatewayTools: ToolDef[] = [
       .refine((x) => !!x.operation !== !!x.path, 'Give either `operation` or `path`'),
     gateway: true,
     asks: true,
-    visible: () => anyGatewayPlatform(),
     handler: async (a, ctx) => {
       const p = gatewayPlatform(a.platformId);
       let op: ApiOperation | null = null;

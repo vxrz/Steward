@@ -21,7 +21,7 @@ test('"New dashboard" asks for a name and a start, then opens the dashboard in e
   await expect(page).toHaveURL(/\/dashboards\/[^/?]+$/);
   const id = page.url().split('/').pop()!;
   try {
-    await expect(page.getByRole('heading', { name, level: 2 })).toBeVisible();
+    await expect(page.getByRole('heading', { name, level: 1 })).toBeVisible();
     // edit mode, and the empty state points at the button above – not at "Edit"
     await expect(page.getByRole('button', { name: 'Add widget' })).toBeVisible();
     await expect(page.getByTestId('dashboard-empty')).toContainText('Add the first one with “Add widget” above.');

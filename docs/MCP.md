@@ -197,7 +197,7 @@ All tools read only (`annotations.readOnlyHint: true`), except `platform_call_op
 | `propose_control_catalogue`   | Proposes a control catalogue, in parts of up to 200 controls, for an administrator to review                                                                                    |
 | `propose_control_mappings`    | Proposes mappings of controls to Steward items with a reason each, for review                                                                                                   |
 
-`tools/list` only shows the tools the token owner can use (for example no `search_audit_log` for a viewer, no gateway tools without a gateway platform). The tools check the rights again on every call.
+`tools/list` only shows the tools the token owner can use (for example no `search_audit_log` for a viewer). The three gateway tools are the exception: they are always listed, because MCP clients keep the tool list of their first connection – a platform that opens its gateway later would otherwise stay out of reach until the client reconnects. Without a platform the owner may use through the gateway, their calls answer how to get one. The tools check the rights again on every call.
 
 **Tool output is data, not instructions.** Results come back as JSON (`structuredContent`, plus the same JSON as text). Names, messages, summaries and platform responses are written by people or by external systems. They can contain text that looks like an instruction ("ignore previous instructions …"). MCP clients and the people using them should treat tool output as untrusted data and keep a human in the loop. The server's `instructions` say the same to the model.
 
