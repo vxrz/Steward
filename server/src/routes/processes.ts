@@ -299,6 +299,6 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   });
   app.post('/cron/preview', async (req) => {
     const b = z.object({ cron: z.string().max(100), timezone: z.string().max(64).optional() }).parse(req.body);
-    return { next: scheduler.validateCron(b.cron, b.timezone) };
+    return { next: scheduler.validateCron(b.cron, b.timezone), warnings: scheduler.cronWarnings(b.cron) };
   });
 }

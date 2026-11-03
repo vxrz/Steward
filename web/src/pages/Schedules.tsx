@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { ActionIcon, Anchor, Badge, Button, Chip, Divider, Group, Modal, Select, Stack, Switch, Table, Text, TextInput, Tooltip } from '@mantine/core';
-import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconCalendarTime, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -16,6 +15,7 @@ import { errorText } from '../i18n/errors';
 import { confirmDanger } from '../components/confirm';
 import { RunModeField } from '../components/RunModeField';
 import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/notify/NotifyPolicy';
+import { CronWarnings, useCronPreview } from '../components/CronPreview';
 
 const PRESETS = [
   { key: 'every15', cron: '*/15 * * * *' },
@@ -259,13 +259,7 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
     queryFn: () => get<ProcessDetail>(`/processes/${d.processId}`),
     enabled: !!d.processId,
   });
-  const [cron] = useDebouncedValue(d.cron, 400);
-  const preview = useQuery({
-    queryKey: ['cron', cron, d.timezone],
-    queryFn: () => post<{ next: string[] }>('/cron/preview', { cron, timezone: d.timezone || undefined }),
-    enabled: !!cron,
-    retry: false,
-  });
+  const preview = useCronPreview(d.cron, d.timezone);
 
   useEffect(() => {
     if (proc.data && !draft.id && d.processId === proc.data.id && Object.keys(d.inputs).length === 0) {
@@ -330,6 +324,7 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
               })}
             </Text>
           )}
+          <CronWarnings warnings={preview.data?.warnings} onUse={(c) => setD({ ...d, cron: c })} />
         </div>
         {proc.data && (
           <>

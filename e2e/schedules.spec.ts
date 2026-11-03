@@ -81,3 +81,18 @@ test('an invalid cron expression is explained', async ({ page }) => {
   await expect(dialog.getByText(/^Next: /)).toBeHidden();
   await expect(dialog.getByRole('textbox', { name: 'Cron expression' })).toHaveAttribute('aria-invalid', 'true');
 });
+
+test('the cron preview warns when day of month and day of week are both set, and offers the nth weekday', async ({ page }) => {
+  await page.goto('/schedules');
+  await page.getByRole('button', { name: 'New schedule' }).click();
+  const dialog = page.getByRole('dialog', { name: 'New schedule' });
+  const cron = dialog.getByRole('textbox', { name: 'Cron expression' });
+  // "the first Monday" written the vixie way runs on days 1–7 and on every Monday
+  await cron.fill('0 6 1-7 * 1');
+  const warning = dialog.getByTestId('cron-warning');
+  await expect(warning).toContainText('either one matches');
+  await warning.getByRole('button', { name: /^Use/ }).click();
+  await expect(cron).toHaveValue('0 6 * * 1#1');
+  await expect(dialog.getByText(/^Next: /)).toBeVisible();
+  await expect(warning).toHaveCount(0);
+});

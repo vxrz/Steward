@@ -112,6 +112,52 @@ export function validateCron(cron: string, timezone?: string): string[] {
   }
 }
 
+export interface CronWarning {
+  code: 'CRON_DAY_OR';
+  message: string;
+  /** `context: 'suggestion'` when `suggestion` names the expression to use (the web UI's text variant) */
+  params: { suggestion?: string; context?: 'suggestion' };
+}
+
+const WEEKDAY_NAMES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const restricted = (field: string | undefined) => !!field && field !== '*' && field !== '?';
+
+/**
+ * Traps in a cron expression that still parses. Like vixie cron, croner runs on a day when day-of-month **or**
+ * day-of-week matches once both are restricted: `0 6 1-7 * 1` ("the first Monday") runs on every day 1–7 and on
+ * every Monday. The nth weekday (`1#1`) is what was meant; for a week-long day range the warning names it.
+ */
+export function cronWarnings(cron: string): CronWarning[] {
+  const fields = cron.trim().split(/\s+/);
+  if (fields.length < 5 || fields.length > 6) return []; // @daily and friends restrict nothing twice
+  const dom = fields[fields.length - 3]!;
+  const dow = fields[fields.length - 1]!;
+  if (!restricted(dom) || !restricted(dow) || dow.includes('#') || /L|W/i.test(dom)) return [];
+  let suggestion: string | undefined;
+  const range = /^(\d{1,2})-(\d{1,2})$/.exec(dom);
+  const day = /^[0-7]$/.test(dow) ? dow : WEEKDAY_NAMES.includes(dow.toUpperCase()) ? dow.toUpperCase() : undefined;
+  if (range && day) {
+    const [from, to] = [Number(range[1]), Number(range[2])];
+    if (to - from === 6 && (from - 1) % 7 === 0 && from <= 22) {
+      const out = [...fields];
+      out[out.length - 3] = '*';
+      out[out.length - 1] = `${day}#${(from - 1) / 7 + 1}`;
+      suggestion = out.join(' ');
+    }
+  }
+  return [
+    {
+      code: 'CRON_DAY_OR',
+      message:
+        `Day of month (${dom}) and day of week (${dow}) are both set: the schedule runs on a day when either matches, not only when both do. ` +
+        (suggestion
+          ? `For the nth weekday of a month use ${suggestion}.`
+          : 'For the nth weekday of a month use the # syntax, e.g. 0 6 * * 1#1 (the first Monday).'),
+      params: suggestion ? { suggestion, context: 'suggestion' } : {},
+    },
+  ];
+}
+
 type ScheduleInput = Omit<Schedule, 'id' | 'createdAt' | 'processName' | 'lastRunAt' | 'lastRunId' | 'lastRunStatus' | 'nextRunAt'>;
 
 export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
