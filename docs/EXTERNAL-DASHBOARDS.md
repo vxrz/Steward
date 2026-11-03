@@ -40,7 +40,7 @@ A process publishes a dataset with a `publish` step (see the processes in [`exam
 
 - **one snapshot of rows**, replaced on every run. A row's fields are the step's column **labels** (`Endpoint`, `Uptime (%)`), plus `_key`, `_status` (`good`, `warning`, `serious`, `critical`, `unknown`) and `_statusText`. Labels can contain spaces and brackets; values are numbers, strings, booleans or `null`.
 - **a metric history**: every run appends one value per metric (`endpoints`, `down`, `avgUptime`, …). The latest values are also in the dataset's metadata.
-- **freshness**: `updatedAt`, `staleAfterMinutes` and `stale` (older than that), and `dryRun` when a dry run published it.
+- **freshness**: `updatedAt`, `staleAfterMinutes` and `stale` (older than that), and `dryRun` when a dry run published it. Per source (`sources[]`) also `staleReason` – `schedule` (a run that a schedule started, or a sub-process of one: 2.5 × the schedule's current interval, at least 15 minutes), `fixed` (the publish step's `staleAfterMinutes`, which applies to runs without a schedule, or to all with `staleAfterFixed: true`) or `default` (24 hours) – `expectedMinutes` (the schedule's interval) and `nextRunAt` (the next run of that source's schedule, `null` when not scheduled). The dataset-level `staleAfterMinutes` is the step's setting as it was published; use the per-source values.
 
 The examples use these datasets:
 
