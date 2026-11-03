@@ -62,7 +62,20 @@
     "secrets_one": "{{count}} gespeichertes Geheimnis",
     "secrets_other": "{{count}} gespeicherte Geheimnisse",
     "restricted": "eingeschränkt",
-    "noAccess": "kein Zugriff"
+    "noAccess": "kein Zugriff",
+    "lastTestOk": "Letzter Test erfolgreich {{when}}",
+    "lastTestFailed": "Letzter Test fehlgeschlagen {{when}}",
+    "neverTested": "Verbindung noch nicht getestet"
+  },
+  "filter": {
+    "search": "Plattformen suchen",
+    "searchPlaceholder": "Name, URL oder Beschreibung",
+    "kind": "Art",
+    "environment": "Umgebung",
+    "all": "Alle",
+    "noMatch": "Keine Plattform passt zum Filter.",
+    "clear": "Filter zurücksetzen",
+    "count": "{{shown}} von {{total}}"
   },
   "types": {
     "button": "Konnektortypen",

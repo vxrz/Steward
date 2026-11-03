@@ -567,6 +567,8 @@ export interface Platform {
   permissions: PlatformPermission[];
   createdAt: string;
   updatedAt: string;
+  /** The latest connection test (from the audit log; GET /platforms only, null: never tested) */
+  lastTest?: { at: string; ok: boolean } | null;
 }
 
 export interface PlatformPreset {

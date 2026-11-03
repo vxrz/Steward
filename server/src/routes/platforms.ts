@@ -96,7 +96,13 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
   // Platforms (names, base URLs, docs) are only visible to users with some permission on them.
-  app.get('/platforms', async () => platforms.listPlatforms().filter((p) => p.permissions.length > 0));
+  app.get('/platforms', async () => {
+    const tests = platforms.lastConnectionTests();
+    return platforms
+      .listPlatforms()
+      .filter((p) => p.permissions.length > 0)
+      .map((p) => ({ ...p, lastTest: tests.get(p.id) ?? null }));
+  });
   app.post('/platforms', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'createPlatforms', 'add platforms');
     return connectors.createPlatformFromType(platformBody.extend({ typeKind: z.string().optional() }).parse(req.body));
@@ -144,11 +150,17 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
               : p.kind === 'snowflake'
                 ? await (await import('../snowflake/service.js')).testSnowflake(p, secrets)
                 : await (await import('../mqtt/listener.js')).testMqtt(p, secrets);
-        audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}": ${message}` });
+        audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}": ${message}`, details: { ok: true } });
         return { ok: true, status: 200, durationMs: Date.now() - t0, message, body: null, token: null };
       } catch (e) {
         const message = redact((e as Error).message, secrets) as string;
-        audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}` });
+        audit({
+          action: 'platform.tested',
+          entityType: 'platform',
+          entityId: id,
+          summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}`,
+          details: { ok: false },
+        });
         return { ok: false, status: 0, durationMs: Date.now() - t0, message };
       }
     }
@@ -160,6 +172,7 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
         entityType: 'platform',
         entityId: id,
         summary: `Connection test "${p.name}": GET ${testPath} → HTTP ${res.status} (${res.durationMs} ms)`,
+        details: { ok, status: res.status },
       });
       // say which request was made: without a test path it is the base URL itself (often a portal behind its own login)
       const what = `GET ${testPath}${p.config.testPath ? '' : ' (no test path set: the base URL itself)'}`;
@@ -174,7 +187,13 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
       };
     } catch (e) {
       const message = redact((e as Error).message, secrets) as string;
-      audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}` });
+      audit({
+        action: 'platform.tested',
+        entityType: 'platform',
+        entityId: id,
+        summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}`,
+        details: { ok: false },
+      });
       return { ok: false, status: 0, durationMs: 0, message };
     }
   });
