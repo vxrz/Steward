@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { boundedRecord } from '@sm/shared';
 
 /** The file format of a template bundle (examples/bundles/*.yaml, v0.4.0) – also used by `npm run validate`. */
 
@@ -31,9 +32,9 @@ export const bundleFileSchema = z
             /** A cron expression, or "none"; default: the template's recommended schedule */
             schedule: z.string().trim().max(100).optional(),
             /** slot → bundle platform key; default: the bundle platform whose kinds fit the slot */
-            connections: z.record(z.string().max(64), z.string().max(40)).optional(),
+            connections: boundedRecord(z.string().max(40), 20).optional(),
             /** Inputs of the schedule and the dry run (the template's defaults otherwise) */
-            inputs: z.record(z.string().max(100), z.unknown()).optional(),
+            inputs: boundedRecord(z.unknown(), 100).optional(),
             /** One dry run after the setup (default true) */
             dryRun: z.boolean().default(true),
           })

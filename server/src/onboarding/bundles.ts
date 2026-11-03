@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { bundleFileSchema, type BundleFile } from './bundleSchema.js';
 import {
   SYNC_MIN_VERSION_RE,
+  boundedRecord,
   type ProcessTemplate,
   type TemplateBundle,
   type TemplateBundleExisting,
@@ -89,7 +90,7 @@ function existingProcess(templateId: string): TemplateBundleExisting | null {
   const id = templateObjectId(templateId);
   const rows = db().all<{ id: string; name: string; comment: string }>(
     `SELECT p.id, p.name, v.comment FROM processes p LEFT JOIN process_versions v ON v.process_id = p.id AND v.version = 1
-     WHERE p.archived = 0 AND (p.id = ? OR p.id LIKE ?) ORDER BY p.created_at, p.id`,
+     WHERE p.archived = 0 AND (p.id = ? OR lower(p.id) LIKE lower(?)) ORDER BY p.created_at, p.id`,
     id,
     `${id}-%`,
   );
@@ -199,7 +200,7 @@ export async function getBundle(id: string): Promise<TemplateBundle> {
 
 export const setupInput = z
   .object({
-    bindings: z.record(z.string().max(40), z.string().min(1).max(200)).default({}),
+    bindings: boundedRecord(z.string().min(1).max(200), 10).default({}),
     existing: z.enum(['update', 'skip']).default('skip'),
     monitors: z.boolean().default(true),
     dryRuns: z.boolean().default(true),
