@@ -24,9 +24,11 @@ COPY . .
 # declared here (not earlier) so a new commit does not invalidate the cached "npm ci" layer
 ARG SM_BUILD_COMMIT=""
 ARG SM_BUILD_DATE=""
+# the web UI (web/dist) and the server compiled to JavaScript (server/dist, scripts/build-server.mjs)
 RUN npm run build
 
-# The server with its production dependencies only (the web UI's libraries are bundled into web/dist)
+# The compiled server with its production dependencies only (the web UI's libraries are bundled into web/dist;
+# no TypeScript sources and no TypeScript loader at runtime)
 FROM node:24-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS app
 WORKDIR /app
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
@@ -37,9 +39,7 @@ COPY web/package.json web/
 COPY scripts/install-scripts.mjs scripts/npm-command.mjs scripts/
 RUN npm ci --omit=dev --workspace=server --workspace=shared --ignore-scripts --no-audit --no-fund && node scripts/install-scripts.mjs --check --run
 COPY LICENSE NOTICE ./
-COPY shared ./shared
-COPY server/tsconfig.json ./server/
-COPY server/src ./server/src
+COPY --from=build /app/server/dist ./server/dist
 COPY server/assets ./server/assets
 COPY examples ./examples
 COPY --from=build /app/web/dist ./web/dist
@@ -58,8 +58,7 @@ ENV NODE_ENV=production \
     SM_PORT=4310 \
     SM_DATA_DIR=/data \
     SM_DEPLOYMENT=container \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    TSX_DISABLE_CACHE=1
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 COPY --from=app /app /app
 # The app does not need npm, npx, yarn or corepack at runtime: removing them shrinks the attack surface
 # (and the vulnerability reports – their bundled dependencies are not Steward's).
@@ -82,6 +81,7 @@ VOLUME ["/data"]
 EXPOSE 4310
 # Follows SM_PORT, the base path (SM_BASE_PATH / SM_PUBLIC_URL) and SM_TLS_CERT like the server does
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s \
-  CMD ["node", "--import", "tsx", "server/src/cli/healthcheck.ts"]
-# node directly (not npm) so SIGTERM reaches the server and it shuts down cleanly
-CMD ["node", "--import", "tsx", "server/src/index.ts"]
+  CMD ["node", "server/dist/healthcheck.js"]
+# node directly (not npm) so SIGTERM reaches the server and it shuts down cleanly; the source maps make stack traces
+# in the log point at server/src. The CLIs are next to it: node server/dist/admin.js, migrate.js, backup.js, db-copy.js …
+CMD ["node", "--enable-source-maps", "server/dist/index.js"]

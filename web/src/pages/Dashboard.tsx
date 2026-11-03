@@ -15,6 +15,7 @@ import { ComplianceCard, DashboardsCard, useStartFocus, type StartFocus } from '
 import { fmtDate, fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { useState } from 'react';
+import { dashboardKeys } from '../queryKeys';
 
 /** The tiles of each start page focus, most relevant first (operations: all of them). */
 const FOCUS_TILES: Record<StartFocus, readonly TileKey[] | undefined> = {
@@ -26,7 +27,7 @@ const FOCUS_TILES: Record<StartFocus, readonly TileKey[] | undefined> = {
 export function DashboardPage({ demo }: { demo: boolean }) {
   const { t } = useTranslation('dashboard');
   const qc = useQueryClient();
-  const d = useQuery({ queryKey: ['dashboard'], queryFn: () => get<DashboardData>('/dashboard'), refetchInterval: 5000 });
+  const d = useQuery({ queryKey: dashboardKeys.details, queryFn: () => get<DashboardData>('/dashboard'), refetchInterval: 5000 });
   const { isAdmin } = useMe();
   // operations (admins, designers, operators), compliance (auditors) or viewer – and "show everything"
   const { focus, full, setFull } = useStartFocus();

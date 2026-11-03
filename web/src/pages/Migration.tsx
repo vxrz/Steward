@@ -236,7 +236,7 @@ function ImportCard() {
     }
   };
   const discard = async () => {
-    if (plan?.id) await del(`/migration/imports/staged/${encodeURIComponent(plan.id)}`).catch(() => undefined);
+    if (plan?.id) await del(`/migration/imports/staged/${encodeURIComponent(plan.id)}`).catch(() => undefined); // the staged import expires on the server anyway
     setPlan(null);
     setDecisions(null);
     setProblems([]);

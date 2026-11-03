@@ -20,6 +20,7 @@ import { readinessChecks } from './readiness.js';
 import { dismissUpdateNotice, updateNoticeFor } from './update-notice.js';
 import { z } from 'zod';
 import { ACCESS } from '../auth/access.js';
+import { env } from '../config.js';
 
 /**
  *   GET /api/about          signed-in users: version and build of the server
@@ -64,10 +65,7 @@ export function systemStatus(full: boolean): SystemStatus {
   const er = errorReportingSettings();
   const api = publicApiStatus();
   const mem = process.memoryUsage();
-  const extraHosts = (process.env.SM_ALLOWED_HOSTS ?? '')
-    .split(',')
-    .map((h) => h.trim())
-    .filter(Boolean);
+  const extraHosts = env.SM_ALLOWED_HOSTS;
   const proxy = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].some((k) => !!process.env[k]);
   return {
     generatedAt: nowIso(),
@@ -99,7 +97,7 @@ export function systemStatus(full: boolean): SystemStatus {
     errorReporting: { server: errorReportingEnabled(), browser: !!er.webDsn, ...(full ? { environment: er.environment } : {}) },
     tracing: { enabled: tracingEnabled() },
     pdf: (({ reason, ...p }) => ({ ...p, ...(full && reason ? { reason } : {}) }))(pdfWorkerStatus()),
-    metrics: { access: process.env.SM_METRICS_PUBLIC === '1' ? 'public' : 'adminsAndAuditors' },
+    metrics: { access: env.SM_METRICS_PUBLIC ? 'public' : 'adminsAndAuditors' },
     publicApi: { enabled: api.enabled, basePath: api.basePath, docs: api.docs, rateLimitPerMinute: api.rateLimitPerMinute, apiVersion: api.apiVersion },
     retention: {
       runDays: settings.retentionRunDays ?? 0,

@@ -15,8 +15,7 @@
 import '../bootstrap.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { config } from '../config.js';
+import { config, env } from '../config.js';
 import { Db } from '../db.js';
 import { describeTarget, parseDatabaseTarget, quoteIdent, type DatabaseTarget } from '../database/sql.js';
 import { EVIDENCE_TABLES, noDeleteTrigger } from '../migrations/compliance.js';
@@ -244,15 +243,15 @@ function arg(argv: string[], name: string): string | undefined {
 export function main(argv: string[]): number {
   if (argv.includes('--help') || argv.includes('-h')) return (console.log(HELP), 0);
   const cwd = process.env.INIT_CWD ?? process.cwd(); // npm runs scripts in the package folder
-  const dataDir = path.resolve(process.env.SM_DATA_DIR ?? path.join(cwd, 'data'));
+  const dataDir = path.resolve(env.SM_DATA_DIR ?? path.join(cwd, 'data'));
   const target = (spec: string | undefined, schema: string | undefined, what: string): DatabaseTarget => {
     if (!spec) throw new Error(`Missing --${what}`);
-    const t = parseDatabaseTarget(spec, { schema: schema ?? process.env.SM_DATABASE_SCHEMA, ca: process.env.SM_DATABASE_CA });
+    const t = parseDatabaseTarget(spec, { schema: schema ?? env.SM_DATABASE_SCHEMA, ca: env.SM_DATABASE_CA });
     return t.kind === 'sqlite' ? { kind: 'sqlite', file: path.resolve(cwd, t.file) } : t;
   };
   try {
     const from = target(arg(argv, '--from') ?? `sqlite:${path.join(dataDir, 'service-manager.db')}`, arg(argv, '--from-schema'), 'from');
-    const to = target(arg(argv, '--to') ?? process.env.SM_DATABASE_URL, arg(argv, '--to-schema'), 'to');
+    const to = target(arg(argv, '--to') ?? env.SM_DATABASE_URL, arg(argv, '--to-schema'), 'to');
     console.log(`Copying ${describeTarget(from)} → ${describeTarget(to)}`);
     const t0 = Date.now();
     const r = copyDatabase({ from, to, force: argv.includes('--force'), log: console.log });
@@ -266,4 +265,5 @@ export function main(argv: string[]): number {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) process.exitCode = main(process.argv.slice(2));
+// the same guard as the other CLIs: in the server bundle (scripts/build-server.mjs) import.meta.filename is never the started file
+if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) process.exitCode = main(process.argv.slice(2));

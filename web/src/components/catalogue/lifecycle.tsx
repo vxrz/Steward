@@ -7,6 +7,7 @@ import type { TFunction } from 'i18next';
 import { LIFECYCLE_LIMITS, type LifecycleSettings, type LifecycleState, type LifecycleStatus, type Platform, type StackLifecycle } from '@sm/shared';
 import { get, notifyError, notifyOk, post, put } from '../../api';
 import { fmtDay, fmtRelative } from '../../format';
+import { platformKeys } from '../../queryKeys';
 
 /** End of life of the tech stack (#104): coloured badges, and the settings with the state of the data. */
 
@@ -102,7 +103,7 @@ function EndOfLifeModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation(['applications', 'common']);
   const qc = useQueryClient();
   const status = useQuery({ queryKey: ['catalogue-lifecycle'], queryFn: () => get<LifecycleStatus>('/catalogue/lifecycle') });
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const [draft, setDraft] = useState<LifecycleSettings | null>(null);
   const [busy, setBusy] = useState<'save' | 'refresh' | null>(null);
   const [imageText, setImageText] = useState<string | null>(null);

@@ -13,7 +13,7 @@ import {
   themeContrastNotes,
   themeCssVariables,
 } from '@sm/shared';
-import { ADMIN, authHeaders, loginCookie, setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { ADMIN, authHeaders, loginCookie, setup, startTestServer, type Client, type TestServer, setEnv } from './helpers.js';
 
 let s: TestServer;
 let viewer: Client;
@@ -358,13 +358,11 @@ describe('about and system status', () => {
     expect((await fetch(`${s.base}/api/about`)).status).toBe(401);
     const dev = await viewer('GET', '/about');
     expect(dev.build).toEqual({ version: expect.any(String), commit: null, date: null });
-    process.env.SM_BUILD_COMMIT = '0123456789abcdef0123456789abcdef01234567';
-    process.env.SM_BUILD_DATE = '2026-10-01T12:00:00Z';
+    await setEnv({ SM_BUILD_COMMIT: '0123456789abcdef0123456789abcdef01234567', SM_BUILD_DATE: '2026-10-01T12:00:00Z' });
     try {
       expect((await viewer('GET', '/about')).build).toMatchObject({ commit: '0123456789abcdef0123456789abcdef01234567', date: '2026-10-01T12:00:00.000Z' });
     } finally {
-      delete process.env.SM_BUILD_COMMIT;
-      delete process.env.SM_BUILD_DATE;
+      await setEnv({ SM_BUILD_COMMIT: undefined, SM_BUILD_DATE: undefined });
     }
   });
 

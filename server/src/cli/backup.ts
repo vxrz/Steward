@@ -1,7 +1,7 @@
 /**
  * Offline tools for backups (#117) – no server, vault or database needed, only the backup passphrase.
  * `npm run backup -- decrypt <file.smbackup> --out <file.zip>` / `npm run backup -- verify <file.smbackup>`,
- * in the container `node --import tsx server/src/cli/backup.ts …`, in the desktop app `steward backup …`.
+ * in the container `node server/dist/backup.js …`, in the desktop app `steward backup …`.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -9,7 +9,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { BRAND } from '@sm/shared';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, UsageError, palette, parseCli, usageFailure } from './args.js';
-import { config } from '../config.js';
+import { config, env } from '../config.js';
 import { decryptFile, deriveBackupKey, keyIdOf, readHeader } from '../backup/crypto.js';
 import { checkArchive } from '../backup/archive.js';
 
@@ -60,7 +60,7 @@ async function ask(question: string): Promise<string> {
 
 async function passphrase(file: string | undefined): Promise<string> {
   if (file) return fs.readFileSync(file, 'utf8').split(/\r?\n/)[0] ?? '';
-  if (process.env.SM_BACKUP_PASSPHRASE) return process.env.SM_BACKUP_PASSPHRASE;
+  if (env.SM_BACKUP_PASSPHRASE) return env.SM_BACKUP_PASSPHRASE;
   return ask('Backup passphrase: ');
 }
 

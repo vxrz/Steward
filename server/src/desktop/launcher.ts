@@ -131,10 +131,11 @@ async function portAnswers(url: string): Promise<boolean> {
 /** --send-test-error: checks the error reporting configuration end to end. */
 async function sendTestError(): Promise<number> {
   const { initErrorReporting, sendTestEvent, errorReportingSettings, parseDsn } = await import('../errorReporting.js');
+  const { env } = await import('../config.js');
   const settings = errorReportingSettings();
   if (!settings.dsn) {
     console.error(
-      process.env.SM_SENTRY_DSN ? 'SM_SENTRY_DSN is not a valid DSN (https://<key>@<host>/<project>).' : 'SM_SENTRY_DSN is not set – error reporting is off.',
+      env.SM_SENTRY_DSN ? 'SM_SENTRY_DSN is not a valid DSN (https://<key>@<host>/<project>).' : 'SM_SENTRY_DSN is not set – error reporting is off.',
     );
     return EXIT_FAILURE;
   }
@@ -242,6 +243,8 @@ main().then(
   (e) => {
     const err = e as NodeJS.ErrnoException;
     if (err.code === 'EADDRINUSE') console.error(`Port in use. Start with --port <other port>.`);
+    // invalid SM_* variables: config.ts names each one on its own line
+    else if (err?.name === 'ConfigError') console.error(err.message);
     else console.error(err?.stack ?? err);
     process.exitCode = EXIT_FAILURE;
   },

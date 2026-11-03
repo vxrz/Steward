@@ -222,7 +222,7 @@ export function LoginPage({ status }: { status: AuthStatus }) {
       try {
         localStorage.setItem('sm.lastUser', username.trim());
       } catch {
-        /* ignore */
+        /* storage blocked: the name is not remembered */
       }
       await refresh();
     } catch (e) {

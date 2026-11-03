@@ -96,7 +96,7 @@ export function runReportHtml(runId: string): string {
       try {
         data = fs.readFileSync(artifactFile(a.id).path).toString('base64');
       } catch {
-        /* missing */
+        /* file removed (retention): the figure stays without its image */
       }
       return `<figure><img src="data:image/png;base64,${data}" alt="${esc(a.name)}"/><figcaption>${esc(a.name)} · step ${esc(
         a.stepKey,

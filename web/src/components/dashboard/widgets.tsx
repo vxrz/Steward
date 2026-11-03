@@ -59,6 +59,7 @@ import { compact, dateTime, download, toCsv } from './format';
 import { NoData } from './NoData';
 import { SEVERITY_RANK, STATUS_META, StatusLabel, asStatus } from './status';
 import { SourceFreshness, intervalText, staleRuleText } from './freshness';
+import { runKeys } from '../../queryKeys';
 
 // ---------------------------------------------------------------------------
 // Card wrapper
@@ -682,13 +683,13 @@ function ChecksWidget({ w }: { w: DashboardWidget }) {
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const { refreshMs } = useDashboardCtx();
   const last = useQuery({
-    queryKey: ['runs', 'latest', w.process],
+    queryKey: runKeys.latest(w.process),
     queryFn: () => get<RunSummary[]>(`/runs?processId=${encodeURIComponent(w.process!)}&limit=1`),
     enabled: !!w.process,
     refetchInterval: refreshMs,
   });
   const runId = last.data?.[0]?.id;
-  const run = useQuery({ queryKey: ['run', runId], queryFn: () => get<RunDetail>(`/runs/${runId}`), enabled: !!runId, refetchInterval: refreshMs });
+  const run = useQuery({ queryKey: runKeys.detail(runId), queryFn: () => get<RunDetail>(`/runs/${runId}`), enabled: !!runId, refetchInterval: refreshMs });
   const checks = (run.data?.steps ?? []).filter((s) => s.type === 'check');
   const title = w.title || run.data?.processName || w.process || t('widgets.checks.label');
   return (

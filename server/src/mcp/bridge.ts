@@ -12,19 +12,25 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
-import { fileURLToPath } from 'node:url';
 import { BRAND } from '@sm/shared';
 import { EXIT_FAILURE, EXIT_OK, UsageError, parseCli, usageFailure } from '../cli/args.js';
 import { verifyInstanceAt } from '../instance-proof.js';
-import { parseBasePath } from '../basePath.js';
+import { parseEnvPart } from '../config-schema.js';
+import { ROOT_DIR } from '../root-dir.js';
 
-/** SM_BASE_PATH of a local Steward for the default URL (an invalid value: the root – the server refuses to start with it anyway). */
-function localBasePath(): string {
-  try {
-    return parseBasePath(process.env.SM_BASE_PATH);
-  } catch {
-    return '';
-  }
+/**
+ * SM_PORT, SM_BASE_PATH and SM_DATA_DIR of a local Steward for the defaults – read with the server's schema, but only
+ * these (an invalid value: the default – the server refuses to start with it anyway).
+ */
+function localEnv(): { port: number; basePath: string; dataDir?: string } {
+  const one = <K extends 'SM_PORT' | 'SM_BASE_PATH' | 'SM_DATA_DIR'>(k: K) => {
+    try {
+      return parseEnvPart(process.env, [k])[k];
+    } catch {
+      return undefined; // invalid: the default, see above
+    }
+  };
+  return { port: one('SM_PORT') ?? 4310, basePath: one('SM_BASE_PATH') ?? '', dataDir: one('SM_DATA_DIR') };
 }
 
 const help = (command: string) => `MCP stdio bridge for ${BRAND.name}: connects a desktop MCP client to a running ${BRAND.name}.
@@ -90,7 +96,7 @@ function readToken(file: string | undefined): string {
       try {
         if (fs.statSync(file).mode & 0o077) err(`warning: ${file} is readable by other users – restrict it (chmod 600)`);
       } catch {
-        /* ignore */
+        /* cannot stat it: reading it below reports the problem */
       }
     }
     token = text.trim();
@@ -102,9 +108,9 @@ function readToken(file: string | undefined): string {
 }
 
 function defaultDataDir(): string {
-  if (process.env.SM_DATA_DIR) return path.resolve(process.env.SM_DATA_DIR);
-  const here = typeof import.meta.url === 'string' ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd();
-  return path.resolve(here, '..', '..', '..', 'data'); // source tree default (config.ts); the desktop launcher sets SM_DATA_DIR
+  const dir = localEnv().dataDir;
+  if (dir) return path.resolve(dir);
+  return path.join(ROOT_DIR, 'data'); // source tree default (config.ts); the desktop launcher sets SM_DATA_DIR
 }
 
 interface Message {
@@ -132,7 +138,8 @@ export async function runBridge(argv: string[], command = `${BRAND.slug} mcp`): 
   let waitMs = 10_000;
   try {
     token = readToken(values['api-key-file']);
-    const raw = (values.url ?? process.env.STEWARD_URL ?? `http://127.0.0.1:${process.env.SM_PORT ?? 4310}${localBasePath()}`).trim();
+    const local = localEnv();
+    const raw = (values.url ?? process.env.STEWARD_URL ?? `http://127.0.0.1:${local.port}${local.basePath}`).trim();
     let base: URL;
     try {
       base = new URL(raw);

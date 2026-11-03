@@ -24,6 +24,7 @@ import { useFieldErrors } from '../common';
 import { SubjectsInput } from '../SubjectsInput';
 import { confirmDialog } from '../confirm';
 import { fmtDate, fmtDay } from '../../format';
+import { platformKeys } from '../../queryKeys';
 
 /** Maintenance windows (#108): forms, details and the panel on platform, system, application and service pages. */
 
@@ -132,7 +133,7 @@ export function MaintenanceFormModal({
   const [reminderHours, setReminder] = useState<number>(w?.reminderHours ?? 24);
   const [busy, setBusy] = useState(false);
 
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => getOptional<Platform[]>('/platforms', []) });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => getOptional<Platform[]>('/platforms', []) });
   const systems = useQuery({ queryKey: ['systems'], queryFn: () => getOptional<SystemSummary[]>('/systems', []) });
   const apps = useQuery({ queryKey: ['applications'], queryFn: () => getOptional<ApplicationSummary[]>('/applications', []) });
   const services = useQuery({ queryKey: ['services', false], queryFn: () => getOptional<ServiceSummary[]>('/services', []) });

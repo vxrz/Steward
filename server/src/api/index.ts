@@ -24,6 +24,7 @@ import { apiAuthHook, docsAccess, type ApiPrincipal } from './v1/auth.js';
 import { ProblemError, problemBody, sendProblem, PROBLEM_BASE } from './v1/problem.js';
 import { OPERATION_ERRORS, PAGINATED_OPERATIONS, v1Routes } from './v1/routes.js';
 import { componentSchemas } from './v1/schemas.js';
+import { env } from '../config.js';
 
 type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -156,7 +157,7 @@ const swaggerOptions = (basePath: string) => ({
 
 /** Swagger UI assets: unpacked next to the web UI in the desktop executable, else from node_modules. */
 function swaggerUiDir(): string | null {
-  const candidates = [process.env.SM_SWAGGER_UI_DIR];
+  const candidates = [env.SM_SWAGGER_UI_DIR];
   try {
     const req = createRequire(typeof import.meta.url === 'string' ? import.meta.url : path.join(process.cwd(), 'index.js'));
     candidates.push(path.join(path.dirname(req.resolve('@fastify/swagger-ui/package.json')), 'static'));

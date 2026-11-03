@@ -48,6 +48,7 @@ import { useMe } from '../../auth';
 import { fmtDay } from '../../format';
 import { useFieldErrors } from '../common';
 import { CREDENTIAL_TYPE_IDS } from '../../pages/Credentials';
+import { monitorKeys, platformKeys, processKeys } from '../../queryKeys';
 
 const CERT_MAX = 256 * 1024;
 const LINK_KINDS = ['process', 'monitor', 'platform', 'service', 'application'] as const;
@@ -189,9 +190,9 @@ export function CredentialEditor({
   const { hasRole } = useMe();
   // owners who are not editors by role may not change who gets the reminders by e-mail (the server refuses it)
   const ownersLocked = !!initial && !hasRole('admin') && !hasRole('designer') && !hasRole('operator');
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
-  const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors') });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
+  const monitors = useQuery({ queryKey: monitorKeys.all, queryFn: () => get<MonitorSummary[]>('/monitors') });
   const services = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services') });
   const applications = useQuery({ queryKey: ['applications'], queryFn: () => get<ApplicationSummary[]>('/applications') });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => getOptional<Subject[]>('/subjects', []), retry: false });

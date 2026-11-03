@@ -6,13 +6,14 @@ import { useTranslation } from 'react-i18next';
 import { MCP_WRITE_MODES, type ApiOperation, type McpWriteMode, type Platform } from '@sm/shared';
 import { get, notifyError, notifyOk, put } from '../../api';
 import { useMcpServer } from './McpClientConfig';
+import { platformKeys } from '../../queryKeys';
 
 /** Platform → MCP: the read-only gateway for MCP clients (users with "manage" switch it). */
 export function McpGatewayTab({ platform, readOnly }: { platform: Platform; readOnly: boolean }) {
   const { t } = useTranslation('mcp');
   const qc = useQueryClient();
   const server = useMcpServer();
-  const ops = useQuery({ queryKey: ['platform', platform.id, 'operations'], queryFn: () => get<ApiOperation[]>(`/platforms/${platform.id}/operations`) });
+  const ops = useQuery({ queryKey: platformKeys.operations(platform.id), queryFn: () => get<ApiOperation[]>(`/platforms/${platform.id}/operations`) });
   const current = platform.config.mcpGateway;
   const [enabled, setEnabled] = useState(!!current?.enabled);
   const [prefixes, setPrefixes] = useState((current?.allowedPathPrefixes ?? []).join('\n'));
@@ -36,7 +37,7 @@ export function McpGatewayTab({ platform, readOnly }: { platform: Platform; read
           .map((x) => x.trim())
           .filter(Boolean),
       });
-      await qc.invalidateQueries({ queryKey: ['platform', platform.id] });
+      await qc.invalidateQueries({ queryKey: platformKeys.detail(platform.id) });
       notifyOk(t('gateway.saved'));
     } catch (e) {
       notifyError(e, t('gateway.notSaved'));

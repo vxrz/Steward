@@ -6,6 +6,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+import catchReason from './scripts/eslint/catch-reason.js';
 
 /** V8 flags are fixed at start-up: Node documents changing them at runtime as undefined behaviour (the experimental regexp
  * engine flags set this way crashed Node 26 when a worker thread started). */
@@ -53,6 +54,17 @@ export default defineConfig(
     },
   },
 
+  // Errors that are caught and dropped say why (scripts/eslint/catch-reason.js); tests may drop them freely
+  {
+    files: ['server/src/**', 'web/src/**', 'shared/src/**', 'scripts/**'],
+    plugins: { 'catch-reason': catchReason },
+    rules: {
+      'no-empty': ['error', { allowEmptyCatch: false }],
+      'catch-reason/empty-catch': 'error',
+      'catch-reason/noop-catch': 'error',
+    },
+  },
+
   // Node.js: server, CLIs, scripts, tests, tool configs
   {
     files: ['server/**', 'scripts/**', 'e2e/**', '*.config.{js,ts}', 'web/vite.config.ts'],
@@ -66,6 +78,24 @@ export default defineConfig(
   { files: ['web/public/sw.js'], languageOptions: { globals: globals.serviceworker } },
   // shared/ runs in both, but must not depend on either environment's globals
   { files: ['shared/**'], languageOptions: { globals: globals['shared-node-browser'] } },
+
+  // Server configuration: SM_* variables are read (and validated) in config.ts / config-schema.ts only – everything else
+  // uses `env` from config.ts. Setting a variable before the configuration loads (desktop launcher, CLIs) stays allowed.
+  {
+    files: ['server/src/**/*.ts'],
+    ignores: ['server/src/config.ts', 'server/src/config-schema.ts', 'server/src/desktop/env.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...noV8Flags,
+        {
+          selector:
+            "MemberExpression[object.type='MemberExpression'][object.object.name='process'][object.property.name='env'][property.name=/^SM_/]:not(AssignmentExpression > MemberExpression.left)",
+          message: 'Read SM_* variables from `env` in server/src/config.ts (validated at start-up; add new ones to config-schema.ts).',
+        },
+      ],
+    },
+  },
 
   // Tests: `any` for loosely typed API responses and test doubles is fine (CONTRIBUTING.md: "No `any`" applies to app code)
   {

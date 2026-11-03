@@ -11,6 +11,7 @@ import { ListPage } from '../components/page/ListPage';
 import { ListFooter } from '../components/DataTable';
 import { RunTable } from '../components/RunTable';
 import { SummaryReportDialog } from '../components/reports/SummaryReportDialog';
+import { processKeys, runKeys } from '../queryKeys';
 
 /** Runs per request; "Load more" fetches the next, older page (`before` = start of the oldest run shown). */
 export const RUNS_PAGE = 200;
@@ -33,9 +34,9 @@ export function RunsPage() {
   // ?limit=50: a smaller page (1–1000)
   const pageSize = Math.min(Math.max(Number(params.get('limit')) || RUNS_PAGE, 1), 1000);
   const [summaryOpen, setSummaryOpen] = useState(false);
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
   const runs = useInfiniteQuery({
-    queryKey: ['runs', status, processId, since, checks, pageSize],
+    queryKey: runKeys.list(status, processId, since, checks, pageSize),
     initialPageParam: '',
     queryFn: ({ pageParam }) => {
       const qs = new URLSearchParams({

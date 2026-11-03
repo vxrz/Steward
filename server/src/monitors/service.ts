@@ -1145,7 +1145,7 @@ export function importReferences(text: string): PlatformReference[] {
   return platformReferences(parseMonitorFile(text).definition);
 }
 
-const examplesDir = () => path.join(process.env.SM_EXAMPLES_DIR ?? path.join(config.templatesDir, '..'), 'monitors');
+const examplesDir = () => path.join(config.examplesDir, 'monitors');
 
 export function listExamples(): { file: string; kind: string; key: string | null; name: string; description: string }[] {
   const dir = examplesDir();

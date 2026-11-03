@@ -182,7 +182,7 @@ export function buildRunModel(runId: string, ctx: ReportContext): RunReportModel
     try {
       scheduleName = db().get<{ name: string }>('SELECT name FROM schedules WHERE id = ?', run.scheduleId)?.name ?? null;
     } catch {
-      /* ignore */
+      /* schedule deleted: the report names none */
     }
   }
 
@@ -197,7 +197,7 @@ export function buildRunModel(runId: string, ctx: ReportContext): RunReportModel
       (getProcess(run.processId, run.processVersion).definition.inputs ?? []).filter((i) => i.label).map((i) => [i.name, i.label!]),
     );
   } catch {
-    /* ignore */
+    /* process version gone: inputs keep their names */
   }
   const inputs = Object.entries(run.inputs).map(([name, v]) => ({ name, label: inputLabels[name] ?? null, value: redactInput(name, v) }));
 

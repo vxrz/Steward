@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { RunDetail, RunSummary } from '@sm/shared';
 import { get } from '../../api';
 import type { NodeRunStatus } from './FlowNodeView';
+import { runKeys } from '../../queryKeys';
 
 const PRIORITY = ['failed', 'waiting', 'running', 'dryrun', 'succeeded', 'skipped'];
 const ACTIVE = ['running', 'waiting', 'queued'];
@@ -10,14 +11,14 @@ const ACTIVE = ['running', 'waiting', 'queued'];
 /** Latest run of a process, mapped to a status per node id (Node-RED style status). */
 export function useLastRun(processId: string, enabled: boolean) {
   const latest = useQuery({
-    queryKey: ['runs', 'latest', processId],
+    queryKey: runKeys.latest(processId),
     queryFn: () => get<RunSummary[]>(`/runs?processId=${encodeURIComponent(processId)}&limit=1`),
     enabled,
     refetchInterval: enabled ? 5000 : false,
   });
   const runId = latest.data?.[0]?.id;
   const detail = useQuery({
-    queryKey: ['run', runId],
+    queryKey: runKeys.detail(runId),
     queryFn: () => get<RunDetail>(`/runs/${runId}`),
     enabled: enabled && !!runId,
     refetchInterval: (q) => (q.state.data && ACTIVE.includes(q.state.data.status) ? 2000 : false),

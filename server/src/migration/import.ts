@@ -63,6 +63,7 @@ import { checkScaleRows } from '../catalogue/cia.js';
 import { SCORECARD_IMPORT_TABLES, scorecardTableChecker } from '../scorecard/import-checks.js';
 import { sealTeamChannel } from '../notifications/team-channels.js';
 import { importedDefaults } from '../teams/settings.js';
+import { env } from '../config.js';
 
 /**
  * Import of a migration package (see format.ts and export.ts) into this instance:
@@ -191,8 +192,7 @@ async function readEntry(r: ZipReader, name: string, max = MAX_SMALL): Promise<B
  * by default 20 GiB – the import needs about this much room twice over (staging database and files).
  */
 export function maxUnpackedBytes(): number {
-  const mb = Number(process.env.SM_MIGRATION_MAX_UNPACKED_MB);
-  return Math.round((mb > 0 ? mb : 20 * 1024) * 1024 * 1024);
+  return Math.round(env.SM_MIGRATION_MAX_UNPACKED_MB * 1024 * 1024);
 }
 
 export function checkUnpackedSize(bytes: number): void {

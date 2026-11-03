@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { FullConfig } from '@playwright/test';
 import { startReverseProxy, type ReverseProxy } from '../scripts/reverse-proxy.mjs';
-import { AUTH_DIR, BASE_PATH, MASTER_PASSPHRASE, ROOT, USERS, authFile, baseURL, origin, type UserKey } from './support/env';
+import { AUTH_DIR, BASE_PATH, MASTER_PASSPHRASE, ROOT, USERS, authFile, baseURL, origin, serverArgs, type UserKey } from './support/env';
 import { waitForStart } from './support/started';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -91,7 +91,7 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
   // E2E_BASE_PATH: Steward on its own port under the prefix (port 0: the system picks one, #22), the tests talk to a
   // reverse proxy on SM_E2E_PORT
   const serverPort = BASE_PATH ? '0' : process.env.SM_E2E_PORT!;
-  const child: ChildProcess = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
+  const child: ChildProcess = spawn(process.execPath, serverArgs(), {
     cwd: path.join(ROOT, 'server'),
     env: {
       ...process.env,

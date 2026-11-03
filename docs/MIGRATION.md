@@ -95,7 +95,7 @@ steward migrate inspect move.smig --mapping-template mapping.json   # dry run, w
 steward migrate import move.smig --mapping mapping.json --fingerprint 1a2b:3c4d:…
 ```
 
-In a container: `docker compose stop steward`, then `docker compose run --rm -v "$PWD":/move steward node --import tsx server/src/cli/migrate.ts import /move/move.smig --mapping /move/mapping.json --fingerprint …`, then `docker compose up -d`.
+In a container: `docker compose stop steward`, then `docker compose run --rm -v "$PWD":/move steward node server/dist/migrate.js import /move/move.smig --mapping /move/mapping.json --fingerprint …`, then `docker compose up -d`.
 
 A mapping file:
 

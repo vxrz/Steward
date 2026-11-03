@@ -177,14 +177,14 @@ describe('security headers', () => {
 
 describe('startup warnings', () => {
   it('name insecure deployment settings', async () => {
-    const { securityWarnings } = await import('../src/config.js');
+    const { securityWarnings, parseEnv } = await import('../src/config.js');
     const safe = { host: '127.0.0.1', demo: false, secureCookies: false };
-    expect(securityWarnings({}, safe, false)).toEqual([]);
-    expect(securityWarnings({ SM_ALLOWED_HOSTS: 'steward.example.com' }, safe, false).join()).toMatch(/without HTTPS/);
-    expect(securityWarnings({ SM_ALLOWED_HOSTS: 'steward.example.com' }, { ...safe, secureCookies: true }, false)).toEqual([]);
-    expect(securityWarnings({}, { ...safe, host: '0.0.0.0', demo: true }, false).join()).toMatch(/Demo mode/);
-    expect(securityWarnings({}, safe, true).join()).toMatch(/SM_MASTER_PASSPHRASE_FILE/);
-    expect(securityWarnings({ SM_METRICS_PUBLIC: '1' }, safe, false).join()).toMatch(/metrics/);
+    expect(securityWarnings(parseEnv({}), safe, false)).toEqual([]);
+    expect(securityWarnings(parseEnv({ SM_ALLOWED_HOSTS: 'steward.example.com' }), safe, false).join()).toMatch(/without HTTPS/);
+    expect(securityWarnings(parseEnv({ SM_ALLOWED_HOSTS: 'steward.example.com' }), { ...safe, secureCookies: true }, false)).toEqual([]);
+    expect(securityWarnings(parseEnv({}), { ...safe, host: '0.0.0.0', demo: true }, false).join()).toMatch(/Demo mode/);
+    expect(securityWarnings(parseEnv({}), safe, true).join()).toMatch(/SM_MASTER_PASSPHRASE_FILE/);
+    expect(securityWarnings(parseEnv({ SM_METRICS_PUBLIC: '1' }), safe, false).join()).toMatch(/metrics/);
   });
 });
 

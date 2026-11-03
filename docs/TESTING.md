@@ -18,6 +18,10 @@ This guide covers how to test Steward properly: the automated test layers, manua
 
 The contract check also accepts `SM_URL`, `SM_TOKEN` and `SM_PLATFORM` instead of the flags. It exits with 1 when an operation fails and with 2 on usage or connection errors, so it can gate a CI job.
 
+### Environment variables in server tests
+
+The server validates its `SM_*` variables once, when `server/src/config.ts` is loaded ([CONFIGURATION.md](CONFIGURATION.md)). Set them in `process.env` before the test server starts (`startTestServer` imports the configuration). To change one while the server runs, use `await setEnv({ SM_API_RATE_LIMIT: '3' })` from `server/test/helpers.ts` (`undefined` removes it): it sets the variable and calls `reloadConfig()`, which re-reads the environment into the same `env` object. `overrideConfig({ … })` sets single, already typed values. Values derived once at start (port, data directory, database, base path, session lifetimes) keep their start-up value.
+
 ### Running the UI tests
 
 ```bash
@@ -36,7 +40,7 @@ How it works:
 - `e2e/global-setup.ts` starts one demo server (`SM_DEMO=1`) on a free port with a fresh temporary data directory. It creates the admin `admin` / `Admin-password-1`, loads the demo data, waits for the first feeder runs, and stores a signed-in session for `admin`, `dana`, `olivia`, `adam`, `audrey` and `vera` in `e2e/.auth/`. The server log is written to `e2e/.auth/server.log`. The server is stopped and its data deleted at the end; set `SM_E2E_KEEP_DATA=1` to keep the data.
 - Projects: **desktop** (Chromium 1440×900) runs everything except tests tagged `@mobile`. **mobile** (390×844, touch) runs only the `@mobile` tests.
 - Every test fails when the page logs a console error or throws an uncaught error. Known harmless messages are listed with a reason in `BENIGN_CONSOLE` in `e2e/support/fixtures.ts`.
-- Tests create their own data with unique names and run in parallel (4 workers locally, 2 in CI). Other knobs: `SM_E2E_WORKERS`, `SM_E2E_PORT`.
+- Tests create their own data with unique names and run in parallel (4 workers locally, 2 in CI). Other knobs: `SM_E2E_WORKERS`, `SM_E2E_PORT`, and `SM_E2E_SERVER=dist`, which starts the test servers from the compiled server (`server/dist`, built by `npm run build`) – what the container image runs – instead of the TypeScript sources.
 - **Under a path prefix:** `E2E_BASE_PATH=/steward npm run test:ui` runs the whole suite with Steward under `/steward` (`SM_BASE_PATH`) behind a small reverse proxy (`scripts/reverse-proxy.mjs`: passes the path on, sets `X-Forwarded-For/-Proto/-Host`; `E2E_PROXY_PROTO=https` sends `https`). Write app paths as at the root – `page.goto('/runs')`, `request.get('/api/runs')`: `e2e/support/basePath.ts` puts the base path in front of what the tests pass in, never in front of what the app requests. Compare links the app renders with `appHref('/runs')` from `e2e/support/env.ts`, and build storage states with `origin()` (an origin has no path). CI runs both variants (`.github/workflows/ui-tests.yml`).
 - On CI there is one retry, a trace is recorded on the first retry, and screenshots are taken on failure. The workflow uploads `playwright-report/`, `test-results/` and the server log when something fails. Open a trace with `npx playwright show-trace test-results/<test>/trace.zip`.
 - Accessibility: `e2e/accessibility.spec.ts` runs axe (WCAG 2.1 A/AA) on the main pages in light and dark mode, and on dialogs, the run page with an open task, and the sign-in page. It fails on _serious_ or _critical_ violations. If a violation cannot be fixed right away, add the rule id with a reason to `KNOWN_ISSUES` in that file and list it below.

@@ -600,7 +600,7 @@ export class Db {
         try {
           pendingList = list ? (JSON.parse(list.value) as UpgradeInfo[]) : [];
         } catch {
-          /* replaced */
+          /* unreadable list: replaced by the new one */
         }
         put(PENDING_UPGRADES_KEY, [...pendingList.slice(-9), this.upgrade]);
       }

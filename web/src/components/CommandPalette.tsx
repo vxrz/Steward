@@ -58,6 +58,7 @@ import { useMe } from '../auth';
 import { fmtRelative } from '../format';
 import { StatusBadge } from './common';
 import { isMac, openShortcutSheet } from './HelpMenu';
+import { dashboardKeys, monitorKeys, platformKeys, processKeys, runKeys } from '../queryKeys';
 import { readRecent, rememberRecent, type RecentItem, type RecentKind } from './page/recent';
 
 /** Icons of the recent entries by kind. */
@@ -174,11 +175,11 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
 
   // Loaded the first time the palette opens, then kept fresh while it is open.
   const opts = { enabled: active, staleTime: 30_000 };
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes'), ...opts });
-  const dashboards = useQuery({ queryKey: ['dashboards'], queryFn: () => get<Dashboard[]>('/dashboards'), ...opts });
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms'), ...opts });
-  const runs = useQuery({ queryKey: ['runs', 'palette'], queryFn: () => get<RunSummary[]>('/runs?limit=10'), ...opts });
-  const monitors = useQuery({ queryKey: ['monitors', 'palette'], queryFn: () => get<MonitorSummary[]>('/monitors'), ...opts });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes'), ...opts });
+  const dashboards = useQuery({ queryKey: dashboardKeys.all, queryFn: () => get<Dashboard[]>('/dashboards'), ...opts });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms'), ...opts });
+  const runs = useQuery({ queryKey: runKeys.palette, queryFn: () => get<RunSummary[]>('/runs?limit=10'), ...opts });
+  const monitors = useQuery({ queryKey: monitorKeys.palette, queryFn: () => get<MonitorSummary[]>('/monitors'), ...opts });
   const services = useQuery({ queryKey: ['services', 'palette'], queryFn: () => get<ServiceSummary[]>('/services'), ...opts });
   const records = useQuery({ queryKey: ['records', 'palette'], queryFn: () => get<RecordSummary[]>('/records'), ...opts });
   const credentials = useQuery({
@@ -207,7 +208,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
       } catch (e) {
         notifyError(e, t('palette.testFailedTitle', { name: p.name }));
       } finally {
-        void qc.invalidateQueries({ queryKey: ['platforms'] });
+        void qc.invalidateQueries({ queryKey: platformKeys.all });
         void qc.invalidateQueries({ queryKey: ['platform', p.id] });
       }
     };

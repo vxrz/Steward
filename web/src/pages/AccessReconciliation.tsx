@@ -43,6 +43,7 @@ import { FindingStatusBadge, KindBadge, RightsDiff } from '../components/complia
 import { fmtDate, fmtRelative } from '../format';
 import { localNow } from './AccessChanges';
 import { useMe } from '../auth';
+import { platformKeys } from '../queryKeys';
 
 /** Compliance → Access reconciliation: who has which access (snapshots) compared with the documented access changes. */
 export function AccessReconciliationPage() {
@@ -599,7 +600,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
   const { t } = useTranslation(['compliance', 'common']);
   const { isAdmin } = useMe();
   const qc = useQueryClient();
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => getOptional<Subject[]>('/subjects', []) });
   const [f, setF] = useState({
     name: check?.name ?? '',

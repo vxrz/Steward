@@ -39,6 +39,7 @@ import { ExpressionInput } from './ExpressionInput';
 import { VersionCompare } from './VersionDiff';
 import { issueText } from '../../i18n/meta';
 import { ApplicationSelect, ApplicationsMultiSelect } from '../catalogue/ApplicationSelect';
+import { processKeys } from '../../queryKeys';
 
 type Def = ProcessDefinition;
 type SetDef = (d: Def) => void;
@@ -433,7 +434,7 @@ export function VersionsPanel({
 }) {
   const { t } = useTranslation('editor');
   const versions = useQuery({
-    queryKey: ['process-versions', processId, currentVersion],
+    queryKey: processKeys.versions(processId, currentVersion),
     queryFn: () => get<ProcessVersion[]>(`/processes/${processId}/versions`),
   });
   const [viewing, setViewing] = useState<ProcessDetail | null>(null);

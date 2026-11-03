@@ -40,6 +40,7 @@ import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { DetailHeader } from '../components/page/DetailPage';
+import { platformKeys } from '../queryKeys';
 
 interface TokenInfo {
   fetchedAt: string;
@@ -67,10 +68,10 @@ export function PlatformDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const platform = useQuery({ queryKey: ['platform', id], queryFn: () => get<Platform>(`/platforms/${id}`), enabled: !!id });
+  const platform = useQuery({ queryKey: platformKeys.detail(id), queryFn: () => get<Platform>(`/platforms/${id}`), enabled: !!id });
   // the application of the service catalogue the platform belongs to (#84)
   const application = useQuery({
-    queryKey: ['platform', id, 'application'],
+    queryKey: platformKeys.application(id),
     queryFn: () => get<{ application: { id: string; name: string; archived: boolean } | null }>(`/platforms/${id}/application`),
     enabled: !!id,
   });
@@ -100,8 +101,8 @@ export function PlatformDetailPage() {
   const saveAccess = async (acl: AclEntry[]) => {
     try {
       await put(`/platforms/${p.id}/access`, { acl });
-      await qc.invalidateQueries({ queryKey: ['platform', id] });
-      await qc.invalidateQueries({ queryKey: ['platforms'] });
+      await qc.invalidateQueries({ queryKey: platformKeys.detail(id) });
+      await qc.invalidateQueries({ queryKey: platformKeys.all });
       notifyOk(t('detail.accessSaved'));
     } catch (e) {
       notifyError(e, t('detail.accessNotSaved'));
@@ -134,7 +135,7 @@ export function PlatformDetailPage() {
   const remove = async () => {
     try {
       await del(`/platforms/${p.id}`);
-      await qc.invalidateQueries({ queryKey: ['platforms'] });
+      await qc.invalidateQueries({ queryKey: platformKeys.all });
       notifyOk(t('detail.deleted', { name: p.name }));
       navigate('/platforms');
     } catch (e) {
@@ -403,7 +404,7 @@ function SaveTypeModal({ platform, onClose }: { platform: Platform; onClose: () 
     setBusy(true);
     try {
       await post('/platform-types', { fromPlatformId: platform.id, kind, label, description });
-      await qc.invalidateQueries({ queryKey: ['platform-presets'] });
+      await qc.invalidateQueries({ queryKey: platformKeys.presets });
       notifyOk(t('saveType.saved', { name: label }));
       onClose();
     } catch (e) {

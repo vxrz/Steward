@@ -12,6 +12,7 @@ import { countGateway, keyAllowed } from './gateways.js';
 import * as engine from './engine.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { permissionsOfRow } from './model.js';
+import { env } from '../config.js';
 
 /**
  * Heartbeat endpoints (push checks):
@@ -31,7 +32,7 @@ import { permissionsOfRow } from './model.js';
  * a flood of gateway reports cannot amplify into unbounded CPU on the shared
  * Node process (each evaluation runs guarded JSONata and DB writes).
  */
-const MAX_CONCURRENT_EVALS = Number(process.env.SM_MONITOR_EVAL_CONCURRENCY) || 8;
+const MAX_CONCURRENT_EVALS = env.SM_MONITOR_EVAL_CONCURRENCY;
 let activeEvals = 0;
 const evalQueue: (() => void)[] = [];
 function acquireEval(): Promise<() => void> {

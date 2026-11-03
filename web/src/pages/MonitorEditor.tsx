@@ -57,6 +57,7 @@ import { SecretsModal } from '../components/monitors/dialogs';
 import { MonitorStatusBadge, checkTypeHelp, checkTypeLabel } from '../components/monitors/status';
 import { editorIssues, issuesByCheck, serverIssues, type EditorIssue } from '../components/monitors/validate';
 import { isTextTarget, modKey, useDefHistory, useUndoKeys } from '../components/editor/useDefHistory';
+import { monitorKeys, platformKeys, processKeys } from '../queryKeys';
 
 const EMPTY: MonitorDefinition = {
   name: '',
@@ -110,10 +111,10 @@ export function MonitorEditorPage() {
   const isNew = !id;
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const existing = useQuery({ queryKey: ['monitor', id], queryFn: () => get<MonitorDetail>(`/monitors/${id}`), enabled: !isNew });
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
-  const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors') });
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
+  const existing = useQuery({ queryKey: monitorKeys.detail(id), queryFn: () => get<MonitorDetail>(`/monitors/${id}`), enabled: !isNew });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
+  const monitors = useQuery({ queryKey: monitorKeys.all, queryFn: () => get<MonitorSummary[]>('/monitors') });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
   const [draft, setDraft] = useState<Draft | null>(isNew ? draftOf(EMPTY) : null);
   const history = useDefHistory<Draft>(draft, setDraft);
   const def = draft?.def ?? null;
@@ -345,8 +346,8 @@ export function MonitorEditorPage() {
     try {
       const body = { key: key.trim() || undefined, definition: d, ...(isNew ? { isTemplate } : { version: existing.data!.version }) };
       const r = isNew ? await post<MonitorSaveResult>('/monitors', body) : await put<MonitorSaveResult>(`/monitors/${id}`, body);
-      qc.invalidateQueries({ queryKey: ['monitors'] });
-      qc.invalidateQueries({ queryKey: ['monitor', r.monitor.id] });
+      qc.invalidateQueries({ queryKey: monitorKeys.all });
+      qc.invalidateQueries({ queryKey: monitorKeys.detail(r.monitor.id) });
       if (r.secrets.length) setSecrets(r);
       else navigate(`/monitors/${r.monitor.id}`);
     } catch (e) {

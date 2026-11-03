@@ -13,6 +13,7 @@ import { fmtRelative } from '../format';
 import { EnvironmentBadge, useEnvironmentList } from '../components/catalogue/environments';
 import { StackFields, stackBody, stackRowsOf, type StackRow } from '../components/catalogue/ComponentsPanel';
 import { ListPage } from '../components/page/ListPage';
+import { platformKeys } from '../queryKeys';
 
 /** Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on. */
 export function SystemsPage() {
@@ -178,7 +179,7 @@ export function SystemsPage() {
 /** Create or change a system: what it is, who owns it, the platform it is, its tech stack. */
 export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemDetail; onClose: () => void; onSaved: (s: SystemDetail) => void }) {
   const { t } = useTranslation(['applications', 'common']);
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const [name, setName] = useState(system?.name ?? '');
   const [kind, setKind] = useState<SystemKind>(system?.kind ?? 'server');
   const [vendor, setVendor] = useState(system?.vendor ?? '');

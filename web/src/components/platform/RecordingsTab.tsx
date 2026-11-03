@@ -8,6 +8,7 @@ import { del, get, notifyError, notifyOk, post, put } from '../../api';
 import { EmptyState, Hint, QueryState } from '../common';
 import { confirmDanger } from '../confirm';
 import { fmtBytes, fmtRelative } from '../../format';
+import { platformKeys } from '../../queryKeys';
 
 /**
  * Recorded responses of a platform (#105): answers that a test run of a process or monitor uses instead of the
@@ -22,11 +23,11 @@ export function RecordingsTab({ platform, readOnly }: { platform: Platform; read
   const { t } = useTranslation('platforms');
   const qc = useQueryClient();
   const q = useQuery({
-    queryKey: ['platform-recordings', platform.id],
+    queryKey: platformKeys.recordings(platform.id),
     queryFn: () => get<PlatformRecording[]>(`/platforms/${platform.id}/recordings`),
   });
   const [editing, setEditing] = useState<PlatformRecording | 'new' | null>(null);
-  const reload = () => qc.invalidateQueries({ queryKey: ['platform-recordings', platform.id] });
+  const reload = () => qc.invalidateQueries({ queryKey: platformKeys.recordings(platform.id) });
   const remove = async (r: PlatformRecording) => {
     if (!(await confirmDanger({ action: 'remove', message: t('recordings.removeConfirm', { request: `${r.method} ${r.path}` }) }))) return;
     try {

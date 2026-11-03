@@ -25,6 +25,7 @@ import { unsentCredentials, type AuthConfig, type AuthType, type HttpOptions, ty
 import { notifyError, notifyOk, put } from '../../api';
 import { EnvironmentInput } from '../catalogue/environments';
 import { Hint, KeyValueEditor } from '../common';
+import { platformKeys } from '../../queryKeys';
 
 const AUTH_OPTIONS: AuthType[] = ['none', 'basic', 'bearer', 'apiKey', 'oauth2_client_credentials', 'token_request', 'jwt', 'aws_sigv4'];
 
@@ -116,7 +117,7 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
     setBusy(true);
     try {
       await put(`/platforms/${platform.id}`, { name, kind, description, baseUrl, environment, config });
-      await Promise.all([qc.invalidateQueries({ queryKey: ['platform', platform.id] }), qc.invalidateQueries({ queryKey: ['platforms'] })]);
+      await Promise.all([qc.invalidateQueries({ queryKey: platformKeys.detail(platform.id) }), qc.invalidateQueries({ queryKey: platformKeys.all })]);
       notifyOk(t('settings.saved'));
     } catch (e) {
       notifyError(e, t('settings.notSaved'));

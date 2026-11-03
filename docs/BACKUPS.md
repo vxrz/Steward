@@ -83,7 +83,7 @@ Decrypt and check a backup on any machine with Node.js and the Steward sources (
 ```bash
 npm run backup -- verify steward-20261030T021500Z.smbackup              # asks for the backup passphrase
 npm run backup -- decrypt steward-20261030T021500Z.smbackup --out restore.zip
-# container: docker run --rm -it -v "$PWD:/work" ghcr.io/vxrz/steward:<version> node --import tsx server/src/cli/backup.ts decrypt /work/<file> --out /work/restore.zip
+# container: docker run --rm -it -v "$PWD:/work" ghcr.io/vxrz/steward:<version> node server/dist/backup.js decrypt /work/<file> --out /work/restore.zip
 # desktop:   steward backup decrypt <file> --out restore.zip
 ```
 

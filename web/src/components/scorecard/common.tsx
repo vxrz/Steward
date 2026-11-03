@@ -20,6 +20,7 @@ import {
 import { get, getOptional, notifyError, notifyOk, post, put } from '../../api';
 import { TONE, useFieldErrors } from '../common';
 import { fmtNumber } from '../../format';
+import { platformKeys } from '../../queryKeys';
 
 /** Colours of the part statuses (the label always says the status, too). */
 /**
@@ -104,7 +105,7 @@ export function ObjectiveFormModal({
   const sources = useQuery({ queryKey: ['gatus-sources'], queryFn: () => getOptional<GatusMetricsSource[]>('/gatus/sources', []) });
   // Prometheus platforms (#110): the figures come from a PromQL query with $window
   const proms = useQuery({
-    queryKey: ['platforms', 'prometheus'],
+    queryKey: platformKeys.ofKind('prometheus'),
     queryFn: async () => (await getOptional<{ id: string; name: string; kind: string }[]>('/platforms', [])).filter((p) => p.kind === 'prometheus'),
   });
   const [platformId, setPlatformId] = useState<string | null>(objective?.platformId ?? null);

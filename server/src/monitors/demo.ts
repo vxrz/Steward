@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fetch } from 'undici';
-import { config, loopbackUrl } from '../config.js';
+import { config, env, loopbackUrl } from '../config.js';
 import { db } from '../db.js';
 import { vault } from '../vault.js';
 import { logger } from '../log.js';
@@ -24,7 +24,7 @@ import type { GatewayRow } from './model.js';
 export const DEMO_GATEWAY_NAME = 'IoT gateway (demo simulator)';
 const SIM_INTERVAL_MS = 30000;
 
-const examplesDir = () => path.join(process.env.SM_EXAMPLES_DIR ?? path.join(config.templatesDir, '..'), 'monitors');
+const examplesDir = () => path.join(config.examplesDir, 'monitors');
 
 /** The examples describe a real plant; in the demo the PowerMeters and Steward are this server. */
 function demoize(text: string): string {
@@ -177,7 +177,7 @@ async function simulateOnce(first = false): Promise<void> {
 
 /** Runs in demo mode only, once the demo gateway exists (also after a restart). */
 export function startGatewaySimulator(): void {
-  if (!config.demo || simTimer || process.env.SM_MONITOR_DEMO_SIMULATOR === '0') return;
+  if (!config.demo || simTimer || !env.SM_MONITOR_DEMO_SIMULATOR) return;
   simTimer = setInterval(() => void simulateOnce(), SIM_INTERVAL_MS);
   simTimer.unref();
 }

@@ -33,6 +33,7 @@ import { StatusCounts } from '../components/dashboard/status';
 import { confirmDanger } from '../components/confirm';
 import '../components/dashboard/viz.css';
 import { ListPage } from '../components/page/ListPage';
+import { dashboardKeys, datasetKeys } from '../queryKeys';
 
 interface DashboardTemplate {
   id: string;
@@ -46,8 +47,8 @@ export function DashboardsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { caps, isAdmin } = useMe();
-  const dashboards = useQuery({ queryKey: ['dashboards'], queryFn: () => get<Dashboard[]>('/dashboards') });
-  const datasets = useQuery({ queryKey: ['datasets'], queryFn: () => get<DatasetMeta[]>('/datasets'), refetchInterval: 30000 });
+  const dashboards = useQuery({ queryKey: dashboardKeys.all, queryFn: () => get<Dashboard[]>('/dashboards') });
+  const datasets = useQuery({ queryKey: datasetKeys.all, queryFn: () => get<DatasetMeta[]>('/datasets'), refetchInterval: 30000 });
   const [templatesOpen, templates] = useDisclosure();
   const [importOpen, importModal] = useDisclosure();
   const [newOpen, newModal] = useDisclosure();
@@ -190,7 +191,7 @@ export function DashboardsPage() {
                           if (!(await confirmDanger({ action: 'delete', message: t('datasets.deleteConfirm', { key: m.key, process: m.processName }) })))
                             return;
                           await del(`/datasets/${encodeURIComponent(m.key)}`).catch(notifyError);
-                          qc.invalidateQueries({ queryKey: ['datasets'] });
+                          qc.invalidateQueries({ queryKey: datasetKeys.all });
                         }}
                       >
                         <IconTrash size={15} />
@@ -226,7 +227,7 @@ function NewDashboardModal({ opened, onClose }: { opened: boolean; onClose: () =
   const [teamIds, setTeamIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [tried, setTried] = useState(false);
-  const list = useQuery({ queryKey: ['dashboard-templates'], queryFn: () => get<DashboardTemplate[]>('/dashboard-templates'), enabled: opened });
+  const list = useQuery({ queryKey: dashboardKeys.templates, queryFn: () => get<DashboardTemplate[]>('/dashboard-templates'), enabled: opened });
   const teams = useQuery({ queryKey: ['teams'], queryFn: () => get<Team[]>('/teams'), enabled: opened && isAdmin });
   const mine = useQuery({ queryKey: ['new-resource-teams'], queryFn: () => get<NewResourceTeams>('/me/new-resource-teams'), enabled: opened && !isAdmin });
   const tpl = list.data?.find((x) => x.id === templateId);
@@ -248,7 +249,7 @@ function NewDashboardModal({ opened, onClose }: { opened: boolean; onClose: () =
       const definition = start === 'template' && tpl ? { ...structuredClone(tpl.definition), name: name.trim() } : { name: name.trim(), widgets: [] };
       const d = await post<Dashboard>('/dashboards', { definition });
       if (isAdmin && teamIds.length) await put(`/owning-teams/dashboard/${d.id}`, { teamIds }).catch(notifyError);
-      qc.invalidateQueries({ queryKey: ['dashboards'] });
+      qc.invalidateQueries({ queryKey: dashboardKeys.all });
       close();
       // straight into edit mode
       navigate(`/dashboards/${d.id}?edit=1`);
@@ -336,7 +337,7 @@ function TemplatesModal({ opened, onClose }: { opened: boolean; onClose: () => v
   const { t } = useTranslation('dashboards');
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const list = useQuery({ queryKey: ['dashboard-templates'], queryFn: () => get<DashboardTemplate[]>('/dashboard-templates'), enabled: opened });
+  const list = useQuery({ queryKey: dashboardKeys.templates, queryFn: () => get<DashboardTemplate[]>('/dashboard-templates'), enabled: opened });
   const [busy, setBusy] = useState<string | null>(null);
   return (
     <Modal opened={opened} onClose={onClose} title={t('templates.title')} size="lg">
@@ -361,7 +362,7 @@ function TemplatesModal({ opened, onClose }: { opened: boolean; onClose: () => v
                   setBusy(tpl.id);
                   try {
                     const d = await post<Dashboard>('/dashboards', { templateId: tpl.id });
-                    qc.invalidateQueries({ queryKey: ['dashboards'] });
+                    qc.invalidateQueries({ queryKey: dashboardKeys.all });
                     notifyOk(t('templates.created', { name: d.name }));
                     onClose();
                     navigate(`/dashboards/${d.id}`);
@@ -412,7 +413,7 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
               setBusy(true);
               try {
                 const d = await post<Dashboard>('/dashboards', { text });
-                qc.invalidateQueries({ queryKey: ['dashboards'] });
+                qc.invalidateQueries({ queryKey: dashboardKeys.all });
                 onClose();
                 navigate(`/dashboards/${d.id}`);
               } catch (e) {

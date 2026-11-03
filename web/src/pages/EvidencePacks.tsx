@@ -27,6 +27,7 @@ import { EmptyState, QueryState, TONE, useCreateParam } from '../components/comm
 import { PeriodPicker, periodRange, presetPeriod, validPeriod, type Period } from '../components/compliance/common';
 import { fmtBytes, fmtDate, fmtRelative } from '../format';
 import { ListPage } from '../components/page/ListPage';
+import { platformKeys } from '../queryKeys';
 
 const STATUS_COLOR: Record<EvidencePack['status'], string> = { building: TONE.active, ready: TONE.ok, failed: TONE.bad, expired: TONE.neutral };
 
@@ -215,7 +216,7 @@ function NewPackModal({ onClose }: { onClose: () => void }) {
   );
   const [busy, setBusy] = useState(false);
   const controls = useQuery({ queryKey: ['controls-all'], queryFn: () => get<Control[]>('/compliance/controls') });
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => getOptional<Platform[]>('/platforms', []) });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => getOptional<Platform[]>('/platforms', []) });
   const services = useQuery({ queryKey: ['services'], queryFn: () => getOptional<ServiceSummary[]>('/services', []) });
   const scope =
     kind === 'controls'

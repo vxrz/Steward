@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ADMIN, setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { ADMIN, setup, startTestServer, type Client, type TestServer, setEnv } from './helpers.js';
 
 // Password sign-in switched off (single sign-on only), and emergency access from the server's command line.
 let s: TestServer;
@@ -138,7 +138,7 @@ describe('password sign-in off (single sign-on only)', () => {
   });
 
   it('SM_PASSWORD_LOGIN wins over the setting and locks it in the UI', async () => {
-    process.env.SM_PASSWORD_LOGIN = 'adminsOnly';
+    await setEnv({ SM_PASSWORD_LOGIN: 'adminsOnly' });
     try {
       const st = await max('GET', '/settings');
       expect(st.passwordLogin).toBe('adminsOnly');
@@ -150,7 +150,7 @@ describe('password sign-in off (single sign-on only)', () => {
       const admin = await s.as(ADMIN.username, ADMIN.password);
       expect((await admin('GET', '/auth/me')).user.username).toBe(ADMIN.username);
     } finally {
-      delete process.env.SM_PASSWORD_LOGIN;
+      await setEnv({ SM_PASSWORD_LOGIN: undefined });
     }
     expect((await max('GET', '/settings')).passwordLogin).toBe('none');
   });

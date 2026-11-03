@@ -52,6 +52,7 @@ import { fmtRelative } from '../format';
 import { issueText } from '../i18n/meta';
 import { statusLabel } from '../components/common';
 import { DetailHeader } from '../components/page/DetailPage';
+import { processKeys } from '../queryKeys';
 
 /** Drop undefined values so dirty-checking and saving see the same thing. */
 const normalize = (d: ProcessDefinition): ProcessDefinition => JSON.parse(JSON.stringify(d));
@@ -69,7 +70,7 @@ export function ProcessEditorPage() {
   const { t, i18n } = useTranslation(['editor', 'common']);
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
-  const proc = useQuery({ queryKey: ['process', id], queryFn: () => get<ProcessDetail>(`/processes/${id}`), enabled: !!id });
+  const proc = useQuery({ queryKey: processKeys.detail(id), queryFn: () => get<ProcessDetail>(`/processes/${id}`), enabled: !!id });
   const [def, setDef] = useState<ProcessDefinition | null>(null);
   const [loadedId, setLoadedId] = useState<string | null>(null);
   const [baseline, setBaseline] = useState('');
@@ -354,10 +355,10 @@ export function ProcessEditorPage() {
               onSave={async (acl, owner) => {
                 try {
                   const saved = await put<ProcessDetail>(`/processes/${p.id}/access`, { acl, owner });
-                  qc.setQueryData(['process', id], (old: ProcessDetail | undefined) =>
+                  qc.setQueryData(processKeys.detail(id), (old: ProcessDetail | undefined) =>
                     old ? { ...old, acl: saved.acl, owner: saved.owner, permissions: saved.permissions } : saved,
                   );
-                  qc.invalidateQueries({ queryKey: ['processes'] });
+                  qc.invalidateQueries({ queryKey: processKeys.all });
                   notifyOk(t('page.accessSaved'));
                 } catch (e) {
                   notifyError(e, t('page.accessNotSaved'));
@@ -374,9 +375,9 @@ export function ProcessEditorPage() {
         processId={p.id}
         def={def}
         onSaved={(saved) => {
-          qc.setQueryData(['process', id], saved);
-          qc.invalidateQueries({ queryKey: ['processes'] });
-          qc.invalidateQueries({ queryKey: ['process-versions', p.id] });
+          qc.setQueryData(processKeys.detail(id), saved);
+          qc.invalidateQueries({ queryKey: processKeys.all });
+          qc.invalidateQueries({ queryKey: processKeys.versions(p.id) });
           const d = normalize(structuredClone(saved.definition));
           setDef(d);
           setBaseline(JSON.stringify(d));

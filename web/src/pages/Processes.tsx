@@ -51,12 +51,13 @@ import { BRAND } from '../../../shared/src/brand';
 import { useMe } from '../auth';
 import { confirmDanger } from '../components/confirm';
 import { ListPage } from '../components/page/ListPage';
+import { dashboardKeys, processKeys } from '../queryKeys';
 
 export function ProcessesPage() {
   const { t } = useTranslation(['processes', 'common']);
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
   const [filter, setFilter] = useState('');
   const [runId, setRunId] = useState<string | null>(null);
   const [templatesOpen, templates] = useDisclosure();
@@ -254,7 +255,7 @@ export function ProcessesPage() {
                         onClick={async () => {
                           if (!(await confirmDanger({ action: 'archive', message: t('card.archiveConfirm', { name: p.name }) }))) return;
                           await del(`/processes/${p.id}`).catch(notifyError);
-                          qc.invalidateQueries({ queryKey: ['processes'] });
+                          qc.invalidateQueries({ queryKey: processKeys.all });
                         }}
                       >
                         {t('card.archive')}
@@ -326,7 +327,7 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
     }
     setResults(out);
     setBusy(false);
-    qc.invalidateQueries({ queryKey: ['processes'] });
+    qc.invalidateQueries({ queryKey: processKeys.all });
     const okCount = out.filter((r) => r.ok).length;
     if (okCount) notifyOk(t('import.imported', { count: okCount, total: out.length }));
   };
@@ -499,8 +500,8 @@ function BundleImportModal({ opened, onClose }: { opened: boolean; onClose: () =
                   onConflict,
                 });
                 setResult(r);
-                qc.invalidateQueries({ queryKey: ['processes'] });
-                qc.invalidateQueries({ queryKey: ['dashboards'] });
+                qc.invalidateQueries({ queryKey: processKeys.all });
+                qc.invalidateQueries({ queryKey: dashboardKeys.all });
               } catch (e) {
                 notifyError(e, t('import.failed'));
               } finally {

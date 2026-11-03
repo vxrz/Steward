@@ -7,7 +7,7 @@ Steward has a public, **read-only** REST API under `/api/v1` for reports, dashbo
 - Interactive documentation: Swagger UI at `/api/docs/` (see [Documentation page](#documentation-page))
 - API version: `1.1.0` (`info.version` in the document, `apiVersion` in `/health` and `/me`)
 
-The web UI keeps using its own internal API under `/api/…`. That one may change with every release – **build integrations on `/api/v1` only.**
+**`/api/v1` is the public contract** (versioned, additive changes only, see [Versioning and deprecation](#versioning-and-deprecation)). The web UI uses its own **internal API** under `/api/…`: it is **private and unstable** – its paths, fields and codes may change with every release, without a deprecation period – so **build integrations on `/api/v1` only** (see [The internal API](#the-internal-api)).
 
 ## Contents
 
@@ -24,6 +24,7 @@ The web UI keeps using its own internal API under `/api/…`. That one may chang
 - [Documentation page](#documentation-page)
 - [Auditing and logging](#auditing-and-logging)
 - [For developers](#for-developers)
+- [The internal API](#the-internal-api)
 
 ## Authentication
 
@@ -309,6 +310,31 @@ In the single-file desktop executable the Swagger UI files are embedded and unpa
 - Schemas: `server/src/api/v1/schemas.ts` (zod, converted to JSON Schema and used for Fastify's response serialisation). Routes: `server/src/api/v1/routes.ts` (shared setup, Meta) and one `routes-<area>.ts` per area, plus the feature modules' `api-v1.ts`. Authentication, rate limits: `server/src/api/v1/auth.ts`. Plugin, OpenAPI and Swagger UI: `server/src/api/index.ts`.
 - `npm run openapi` regenerates [`docs/openapi.json`](openapi.json); `npm run openapi -- --check` fails (exit 1) when the committed file is outdated – run it in CI. `npm run openapi -- --help` lists the options.
 - `server/test/api-v1.test.ts` checks authentication, permissions, pagination, secret leakage and validates every response against the generated document.
+
+## The internal API
+
+Everything under `/api` except `/api/v1` and the MCP endpoint (`/api/mcp`) is the web UI's internal API. It is not documented in the OpenAPI document, needs the web UI's session (cookie, session key and the `x-sm-client` header; API tokens work only where a route allows them) and **may change in any release**. Use `/api/v1` for anything that has to keep working.
+
+Its errors are problem details too ([RFC 9457](https://www.rfc-editor.org/rfc/rfc9457), `Content-Type: application/problem+json`), with the members the web UI reads as extension members:
+
+```json
+{
+  "type": "urn:steward:error:NOT_SIGNED_IN",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "Please sign in",
+  "instance": "/api/runs",
+  "error": "Please sign in",
+  "code": "NOT_SIGNED_IN",
+  "requestId": "4f6c1f0e-8a8e-4d4b-9d36-0f0e5a7b2c11"
+}
+```
+
+- `type` is `urn:steward:error:<code>` for an error with a code, otherwise `about:blank`; `title` is the HTTP status text; `detail` and `error` are the same message.
+- `code` and `params` (when present) are what the web UI translates; validation errors (`INVALID_INPUT`) carry `params.details`, some answers more members (`issues`, `stepUp`).
+- `requestId` is also in the `X-Request-Id` header of every answer. Unexpected errors (`INTERNAL_ERROR`, 500) contain nothing about their cause – quote the request id to find the log line.
+
+Until 0.3 these answers were `application/json` with `error`, `code` and `params` only; those members are unchanged.
 
 ## Tag filters
 

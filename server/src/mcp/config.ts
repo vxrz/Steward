@@ -4,9 +4,8 @@
  * whatever the setting says. Limits come from environment variables with safe defaults.
  */
 import type { McpServerStatus } from '@sm/shared';
-import { config } from '../config.js';
+import { config, env } from '../config.js';
 import { audit } from '../audit.js';
-import { logger } from '../log.js';
 import { readSetting, writeSetting } from '../settings.js';
 
 /** Endpoint of the Streamable HTTP transport. */
@@ -28,25 +27,11 @@ export const MAX_GATEWAY_RESPONSE_BYTES = 512 * 1024;
 export const TOOL_TIMEOUT_MS = 30_000;
 export const GATEWAY_TIMEOUT_MS = 20_000;
 
-const OFF = ['off', '0', 'false', 'no', 'disabled'];
 const SETTING = 'mcp.enabled';
-
-const warned = new Set<string>();
-function intEnv(name: string, fallback: number): number {
-  const raw = process.env[name]?.trim();
-  if (!raw) return fallback;
-  const n = Number(raw);
-  if (Number.isInteger(n) && n > 0) return n;
-  if (!warned.has(name)) {
-    warned.add(name);
-    logger.warn(`${name}="${raw}" is not a positive whole number – using ${fallback}`);
-  }
-  return fallback;
-}
 
 /** SM_MCP=off: the MCP endpoint is off whatever the setting says. */
 export function mcpForcedOff(): boolean {
-  return OFF.includes((process.env.SM_MCP ?? '').trim().toLowerCase());
+  return env.SM_MCP === false;
 }
 
 export function mcpEnabled(): boolean {
@@ -121,11 +106,11 @@ export function setMcpControlProposals(on: boolean): void {
 }
 
 /** Requests per minute and token on the MCP endpoint (SM_MCP_RATE_LIMIT, default 120). */
-export const mcpRateLimit = () => intEnv('SM_MCP_RATE_LIMIT', 120);
+export const mcpRateLimit = () => env.SM_MCP_RATE_LIMIT;
 /** Gateway calls per minute, user and platform (SM_MCP_GATEWAY_RATE_LIMIT, default 30). */
-export const gatewayRateLimit = () => intEnv('SM_MCP_GATEWAY_RATE_LIMIT', 30);
+export const gatewayRateLimit = () => env.SM_MCP_GATEWAY_RATE_LIMIT;
 /** Gateway calls in flight per platform (SM_MCP_GATEWAY_CONCURRENCY, default 2; at most half the platform's http.maxConcurrency). */
-export const gatewayConcurrency = () => intEnv('SM_MCP_GATEWAY_CONCURRENCY', 2);
+export const gatewayConcurrency = () => env.SM_MCP_GATEWAY_CONCURRENCY;
 
 /**
  * Origins a browser-based MCP client may send (DNS-rebinding protection): Steward's own origin(s) and
@@ -133,7 +118,7 @@ export const gatewayConcurrency = () => intEnv('SM_MCP_GATEWAY_CONCURRENCY', 2);
  */
 export function extraAllowedOrigins(): string[] {
   const out: string[] = [];
-  for (const raw of [config.publicUrl, ...(process.env.SM_MCP_ALLOWED_ORIGINS ?? '').split(',')]) {
+  for (const raw of [config.publicUrl, ...env.SM_MCP_ALLOWED_ORIGINS]) {
     const v = raw?.trim();
     if (!v) continue;
     try {

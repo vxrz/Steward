@@ -8,6 +8,7 @@ import { publicKeyFingerprint, publicKeyPem, vault, verifySignature } from './va
 import { logger } from './log.js';
 import { readSetting, writeSetting } from './settings.js';
 import { HttpError, nowIso } from './util.js';
+import { env } from './config.js';
 
 /**
  * Anchoring of the audit log outside the database.
@@ -24,7 +25,7 @@ import { HttpError, nowIso } from './util.js';
  * or rewriting the log, no longer goes unnoticed once a checkpoint has left the system.
  */
 
-export const CHECKPOINT_INTERVAL_MINUTES = Math.max(5, Number(process.env.SM_AUDIT_CHECKPOINT_MINUTES) || 60);
+export const CHECKPOINT_INTERVAL_MINUTES = env.SM_AUDIT_CHECKPOINT_MINUTES;
 const EMAIL_KEY = 'audit.checkpointEmail';
 const EMAIL_LAST_KEY = 'audit.checkpointEmailLast';
 
@@ -93,9 +94,9 @@ export function configuredAnchors(): { anchors: Anchor[]; errors: { source: stri
     }
   };
   add('local anchor file', () => (fs.existsSync(anchorFile()) ? fs.readFileSync(anchorFile(), 'utf8') : null));
-  add('anchor in SM_AUDIT_ANCHOR', () => process.env.SM_AUDIT_ANCHOR?.trim() || null);
+  add('anchor in SM_AUDIT_ANCHOR', () => env.SM_AUDIT_ANCHOR ?? null);
   add('anchor file SM_AUDIT_ANCHOR_FILE', () => {
-    const f = process.env.SM_AUDIT_ANCHOR_FILE?.trim();
+    const f = env.SM_AUDIT_ANCHOR_FILE;
     if (!f) return null;
     if (!fs.existsSync(f)) throw new Error(`SM_AUDIT_ANCHOR_FILE ${f} does not exist`);
     return fs.readFileSync(f, 'utf8');
@@ -127,7 +128,7 @@ let running: Promise<AuditCheckpoint | null> | null = null;
  * or the chain is broken (then it is logged as an error, never signed).
  */
 export function createCheckpoint(reason: 'interval' | 'verify' | 'export' | 'manual', verified?: VerifyOutcome): Promise<AuditCheckpoint | null> {
-  const next = (running ?? Promise.resolve(null)).catch(() => null).then(() => doCheckpoint(reason, verified));
+  const next = (running ?? Promise.resolve(null)).catch(() => null).then(() => doCheckpoint(reason, verified)); // the previous checkpoint's failure was reported to its caller
   running = next;
   void next.finally(() => {
     if (running === next) running = null;

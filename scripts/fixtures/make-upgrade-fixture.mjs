@@ -280,7 +280,7 @@ async function create() {
   // --- monitors with history ---
   const monitors = await api('GET', '/monitors');
   for (let round = 0; round < 3; round++) {
-    for (const m of monitors) await api('POST', `/monitors/${m.id}/run`, {}).catch(() => undefined);
+    for (const m of monitors) await api('POST', `/monitors/${m.id}/run`, {}).catch(() => undefined); // a failing check is fine here: it only fills the history
     await sleep(1500);
   }
   log(`${monitors.length} monitors checked three times`);

@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { get, notifyError, notifyOk, post, apiUrl } from '../../api';
 import { fmtDate, fmtDay } from '../../format';
 import { LangControl, browserTimeZone, defaultReportLang } from './RunReports';
+import { processKeys } from '../../queryKeys';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -32,7 +33,7 @@ function presetRange(preset: 'lastQuarter' | 'thisQuarter' | 'lastMonth' | 'last
 export function SummaryReportDialog({ opened, onClose, processIds }: { opened: boolean; onClose: () => void; processIds?: string[] }) {
   const { t } = useTranslation(['reports', 'common']);
   const qc = useQueryClient();
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes'), enabled: opened });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes'), enabled: opened });
   const previous = useQuery({ queryKey: ['summary-reports'], queryFn: () => get<ReportRecord[]>('/reports?kind=summary&limit=20'), enabled: opened });
   const [selected, setSelected] = useState<string[]>(processIds ?? []);
   const [[from, to], setRange] = useState<[string, string]>(() => presetRange('lastQuarter'));

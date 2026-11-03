@@ -24,6 +24,7 @@ import type { ApiOperation, ConnectionSlot, NodeOf, Platform } from '@sm/shared'
 import i18n from '../../i18n';
 import { get } from '../../api';
 import { OperationPath } from '../platform/OperationPath';
+import { platformKeys } from '../../queryKeys';
 
 type HttpNode = NodeOf<'http'>;
 type Param = NonNullable<ApiOperation['parameters']>[number];
@@ -41,7 +42,7 @@ function savePlatform(key: string, id: string | null) {
   try {
     if (id) localStorage.setItem(key, id);
   } catch {
-    /* ignore */
+    /* storage blocked: the choice is not remembered */
   }
 }
 
@@ -126,11 +127,11 @@ export function ApiOperationSection({
   };
 
   const wantOps = !!node.connection && (!!node.operationId || pickerOpen);
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms'), enabled: wantOps });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms'), enabled: wantOps });
   const candidates = useMemo(() => (platforms.data ?? []).filter((p) => !slot?.kind || p.kind === slot.kind), [platforms.data, slot?.kind]);
   const effectivePlatform = platformId && candidates.some((c) => c.id === platformId) ? platformId : (candidates[0]?.id ?? null);
   const ops = useQuery({
-    queryKey: ['platform', effectivePlatform, 'operations'],
+    queryKey: platformKeys.operations(effectivePlatform),
     queryFn: () => get<ApiOperation[]>(`/platforms/${effectivePlatform}/operations`),
     enabled: wantOps && !!effectivePlatform,
   });

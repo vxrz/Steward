@@ -24,6 +24,7 @@ import { TaskPanel } from '../components/TaskPanel';
 import { RunDialog } from '../components/RunDialog';
 import { GenerateReportDialog, RunReportsPanel, canReport } from '../components/reports/RunReports';
 import { DetailHeader } from '../components/page/DetailPage';
+import { processKeys, runKeys } from '../queryKeys';
 
 const ACTIVE = ['running', 'waiting', 'queued'];
 /** Long runs (for-each over thousands of items) render their steps and log lines in pages. */
@@ -41,12 +42,12 @@ export function RunDetailPage() {
   const [logLimit, setLogLimit] = useState(LOG_PAGE);
   const [pdfOpen, setPdfOpen] = useState(false);
   const run = useQuery({
-    queryKey: ['run', id],
+    queryKey: runKeys.detail(id),
     queryFn: () => get<RunDetail>(`/runs/${id}`),
     refetchInterval: (q) => (q.state.data && ACTIVE.includes(q.state.data.status) ? 1500 : false),
   });
   const proc = useQuery({
-    queryKey: ['process', run.data?.processId],
+    queryKey: processKeys.detail(run.data?.processId),
     queryFn: () => get<ProcessDetail>(`/processes/${run.data!.processId}`),
     enabled: !!run.data?.processId,
     retry: false,
@@ -64,7 +65,7 @@ export function RunDetailPage() {
   const action = async (what: 'cancel' | 'resume') => {
     try {
       await post(`/runs/${r.id}/${what}`);
-      await qc.invalidateQueries({ queryKey: ['run', id] });
+      await qc.invalidateQueries({ queryKey: runKeys.detail(id) });
     } catch (e) {
       notifyError(e);
     }

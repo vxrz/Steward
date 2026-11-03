@@ -25,6 +25,8 @@ On the first start, set a master passphrase and create an admin account. Then cl
 
 ## Project layout
 
+The architecture – C4 diagrams, a module map of `server/src` and the decision records – is described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). A change that alters one of the decisions in [docs/adr/](docs/adr/README.md) gets a new record.
+
 | Folder      | What it contains                                                                                                                                                                  |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `shared/`   | Process model and validation (zod), API types, branding, scrubbing helpers. Used by server and web.                                                                               |
@@ -48,6 +50,7 @@ On the first start, set a master passphrase and create an admin account. Then cl
 | `npm run build && npm run test:ui` | Playwright browser tests, including accessibility (axe) checks                                                                             |
 | `npm run validate`                 | Example processes and dashboards                                                                                                           |
 | `npm run openapi -- --check`       | `docs/openapi.json` matches the API (run `npm run openapi` to regenerate)                                                                  |
+| `npm run config:docs -- --check`   | The environment-variable tables (README, `docs/CONFIGURATION.md`) match `server/src/config-schema.ts` (run `npm run config:docs`)          |
 | `scripts/security/scan.sh`         | Optional: the security scanners CI runs (see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md))                                       |
 
 CI runs all of these on every push and pull request: GitHub Actions (`.github/workflows/`), and Woodpecker CI (`.woodpecker/`) on a Forgejo mirror – see [docs/WOODPECKER.md](docs/WOODPECKER.md). A change to one CI system usually needs the same change in the other.
@@ -104,6 +107,8 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
 
 - TypeScript strict mode. No `any` unless unavoidable and commented.
 - Small, focused functions. Comments explain _why_, not _what_.
+- **Errors you catch and drop say why.** An empty `catch` block has a comment with a reason (`/* already gone */`, not `/* ignore */`), and so does `.catch(() => undefined)` (on the same line or the line above). If someone should see the failure, log it instead (`logger.debug` / `logger.warn`). ESLint checks this (`scripts/eslint/catch-reason.js`).
+- **Configuration:** read environment variables from `env` in `server/src/config.ts`, never from `process.env`; a new variable goes into `server/src/config-schema.ts` (type, default, description) and `npm run config:docs` updates the tables.
 - **Security first:**
   - Never log, return or put secrets in error messages; use the existing redaction helpers.
   - Check permissions on the server for every route. Who may reach a route at all goes into its config – `{ config: { access: ACCESS.admin } }`, `ACCESS.public`, `ACCESS.session` (no API tokens), `statusViewer` – and is checked before the body is read; rights on a given object are checked in the service with `me()`, `forbid()` and the helpers of `server/src/auth/permissions.ts`. Both live in [`server/src/auth/access.ts`](server/src/auth/access.ts); the route permission test (`server/test/route-matrix.test.ts`) compares the declarations with its table.
@@ -117,6 +122,7 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
 - **UI:**
   - Use Mantine components, and make it work in light and dark mode, at 390 px width and with the keyboard.
   - Give icon buttons an `aria-label`.
+  - Take TanStack Query keys from the factories in `web/src/queryKeys.ts` (`runKeys.detail(id)`, `platformKeys.all`), so a query and its invalidations use the same key; add a factory for a feature you touch that still writes its keys inline.
   - Build pages from the page templates in `web/src/components/page/`: `ListPage` for lists (title and main action, `search`, `filters` that fold on phones, `view` for the table/card switch of a `DataTable`, `empty` with `whoCanAct`) and `DetailPage`/`DetailHeader` for detail pages (breadcrumb `back`, `status` badges, `actions`, the `menu` of further actions with its `duplicate` slot, `tabs` with `LinkTabs`, `recent` for the command palette, and the save bar for forms that use `useSaveSection`). The pieces in `web/src/components/common.tsx` (`QueryState`, `StatusBadge`/`TONE` …) stay. A new page goes into one of the six areas in `web/src/components/AppNav.tsx`. Clickable cards and rows need a real link inside. See [docs/UX-REVIEW.md](docs/UX-REVIEW.md).
   - Put user-facing text in the translation files (`web/src/locales/<lang>/`), English first, and run `npm run i18n:check` and `npm run i18n:literals` (finds texts that do not go through `t()`). See [docs/I18N.md](docs/I18N.md).
   - Give every error a person can see a code and its details: `new HttpError(400, 'English message', 'CODE', { details })`, plus `errors:codes.CODE` in the locale files ([docs/I18N.md](docs/I18N.md#server-errors)). Format dates and numbers with `web/src/format.ts`.

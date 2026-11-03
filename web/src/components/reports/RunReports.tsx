@@ -9,6 +9,7 @@ import { errorText } from '../../i18n/errors';
 import { currentLanguage } from '../../i18n';
 import { LANGUAGES } from '../../i18n/languages';
 import { fmtBytes, fmtDate } from '../../format';
+import { runKeys } from '../../queryKeys';
 
 export const FINISHED_STATUSES: RunStatus[] = ['succeeded', 'failed', 'cancelled'];
 const INTERIM_STATUSES: RunStatus[] = ['waiting', 'interrupted'];
@@ -85,7 +86,7 @@ export function GenerateReportDialog({ runId, status, opened, onClose }: { runId
         classification: classification.trim() || undefined,
         timeZone: browserTimeZone(),
       });
-      await qc.invalidateQueries({ queryKey: ['run-reports', runId] });
+      await qc.invalidateQueries({ queryKey: runKeys.reports(runId) });
       notifyOk(t('archived', { file: rec.filename }), t('run.generated'));
       setComment('');
       setDone(rec);
@@ -161,7 +162,7 @@ export function GenerateReportDialog({ runId, status, opened, onClose }: { runId
 export function RunReportsPanel({ runId, status }: { runId: string; status: RunStatus }) {
   const { t } = useTranslation('reports');
   const [open, setOpen] = useState(false);
-  const reports = useQuery({ queryKey: ['run-reports', runId], queryFn: () => get<ReportRecord[]>(`/runs/${runId}/reports`) });
+  const reports = useQuery({ queryKey: runKeys.reports(runId), queryFn: () => get<ReportRecord[]>(`/runs/${runId}/reports`) });
   const list = reports.data ?? [];
   return (
     <Stack>

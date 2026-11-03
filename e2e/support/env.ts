@@ -49,3 +49,10 @@ export const PROCESS = {
 
 /** A link as the web app renders it (href attribute): the app path below the base path. */
 export const appHref = (path: string) => BASE_PATH + path;
+
+/**
+ * How the test servers start (cwd server/): from the TypeScript sources with tsx (default), or the compiled bundle
+ * with SM_E2E_SERVER=dist (`npm run build` builds server/dist) – what the container image runs.
+ */
+export const serverArgs = (): string[] =>
+  process.env.SM_E2E_SERVER === 'dist' ? ['--enable-source-maps', 'dist/index.js'] : ['--import', 'tsx', 'src/index.ts'];
