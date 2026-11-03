@@ -245,7 +245,7 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
   app.post('/maintenance/cleanup', { config: { access: ACCESS.admin, rateLimit: ROUTE_LIMITS.heavy } }, async () => {
     admin('run the cleanup');
     try {
-      runCleanup({ manual: true });
+      await runCleanup({ manual: true });
     } catch (e) {
       throw new HttpError(409, (e as Error).message);
     }

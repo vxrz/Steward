@@ -211,7 +211,16 @@ export interface MaintenanceStatus {
   runs: number;
   oldestRun?: string | null;
   auditEntries: number;
-  lastCleanup?: { at: string; runsDeleted: number; artifactsDeleted: number; notificationsDeleted: number } | null;
+  lastCleanup?: {
+    at: string;
+    runsDeleted: number;
+    artifactsDeleted: number;
+    notificationsDeleted: number;
+    /** Audit archives written by this cleanup (0.4.0) */
+    auditArchived?: number;
+    /** Archived audit entries deleted (audit retention) */
+    auditEntriesDeleted?: number;
+  } | null;
 }
 
 // ---------- Editor support (expression assistant, inspector) ----------
