@@ -319,6 +319,20 @@
                       "interrupted"
                     ]
                   },
+                  "outcome": {
+                    "type": "string",
+                    "enum": [
+                      "queued",
+                      "running",
+                      "waiting",
+                      "succeeded",
+                      "failed",
+                      "cancelled",
+                      "interrupted",
+                      "findings"
+                    ],
+                    "description": "`findings`: it succeeded, but check steps failed; otherwise the status"
+                  },
                   "startedAt": {
                     "type": "string",
                     "format": "date-time",
@@ -418,6 +432,20 @@
                       "cancelled",
                       "interrupted"
                     ]
+                  },
+                  "outcome": {
+                    "type": "string",
+                    "enum": [
+                      "queued",
+                      "running",
+                      "waiting",
+                      "succeeded",
+                      "failed",
+                      "cancelled",
+                      "interrupted",
+                      "findings"
+                    ],
+                    "description": "`findings`: it succeeded, but check steps failed; otherwise the status"
                   },
                   "startedAt": {
                     "type": "string",

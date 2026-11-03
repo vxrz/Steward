@@ -659,7 +659,7 @@ export interface ProcessSummary {
   tags: string[];
   currentVersion: number;
   updatedAt: string;
-  lastRun?: { id: string; status: RunStatus; startedAt: string } | null;
+  lastRun?: { id: string; status: RunStatus; outcome?: RunOutcome; startedAt: string } | null;
   owner?: string | null;
   acl: AclEntry<ProcessPermission>[];
   /** What the current user may do with this process. */

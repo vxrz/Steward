@@ -95,7 +95,14 @@ export const Me = z.object({
   apiVersion: z.string(),
 });
 
-const LastRun = z.object({ id: z.string(), status: z.enum(RUN_STATUSES), startedAt: ts() }).nullable();
+const LastRun = z
+  .object({
+    id: z.string(),
+    status: z.enum(RUN_STATUSES),
+    outcome: z.enum(RUN_OUTCOMES).optional().describe('`findings`: it succeeded, but check steps failed; otherwise the status'),
+    startedAt: ts(),
+  })
+  .nullable();
 
 export const Process = z.object({
   id: z.string(),

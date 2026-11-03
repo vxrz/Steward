@@ -16,7 +16,7 @@ import { config } from '../config.js';
 import { currentActor, currentUser } from '../auth/context.js';
 import { logger } from '../log.js';
 import { cleanAcl, processPermissions } from '../auth/permissions.js';
-import { PROCESS_PERMISSIONS, type AclEntry, type ProcessPermission } from '@sm/shared';
+import { PROCESS_PERMISSIONS, runOutcome, type AclEntry, type ProcessPermission } from '@sm/shared';
 import { HttpError, MAX_DEFINITION_TEXT, canonicalJson, nowIso, parseJson, sha256, slugify } from '../util.js';
 import { parseYaml } from '../yaml-safe.js';
 import { assignCreatorTeams } from '../auth/policy.js';
@@ -37,11 +37,14 @@ interface ProcessRow {
 export const definitionHash = (d: ProcessDefinition): string => sha256(canonicalJson(d));
 
 function lastRun(processId: string): ProcessSummary['lastRun'] {
-  const r = db().get<{ id: string; status: RunStatus; started_at: string }>(
-    'SELECT id, status, started_at FROM runs WHERE process_id = ? ORDER BY started_at DESC LIMIT 1',
+  const r = db().get<{ id: string; status: RunStatus; started_at: string; stats: string }>(
+    'SELECT id, status, started_at, stats FROM runs WHERE process_id = ? ORDER BY started_at DESC LIMIT 1',
     processId,
   );
-  return r ? { id: r.id, status: r.status, startedAt: r.started_at } : null;
+  if (!r) return null;
+  // outcome: "findings" when it succeeded with failed checks (the status stays)
+  const outcome = runOutcome(r.status, parseJson<{ checksFailed?: number }>(r.stats, {}).checksFailed ?? 0);
+  return { id: r.id, status: r.status, outcome, startedAt: r.started_at };
 }
 
 function toSummary(r: ProcessRow): ProcessSummary {
