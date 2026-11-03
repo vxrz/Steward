@@ -56,6 +56,20 @@ test.describe('security headers and guards', () => {
     await expect(page.getByText(/matches the checkpoint you entered/)).toBeVisible();
   });
 
+  test('audit epochs and archives: state, incremental check and a full verification in the background', async ({ page }) => {
+    await page.goto('/audit');
+    await expect(page.getByRole('heading', { name: 'Epochs, archives and retention' })).toBeVisible();
+    await expect(page.getByText(/^Epochs: \d+ closed, \d+ archived/)).toBeVisible();
+    await expect(page.getByLabel('Archive closed epochs')).not.toBeChecked();
+    // (the first verification of a log without a checkpoint checks everything; the next one starts at its checkpoint)
+    await page.getByRole('button', { name: 'Verify chain', exact: true }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'Audit chain intact' })).toContainText(/Signed checkpoint written at entry #\d+/);
+    await page.getByRole('button', { name: 'Verify chain', exact: true }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'Audit chain intact' })).toContainText(/after the signed checkpoint are intact/);
+    await page.getByRole('button', { name: 'Full verification' }).click();
+    await expect(page.getByText(/^Last full verification:/)).toContainText(/intact/, { timeout: 30_000 });
+  });
+
   test('audit chain verifies', async ({ request }) => {
     const r = await (await request.get('/api/audit/verify', { headers: sessionHeaders('admin') })).json();
     expect(r.ok, r.message).toBe(true);
