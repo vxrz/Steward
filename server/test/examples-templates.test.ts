@@ -314,3 +314,30 @@ describe('AWS – keys and costs from the cloud accounts of applications', () =>
     expect(costs.steps.find((x: any) => x.stepId === 'growth').status).toBe('failed');
   });
 });
+
+describe('Prometheus – SLO and error-budget report', () => {
+  it('computes the availability, the budget left and the burn rates per service', async () => {
+    const r = await finish(await start('prometheus-slo-report', { prometheus: platformByKind.prometheus! }));
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    const d = await s.api('GET', '/datasets/prom.slo');
+    const by = Object.fromEntries(d.rows.map((x: any) => [x.Service, x]));
+    expect(by['shop-web']).toMatchObject({ 'Availability (%)': 99.95, 'Error budget left (%)': 50, 'Burn rate 1 h': 1, _status: 'good' });
+    expect(by['shop-api']).toMatchObject({
+      'Availability (%)': 99.82,
+      'Error budget left (%)': -80,
+      'Burn rate 1 h': 15,
+      'Burn rate 6 h': 10,
+      _status: 'critical',
+    });
+    expect(by['shop-api']._statusText).toBe('burning fast: 15× over 1 h, 10× over 6 h');
+    expect(by.checkout).toMatchObject({ 'Error budget left (%)': 20, _status: 'warning' });
+    expect(d.metrics).toMatchObject({ services: 3, belowObjective: 1, budgetExhausted: 1, fastBurn: 1, lowestAvailability: 99.82, lowestBudget: -80 });
+  });
+
+  it('the burn-rate monitor of the example library reads the same metric', async () => {
+    const m = (await s.api('GET', '/monitors')).find((x: any) => x.key === 'error-budget-burn-rate');
+    expect(m).toBeTruthy();
+    const def = (await s.api('GET', `/monitors/${m.id}`)).definition;
+    expect(def.checks.map((c: any) => c.platform)).toEqual([platformByKind.prometheus, platformByKind.prometheus]);
+  });
+});

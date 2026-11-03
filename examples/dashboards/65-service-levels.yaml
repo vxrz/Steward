@@ -1,0 +1,22 @@
+name: Service levels
+description: Availability, error budget and burn rate of every service against its objective – fed by "Prometheus – SLO and error-budget report" (weekly).
+refreshSeconds: 300
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **Service levels** – read by the process *Prometheus – SLO and error-budget report* from Prometheus. Opening this page never calls Prometheus.
+      A burn rate of 1 uses the error budget exactly over the objective window; monitors with the check type "Prometheus" alert on a fast burn between the reports.
+  - { id: services, type: kpi, title: Services, dataset: prom.slo, metric: services, width: 2 }
+  - { id: below, type: kpi, title: Below the objective, dataset: prom.slo, metric: belowObjective, goodWhen: down, width: 2 }
+  - { id: exhausted, type: kpi, title: Budget exhausted, dataset: prom.slo, metric: budgetExhausted, goodWhen: down, width: 2 }
+  - { id: fastBurn, type: kpi, title: Burning fast, dataset: prom.slo, metric: fastBurn, goodWhen: down, width: 2 }
+  - { id: lowest, type: kpi, title: Lowest availability (%), dataset: prom.slo, metric: lowestAvailability, width: 2 }
+  - { id: lowestBudget, type: kpi, title: Lowest budget left (%), dataset: prom.slo, metric: lowestBudget, width: 2 }
+  - { id: status, type: status, title: By state, dataset: prom.slo, width: 4 }
+  - { id: trend, type: trend, title: Lowest availability and budget, dataset: prom.slo, metrics: [lowestAvailability, lowestBudget], days: 180, width: 8 }
+  - { id: problems, type: table, title: Needing attention, dataset: prom.slo, problemsOnly: true, width: 12 }
+  - { id: all, type: table, title: All services, dataset: prom.slo, width: 12 }
+  - { id: checks, type: checks, title: Latest report, process: prometheus-slo-report, width: 6 }
+  - { id: fresh, type: freshness, title: Data freshness, width: 6 }

@@ -4,7 +4,8 @@ import type { FastifyInstance } from 'fastify';
  * Simulated Prometheus HTTP API for demo mode and tests, mounted at /mock/prometheus (#110):
  *   GET /api/v1/query?query=…        instant query: { status, data: { resultType: "vector", result: [{ metric, value: [ts, "v"] }] } }
  *   GET /api/v1/status/buildinfo     connection test
- * It knows a few fixed queries (the demo's) and whatever a test sets with setPromResult; anything else is an empty
+ * It knows a few fixed queries (the demo's), request ratios over http_requests_total per service (requestRatio) and
+ * whatever a test sets with setPromResult; anything else is an empty
  * vector, and a query with "syntax_error" answers 400 like Prometheus does.
  */
 
@@ -42,9 +43,39 @@ export function resetPrometheus(): void {
   results = defaults();
 }
 
+/** Share of good requests per service and window (SLO report, burn-rate monitor): shop-api burns its budget fast. */
+const GOOD_RATIO: Record<string, Record<string, number>> = {
+  'shop-web': { '28d': 0.9995, '6h': 0.9996, '1h': 0.999 },
+  'shop-api': { '28d': 0.9982, '6h': 0.99, '1h': 0.985 },
+  checkout: { '28d': 0.9992, '6h': 0.9995, '1h': 0.9999 },
+};
+
+/**
+ * Queries over http_requests_total with a range: the share of good requests per service (`… by (service) …`, or the
+ * services of a service="…" matcher); `1 - (…)` is the share of errors, and `(…) / (1 - 0.999)` the burn rate.
+ */
+function requestRatio(query: string): Series[] | null {
+  const q = query.trim();
+  const range = /http_requests_total[^[]*\[(\d+[smhdw])\]/.exec(q)?.[1];
+  if (!range) return null;
+  const only = /service="([^"]+)"/.exec(q)?.[1];
+  const errors = /^\(?\s*1\s*-/.test(q);
+  const target = /\/\s*\(\s*1\s*-\s*(0\.\d+)\s*\)\s*$/.exec(q)?.[1];
+  return Object.entries(GOOD_RATIO)
+    .filter(([service]) => !only || service === only)
+    .map(([service, by]) => {
+      const good = by[range] ?? by['28d']!;
+      let value = errors ? 1 - good : good;
+      if (target) value = value / (1 - Number(target));
+      return { metric: { service }, value: Math.round(value * 1e6) / 1e6 };
+    });
+}
+
 function answer(query: string): Series[] {
   const known = results.get(query.trim());
   if (known) return known;
+  const ratio = requestRatio(query);
+  if (ratio) return ratio;
   // availability over a window, e.g. avg_over_time(up{job="shop"}[7d])
   const m = /^avg_over_time\(up\{job="shop"\}\[(1h|24h|7d|30d)\]\)$/.exec(query.trim());
   if (m) return [{ metric: { job: 'shop' }, value: WINDOW_UPTIME[m[1]!]! }];

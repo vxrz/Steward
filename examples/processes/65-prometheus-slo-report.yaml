@@ -1,0 +1,184 @@
+# steward-min-version: 0.2.6
+name: "Prometheus – SLO and error-budget report"
+description: |
+  A weekly report on the availability objectives of your services, from
+  Prometheus (also Thanos, Mimir, VictoriaMetrics): the share of good
+  requests per service over the objective window (28 days by default), how
+  much of the error budget is left, and how fast it burns right now (over
+  1 hour and 6 hours, 1 = exactly as fast as the objective allows). The query
+  is yours – `$window` is replaced by the window – and must return one series
+  per service with the share of good requests (0…1). Checks warn about
+  services below their objective, an exhausted budget and a fast burn
+  (14.4 over 1 h and 6 over 6 h: the budget would be gone in two days). Read-only.
+
+  Recommended schedule: weekly, Monday 07:00 (`0 7 * * 1`). Publishes
+  `prom.slo` (one row per service; metrics services, belowObjective,
+  budgetExhausted, fastBurn, lowestAvailability) for the "Service levels"
+  dashboard. Monitors alert on the burn rate between reports with the check
+  type "Prometheus" (see the example monitor "Error budget burn rate").
+recommendedSchedule: "0 7 * * 1"
+tags: [prometheus, slo, reliability, reports]
+connections:
+  - slot: prometheus
+    kind: prometheus
+    description: Prometheus HTTP API (or Thanos, Mimir, VictoriaMetrics)
+inputs:
+  - name: query
+    label: Share of good requests per service (PromQL, $window = the window)
+    type: string
+    default: 'sum by (service) (rate(http_requests_total{code!~"5.."}[$window])) / sum by (service) (rate(http_requests_total[$window]))'
+  - name: serviceLabel
+    label: Label that names the service
+    type: string
+    default: service
+  - name: objective
+    label: Objective (% good requests)
+    type: number
+    default: 99.9
+  - name: window
+    label: Objective window
+    type: select
+    options: [7d, 28d, 30d]
+    default: 28d
+  - name: fastBurn1h
+    label: Fast burn – burn rate over 1 h at least
+    type: number
+    default: 14.4
+  - name: fastBurn6h
+    label: Fast burn – burn rate over 6 h at least
+    type: number
+    default: 6
+steps:
+  - id: valid
+    type: check
+    name: Objective between 0 and 100 %
+    condition: "inputs.objective > 0 and inputs.objective < 100 and $contains(inputs.query, '$window')"
+    message: "The objective must be between 0 and 100 % (exclusive), and the query must contain $window"
+    failRun: true
+  - id: windows
+    type: forEach
+    name: Query each window (3 in parallel)
+    items: "[inputs.window, '6h', '1h']"
+    as: w
+    concurrency: 3
+    saveAs: windows
+    steps:
+      - id: query
+        type: http
+        name: Instant query
+        connection: prometheus
+        method: GET
+        path: /api/v1/query
+        query:
+          query: "{{ $replace(inputs.query, '$window', vars.w) }}"
+        saveAs: q
+      - id: series
+        type: set
+        name: Value per service
+        values:
+          values: >-
+            {{ (
+              $w := vars.w;
+              $label := inputs.serviceLabel;
+              [vars.q.body.data.result.{ 'window': $w, 'service': $lookup(metric, $label) ? $lookup(metric, $label) : '(all)', 'good': $number(value[1]) }]
+            ) }}
+  - id: rows
+    type: set
+    name: Budget and burn rate per service
+    values:
+      rows: >-
+        {{ (
+          $all := [vars.windows.results.values];
+          $allowed := 1 - inputs.objective / 100;
+          $long := inputs.window;
+          [$distinct($all.service).(
+            $s := $;
+            $g := function($w) { $all[service = $s and window = $w][0].good };
+            $a := $g($long);
+            $burn := function($w) { $exists($g($w)) ? $round((1 - $g($w)) / $allowed, 2) : null };
+            $budget := $exists($a) ? $round((1 - (1 - $a) / $allowed) * 100, 1) : null;
+            $b1 := $burn('1h');
+            $b6 := $burn('6h');
+            {
+              "key": $s,
+              "service": $s,
+              "availability": $exists($a) ? $round($a * 100, 3) : null,
+              "objective": $inputs.objective,
+              "budget": $budget,
+              "burn1h": $b1,
+              "burn6h": $b6,
+              "fastBurn": $b1 != null and $b6 != null and $b1 >= $inputs.fastBurn1h and $b6 >= $inputs.fastBurn6h,
+              "below": $exists($a) and $a * 100 < $inputs.objective
+            }
+          )]
+        ) }}
+  - id: publish
+    type: publish
+    name: Publish the service levels
+    dataset: prom.slo
+    title: Service levels
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Service, value: service }
+      - { label: "Availability (%)", value: "availability != null ? availability : '–'" }
+      - { label: "Objective (%)", value: objective }
+      - { label: "Error budget left (%)", value: "budget != null ? budget : '–'" }
+      - { label: Burn rate 1 h, value: "burn1h != null ? burn1h : '–'" }
+      - { label: Burn rate 6 h, value: "burn6h != null ? burn6h : '–'" }
+    status: "availability = null ? 'unknown' : (budget <= 0 or fastBurn ? 'critical' : (below or budget < 25 or burn6h > 1 ? 'warning' : 'good'))"
+    statusText: >-
+      availability = null ? 'no data for the window'
+        : (fastBurn ? 'burning fast: ' & burn1h & '× over 1 h, ' & burn6h & '× over 6 h'
+        : (budget <= 0 ? 'error budget exhausted (' & budget & ' %)'
+        : (budget < 25 ? 'only ' & budget & ' % of the error budget left' : (burn6h > 1 ? 'burning ' & burn6h & '× over 6 h' : ''))))
+    metrics:
+      services: "$count(vars.rows)"
+      belowObjective: "$count(vars.rows[below])"
+      budgetExhausted: "$count(vars.rows[budget != null and budget <= 0])"
+      fastBurn: "$count(vars.rows[fastBurn])"
+      lowestAvailability: "$count(vars.rows[availability != null]) ? $min(vars.rows[availability != null].availability) : 0"
+      lowestBudget: "$count(vars.rows[budget != null]) ? $min(vars.rows[budget != null].budget) : 0"
+    floors:
+      lowestAvailability: "inputs.objective"
+    staleAfterMinutes: 20160
+  - id: objectives
+    type: check
+    name: Services meet their objective
+    severity: warning
+    condition: "$count(vars.rows[below]) = 0"
+    message: "{{ $count(vars.rows[below]) = 0 ? 'Every service is at ' & inputs.objective & ' % or above over ' & inputs.window : $join(vars.rows[below].(service & ': ' & availability & ' %'), '; ') }}"
+    headline: "{{ $count(vars.rows[below]) }} services below {{ inputs.objective }} % over {{ inputs.window }}"
+    value: "$count(vars.rows[below])"
+    items: "vars.rows[below].(service & ': ' & availability & ' %')"
+  - id: budgets
+    type: check
+    name: Error budgets are not exhausted
+    severity: warning
+    condition: "$count(vars.rows[budget != null and budget <= 0]) = 0"
+    message: "{{ $count(vars.rows[budget != null and budget <= 0]) = 0 ? 'Every service has error budget left' : $join(vars.rows[budget != null and budget <= 0].(service & ': ' & budget & ' %'), '; ') }}"
+    headline: "{{ $count(vars.rows[budget != null and budget <= 0]) }} services have used up their error budget"
+    value: "$count(vars.rows[budget != null and budget <= 0])"
+    items: "vars.rows[budget != null and budget <= 0].(service & ': ' & budget & ' %')"
+  - id: burn
+    type: check
+    name: No fast burn
+    severity: warning
+    condition: "$count(vars.rows[fastBurn]) = 0"
+    message: "{{ $count(vars.rows[fastBurn]) = 0 ? 'No service burns its budget fast' : $join(vars.rows[fastBurn].(service & ': ' & burn1h & '× (1 h), ' & burn6h & '× (6 h)'), '; ') }}"
+    headline: "{{ $count(vars.rows[fastBurn]) }} services burn their error budget fast"
+    value: "$count(vars.rows[fastBurn])"
+    items: "vars.rows[fastBurn].(service & ': ' & burn1h & '×')"
+  - id: report
+    type: report
+    name: Weekly report
+    title: "Service levels – objective {{ inputs.objective }} % over {{ inputs.window }}"
+    text: |
+      - Services: **{{ $count(vars.rows) }}**, below the objective: **{{ $count(vars.rows[below]) }}**, budget exhausted: **{{ $count(vars.rows[budget != null and budget <= 0]) }}**, burning fast: **{{ $count(vars.rows[fastBurn]) }}**
+    rows: vars.rows
+    columns:
+      - { label: Service, value: service }
+      - { label: "Availability (%)", value: "availability != null ? availability : '–'" }
+      - { label: "Budget left (%)", value: "budget != null ? budget : '–'" }
+      - { label: Burn 1 h, value: "burn1h != null ? burn1h : '–'" }
+      - { label: Burn 6 h, value: "burn6h != null ? burn6h : '–'" }
