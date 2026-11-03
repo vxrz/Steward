@@ -186,6 +186,25 @@ describe('Prometheus check', () => {
     expect(preset).toMatchObject({ config: { testPath: '/api/v1/status/buildinfo' } });
     expect(await s.api('POST', `/platforms/${promId}/test`, {})).toMatchObject({ ok: true });
   });
+
+  it('brings an API specification (PromQL through the MCP gateway), also for platforms made before it had one', async () => {
+    const ops = async (id: string) => (await s.api('GET', `/platforms/${id}/operations`)) as { operationId?: string; method: string; path: string }[];
+    // a new platform of the preset gets it
+    const fresh = await s.api('POST', '/platforms', {
+      name: 'Prometheus (new)',
+      kind: 'prometheus',
+      baseUrl: 'https://prometheus.example.com',
+      config: { auth: { type: 'none' }, variables: {}, http: {} },
+      secrets: {},
+    });
+    expect((await ops(fresh.id)).find((o) => o.operationId === 'query')).toMatchObject({ method: 'GET', path: '/api/v1/query' });
+    // one made without it (before 0.3.1, like the demo's) adds it with one click – and not twice
+    expect(await ops(promId)).toEqual([]);
+    expect(await s.api('POST', `/platforms/${promId}/specs/built-in`, {})).toEqual({ added: ['Prometheus HTTP API (read endpoints)'] });
+    expect((await ops(promId)).map((o) => o.operationId)).toEqual(expect.arrayContaining(['query', 'queryRange', 'series', 'labelValues', 'alerts']));
+    expect(await s.api('POST', `/platforms/${promId}/specs/built-in`, {})).toEqual({ added: [] });
+    await s.api('DELETE', `/platforms/${fresh.id}`);
+  });
 });
 
 describe('availability objective from a PromQL query', () => {

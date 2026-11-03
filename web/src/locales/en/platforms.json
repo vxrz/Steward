@@ -336,7 +336,12 @@
     "copyDone": "{{name}}: copied",
     "copyReplaced": "{{name}}: replaced",
     "copySkippedExists": "{{name}}: already has this specification – skipped",
-    "copySkippedSource": "{{name}}: this is the platform it comes from – skipped"
+    "copySkippedSource": "{{name}}: this is the platform it comes from – skipped",
+    "addBuiltIn": "Add the built-in specification",
+    "addBuiltInHint": "The API description Steward brings for this kind of platform – for assistants (MCP gateway) and process steps.",
+    "builtInAdded_one": "Built-in specification added",
+    "builtInAdded_other": "{{count}} built-in specifications added",
+    "builtInPresent": "The built-in specification is already there"
   },
   "docs": {
     "added": "Documentation added",

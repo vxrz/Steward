@@ -20,6 +20,7 @@ import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ACCESS, me } from '../auth/access.js';
 import { requirePlatform } from './helpers.js';
+import { PRESET_SPECS } from '../platforms/presets.js';
 
 const platformBody = z.object({
   name: z.string().min(1).max(200),
@@ -310,6 +311,20 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
       .strict()
       .parse(req.body);
     return platforms.setSpecPathPrefix(params(req).id!, params(req).specId!, b.pathPrefix);
+  });
+  // The specifications a built-in preset brings (e.g. Prometheus since 0.3.1) for platforms made before it had them;
+  // names the platform already has are skipped, so this can be clicked again.
+  app.post('/platforms/:id/specs/built-in', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+    const id = params(req).id!;
+    const p = requirePlatform(id, 'manage', 'add API specifications');
+    const have = new Set(platforms.listSpecs(id).map((s) => s.name));
+    const added: string[] = [];
+    for (const s of PRESET_SPECS[p.kind]?.() ?? []) {
+      if (have.has(s.name)) continue;
+      platforms.addSpec(id, s.name, s.content);
+      added.push(s.name);
+    }
+    return { added };
   });
   // Copies, not links: platforms of one kind can run different API versions, so each target gets its own spec.
   app.post('/platforms/:id/specs/:specId/copy', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {

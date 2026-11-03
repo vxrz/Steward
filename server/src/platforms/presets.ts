@@ -1,6 +1,7 @@
 import type { PlatformPreset } from '@sm/shared';
 import { gatusOpenApiSpec } from './gatusSpec.js';
 import { forgejoSpec, githubSpec, gitlabSpec } from './gitSpecs.js';
+import { prometheusSpec } from './prometheusSpec.js';
 import { readAsset } from '../reports/pdf/assets.js';
 
 /**
@@ -131,7 +132,7 @@ export const PRESETS: PlatformPreset[] = [
       { key: 'username', label: 'Username (security.basic)', help: 'Only when Gatus has security.basic configured', auth: 'basic' },
       { key: 'password', label: 'Password (security.basic)', auth: 'basic' },
       { key: 'token', label: 'Bearer token (reverse proxy)', help: 'Only for a proxy in front of Gatus that expects a bearer token', auth: 'bearer' },
-      { key: 'externalToken', label: 'External endpoint token', help: 'external-endpoints[].token, used by "Gatus – report Steward check to Gatus"' },
+      { key: 'externalToken', label: 'External endpoint token', help: 'external-endpoints[].token, used by "Gatus – Report a Steward check to Gatus"' },
     ],
     docs: [
       { title: 'Gatus README', url: 'https://github.com/TwiN/gatus#readme' },
@@ -453,4 +454,6 @@ export const PRESET_SPECS: Record<string, () => { name: string; content: string 
   github: () => [{ name: 'GitHub REST API (subset)', content: JSON.stringify(githubSpec(), null, 2) }],
   gitlab: () => [{ name: 'GitLab REST API (subset)', content: JSON.stringify(gitlabSpec(), null, 2) }],
   forgejo: () => [{ name: 'Forgejo / Gitea API (subset)', content: JSON.stringify(forgejoSpec(), null, 2) }],
+  // PromQL through the MCP gateway and in process steps (v0.3.1)
+  prometheus: () => [{ name: 'Prometheus HTTP API (read endpoints)', content: JSON.stringify(prometheusSpec(), null, 2) }],
 };

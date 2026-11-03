@@ -336,7 +336,12 @@
     "copyDone": "{{name}}: kopiert",
     "copyReplaced": "{{name}}: ersetzt",
     "copySkippedExists": "{{name}}: hat diese Spezifikation bereits – übersprungen",
-    "copySkippedSource": "{{name}}: ist die Plattform, aus der sie stammt – übersprungen"
+    "copySkippedSource": "{{name}}: ist die Plattform, aus der sie stammt – übersprungen",
+    "addBuiltIn": "Mitgelieferte Spezifikation hinzufügen",
+    "addBuiltInHint": "Die API-Beschreibung, die Steward für diese Art von Plattform mitbringt – für Assistenten (MCP-Gateway) und Prozessschritte.",
+    "builtInAdded_one": "Mitgelieferte Spezifikation hinzugefügt",
+    "builtInAdded_other": "{{count}} mitgelieferte Spezifikationen hinzugefügt",
+    "builtInPresent": "Die mitgelieferte Spezifikation ist bereits vorhanden"
   },
   "docs": {
     "added": "Dokumentation hinzugefügt",

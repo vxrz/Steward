@@ -22,7 +22,7 @@ import {
 } from '@mantine/core';
 import { IconCopy, IconExternalLink, IconPencil, IconSearch, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import type { ApiOperation, Platform, PlatformSpec } from '@sm/shared';
+import type { ApiOperation, Platform, PlatformPreset, PlatformSpec } from '@sm/shared';
 import { del, get, notifyError, notifyOk, patch, post, apiUrl } from '../../api';
 import { Hint } from '../common';
 import { fmtDate } from '../../format';
@@ -226,6 +226,22 @@ export function SpecsTab({
   const [copying, setCopying] = useState<PlatformSpec | null>(null);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['platform', platform.id] });
+  // the specification a built-in connector brings (e.g. Prometheus): platforms made before it had one can add it here
+  const presets = useQuery({ queryKey: ['platform-presets'], queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: !readOnly });
+  const builtIn = presets.data?.find((p) => p.kind === platform.kind && !p.custom)?.specCount ?? 0;
+  const addBuiltIn = async () => {
+    setBusy(true);
+    try {
+      const r = await post<{ added: string[] }>(`/platforms/${platform.id}/specs/built-in`, {});
+      if (r.added.length) notifyOk(t('specs.builtInAdded', { count: r.added.length }), r.added.join(', '));
+      else notifyOk(t('specs.builtInPresent'));
+      await refresh();
+    } catch (e) {
+      notifyError(e, t('specs.notImported'));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const upload = async (fromUrl = false) => {
     setBusy(true);
@@ -271,6 +287,16 @@ export function SpecsTab({
         <Paper withBorder p="md">
           <Title order={5}>{t('specs.importTitle')}</Title>
           <Hint>{t('specs.importHint')}</Hint>
+          {builtIn > 0 && (
+            <Group mt="xs">
+              <Button variant="light" size="xs" onClick={addBuiltIn} loading={busy} data-testid="add-built-in-spec">
+                {t('specs.addBuiltIn')}
+              </Button>
+              <Text size="xs" c="dimmed">
+                {t('specs.addBuiltInHint')}
+              </Text>
+            </Group>
+          )}
           <Stack mt="sm">
             <Group align="flex-end" wrap="wrap">
               <TextInput label={t('specs.name')} value={name} onChange={(e) => setName(e.currentTarget.value)} style={{ flex: 1, minWidth: 180 }} />

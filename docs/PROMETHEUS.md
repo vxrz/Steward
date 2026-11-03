@@ -36,6 +36,10 @@ Every query is an instant query, `POST <base>/api/v1/query` with the query as a 
 
 Prometheus queries are built-in connector reads: they go to the platform's base URL and need no entry on the outbound allow-list ([SECURITY-HARDENING.md](SECURITY-HARDENING.md#do-i-need-an-allow-list-entry)).
 
+## Ask an assistant (MCP)
+
+A Prometheus platform brings a small API description – the read endpoints `query`, `query_range`, `series`, `labels`, `label values`, `metadata`, `targets`, `alerts`, `rules` and `buildinfo`. With _Platform → MCP → Allow access for MCP clients_ on, an assistant connected to Steward runs PromQL through Steward ("what was the error rate of shop-api today?"): it finds the operation with `platform_find_operations` and calls it with `platform_call_operation` – read-only, with the platform's credentials, which it never sees ([MCP.md](MCP.md#platform-gateway)). Platforms made before 0.3.1 add the description under _API specs → Add the built-in specification_.
+
 ## When it does not work
 
 | Message                                                    | Likely cause and fix                                                                                            |

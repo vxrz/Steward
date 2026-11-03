@@ -238,6 +238,7 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/platforms/:id/specs/:specId': ADMIN,
   'PATCH /api/platforms/:id/specs/:specId': ADMIN,
   'POST /api/platforms/:id/specs/:specId/copy': ADMIN,
+  'POST /api/platforms/:id/specs/built-in': ADMIN,
   'GET /api/platforms/:id/operations': USE,
   'GET /api/platforms/:id/docs': USE,
   'POST /api/platforms/:id/docs': ADMIN,

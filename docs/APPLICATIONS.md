@@ -8,6 +8,8 @@ _Applications_ are what your services consist of. People call some of them platf
 - [Components and tech stack](#components-and-tech-stack)
 - [Systems and environments](#systems-and-environments)
 - [Example: a Snowflake project](#example-a-snowflake-project)
+- [Example: an AWS account shared by applications](#example-an-aws-account-shared-by-applications)
+- [Example: a Confluent environment](#example-a-confluent-environment)
 - [Add applications to a service](#add-applications-to-a-service)
 - [Rate an application (CIA)](#rate-an-application-cia)
 - [The protection need of a service](#the-protection-need-of-a-service)
@@ -234,6 +236,28 @@ A data project on Snowflake, described once:
 3. **Credentials register:** the service users (`SVC_ORDERS_ETL`, `SVC_ORDERS_BI`) with their rotation interval, used by the application ([CREDENTIALS.md](CREDENTIALS.md)).
 
 A process with an input of type _Application_ then finds the production database with `inputs.app.components[type="snowflake-database" and environment="prod"].name`, and the end-of-life check names `etl01 (prod)` before `etl01 (test)`.
+
+## Example: an AWS account shared by applications
+
+One AWS account, several applications in it, each tagged `application=<name>` ([AWS.md](AWS.md)). A platform belongs to one application at most, so the account is described once as infrastructure and each application names its part:
+
+1. **Platform:** one per account – _AWS (prod)_ with the role, the `regions`, the `tagKey` and the environment `prod` ([AWS.md](AWS.md#connect-an-account)). It is what readouts, access reviews (source _AWS IAM_), process steps and monitors use.
+2. **System:** _Systems → New_ – _AWS 123456789012 (prod)_, kind _cloud service_, vendor AWS, the cloud team as responsible, the CMDB link, and **Steward platform** _AWS (prod)_. The account has one place for its owners, and a maintenance window on it reaches every application that runs on it.
+3. **Each application:** _Runs on_ the system in `prod`, and a component **Cloud account** with the platform _AWS (prod)_ whose **name is its tag value** (`shop`) – its resources, costs per month and IAM keys, read from what carries its tag. _Add to the credentials register_ on an IAM key tracks its rotation.
+4. **Services** list the applications as usual; they take the protection need, scorecard and costs from them.
+
+Map the platform under _Integrations_ only to the application that stands for the account itself (a _Cloud landing zone_ of the cloud team), or to none: the mapping decides whose CIA rating the platform's evidence names. Activate the tag as a _cost allocation tag_ in AWS Billing, or the costs cannot be split per application.
+
+## Example: a Confluent environment
+
+A Confluent Cloud environment with a cluster per stage, shared by the applications that produce and consume ([KAFKA.md](KAFKA.md)):
+
+1. **Platforms:** one per cluster – _Kafka (test)_, _Kafka (prod)_ – with the bootstrap servers, a read-only service account and the Schema Registry as base URL.
+2. **System:** the cluster as a _cloud service_ (vendor Confluent) per stage, the streaming team as responsible, **Steward platform** the cluster's platform; the applications _run on_ it in their environment.
+3. **Each application** (or each data project – a team's topics, usually with a common prefix): components **Kafka topic** with the topic name, the environment and the Kafka platform – settings, consumer lag, the newest message and the schema version per topic; the example processes _Kafka – Topic standards_ and _Kafka – Schema change review_ read them.
+4. **Monitors** with the check _Kafka topic_ on the topics that matter: new messages within N minutes, lag, a stuck consumer group, an unexpected schema.
+
+Access reviews of Confluent role bindings and ACLs need Confluent's Cloud API (`api.confluent.cloud`), not the Kafka protocol; they are not built in yet.
 
 ## Add applications to a service
 

@@ -4,9 +4,9 @@
  * (GitHub's alone is over 10 MB); for more, add the official one to the platform.
  */
 
-type Op = [path: string, operationId: string, summary: string, query?: string[]];
+export type Op = [path: string, operationId: string, summary: string, query?: string[]];
 
-function spec(title: string, docs: string, ops: Op[]): object {
+export function spec(title: string, docs: string, ops: Op[]): object {
   const paths: Record<string, object> = {};
   for (const [path, operationId, summary, query = []] of ops) {
     const params = [
