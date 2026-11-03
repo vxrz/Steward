@@ -16,6 +16,7 @@ import { confirmDanger } from '../components/confirm';
 import { RunModeField } from '../components/RunModeField';
 import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/notify/NotifyPolicy';
 import { CronWarnings, useCronPreview } from '../components/CronPreview';
+import { DuplicateActionIcon, useDuplicate } from '../components/duplicate/DuplicateButton';
 
 const PRESETS = [
   { key: 'every15', cron: '*/15 * * * *' },
@@ -48,6 +49,7 @@ export function SchedulesPage() {
   const navigate = useNavigate();
   const schedules = useQuery({ queryKey: ['schedules'], queryFn: () => get<Schedule[]>('/schedules'), refetchInterval: 10000 });
   const [draft, setDraft] = useState<Draft | null>(null);
+  const duplicate = useDuplicate();
   // ?new=1 opens a new schedule; &processId=… preselects the process (the template gallery's next steps)
   useCreateParam(true, () => setDraft({ ...emptyDraft(), processId: new URLSearchParams(window.location.search).get('processId') ?? '' }));
 
@@ -182,6 +184,7 @@ export function SchedulesPage() {
                           <IconPlayerPlay size={16} />
                         </ActionIcon>
                       </Tooltip>
+                      <DuplicateActionIcon name={s.name} onClick={() => duplicate.open('schedule', s.id)} />
                       {s.canEdit && (
                         <PauseControl
                           pause={s.notify?.pause}
@@ -242,6 +245,7 @@ export function SchedulesPage() {
           }}
         />
       )}
+      {duplicate.dialog}
     </>
   );
 }

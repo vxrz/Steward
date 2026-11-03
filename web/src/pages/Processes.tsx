@@ -51,6 +51,7 @@ import { errorText } from '../i18n/errors';
 import { BRAND } from '../../../shared/src/brand';
 import { useMe } from '../auth';
 import { confirmDanger } from '../components/confirm';
+import { DuplicateMenuItem, useDuplicate } from '../components/duplicate/DuplicateButton';
 
 export function ProcessesPage() {
   const { t } = useTranslation(['processes', 'common']);
@@ -63,6 +64,7 @@ export function ProcessesPage() {
   const [importOpen, importModal] = useDisclosure();
   const [bundleOpen, bundleModal] = useDisclosure();
   const { caps } = useMe();
+  const duplicate = useDuplicate();
 
   const createBlank = async () => {
     try {
@@ -253,6 +255,7 @@ export function ProcessesPage() {
                     <Menu.Item leftSection={<IconFileExport size={14} />} component="a" href={apiUrl(`/processes/${p.id}/export`)}>
                       {t('card.exportYaml')}
                     </Menu.Item>
+                    {caps.createProcesses && <DuplicateMenuItem onClick={() => duplicate.open('process', p.id)} />}
                     {p.permissions.includes('manage') && (
                       <Menu.Item
                         color="red"
@@ -303,6 +306,7 @@ export function ProcessesPage() {
       <TemplateGallery opened={templatesOpen} onClose={templates.close} />
       <ImportModal opened={importOpen} onClose={importModal.close} />
       <BundleImportModal opened={bundleOpen} onClose={bundleModal.close} />
+      {duplicate.dialog}
     </>
   );
 }

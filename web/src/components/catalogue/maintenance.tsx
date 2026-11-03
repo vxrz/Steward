@@ -24,6 +24,8 @@ import { useFieldErrors } from '../common';
 import { SubjectsInput } from '../SubjectsInput';
 import { confirmDialog } from '../confirm';
 import { fmtDate, fmtDay } from '../../format';
+import { useMe } from '../../auth';
+import { CopiedFromNote, DuplicateButton } from '../duplicate/DuplicateButton';
 
 /** Maintenance windows (#108): forms, details and the panel on platform, system, application and service pages. */
 
@@ -130,6 +132,7 @@ export function MaintenanceFormModal({
   const [quietMonitors, setQuiet] = useState(w?.quietMonitors ?? true);
   const [pauseMessages, setPause] = useState(w?.pauseMessages ?? false);
   const [reminderHours, setReminder] = useState<number>(w?.reminderHours ?? 24);
+  const [enabled, setEnabled] = useState(w?.enabled ?? true);
   const [busy, setBusy] = useState(false);
 
   const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => getOptional<Platform[]>('/platforms', []) });
@@ -183,6 +186,7 @@ export function MaintenanceFormModal({
       quietMonitors,
       pauseMessages,
       reminderHours,
+      enabled,
     };
     try {
       const saved = w
@@ -338,6 +342,12 @@ export function MaintenanceFormModal({
             onChange={(x) => setReminder(typeof x === 'number' ? x : 0)}
             w={{ base: '100%', sm: 260 }}
           />
+          <Switch
+            label={t('maintenance.enabled')}
+            description={t('maintenance.enabledHelp')}
+            checked={enabled}
+            onChange={(e) => setEnabled(e.currentTarget.checked)}
+          />
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}
@@ -353,13 +363,16 @@ export function MaintenanceFormModal({
 }
 
 /** One window: when, what it affects and reaches, the next occurrences, the calendar file; change or cancel it. */
-export function MaintenanceDetailModal({ id, onClose }: { id: string; onClose: () => void }) {
+export function MaintenanceDetailModal({ id, onClose, startEditing }: { id: string; onClose: () => void; startEditing?: boolean }) {
   const { t } = useTranslation(['applications', 'common']);
   const qc = useQueryClient();
   const repeat = useRepeatLabel();
   const q = useQuery({ queryKey: ['maintenance-windows', id], queryFn: () => get<MaintenanceWindowDetail>(`/maintenance-windows/${id}`) });
-  const [editing, setEditing] = useState(false);
+  // a copy opens in edit mode (Duplicate: ?open=<id>&edit=1)
+  const [editingState, setEditing] = useState(!!startEditing);
   const w = q.data;
+  const editing = editingState && (!w || (w.canEdit && !w.cancelledAt));
+  const { hasRole } = useMe();
   const cancel = async () => {
     if (!w) return;
     const ok = await confirmDialog({
@@ -385,6 +398,12 @@ export function MaintenanceDetailModal({ id, onClose }: { id: string; onClose: (
         {w && (
           <Stack gap="sm" data-testid="maintenance-detail">
             <WhenLine w={w} />
+            {!w.enabled && (
+              <Badge size="sm" color="gray" variant="outline" w="fit-content" data-testid="maintenance-disabled">
+                {t('maintenance.disabledBadge')}
+              </Badge>
+            )}
+            <CopiedFromNote kind="maintenance-window" id={w.id} pathOf={(x) => `/maintenance?open=${x}`} />
             <Text size="sm">
               {repeat(w)} · {t('maintenance.timeZone', { tz: w.timeZone })}
             </Text>
@@ -448,16 +467,19 @@ export function MaintenanceDetailModal({ id, onClose }: { id: string; onClose: (
               <Button component="a" href={apiUrl(`/maintenance-windows/${w.id}/ics`)} variant="default" size="xs" leftSection={<IconDownload size={14} />}>
                 {t('maintenance.ics')}
               </Button>
-              {w.canEdit && !w.cancelledAt && (
-                <Group gap="xs">
-                  <Button size="xs" variant="default" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}>
-                    {t('common:edit')}
-                  </Button>
-                  <Button size="xs" variant="default" color="red" leftSection={<IconX size={14} />} onClick={() => void cancel()}>
-                    {t('maintenance.cancel')}
-                  </Button>
-                </Group>
-              )}
+              <Group gap="xs">
+                {(w.canEdit || hasRole('admin') || hasRole('designer')) && <DuplicateButton kind="maintenance-window" id={w.id} />}
+                {w.canEdit && !w.cancelledAt && (
+                  <>
+                    <Button size="xs" variant="default" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}>
+                      {t('common:edit')}
+                    </Button>
+                    <Button size="xs" variant="default" color="red" leftSection={<IconX size={14} />} onClick={() => void cancel()}>
+                      {t('maintenance.cancel')}
+                    </Button>
+                  </>
+                )}
+              </Group>
             </Group>
           </Stack>
         )}

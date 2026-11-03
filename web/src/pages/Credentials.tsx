@@ -52,6 +52,7 @@ import { DataTable, ListFooter, type DataColumn } from '../components/DataTable'
 import { fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { OwningTeams } from '../components/OwningTeams';
+import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 
 export const CREDENTIAL_TYPE_IDS: CredentialType[] = ['apiClient', 'technicalUser', 'password', 'token', 'certificate', 'agentCertificate', 'sshKey', 'other'];
 export const CREDENTIAL_STATUS_IDS: CredentialStatus[] = ['ok', 'dueSoon', 'overdue', 'expired'];
@@ -296,6 +297,17 @@ export function CredentialsPage() {
   const openId = params.get('open');
   const [editing, setEditing] = useState<Credential | 'new' | null>(null);
   useCreateParam(list.data?.canCreate, () => setEditing('new'));
+  // ?open=<id>&edit=1: a copy opens in edit mode (Duplicate)
+  useEffect(() => {
+    const id = params.get('open');
+    if (!id || params.get('edit') !== '1') return;
+    get<Credential>(`/credentials/${id}`)
+      .then((c) => c.permissions.includes('edit') && setEditing(c))
+      .catch(() => undefined);
+    const next = new URLSearchParams(params);
+    next.delete('edit');
+    setParams(next, { replace: true });
+  }, [params, setParams]);
   const refresh = () => qc.invalidateQueries({ queryKey: ['credentials'] });
   const open = (id: string | null) => {
     const next = new URLSearchParams(params);
@@ -482,6 +494,9 @@ function CredentialDrawer({
     enabled: !!entry.data,
   });
   const [action, setAction] = useState<'rotated' | 'reviewed' | null>(null);
+  const { hasRole } = useMe();
+  // who may add entries to the register (credentials/service.ts EDIT_ROLES)
+  const canCreate = hasRole('admin') || hasRole('designer') || hasRole('operator');
   const c = entry.data;
   const reload = async () => {
     await qc.invalidateQueries({ queryKey: ['credential', id] });
@@ -509,17 +524,23 @@ function CredentialDrawer({
             </Badge>
             {c.archived && <Badge color="gray">{t('archived')}</Badge>}
           </Group>
-          {c.permissions.includes('edit') && (
+          <CopiedFromNote kind="credential" id={c.id} pathOf={(x) => `/credentials?open=${x}`} />
+          {(c.permissions.includes('edit') || canCreate) && (
             <Group gap="xs">
-              <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => onEdit(c)}>
-                {t('common:edit')}
-              </Button>
-              <Button size="xs" variant="light" leftSection={<IconRefresh size={14} />} onClick={() => setAction('rotated')}>
-                {t('detail.markRotated')}
-              </Button>
-              <Button size="xs" variant="light" leftSection={<IconCheck size={14} />} onClick={() => setAction('reviewed')}>
-                {t('detail.markReviewed')}
-              </Button>
+              {canCreate && <DuplicateButton kind="credential" id={c.id} />}
+              {c.permissions.includes('edit') && (
+                <>
+                  <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => onEdit(c)}>
+                    {t('common:edit')}
+                  </Button>
+                  <Button size="xs" variant="light" leftSection={<IconRefresh size={14} />} onClick={() => setAction('rotated')}>
+                    {t('detail.markRotated')}
+                  </Button>
+                  <Button size="xs" variant="light" leftSection={<IconCheck size={14} />} onClick={() => setAction('reviewed')}>
+                    {t('detail.markReviewed')}
+                  </Button>
+                </>
+              )}
             </Group>
           )}
           {isAdmin && (

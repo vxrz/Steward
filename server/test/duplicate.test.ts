@@ -291,6 +291,13 @@ describe('schedules, report schedules, maintenance windows and access checks sta
     const r = await dana('POST', `/maintenance-windows/${w.id}/duplicate`, {});
     const copy = await dana('GET', `/maintenance-windows/${r.id}`);
     expect(copy).toMatchObject({ title: 'Patch now (copy)', enabled: false });
+    // the public API lists only windows that take place
+    const token = (await dana('POST', '/me/tokens', { name: 'dup-v1', scope: 'read' })).token;
+    const v1 = await (await fetch(`${s.base}/api/v1/maintenance-windows`, { headers: { authorization: `Bearer ${token}` } })).json();
+    expect(v1.windows.map((x: any) => x.id)).toContain(w.id);
+    expect(v1.windows.map((x: any) => x.id)).not.toContain(r.id);
+    expect(v1.occurrences.some((o: any) => o.windowId === r.id)).toBe(false);
+    expect(v1.windows[0].enabled).toBeUndefined();
     const { objectiveInMaintenance } = await import('../src/catalogue/maintenance.js');
     // cancel the original: only the (disabled) copy is left, which does not apply
     await dana('POST', `/maintenance-windows/${w.id}/cancel`, { reason: 'test' });

@@ -135,7 +135,7 @@ const credentialDuplicator: Duplicator<Credential> = {
     if (input.copyAccess) copyOwningTeams('credential', c.id, made.id);
     return { id: made.id, name: made.name, key: null };
   },
-  paths: (id) => ({ path: `/credentials?open=${id}`, editPath: `/credentials?edit=${id}` }),
+  paths: (id) => ({ path: `/credentials?open=${id}`, editPath: `/credentials?open=${id}&edit=1` }),
 };
 
 const scheduleDuplicator: Duplicator<Schedule> = {
@@ -247,7 +247,7 @@ const maintenanceDuplicator: Duplicator<MaintenanceWindowDetail> = {
     );
     return { id: made.id, name: made.title, key: null };
   },
-  paths: (id) => ({ path: `/maintenance?open=${id}`, editPath: `/maintenance?edit=${id}` }),
+  paths: (id) => ({ path: `/maintenance?open=${id}`, editPath: `/maintenance?open=${id}&edit=1` }),
 };
 
 const accessCheckDuplicator: Duplicator<AccessCheck> = {

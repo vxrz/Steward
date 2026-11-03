@@ -41,6 +41,8 @@ import { confirmDanger, confirmDialog } from '../components/confirm';
 import { appUrl } from '../basePath';
 import { MonitorReviewModal, useCanStartReview } from '../components/records/IncidentReview';
 import { OwningTeams } from '../components/OwningTeams';
+import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
+import { useMe } from '../auth';
 
 export function MonitorDetailPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -55,6 +57,7 @@ export function MonitorDetailPage() {
   const [maint, setMaint] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const canStartReview = useCanStartReview();
+  const { caps } = useMe();
   const [ack, setAck] = useState(false);
   const [instances, setInstances] = useState(false);
   const [secrets, setSecrets] = useState<(Pick<MonitorSaveResult, 'secrets'> & { monitor?: MonitorDetail }) | null>(null);
@@ -65,6 +68,7 @@ export function MonitorDetailPage() {
   const m = q.data;
   if (!m) return <DetailState query={q} back="monitors" />;
   const can = (p: string) => m.permissions.includes(p as never);
+  const canCreate = caps.createMonitors;
   const sel = m.checks.find((c) => c.checkId === selected) ?? null;
   const rootIds = m.rootCauses.filter((r) => r.monitorId === m.id).map((r) => r.checkId);
 
@@ -122,6 +126,7 @@ export function MonitorDetailPage() {
           <>
             <span className="mono">{m.key}</span> · {t('detail.owner', { owner: m.owner })}
             {!m.isTemplate && m.since && ` · ${t('detail.since', { date: fmtDate(m.since) })}`}
+            <CopiedFromNote kind="monitor" id={m.id} pathOf={(id) => `/monitors/${id}`} />
           </>
         }
         actions={
@@ -149,6 +154,7 @@ export function MonitorDetailPage() {
                 {t('detail.newFromTemplate')}
               </Button>
             )}
+            {canCreate && <DuplicateButton kind="monitor" id={m.id} />}
             {can('edit') && (
               <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => navigate(`/monitors/${m.id}/edit`)}>
                 {t('detail.edit')}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActionIcon,
   Alert,
@@ -22,9 +22,10 @@ import {
   Title,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { IconCopy, IconLink, IconLinkOff, IconLogout, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { DuplicateActionIcon, useDuplicate } from '../components/duplicate/DuplicateButton';
 import {
   STATUS_NOTICE_LEVELS,
   STATUS_PAGE_LIMITS,
@@ -200,6 +201,17 @@ export function StatusPagesPage() {
   const [editing, setEditing] = useState<StatusPage | 'new' | null>(null);
   const [link, setLink] = useState<{ title: string; url: string } | null>(null);
   useCreateParam(canEdit, () => setEditing('new'));
+  const duplicate = useDuplicate();
+  // ?edit=<id>: a copy opens in edit mode (Duplicate)
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const id = params.get('edit');
+    const found = id && pages.data?.find((p) => p.id === id);
+    if (!found) return;
+    if (found.canEdit) setEditing(found);
+    params.delete('edit');
+    setParams(params, { replace: true });
+  }, [params, pages.data, setParams]);
   const refresh = () => qc.invalidateQueries({ queryKey: ['status-pages'] });
   const makeLink = async (p: StatusPage) => {
     try {
@@ -264,6 +276,7 @@ export function StatusPagesPage() {
                       {t('statusPages.revokeLink')}
                     </Button>
                   )}
+                  <DuplicateActionIcon name={p.title} onClick={() => duplicate.open('status-page', p.id)} />
                   <ActionIcon variant="subtle" aria-label={t('statusPages.edit', { title: p.title })} onClick={() => setEditing(p)}>
                     <IconPencil size={16} />
                   </ActionIcon>
@@ -276,7 +289,8 @@ export function StatusPagesPage() {
           </Paper>
         ))}
       </Stack>
-      {editing && <PageEditor page={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+      {editing && <PageEditor key={editing === 'new' ? 'new' : editing.id} page={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+      {duplicate.dialog}
       {link && (
         <Modal opened onClose={() => setLink(null)} title={t('statusPages.linkTitle', { title: link.title })} size="lg">
           <Stack>

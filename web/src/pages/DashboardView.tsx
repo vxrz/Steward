@@ -11,6 +11,7 @@ import { DetailState, PageHeader } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { fmtRelative } from '../format';
 import { useMe } from '../auth';
+import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { DashboardContext, useDashboardCtx, useDatasetMetas } from '../components/dashboard/data';
 import { WidgetGrid } from '../components/dashboard/widgets';
 import { DashboardEditor } from '../components/dashboard/DashboardEditor';
@@ -29,7 +30,7 @@ export function DashboardViewPage() {
   const [statusFilter, setStatusFilter] = useState<{ dataset: string; status: DatasetStatus } | null>(null);
   const [busy, setBusy] = useState(false);
   // the source filter (#142): part of the URL for sharing, remembered per user and dashboard
-  const { username } = useMe();
+  const { username, caps } = useMe();
   const [params, setParams] = useSearchParams();
   const storeKey = `sm.dashboardSources.${username}.${id}`;
   const [sources, setSourcesState] = useState<string[] | null>(() => {
@@ -130,6 +131,7 @@ export function DashboardViewPage() {
           <>
             {def.description && <>{def.description} · </>}
             <LastUpdate keys={def.widgets.map((w) => w.dataset).filter((x): x is string => !!x)} />
+            {d && <CopiedFromNote kind="dashboard" id={d.id} pathOf={(x) => `/dashboards/${x}`} />}
           </>
         }
         actions={
@@ -147,6 +149,7 @@ export function DashboardViewPage() {
               <Button size="xs" variant="light" leftSection={<IconRefresh size={14} />} loading={busy} onClick={refresh}>
                 {t('view.refresh')}
               </Button>
+              {caps.createProcesses && <DuplicateButton kind="dashboard" id={d.id} />}
               {d.canEdit && (
                 <Button size="xs" variant="default" leftSection={<IconEdit size={14} />} onClick={() => setDraft(structuredClone(d.definition))}>
                   {t('common:edit')}
