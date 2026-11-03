@@ -1,13 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Badge, Button, Card, Group, Modal, Select, Stack, Switch, Text, TextInput, Title, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { IconCalendarPlus, IconCheck, IconPencil, IconPlayerPlay, IconPlugConnected, IconSearch } from '@tabler/icons-react';
-import type { Platform, PlatformPreset, ProcessDetail, ProcessTemplate } from '@sm/shared';
+import type { Platform, PlatformPreset, ProcessDetail, ProcessTemplate, TemplateBundle } from '@sm/shared';
 import { get, notifyError, post } from '../api';
 import { DescriptionText, descriptionPlain } from './DescriptionText';
 import { RunDialog } from './RunDialog';
+import { BundleCard, BundleSetup } from './BundleSetup';
+import { useMe } from '../auth';
 
 /** Fields a newer server may add to a template (tolerated, used when present). */
 type TemplateInfo = ProcessTemplate & {
@@ -32,7 +34,19 @@ const ANY = '';
  * "Start from a template": search, a filter by platform kind, "matches your platforms", grouped by the kind a
  * template needs, with what each needs ("needs: Insights Hub platform") – and after "Use", the next steps.
  */
-export function TemplateGallery({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+export function TemplateGallery({
+  opened,
+  onClose,
+  initialKind,
+  initialBundle,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  /** Open filtered by this platform kind (links from a platform's "Get started") */
+  initialKind?: string | null;
+  /** Open the setup of this bundle */
+  initialBundle?: string | null;
+}) {
   const { t } = useTranslation('processes');
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -45,6 +59,16 @@ export function TemplateGallery({ opened, onClose }: { opened: boolean; onClose:
   const [busy, setBusy] = useState<string | null>(null);
   const [created, setCreated] = useState<ProcessDetail | null>(null);
   const [dryRun, setDryRun] = useState(false);
+  // template bundles (v0.4.0): templates that belong together, set up in one go
+  const bundles = useQuery({ queryKey: ['template-bundles'], queryFn: () => get<TemplateBundle[]>('/template-bundles'), enabled: opened, retry: false });
+  const [bundleId, setBundleId] = useState<string | null>(null);
+  const { caps } = useMe();
+  useEffect(() => {
+    if (!opened) return;
+    if (initialKind) setKind(initialKind);
+    if (initialBundle) setBundleId(initialBundle);
+  }, [opened, initialKind, initialBundle]);
+  const setupOf = (bundles.data ?? []).find((b) => b.id === bundleId) ?? null;
 
   const have = useMemo(() => new Set((platforms.data ?? []).map((p) => p.kind)), [platforms.data]);
   // the connector's name without its variant ("Siemens Insights Hub (service credentials)" → "Siemens Insights Hub")
@@ -59,11 +83,18 @@ export function TemplateGallery({ opened, onClose }: { opened: boolean; onClose:
     if (!q) return true;
     return [x.name, descriptionPlain(x.description), ...x.tags, ...need.map(label)].some((s) => s.toLowerCase().includes(q));
   });
+  const bundleList = (bundles.data ?? []).filter((b) => {
+    if (kind !== null && (kind === ANY || !b.kinds.includes(kind))) return false;
+    if (mine && !b.platforms.every((p) => p.kinds.some((k) => have.has(k)))) return false;
+    if (!q) return true;
+    return [b.name, descriptionPlain(b.description), ...b.tags, ...b.kinds.map(label)].some((x) => x.toLowerCase().includes(q));
+  });
   // grouped by the first kind a template needs; templates for any platform last
   const groups = [...new Set(list.map((x) => requiredKinds(x)[0] ?? ANY))].sort((a, b) => (a === ANY ? 1 : b === ANY ? -1 : label(a).localeCompare(label(b))));
 
   const close = () => {
     setCreated(null);
+    setBundleId(null);
     onClose();
   };
   const use = async (tpl: ProcessTemplate) => {
@@ -82,7 +113,9 @@ export function TemplateGallery({ opened, onClose }: { opened: boolean; onClose:
   return (
     <>
       <Modal opened={opened && !dryRun} onClose={close} title={t('templates.title')} size="xl">
-        {created ? (
+        {setupOf ? (
+          <BundleSetup bundle={setupOf} platforms={platforms.data ?? []} label={label} onBack={() => setBundleId(null)} onClose={close} />
+        ) : created ? (
           // the next steps after "Use template"
           <Stack data-testid="template-next-steps">
             <Alert color="green" icon={<IconCheck size={18} />} title={t('templates.created', { name: created.name })}>
@@ -152,6 +185,19 @@ export function TemplateGallery({ opened, onClose }: { opened: boolean; onClose:
             <Text size="xs" c="dimmed" aria-live="polite">
               {t('templates.shown', { count: list.length, total: all.length })}
             </Text>
+            {bundleList.length > 0 && (
+              <Stack gap="xs" component="section" aria-label={t('bundles.title')} data-testid="bundle-section">
+                <Title order={6} c="dimmed" tt="uppercase" fz="xs">
+                  {t('bundles.title')} · {bundleList.length}
+                </Title>
+                <Text size="xs" c="dimmed">
+                  {t('bundles.hint')}
+                </Text>
+                {bundleList.map((b) => (
+                  <BundleCard key={b.id} bundle={b} have={have} label={label} canSetUp={caps.createProcesses} onSetUp={() => setBundleId(b.id)} />
+                ))}
+              </Stack>
+            )}
             {templates.isSuccess && !list.length && (
               <Text size="sm" c="dimmed">
                 {t('templates.noMatch')}

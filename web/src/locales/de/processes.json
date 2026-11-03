@@ -51,6 +51,57 @@
     "openEditor": "Im Editor öffnen",
     "backToList": "Zurück zu den Vorlagen"
   },
+  "bundles": {
+    "title": "Gemeinsam einrichten",
+    "hint": "Vorlagensets: Prozesse, ein Dashboard und ihre Zeitpläne (und optionale Monitore), die zusammengehören – in einem Schritt auf Ihrer Plattform eingerichtet.",
+    "contents": "{{processes}} Prozesse · {{dashboards}} Dashboards · {{monitors}} Monitore",
+    "partlySetUp_one": "{{count}} Teil schon eingerichtet",
+    "partlySetUp_other": "{{count}} Teile schon eingerichtet",
+    "setUp": "Einrichten",
+    "setUpNamed": "{{name}} einrichten",
+    "willCreate": "Was die Einrichtung anlegt",
+    "scheduleOff": "Zeitplan {{cron}} (aus, bis Sie ihn einschalten)",
+    "exists": "vorhanden",
+    "dashboard": "Dashboard „{{name}}“",
+    "monitor": "Monitor „{{name}}“ (aus, bis Sie ihn einschalten)",
+    "platformHint": "Eine Plattform der Art {{kinds}}, die Sie verwenden dürfen",
+    "choosePlatform": "Plattform wählen",
+    "noPlatform": "Sie haben noch keine Plattform für „{{label}}“ ({{kinds}}).",
+    "addPlatform": "Unter Plattformen hinzufügen",
+    "existingLabel": "Was schon vorhanden ist",
+    "existingSkip": "Unverändert lassen",
+    "existingUpdate": "Auf die Vorlage aktualisieren",
+    "existingHint": "Früher eingerichtete Prozesse und Dashboards bleiben, wie sie sind, oder werden auf den Stand der Vorlage gebracht (eine neue Prozessversion). Vorhandene Zeitpläne und Monitore bleiben immer – sie enthalten Ihre Einstellungen.",
+    "withMonitors": "Auch die Monitore anlegen",
+    "withDryRuns": "Je Prozess einen Testlauf starten",
+    "withDryRunsHint": "Ein Testlauf simuliert jede Änderung und schreibt das vollständige Protokoll – auf der Plattform ändert sich nichts.",
+    "offHint": "Zeitpläne und Monitore werden ausgeschaltet angelegt. Nach der Einrichtung schalten Sie sie in einem Schritt ein.",
+    "resultTitle": "„{{name}}“ ist eingerichtet",
+    "resultText": "Alles unten ist bereit. Prüfen Sie die Testläufe, dann schalten Sie die Zeitpläne ein.",
+    "resultFailed_one": "{{count}} Teil konnte nicht eingerichtet werden – siehe unten.",
+    "resultFailed_other": "{{count}} Teile konnten nicht eingerichtet werden – siehe unten.",
+    "types": {
+      "process": "Prozesse",
+      "schedule": "Zeitpläne",
+      "dashboard": "Dashboards",
+      "monitor": "Monitore",
+      "dryRun": "Testläufe"
+    },
+    "actions": {
+      "created": "angelegt",
+      "updated": "aktualisiert",
+      "skipped": "unverändert",
+      "kept": "beibehalten",
+      "started": "gestartet",
+      "failed": "fehlgeschlagen"
+    },
+    "turnOnTitle": "Einschalten",
+    "turnOnText": "{{schedules}} Zeitplan/Zeitpläne und {{monitors}} Monitor(e) wurden ausgeschaltet angelegt. Schalten Sie sie ein, sobald die Testläufe stimmen.",
+    "turnOn": "Zeitpläne und Monitore einschalten",
+    "reviewSchedules": "Erst die Zeitpläne prüfen",
+    "turnedOn_one": "{{count}} Zeitplan oder Monitor eingeschaltet.",
+    "turnedOn_other": "{{count}} Zeitpläne und Monitore eingeschaltet."
+  },
   "import": {
     "title": "Prozess importieren (YAML oder JSON)",
     "hint": "Eine Definition einfügen oder eine Datei laden, um sie zuerst zu prüfen. Bei mehreren Dateien wird jede direkt importiert (z. B. die Dateien im Ordner examples/processes des Repositorys).",
@@ -64,7 +115,7 @@
     "submit": "Importieren"
   },
   "bundle": {
-    "exportAll": "Alle Prozesse & Dashboards exportieren",
+    "exportAll": "Alle Prozesse & Dashboards exportieren (Paket)",
     "importMenu": "Paket importieren…",
     "importTitle": "Paket importieren",
     "hint": "Ein Paket (JSON, erstellt mit „Alle Prozesse & Dashboards exportieren“) enthält mehrere Prozesse und Dashboards. Zugangsdaten und Plattformen sind nie Teil eines Pakets.",
@@ -81,7 +132,7 @@
     "skip": "Überspringen",
     "copy": "Als Kopie importieren",
     "result": "{{created}} angelegt, {{updated}} aktualisiert, {{skipped}} übersprungen",
-    "label": "Bundles: mehrere Prozesse und Dashboards in einer Datei"
+    "label": "Pakete: mehrere Prozesse und Dashboards in einer Datei"
   },
   "newManualProcedure": "Neues manuelles Verfahren",
   "manualTemplate": {
