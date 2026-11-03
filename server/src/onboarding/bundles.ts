@@ -298,6 +298,8 @@ export async function setupBundle(id: string, req: TemplateBundleSetupRequest): 
       if (has) items.push({ type: 'schedule', source: t.id, name: has.name, action: 'kept', id: has.id, link: '/schedules' });
       else
         try {
+          // a process set up before by someone else: only who may run it schedules it (as POST /schedules)
+          if (!permissionsFor(processId).includes('run')) throw new HttpError(403, 'You may not run this process', 'FORBIDDEN', { context: 'runProcess' });
           const s = saveSchedule({
             name: t.name,
             processId,

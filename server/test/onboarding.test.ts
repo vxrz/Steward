@@ -169,6 +169,21 @@ describe('template bundles', () => {
   });
 });
 
+describe('template bundles and rights on what exists', () => {
+  it('does not schedule an existing process the user may not run', async () => {
+    for (const x of (await s.api('GET', '/schedules')).filter((x: any) => x.processId === 'prometheus-slo-report')) await s.api('DELETE', `/schedules/${x.id}`);
+    await s.api('PUT', '/processes/prometheus-slo-report/access', { acl: [{ subject: 'user:dana', permissions: ['view'] }] });
+    const r = await dana('POST', '/template-bundles/60-prometheus-slo/setup', { bindings: { prometheus: byName('Prometheus (demo)').id }, monitors: false });
+    expect(r.items.filter((i: any) => i.type !== 'dashboard').map((i: any) => `${i.type}:${i.action}`)).toEqual([
+      'process:skipped',
+      'schedule:failed',
+      'dryRun:failed',
+    ]);
+    expect(r.items.find((i: any) => i.type === 'schedule').message).toMatch(/may not run/);
+    expect((await s.api('GET', '/schedules')).some((x: any) => x.processId === 'prometheus-slo-report')).toBe(false);
+  });
+});
+
 describe('what next with a platform', () => {
   it('lists matching templates, bundles, monitor types and examples, access sources and the MCP hint', async () => {
     const g = await s.api('GET', `/platforms/${byName('Snowflake (demo)').id}/get-started`);
