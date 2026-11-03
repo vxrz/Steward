@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { afterAll } from 'vitest';
 import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
@@ -49,8 +50,24 @@ export interface TestServer {
  * `dataDir`: start on an existing data folder (e.g. a copy of an upgrade fixture) instead of a new one. `routes`:
  * test-only routes, added before the server listens.
  */
+/**
+ * Data folders this test file created, removed after its last hook (registered at import, so with vitest's stacked
+ * hooks it runs after the file's own afterAll that closes the server; a test may start a second server on a folder).
+ */
+const createdDataDirs: string[] = [];
+afterAll(() => {
+  for (const dir of createdDataDirs.splice(0)) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // a file still open (e.g. on Windows) keeps the folder; the system's temp cleanup takes it later
+    }
+  }
+});
+
 export async function startTestServer(opts: { dataDir?: string; routes?: (app: FastifyInstance) => void } = {}): Promise<TestServer> {
   const dataDir = opts.dataDir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'sm-test-'));
+  if (!opts.dataDir) createdDataDirs.push(dataDir);
   process.env.SM_DATA_DIR = dataDir;
   // Port 0: the system assigns a free port, so parallel test runs (and outgoing connections, whose
   // local ports come from the same range) can never take it between choosing and binding.
