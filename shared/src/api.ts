@@ -1411,6 +1411,17 @@ export interface DashboardData {
  * The start page's tiles, counted with the viewer's permissions (only what they may see). An entry is
  * left out when the viewer has no right to that kind of item at all – the tile is not shown then.
  */
+/** A process that publishes a dataset key ("Publish to dashboard" node in its current version), for empty widgets. */
+export interface DatasetPublisher {
+  processId: string;
+  processName: string;
+  /** An enabled schedule runs it */
+  scheduled: boolean;
+  /** The viewer may edit / run it */
+  canEdit: boolean;
+  canRun: boolean;
+}
+
 export interface DashboardAttention {
   /** Open approvals and decisions the viewer may decide */
   tasks: number;

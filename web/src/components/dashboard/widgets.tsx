@@ -48,15 +48,15 @@ import {
   sumSeries,
 } from '@sm/shared';
 import type { TFunction } from 'i18next';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { get } from '../../api';
-import { errorText } from '../../i18n/errors';
 import { severityLabel } from '../common';
 import { fmtRelative } from '../../format';
 import { Markdown } from '../common';
 import { StatusBar, StatusTable, Sparkline, TrendChart, TrendTable } from './charts';
-import { useDashboardCtx, useDataset, useDatasetMetas, useMetrics, isNotFound, useScope, scopeMeta, perSource } from './data';
+import { useDashboardCtx, useDataset, useDatasetMetas, useMetrics, useScope, scopeMeta, perSource } from './data';
 import { compact, dateTime, download, toCsv } from './format';
+import { NoData } from './NoData';
 import { SEVERITY_RANK, STATUS_META, StatusLabel, asStatus } from './status';
 
 // ---------------------------------------------------------------------------
@@ -128,30 +128,6 @@ function WidgetCard({
         {children}
       </div>
     </Paper>
-  );
-}
-
-function NoData({ dataset, error }: { dataset?: string; error?: unknown }) {
-  const { t } = useTranslation(['dashboards', 'common', 'editor']);
-  if (!dataset)
-    return (
-      <Text size="sm" c="dimmed">
-        {t('w.chooseDataset')}
-      </Text>
-    );
-  return (
-    <Stack gap={4}>
-      <Text size="sm" c="dimmed">
-        {isNotFound(error) || !error ? (
-          <Trans t={t} i18nKey="w.noData" values={{ dataset, node: t('editor:steps.publish.label') }} components={{ c: <span className="mono" /> }} />
-        ) : (
-          errorText(error)
-        )}
-      </Text>
-      <Anchor component={Link} to="/processes" size="xs">
-        {t('w.goToProcesses')}
-      </Anchor>
-    </Stack>
   );
 }
 

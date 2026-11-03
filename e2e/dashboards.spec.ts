@@ -54,7 +54,7 @@ test.describe('dashboards', () => {
     await expect(table.getByRole('cell', { name: 'edge-lab' })).toBeVisible();
 
     // every widget has data (ih.privileged is only filled once a privileged access review ran)
-    await expect(page.getByText(/^No data in (?!ih\.privileged)/)).toHaveCount(0);
+    await expect(page.getByTestId('widget-no-data').filter({ hasNotText: /Privileged access review/ })).toHaveCount(0);
   });
   test('Vega-Lite widgets draw from the dataset only, with a table twin (#120)', async ({ page }) => {
     const requests: string[] = [];

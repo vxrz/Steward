@@ -177,8 +177,6 @@
     "table": "Table",
     "viewToggle": "Chart or table view",
     "chooseDataset": "Choose a dataset for this widget.",
-    "noData": "No data in <c>{{dataset}}</c> yet (or no access). Run the process that publishes it – a “{{node}}” node with this dataset key.",
-    "goToProcesses": "Go to processes",
     "olderThan_one": "Older than {{count}} minute",
     "olderThan_other": "Older than {{count}} minutes",
     "rows": "rows",
@@ -234,7 +232,15 @@
     },
     "chartError": "The chart could not be drawn: {{error}}",
     "sumOfSources_one": "Sum of {{count}} source",
-    "sumOfSources_other": "Sum of {{count}} sources"
+    "sumOfSources_other": "Sum of {{count}} sources",
+    "noDataNoProcess": "No data yet – no process fills this widget so far. Ask a designer to set one up.",
+    "noDataScheduled": "No data yet – <b>{{process}}</b> fills it at its next scheduled run.",
+    "noDataRunIt": "No data yet – run or schedule <b>{{process}}</b>, it fills this widget.",
+    "noDataAsk": "No data yet – ask a designer to schedule <b>{{process}}</b>.",
+    "noDataHowTo": "Designers: a process with a “{{node}}” node for the dataset <c>{{dataset}}</c> fills it.",
+    "openProcess": "Open the process",
+    "scheduleIt": "Schedule it",
+    "datasetKey": "Dataset <c>{{dataset}}</c>"
   },
   "charts": {
     "trendLabel": "Trend of {{names}}. Use the arrow keys to read values.",

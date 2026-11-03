@@ -322,6 +322,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/datasets': ALL,
   'GET /api/datasets/:key': ALL,
   'GET /api/datasets/:key/sources': ALL,
+  'GET /api/datasets/:key/publishers': ALL,
   'DELETE /api/datasets/:key': ADMIN,
   'GET /api/datasets/:key/metrics': ALL,
   'GET /api/bundle/export': ALL,

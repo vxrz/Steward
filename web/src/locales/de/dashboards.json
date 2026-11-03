@@ -177,8 +177,6 @@
     "table": "Tabelle",
     "viewToggle": "Ansicht: Diagramm oder Tabelle",
     "chooseDataset": "Eine Datenquelle für dieses Widget wählen.",
-    "noData": "Noch keine Daten in <c>{{dataset}}</c> (oder kein Zugriff). Den Prozess ausführen, der sie veröffentlicht – mit einem Knoten „{{node}}“ und diesem Schlüssel.",
-    "goToProcesses": "Zu den Prozessen",
     "olderThan_one": "Älter als {{count}} Minute",
     "olderThan_other": "Älter als {{count}} Minuten",
     "rows": "Zeilen",
@@ -234,7 +232,15 @@
     },
     "chartError": "Das Diagramm konnte nicht gezeichnet werden: {{error}}",
     "sumOfSources_one": "Summe aus {{count}} Quelle",
-    "sumOfSources_other": "Summe aus {{count}} Quellen"
+    "sumOfSources_other": "Summe aus {{count}} Quellen",
+    "noDataNoProcess": "Noch keine Daten – bisher füllt kein Prozess dieses Widget. Bitten Sie einen Designer, einen einzurichten.",
+    "noDataScheduled": "Noch keine Daten – <b>{{process}}</b> füllt es bei der nächsten geplanten Ausführung.",
+    "noDataRunIt": "Noch keine Daten – führen Sie <b>{{process}}</b> aus oder planen Sie es ein, es füllt dieses Widget.",
+    "noDataAsk": "Noch keine Daten – bitten Sie einen Designer, <b>{{process}}</b> einzuplanen.",
+    "noDataHowTo": "Für Designer: Ein Prozess mit einem Knoten „{{node}}“ für den Datensatz <c>{{dataset}}</c> füllt es.",
+    "openProcess": "Prozess öffnen",
+    "scheduleIt": "Einplanen",
+    "datasetKey": "Datensatz <c>{{dataset}}</c>"
   },
   "charts": {
     "trendLabel": "Trend von {{names}}. Werte mit den Pfeiltasten ablesen.",

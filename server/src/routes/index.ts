@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { dashboardRoutes } from './dashboards.js';
+import { datasetPublisherRoutes } from './dataset-publishers.js';
 import { opsRoutes } from './ops.js';
 import { engineExtrasRoutes } from './engine-extras.js';
 import { reportRoutes } from './reports.js';
@@ -38,6 +39,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await dashboardHomeRoutes(app);
 
   await dashboardRoutes(app);
+  await datasetPublisherRoutes(app);
   await scopeRoutes(app);
   await opsRoutes(app);
   await engineExtrasRoutes(app);
