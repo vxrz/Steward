@@ -21,7 +21,7 @@ export function ScorecardPanel({ serviceId }: { serviceId: string }) {
     <Stack gap="xs" data-testid="scorecard-panel">
       <Group justify="space-between">
         <Text fw={600}>{t('panelTitle')}</Text>
-        {c && <AttentionBadge attention={c.attention} />}
+        {c && <AttentionBadge attention={c.attention} card={c} />}
       </Group>
       <QueryState query={q} rows={2} />
       {c && (

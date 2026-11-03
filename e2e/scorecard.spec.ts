@@ -28,6 +28,12 @@ test('define an availability objective and see the scorecard of the service', as
 
   // a service with a duty, a rated application and a released document
   const svc = await json<{ id: string }>(await api.post('/api/services', { data: { name: uniq('E2E scorecard service'), owners: [] } }));
+  // a new, empty service is neutral – nothing to judge yet, so neither "Attention needed" nor "OK"
+  await page.goto(`/services/${svc.id}`);
+  const fresh = page.getByTestId('scorecard-panel');
+  await expect(fresh.getByTestId('attention')).toHaveText('Open');
+  await expect(fresh.getByTestId('part-protection').getByTestId('part-status')).toHaveText('Open');
+  await expect(fresh.getByTestId('part-documentation').getByTestId('part-status')).toHaveText('Open');
   const proc = await json<{ id: string }>(
     await api.post('/api/processes', { data: { definition: { name: uniq('E2E scorecard process'), nodes: [{ id: 'start', type: 'start', x: 0, y: 0 }] } } }),
   );

@@ -123,7 +123,7 @@ export function ScorecardPage() {
                     <Anchor component={Link} to={`/services/${c.serviceId}`} fw={600} size="sm">
                       {c.serviceName}
                     </Anchor>
-                    <AttentionBadge attention={c.attention} size="xs" />
+                    <AttentionBadge attention={c.attention} size="xs" card={c} />
                   </Group>
                   <SimpleGrid cols={2} spacing={6} verticalSpacing={4}>
                     {parts.map((p) => (
@@ -160,7 +160,7 @@ export function ScorecardPage() {
                         </Anchor>
                       </Table.Td>
                       <Table.Td>
-                        <AttentionBadge attention={c.attention} size="xs" />
+                        <AttentionBadge attention={c.attention} size="xs" card={c} />
                       </Table.Td>
                       {parts.map((p) => (
                         <Table.Td key={p}>

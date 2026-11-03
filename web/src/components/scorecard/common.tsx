@@ -62,8 +62,19 @@ export function ObjectiveStatusBadge({ status, size = 'sm' }: { status: Objectiv
 }
 
 /** "Attention needed" or "OK" for a whole service. */
-export function AttentionBadge({ attention, size = 'sm' }: { attention: boolean; size?: 'xs' | 'sm' | 'md' }) {
+/**
+ * "Attention needed" or "OK" – or, with `card`, "Open" (neutral) while no part is met yet: a new service without
+ * applications, documents, duties or objectives has nothing to judge and is not shown as good either.
+ */
+export function AttentionBadge({ attention, size = 'sm', card }: { attention: boolean; size?: 'xs' | 'sm' | 'md'; card?: ServiceScorecard }) {
   const { t } = useTranslation('scorecard');
+  const nothingMet = !!card && !SCORECARD_PARTS.some((p) => card[p]?.status === 'ok');
+  if (!attention && nothingMet)
+    return (
+      <Badge size={size} color={TONE.neutral} variant="light" tt="none" data-testid="attention">
+        {t('statuses.pending')}
+      </Badge>
+    );
   return (
     <Badge size={size} color={attention ? TONE.bad : TONE.ok} variant={attention ? 'filled' : 'light'} tt="none" data-testid="attention">
       {attention ? t('attention') : t('allGood')}
