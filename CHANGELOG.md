@@ -13,6 +13,8 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - **Dataset freshness reads the schedule as it is now**: the interval and the stale limit of a partition come from its schedule's current cron when the dataset is read, so changing a schedule shows at once instead of after the next run (the interval stored at the last run is kept for a deleted schedule). Every source now carries its own `nextRunAt` (the next run of the schedule that feeds it, or none), `staleReason` (`schedule`, `fixed` or `default`), the schedule's name and – for a sub-process – the parent process whose schedule started it; `GET /api/v1/datasets…` adds `staleReason` and `nextRunAt` per source.
+- **Freshness widget**: shows each source on its own lines with a status chip (_Fresh_, _Due_ when a scheduled run is overdue, _Stale since …_), the interval in words (_hourly_, _every 15 minutes_, _daily_, _weekly_, _monthly_, _quarterly_, else e.g. _every 3 days 4 h_ instead of _1440 min_), when it counts as stale and why (_stale after 2 h 30 min (from the schedule “Inventory EU”)_, _via the “Nightly checks” schedule_ for a sub-process, _fixed, run without a schedule_), and the next refresh of **that source's** schedule – before, the earliest schedule of the process was shown for every source, so with one schedule per tenant none matched. The lines wrap on a phone instead of being cut off in a sideways-scrolling table, and the dashboard's source filter applies.
+- **Dashboard header**: _data from …_ names the **oldest** source of the dashboard (in its source filter), so one tenant that stopped updating is no longer hidden behind fresh ones.
 
 ## [0.3.0] - 2026-11-02
 

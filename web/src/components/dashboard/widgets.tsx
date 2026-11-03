@@ -43,7 +43,6 @@ import {
   type MetricSeries,
   type RunDetail,
   type RunSummary,
-  type Schedule,
   type Trend,
   sumSeries,
 } from '@sm/shared';
@@ -58,6 +57,7 @@ import { StatusBar, StatusTable, Sparkline, TrendChart, TrendTable } from './cha
 import { useDashboardCtx, useDataset, useDatasetMetas, useMetrics, isNotFound, useScope, scopeMeta, perSource } from './data';
 import { compact, dateTime, download, toCsv } from './format';
 import { SEVERITY_RANK, STATUS_META, StatusLabel, asStatus } from './status';
+import { SourceFreshness, intervalText, staleRuleText } from './freshness';
 
 // ---------------------------------------------------------------------------
 // Card wrapper
@@ -184,10 +184,10 @@ function Freshness({ meta }: { meta?: DatasetMeta }) {
   );
 }
 
-/** "Tenant EU: expected every 10 min · last 25 min ago" (#142) */
+/** "Tenant EU: hourly · last 25 min ago · stale after 2 h 30 min (…)" (#142) */
 function sourceAge(t: TFunction<['dashboards', 'common', 'editor']>, s: DatasetSource): string {
   const last = t('w.last', { when: fmtRelative(s.updatedAt) });
-  return `${s.name}: ${s.expectedMinutes ? `${t('w.expectedEvery', { count: s.expectedMinutes })} · ` : ''}${last}`;
+  return `${s.name}: ${s.expectedMinutes ? `${intervalText(t, s.expectedMinutes)} · ` : ''}${last} · ${staleRuleText(t, s)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -713,109 +713,60 @@ function ChecksWidget({ w }: { w: DashboardWidget }) {
 function FreshnessWidget({ w, datasets }: { w: DashboardWidget; datasets: string[] }) {
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const metas = useDatasetMetas();
-  const schedules = useQuery({ queryKey: ['schedules'], queryFn: () => get<Schedule[]>('/schedules') });
-  const nextRun = (processId: string) =>
-    (schedules.data ?? [])
-      .filter((s) => s.enabled && s.processId === processId && s.nextRunAt)
-      .map((s) => s.nextRunAt!)
-      .sort()[0];
+  const scope = useScope(w);
   return (
     <WidgetCard title={w.title || t('widgets.freshness.label')} fetching={metas.isFetching}>
-      <div className="table-scroll" tabIndex={0} role="region" aria-label={w.title || t('widgets.freshness.label')}>
-        <Table fz="sm" verticalSpacing={4} miw={520}>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t('datasets.dataset')}</Table.Th>
-              <Table.Th>{t('datasets.updated')}</Table.Th>
-              <Table.Th>{t('datasets.source')}</Table.Th>
-              <Table.Th>{t('w.nextRefresh')}</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {datasets.map((key) => {
-              const m = metas.data?.find((x) => x.key === key);
-              const next = m ? nextRun(m.processId) : undefined;
-              return (
-                <Table.Tr key={key}>
-                  <Table.Td>
-                    <Text size="sm">{m?.title ?? key}</Text>
-                    <Text size="xs" c="dimmed" className="mono">
+      <Stack gap="sm" role="list" aria-label={w.title || t('widgets.freshness.label')}>
+        {datasets.map((key) => {
+          const m = scopeMeta(
+            metas.data?.find((x) => x.key === key),
+            scope,
+          );
+          const sources = m?.sources ?? [];
+          return (
+            <Stack key={key} gap={4} role="listitem" data-testid="dataset-freshness" data-dataset={key}>
+              <Group justify="space-between" align="flex-start" gap="xs" wrap="wrap">
+                <div style={{ minWidth: 0 }}>
+                  <Text size="sm" fw={600} style={{ overflowWrap: 'anywhere' }}>
+                    {m?.title ?? key}
+                  </Text>
+                  {m?.title && m.title !== key && (
+                    <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
                       {key}
                     </Text>
-                  </Table.Td>
-                  <Table.Td className="nowrap">
-                    {m ? (
-                      <Stack gap={2}>
-                        {(m.sources?.length ?? 0) > 1 ? (
-                          (m.sources ?? []).map((src) => (
-                            <Tooltip key={src.id} label={dateTime(src.updatedAt)}>
-                              <Text size="xs" c={src.stale ? 'yellow.8' : undefined} data-testid="source-freshness">
-                                {sourceAge(t, src)}
-                                {src.stale ? ` · ${t('datasets.stale')}` : ''}
-                              </Text>
-                            </Tooltip>
-                          ))
-                        ) : (
-                          <Tooltip label={dateTime(m.updatedAt)}>
-                            <Text size="sm">
-                              {fmtRelative(m.updatedAt)}
-                              {m.sources?.[0]?.expectedMinutes ? ` · ${t('w.expectedEvery', { count: m.sources[0].expectedMinutes })}` : ''}
-                            </Text>
-                          </Tooltip>
-                        )}
-                        <Group gap={4}>
-                          {m.stale && (
-                            <Badge size="xs" color="yellow" variant="light" leftSection={<IconAlertTriangle size={10} />}>
-                              {t('datasets.stale')}
-                            </Badge>
-                          )}
-                          {m.dryRun && (
-                            <Badge size="xs" color="gray" variant="light" leftSection={<IconFlask size={10} />}>
-                              {t('common:status.dryrun')}
-                            </Badge>
-                          )}
-                        </Group>
-                      </Stack>
-                    ) : (
-                      <Text size="sm" c="dimmed">
-                        {t('w.noDataShort')}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    {m ? (
-                      <Stack gap={0}>
-                        <Anchor component={Link} to={`/processes/${m.processId}`} size="sm">
-                          {m.processName}
-                        </Anchor>
-                        <Anchor component={Link} to={`/runs/${m.runId}`} size="xs" c="dimmed">
-                          {t('w.run')}
-                        </Anchor>
-                      </Stack>
-                    ) : (
-                      '–'
-                    )}
-                  </Table.Td>
-                  <Table.Td className="nowrap">
-                    <Text size="sm" c={next ? undefined : 'dimmed'}>
-                      {next ? fmtRelative(next) : t('w.notScheduled')}
-                    </Text>
-                  </Table.Td>
-                </Table.Tr>
-              );
-            })}
-            {datasets.length === 0 && (
-              <Table.Tr>
-                <Table.Td colSpan={4}>
-                  <Text size="sm" c="dimmed">
-                    {t('w.noDatasets')}
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
-      </div>
+                  )}
+                </div>
+                {m && (
+                  <Group gap={8} wrap="wrap">
+                    <Anchor component={Link} to={`/processes/${m.processId}`} size="xs">
+                      {m.processName}
+                    </Anchor>
+                    <Anchor component={Link} to={`/runs/${m.runId}`} size="xs" c="dimmed">
+                      {t('w.run')}
+                    </Anchor>
+                  </Group>
+                )}
+              </Group>
+              {!m || sources.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  {t('w.noDataShort')}
+                </Text>
+              ) : (
+                <Stack gap={6} pl="xs" style={{ borderLeft: '2px solid var(--viz-gridline, var(--mantine-color-default-border))' }}>
+                  {sources.map((src) => (
+                    <SourceFreshness key={src.id} source={src} showName={sources.length > 1 || src.id !== 'instance'} />
+                  ))}
+                </Stack>
+              )}
+            </Stack>
+          );
+        })}
+        {datasets.length === 0 && (
+          <Text size="sm" c="dimmed">
+            {t('w.noDatasets')}
+          </Text>
+        )}
+      </Stack>
     </WidgetCard>
   );
 }
