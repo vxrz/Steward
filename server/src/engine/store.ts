@@ -379,11 +379,37 @@ export function updateStepInput(runId: string, key: string, input: unknown): voi
   db().run('UPDATE run_steps SET input = ? WHERE run_id = ? AND key = ?', JSON.stringify(input ?? null), runId, key);
 }
 
+/** Largest step output kept in the run as it is (characters of JSON); a larger one is stored as a shortened copy. */
+export const STORED_OUTPUT_MAX = 4 * 1024 * 1024;
+const TRUNCATED_MARK = '__truncated';
+
+/**
+ * The JSON a step's output is stored as: as it is, or – above STORED_OUTPUT_MAX – a shortened copy (the body of an
+ * http answer, or the value, cut to about 1 MB) marked `__truncated` with the original size. The run itself keeps
+ * working with the full value; the copy is what the run page, the API and a resumed run see.
+ */
+export function storedOutput(output: unknown): string | null {
+  if (output === undefined) return null;
+  const text = JSON.stringify(output);
+  if (text === undefined || text.length <= STORED_OUTPUT_MAX) return text ?? null;
+  const mark = { [TRUNCATED_MARK]: { chars: text.length, storedMax: STORED_OUTPUT_MAX } };
+  if (output && typeof output === 'object' && !Array.isArray(output) && 'body' in output) {
+    const [body] = preview((output as { body: unknown }).body, 1024 * 1024);
+    return JSON.stringify({ ...output, body, ...mark });
+  }
+  return JSON.stringify({ value: preview(output, 1024 * 1024)[0], ...mark });
+}
+
+/** Whether a stored output is a shortened copy (storedOutput). */
+export function isTruncatedOutput(stored: string | null | undefined): boolean {
+  return !!stored && stored.length > 20 && stored.includes(`"${TRUNCATED_MARK}":{"chars":`);
+}
+
 export function finishStep(runId: string, key: string, f: { status: StepStatus; output?: unknown; summary?: string; error?: string; startedMs: number }): void {
   db().run(
     'UPDATE run_steps SET status = ?, output = ?, summary = ?, error = ?, finished_at = ?, duration_ms = ? WHERE run_id = ? AND key = ?',
     f.status,
-    f.output === undefined ? null : JSON.stringify(f.output),
+    storedOutput(f.output),
     f.summary ?? null,
     f.error ?? null,
     nowIso(),

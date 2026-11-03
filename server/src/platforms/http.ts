@@ -12,6 +12,7 @@ import { emit } from '../events.js';
 import { guardedLookup } from './outbound.js';
 import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
 import { JWT_ALGS, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
+import { where as originAndPath } from './answers.js';
 
 export interface HttpRequest {
   method: string;
@@ -356,7 +357,9 @@ async function readCapped(res: Awaited<ReturnType<typeof fetch>>, max: number): 
 
 /** Reads at most `max` bytes of a response body; larger bodies fail (and the connection is released). */
 async function readBounded(res: Awaited<ReturnType<typeof fetch>>, max: number, url: string): Promise<string> {
-  const tooLarge = () => Object.assign(new Error(`The response of ${url} is larger than ${max} bytes`), { retryable: false, code: 'ETOOLARGE' });
+  // origin and path only: the query may carry an API key
+  const tooLarge = () =>
+    Object.assign(new Error(`The response of ${originAndPath(url)} is larger than ${max} bytes`), { retryable: false, code: 'ETOOLARGE', max });
   const declared = Number(res.headers.get('content-length') ?? '');
   if (Number.isFinite(declared) && declared > max) {
     await res.body?.cancel().catch(() => undefined);

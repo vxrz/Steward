@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import {
+  HTTP_RESPONSE_MB,
   isMutating,
   nodePorts,
   outgoing,
@@ -829,7 +830,9 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
 
   // ----- replay: a finished step is not executed again -----
   const isControl = node.type === 'forEach' || node.type === 'if';
-  if (journaled && TERMINAL.includes(journaled.status) && !isControl) {
+  // a read whose stored output was cut down (too large to keep in the run) is read again rather than replayed short
+  const cutRead = !!journaled && node.type === 'http' && !isMutating(node) && store.isTruncatedOutput(journaled.output);
+  if (journaled && TERMINAL.includes(journaled.status) && !isControl && !cutRead) {
     const output = parseJson<unknown>(journaled.output, undefined);
     if (journaled.status === 'skipped') return skipPorts(node);
     const ports = journaled.status === 'failed' ? failurePorts(node, ctx) : successPorts(node, output);
@@ -1341,6 +1344,8 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
   }
 
   ctx.redactor.add(...secretValues(b.secrets));
+  // every answer (page) is read into memory: at most this much (v0.3.1, it had no limit)
+  const maxMb = step.maxResponseMb ?? HTTP_RESPONSE_MB.default;
   const accept = (s: number) => (step.expectStatus?.length ? step.expectStatus.includes(s) : s >= 200 && s < 300);
   let lastRecording: string | null = null;
   const replay = (url: string, q: Record<string, unknown>): HttpResult => {
@@ -1358,12 +1363,30 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
     const target = await buildUrl(b.platform, b.secrets, url, q);
     // the AWS endpoint the step names is the platform's own origin for this call – only then, not every amazonaws.com host
     await enforceOutbound(ctx, target, headers, body, awsOrigin ? [awsOrigin] : undefined);
-    const res = await platformRequest(
-      b.platform,
-      b.secrets,
-      { method: step.method, url, query: q, headers, body, bodyType: step.bodyType, ...(awsScope ? { aws: awsScope } : {}) },
-      ctx.signal,
-    );
+    let res: HttpResult;
+    try {
+      res = await platformRequest(
+        b.platform,
+        b.secrets,
+        {
+          method: step.method,
+          url,
+          query: q,
+          headers,
+          body,
+          bodyType: step.bodyType,
+          maxResponseBytes: maxMb * 1024 * 1024,
+          ...(awsScope ? { aws: awsScope } : {}),
+        },
+        ctx.signal,
+      );
+    } catch (e) {
+      if ((e as { code?: string }).code === 'ETOOLARGE')
+        throw new Error(
+          `The answer of ${step.method} ${url.split('?')[0]} is larger than ${maxMb} MB, the step's limit (maxResponseMb: default ${HTTP_RESPONSE_MB.default}, at most ${HTTP_RESPONSE_MB.max}) – read it in pages (pagination, a page size or filter) or raise maxResponseMb`,
+        );
+      throw e;
+    }
     ctx.redactor.add(...secretValues(b.secrets));
     if (res.attempts && res.attempts > 1) ctx.log('warn', `${step.method} ${url} → HTTP ${res.status} after ${res.attempts} attempts`, key);
     if (!accept(res.status)) throw new Error(`HTTP ${res.status} from ${step.method} ${url}: ${snippet(res.body)}`);

@@ -144,7 +144,12 @@ export interface HttpConfig {
    * the path is relative to the service's endpoint (https://<service>.<region>.amazonaws.com).
    */
   aws?: { service: string; region: string };
+  /** Largest answer accepted, in MB (default HTTP_RESPONSE_MB.default, at most HTTP_RESPONSE_MB.max); larger answers fail the step. */
+  maxResponseMb?: number;
 }
+
+/** The size limit of an http step's answer, per page (v0.3.1: it had none and was kept in memory and in the run). */
+export const HTTP_RESPONSE_MB = { default: 20, max: 200 } as const;
 export interface SetConfig {
   type: 'set';
   values: Record<string, unknown>;
@@ -441,6 +446,7 @@ const shapes = {
       })
       .strict()
       .optional(),
+    maxResponseMb: z.number().int().min(1).max(HTTP_RESPONSE_MB.max).optional(),
   },
   set: { type: z.literal('set'), values: boundedRecord(z.unknown(), 500) },
   forEach: {
