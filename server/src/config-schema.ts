@@ -363,8 +363,7 @@ export const VARS = {
   SM_MAX_CONCURRENT_RUNS: v(int(20, 0, 10000), {
     group: 'Limits',
     default: '20',
-    description:
-      'Runs at the same time; more wait in status _queued_ (first come, first served) until one ends or waits for a decision. `0`: no limit',
+    description: 'Runs at the same time; more wait in status _queued_ (first come, first served) until one ends or waits for a decision. `0`: no limit',
     readme: true,
   }),
   SM_EVENT_LOOP_WARN_MS: v(int(1000, 50), {
