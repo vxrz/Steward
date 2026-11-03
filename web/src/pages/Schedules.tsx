@@ -16,6 +16,7 @@ import { confirmDanger } from '../components/confirm';
 import { RunModeField } from '../components/RunModeField';
 import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/notify/NotifyPolicy';
 import { CronWarnings, useCronPreview } from '../components/CronPreview';
+import { processKeys, scheduleKeys } from '../queryKeys';
 
 const PRESETS = [
   { key: 'every15', cron: '*/15 * * * *' },
@@ -46,7 +47,7 @@ export function SchedulesPage() {
   const { t } = useTranslation(['schedules', 'common']);
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const schedules = useQuery({ queryKey: ['schedules'], queryFn: () => get<Schedule[]>('/schedules'), refetchInterval: 10000 });
+  const schedules = useQuery({ queryKey: scheduleKeys.all, queryFn: () => get<Schedule[]>('/schedules'), refetchInterval: 10000 });
   const [draft, setDraft] = useState<Draft | null>(null);
   // ?new=1 opens a new schedule; &processId=… preselects the process (the template gallery's next steps)
   useCreateParam(true, () => setDraft({ ...emptyDraft(), processId: new URLSearchParams(window.location.search).get('processId') ?? '' }));
@@ -70,7 +71,7 @@ export function SchedulesPage() {
     try {
       if (id) await put(`/schedules/${id}`, body);
       else await post('/schedules', body);
-      qc.invalidateQueries({ queryKey: ['schedules'] });
+      qc.invalidateQueries({ queryKey: scheduleKeys.all });
       return true;
     } catch (e) {
       notifyError(e, t('notSaved'));
@@ -188,7 +189,7 @@ export function SchedulesPage() {
                           onPause={async (p) => {
                             try {
                               await post(`/schedules/${s.id}/pause`, { until: p.until, reason: p.reason, inApp: p.inApp });
-                              await qc.invalidateQueries({ queryKey: ['schedules'] });
+                              await qc.invalidateQueries({ queryKey: scheduleKeys.all });
                             } catch (e) {
                               notifyError(e);
                             }
@@ -196,7 +197,7 @@ export function SchedulesPage() {
                           onResume={async () => {
                             try {
                               await post(`/schedules/${s.id}/resume`, {});
-                              await qc.invalidateQueries({ queryKey: ['schedules'] });
+                              await qc.invalidateQueries({ queryKey: scheduleKeys.all });
                             } catch (e) {
                               notifyError(e);
                             }
@@ -216,7 +217,7 @@ export function SchedulesPage() {
                           onClick={async () => {
                             if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: s.name }) }))) return;
                             await del(`/schedules/${s.id}`).catch(notifyError);
-                            qc.invalidateQueries({ queryKey: ['schedules'] });
+                            qc.invalidateQueries({ queryKey: scheduleKeys.all });
                           }}
                         >
                           <IconTrash size={16} />
@@ -254,9 +255,9 @@ function presetLabel(cron: string): string {
 function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () => void; onSave: (d: Draft) => void }) {
   const { t } = useTranslation(['schedules', 'common']);
   const [d, setD] = useState<Draft>(draft);
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
   const proc = useQuery({
-    queryKey: ['process', d.processId],
+    queryKey: processKeys.detail(d.processId),
     queryFn: () => get<ProcessDetail>(`/processes/${d.processId}`),
     enabled: !!d.processId,
   });

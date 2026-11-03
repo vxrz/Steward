@@ -37,6 +37,7 @@ import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { CronPreview } from '../components/CronPreview';
 import { useMe } from '../auth';
+import { monitorKeys, processKeys, scheduleKeys } from '../queryKeys';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
 const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties', 'scorecard'];
@@ -86,15 +87,15 @@ export function ReportsPage() {
   const [params] = useSearchParams();
   const highlight = params.get('report');
   const schedules = useQuery({
-    queryKey: ['report-schedules'],
+    queryKey: scheduleKeys.reports,
     queryFn: () => get<{ items: ReportSchedule[]; canCreate: boolean; sections: string[] }>('/report-schedules'),
   });
-  const generated = useQuery({ queryKey: ['report-schedules', 'reports'], queryFn: () => get<ReportRecord[]>('/report-schedules/reports') });
+  const generated = useQuery({ queryKey: scheduleKeys.reportsList, queryFn: () => get<ReportRecord[]>('/report-schedules/reports') });
   const summaries = useQuery({ queryKey: ['reports', 'summary'], queryFn: () => getOptional<ReportRecord[]>('/reports?kind=summary', []) });
   const [draft, setDraft] = useState<Draft | null>(null);
   useCreateParam(schedules.data?.canCreate, () => setDraft(emptyDraft(i18n.language.startsWith('de') ? 'de' : 'en')));
   const [running, setRunning] = useState<string | null>(null);
-  const refresh = () => qc.invalidateQueries({ queryKey: ['report-schedules'] });
+  const refresh = () => qc.invalidateQueries({ queryKey: scheduleKeys.reports });
   const reports = [...(generated.data ?? []), ...(summaries.data ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   const runNow = async (s: ReportSchedule) => {
@@ -331,8 +332,8 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
   const [d, setD] = useState<Draft>(draft);
   const [busy, setBusy] = useState(false);
   const { me, isAdmin } = useMe();
-  const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors') });
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
+  const monitors = useQuery({ queryKey: monitorKeys.all, queryFn: () => get<MonitorSummary[]>('/monitors') });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
   const recordTypes = useQuery({ queryKey: ['record-types', false], queryFn: () => get<RecordType[]>('/record-types'), enabled: sections.includes('records') });
   const typeName = useTypeName();
   const gatus = useQuery({ queryKey: ['gatus-sources'], queryFn: () => getOptional<GatusMetricsSource[]>('/gatus/sources', []) });

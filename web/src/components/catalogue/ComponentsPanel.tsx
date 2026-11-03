@@ -49,6 +49,7 @@ import { fmtBytes, fmtDate, fmtNumber } from '../../format';
 import { LifecycleBadge } from './lifecycle';
 import { EnvironmentBadge, EnvironmentInput, sortByEnvironment, useEnvironmentList } from './environments';
 import { CredentialEditor, type CredentialDraft } from '../credentials/CredentialEditor';
+import { platformKeys } from '../../queryKeys';
 
 export const formatLabel = (f: string) => (f === 'cyclonedx' ? 'CycloneDX' : 'SPDX');
 
@@ -874,33 +875,33 @@ function ComponentFormModal({
   const [environment, setEnvironment] = useState(component?.environment ?? '');
   const [platformId, setPlatformId] = useState<string | null>(component?.platformId ?? null);
   const clusters = useQuery({
-    queryKey: ['platforms', 'kubernetes'],
+    queryKey: platformKeys.ofKind('kubernetes'),
     queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === 'kubernetes'),
     enabled: type === 'kubernetes-namespace',
   });
   const kafkaPlatforms = useQuery({
-    queryKey: ['platforms', 'kafka'],
+    queryKey: platformKeys.ofKind('kafka'),
     queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === 'kafka'),
     enabled: type === 'kafka-topic',
   });
   const snowflakePlatforms = useQuery({
-    queryKey: ['platforms', 'snowflake'],
+    queryKey: platformKeys.ofKind('snowflake'),
     queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === SNOWFLAKE_KIND),
     enabled: type === 'snowflake-database',
   });
   const [dtPlatform, setDtPlatform] = useState<string | null>(component?.dependencyTrack?.platformId ?? null);
   const [dtProject, setDtProject] = useState(component?.dependencyTrack?.project ?? '');
   const dtPlatforms = useQuery({
-    queryKey: ['platforms', 'dependency-track'],
+    queryKey: platformKeys.ofKind('dependency-track'),
     queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === DTRACK_KIND),
   });
   const awsPlatforms = useQuery({
-    queryKey: ['platforms', 'aws'],
+    queryKey: platformKeys.ofKind('aws'),
     queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === AWS_KIND),
     enabled: type === 'cloud-account',
   });
   const gitPlatforms = useQuery({
-    queryKey: ['platforms', 'git'],
+    queryKey: platformKeys.ofKind('git'),
     queryFn: async () =>
       (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => (GIT_PLATFORM_KINDS as readonly string[]).includes(p.kind)),
     enabled: type === 'repository',

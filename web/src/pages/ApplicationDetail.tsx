@@ -23,6 +23,7 @@ import { RunsOnPanel } from '../components/catalogue/RunsOnPanel';
 import { CatalogueCredentials } from '../components/catalogue/CatalogueCredentials';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { OwningTeams } from '../components/OwningTeams';
+import { platformKeys } from '../queryKeys';
 
 export function ApplicationDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
@@ -263,7 +264,7 @@ function IntegrationsPanel({ app, onSaved }: { app: ApplicationDetail; onSaved: 
 
 function AddPlatformModal({ app, onClose, onSaved }: { app: ApplicationDetail; onClose: () => void; onSaved: (a: ApplicationDetail) => void }) {
   const { t } = useTranslation(['applications', 'common']);
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const mapped = new Set(app.integrations.map((i) => i.platformId));
   const [platformId, setPlatformId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

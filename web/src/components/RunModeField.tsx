@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import type { Platform, PlatformRecording } from '@sm/shared';
 import { get } from '../api';
+import { platformKeys } from '../queryKeys';
 
 /**
  * How a run treats the platforms (#137): a dry run executes reads and only records writes, a test run answers every
@@ -20,10 +21,10 @@ function RecordingCounts({ platformIds }: { platformIds: string[] }) {
   const { t } = useTranslation('runs');
   const ids = [...new Set(platformIds.filter(Boolean))];
   const platforms = useQueries({
-    queries: ids.map((id) => ({ queryKey: ['platform', id], queryFn: () => get<Platform>(`/platforms/${id}`) })),
+    queries: ids.map((id) => ({ queryKey: platformKeys.detail(id), queryFn: () => get<Platform>(`/platforms/${id}`) })),
   });
   const recordings = useQueries({
-    queries: ids.map((id) => ({ queryKey: ['platform-recordings', id], queryFn: () => get<PlatformRecording[]>(`/platforms/${id}/recordings`) })),
+    queries: ids.map((id) => ({ queryKey: platformKeys.recordings(id), queryFn: () => get<PlatformRecording[]>(`/platforms/${id}/recordings`) })),
   });
   if (!ids.length) return null;
   return (

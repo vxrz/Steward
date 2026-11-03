@@ -36,6 +36,7 @@ import { BRAND } from '../../../shared/src/brand';
 import { EnvironmentInput } from '../components/catalogue/environments';
 import { confirmDanger } from '../components/confirm';
 import { fmtDate, fmtRelative } from '../format';
+import { platformKeys } from '../queryKeys';
 
 export const KIND_COLORS: Record<string, string> = {
   'insights-hub': 'teal',
@@ -71,7 +72,7 @@ export function PlatformsPage() {
   const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
   const [typesOpen, setTypesOpen] = useState(false);
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const { caps } = useMe();
   const [q, setQ] = useState('');
   const [kind, setKind] = useState<string | null>(null);
@@ -263,9 +264,9 @@ async function importConnector(file: File): Promise<string | null> {
 function ConnectorTypesModal({ opened, onClose, canManage }: { opened: boolean; onClose: () => void; canManage: boolean }) {
   const { t } = useTranslation(['platforms', 'common']);
   const qc = useQueryClient();
-  const presets = useQuery({ queryKey: ['platform-presets'], queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: opened });
+  const presets = useQuery({ queryKey: platformKeys.presets, queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: opened });
   const custom = (presets.data ?? []).filter((p) => p.custom);
-  const refresh = () => qc.invalidateQueries({ queryKey: ['platform-presets'] });
+  const refresh = () => qc.invalidateQueries({ queryKey: platformKeys.presets });
   return (
     <Modal opened={opened} onClose={onClose} title={t('types.title')} size="lg">
       <Stack>
@@ -360,7 +361,7 @@ function ConnectorTypesModal({ opened, onClose, canManage }: { opened: boolean; 
 function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onClose: () => void; onCreated: (id: string) => void }) {
   const { t } = useTranslation(['platforms', 'common']);
   const qc = useQueryClient();
-  const presets = useQuery({ queryKey: ['platform-presets'], queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: opened });
+  const presets = useQuery({ queryKey: platformKeys.presets, queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: opened });
   const [preset, setPreset] = useState<PlatformPreset | null>(null);
   const [name, setName] = useState('');
   const [environment, setEnvironment] = useState('');
@@ -409,7 +410,7 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
         secrets: filtered,
         typeKind: preset.custom ? preset.kind : undefined,
       });
-      await qc.invalidateQueries({ queryKey: ['platforms'] });
+      await qc.invalidateQueries({ queryKey: platformKeys.all });
       notifyOk(t('addModal.created', { name: p.name }));
       onClose();
       onCreated(p.id);

@@ -23,13 +23,14 @@ import type { Platform, PlatformDoc } from '@sm/shared';
 import { api, del, get, notifyError, notifyOk, post, apiUrl } from '../../api';
 import { Markdown } from '../common';
 import { fmtBytes, fmtDate } from '../../format';
+import { platformKeys } from '../../queryKeys';
 
 const fmtSize = (n?: number): string => (n ? fmtBytes(n) : '');
 
 export function DocsTab({ platform, readOnly = false }: { platform: Platform; readOnly?: boolean }) {
   const { t } = useTranslation(['platforms', 'common']);
   const qc = useQueryClient();
-  const docs = useQuery({ queryKey: ['platform', platform.id, 'docs'], queryFn: () => get<PlatformDoc[]>(`/platforms/${platform.id}/docs`) });
+  const docs = useQuery({ queryKey: platformKeys.docs(platform.id), queryFn: () => get<PlatformDoc[]>(`/platforms/${platform.id}/docs`) });
   const [kind, setKind] = useState<'note' | 'link' | 'file'>('note');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -39,7 +40,7 @@ export function DocsTab({ platform, readOnly = false }: { platform: Platform; re
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [removing, setRemoving] = useState<PlatformDoc | null>(null);
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ['platform', platform.id, 'docs'] });
+  const refresh = () => qc.invalidateQueries({ queryKey: platformKeys.docs(platform.id) });
 
   const canAdd = kind === 'note' ? !!title.trim() && !!content.trim() : kind === 'link' ? /^https?:\/\//i.test(url) : !!file;
 

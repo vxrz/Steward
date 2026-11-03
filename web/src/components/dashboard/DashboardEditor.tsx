@@ -39,6 +39,7 @@ import {
 import { get } from '../../api';
 import { defaultWidth } from './widgets';
 import i18n from '../../i18n';
+import { datasetKeys, processKeys } from '../../queryKeys';
 
 /** Widget type name and description in the UI language (descriptions default to WIDGET_INFO in shared/). */
 export const widgetLabel = (type: WidgetType): string => i18n.t(`dashboards:widgets.${type}.label`);
@@ -246,8 +247,8 @@ function WidgetForm({ widget, onClose, onSave }: { widget: DashboardWidget; onCl
   useEffect(() => {
     if (w.type === 'vega' && !specError) setW((x) => ({ ...x, spec: JSON.parse(specText) as Record<string, unknown> }));
   }, [w.type, specText, specError]);
-  const datasets = useQuery({ queryKey: ['datasets'], queryFn: () => get<DatasetMeta[]>('/datasets') });
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes'), enabled: w.type === 'checks' });
+  const datasets = useQuery({ queryKey: datasetKeys.all, queryFn: () => get<DatasetMeta[]>('/datasets') });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes'), enabled: w.type === 'checks' });
   const meta = datasets.data?.find((d) => d.key === w.dataset);
   const metricNames = Object.keys(meta?.metrics ?? {});
   const usesDataset = ['kpi', 'trend', 'status', 'table', 'vega'].includes(w.type);

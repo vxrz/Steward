@@ -48,6 +48,7 @@ import { confirmDanger } from '../components/confirm';
 import { appUrl } from '../basePath';
 import { RunModeField } from '../components/RunModeField';
 import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/notify/NotifyPolicy';
+import { processKeys } from '../queryKeys';
 
 type Draft = WebhookTriggerSettings & { id?: string; owner?: string };
 
@@ -367,9 +368,9 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
   const { t } = useTranslation(['triggers', 'common']);
   const [d, setD] = useState<Draft>(draft);
   const [sample, setSample] = useState(JSON.stringify(GATUS_SAMPLE, null, 2));
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
   const proc = useQuery({
-    queryKey: ['process', d.processId],
+    queryKey: processKeys.detail(d.processId),
     queryFn: () => get<ProcessDetail>(`/processes/${d.processId}`),
     enabled: !!d.processId,
   });

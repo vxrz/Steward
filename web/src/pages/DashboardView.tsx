@@ -17,13 +17,14 @@ import { DashboardEditor } from '../components/dashboard/DashboardEditor';
 import { confirmDanger } from '../components/confirm';
 import '../components/dashboard/viz.css';
 import { OwningTeams } from '../components/OwningTeams';
+import { dashboardKeys } from '../queryKeys';
 
 export function DashboardViewPage() {
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const dash = useQuery({ queryKey: ['dashboard', id], queryFn: () => get<Dashboard>(`/dashboards/${id}`), enabled: !!id });
+  const dash = useQuery({ queryKey: dashboardKeys.detail(id), queryFn: () => get<Dashboard>(`/dashboards/${id}`), enabled: !!id });
   const [draft, setDraft] = useState<DashboardDefinition | null>(null);
   const [fastUntil, setFastUntil] = useState(0);
   const [statusFilter, setStatusFilter] = useState<{ dataset: string; status: DatasetStatus } | null>(null);
@@ -105,8 +106,8 @@ export function DashboardViewPage() {
     setBusy(true);
     try {
       const saved = await put<Dashboard>(`/dashboards/${d.id}`, { definition: draft });
-      qc.setQueryData(['dashboard', id], saved);
-      qc.invalidateQueries({ queryKey: ['dashboards'] });
+      qc.setQueryData(dashboardKeys.detail(id), saved);
+      qc.invalidateQueries({ queryKey: dashboardKeys.all });
       setDraft(null);
       notifyOk(t('view.saved'));
     } catch (e) {
@@ -170,7 +171,7 @@ export function DashboardViewPage() {
                         if (!(await confirmDanger({ action: 'delete', message: t('view.deleteConfirm', { name: d.name }) }))) return;
                         try {
                           await del(`/dashboards/${d.id}`);
-                          qc.invalidateQueries({ queryKey: ['dashboards'] });
+                          qc.invalidateQueries({ queryKey: dashboardKeys.all });
                           navigate('/dashboards');
                         } catch (e) {
                           notifyError(e);

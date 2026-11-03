@@ -8,6 +8,7 @@ import type { Platform, PlatformPreset, ProcessDetail, ProcessTemplate } from '@
 import { get, notifyError, post } from '../api';
 import { DescriptionText, descriptionPlain } from './DescriptionText';
 import { RunDialog } from './RunDialog';
+import { platformKeys, processKeys } from '../queryKeys';
 
 /** Fields a newer server may add to a template (tolerated, used when present). */
 type TemplateInfo = ProcessTemplate & {
@@ -37,8 +38,8 @@ export function TemplateGallery({ opened, onClose }: { opened: boolean; onClose:
   const navigate = useNavigate();
   const qc = useQueryClient();
   const templates = useQuery({ queryKey: ['templates'], queryFn: () => get<TemplateInfo[]>('/templates'), enabled: opened });
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms'), enabled: opened });
-  const presets = useQuery({ queryKey: ['platform-presets'], queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: opened, retry: false });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms'), enabled: opened });
+  const presets = useQuery({ queryKey: platformKeys.presets, queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: opened, retry: false });
   const [search, setSearch] = useState('');
   const [kind, setKind] = useState<string | null>(null);
   const [mine, setMine] = useState(false);
@@ -70,7 +71,7 @@ export function TemplateGallery({ opened, onClose }: { opened: boolean; onClose:
     setBusy(tpl.id);
     try {
       const p = await post<ProcessDetail>('/processes', { templateId: tpl.id });
-      qc.invalidateQueries({ queryKey: ['processes'] });
+      qc.invalidateQueries({ queryKey: processKeys.all });
       setCreated(p);
     } catch (e) {
       notifyError(e);

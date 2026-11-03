@@ -122,6 +122,7 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
 - **UI:**
   - Use Mantine components, and make it work in light and dark mode, at 390 px width and with the keyboard.
   - Give icon buttons an `aria-label`.
+  - Take TanStack Query keys from the factories in `web/src/queryKeys.ts` (`runKeys.detail(id)`, `platformKeys.all`), so a query and its invalidations use the same key; add a factory for a feature you touch that still writes its keys inline.
   - Build pages from the shared pieces in `web/src/components/common.tsx`: `PageHeader` (with `back` on detail pages), `EmptyState` and `QueryState` for lists, `StatusBadge`/`TONE` for status colours. A new page goes into a sidebar section in `web/src/components/AppNav.tsx`. Clickable cards and rows need a real link inside. See [docs/UX-REVIEW.md](docs/UX-REVIEW.md).
   - Put user-facing text in the translation files (`web/src/locales/<lang>/`), English first, and run `npm run i18n:check` and `npm run i18n:literals` (finds texts that do not go through `t()`). See [docs/I18N.md](docs/I18N.md).
   - Give every error a person can see a code and its details: `new HttpError(400, 'English message', 'CODE', { details })`, plus `errors:codes.CODE` in the locale files ([docs/I18N.md](docs/I18N.md#server-errors)). Format dates and numbers with `web/src/format.ts`.

@@ -13,6 +13,7 @@ import { EmptyState, FilterPanel, PageHeader, QueryState, useCreateParam } from 
 import { RecordStatusBadge } from '../components/records/common';
 import { KindBadge, RightsDiff } from '../components/compliance/common';
 import { fmtDate } from '../format';
+import { platformKeys } from '../queryKeys';
 
 /** Compliance → Access changes: every documented grant, revocation and change of access rights (records of the type "Access change"). */
 export function AccessChangesPage() {
@@ -24,7 +25,7 @@ export function AccessChangesPage() {
   const status = params.get('status');
   const [creating, setCreating] = useState(false);
   const meta = useQuery({ queryKey: ['records-meta'], queryFn: () => get<RecordsMeta>('/records/meta') });
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const q = new URLSearchParams();
   if (platform) q.set('platformId', platform);
   if (status) q.set('status', status);

@@ -9,6 +9,7 @@ import { post } from '../../api';
 import { Hint, JsonView, KeyValueEditor } from '../common';
 import { errorText } from '../../i18n/errors';
 import { fmtNumber } from '../../format';
+import { platformKeys } from '../../queryKeys';
 
 export interface ExplorerPreset {
   method: string;
@@ -218,7 +219,7 @@ export function ExplorerTab({ platform, preset, canWrite = true }: { platform: P
           onClose={() => setRecording(false)}
           onSaved={() => {
             setRecording(false);
-            void qc.invalidateQueries({ queryKey: ['platform-recordings', platform.id] });
+            void qc.invalidateQueries({ queryKey: platformKeys.recordings(platform.id) });
           }}
         />
       )}

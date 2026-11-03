@@ -26,6 +26,7 @@ import { useMe } from '../auth';
 import { PageHeader, QueryState, TONE } from '../components/common';
 import { CronPreview } from '../components/CronPreview';
 import { fmtBytes, fmtDate, fmtRelative, runDuration } from '../format';
+import { platformKeys } from '../queryKeys';
 
 const MIN_PASSPHRASE = 16;
 
@@ -62,7 +63,7 @@ export function BackupsPage() {
     enabled: isAdmin,
     refetchInterval: (q) => (q.state.data?.running ? 2000 : false),
   });
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms'), enabled: isAdmin });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms'), enabled: isAdmin });
   const [draft, setDraft] = useState<BackupSettings | null>(null);
   const [pass, setPass] = useState({ a: '', b: '' });
   const [stored, setStored] = useState<StoredBackup[] | null>(null);

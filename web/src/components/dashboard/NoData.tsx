@@ -7,6 +7,7 @@ import { get } from '../../api';
 import { errorText } from '../../i18n/errors';
 import { isNotFound } from './data';
 import { useMe } from '../../auth';
+import { datasetKeys } from '../../queryKeys';
 
 /**
  * A widget without data, in plain words and by role: viewers learn who fills it ("ask a designer to schedule
@@ -19,7 +20,7 @@ export function NoData({ dataset, error }: { dataset?: string; error?: unknown }
   const { caps } = useMe();
   const empty = !error || isNotFound(error);
   const publishers = useQuery({
-    queryKey: ['dataset-publishers', dataset],
+    queryKey: datasetKeys.publishers(dataset),
     queryFn: () => get<DatasetPublisher[]>(`/datasets/${encodeURIComponent(dataset!)}/publishers`),
     enabled: !!dataset && empty,
     staleTime: 60000,

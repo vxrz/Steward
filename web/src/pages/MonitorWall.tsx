@@ -8,13 +8,14 @@ import type { MonitorStatus, MonitorSummary } from '@sm/shared';
 import { get } from '../api';
 import { MONITOR_COLORS, causeText, fmtUptime, monitorStatusLabel } from '../components/monitors/status';
 import { fmtRelative } from '../format';
+import { monitorKeys } from '../queryKeys';
 
 const ORDER: Record<MonitorStatus, number> = { down: 0, degraded: 1, unknown: 2, blocked: 3, maintenance: 4, up: 5 };
 
 /** Status grid for a wall display: problems first, refreshed every 10 seconds. */
 export function MonitorWallPage() {
   const { t } = useTranslation('monitors');
-  const q = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors'), refetchInterval: 10000 });
+  const q = useQuery({ queryKey: monitorKeys.all, queryFn: () => get<MonitorSummary[]>('/monitors'), refetchInterval: 10000 });
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 10000);

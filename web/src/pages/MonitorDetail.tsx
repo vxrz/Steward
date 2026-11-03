@@ -41,6 +41,7 @@ import { confirmDanger, confirmDialog } from '../components/confirm';
 import { appUrl } from '../basePath';
 import { MonitorReviewModal, useCanStartReview } from '../components/records/IncidentReview';
 import { OwningTeams } from '../components/OwningTeams';
+import { monitorKeys } from '../queryKeys';
 
 export function MonitorDetailPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -50,7 +51,7 @@ export function MonitorDetailPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const isMobile = useMediaQuery('(max-width: 62em)') ?? false;
-  const q = useQuery({ queryKey: ['monitor', id], queryFn: () => get<MonitorDetail>(`/monitors/${id}`), refetchInterval: 5000 });
+  const q = useQuery({ queryKey: monitorKeys.detail(id), queryFn: () => get<MonitorDetail>(`/monitors/${id}`), refetchInterval: 5000 });
   const [busy, setBusy] = useState(false);
   const [maint, setMaint] = useState(false);
   const [reviewing, setReviewing] = useState(false);
@@ -60,7 +61,7 @@ export function MonitorDetailPage() {
   const [secrets, setSecrets] = useState<(Pick<MonitorSaveResult, 'secrets'> & { monitor?: MonitorDetail }) | null>(null);
   const selected = search.get('check');
   const select = (c: string | null) => setSearch(c ? { check: c } : {}, { replace: true });
-  const refresh = () => qc.invalidateQueries({ queryKey: ['monitor', id] });
+  const refresh = () => qc.invalidateQueries({ queryKey: monitorKeys.detail(id) });
 
   const m = q.data;
   if (!m) return <DetailState query={q} back="monitors" />;
@@ -187,7 +188,7 @@ export function MonitorDetailPage() {
                       if (!(await confirmDanger({ action: 'delete', message: t('detail.deleteConfirm', { name: m.name }) }))) return;
                       try {
                         await del(`/monitors/${m.id}`);
-                        qc.invalidateQueries({ queryKey: ['monitors'] });
+                        qc.invalidateQueries({ queryKey: monitorKeys.all });
                         navigate('/monitors');
                       } catch (e) {
                         notifyError(e);
@@ -459,11 +460,11 @@ function CheckPanel({
   hideTitle?: boolean;
 }) {
   const results = useQuery({
-    queryKey: ['monitor-results', monitor.id, c.checkId, c.last?.ts],
+    queryKey: monitorKeys.results(monitor.id, c.checkId, c.last?.ts),
     queryFn: () => get<CheckResultInfo[]>(`/monitors/${monitor.id}/checks/${encodeURIComponent(c.checkId)}/results?limit=20`),
   });
   const history = useQuery({
-    queryKey: ['monitor-history', monitor.id, c.checkId, c.since],
+    queryKey: monitorKeys.history(monitor.id, c.checkId, c.since),
     queryFn: () => get<MonitorHistoryEntry[]>(`/monitors/${monitor.id}/history?check=${encodeURIComponent(c.checkId)}&limit=20`),
   });
   const def = monitor.definition.checks.find((x) => x.id === c.checkId);
@@ -676,7 +677,7 @@ function HeartbeatSetup({ monitor, onSecret }: { monitor: MonitorDetail; onSecre
 
 function HistoryList({ monitor }: { monitor: MonitorDetail }) {
   const h = useQuery({
-    queryKey: ['monitor-history', monitor.id, 'all', monitor.lastEvaluatedAt],
+    queryKey: monitorKeys.history(monitor.id, 'all', monitor.lastEvaluatedAt),
     queryFn: () => get<MonitorHistoryEntry[]>(`/monitors/${monitor.id}/history?limit=200`),
   });
   const name = new Map(monitor.checks.map((c) => [c.checkId, c.name]));
@@ -726,7 +727,7 @@ function HistoryList({ monitor }: { monitor: MonitorDetail }) {
 function MaintenanceList({ monitor, onPlan }: { monitor: MonitorDetail; onPlan: () => void }) {
   const { t } = useTranslation('monitors');
   const w = useQuery({
-    queryKey: ['monitor-maintenance', monitor.id, monitor.maintenance?.id],
+    queryKey: monitorKeys.maintenance(monitor.id, monitor.maintenance?.id),
     queryFn: () => get<MaintenanceWindow[]>(`/monitors/${monitor.id}/maintenance`),
   });
   return (

@@ -16,6 +16,7 @@ import { fmtDate, fmtNumber } from '../../format';
 import { monitorStatusLabel } from './status';
 import { appUrl } from '../../basePath';
 import { PlatformChoices, chosenPlatforms, platformsComplete } from './PlatformChoices';
+import { monitorKeys } from '../../queryKeys';
 
 export function CopyBlock({ label, text }: { label: string; text: string }) {
   const { t } = useTranslation('common');
@@ -309,7 +310,7 @@ function usePlatformRefs(source: { example: string } | { yaml: string } | null) 
 }
 
 export function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: (r: MonitorSaveResult) => void }) {
-  const examples = useQuery({ queryKey: ['monitor-examples'], queryFn: () => get<Example[]>('/monitors/examples') });
+  const examples = useQuery({ queryKey: monitorKeys.examples, queryFn: () => get<Example[]>('/monitors/examples') });
   const [yaml, setYaml] = useState('');
   const [example, setExample] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
