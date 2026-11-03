@@ -237,6 +237,13 @@ export const VARS = {
       readme: true,
     },
   ),
+  SM_SHUTDOWN_GRACE_SECONDS: v(int(25, 0, 3600), {
+    group: 'Server and network',
+    default: '25',
+    description:
+      'On SIGTERM/SIGINT: how long running steps may still finish before their runs are marked interrupted. Give the container a little more (Docker `stop_grace_period`, Kubernetes `terminationGracePeriodSeconds`), see [docs/INSTALL.md](docs/INSTALL.md)',
+    readme: true,
+  }),
   SM_TRUST_PROXY: v(parsedBy('SM_TRUST_PROXY', parseTrustProxy), {
     group: 'Server and network',
     default: '– (off)',
@@ -351,6 +358,19 @@ export const VARS = {
     default: '600',
     description:
       "Requests per minute and signed-in user (otherwise per client address) on the web app's API, webhooks and web UI files; expensive actions have lower limits of their own; `0` = off. See [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#request-rate-limits)",
+    readme: true,
+  }),
+  SM_MAX_CONCURRENT_RUNS: v(int(20, 0, 10000), {
+    group: 'Limits',
+    default: '20',
+    description:
+      'Runs at the same time; more wait in status _queued_ (first come, first served) until one ends or waits for a decision. `0`: no limit',
+    readme: true,
+  }),
+  SM_EVENT_LOOP_WARN_MS: v(int(1000, 50), {
+    group: 'Limits',
+    default: '1000',
+    description: 'A warning is logged when the event loop was blocked longer (at most once a minute); `sm_event_loop_lag_seconds` has the p99',
     readme: true,
   }),
   SM_EXPR_TIMEOUT_MS: v(int(5000, 1), { group: 'Limits', default: '5000', description: 'Time limit of one JSONata expression evaluation (ms)' }),

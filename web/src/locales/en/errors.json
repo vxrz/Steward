@@ -749,7 +749,11 @@
     "FORBIDDEN_runProcess": "You are not allowed to run this process.",
     "KAFKA_LIST_FAILED": "The Kafka cluster could not be read: {{detail}}",
     "TOPIC_PREFIX_LIMIT": "An application keeps at most {{max}} topic prefixes in sync.",
-    "TOPIC_PREFIX_NOT_FOUND": "This topic prefix is not kept in sync for the application."
+    "TOPIC_PREFIX_NOT_FOUND": "This topic prefix is not kept in sync for the application.",
+    "JOB_NOT_FOUND": "This background job does not exist.",
+    "JOB_RUNNING": "This background job is running already. Try again when it has finished.",
+    "SHUTTING_DOWN": "Steward is shutting down: no new runs start now. Try again after the restart.",
+    "WAITING_FOR_DATABASE_LEASE": "Steward is starting: another instance still uses the database. Try again in a moment."
   },
   "boundary": {
     "title": "Something went wrong on this page",

@@ -12,6 +12,8 @@ services:
     image: ghcr.io/vxrz/steward:0.3.0
     build: .
     restart: unless-stopped
+    # SIGTERM gives running steps SM_SHUTDOWN_GRACE_SECONDS (25) to finish; Docker's default would kill after 10 s
+    stop_grace_period: 30s
     depends_on:
       postgres:
         condition: service_healthy

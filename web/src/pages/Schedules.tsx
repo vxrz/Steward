@@ -30,7 +30,7 @@ const PRESETS = [
   { key: 'quarterly', cron: '0 6 1 1,4,7,10 *' },
 ] as const;
 
-type Draft = Omit<Schedule, 'id' | 'createdAt' | 'processName' | 'lastRunAt' | 'lastRunId' | 'lastRunStatus' | 'nextRunAt'> & { id?: string };
+type Draft = Omit<Schedule, 'id' | 'createdAt' | 'processName' | 'lastRunAt' | 'lastRunId' | 'lastRunStatus' | 'nextRunAt' | 'missed'> & { id?: string };
 
 const emptyDraft = (): Draft => ({
   name: '',
@@ -42,8 +42,29 @@ const emptyDraft = (): Draft => ({
   dryRun: false,
   enabled: true,
   allowOverlap: false,
+  catchUp: 'none',
   notify: { ...DEFAULT_SCHEDULE_NOTIFY },
 });
+
+const MISSED_SHOWN_DAYS = 7;
+
+/** Fires missed while Steward was not running (found at its last start), for a week after they were found. */
+function MissedBadge({ missed }: { missed?: Schedule['missed'] }) {
+  const { t } = useTranslation('schedules');
+  if (!missed || Date.now() - Date.parse(missed.detectedAt) > MISSED_SHOWN_DAYS * 86400000) return null;
+  const times = missed.times.map((x) => fmtDate(x)).join(', ') + (missed.count > missed.times.length ? ` … (${missed.count})` : '');
+  return (
+    <Tooltip
+      multiline
+      maw={360}
+      label={`${t('missed.tooltip', { times, when: fmtDate(missed.detectedAt) })} ${missed.catchUp ? t('missed.caughtUp') : t('missed.notCaughtUp')}`}
+    >
+      <Badge size="xs" color="orange" variant="light" data-testid="schedule-missed">
+        {t('missed.badge', { count: missed.count })}
+      </Badge>
+    </Tooltip>
+  );
+}
 
 export function SchedulesPage() {
   const { t } = useTranslation(['schedules', 'common']);
@@ -136,6 +157,7 @@ export function SchedulesPage() {
                         {s.name}
                       </Text>
                       <PauseBadge pause={s.notify?.pause} />
+                      <MissedBadge missed={s.missed} />
                     </Group>
                     <Text size="xs" c="dimmed">
                       <Link to={`/processes/${s.processId}`}>{s.processName}</Link>
@@ -347,6 +369,12 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
           description={t('form.overlapHint')}
           checked={d.allowOverlap}
           onChange={(e) => setD({ ...d, allowOverlap: e.currentTarget.checked })}
+        />
+        <Switch
+          label={t('form.catchUp')}
+          description={t('form.catchUpHint')}
+          checked={d.catchUp === 'once'}
+          onChange={(e) => setD({ ...d, catchUp: e.currentTarget.checked ? 'once' : 'none' })}
         />
         <NotifyPolicyFields value={d.notify ?? DEFAULT_SCHEDULE_NOTIFY} onChange={(notify) => setD({ ...d, notify })} />
         <Group justify="flex-end">

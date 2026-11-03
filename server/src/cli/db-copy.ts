@@ -12,7 +12,7 @@
  * Stop the app first. The vault file (vault.json), artifacts, reports and uploaded docs stay
  * in the data directory – keep using the same SM_DATA_DIR.
  */
-import '../bootstrap.js';
+import '../warnings.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config, env } from '../config.js';
@@ -32,8 +32,8 @@ export interface CopyResult {
   tables: { name: string; rows: number }[];
 }
 
-/** Tables maintained by the migrations themselves. */
-const META = new Set(['schema_version', 'schema_migrations']);
+/** Tables maintained by the migrations themselves, and the single-instance lease of a running instance (database/lease.ts). */
+const META = new Set(['schema_version', 'schema_migrations', 'sm_instance_lease']);
 const FETCH = 1000;
 /** Bound parameters per INSERT (PostgreSQL allows 65535, SQLite 32766). */
 const MAX_PARAMS = 30000;

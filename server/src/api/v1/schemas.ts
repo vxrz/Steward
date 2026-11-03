@@ -387,6 +387,18 @@ export const Schedule = z.object({
   lastRunStatus: z.enum(RUN_STATUSES).nullable(),
   createdAt: ts(),
   notify: NotifyPolicy,
+  catchUp: z.enum(['none', 'once']).describe('After a start that found missed fires: once = one run right away, none = wait for the next fire'),
+  missed: z
+    .object({
+      detectedAt: ts(),
+      from: ts(),
+      count: z.number().int(),
+      times: z.array(z.string()).describe('The first missed fires (at most 10)'),
+      last: nullableTs('The last missed fire'),
+      catchUp: z.boolean().describe('One catch-up run was started'),
+    })
+    .nullable()
+    .describe('Fires missed the last time Steward was not running (null: none found)'),
 });
 
 export const Trigger = z

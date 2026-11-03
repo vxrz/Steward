@@ -356,19 +356,4 @@ export function verificationResult(r: VerifyOutcome, checkpoint: AuditCheckpoint
   return publicResult(r, checkpoint ? { checkpoint } : {});
 }
 
-let timer: NodeJS.Timeout | undefined;
-export function startAuditJobs(): void {
-  if (timer) return;
-  timer = setInterval(() => {
-    void createCheckpoint('interval').catch((err) => logger.warn({ err }, 'audit checkpoint failed'));
-    // the full verification every SM_AUDIT_FULL_VERIFY_DAYS (background, audit-archive.ts)
-    void import('./audit-archive.js')
-      .then((m) => m.scheduledFullVerification())
-      .catch((err) => logger.warn({ err }, 'scheduled full verification of the audit chain failed'));
-  }, CHECKPOINT_INTERVAL_MINUTES * 60_000);
-  timer.unref();
-}
-export function stopAuditJobs(): void {
-  if (timer) clearInterval(timer);
-  timer = undefined;
-}
+// Interval checkpoints are a background job (jobs/builtin.ts, job "audit-checkpoint").

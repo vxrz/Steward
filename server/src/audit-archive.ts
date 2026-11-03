@@ -615,7 +615,7 @@ export function startFullVerification(by = currentActor()): { started: boolean }
 /** Tests: the running full verification (or null). */
 export const runningFullVerification = (): Promise<VerifyOutcome> | null => fullJob?.done ?? null;
 
-/** The scheduled full verification (hourly tick of the audit jobs): every FULL_VERIFY_DAYS. */
+/** The scheduled full verification (hourly job "audit-full-verification", jobs/builtin.ts): every FULL_VERIFY_DAYS. */
 export function scheduledFullVerification(now = Date.now()): boolean {
   if (!FULL_VERIFY_DAYS || fullJob || !vault().unlocked) return false;
   const last = lastVerifications().full;

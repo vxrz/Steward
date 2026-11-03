@@ -44,6 +44,7 @@ export const NOT_MOVED: Record<string, string> = {
   daily_summary_sends: 'send bookkeeping of the source',
   duty_notifications: 'send bookkeeping of the source (a reminder of the current period may be sent again on the target)',
   engine_probe: 'internal',
+  background_jobs: 'state of the background jobs of the source (the target keeps its own)',
   sync_sources: 'instance-specific (Git sync is set up on the target again)',
   sync_items: 'belongs to the Git sync sources',
   sync_updates: 'belongs to the Git sync sources',

@@ -29,7 +29,7 @@ beforeAll(async () => {
     SM_SENTRY_TRACES_SAMPLE_RATE: '0.5', // must be ignored: OpenTelemetry export is on below
     SM_SMTP_PASSWORD: ENV_SECRET,
   });
-  await import('../src/bootstrap.js');
+  await import('../src/warnings.js');
   const { config, ensureDataDirs } = await import('../src/config.js');
   ensureDataDirs();
   // OpenTelemetry tracing and error reporting at the same time

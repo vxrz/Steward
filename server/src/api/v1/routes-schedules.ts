@@ -28,6 +28,8 @@ const mapSchedule = (s: ReturnType<typeof scheduler.getSchedule>) => ({
   lastRunStatus: s.lastRunStatus ?? null,
   createdAt: s.createdAt,
   notify: fullPolicy(s.notify, DEFAULT_SCHEDULE_NOTIFY),
+  catchUp: s.catchUp ?? 'none',
+  missed: s.missed ?? null,
 });
 
 const mapTrigger = (t: ReturnType<typeof triggers.getTrigger>) => ({

@@ -56,7 +56,7 @@ export async function startTestServer(opts: { dataDir?: string; routes?: (app: F
   // local ports come from the same range) can never take it between choosing and binding.
   process.env.SM_PORT = '0';
   process.env.SM_DEMO = '1';
-  await import('../src/bootstrap.js');
+  await import('../src/warnings.js');
   const { config, ensureDataDirs } = await import('../src/config.js');
   ensureDataDirs();
   const { buildApp } = await import('../src/app.js');

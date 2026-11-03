@@ -749,7 +749,11 @@
     "FORBIDDEN_runProcess": "Sie dürfen diesen Prozess nicht ausführen.",
     "KAFKA_LIST_FAILED": "Der Kafka-Cluster konnte nicht gelesen werden: {{detail}}",
     "TOPIC_PREFIX_LIMIT": "Eine Anwendung hält höchstens {{max}} Topic-Präfixe aktuell.",
-    "TOPIC_PREFIX_NOT_FOUND": "Dieses Topic-Präfix wird für die Anwendung nicht aktuell gehalten."
+    "TOPIC_PREFIX_NOT_FOUND": "Dieses Topic-Präfix wird für die Anwendung nicht aktuell gehalten.",
+    "JOB_NOT_FOUND": "Diese Hintergrundaufgabe gibt es nicht.",
+    "JOB_RUNNING": "Diese Hintergrundaufgabe läuft bereits. Versuchen Sie es erneut, wenn sie beendet ist.",
+    "SHUTTING_DOWN": "Steward wird beendet: Es starten jetzt keine neuen Ausführungen. Versuchen Sie es nach dem Neustart erneut.",
+    "WAITING_FOR_DATABASE_LEASE": "Steward startet: Eine andere Instanz verwendet die Datenbank noch. Versuchen Sie es gleich erneut."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

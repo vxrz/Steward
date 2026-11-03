@@ -55,8 +55,16 @@
       "overlap": "Die vorherige Ausführung {{runId}} ist noch nicht abgeschlossen (Status: {{status}})",
       "ownerMissing": "Der Eigentümer {{owner}} fehlt oder ist deaktiviert",
       "mayNotRun": "{{user}} darf diesen Prozess nicht ausführen",
-      "mayNotUsePlatform": "{{user}} darf die Plattform {{platform}} nicht verwenden"
+      "mayNotUsePlatform": "{{user}} darf die Plattform {{platform}} nicht verwenden",
+      "missed": "Er war {{count}}-mal fällig, während Steward nicht lief"
     }
+  },
+  "scheduleMissed": {
+    "title": "Verpasst, während Steward nicht lief: {{name}}",
+    "body": "Der Zeitplan war fällig, während Steward nicht lief (oder sein Tresor gesperrt war): {{times}}.",
+    "more": "insgesamt {{count}}-mal",
+    "catchUp": "Eine Ausführung zum Nachholen wurde gestartet.",
+    "noCatchUp": "Dafür wurde keine Ausführung gestartet; der Zeitplan läuft wieder zu seiner nächsten Zeit."
   },
   "runStatus": {
     "queued": "in Warteschlange",

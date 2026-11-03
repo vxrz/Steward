@@ -104,3 +104,34 @@ export interface UpdateNotice {
   /** When the update was applied (ISO) */
   at: string;
 }
+
+/** How the last run of a background job ended. */
+export type BackgroundJobResult = 'succeeded' | 'failed' | 'timedOut';
+
+/**
+ * GET /api/system/jobs (administrators): the periodic background jobs (reminders, integrations, clean-up, audit
+ * checkpoints) and how their last run went. The state is kept in the database, so it survives restarts.
+ */
+export interface BackgroundJob {
+  name: string;
+  /** Interval in seconds, or `cron` */
+  everySeconds: number | null;
+  cron: string | null;
+  timeoutSeconds: number;
+  running: boolean;
+  runningSince: string | null;
+  lastStartedAt: string | null;
+  lastFinishedAt: string | null;
+  lastDurationMs: number | null;
+  lastResult: BackgroundJobResult | null;
+  lastError: string | null;
+  lastSuccessAt: string | null;
+  /** Whether the last run was planned or started with "Run now" */
+  lastTrigger: 'schedule' | 'manual' | null;
+  /** null while the job runner is stopped */
+  nextRunAt: string | null;
+  runs: number;
+  failures: number;
+  /** Starts skipped because the previous run had not ended yet */
+  skipped: number;
+}

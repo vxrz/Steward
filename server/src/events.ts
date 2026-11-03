@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { logger } from './log.js';
 
 /** Why a schedule did not start a run (translated in notifications). */
-export type ScheduleSkipReason = 'overlap' | 'ownerMissing' | 'mayNotRun' | 'mayNotUsePlatform';
+export type ScheduleSkipReason = 'overlap' | 'ownerMissing' | 'mayNotRun' | 'mayNotUsePlatform' | 'missed';
 
 /**
  * In-process domain events. Producers (engine, scheduler, datasets, HTTP client)
@@ -104,6 +104,8 @@ export interface DomainEvents {
     reason: string;
     reasonCode?: ScheduleSkipReason;
     reasonVars?: Record<string, string>;
+    /** reasonCode 'missed': the fires missed while Steward was not running (the first ones, ISO) and whether one catch-up run starts */
+    missed?: { times: string[]; count: number; catchUp: boolean };
   };
   /** MCP endpoint: one per JSON-RPC message (outcome ok, error or a refusal reason) */
   'mcp.request': { method: string; outcome: string };
