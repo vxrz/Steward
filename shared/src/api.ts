@@ -1069,6 +1069,27 @@ export interface Schedule {
   canEdit?: boolean;
   /** Notification policy of its runs (#127, #139); missing in input: unchanged (new schedules: on change). `pause` is set with the pause and resume actions. */
   notify?: ScheduleNotify;
+  /** After a start that found missed fires: 'once' starts one run right away, 'none' (default) waits for the next fire. Missing in input: unchanged. */
+  catchUp?: ScheduleCatchUp;
+  /** The fires missed the last time Steward was not running (set at start; null: none found yet). */
+  missed?: ScheduleMissedFires | null;
+}
+
+export const SCHEDULE_CATCH_UP = ['none', 'once'] as const;
+export type ScheduleCatchUp = (typeof SCHEDULE_CATCH_UP)[number];
+
+/** Fires of a schedule that fell into a time when Steward was not running (or its vault was locked). */
+export interface ScheduleMissedFires {
+  /** When the start found them */
+  detectedAt: string;
+  /** Since when (the last time the scheduler was known to run, or the schedule's last fire) */
+  from: string;
+  count: number;
+  /** The first missed fires (at most 10, ISO) */
+  times: string[];
+  last: string | null;
+  /** Whether one catch-up run was started */
+  catchUp: boolean;
 }
 
 // ---------- Audit ----------

@@ -1,7 +1,16 @@
 import fs from 'node:fs';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { validateProcess, type StartRunRequest, type TaskDecision, MANUAL_LIMITS, boundedRecord, notifyPauseSchema, notifyPolicySchema } from '@sm/shared';
+import {
+  validateProcess,
+  type StartRunRequest,
+  type TaskDecision,
+  MANUAL_LIMITS,
+  boundedRecord,
+  notifyPauseSchema,
+  notifyPolicySchema,
+  SCHEDULE_CATCH_UP,
+} from '@sm/shared';
 import { allAuditAscending } from '../audit.js';
 import { HttpError, MAX_DEFINITION_TEXT, rasterImageType } from '../util.js';
 import * as processes from '../processes/service.js';
@@ -260,6 +269,7 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     dryRun: z.boolean().default(false),
     enabled: z.boolean().default(true),
     allowOverlap: z.boolean().default(false),
+    catchUp: z.enum(SCHEDULE_CATCH_UP).optional(),
     // a pause sent back with the rest is ignored: it has its own actions (below)
     notify: notifyPolicySchema.optional(),
   });

@@ -1,6 +1,15 @@
 import { Cron } from 'croner';
 import { openInputs, sealInputs } from './engine/secret-inputs.js';
-import { DEFAULT_SCHEDULE_NOTIFY, type NotifyPause, type RunStatus, type Schedule, type ScheduleNotify, type ScheduleNotifyMode } from '@sm/shared';
+import {
+  DEFAULT_SCHEDULE_NOTIFY,
+  type NotifyPause,
+  type RunStatus,
+  type Schedule,
+  type ScheduleCatchUp,
+  type ScheduleMissedFires,
+  type ScheduleNotify,
+  type ScheduleNotifyMode,
+} from '@sm/shared';
 import { policyOfColumns } from './engine/notify-source.js';
 import { resetAlerts } from './engine/check-alerts.js';
 import { db } from './db.js';
@@ -15,6 +24,7 @@ import { isAdmin } from './auth/permissions.js';
 import { logger } from './log.js';
 import { isUnexpected, reportError } from './errorReporting.js';
 import { emit, type ScheduleSkipReason } from './events.js';
+import { readSetting, writeSetting } from './settings.js';
 
 interface ScheduleRow {
   id: string;
@@ -40,6 +50,9 @@ interface ScheduleRow {
   notify_change?: string;
   notify_channels?: string | null;
   notify_pause?: string | null;
+  catch_up?: ScheduleCatchUp | null;
+  last_fired_at?: string | null;
+  missed?: string | null;
 }
 
 const notifyOf = (r: ScheduleRow): ScheduleNotify => policyOfColumns(r, DEFAULT_SCHEDULE_NOTIFY);
@@ -68,6 +81,8 @@ function toSchedule(r: ScheduleRow): Schedule {
     owner: r.owner,
     canEdit: canEditSchedule(r),
     notify: notifyOf(r),
+    catchUp: r.catch_up === 'once' ? 'once' : 'none',
+    missed: parseJson<ScheduleMissedFires | null>(r.missed ?? null, null),
   };
 }
 
@@ -158,7 +173,7 @@ export function cronWarnings(cron: string): CronWarning[] {
   ];
 }
 
-type ScheduleInput = Omit<Schedule, 'id' | 'createdAt' | 'processName' | 'lastRunAt' | 'lastRunId' | 'lastRunStatus' | 'nextRunAt'>;
+type ScheduleInput = Omit<Schedule, 'id' | 'createdAt' | 'processName' | 'lastRunAt' | 'lastRunId' | 'lastRunStatus' | 'nextRunAt' | 'missed'>;
 
 export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
   const proc = getProcess(input.processId);
@@ -218,6 +233,8 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
       );
       db().run('UPDATE schedules SET sealed_inputs = ? WHERE id = ?', sealed, sid);
     }
+    // missing in the input (an older client): unchanged
+    if (input.catchUp !== undefined || !id) db().run('UPDATE schedules SET catch_up = ? WHERE id = ?', input.catchUp === 'once' ? 'once' : 'none', sid);
     db().run(
       'UPDATE schedules SET notify_mode = ?, notify_reminder_hours = ?, notify_resolved = ?, notify_change = ?, notify_channels = ? WHERE id = ?',
       notify.mode,
@@ -232,7 +249,15 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
       entityType: 'schedule',
       entityId: sid,
       summary: `Schedule "${input.name}" ${id ? 'updated' : 'created'} (${input.cron}${input.enabled ? '' : ', disabled'}${input.dryRun ? ', dry run' : ''})`,
-      details: { processId: input.processId, cron: input.cron, timezone: input.timezone, inputs: input.inputs, bindings: input.bindings, notify },
+      details: {
+        processId: input.processId,
+        cron: input.cron,
+        timezone: input.timezone,
+        inputs: input.inputs,
+        bindings: input.bindings,
+        notify,
+        ...(input.catchUp ? { catchUp: input.catchUp } : {}),
+      },
     });
   });
   arm(sid);
@@ -280,6 +305,12 @@ function arm(id: string) {
   const r = db().get<ScheduleRow>('SELECT * FROM schedules WHERE id = ?', id);
   if (!r || !r.enabled) return;
   const job = new Cron(r.cron, { timezone: r.timezone || undefined, protect: true }, () => {
+    // every fire of the cron expression counts, also one that is skipped: what came after it is missed if Steward stops
+    try {
+      db().run('UPDATE schedules SET last_fired_at = ? WHERE id = ?', nowIso(), id);
+    } catch (e) {
+      logger.warn({ err: e, scheduleId: id }, 'could not record the fire of a schedule');
+    }
     fire(id).catch((e) => {
       logger.error({ err: e, scheduleId: id }, 'schedule failed');
       if (isUnexpected(e)) reportError(e, { tags: { phase: 'schedule' } });
@@ -288,7 +319,7 @@ function arm(id: string) {
   jobs.set(id, job);
 }
 
-export async function fire(id: string, manual = false): Promise<string | null> {
+export async function fire(id: string, manual = false, opts: { catchUp?: boolean } = {}): Promise<string | null> {
   const r = db().get<ScheduleRow>('SELECT * FROM schedules WHERE id = ?', id);
   if (!r) return null;
   if (!r.allow_overlap && r.last_run_id) {
@@ -344,6 +375,16 @@ export async function fire(id: string, manual = false): Promise<string | null> {
       ),
     );
     db().run('UPDATE schedules SET last_run_at = ?, last_run_id = ? WHERE id = ?', nowIso(), runId, id);
+    if (opts.catchUp) {
+      audit({
+        actor: 'scheduler',
+        action: 'schedule.caught_up',
+        entityType: 'schedule',
+        entityId: id,
+        runId,
+        summary: `Schedule "${r.name}": one catch-up run started for the fires missed while Steward was not running`,
+      });
+    }
     return runId;
   } catch (e) {
     audit({
@@ -357,11 +398,133 @@ export async function fire(id: string, manual = false): Promise<string | null> {
   }
 }
 
-export function startScheduler(): void {
+// ---------- fires missed while Steward was not running ----------
+
+/** When the scheduler was last known to run (a background job writes it every minute, and the shutdown). */
+export const ALIVE_KEY = 'system.schedulerAliveAt';
+/** Missed fires listed per schedule (all are counted, up to MISSED_COUNT_LIMIT). */
+const MISSED_LISTED = 10;
+const MISSED_COUNT_LIMIT = 10000;
+
+let running = false;
+export const schedulerRunning = (): boolean => running;
+
+/** Records that the scheduler runs now (only while it does: while the vault is locked nothing fires either). */
+export function recordAlive(at = new Date()): void {
+  if (!running) return;
+  try {
+    writeSetting(ALIVE_KEY, at.toISOString());
+  } catch (err) {
+    logger.warn({ err }, 'could not record that the scheduler runs');
+  }
+}
+
+/** The fires of `cron` after `since` up to `now` (at most MISSED_LISTED listed, all counted up to the limit). */
+export function firesBetween(
+  cron: string,
+  timezone: string | null | undefined,
+  since: Date,
+  now: Date,
+): { times: string[]; count: number; last: string | null } {
+  const c = new Cron(cron, { paused: true, timezone: timezone || undefined });
+  const times: string[] = [];
+  let count = 0;
+  let last: Date | null = null;
+  try {
+    for (let t = c.nextRun(since); t && t.getTime() <= now.getTime() && count < MISSED_COUNT_LIMIT; t = c.nextRun(t)) {
+      count++;
+      last = t;
+      if (times.length < MISSED_LISTED) times.push(t.toISOString());
+    }
+  } finally {
+    c.stop();
+  }
+  return { times, count, last: last?.toISOString() ?? null };
+}
+
+/**
+ * At start: compares each enabled schedule's cron expression with the last time the scheduler ran (and the
+ * schedule's last fire); fires in between were missed. Each schedule with missed fires gets one event (notification
+ * "Missed while Steward was not running"), one audit entry and the record shown on the schedule; with
+ * catchUp 'once' one run starts right away. Nothing is recorded on the first start of this version (no time known).
+ */
+export function detectMissedFires(now = new Date()): { scheduleId: string; count: number; catchUp: boolean }[] {
+  const alive = readSetting<string | null>(ALIVE_KEY, null);
+  if (!alive || Number.isNaN(Date.parse(alive))) return [];
+  const out: { scheduleId: string; count: number; catchUp: boolean }[] = [];
+  for (const r of db().all<ScheduleRow>('SELECT * FROM schedules WHERE enabled = 1')) {
+    const since = new Date(Math.max(Date.parse(alive), Date.parse(r.last_fired_at ?? '') || 0, Date.parse(r.created_at) || 0));
+    if (since.getTime() >= now.getTime()) continue;
+    let found: ReturnType<typeof firesBetween>;
+    try {
+      found = firesBetween(r.cron, r.timezone, since, now);
+    } catch (e) {
+      logger.warn({ err: e, scheduleId: r.id }, 'could not check a schedule for missed fires');
+      continue;
+    }
+    if (!found.count) continue;
+    const catchUp = r.catch_up === 'once';
+    const missed: ScheduleMissedFires = {
+      detectedAt: now.toISOString(),
+      from: since.toISOString(),
+      count: found.count,
+      times: found.times,
+      last: found.last,
+      catchUp,
+    };
+    const listed = found.times.join(', ') + (found.count > found.times.length ? ` … (${found.count} in all)` : '');
+    db().tx(() => {
+      db().run('UPDATE schedules SET missed = ? WHERE id = ?', JSON.stringify(missed), r.id);
+      audit({
+        actor: 'scheduler',
+        action: 'schedule.missed',
+        entityType: 'schedule',
+        entityId: r.id,
+        summary: `Schedule "${r.name}": missed while Steward was not running: ${listed}${catchUp ? ' – one catch-up run starts' : ''}`,
+        details: missed,
+      });
+    });
+    logger.warn(
+      { scheduleId: r.id, missed: found.count, first: found.times[0], last: found.last, catchUp },
+      'schedule fires missed while Steward was not running',
+    );
+    emit('schedule.skipped', {
+      scheduleId: r.id,
+      name: r.name,
+      owner: r.owner,
+      reason: `missed while Steward was not running: ${listed}`,
+      reasonCode: 'missed',
+      reasonVars: { count: String(found.count) },
+      missed: { times: found.times, count: found.count, catchUp },
+    });
+    out.push({ scheduleId: r.id, count: found.count, catchUp });
+  }
+  return out;
+}
+
+export function startScheduler(now = new Date()): void {
+  let missed: ReturnType<typeof detectMissedFires> = [];
+  try {
+    missed = detectMissedFires(now);
+  } catch (e) {
+    logger.error({ err: e }, 'could not check the schedules for missed fires');
+    if (isUnexpected(e)) reportError(e, { tags: { phase: 'schedule' } });
+  }
   for (const r of db().all<{ id: string }>('SELECT id FROM schedules WHERE enabled = 1')) arm(r.id);
+  running = true;
+  recordAlive(now);
+  for (const m of missed.filter((x) => x.catchUp)) {
+    fire(m.scheduleId, false, { catchUp: true }).catch((e) => {
+      logger.error({ err: e, scheduleId: m.scheduleId }, 'catch-up run failed');
+      if (isUnexpected(e)) reportError(e, { tags: { phase: 'schedule' } });
+    });
+  }
 }
 
 export function stopScheduler(): void {
+  // the moment it stops is the last moment it ran (a fire after it is missed)
+  recordAlive();
+  running = false;
   for (const id of [...jobs.keys()]) disarm(id);
 }
 

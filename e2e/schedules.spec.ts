@@ -30,9 +30,14 @@ test('operator creates a schedule, runs it now and deletes it', async ({ page, a
   await page.getByRole('option', { name: 'Only the start and end of failing' }).click();
   await notify.getByText('Only these channels:').click();
   await notify.getByText('E-mail', { exact: true }).click();
+  // one catch-up run after a restart when times were missed (off by default)
+  const catchUp = dialog.getByRole('switch', { name: 'Catch up after a restart' });
+  await expect(catchUp).not.toBeChecked();
+  await catchUp.click({ force: true });
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Schedule saved')).toBeVisible();
-  const saved = (await (await apiAs('olivia')).get('/api/schedules').then((r) => r.json())) as { name: string; notify: unknown }[];
+  const saved = (await (await apiAs('olivia')).get('/api/schedules').then((r) => r.json())) as { name: string; notify: unknown; catchUp: string }[];
+  expect(saved.find((x) => x.name === name)?.catchUp).toBe('once');
   expect(saved.find((x) => x.name === name)?.notify).toEqual({
     mode: 'change',
     reminderHours: 8,

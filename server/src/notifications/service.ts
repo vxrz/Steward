@@ -545,11 +545,28 @@ function skipReason(l: Locale, e: DomainEvents['schedule.skipped']): string {
   return t(l, `scheduleSkipped.reasons.${e.reasonCode}`, vars);
 }
 
+/** "Missed while Steward was not running": the first missed fires in the recipient's language, and whether a catch-up run starts. */
+function missedText(
+  l: Locale,
+  e: DomainEvents['schedule.skipped'],
+  m: NonNullable<DomainEvents['schedule.skipped']['missed']>,
+): { title: string; body: string } {
+  const listed =
+    m.times.map((x) => formatDateTime(l, x)).join(', ') + (m.count > m.times.length ? ` (${t(l, 'scheduleMissed.more', { count: m.count })})` : '');
+  return {
+    title: t(l, 'scheduleMissed.title', { name: e.name }),
+    body: `${t(l, 'scheduleMissed.body', { times: listed })} ${t(l, m.catchUp ? 'scheduleMissed.catchUp' : 'scheduleMissed.noCatchUp')}`,
+  };
+}
+
 export function onScheduleSkipped(e: DomainEvents['schedule.skipped']): void {
   const all = activeUsers();
   notify({
     event: 'schedule.skipped',
-    text: (l) => ({ title: t(l, 'scheduleSkipped.title', { name: e.name }), body: t(l, 'scheduleSkipped.body', { reason: skipReason(l, e) }) }),
+    text: (l) =>
+      e.missed
+        ? missedText(l, e, e.missed)
+        : { title: t(l, 'scheduleSkipped.title', { name: e.name }), body: t(l, 'scheduleSkipped.body', { reason: skipReason(l, e) }) },
     link: '/schedules',
     recipients: uniqueUsers([userNamed(e.owner, all), ...admins(all)]),
     inAppKey: `schedule:${e.scheduleId}`,

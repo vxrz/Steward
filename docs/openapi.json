@@ -2332,6 +2332,73 @@
             ],
             "additionalProperties": false,
             "description": "Who is interrupted by the runs, how and when; never what is recorded"
+          },
+          "catchUp": {
+            "type": "string",
+            "enum": [
+              "none",
+              "once"
+            ],
+            "description": "After a start that found missed fires: once = one run right away, none = wait for the next fire"
+          },
+          "missed": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "detectedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "from": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "count": {
+                    "type": "integer"
+                  },
+                  "times": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "The first missed fires (at most 10)"
+                  },
+                  "last": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The last missed fire"
+                  },
+                  "catchUp": {
+                    "type": "boolean",
+                    "description": "One catch-up run was started"
+                  }
+                },
+                "required": [
+                  "detectedAt",
+                  "from",
+                  "count",
+                  "times",
+                  "last",
+                  "catchUp"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fires missed the last time Steward was not running (null: none found)"
           }
         },
         "required": [
@@ -2352,7 +2419,9 @@
           "lastRunId",
           "lastRunStatus",
           "createdAt",
-          "notify"
+          "notify",
+          "catchUp",
+          "missed"
         ],
         "additionalProperties": false
       },

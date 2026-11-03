@@ -14,6 +14,7 @@ import { SECURITY_MIGRATIONS } from './migrations/security.js';
 import { TEAM_MIGRATIONS } from './migrations/teams.js';
 import { MCP_OAUTH_MIGRATIONS } from './migrations/mcp-oauth.js';
 import { PROPOSAL_MIGRATIONS } from './migrations/proposals.js';
+import { RUNTIME_MIGRATIONS } from './migrations/runtime.js';
 import { CREDENTIAL_MIGRATIONS } from './migrations/credentials.js';
 import { GATUS_MIGRATIONS } from './migrations/gatus.js';
 import { REPORT_SCHEDULE_MIGRATIONS } from './migrations/report-schedules.js';
@@ -104,6 +105,7 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...TEAM_MIGRATIONS,
   ...MCP_OAUTH_MIGRATIONS,
   ...PROPOSAL_MIGRATIONS,
+  ...RUNTIME_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [
