@@ -181,5 +181,31 @@ describe('cloud-account components on an AWS platform', () => {
   it('tests the connection with STS', async () => {
     const t = await s.api('POST', `/platforms/${platformId}/test`, {});
     expect(t).toMatchObject({ ok: true, message: expect.stringContaining('AWS account 123456789012 as arn:aws:iam::123456789012:user/steward-reader') });
+    // every part Steward reads is probed: GetCallerIdentity needs no permission, so it alone always passed
+    expect(t.checks.map((c: any) => [c.name, c.ok])).toEqual([
+      ['STS GetCallerIdentity', true],
+      ['Resources (tagging GetResources)', true],
+      ['Costs (Cost Explorer GetCostAndUsage)', true],
+      ['IAM users (IAM ListUsers)', true],
+    ]);
+  });
+
+  it('the connection test names the IAM actions a policy lacks, and still passes when STS works', async () => {
+    const mock = await import('../src/mock/mockAws.js');
+    mock.setAwsDenied(['ce:GetCostAndUsage', 'iam:ListUsers']);
+    try {
+      const t = await s.api('POST', `/platforms/${platformId}/test`, {});
+      expect(t.ok).toBe(true);
+      expect(t.message).toMatch(/Not readable: Costs, IAM users – see below\.$/);
+      const byName = Object.fromEntries(t.checks.map((c: any) => [c.name, c]));
+      expect(byName['Resources (tagging GetResources)'].ok).toBe(true);
+      expect(byName['Costs (Cost Explorer GetCostAndUsage)']).toMatchObject({
+        ok: false,
+        message: 'not allowed – the policy of arn:aws:iam::123456789012:user/steward-reader lacks ce:GetCostAndUsage (docs/AWS.md)',
+      });
+      expect(byName['IAM users (IAM ListUsers)'].message).toContain('lacks iam:ListUsers');
+    } finally {
+      mock.setAwsDenied([]);
+    }
   });
 });

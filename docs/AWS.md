@@ -4,7 +4,7 @@ Steward reads what runs in an AWS account for an application: the **resources** 
 
 | What                      | AWS API                                                                   | How often                                 |
 | ------------------------- | ------------------------------------------------------------------------- | ----------------------------------------- |
-| Who the credentials are   | STS `GetCallerIdentity`                                                   | connection test, every read               |
+| Who the credentials are   | STS `GetCallerIdentity` (and `AssumeRole` with a role)                    | connection test, every read               |
 | Resources with the tag    | Resource Groups Tagging API `GetResources`, per region                    | every 6 hours, or _Read now_              |
 | Costs per month           | Cost Explorer `GetCostAndUsage`, by the tag and by service                | **once a day** (it costs $0.01 a request) |
 | IAM users and access keys | IAM `ListUsers`, `ListUserTags`, `ListAccessKeys`, `GetAccessKeyLastUsed` | every 6 hours, or _Read now_              |
@@ -19,9 +19,31 @@ Under _Platforms_, add a platform of type _Amazon Web Services (AWS account, rea
 - **Authentication**: _AWS request signing (SigV4)_ with the account's main region. Recommended: an IAM user (or a workload identity's key) that may only **assume a role** in the account, with role ARN and external ID ([PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md)) – so one key can read several accounts, each as its own platform.
 - **Variables**: `regions` – the regions to read, comma-separated (default: the main region); `tagKey` – the tag that links resources to applications (default `application`).
 
-The test (_Test connection_) shows the account, the principal (`arn:aws:sts::…:assumed-role/steward-read/…`), the regions and the tag.
+The test (_Test connection_) shows the account, the principal (`arn:aws:sts::…:assumed-role/steward-read/…`), the regions and the tag, and **probes each part Steward reads** – STS `GetCallerIdentity` needs no permission at all, so on its own it said nothing about the policy:
 
-A policy for the role, read-only:
+| Part             | Probe                                                            | When it is not allowed                                          |
+| ---------------- | ---------------------------------------------------------------- | --------------------------------------------------------------- |
+| STS / AssumeRole | `GetCallerIdentity`, with a role after `AssumeRole`              | the test fails (nothing else can work)                          |
+| Resources        | tagging `GetResources` in the first region, one item             | ✗ _the policy of … lacks tag:GetResources_                      |
+| Costs            | Cost Explorer `GetCostAndUsage` for one day (one request, $0.01) | ✗ _lacks ce:GetCostAndUsage_, or _Cost Explorer is not enabled_ |
+| IAM users        | IAM `ListUsers`, one item                                        | ✗ _lacks iam:ListUsers …_                                       |
+
+The test passes when STS works; parts that are not allowed are listed as warnings, so an account that should show no costs (no `ce:` permission) can still be used.
+
+### Policies
+
+Recommended: a caller (an IAM user or a workload identity) that may **only assume the role**, and a role in each account with the read policy.
+
+**1. The caller's policy** – nothing but `sts:AssumeRole` on the role(s):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{ "Effect": "Allow", "Action": "sts:AssumeRole", "Resource": "arn:aws:iam::123456789012:role/steward-read" }]
+}
+```
+
+**2. The role's trust policy** – trusts the caller, only with the external ID set on the platform (_Settings → Authentication → External ID_):
 
 ```json
 {
@@ -29,14 +51,48 @@ A policy for the role, read-only:
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": ["tag:GetResources", "ce:GetCostAndUsage", "iam:ListUsers", "iam:ListUserTags", "iam:ListAccessKeys", "iam:GetAccessKeyLastUsed"],
+      "Principal": { "AWS": "arn:aws:iam::210987654321:user/steward" },
+      "Action": "sts:AssumeRole",
+      "Condition": { "StringEquals": { "sts:ExternalId": "steward-7f3c…" } }
+    }
+  ]
+}
+```
+
+A wrong or missing external ID, or a trust policy that does not name the caller, makes `AssumeRole` answer `AccessDenied` – the connection test then says that the caller needs `sts:AssumeRole` on the role and that the trust policy must trust it.
+
+**3. The role's read policy** (with the access-review actions):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "tag:GetResources",
+        "ce:GetCostAndUsage",
+        "iam:ListUsers",
+        "iam:ListUserTags",
+        "iam:ListAccessKeys",
+        "iam:GetAccessKeyLastUsed",
+        "iam:ListGroupsForUser",
+        "iam:ListAttachedUserPolicies",
+        "iam:ListUserPolicies"
+      ],
       "Resource": "*"
     }
   ]
 }
 ```
 
-Leave out `ce:GetCostAndUsage` to read no costs (the readout says why there are none), or the `iam:` actions to read no users. For access reviews of the account (access check source _AWS IAM_, [COMPLIANCE.md](COMPLIANCE.md#access-reconciliation)) add `iam:ListGroupsForUser`, `iam:ListAttachedUserPolicies` and `iam:ListUserPolicies`. Cost Explorer must be enabled in the account (the management account of an organisation sees the costs of all member accounts – then use the tag to tell them apart, or one platform per member account with its own role).
+Leave out `ce:GetCostAndUsage` to read no costs (the readout says why there are none), or the `iam:` actions to read no users. The last three `iam:` actions are only for access reviews of the account (access check source _AWS IAM_, [COMPLIANCE.md](COMPLIANCE.md#access-reconciliation)). Cost Explorer must be enabled in the account (the management account of an organisation sees the costs of all member accounts – then use the tag to tell them apart, or one platform per member account with its own role).
+
+Without a role, the same read policy goes to the IAM user directly.
+
+### S3 backups are a separate platform
+
+Backups to S3 ([BACKUPS.md](BACKUPS.md)) do not use the AWS account platform: they go to a storage platform of their own (type _Generic REST API_ with AWS request signing for the service `s3`, the bucket's endpoint as base URL, [BACKUPS.md](BACKUPS.md#2-the-storage-platform)) with a key that may only write to the backup bucket. Keep the two apart – the read-only account platform should never be able to write, and the backup key should not read the account.
 
 ## Components of an application
 

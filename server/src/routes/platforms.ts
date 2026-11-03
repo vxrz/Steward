@@ -138,16 +138,18 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
     if (p.kind === 'kafka' || p.kind === 'mqtt' || p.kind === 'aws' || p.kind === 'snowflake') {
       const t0 = Date.now();
       try {
+        let checks: { name: string; ok: boolean; message: string }[] | undefined;
         const message =
           p.kind === 'kafka'
             ? await (await import('../kafka/service.js')).testKafka(p, secrets)
             : p.kind === 'aws'
-              ? await (await import('../aws/service.js')).testAws(p, secrets)
+              ? await (await import('../aws/service.js')).testAws(p, secrets).then((r) => ((checks = r.checks), r.message))
               : p.kind === 'snowflake'
                 ? await (await import('../snowflake/service.js')).testSnowflake(p, secrets)
                 : await (await import('../mqtt/listener.js')).testMqtt(p, secrets);
         audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}": ${message}` });
-        return { ok: true, status: 200, durationMs: Date.now() - t0, message, body: null, token: null };
+        // AWS: every part Steward reads, with what is missing (the test passes when STS works)
+        return { ok: true, status: 200, durationMs: Date.now() - t0, message, body: null, token: null, ...(checks ? { checks: redact(checks, secrets) } : {}) };
       } catch (e) {
         const message = redact((e as Error).message, secrets) as string;
         audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}` });
