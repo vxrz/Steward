@@ -210,10 +210,18 @@ describe('protocol and audit', () => {
   it('audit chain verifies and detects tampering', async () => {
     expect((await s.api('GET', '/audit/verify')).ok).toBe(true);
     const { db } = await import('../src/db.js');
+    const before = db().get<{ summary: string }>('SELECT summary FROM audit_log WHERE seq = 3')!.summary;
     db().run("UPDATE audit_log SET summary = 'tampered' WHERE seq = 3");
-    const r = await s.api('GET', '/audit/verify');
-    expect(r.ok).toBe(false);
-    expect(r.firstBadSeq).toBe(3);
+    try {
+      // entry #3 lies before the signed checkpoint: the full verification finds it (the incremental one starts after it)
+      const r = await s.api('GET', '/audit/verify?full=true');
+      expect(r.ok).toBe(false);
+      expect(r.firstBadSeq).toBe(3);
+      expect(r.mode).toBe('full');
+    } finally {
+      db().run('UPDATE audit_log SET summary = ? WHERE seq = 3', before);
+    }
+    expect((await s.api('GET', '/audit/verify?full=true')).ok).toBe(true);
   });
   it('process versions are kept', async () => {
     const p = await s.api('GET', '/processes/ih-health-check');

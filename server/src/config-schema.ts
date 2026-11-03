@@ -255,6 +255,12 @@ export const VARS = {
     description: 'Corporate proxy (also `HTTP_PROXY`, `NO_PROXY`), used for platform calls unless a platform overrides it',
     readme: true,
   }),
+  SM_DATASET_CACHE_ROWS: v(int(100_000, 0), {
+    group: 'Database and data',
+    default: '100000',
+    description: 'Parsed dataset rows kept in memory between reads (dashboards, API pages); `0` turns the cache off',
+    readme: true,
+  }),
   SM_DEMO: v(flag(false), {
     group: 'Server and network',
     default: 'off',
@@ -421,6 +427,13 @@ export const VARS = {
     group: 'Audit log and evidence',
     default: '60',
     description: 'Interval of signed audit checkpoints (at least 5)',
+    readme: true,
+  }),
+  SM_AUDIT_FULL_VERIFY_DAYS: v(int(7, 0), {
+    group: 'Audit log and evidence',
+    default: '7',
+    description:
+      'Days between automatic full verifications of the audit chain in the background (`0`: only by hand). *Verify chain* itself is incremental, from the newest signed checkpoint',
     readme: true,
   }),
   SM_EVIDENCE_MAX_MB: v(int(512, 1), { group: 'Audit log and evidence', default: '512', description: 'Largest audit evidence pack (MB)' }),

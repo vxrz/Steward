@@ -176,7 +176,7 @@ Do this on a **test tenant / test IEM** before any production use.
 - **CSRF.** Every non-GET request without `x-sm-client: 1` is rejected (403) unless it uses only a bearer token. Cookies are `HttpOnly; SameSite=Strict` (`Secure` with TLS).
 - **Host allow-list.** Requests with a foreign `Host` header get 403 (DNS rebinding); check `SM_ALLOWED_HOSTS` when serving colleagues.
 - **Secrets never leak.** Grep the logs (stdout JSON), protocols (HTML/PDF/JSON), audit export and browser responses for a known secret value. `$secret()` values must appear as `***`. The platform API returns secret _names_ only.
-- **Audit integrity.** `GET /api/audit/verify` must return `ok: true`. Edit one row in the database by hand on a copy: verify must report the break.
+- **Audit integrity.** `GET /api/audit/verify` must return `ok: true`. Edit one row in the database by hand on a copy: verify must report the break (`?full=true` for a row before the newest signed checkpoint).
 - **Headers.** Every page has `content-security-policy` (no inline scripts), `x-frame-options: DENY`, `x-content-type-options: nosniff`, `referrer-policy: no-referrer` (`e2e/security.spec.ts`).
 - **Dependencies.** `npm audit --omit=dev` (runs in CI); review the SBOM of each release.
 

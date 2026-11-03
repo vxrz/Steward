@@ -1125,6 +1125,89 @@ export interface AuditVerifyResult {
   anchors?: { source: string; seq: number; ok: boolean; message: string }[];
   /** The checkpoint written after a successful verification */
   checkpoint?: AuditCheckpoint;
+  /**
+   * incremental (default): the entries after the newest signed checkpoint; full: every entry still in the database
+   * (from #1, or from the signed checkpoint of the newest archive whose entries were deleted)
+   */
+  mode?: AuditVerifyMode;
+  /** Incremental: the entry the check started after (the signed checkpoint's) */
+  fromSeq?: number;
+  /** Entries up to this one were archived and deleted from the database (retention); the archives hold them */
+  deletedThroughSeq?: number;
+}
+
+export const AUDIT_VERIFY_MODES = ['incremental', 'full'] as const;
+export type AuditVerifyMode = (typeof AUDIT_VERIFY_MODES)[number];
+
+/** The last verification of a mode, as GET /api/audit/archive reports it (the stored "verified head"). */
+export interface AuditVerificationRecord {
+  at: string;
+  by: string;
+  mode: AuditVerifyMode;
+  ok: boolean;
+  checked: number;
+  /** The first entry checked */
+  fromSeq: number | null;
+  /** The last entry checked (the verified head) */
+  toSeq: number | null;
+  message: string;
+}
+
+/** Archiving of closed epochs and the retention of archived entries (Audit log → Archive). */
+export interface AuditArchiveSettings {
+  /** Export closed epochs (one archive per month of signed checkpoints) to <data dir>/audit-archives */
+  archive: boolean;
+  /** Also upload each archive, encrypted with the backup key, to the S3 target of the backups */
+  upload: boolean;
+  /** Delete archived entries older than this many days from the database; 0 = never (default) */
+  retentionDays: number;
+}
+export const DEFAULT_AUDIT_ARCHIVE_SETTINGS: AuditArchiveSettings = { archive: false, upload: false, retentionDays: 0 };
+
+export interface AuditArchiveInfo {
+  id: string;
+  firstSeq: number;
+  lastSeq: number;
+  firstTs: string;
+  lastTs: string;
+  entries: number;
+  /** Signed checkpoints (epoch boundaries) in the archive */
+  epochs: number;
+  file: string;
+  size: number;
+  sha256: string;
+  /** The file is no longer in the data folder (moved elsewhere) */
+  fileMissing: boolean;
+  remoteKey: string | null;
+  uploadedAt: string | null;
+  createdAt: string;
+  createdBy: string;
+  /** The entries are being deleted from the database (retention) */
+  pruning: boolean;
+  prunedAt: string | null;
+  prunedEntries: number | null;
+}
+
+/** GET /api/audit/archive – epochs, archives, retention and the last verifications (auditors and administrators). */
+export interface AuditArchiveStatus {
+  settings: AuditArchiveSettings;
+  /** Uploading needs backups to S3 with a backup passphrase (Settings → Backups) */
+  canUpload: boolean;
+  epochs: { closed: number; archived: number };
+  latestCheckpoint: { seq: number; ts: string } | null;
+  archivedThrough: { seq: number; ts: string } | null;
+  deletedThrough: { seq: number; ts: string } | null;
+  entriesInDatabase: number;
+  /** Newest first (at most 100) */
+  archives: AuditArchiveInfo[];
+  verification: {
+    incremental: AuditVerificationRecord | null;
+    full: AuditVerificationRecord | null;
+    /** A full verification running in the background */
+    running: { startedAt: string; by: string; checked: number; total: number } | null;
+    /** Days between automatic full verifications (SM_AUDIT_FULL_VERIFY_DAYS; 0 = only by hand) */
+    fullIntervalDays: number;
+  };
 }
 
 /** GET /api/audit/anchoring – how the audit log is anchored outside the database. */

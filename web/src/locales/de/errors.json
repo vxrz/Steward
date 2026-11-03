@@ -732,7 +732,12 @@
     "PDF_FAILED": "Das Erstellen des PDFs ist fehlgeschlagen – versuchen Sie es erneut, oder bitten Sie einen Administrator, das Server-Log zu prüfen.",
     "INTERNAL_ERROR": "Etwas ist schiefgelaufen (Referenz {{requestId}}). Bitte versuchen Sie es erneut; wenn es wieder auftritt, nennen Sie Ihrer Administration die Referenz.",
     "CRON_DAY_OR": "Tag im Monat und Wochentag sind beide gesetzt: Der Zeitplan läuft an jedem Tag, an dem einer der beiden passt – nicht nur, wenn beide passen. Für den n-ten Wochentag eines Monats verwenden Sie die #-Schreibweise, z. B. 0 6 * * 1#1 (der erste Montag).",
-    "CRON_DAY_OR_suggestion": "Tag im Monat und Wochentag sind beide gesetzt: Der Zeitplan läuft an jedem Tag, an dem einer der beiden passt – nicht nur, wenn beide passen. Für den n-ten Wochentag eines Monats verwenden Sie {{suggestion}}."
+    "CRON_DAY_OR_suggestion": "Tag im Monat und Wochentag sind beide gesetzt: Der Zeitplan läuft an jedem Tag, an dem einer der beiden passt – nicht nur, wenn beide passen. Für den n-ten Wochentag eines Monats verwenden Sie {{suggestion}}.",
+    "AUDIT_RETENTION_SHORT": "Behalten Sie archivierte Einträge mindestens {{min}} Tage in der Datenbank.",
+    "AUDIT_ARCHIVE_OFF": "Schalten Sie zuerst die Archivierung ein: Nur archivierte Einträge werden hochgeladen oder gelöscht.",
+    "AUDIT_UPLOAD_UNAVAILABLE": "Das Hochladen braucht Sicherungen nach S3 mit einer Sicherungspassphrase (Einstellungen → Sicherungen).",
+    "AUDIT_ARCHIVE_FILE_MISSING": "Die Archivdatei ist nicht mehr im Datenordner.",
+    "MIGRATION_AUDIT_DELETED": "Archivierte Audit-Einträge wurden aus der Datenbank gelöscht (Aufbewahrung des Audit-Logs) – der Umzug einer solchen Instanz wird noch nicht unterstützt."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

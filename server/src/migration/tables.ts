@@ -49,6 +49,7 @@ export const NOT_MOVED: Record<string, string> = {
   sync_updates: 'belongs to the Git sync sources',
   instance_imports: 'history of earlier moves (moving an instance that was itself imported is not supported yet)',
   imported_audit_log: 'history of earlier moves',
+  audit_archives: "archives of this instance's own audit log (the files stay in its data folder; the target starts its own)",
   identity_aliases: 'history of earlier moves',
   schema_version: 'maintained by the migrations',
   schema_migrations: 'maintained by the migrations',

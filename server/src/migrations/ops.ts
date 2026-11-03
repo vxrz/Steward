@@ -236,4 +236,12 @@ export const OPS_MIGRATIONS: NamedMigration[] = [
     name: 'ops-013-dataset-stale-fixed',
     sql: `ALTER TABLE dataset_parts ADD COLUMN stale_fixed INTEGER;`,
   },
+  {
+    // 0.4.0: a dataset's rows are kept once, in its partitions; the combined copy in datasets.rows is no longer
+    // written or read (readers put the rows together from the partitions). Its content is freed here. Datasets that
+    // have no partition yet (from before 0.2.4) keep theirs until they are first read or published, which moves the
+    // rows into a partition (dashboards/datasets.ts, ensureParts). The column stays (NOT NULL, '[]').
+    name: 'ops-014-dataset-rows-in-parts',
+    sql: `UPDATE datasets SET rows = '[]' WHERE key IN (SELECT dataset_key FROM dataset_parts);`,
+  },
 ];

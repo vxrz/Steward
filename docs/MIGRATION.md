@@ -78,6 +78,7 @@ Rules:
 - **Versions:** the target runs the same or a newer Steward version. An older package is loaded as its version wrote it and then migrated with the same database migrations an update would run. A package from a newer version is refused – update the target first.
 - **Either database:** SQLite and PostgreSQL work as source and target in any combination.
 - An instance that holds an imported package cannot be exported again yet.
+- An instance whose archived audit entries were deleted from the database (audit retention, [SECURITY-HARDENING.md](SECURITY-HARDENING.md#audit-log-as-evidence)) cannot be exported yet: the package carries the audit log from entry #1. Archiving alone is fine.
 - The package is a ZIP inside: at most 4 GB and 65,000 files.
 - The export reads the database in one transaction: during an export from the web UI Steward pauses for a moment.
 

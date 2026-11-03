@@ -546,6 +546,9 @@ export const AuditVerifyResult = z.object({
   checked: z.number().int(),
   firstBadSeq: z.number().int().nullable(),
   message: z.string(),
+  mode: z.enum(['incremental', 'full']).describe('incremental: the entries after the newest signed checkpoint; full: every entry in the database (0.4.0)'),
+  fromSeq: z.number().int().nullable().describe('Incremental: the signed checkpoint the check started after'),
+  deletedThroughSeq: z.number().int().nullable().describe('Entries up to this one were archived and deleted from the database (retention)'),
 });
 
 export const User = z.object({
@@ -765,6 +768,10 @@ export const AuditListQuery = z.object({
 });
 
 export const UserListQuery = z.object({ ...page, active: z.boolean().optional() });
+
+export const AuditVerifyQuery = z.object({
+  full: z.boolean().optional().describe('Check every entry in the database instead of the entries after the newest signed checkpoint (slower)'),
+});
 
 // ---------- conversion ----------
 

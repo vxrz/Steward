@@ -87,6 +87,7 @@ const entries = {
   backup: cli('backup.ts', 'runBackupCli', 'node server/dist/backup.js'),
   'evidence-verify': cli('evidence-verify.ts', 'runEvidenceVerify', 'node server/dist/evidence-verify.js'),
   'audit-verify-export': cli('audit-verify-export.ts', 'main'),
+  'audit-verify-archive': cli('audit-archive-verify.ts', 'runAuditArchiveVerify', 'node server/dist/audit-verify-archive.js'),
   'db-copy': cli('db-copy.ts', 'main'),
 };
 

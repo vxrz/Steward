@@ -72,7 +72,9 @@ _Back up now_ and _Test the newest backup_ start one right away. _History_ shows
 1. Download the newest backup and compare its SHA-256 with the one recorded at upload – a copy changed in the bucket fails here.
 2. Decrypt it: every chunk must authenticate.
 3. Check every file of the archive against the manifest (SHA-256, size, CRC, nothing missing, nothing extra).
-4. The database: SQLite – `PRAGMA integrity_check` on the snapshot and the **audit chain of the snapshot** (every entry, against the installation's audit key, ending at the entry the manifest names). PostgreSQL – `pg_restore --list` reads the dump.
+4. The database: SQLite – `PRAGMA integrity_check` on the snapshot and the **audit chain of the snapshot** (every entry, against the installation's audit key, ending at the entry the manifest names; after archived entries were deleted, from the signed checkpoint they were deleted up to). PostgreSQL – `pg_restore --list` reads the dump.
+
+**Audit archives** (0.4.0, _Audit log → Epochs, archives and retention_) are in the data folder (`audit-archives/`), so every backup holds them. With _Also upload to the backup target_ each archive is uploaded once more on its own, encrypted with the backup key like a backup, to `<prefix>audit-archives/<file>.smbackup` – outside the retention rule of the backups, which only touches objects directly under the prefix. Read one with `steward backup decrypt <file> --out archive.zip`, then check it with `steward audit verify-archive archive.zip`.
 
 A failed step fails the test, and the administrators get the _Backup failed_ notification (in-app and e-mail by default; change the channels under _Settings → Notifications_).
 

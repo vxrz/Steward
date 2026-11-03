@@ -35,6 +35,7 @@ The tables are generated from `server/src/config-schema.ts` by `npm run config:d
 
 | Variable                   | Default                          | Purpose                                                                                                                                                             |
 | -------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SM_DATASET_CACHE_ROWS`    | `100000`                         | Parsed dataset rows kept in memory between reads (dashboards, API pages); `0` turns the cache off                                                                   |
 | `SM_DATA_DIR`              | `./data`                         | Data directory                                                                                                                                                      |
 | `SM_DATABASE_URL`          | – (SQLite in the data directory) | Use PostgreSQL: `postgres://user:password@host:5432/database`. Not available in the desktop executable. See [Database](INSTALL.md#5-database-sqlite-or-postgresql). |
 | `SM_DATABASE_SCHEMA`       | `public`                         | PostgreSQL schema (created if missing)                                                                                                                              |
@@ -89,6 +90,7 @@ The tables are generated from `server/src/config-schema.ts` by `npm run config:d
 | `SM_AUDIT_ANCHOR`             | –       | A signed audit checkpoint kept outside Steward. Every verification fails if the log is shorter than it or differs. See [docs/SECURITY-HARDENING.md](SECURITY-HARDENING.md#audit-log-as-evidence). |
 | `SM_AUDIT_ANCHOR_FILE`        | –       | A file with a signed audit checkpoint (e.g. on a write-once share); checked like `SM_AUDIT_ANCHOR`                                                                                                |
 | `SM_AUDIT_CHECKPOINT_MINUTES` | `60`    | Interval of signed audit checkpoints (at least 5)                                                                                                                                                 |
+| `SM_AUDIT_FULL_VERIFY_DAYS`   | `7`     | Days between automatic full verifications of the audit chain in the background (`0`: only by hand). _Verify chain_ itself is incremental, from the newest signed checkpoint                       |
 | `SM_EVIDENCE_MAX_MB`          | `512`   | Largest audit evidence pack (MB)                                                                                                                                                                  |
 | `SM_EVIDENCE_RETENTION_DAYS`  | `7`     | How long a built evidence pack is kept for download                                                                                                                                               |
 

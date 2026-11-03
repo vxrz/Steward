@@ -18,6 +18,7 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit, authenticRows, importedSourceAmong } from '../audit.js';
+import { datasetRows } from '../dashboards/datasets.js';
 import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { currentActor, currentUser, runAs, type AuthUser } from '../auth/context.js';
@@ -652,21 +653,18 @@ async function collectAws(c: CheckRow): Promise<{ subjects: AccessSubject[]; sou
 
 /** A dataset in the access snapshot shape, published by a process (never a dry run). */
 function collectDataset(c: CheckRow): { subjects: AccessSubject[]; sourceRunId: string } {
-  const d = db().get<{ rows: string; run_id: string; dry_run: number; process_id: string }>(
-    'SELECT rows, run_id, dry_run, process_id FROM datasets WHERE key = ?',
-    c.dataset_key,
-  );
+  // the rows of every partition (dashboards/datasets.ts keeps them there only)
+  const d = c.dataset_key ? datasetRows(c.dataset_key) : undefined;
   if (!d)
     throw new HttpError(409, `Dataset "${c.dataset_key}" has no data yet – run the process that publishes it`, 'DATASET_EMPTY', { key: c.dataset_key ?? '' });
   // the check runs as its owner: only data of a process the owner may view (GOV-4)
   const owner = ownerUser(c);
-  if (!runAs(owner, () => permissionsFor(d.process_id).includes('view'))) datasetForbidden(c.dataset_key, c.owner);
-  if (d.dry_run)
+  if (!runAs(owner, () => permissionsFor(d.processId).includes('view'))) datasetForbidden(c.dataset_key, c.owner);
+  if (d.dryRun)
     throw new HttpError(409, `Dataset "${c.dataset_key}" comes from a dry run – it is not used as an access snapshot`, 'DATASET_DRY_RUN', {
       key: c.dataset_key ?? '',
     });
-  const rows = parseJson<Record<string, unknown>[]>(d.rows, []);
-  return { subjects: normalizeSubjects(subjectsFromRows(rows)), sourceRunId: d.run_id };
+  return { subjects: normalizeSubjects(subjectsFromRows(d.rows as Record<string, unknown>[])), sourceRunId: d.runId };
 }
 
 // ---------- diff and matching ----------
