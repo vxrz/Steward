@@ -13,7 +13,8 @@ description: |
 
   Recommended schedule: every hour (`0 * * * *`), one schedule per host, with
   "message on change" in the schedule's notification policy. Publishes
-  `git.repositories` (one part per host, one row per repository; metrics
+  `git.repositories` (one part per host, one row per repository – GitLab and
+  Forgejo rows keyed `gitlab:` / `forgejo:` + the path; metrics
   repositories, failing, critical, high, unprotected, tokensExpiring) for the
   "Repositories" dashboard. The tech stack of repositories (Dockerfile,
   package.json …, end of life), their deploy keys and tokens are read by
@@ -121,7 +122,7 @@ steps:
                   $soon := [$tokens[left <= $inputs.tokenDays]];
                   $protected := $exists(vars.protection.error) ? null : vars.protection.status = 200;
                   {
-                    "key": vars.repo,
+                    "key": 'gitlab:' & vars.repo,
                     "host": 'GitLab',
                     "repository": vars.repo,
                     "branch": vars.info.body.default_branch,
@@ -187,7 +188,7 @@ steps:
                       $rules := [vars.protections.body.(rule_name ? rule_name : branch_name)];
                       $protected := $exists(vars.protections.error) ? null : ($branch in $rules or '*' in $rules);
                       {
-                        "key": vars.repo,
+                        "key": 'forgejo:' & vars.repo,
                         "host": 'Forgejo',
                         "repository": vars.repo,
                         "branch": $branch,

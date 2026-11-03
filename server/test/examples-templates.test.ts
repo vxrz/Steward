@@ -256,7 +256,7 @@ describe('Git – repository health on GitLab and Forgejo', () => {
     const fj = await finish(await start('github-repository-health', { github: platformByKind.forgejo! }));
     expect([fj.status, fj.error]).toEqual(['succeeded', null]);
     const d = await s.api('GET', '/datasets/git.repositories');
-    const by = Object.fromEntries(d.rows.map((x: any) => [`${x.Host} ${x._key}`, x]));
+    const by = Object.fromEntries(d.rows.map((x: any) => [`${x.Host} ${x.Repository}`, x]));
     expect(by['GitHub acme/shop-web']).toMatchObject({
       Protected: 'yes',
       Pipeline: 'passed',
@@ -378,7 +378,10 @@ describe('template metadata for the gallery', () => {
       connectionKinds: ['snowflake'],
       recommendedSchedule: { cron: '0 7 1 1,4,7,10 *', text: expect.stringMatching(/^quarterly/) },
       datasets: ['snowflake.project-access'],
-      dashboards: [{ id: '61-snowflake-account', name: 'Snowflake account' }],
+      dashboards: [
+        { id: '20-access-governance', name: 'Access governance' },
+        { id: '61-snowflake-account', name: 'Snowflake account' },
+      ],
       minVersion: '0.2.8',
       tags: expect.arrayContaining(['access-review']),
     });
