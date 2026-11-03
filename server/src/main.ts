@@ -1,4 +1,7 @@
 import './warnings.js';
+import fs from 'node:fs';
+import http from 'node:http';
+import https from 'node:https';
 import type { AddressInfo } from 'node:net';
 import { initTelemetry, shutdownTelemetry } from './telemetry.js';
 import { logger } from './log.js';
@@ -17,6 +20,9 @@ import { removeInstanceFile, writeInstanceFile } from './instance.js';
 import { warnEmailVerifiedProviders } from './auth/sso.js';
 import { flushFailedLoginAudit } from './auth/login-audit.js';
 import { shutdown, startBackground } from './bootstrap.js';
+import { InstanceLease, type LeaseWait } from './database/lease.js';
+import { stopAcceptingRuns } from './engine/runner.js';
+import { stopScheduler } from './scheduler.js';
 
 /** All platform secret values (and cached access tokens) – never part of an error report. */
 function platformSecretValues(): string[] {
@@ -35,6 +41,90 @@ export interface Started {
   stop: () => Promise<void>;
 }
 
+const WAIT_LOG_EVERY_MS = 60_000;
+
+function describeWait(w: LeaseWait): Record<string, unknown> {
+  if (w.reason === 'held')
+    return { holder: w.current.holder, holderVersion: w.current.version, renewedAt: w.current.renewedAt, expiresAt: w.current.expiresAt };
+  if (w.reason === 'advisoryLock') return { advisoryLockHeldBy: w.session };
+  return { error: w.message };
+}
+
+/**
+ * While another instance holds the database lease: a minimal server on the configured address, so probes see this
+ * instance alive (/api/health 200) but not ready (/api/ready 503), instead of a process that exits and restarts.
+ */
+function waitingServer(): Promise<http.Server> {
+  const handler: http.RequestListener = (req, res) => {
+    const path = (req.url ?? '/').split('?')[0]!;
+    const json = (status: number, body: unknown) => {
+      res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'retry-after': '10' });
+      res.end(JSON.stringify(body));
+    };
+    if (path === `${config.basePath}/api/health`) return json(200, { ok: true, version: config.version });
+    const message = 'Waiting for the database: another instance uses this database schema';
+    if (path === `${config.basePath}/api/ready`)
+      return json(503, { ready: false, checks: { vault: { ok: false, message }, database: { ok: false, message }, scheduler: { ok: false, message } } });
+    json(503, { error: `${BRAND.name} is starting. ${message}.`, code: 'WAITING_FOR_DATABASE_LEASE' });
+  };
+  const server = config.tls
+    ? https.createServer({ cert: fs.readFileSync(config.tls.cert), key: fs.readFileSync(config.tls.key), minVersion: 'TLSv1.2' }, handler)
+    : http.createServer(handler);
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen({ host: config.host, port: config.port }, () => resolve(server));
+  });
+}
+
+/**
+ * PostgreSQL: the single-instance lease (database/lease.ts) before the database is opened and migrated. Waits as long
+ * as another instance holds it (logging every minute), serving /api/health and /api/ready meanwhile.
+ */
+async function acquireLease(): Promise<InstanceLease | null> {
+  const target = config.database;
+  if (target.kind !== 'postgres' || target.lock === false) return null;
+  const lease = new InstanceLease({ url: target.url, schema: target.schema, version: config.version });
+  let server: http.Server | undefined;
+  let serverStarting: Promise<void> | undefined;
+  let lastLog = 0;
+  const onSignal = () => {
+    logger.info('stopped while waiting for the database lease');
+    void lease.release(2000).finally(() => process.exit(0));
+  };
+  process.once('SIGINT', onSignal);
+  process.once('SIGTERM', onSignal);
+  const got = await lease.acquire((w) => {
+    if (Date.now() - lastLog >= WAIT_LOG_EVERY_MS) {
+      lastLog = Date.now();
+      logger.warn(
+        { schema: target.schema, ...describeWait(w) },
+        w.reason === 'error'
+          ? 'waiting for the database lease: the database is not reachable yet'
+          : w.reason === 'advisoryLock'
+            ? 'waiting for the database lease: a session of an older version (or a command-line tool such as db:copy) holds the instance lock of this schema'
+            : 'waiting for the database lease: another instance uses this database schema; this one takes over when it stops or its lease expires',
+      );
+    }
+    serverStarting ??= waitingServer().then(
+      (s) => void (server = s),
+      (err) => logger.warn({ err }, 'could not answer health probes while waiting for the database lease'),
+    );
+  });
+  process.off('SIGINT', onSignal);
+  process.off('SIGTERM', onSignal);
+  await serverStarting;
+  if (server) {
+    server.closeAllConnections();
+    await new Promise((r) => server!.close(r));
+  }
+  if (got.takeover)
+    logger.warn({ previous: got.takeover, lingeringSession: got.terminated }, 'took over the database lease of an instance that stopped renewing it');
+  else logger.info({ schema: target.schema }, 'database lease acquired');
+  // the lease worker holds the advisory lock; the app's own connection must not ask for it again
+  config.database = { ...target, lock: false };
+  return lease;
+}
+
 /** Starts the server (used by `npm start` and by the desktop executable). */
 export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   // Files the server creates (database, WAL, vault, artifacts, reports) are private to the service account.
@@ -42,9 +132,26 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   const permissionProblems = ensureDataDirs();
   for (const p of permissionProblems) logger.warn({ problem: p }, 'could not restrict permissions in the data directory');
   for (const w of securityWarnings()) logger.warn({ security: true }, w);
+  const lease = await acquireLease();
+  lease?.onLost((reason) => {
+    // another instance may run now: stop at once, without writing (no drain – the other one recovers the runs)
+    logger.fatal({ reason }, 'lost the database lease: stopping now');
+    try {
+      stopAcceptingRuns();
+      stopScheduler();
+    } catch {
+      /* exiting anyway */
+    }
+    process.exit(70);
+  });
   // Open (and migrate) the database before anything listens: a failed upgrade stops the start here,
   // with the path of the automatic backup in the message.
-  db();
+  try {
+    db();
+  } catch (e) {
+    await lease?.release();
+    throw e;
+  }
   if (passwordLoginPending()) {
     logger.warn(
       { security: true },
@@ -92,6 +199,8 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
       await Promise.race([flushNotifications(), new Promise((r) => setTimeout(r, 3000).unref())]);
       await shutdownTelemetry();
       await closeErrorReporting();
+      // the next instance takes over at once
+      await lease?.release();
       logger.info('service manager stopped');
       logger.flush();
     })());
