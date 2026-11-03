@@ -117,5 +117,31 @@
     "linkInvalid": "This status page link is not valid (any more). Ask the person who sent it to you.",
     "noneForViewer": "No status pages yet.",
     "signOut": "Sign out"
+  },
+  "hub": {
+    "tabsLabel": "Sections of {{name}}",
+    "tabs": {
+      "overview": "Overview",
+      "applications": "Applications",
+      "systems": "Systems",
+      "duties": "Duties",
+      "objectives": "Objectives",
+      "maintenance": "Maintenance",
+      "documents": "Documents",
+      "tickets": "Tickets",
+      "scorecard": "Scorecard"
+    },
+    "archivedScorecard": "An archived service has no scorecard.",
+    "systems": {
+      "title": "Runs on",
+      "help": "The systems the service's applications run on, per environment. Change them on the application (Runs on).",
+      "empty": "None of the service's applications names the systems it runs on yet.",
+      "noApplications": "The service has no applications yet: add them on the Applications tab.",
+      "system": "System",
+      "kind": "Kind",
+      "vendor": "Vendor",
+      "environment": "Environment",
+      "applications": "Applications"
+    }
   }
 }
