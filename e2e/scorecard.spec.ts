@@ -29,7 +29,7 @@ test('define an availability objective and see the scorecard of the service', as
   // a service with a duty, a rated application and a released document
   const svc = await json<{ id: string }>(await api.post('/api/services', { data: { name: uniq('E2E scorecard service'), owners: [] } }));
   // a new, empty service is neutral – nothing to judge yet, so neither "Attention needed" nor "OK"
-  await page.goto(`/services/${svc.id}`);
+  await page.goto(`/services/${svc.id}/scorecard`);
   const fresh = page.getByTestId('scorecard-panel');
   await expect(fresh.getByTestId('attention')).toHaveText('Open');
   await expect(fresh.getByTestId('part-protection').getByTestId('part-status')).toHaveText('Open');
@@ -59,7 +59,7 @@ test('define an availability objective and see the scorecard of the service', as
   await json(await adam.post(`/api/records/${doc.id}/transition`, { data: { action: 'approve' } }));
 
   // define the objective on the service page
-  await page.goto(`/services/${svc.id}`);
+  await page.goto(`/services/${svc.id}/objectives`);
   const panel = page.getByTestId('objectives-panel');
   await expect(panel).toContainText('No availability objectives yet');
   await panel.getByRole('button', { name: 'Add objective' }).click();
@@ -79,8 +79,9 @@ test('define an availability objective and see the scorecard of the service', as
   await card.getByRole('button', { name: 'Show history' }).click();
   await expect(card.getByTestId('objective-history')).toContainText('in the last 30 days');
 
-  // the scorecard of the service: four parts, each with its own status
-  await page.reload();
+  // the scorecard of the service (its own tab): four parts, each with its own status
+  await page.getByTestId('service-tab-scorecard').click();
+  await expect(page).toHaveURL(new RegExp(`/services/${svc.id}/scorecard$`));
   const sc = page.getByTestId('scorecard-panel');
   await expect(sc.getByTestId('part-duties').getByTestId('part-status')).toHaveText('Open');
   await expect(sc.getByTestId('part-duties')).toContainText('Mandatory: 0 of 1 met, 1 open');
@@ -117,7 +118,7 @@ test('define an availability objective and see the scorecard of the service', as
   await expect(page.getByTestId(`scorecard-${svc.id}`)).toHaveCount(0);
 
   // objectives are archived, not deleted: the archived one is listed below the active ones
-  await page.goto(`/services/${svc.id}`);
+  await page.goto(`/services/${svc.id}/objectives`);
   const objectives = page.getByTestId('objectives-panel');
   await objectives.getByRole('button', { name: `Archive the objective “${endpoint.name}”` }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Archive' }).click();

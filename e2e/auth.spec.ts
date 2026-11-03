@@ -78,7 +78,7 @@ test.describe('viewer (vera)', () => {
   test('sees no admin pages or editing buttons', async ({ page, request }) => {
     await page.goto('/processes');
     await expect(page.getByRole('heading', { name: 'Processes', level: 1 })).toBeVisible();
-    const nav = page.getByRole('navigation');
+    const nav = page.getByRole('navigation', { name: 'Main navigation' });
     await expect(nav.getByRole('link', { name: 'Processes' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Audit log' })).toHaveCount(0);
     await expect(nav.getByRole('link', { name: 'Users & teams' })).toHaveCount(0);

@@ -11,7 +11,7 @@ test('an operator documents a vendor ticket from the service page and keeps its 
   const number = uniq('CS');
 
   // the service page has an empty "Open tickets" panel with an action to add one
-  await page.goto(`/services/${service.id}`);
+  await page.goto(`/services/${service.id}/tickets`);
   const panel = page.getByTestId('tickets-panel');
   await expect(panel.getByText('No open tickets.')).toBeVisible();
   await panel.getByRole('button', { name: 'Add ticket reference' }).click();
@@ -68,7 +68,7 @@ test('an operator documents a vendor ticket from the service page and keeps its 
   await expectAccessible(page, 'ticket references');
 
   // the service page shows it under "Open tickets"
-  await page.goto(`/services/${service.id}`);
+  await page.goto(`/services/${service.id}/tickets`);
   await expect(page.getByTestId('tickets-panel').getByRole('link', { name: number, exact: true })).toBeVisible();
 });
 
