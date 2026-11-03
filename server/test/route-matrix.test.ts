@@ -528,6 +528,13 @@ const EXPECT: Record<string, Access> = {
   'POST /api/applications/:id/components/:componentId/cluster': DESIGN,
   'POST /api/applications/:id/components/:componentId/repository': DESIGN,
   'POST /api/applications/:id/components/:componentId/topic': DESIGN,
+  // Kafka topics by prefix (v0.4.0): who may change the application; the synced prefixes are read like the application
+  'POST /api/applications/:id/kafka-topics/list': DESIGN,
+  'POST /api/applications/:id/kafka-topics': DESIGN,
+  'GET /api/applications/:id/topic-prefixes': ALL,
+  'POST /api/applications/:id/topic-prefixes/:syncId/check': DESIGN,
+  'POST /api/applications/:id/topic-prefixes/:syncId/dismiss': DESIGN,
+  'DELETE /api/applications/:id/topic-prefixes/:syncId': DESIGN,
   'POST /api/applications/:id/components/:componentId/aws': DESIGN,
   'POST /api/applications/:id/components/:componentId/snowflake': DESIGN,
   'POST /api/applications/:id/components/:componentId/dependency-track': DESIGN,

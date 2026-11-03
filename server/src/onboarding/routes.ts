@@ -6,6 +6,7 @@ import { getHealth, healthInput, setHealth } from '../platforms/health.js';
 import { requirePlatform } from '../routes/helpers.js';
 import { listBundles, setupBundle, setupInput, turnOnBundle, turnOnInput } from './bundles.js';
 import { getStarted } from './getStarted.js';
+import { kafkaPrefixRoutes } from '../kafka/routes.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -16,7 +17,7 @@ function visiblePlatform(id: string) {
   return p;
 }
 
-/** Onboarding (v0.4.0): template bundles, "get started" with a platform, platform health. */
+/** Onboarding (v0.4.0): template bundles, "get started" with a platform, platform health, Kafka topics by prefix. */
 export async function onboardingRoutes(app: FastifyInstance): Promise<void> {
   // ---------- template bundles ----------
   app.get('/template-bundles', async () => listBundles());
@@ -34,4 +35,6 @@ export async function onboardingRoutes(app: FastifyInstance): Promise<void> {
     requirePlatform(params(req).id!, 'manage', 'change the connection test of this platform');
     return setHealth(params(req).id!, healthInput.parse(req.body));
   });
+
+  await kafkaPrefixRoutes(app);
 }

@@ -47,6 +47,8 @@ import { userLocale } from './service.js';
 import { prefsSchema } from './summary-prefs.js';
 import { teamDefaults } from '../teams/settings.js';
 import { dashboardVisible } from '../dashboards/service.js';
+import { offeredFor } from '../kafka/prefixes.js';
+import { canEditApplication } from '../catalogue/applications.js';
 
 /**
  * Optional daily summary per user (off by default, turned on in the profile).
@@ -125,12 +127,15 @@ export function effectivePrefs(userId: string): { prefs: DailySummaryPrefs; sour
 export function getPrefs(userId: string): DailySummaryPrefs {
   const r = db().get<{ enabled: number; prefs: string }>('SELECT enabled, prefs FROM daily_summary_prefs WHERE user_id = ?', userId);
   if (!r) return { ...DEFAULT_DAILY_SUMMARY };
-  const stored = parseJson<Partial<DailySummaryPrefs>>(r.prefs, {});
-  // a section added later (e.g. trends, #145): in it for people who had every section of the time
+  const { known: knownSections, ...stored } = parseJson<Partial<DailySummaryPrefs> & { known?: string[] }>(r.prefs, {});
+  // a section added later (e.g. trends, #145): in it for people who had every section of the time. Settings saved since
+  // 0.4.0 name the sections there were (`known`), so a section left out on purpose stays out; older ones count as
+  // knowing the sections before the later ones.
   if (Array.isArray(stored.sections)) {
     const later = Object.keys(LATER_SUMMARY_SECTIONS) as DailySummarySection[];
-    const before = DAILY_SUMMARY_SECTIONS.filter((x) => !later.includes(x));
-    if (before.every((x) => stored.sections!.includes(x))) stored.sections = [...new Set([...stored.sections, ...later])];
+    const known: string[] = Array.isArray(knownSections) ? knownSections : DAILY_SUMMARY_SECTIONS.filter((x) => !later.includes(x));
+    const added = DAILY_SUMMARY_SECTIONS.filter((x) => !known.includes(x));
+    if (added.length && known.every((x) => (stored.sections as string[]).includes(x))) stored.sections = [...new Set([...stored.sections, ...added])];
   }
   const parsed = prefsSchema.safeParse({ ...DEFAULT_DAILY_SUMMARY, ...stored, enabled: !!r.enabled });
   return parsed.success ? parsed.data : { ...DEFAULT_DAILY_SUMMARY, enabled: false };
@@ -145,7 +150,7 @@ export function savePrefs(u: UserInfo, input: DailySummaryPrefs): DailySummarySt
      ON CONFLICT(user_id) DO UPDATE SET enabled = excluded.enabled, prefs = excluded.prefs, updated_at = excluded.updated_at`,
     u.id,
     prefs.enabled ? 1 : 0,
-    JSON.stringify(prefs),
+    JSON.stringify({ ...prefs, known: [...DAILY_SUMMARY_SECTIONS] }),
     nowIso(),
   );
   audit({
@@ -538,6 +543,17 @@ function trendsSection(c: Ctx): Section {
   return { count: items.length, items };
 }
 
+/** Kafka topics under a prefix kept in sync that are not components yet (v0.4.0): applications the reader may change. */
+function topicsSection(c: Ctx): Section {
+  const items = offeredFor(c.user, canEditApplication).map((x) => ({
+    title: t(c.l, 'dailySummary.topicsTitle', { application: x.applicationName, prefix: x.prefix, count: x.topics.length }),
+    detail: x.topics.slice(0, 5).join(', ') + (x.topics.length > 5 ? ', …' : '') + (x.environment ? ` · ${x.environment}` : ''),
+    link: `/applications/${x.applicationId}`,
+    tone: 'info' as const,
+  }));
+  return { count: offeredFor(c.user, canEditApplication).reduce((n, x) => n + x.topics.length, 0), items };
+}
+
 /** May the reader see the dataset's data (as on the dashboards: the process's view right, or the monitor's)? */
 function datasetReadable(processId: string): boolean {
   return monitorDatasetVisible(processId) ?? permissionsFor(processId).includes('view');
@@ -565,6 +581,7 @@ const BUILDERS: Record<DailySummarySection, (c: Ctx) => Section> = {
   duties: dutiesSection,
   reports: reportsSection,
   trends: trendsSection,
+  topics: topicsSection,
 };
 
 /** The summary for one user, collected with their rights. */

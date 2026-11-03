@@ -156,9 +156,11 @@
       "reports": "Reports for you",
       "reviews": "Document reviews due",
       "duties": "Service duties",
-      "trends": "Trends"
+      "trends": "Trends",
+      "topics": "New Kafka topics"
     },
     "count": "{{section}}: {{count}}",
+    "topicsTitle": "{{application}}: {{count}} new topic(s) under {{prefix}}",
     "runsTotal_one": "{{count}} run, {{failed}} failed",
     "runsTotal_other": "{{count}} runs, {{failed}} failed",
     "runsTotalFindings_one": "{{count}} run, {{failed}} failed, {{findings}} completed with findings",

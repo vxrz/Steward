@@ -741,7 +741,10 @@
     "BUNDLE_BINDING_MISSING": "Wählen Sie die Plattform für „{{label}}“.",
     "BUNDLE_BINDING_KIND": "„{{name}}“ passt nicht zu „{{label}}“ – nötig ist eine Plattform der Art {{kinds}}.",
     "FORBIDDEN_setupBundle": "Sie dürfen keine Vorlagensets einrichten (dafür ist das Recht nötig, Prozesse anzulegen).",
-    "FORBIDDEN_runProcess": "Sie dürfen diesen Prozess nicht ausführen."
+    "FORBIDDEN_runProcess": "Sie dürfen diesen Prozess nicht ausführen.",
+    "KAFKA_LIST_FAILED": "Der Kafka-Cluster konnte nicht gelesen werden: {{detail}}",
+    "TOPIC_PREFIX_LIMIT": "Eine Anwendung hält höchstens {{max}} Topic-Präfixe aktuell.",
+    "TOPIC_PREFIX_NOT_FOUND": "Dieses Topic-Präfix wird für die Anwendung nicht aktuell gehalten."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

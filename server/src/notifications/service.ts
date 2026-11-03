@@ -693,8 +693,9 @@ export function startNotificationJobs(): void {
     import('../aws/service.js').then((m) => m.runAwsJob()).catch((err) => logger.warn({ err }, 'AWS job failed'));
     import('../snowflake/service.js').then((m) => m.runSnowflakeJob()).catch((err) => logger.warn({ err }, 'Snowflake job failed'));
     import('../dtrack/service.js').then((m) => m.runDtrackJob()).catch((err) => logger.warn({ err }, 'Dependency-Track job failed'));
-    // periodic connection tests of platforms that turned them on (v0.4.0, platforms/health.ts)
+    // periodic connection tests of platforms that turned them on (v0.4.0, platforms/health.ts); topic prefixes kept in sync (kafka/prefixes.ts)
     import('../platforms/health.js').then((m) => m.runPlatformHealthJob()).catch((err) => logger.warn({ err }, 'platform health job failed'));
+    import('../kafka/prefixes.js').then((m) => m.runTopicPrefixJob()).catch((err) => logger.warn({ err }, 'Kafka topic prefix job failed'));
     import('./summary.js').then((m) => m.runDailySummaries()).catch((err) => logger.warn({ err }, 'daily summary job failed'));
     // maintenance windows: reminders, start and end messages (catalogue/maintenance.ts, idempotent)
     import('../catalogue/maintenance.js').then((m) => m.runMaintenanceJob()).catch((err) => logger.warn({ err }, 'maintenance job failed'));

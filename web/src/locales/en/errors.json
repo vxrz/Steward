@@ -741,7 +741,10 @@
     "BUNDLE_BINDING_MISSING": "Choose the platform for “{{label}}”.",
     "BUNDLE_BINDING_KIND": "“{{name}}” does not fit “{{label}}” – it needs a platform of kind {{kinds}}.",
     "FORBIDDEN_setupBundle": "You are not allowed to set up template bundles (it needs the right to create processes).",
-    "FORBIDDEN_runProcess": "You are not allowed to run this process."
+    "FORBIDDEN_runProcess": "You are not allowed to run this process.",
+    "KAFKA_LIST_FAILED": "The Kafka cluster could not be read: {{detail}}",
+    "TOPIC_PREFIX_LIMIT": "An application keeps at most {{max}} topic prefixes in sync.",
+    "TOPIC_PREFIX_NOT_FOUND": "This topic prefix is not kept in sync for the application."
   },
   "boundary": {
     "title": "Something went wrong on this page",
