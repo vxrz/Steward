@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import { allowEmailDomains, authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
+import { allowEmailDomains, authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer, setEnv } from './helpers.js';
 
 let s: TestServer;
 const PW = 'Demo-password-1';
@@ -167,8 +167,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await s?.app.close();
-  if (rateLimitBefore === undefined) delete process.env.SM_API_RATE_LIMIT;
-  else process.env.SM_API_RATE_LIMIT = rateLimitBefore;
+  await setEnv({ SM_API_RATE_LIMIT: rateLimitBefore });
 });
 
 describe('authentication', () => {
@@ -758,7 +757,7 @@ describe('services', () => {
 describe('rate limiting', () => {
   it('answers 429 with Retry-After and RateLimit headers', async () => {
     const before = process.env.SM_API_RATE_LIMIT;
-    process.env.SM_API_RATE_LIMIT = '3';
+    await setEnv({ SM_API_RATE_LIMIT: '3' });
     try {
       const t = await newToken(s.api, 'limited');
       const first = await v1(t, '/me');
@@ -774,8 +773,7 @@ describe('rate limiting', () => {
       // other tokens have their own bucket
       expect((await v1(tokens.vera, '/me')).status).toBe(200);
     } finally {
-      if (before === undefined) delete process.env.SM_API_RATE_LIMIT;
-      else process.env.SM_API_RATE_LIMIT = before;
+      await setEnv({ SM_API_RATE_LIMIT: before });
     }
   });
 });

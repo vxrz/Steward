@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ADMIN, authHeaders, loginCookie, quiesce, setup, startTestServer, startedUrl, type Client, type TestServer } from './helpers.js';
+import { ADMIN, authHeaders, loginCookie, quiesce, setEnv, setup, startTestServer, startedUrl, type Client, type TestServer } from './helpers.js';
 import { PG_TEST_URL } from './pg-env.js';
 import { tinyPng } from './png.js';
 
@@ -327,11 +327,11 @@ describe('export (source)', () => {
     const changed = await repack('changed', (n, d) => (n.startsWith('files/records/') ? Buffer.concat([d, Buffer.from(' ')]) : d));
     await expect(readPackage(changed, TRANSFER)).rejects.toMatchObject({ code: 'MIGRATION_PACKAGE_INVALID' });
     // what a package unpacks to has an absolute ceiling
-    process.env.SM_MIGRATION_MAX_UNPACKED_MB = '0.01';
+    await setEnv({ SM_MIGRATION_MAX_UNPACKED_MB: '0.01' });
     try {
       await expect(readPackage(pkgFile, TRANSFER)).rejects.toMatchObject({ code: 'MIGRATION_UNPACKED_TOO_LARGE' });
     } finally {
-      delete process.env.SM_MIGRATION_MAX_UNPACKED_MB;
+      await setEnv({ SM_MIGRATION_MAX_UNPACKED_MB: undefined });
     }
     const ok = await readPackage(pkgFile, TRANSFER);
     try {

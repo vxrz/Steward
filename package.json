@@ -31,6 +31,7 @@
     "dev:demo": "cross-env SM_DEMO=1 node scripts/dev.mjs",
     "validate": "tsx server/src/cli/validate.ts",
     "openapi": "tsx server/src/cli/openapi.ts",
+    "config:docs": "tsx server/src/cli/config-docs.ts",
     "build:exe": "node scripts/build-exe.mjs",
     "desktop": "tsx server/src/desktop/launcher.ts",
     "contract": "tsx server/src/cli/contract.ts",

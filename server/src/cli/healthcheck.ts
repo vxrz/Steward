@@ -13,11 +13,13 @@ import fs from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
 import { resolveBasePath } from '../basePath.js';
+import { parseEnvPart } from '../config-schema.js';
 
 const HELP = `Check that Steward on this machine answers <base path>/api/health (container health check).
 
 Usage:
-  node --import tsx server/src/cli/healthcheck.ts
+  node server/dist/healthcheck.js       (the container image)
+  npx tsx server/src/cli/healthcheck.ts (a checkout)
 
 Reads SM_PORT (default 4310), SM_BASE_PATH or SM_PUBLIC_URL, and SM_TLS_CERT/SM_TLS_KEY like the server.
 With SM_TLS_CERT it accepts only the certificate in that file.
@@ -48,11 +50,16 @@ function reason(e: NodeJS.ErrnoException): string {
   }
 }
 
-function healthUrl(env: NodeJS.ProcessEnv): URL {
-  const { basePath } = resolveBasePath(env);
-  const port = Number(env.SM_PORT ?? 4310);
+/** The server's schema (config-schema.ts), only for the variables the check needs – nothing else is loaded. */
+function settings(raw: NodeJS.ProcessEnv) {
+  return parseEnvPart(raw, ['SM_PORT', 'SM_TLS_CERT', 'SM_TLS_KEY']);
+}
+
+function healthUrl(raw: NodeJS.ProcessEnv): URL {
+  const { basePath } = resolveBasePath(raw);
+  const env = settings(raw);
   const scheme = env.SM_TLS_CERT && env.SM_TLS_KEY ? 'https' : 'http';
-  return new URL(`${scheme}://127.0.0.1:${port}${basePath}/api/health`);
+  return new URL(`${scheme}://127.0.0.1:${env.SM_PORT}${basePath}/api/health`);
 }
 
 /** TLS options that accept only the certificate in SM_TLS_CERT (the first one in the file is Steward's own). */
@@ -91,7 +98,7 @@ let url: URL;
 let tls: https.RequestOptions = {};
 try {
   url = healthUrl(process.env);
-  if (url.protocol === 'https:') tls = pinnedTls(process.env.SM_TLS_CERT ?? '');
+  if (url.protocol === 'https:') tls = pinnedTls(settings(process.env).SM_TLS_CERT ?? '');
 } catch (e) {
   console.error(`healthcheck: ${(e as Error).message}`);
   process.exit(1);

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, withRefusalReason, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, withRefusalReason, type Client, type TestServer, setEnv } from './helpers.js';
 
 /**
  * Who may claim an account at its first single sign-on: accounts without a password belong to one provider, a local
@@ -99,34 +99,34 @@ describe('claiming accounts with single sign-on', () => {
     expect((await linked.client!('GET', '/auth/me')).user.authSource).toBe(a);
     // linking ends the account's other sessions, like binding it does
     await expect(byPassword('GET', '/auth/me')).rejects.toMatchObject({ status: 401 });
-    process.env.SM_PASSWORD_LOGIN = 'none';
+    await setEnv({ SM_PASSWORD_LOGIN: 'none' });
     try {
       await expect(byPassword('GET', '/auth/me')).rejects.toMatchObject({ status: 401 });
       expect((await linked.client!('GET', '/auth/me')).user.username).toBe('oskar@contoso.example');
     } finally {
-      delete process.env.SM_PASSWORD_LOGIN;
+      await setEnv({ SM_PASSWORD_LOGIN: undefined });
     }
     // sessions from before the method was recorded count as password sessions
     const old = (await signIn(a, 'c3d5')).client!;
     db().run("UPDATE sessions SET method = NULL WHERE method = 'sso'");
-    process.env.SM_PASSWORD_LOGIN = 'none';
+    await setEnv({ SM_PASSWORD_LOGIN: 'none' });
     try {
       await expect(old('GET', '/auth/me')).rejects.toMatchObject({ status: 401 });
     } finally {
-      delete process.env.SM_PASSWORD_LOGIN;
+      await setEnv({ SM_PASSWORD_LOGIN: undefined });
     }
   });
 
   it('with password sign-in off and several providers, a new account needs the provider chosen', async () => {
     const max = (await signIn(a, 'a1f3')).client!;
-    process.env.SM_PASSWORD_LOGIN = 'none';
+    await setEnv({ SM_PASSWORD_LOGIN: 'none' });
     try {
       const e = await max('POST', '/users', { username: 'new@contoso.example', roles: ['viewer'] }).catch((x) => x);
       expect(e.message).toContain('SSO_PROVIDER_CHOICE_REQUIRED');
       const { user } = await max('POST', '/users', { username: 'new@contoso.example', roles: ['viewer'], provider: b });
       expect(user.authSource).toBe(b);
     } finally {
-      delete process.env.SM_PASSWORD_LOGIN;
+      await setEnv({ SM_PASSWORD_LOGIN: undefined });
     }
   });
 });

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import type { Platform } from '@sm/shared';
 import { platformRequest, type HttpResult } from '../platforms/http.js';
 import { unescapeXml, xmlAll, xmlOne } from '../platforms/xml.js';
+import { env } from '../config.js';
 
 /**
  * The few S3 calls backups need (#117), over the platform request layer – so the platform's proxy, outbound policy and
@@ -17,8 +18,8 @@ export interface S3Object {
 }
 
 /** Objects up to this size go up in one PUT; larger ones as a multipart upload in parts of PART_BYTES. */
-export const SINGLE_PUT_MAX = Number(process.env.SM_BACKUP_SINGLE_PUT_BYTES) || 32 * 1024 * 1024;
-export const PART_BYTES = Math.max(Number(process.env.SM_BACKUP_PART_BYTES) || 16 * 1024 * 1024, 1024);
+export const SINGLE_PUT_MAX = env.SM_BACKUP_SINGLE_PUT_BYTES;
+export const PART_BYTES = env.SM_BACKUP_PART_BYTES;
 
 /** Object keys Steward writes: letters, digits and . _ - / only, so the URL path and the signature need no escaping. */
 export function checkKey(key: string): string {

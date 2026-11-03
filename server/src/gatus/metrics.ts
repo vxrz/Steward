@@ -8,6 +8,7 @@ import { assertOutboundAllowed } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { platformFor } from '../monitors/platforms.js';
 import { parsePrometheus, type PromSample } from './prometheus.js';
+import { env } from '../config.js';
 
 /**
  * Gatus metrics mode: Steward scrapes Gatus' Prometheus endpoint (/metrics,
@@ -511,7 +512,7 @@ export function tickScraper(now = Date.now()): string[] {
 
 export function startGatusScraper(): void {
   // tests drive the scraper themselves
-  if (timer || process.env.SM_GATUS_AUTOSTART === '0') return;
+  if (timer || !env.SM_GATUS_AUTOSTART) return;
   timer = setInterval(() => {
     try {
       tickScraper();

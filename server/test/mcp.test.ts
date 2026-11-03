@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, type Client, type TestServer, setEnv } from './helpers.js';
 
 /**
  * MCP server (POST /api/mcp): transport and protocol rules (both eras), authentication and scope,
@@ -234,7 +234,7 @@ describe('MCP transport and authentication', () => {
 
   it('rate-limits per token', async () => {
     const t = await mcpToken(s.api, 'mcp rate');
-    process.env.SM_MCP_RATE_LIMIT = '3';
+    await setEnv({ SM_MCP_RATE_LIMIT: '3' });
     try {
       for (let i = 0; i < 3; i++) expect((await modern(t, 'server/discover')).status).toBe(200);
       const r = await modern(t, 'server/discover');
@@ -243,7 +243,7 @@ describe('MCP transport and authentication', () => {
       expect(r.body.error.code).toBe(-31029);
       expect((await modern(tok.admin, 'server/discover')).status).toBe(200); // other tokens are not affected
     } finally {
-      delete process.env.SM_MCP_RATE_LIMIT;
+      await setEnv({ SM_MCP_RATE_LIMIT: undefined });
     }
   });
 });
@@ -726,7 +726,7 @@ describe('MCP platform gateway (read-only)', () => {
   });
 
   it('rate-limits per user and platform (more tokens do not help)', async () => {
-    process.env.SM_MCP_GATEWAY_RATE_LIMIT = '2';
+    await setEnv({ SM_MCP_GATEWAY_RATE_LIMIT: '2' });
     try {
       const t = await mcpToken(olivia, 'gw rate');
       const t2 = await mcpToken(olivia, 'gw rate 2');
@@ -741,7 +741,7 @@ describe('MCP platform gateway (read-only)', () => {
       // another user has their own budget
       expect((await call(tok.admin, 'platform_call_operation', { platformId: gw.id, path: '/echo-headers' })).isError).toBe(false);
     } finally {
-      delete process.env.SM_MCP_GATEWAY_RATE_LIMIT;
+      await setEnv({ SM_MCP_GATEWAY_RATE_LIMIT: undefined });
     }
   });
 

@@ -4,6 +4,7 @@ import v8 from 'node:v8';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
 import { MessageChannel, Worker, receiveMessageOnPort, type MessagePort } from 'node:worker_threads';
+import { env } from '../config.js';
 
 /**
  * Expressions are JSONata (https://jsonata.org). Templates are strings with
@@ -40,16 +41,11 @@ export interface ExpressionLimits {
   maxSequence: number;
 }
 
-function envNumber(name: string, fallback: number): number {
-  const v = Number(process.env[name]);
-  return Number.isFinite(v) && v > 0 ? v : fallback;
-}
-
 /** Defaults for every evaluation; SM_EXPR_TIMEOUT_MS, SM_EXPR_MAX_DEPTH and SM_EXPR_MAX_SEQUENCE override them. */
 const limits: ExpressionLimits = {
-  timeoutMs: envNumber('SM_EXPR_TIMEOUT_MS', 5000),
-  maxDepth: envNumber('SM_EXPR_MAX_DEPTH', 1000),
-  maxSequence: envNumber('SM_EXPR_MAX_SEQUENCE', 1_000_000),
+  timeoutMs: env.SM_EXPR_TIMEOUT_MS,
+  maxDepth: env.SM_EXPR_MAX_DEPTH,
+  maxSequence: env.SM_EXPR_MAX_SEQUENCE,
 };
 
 export function expressionLimits(): ExpressionLimits {

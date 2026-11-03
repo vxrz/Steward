@@ -67,6 +67,24 @@ export default defineConfig(
   // shared/ runs in both, but must not depend on either environment's globals
   { files: ['shared/**'], languageOptions: { globals: globals['shared-node-browser'] } },
 
+  // Server configuration: SM_* variables are read (and validated) in config.ts / config-schema.ts only – everything else
+  // uses `env` from config.ts. Setting a variable before the configuration loads (desktop launcher, CLIs) stays allowed.
+  {
+    files: ['server/src/**/*.ts'],
+    ignores: ['server/src/config.ts', 'server/src/config-schema.ts', 'server/src/desktop/env.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...noV8Flags,
+        {
+          selector:
+            "MemberExpression[object.type='MemberExpression'][object.object.name='process'][object.property.name='env'][property.name=/^SM_/]:not(AssignmentExpression > MemberExpression.left)",
+          message: 'Read SM_* variables from `env` in server/src/config.ts (validated at start-up; add new ones to config-schema.ts).',
+        },
+      ],
+    },
+  },
+
   // Tests: `any` for loosely typed API responses and test doubles is fine (CONTRIBUTING.md: "No `any`" applies to app code)
   {
     files: ['server/test/**', 'e2e/**'],

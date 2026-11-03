@@ -20,29 +20,16 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { normalizeIP, type RateLimitOptions, type RateLimitPluginOptions } from '@fastify/rate-limit';
 import { logger } from './log.js';
 import { HttpError } from './util.js';
+import { env } from './config.js';
 
 export const DEFAULT_RATE_LIMIT_PER_MINUTE = 600;
 const WINDOW_MS = 60_000;
 /** Web UI files and inbound webhooks: an address bucket of this many times the general limit. */
 const ADDRESS_FACTOR = 10;
 
-const OFF = ['off', '0', 'false', 'no', 'disabled'];
-const warned = new Set<string>();
-
 /** Requests per minute and user or address (SM_RATE_LIMIT_PER_MINUTE, default 600; 0 or "off" = no limits). */
 export function rateLimitPerMinute(): number {
-  const raw = process.env.SM_RATE_LIMIT_PER_MINUTE?.trim().toLowerCase();
-  if (!raw) return DEFAULT_RATE_LIMIT_PER_MINUTE;
-  if (OFF.includes(raw)) return 0;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 0) {
-    if (!warned.has(raw)) {
-      warned.add(raw);
-      logger.warn(`SM_RATE_LIMIT_PER_MINUTE="${raw}" is not a whole number – using ${DEFAULT_RATE_LIMIT_PER_MINUTE}`);
-    }
-    return DEFAULT_RATE_LIMIT_PER_MINUTE;
-  }
-  return n;
+  return env.SM_RATE_LIMIT_PER_MINUTE;
 }
 
 /** The signed-in user of a request, set by the session check in app.ts. */

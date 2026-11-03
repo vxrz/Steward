@@ -14,6 +14,7 @@ import { initMetrics, metricsText } from '../metrics.js';
 import { readinessChecks } from '../system/readiness.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS } from '../auth/access.js';
+import { env } from '../config.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -38,7 +39,7 @@ export async function engineExtrasRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- Prometheus metrics ----------
   app.get('/metrics', async (_req, reply) => {
-    if (process.env.SM_METRICS_PUBLIC !== '1') {
+    if (!env.SM_METRICS_PUBLIC) {
       const u = currentUser();
       if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
       if (!u.roles.includes('admin') && !u.roles.includes('auditor')) throw new HttpError(403, 'Metrics are available to administrators and auditors');

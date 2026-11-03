@@ -1,5 +1,5 @@
 import { pino } from 'pino';
-import { config } from './config.js';
+import { config, env } from './config.js';
 import { activeTraceIds } from './telemetry.js';
 import { BRAND } from '@sm/shared';
 
@@ -9,7 +9,7 @@ import { BRAND } from '@sm/shared';
  * Level: SM_LOG_LEVEL (fatal|error|warn|info|debug|trace, default info).
  */
 export const logger = pino({
-  level: process.env.SM_LOG_LEVEL ?? (process.env.VITEST ? 'silent' : 'info'),
+  level: env.SM_LOG_LEVEL ?? (process.env.VITEST ? 'silent' : 'info'),
   base: { service: BRAND.slug, version: config.version },
   timestamp: pino.stdTimeFunctions.isoTime,
   messageKey: 'msg',

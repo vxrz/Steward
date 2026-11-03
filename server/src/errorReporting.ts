@@ -19,7 +19,7 @@
 import { createHash } from 'node:crypto';
 import os from 'node:os';
 import { BRAND, scrubBreadcrumb, scrubEvent, type ClientConfig } from '@sm/shared';
-import { config } from './config.js';
+import { config, env, type Env } from './config.js';
 import { logger } from './log.js';
 import { activeTraceIds, tracingEnabled } from './telemetry.js';
 import { HttpError } from './util.js';
@@ -46,17 +46,19 @@ export function parseDsn(dsn: string | undefined): URL | undefined {
   }
 }
 
-export function errorReportingSettings(env: NodeJS.ProcessEnv = process.env): ErrorReportingSettings {
-  const dsn = env.SM_SENTRY_DSN?.trim() || undefined;
-  const webRaw = env.SM_SENTRY_DSN_WEB?.trim();
-  const webDsn = webRaw === 'off' || webRaw === '0' || webRaw === 'false' ? undefined : webRaw || dsn;
-  const rate = Number(env.SM_SENTRY_TRACES_SAMPLE_RATE ?? 0);
+type SentryEnv = Pick<Env, 'SM_SENTRY_DSN' | 'SM_SENTRY_DSN_WEB' | 'SM_SENTRY_ENVIRONMENT' | 'SM_SENTRY_RELEASE' | 'SM_SENTRY_TRACES_SAMPLE_RATE'>;
+
+const webOff = (v: string | undefined) => v === 'off' || v === '0' || v === 'false';
+
+export function errorReportingSettings(e: SentryEnv = env): ErrorReportingSettings {
+  const dsn = e.SM_SENTRY_DSN;
+  const webDsn = webOff(e.SM_SENTRY_DSN_WEB) ? undefined : e.SM_SENTRY_DSN_WEB || dsn;
   return {
     dsn: parseDsn(dsn) ? dsn : undefined,
     webDsn: parseDsn(webDsn) ? webDsn : undefined,
-    environment: env.SM_SENTRY_ENVIRONMENT?.trim() || 'production',
-    release: env.SM_SENTRY_RELEASE?.trim() || `${BRAND.slug}@${config.version}`,
-    tracesSampleRate: Number.isFinite(rate) ? Math.min(1, Math.max(0, rate)) : 0,
+    environment: e.SM_SENTRY_ENVIRONMENT,
+    release: e.SM_SENTRY_RELEASE || `${BRAND.slug}@${config.version}`,
+    tracesSampleRate: e.SM_SENTRY_TRACES_SAMPLE_RATE,
   };
 }
 
@@ -118,8 +120,8 @@ export interface InitOptions {
 export async function initErrorReporting(opts: InitOptions = {}): Promise<boolean> {
   if (sentry) return true;
   const s = { ...errorReportingSettings(), ...opts.settings };
-  if (process.env.SM_SENTRY_DSN && !s.dsn) logger.warn('SM_SENTRY_DSN is not a valid DSN (https://<key>@<host>/<project>) – error reporting stays off');
-  if (process.env.SM_SENTRY_DSN_WEB && !['off', '0', 'false'].includes(process.env.SM_SENTRY_DSN_WEB) && !s.webDsn) {
+  if (env.SM_SENTRY_DSN && !s.dsn) logger.warn('SM_SENTRY_DSN is not a valid DSN (https://<key>@<host>/<project>) – error reporting stays off');
+  if (env.SM_SENTRY_DSN_WEB && !webOff(env.SM_SENTRY_DSN_WEB) && !s.webDsn) {
     logger.warn('SM_SENTRY_DSN_WEB is not a valid DSN – browser error reporting stays off');
   }
   if (!s.dsn) return false;

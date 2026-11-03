@@ -6,6 +6,7 @@ import { db } from '../db.js';
 import { flushPendingAudit, verifyAuditAsync } from '../audit.js';
 import { ZipReader, ZipWriter, type WrittenEntry } from '../compliance/zip.js';
 import { openSqliteFile } from '../database/sqlite-file.js';
+import { env } from '../config.js';
 
 /**
  * The backup archive (#117), before encryption: a ZIP with
@@ -39,8 +40,8 @@ export function workDir(): string {
   return dir;
 }
 
-const pgDumpBin = () => process.env.SM_PG_DUMP || 'pg_dump';
-const pgRestoreBin = () => process.env.SM_PG_RESTORE || 'pg_restore';
+const pgDumpBin = () => env.SM_PG_DUMP;
+const pgRestoreBin = () => env.SM_PG_RESTORE;
 
 /** Runs a program without a shell; the error carries the end of its stderr. */
 function run(bin: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<string> {

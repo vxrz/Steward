@@ -8,7 +8,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ADMIN, authHeaders, loginCookie, quiesce, setup, startedUrl, startTestServer, type TestServer } from './helpers.js';
+import { ADMIN, authHeaders, loginCookie, quiesce, setEnv, setup, startedUrl, startTestServer, type TestServer } from './helpers.js';
 
 let s: TestServer;
 let gatus: string;
@@ -189,10 +189,10 @@ describe('H1 – audit chain: truncation, wipe, rows with seq < 1, anchoring', (
       const r = await s.api('POST', '/audit/verify', { anchor: external });
       expect(r.ok).toBe(false);
       expect(r.anchors.at(-1)).toMatchObject({ ok: false, source: 'checkpoint you entered' });
-      process.env.SM_AUDIT_ANCHOR = external;
+      await setEnv({ SM_AUDIT_ANCHOR: external });
       expect((await s.api('GET', '/audit/verify')).ok).toBe(false);
     } finally {
-      delete process.env.SM_AUDIT_ANCHOR;
+      await setEnv({ SM_AUDIT_ANCHOR: undefined });
       (await db()).run('DELETE FROM audit_log WHERE seq > ?', first.checkpoint.seq - 2);
       await restore(rows);
       fs.writeFileSync(anchorFile(), savedAnchor);
@@ -367,8 +367,8 @@ describe('H5 – the master passphrase does not leak into child processes', () =
       DISPLAY: ':0',
     });
     expect(env).toEqual({ PATH: '/usr/bin', HOME: '/home/x', DISPLAY: ':0' });
-    expect(sandboxWanted({ SM_CHROMIUM_SANDBOX: '1' })).toEqual({ sandbox: true, forced: true });
-    expect(sandboxWanted({}).sandbox).toBe(process.getuid?.() !== 0);
+    expect(sandboxWanted({ SM_CHROMIUM_SANDBOX: true })).toEqual({ sandbox: true, forced: true });
+    expect(sandboxWanted({ SM_CHROMIUM_SANDBOX: undefined }).sandbox).toBe(process.getuid?.() !== 0);
     const { browserEnv: launcherEnv } = await import('../src/desktop/launcher-env.js');
     expect(launcherEnv({ PATH: '/bin', SM_MASTER_PASSPHRASE: 'p', MY_API_TOKEN: 't', LOCALAPPDATA: 'C:\\x' })).toEqual({ PATH: '/bin', LOCALAPPDATA: 'C:\\x' });
   });

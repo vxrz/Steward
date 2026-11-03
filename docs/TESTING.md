@@ -18,6 +18,10 @@ This guide covers how to test Steward properly: the automated test layers, manua
 
 The contract check also accepts `SM_URL`, `SM_TOKEN` and `SM_PLATFORM` instead of the flags. It exits with 1 when an operation fails and with 2 on usage or connection errors, so it can gate a CI job.
 
+### Environment variables in server tests
+
+The server validates its `SM_*` variables once, when `server/src/config.ts` is loaded ([CONFIGURATION.md](CONFIGURATION.md)). Set them in `process.env` before the test server starts (`startTestServer` imports the configuration). To change one while the server runs, use `await setEnv({ SM_API_RATE_LIMIT: '3' })` from `server/test/helpers.ts` (`undefined` removes it): it sets the variable and calls `reloadConfig()`, which re-reads the environment into the same `env` object. `overrideConfig({ … })` sets single, already typed values. Values derived once at start (port, data directory, database, base path, session lifetimes) keep their start-up value.
+
 ### Running the UI tests
 
 ```bash

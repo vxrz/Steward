@@ -1,6 +1,6 @@
 import { API_DOCS_MODES, type ApiDocsMode, type PublicApiStatus } from '@sm/shared';
 import { getSettings } from '../../settings.js';
-import { logger } from '../../log.js';
+import { env } from '../../config.js';
 
 /** Semantic version of the public API description (info.version). Bump minor for additive changes. */
 export const API_VERSION = '1.1.0';
@@ -9,17 +9,9 @@ export const API_BASE = '/api/v1';
 export const DOCS_BASE = '/api/docs';
 export const DEFAULT_RATE_LIMIT = 600;
 
-const OFF = ['off', '0', 'false', 'no', 'disabled'];
-const warned = new Set<string>();
-const warnOnce = (key: string, msg: string) => {
-  if (warned.has(key)) return;
-  warned.add(key);
-  logger.warn(msg);
-};
-
 /** SM_API_V1=off turns the public API (and its documentation) off. Default: on. */
 export function apiEnabled(): boolean {
-  return !OFF.includes((process.env.SM_API_V1 ?? 'on').trim().toLowerCase());
+  return env.SM_API_V1;
 }
 
 /**
@@ -28,12 +20,7 @@ export function apiEnabled(): boolean {
  */
 export function docsMode(): { mode: ApiDocsMode; source: 'env' | 'settings' } {
   if (!apiEnabled()) return { mode: 'off', source: 'env' };
-  const env = process.env.SM_API_DOCS?.trim().toLowerCase();
-  if (env) {
-    if ((API_DOCS_MODES as readonly string[]).includes(env)) return { mode: env as ApiDocsMode, source: 'env' };
-    warnOnce(`docs:${env}`, `SM_API_DOCS="${env}" is not one of ${API_DOCS_MODES.join(', ')} – API documentation is off`);
-    return { mode: 'off', source: 'env' };
-  }
+  if (env.SM_API_DOCS) return { mode: env.SM_API_DOCS, source: 'env' };
   let mode: ApiDocsMode = 'authenticated';
   try {
     const s = getSettings().apiDocs;
@@ -46,15 +33,7 @@ export function docsMode(): { mode: ApiDocsMode; source: 'env' | 'settings' } {
 
 /** Requests per minute and token (SM_API_RATE_LIMIT, default 600; 0 or "off" = unlimited). */
 export function rateLimitPerMinute(): number {
-  const raw = process.env.SM_API_RATE_LIMIT?.trim().toLowerCase();
-  if (!raw) return DEFAULT_RATE_LIMIT;
-  if (OFF.includes(raw)) return 0;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 0) {
-    warnOnce(`rate:${raw}`, `SM_API_RATE_LIMIT="${raw}" is not a whole number – using ${DEFAULT_RATE_LIMIT}`);
-    return DEFAULT_RATE_LIMIT;
-  }
-  return n;
+  return env.SM_API_RATE_LIMIT;
 }
 
 let docsUiAvailable = false;

@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { EXIT_FAILURE, EXIT_OK, UsageError, parseCli, usageFailure } from './args.js';
 import { Failure, actor, alive, promptHidden, readStdin } from './admin.js';
+import { parseEnvPart } from '../config-schema.js';
 
 const help = (command: string) => `Move a Steward instance to another one (run on the server, with Steward stopped).
 
@@ -120,7 +121,8 @@ export async function runMigrate(argv: string[], command = 'steward migrate'): P
 async function transferPassphrase(values: Values, twice: boolean): Promise<string> {
   const file = values['transfer-passphrase-file'];
   if (file) return fs.readFileSync(path.resolve(file), 'utf8').replace(/\r?\n$/, '');
-  if (process.env.SM_TRANSFER_PASSPHRASE) return process.env.SM_TRANSFER_PASSPHRASE;
+  const fromEnv = parseEnvPart(process.env, ['SM_TRANSFER_PASSPHRASE']).SM_TRANSFER_PASSPHRASE;
+  if (fromEnv) return fromEnv;
   if (!process.stdin.isTTY) throw new Failure('the transfer passphrase is needed: --transfer-passphrase-file, SM_TRANSFER_PASSPHRASE or run in a terminal');
   const p = await promptHidden('Transfer passphrase (at least 12 characters): ');
   if (twice && (await promptHidden('Repeat the transfer passphrase: ')) !== p) throw new Failure('the transfer passphrases differ');

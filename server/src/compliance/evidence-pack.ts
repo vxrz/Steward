@@ -44,6 +44,7 @@ import { getCheck, getSnapshot, listFindings, listSnapshots, verifyChain } from 
 import { renderPackPdf } from './pack-pdf.js';
 import { AUDIT_EXCERPT_FILE, MANIFEST_SIGNATURE_DOMAIN, type AuditExcerpt, type PackManifest } from './evidence-verify.js';
 import { ZipLimitError, ZipWriter, type WrittenEntry } from './zip.js';
+import { env } from '../config.js';
 
 /**
  * Audit evidence packs: a ZIP for some controls (or a platform or service) and a period with an index
@@ -55,9 +56,9 @@ import { ZipLimitError, ZipWriter, type WrittenEntry } from './zip.js';
  */
 
 export const PACK_LIMITS = {
-  maxBytes: Math.max(1, Number(process.env.SM_EVIDENCE_MAX_MB) || 512) * 1024 * 1024,
+  maxBytes: env.SM_EVIDENCE_MAX_MB * 1024 * 1024,
   maxFiles: 5000,
-  retentionDays: Math.max(1, Number(process.env.SM_EVIDENCE_RETENTION_DAYS) || 7),
+  retentionDays: env.SM_EVIDENCE_RETENTION_DAYS,
   maxPeriodDays: 3 * 366,
   /** Run protocols generated for runs that have none yet */
   generateReports: 100,

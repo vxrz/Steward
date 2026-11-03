@@ -23,6 +23,7 @@ import { currentUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
 import { platformDataVisible } from '../auth/policy.js';
 import { permissionsFor } from '../processes/service.js';
+import { env } from '../config.js';
 
 /**
  * Datasets are written by "Publish to dashboard" nodes: the latest snapshot of rows plus a compact metric history used
@@ -46,7 +47,7 @@ import { permissionsFor } from '../processes/service.js';
  */
 
 /** Metric history retention */
-const KEEP_DAYS = Number(process.env.SM_METRIC_RETENTION_DAYS ?? 400);
+const KEEP_DAYS = env.SM_METRIC_RETENTION_DAYS;
 const MAX_POINTS_PER_SERIES = 20000;
 /** Without a setting and without a schedule a partition counts as stale after a day */
 const DEFAULT_STALE_MINUTES = 24 * 60;

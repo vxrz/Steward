@@ -17,6 +17,19 @@ export async function setup(s: TestServer): Promise<void> {
   await s.api('POST', '/auth/setup', { passphrase: 'correct horse battery', username: ADMIN.username, displayName: 'Admin', password: ADMIN.password });
 }
 
+/**
+ * Sets (or, with undefined, removes) environment variables while the server runs and re-reads them: the server
+ * validates SM_* variables once (config.ts), so a change only counts after reloadConfig(). Before the server
+ * started, set process.env directly – the configuration reads it when it loads.
+ */
+export async function setEnv(vars: Record<string, string | undefined>): Promise<void> {
+  for (const [k, v] of Object.entries(vars)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  (await import('../src/config.js')).reloadConfig();
+}
+
 export interface TestServer {
   app: FastifyInstance;
   base: string;
