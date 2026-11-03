@@ -257,7 +257,10 @@
     "dtrackMaxHigh": "Höchstens kritische oder hohe",
     "dtrackMaxHighHint": "Darüber eingeschränkt; leer: hohe Befunde werden nicht geprüft",
     "dtrackFailAs": "Wenn es zu viele sind",
-    "dtrackPolicyFail": "Ein fehlgeschlagener Richtlinienverstoß zählt wie ein kritischer Befund"
+    "dtrackPolicyFail": "Ein fehlgeschlagener Richtlinienverstoß zählt wie ein kritischer Befund",
+    "lastReport": "Zuletzt empfangene Meldung",
+    "lastReportHint": "{{when}} – Bedingung und Status-Ausdruck sehen genau diese Felder",
+    "lastReportNone": "Noch keine Meldung empfangen (oder die Prüfung ist noch nicht gespeichert). Sobald das Gateway meldet, steht hier seine letzte Meldung."
   },
   "detail": {
     "template": "Vorlage",
