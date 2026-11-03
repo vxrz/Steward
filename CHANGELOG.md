@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-03
+
+Integrations now say what went wrong: a connection test no longer calls a sign-in page or redirect a working connection, credentials entered but never sent are pointed out, and GitLab, Prometheus, AWS and Snowflake errors name the likely cause. GitLab is called with `PRIVATE-TOKEN`, Prometheus with POST queries, the AWS test checks every permission Steward needs, and process `http` steps can call AWS services and have an answer size limit. Dataset freshness of scheduled runs follows the schedule as it is now, per source, in words. A run whose checks failed shows **Completed with findings** instead of a green _Succeeded_. Templates arrive for Snowflake, Git hosts, AWS and Prometheus, with a searchable template gallery. A round of accessibility, wording and mobile fixes rounds it off. One database migration, additive: `ops-013-dataset-stale-fixed`. **Check before updating:** GitLab platforms that use OAuth tokens need the bearer header name `Authorization`; publish steps whose `staleAfterMinutes` should stay a fixed limit on scheduled processes need `staleAfterFixed: true`; some labels changed (_Records_ → _Documents_, _Protocol_ → _Run report_, _Updates from Git_ → _Git sync_), the addresses stay.
+
 ### Added
 
 - **Prometheus platforms bring an API description** of the read endpoints (`query`, `query_range`, `series`, labels, metadata, targets, alerts, rules), so assistants run PromQL through the MCP gateway and process steps find the operations. Platforms made before add it under _API specs → Add the built-in specification_ (`POST /api/platforms/{id}/specs/built-in`, for every preset that brings one).
@@ -651,7 +655,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/vxrz/steward/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/vxrz/steward/compare/v0.2.10...v0.3.0
 [0.2.10]: https://github.com/vxrz/steward/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/vxrz/steward/compare/v0.2.8...v0.2.9
