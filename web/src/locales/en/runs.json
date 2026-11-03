@@ -111,6 +111,8 @@
     "startedByStep": "Started by sub-process step <step>{{step}}</step> of run <run>{{run}}</run>",
     "startedBySubprocess": "Started by a sub-process step of run <run>{{run}}</run>",
     "failed": "Run failed",
+    "queued": "Waiting for a free slot",
+    "queuedText": "As many runs as the server allows at the same time are running (SM_MAX_CONCURRENT_RUNS). This run starts as soon as one of them ends or waits for a decision – in the order the runs arrived.",
     "interrupted": "Run interrupted",
     "interruptedText": "The application stopped while this run was active. Resume to continue from where it stopped, or cancel it.",
     "stats": {

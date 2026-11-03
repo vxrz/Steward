@@ -106,6 +106,10 @@ export const config = {
   demo: process.env.SM_DEMO === '1' || process.env.SM_DEMO === 'true',
   /** SQLite: automatic copies of the database made before migrations, kept in <data dir>/backups (0 = none). */
   upgradeBackups: envInt('SM_UPGRADE_BACKUPS', 3, 0, 100),
+  /** Runs at the same time (SM_MAX_CONCURRENT_RUNS, 0 = no limit): further runs wait in status queued, first come first served (engine/runner.ts). */
+  maxConcurrentRuns: envInt('SM_MAX_CONCURRENT_RUNS', 20, 0, 10000),
+  /** On SIGTERM/SIGINT: how long running steps may still finish before their runs are marked interrupted (bootstrap.ts). */
+  shutdownGraceMs: envInt('SM_SHUTDOWN_GRACE_SECONDS', 25, 0, 3600) * 1000,
   webDist: process.env.SM_WEB_DIST ?? path.join(ROOT_DIR, 'web', 'dist'),
   templatesDir: path.join(process.env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples'), 'processes'),
   dashboardsDir: path.join(process.env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples'), 'dashboards'),

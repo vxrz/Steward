@@ -122,7 +122,7 @@ export function RunDetailPage() {
         }
         actions={
           <>
-            {canRun && ['running', 'waiting', 'interrupted'].includes(r.status) && (
+            {canRun && ['queued', 'running', 'waiting', 'interrupted'].includes(r.status) && (
               <Button size="xs" color="red" variant="light" leftSection={<IconPlayerStop size={14} />} onClick={() => action('cancel')}>
                 {t('detail.cancel')}
               </Button>
@@ -210,6 +210,11 @@ export function RunDetailPage() {
                 </Text>
               )}
             </Stack>
+          </Alert>
+        )}
+        {r.status === 'queued' && (
+          <Alert color="gray" title={t('detail.queued')} data-testid="run-queued">
+            {t('detail.queuedText')}
           </Alert>
         )}
         {r.status === 'interrupted' && (
