@@ -89,4 +89,23 @@ describe('failed checks on the start page', () => {
     expect(await s.api('GET', `/runs?processId=${other.id}&checks=failed`)).toHaveLength(0);
     expect(await s.api('GET', `/runs?processId=${other.id}`)).toHaveLength(1);
   });
+
+  it('runs that executed but found something complete with findings (derived; the status stays)', async () => {
+    const runs = await s.api('GET', `/runs?processId=${processId}`);
+    const failing = runs.find((r: any) => r.stats.checksFailed === 3);
+    expect(failing).toMatchObject({ status: 'succeeded', outcome: 'findings', findings: { total: 3, error: 1, warning: 1, info: 1 } });
+    const passing = runs.find((r: any) => r.stats.checksFailed === 2);
+    expect(passing).toMatchObject({ status: 'succeeded', outcome: 'findings', findings: { total: 2, error: 0, warning: 1, info: 1 } });
+    expect((await s.api('GET', `/runs/${failing.id}`)).findings).toEqual(failing.findings);
+    // the status filter of the Runs page: with and without findings
+    expect(await s.api('GET', `/runs?processId=${processId}&outcome=findings`)).toHaveLength(runs.length);
+    expect(await s.api('GET', `/runs?processId=${processId}&outcome=succeeded`)).toHaveLength(0);
+    const clean = (await s.api('GET', '/runs?outcome=succeeded')) as any[];
+    expect(clean.length).toBeGreaterThan(0);
+    expect(clean.every((r) => r.outcome === 'succeeded' && r.findings.total === 0)).toBe(true);
+    // the public API: additive fields next to the unchanged status
+    const { token } = await s.api('POST', '/me/tokens', { name: 'outcome', scope: 'read' });
+    const res = await fetch(`${s.base}/api/v1/runs/${failing.id}`, { headers: { authorization: `Bearer ${token}` } });
+    expect(await res.json()).toMatchObject({ status: 'succeeded', outcome: 'findings', findings: { total: 3, error: 1, warning: 1, info: 1 } });
+  });
 });

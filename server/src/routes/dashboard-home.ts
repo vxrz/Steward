@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import type { DashboardAttention, DashboardData, DashboardSetup } from '@sm/shared';
+import { runOutcome, type DashboardAttention, type DashboardData, type DashboardSetup, type RunStatus } from '@sm/shared';
+import { parseJson } from '../util.js';
 import { db } from '../db.js';
 import * as platforms from '../platforms/service.js';
 import * as processes from '../processes/service.js';
@@ -41,9 +42,11 @@ export async function dashboardHomeRoutes(app: FastifyInstance): Promise<void> {
     const failedChecks = store.failedCheckGroups((id) => visible.has(id));
     // 24 h counters from a range query (not capped by the recent-runs list)
     const last24 = db()
-      .all<{ process_id: string; status: string }>('SELECT process_id, status FROM runs WHERE started_at > ?', since)
+      .all<{ process_id: string; status: RunStatus; stats: string }>('SELECT process_id, status, stats FROM runs WHERE started_at > ?', since)
       .filter((r) => visible.has(r.process_id));
     const failed24h = last24.filter((r) => r.status === 'failed').length;
+    // runs that executed but whose checks found something (outcome "findings"; the status stays "succeeded")
+    const findings24h = last24.filter((r) => runOutcome(r.status, parseJson<{ checksFailed?: number }>(r.stats, {}).checksFailed ?? 0) === 'findings').length;
     const openTasks = visibleTasks('open').filter((t) => t.canDecide);
     // the tiles: each counted by the feature's own permission-filtered service; left out without the right
     const monitors = monitorAttention();
@@ -54,7 +57,7 @@ export async function dashboardHomeRoutes(app: FastifyInstance): Promise<void> {
     const scorecard = scorecardAttention();
     const attention: DashboardAttention = {
       tasks: openTasks.length,
-      runs: { failed: failed24h, total: last24.length },
+      runs: { failed: failed24h, withFindings: findings24h, total: last24.length },
       ...(monitors ? { monitors } : {}),
       ...(credentials ? { credentials } : {}),
       ...(findings ? { findings } : {}),

@@ -1,5 +1,5 @@
 /** /api/v1 routes for processes, runs and tasks. */
-import { entryEvidence, tagsMatch, type ManualTaskState, type ProcessPermission, type TaskRecord } from '@sm/shared';
+import { NO_FINDINGS, entryEvidence, runOutcome, tagsMatch, type ManualTaskState, type ProcessPermission, type TaskRecord } from '@sm/shared';
 import { sealedProtocol } from '../../audit.js';
 import { currentUser } from '../../auth/context.js';
 import { manualForReader } from '../../engine/manual.js';
@@ -45,6 +45,8 @@ const mapRun = (r: ReturnType<typeof store.getRunSummary>) => ({
   finishedAt: r.finishedAt ?? null,
   error: r.error ?? null,
   stats: r.stats,
+  outcome: r.outcome ?? runOutcome(r.status, r.stats.checksFailed),
+  findings: r.findings ?? { ...NO_FINDINGS, total: r.stats.checksFailed, error: r.stats.checksFailed },
 });
 
 const mapStep = (s: ReturnType<typeof store.getStepFull>) => ({

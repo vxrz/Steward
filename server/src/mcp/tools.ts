@@ -91,6 +91,9 @@ const mapRun = (r: ReturnType<typeof store.getRunSummary>) => ({
   finishedAt: r.finishedAt ?? null,
   error: short(r.error, 500),
   parentRunId: r.parentRunId ?? null,
+  // what it found, apart from whether it executed ("findings": succeeded with failed checks)
+  outcome: r.outcome ?? r.status,
+  findings: r.findings?.total ?? r.stats.checksFailed,
 });
 
 const mapStep = (s: ReturnType<typeof store.getStepFull>) => ({

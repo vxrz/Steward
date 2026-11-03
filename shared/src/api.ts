@@ -693,6 +693,20 @@ export type RunStatus = 'queued' | 'running' | 'waiting' | 'succeeded' | 'failed
 
 export type StepStatus = 'running' | 'succeeded' | 'failed' | 'skipped' | 'waiting' | 'dryrun';
 
+/**
+ * What a run came to, kept apart from whether it executed: `findings` = the run executed to the end (status
+ * `succeeded`) but check steps failed. Derived on read – the stored `status` keeps its meaning.
+ */
+export type RunOutcome = RunStatus | 'findings';
+
+/** The failed check steps of a run ("findings"), by the check's severity. */
+export interface RunFindings {
+  total: number;
+  error: number;
+  warning: number;
+  info: number;
+}
+
 export interface RunSummary {
   id: string;
   processId: string;
@@ -716,6 +730,10 @@ export interface RunSummary {
   finishedAt?: string | null;
   error?: string | null;
   stats: RunStats;
+  /** Derived from status and findings (see RunOutcome); left out by older servers */
+  outcome?: RunOutcome;
+  /** Failed check steps by severity; left out by older servers */
+  findings?: RunFindings;
 }
 
 export interface RunStats {
@@ -1396,22 +1414,22 @@ export interface DashboardData {
 export interface DashboardAttention {
   /** Open approvals and decisions the viewer may decide */
   tasks: number;
-  /** Runs of visible processes started in the last 24 hours */
-  runs: { failed: number; total: number };
+  /** Runs of visible processes started in the last 24 hours: failed, completed with findings (failed checks), all */
+  runs: { failed: number; withFindings?: number; total: number };
   /** Monitors the viewer may view (templates and disabled monitors are not counted) */
-  monitors?: { down: number; degraded: number };
+  monitors?: { down: number; degraded: number; total?: number };
   /** Credential register entries the viewer may see */
-  credentials?: { expired: number; overdue: number; dueSoon: number };
-  /** Open findings of the access reconciliation checks the viewer may read */
-  findings?: { open: number };
+  credentials?: { expired: number; overdue: number; dueSoon: number; total?: number };
+  /** Open findings of the access reconciliation checks the viewer may read (checks: how many checks they may read) */
+  findings?: { open: number; checks?: number };
   /** Living documents whose periodic review is due soon or overdue (editors, approvers, auditors; others: the documents they own or review) */
-  reviews?: { overdue: number; dueSoon: number };
+  reviews?: { overdue: number; dueSoon: number; total?: number };
   /** Mandatory service duties due within a week (or in their grace period) and those whose last period was missed or failed (service editors, auditors; others: the duties they are responsible for) */
-  duties?: { missed: number; dueSoon: number };
+  duties?: { missed: number; dueSoon: number; total?: number };
   /** Services whose scorecard needs attention (service editors, auditors: every service; others: the services they own) */
   scorecard?: { attention: number; services: number };
   /** Open ticket references waiting for a vendor (status "waiting for vendor", or open with a vendor source) */
-  vendorTickets?: { open: number; oldestDays: number | null };
+  vendorTickets?: { open: number; oldestDays: number | null; total?: number };
 }
 
 /** Instance-wide numbers of the getting-started checklist (all entries, not only the visible ones). */

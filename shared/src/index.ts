@@ -14,6 +14,7 @@ export * from './process.js';
 export * from './graph.js';
 export * from './stepMeta.js';
 export * from './api.js';
+export * from './runOutcome.js';
 export * from './dashboards.js';
 export * from './vega.js';
 export * from './ops.js';

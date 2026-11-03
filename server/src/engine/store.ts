@@ -3,6 +3,7 @@ import type {
   Column,
   RunChild,
   RunArtifact,
+  RunFindings,
   RunDetail,
   RunLog,
   RunReportSection,
@@ -20,6 +21,7 @@ import type {
   TaskItem,
   TaskRecord,
 } from '@sm/shared';
+import { runOutcome } from '@sm/shared';
 import { db } from '../db.js';
 import { HttpError, canonicalJson, nowIso, parseJson, preview, sha256 } from '../util.js';
 
@@ -150,6 +152,39 @@ function toSummary(r: RunRow & { open_tasks?: number }): RunSummary {
   };
 }
 
+/**
+ * The findings (failed check steps) of these runs by severity, in one query. Checks without a recorded severity count
+ * as errors (the check default); failed checks the stats count but whose steps are gone count as errors, too.
+ */
+function withFindings(runs: RunSummary[]): RunSummary[] {
+  if (!runs.length) return runs;
+  const counts = new Map<string, RunFindings>();
+  // only runs that report failed checks need the query (most runs have none)
+  const ids = runs.filter((r) => r.stats.checksFailed > 0).map((r) => r.id);
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    const rows = db().all<{ run_id: string; severity: string | null; n: number }>(
+      `SELECT run_id, ${db().jsonText('output', 'severity')} AS severity, COUNT(*) AS n FROM run_steps
+       WHERE run_id IN (${chunk.map(() => '?').join(',')}) AND type = 'check' AND status = 'failed'
+       GROUP BY run_id, ${db().jsonText('output', 'severity')}`,
+      ...chunk,
+    );
+    for (const row of rows) {
+      const f = counts.get(row.run_id) ?? { total: 0, error: 0, warning: 0, info: 0 };
+      const sev = row.severity === 'warning' || row.severity === 'info' ? row.severity : 'error';
+      f[sev] += Number(row.n);
+      f.total += Number(row.n);
+      counts.set(row.run_id, f);
+    }
+  }
+  return runs.map((r) => {
+    const f = counts.get(r.id) ?? { total: 0, error: 0, warning: 0, info: 0 };
+    const missing = Math.max(0, r.stats.checksFailed - f.total);
+    const findings = missing ? { ...f, total: f.total + missing, error: f.error + missing } : f;
+    return { ...r, findings, outcome: runOutcome(r.status, findings.total) };
+  });
+}
+
 export function listRuns(f: {
   processId?: string;
   status?: string;
@@ -159,6 +194,8 @@ export function listRuns(f: {
   since?: string;
   /** `failed`: only runs with a failed check step */
   checks?: 'failed';
+  /** `findings`: succeeded runs with failed checks; `succeeded`: succeeded runs without (see RunOutcome) */
+  outcome?: 'succeeded' | 'findings';
 }): RunSummary[] {
   const where: string[] = [];
   const params: unknown[] = [];
@@ -174,15 +211,19 @@ export function listRuns(f: {
   if (f.scheduleId) (where.push('schedule_id = ?'), params.push(f.scheduleId));
   if (f.before) (where.push('started_at < ?'), params.push(f.before));
   if (f.since) (where.push('started_at > ?'), params.push(f.since));
-  if (f.checks === 'failed') where.push(`EXISTS (SELECT 1 FROM run_steps s WHERE s.run_id = runs.id AND s.type = 'check' AND s.status = 'failed')`);
+  const failedCheck = `EXISTS (SELECT 1 FROM run_steps s WHERE s.run_id = runs.id AND s.type = 'check' AND s.status = 'failed')`;
+  if (f.checks === 'failed') where.push(failedCheck);
+  if (f.outcome) where.push(`status = 'succeeded' AND ${f.outcome === 'findings' ? '' : 'NOT '}${failedCheck}`);
   params.push(Math.min(f.limit ?? 100, 1000));
-  return db()
-    .all<RunRow & { open_tasks: number }>(
-      `SELECT runs.*, (SELECT COUNT(*) FROM run_tasks t WHERE t.run_id = runs.id AND t.status = 'open') AS open_tasks
+  return withFindings(
+    db()
+      .all<RunRow & { open_tasks: number }>(
+        `SELECT runs.*, (SELECT COUNT(*) FROM run_tasks t WHERE t.run_id = runs.id AND t.status = 'open') AS open_tasks
        FROM runs ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY started_at DESC LIMIT ?`,
-      ...params,
-    )
-    .map(toSummary);
+        ...params,
+      )
+      .map(toSummary),
+  );
 }
 
 /** Keyset-paginated run list (newest first) for the public API. */
@@ -220,13 +261,15 @@ export function listRunsPage(f: RunPageFilter): RunSummary[] {
   if (f.to) (where.push('started_at < ?'), params.push(f.to));
   if (f.after) (where.push('(started_at < ? OR (started_at = ? AND id < ?))'), params.push(f.after.startedAt, f.after.startedAt, f.after.id));
   params.push(f.limit);
-  return db()
-    .all<RunRow>(`SELECT * FROM runs ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY started_at DESC, id DESC LIMIT ?`, ...params)
-    .map(toSummary);
+  return withFindings(
+    db()
+      .all<RunRow>(`SELECT * FROM runs ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY started_at DESC, id DESC LIMIT ?`, ...params)
+      .map(toSummary),
+  );
 }
 
 export function getRunSummary(id: string): RunSummary {
-  return toSummary(runRow(id));
+  return withFindings([toSummary(runRow(id))])[0]!;
 }
 
 export function stepRecord(r: StepRow, full = false): RunStepRecord {
@@ -263,7 +306,7 @@ export function getRunDetail(id: string): RunDetail {
       return { stepKey: s.key, ...o };
     });
   return {
-    ...toSummary(r),
+    ...withFindings([toSummary(r)])[0]!,
     inputs: parseJson(r.inputs, {}),
     bindings: parseJson(r.bindings, {}),
     definitionHash: r.definition_hash,
