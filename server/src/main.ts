@@ -1,4 +1,4 @@
-import './bootstrap.js';
+import './warnings.js';
 import type { AddressInfo } from 'node:net';
 import { initTelemetry, shutdownTelemetry } from './telemetry.js';
 import { logger } from './log.js';

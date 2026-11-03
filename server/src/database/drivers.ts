@@ -36,7 +36,7 @@ export class SqliteDriver implements Driver {
   readonly raw: DatabaseSyncType;
 
   constructor(readonly file: string) {
-    // Loaded lazily so the ExperimentalWarning filter in bootstrap.ts is active first.
+    // Loaded lazily so the ExperimentalWarning filter in warnings.ts is active first.
     const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
     this.raw = new DatabaseSync(file);
     this.raw.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');

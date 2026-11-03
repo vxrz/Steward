@@ -201,7 +201,7 @@ interface Values {
 }
 
 async function execute(sub: Command, username: string | undefined, values: Values): Promise<number> {
-  await import('../bootstrap.js');
+  await import('../warnings.js');
   const fs = await import('node:fs');
   const { config, loopbackUrl } = await import('../config.js');
   const { instanceFile, verifyInstance } = await import('../instance.js');

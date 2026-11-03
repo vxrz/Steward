@@ -128,7 +128,7 @@ async function transferPassphrase(values: Values, twice: boolean): Promise<strin
 }
 
 async function execute(sub: 'export' | 'inspect' | 'import', file: string | undefined, values: Values): Promise<number> {
-  await import('../bootstrap.js');
+  await import('../warnings.js');
   const { config } = await import('../config.js');
   const { instanceFile, verifyInstance } = await import('../instance.js');
   if (fs.existsSync(instanceFile())) {
