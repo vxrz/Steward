@@ -369,7 +369,7 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
       description:
         'Simulated IBM Verify Privilege Vault 12 (Secret Server REST API) served by the built-in mock: folders \\IT, \\Privileged and \\Shared, six secrets, groups, roles and audits. Steward never reads secret values. See docs/IBM-PAM.md.',
       baseUrl: `${base}/pvault/SecretServer`,
-      config: { ...preset.config, http: { proxy: 'none' } },
+      config: { ...preset.config, variables: { ...preset.config.variables, privilegedFolders: '\\Privileged' }, http: { proxy: 'none' } },
       secrets: { username: DEMO_PVAULT.username, password: DEMO_PVAULT.password },
     });
     for (const sp of PRESET_SPECS[PVAULT_KIND]!()) addSpec(v.id, sp.name, sp.content);

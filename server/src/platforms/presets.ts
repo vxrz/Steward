@@ -452,7 +452,7 @@ export const PRESETS: PlatformPreset[] = [
     kind: 'privilege-vault',
     label: 'IBM Verify Privilege Vault (privileged access, read-only)',
     description:
-      'IBM Security Verify Privilege Vault 12 (Delinea Secret Server under the IBM name), on premises or in the cloud, as a source of evidence: access reviews read who may use which secret and folder – directly, through a group or a role, with the permission (List, View, Edit, Owner); the hygiene template, dashboard and monitor check find failed heartbeats, passwords not rotated within N days or expired, automatic changing turned off, secrets without an owner and privileged secrets without checkout or approval; credentials register entries can link their vault secret; the privileged-use template reads views, checkouts and access requests for evidence packs. Steward never reads a secret value: the value endpoints are refused for this kind. Base URL: the application root – https://HOST/SecretServer on premises, https://TENANT.secretservercloud.com in the cloud. Sign-in: a service account (an application account is best) with user name and password; variable domain for a directory account. For a private CA, add it under the HTTP settings. Minimum permissions and how to check that the account cannot view values: docs/IBM-PAM.md.',
+      'IBM Security Verify Privilege Vault 12 (Delinea Secret Server under the IBM name), on premises or in the cloud, as a source of evidence: access reviews read who may use which secret and folder – directly, through a group or a role, with the permission (List, View, Edit, Owner); the hygiene template, dashboard and monitor check find failed heartbeats, passwords not rotated within N days or expired, automatic changing turned off, secrets without an owner and privileged secrets without checkout or approval; credentials register entries can link their vault secret; the privileged-use template reads views, checkouts and access requests for evidence packs. Steward never reads a secret value: the value endpoints are refused for this kind. Base URL: the application root – https://HOST/SecretServer on premises, https://TENANT.secretservercloud.com in the cloud. Sign-in: a service account (an application account is best) with user name and password; variable domain for a directory account; variables privilegedFolders and privilegedTemplates (comma-separated) name what evidence packs read the privileged use of. For a private CA, add it under the HTTP settings. Minimum permissions and how to check that the account cannot view values: docs/IBM-PAM.md.',
     baseUrl: 'https://pam.example.local/SecretServer',
     config: {
       auth: {
@@ -478,7 +478,8 @@ export const PRESETS: PlatformPreset[] = [
           request: { method: 'POST', url: '/oauth2/token', body: { grant_type: 'refresh_token', refresh_token: '{{ refreshToken }}' }, bodyType: 'form' },
         },
       },
-      variables: { domain: '' },
+      // privilegedFolders / privilegedTemplates (comma-separated): what evidence packs read the privileged use of
+      variables: { domain: '', privilegedFolders: '', privilegedTemplates: '' },
       http: {},
       testPath: '/api/v1/users/current',
     },

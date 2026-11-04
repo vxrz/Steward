@@ -475,6 +475,47 @@ describe('privileged use', () => {
   });
 });
 
+describe('evidence packs', () => {
+  it('a pack of the vault platform holds its privileged use of the period, signed with the rest', async () => {
+    const cur = await s.api('GET', `/platforms/${platformId}`);
+    await s.api('PUT', `/platforms/${platformId}`, { config: { ...cur.config, variables: { ...cur.config.variables, privilegedFolders: '\\Privileged' } } });
+    const p = await s.api('POST', '/compliance/evidence-packs', {
+      title: 'Vault Q4',
+      scope: { platformId },
+      from: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+      to: new Date(Date.now() + 60_000).toISOString(),
+    });
+    let done: any;
+    for (let i = 0; i < 600 && (done = await s.api('GET', `/compliance/evidence-packs/${p.id}`)).status === 'building'; i++)
+      await new Promise((r) => setTimeout(r, 100));
+    expect(done).toMatchObject({ status: 'ready', error: null });
+    const { loginCookie, authHeaders } = await import('./helpers.js');
+    const cookie = await loginCookie(s.base, 'admin', 'Admin-password-1');
+    const res = await fetch(`${s.base}/api/compliance/evidence-packs/${p.id}/download`, { headers: { ...authHeaders(cookie), 'x-sm-client': '1' } });
+    const file = path.join(s.dataDir, 'vault-pack.zip');
+    fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+    const { ZipReader } = await import('../src/compliance/zip.js');
+    const { verifyPack } = await import('../src/compliance/evidence-verify.js');
+    const zip = await ZipReader.open(file);
+    const events = JSON.parse((await zip.read(zip.find(`privileged-use/${platformId}/events.json`)!)).toString());
+    expect(events).toMatchObject({ platformId, privileged: { folders: ['\\Privileged'], templates: [] }, secrets: 2, truncated: false });
+    expect(events.events.map((e: any) => e.action)).toEqual([
+      'ACCESS REQUEST DENIED',
+      'EDIT',
+      'ACCESS REQUEST APPROVED',
+      'VIEW',
+      'CHECKOUT',
+      'CHECKIN',
+      'PASSWORDDISPLAYED',
+    ]);
+    expect((await zip.read(zip.find(`privileged-use/${platformId}/events.csv`)!)).toString()).toMatch(/^at,secretId,secret,folder,user,action,notes,ticket/);
+    const index = JSON.parse((await zip.read(zip.find('index.json')!)).toString());
+    expect(index.privilegedUse).toMatchObject([{ platformId, events: 7, secrets: 2 }]);
+    expect((await verifyPack(file)).problems).toEqual([]);
+    fs.rmSync(file);
+  });
+});
+
 describe('credentials register link', () => {
   const ENTRY = { name: 'SQL sa account', type: 'technicalUser', ownerSubjects: [], rotationIntervalDays: 90 };
   let id: string;

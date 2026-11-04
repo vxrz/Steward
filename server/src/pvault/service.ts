@@ -149,6 +149,13 @@ export async function privilegedUse(
   const c = new PvClient(p, secrets);
   const all = await c.secretsIn(o.folder ?? '');
   const scoped = o.folders.length || o.templates.length ? all.filter((s) => pvPrivileged(s, o)) : all;
+  if (scoped.length > PVAULT_LIMITS.auditSecrets)
+    throw new HttpError(
+      400,
+      `${scoped.length} secrets are more than the ${PVAULT_LIMITS.auditSecrets} whose audit is read at once – name the privileged folders or templates`,
+      'PVAULT_TOO_MANY',
+      { max: PVAULT_LIMITS.auditSecrets },
+    );
   const byId = new Map(scoped.map((s) => [s.id, s]));
   const audits = await mapLimit(scoped, PVAULT_LIMITS.concurrency, (s) => c.audits(s.id, from, to));
   const events: PvAuditEvent[] = [];

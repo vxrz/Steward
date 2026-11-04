@@ -27,6 +27,8 @@ export const PVAULT_LIMITS = {
   auditEvents: 20_000,
   /** The longest period of a privileged-use read (days) */
   auditDays: 400,
+  /** Secrets whose audit one privileged-use read reads (more: name the privileged folders or templates) */
+  auditSecrets: 1_000,
 } as const;
 
 /** Secret access roles from least to most (Secret Server: List, View, Edit, Owner). */

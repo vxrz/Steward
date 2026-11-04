@@ -47,6 +47,7 @@ import { renderPackPdf } from './pack-pdf.js';
 import { AUDIT_EXCERPT_FILE, MANIFEST_SIGNATURE_DOMAIN, type AuditExcerpt, type PackManifest } from './evidence-verify.js';
 import { ZipLimitError, ZipWriter, type WrittenEntry } from './zip.js';
 import { env } from '../config.js';
+import { PVAULT_KIND, pvList } from '@sm/shared';
 
 /**
  * Audit evidence packs: a ZIP for some controls (or a platform or service) and a period with an index
@@ -394,6 +395,92 @@ function serviceItems(serviceId: string, from: string, to: string, u: AuthUser):
   return out;
 }
 
+// ---------- privileged use (#205) ----------
+
+interface PrivilegedUseSection {
+  platformId: string;
+  platformName: string;
+  privileged: { folders: string[]; templates: string[] };
+  secrets: number;
+  events: number;
+  truncated: boolean;
+  files: string[];
+}
+
+/** The vault platforms a pack covers: its platform, and those of the vault access checks it holds. */
+function vaultPlatformsOf(scope: EvidencePackScope, checkIds: Iterable<string>): string[] {
+  const ids = new Set<string>();
+  const kindOf = (id: string) => db().get<{ kind: string }>('SELECT kind FROM platforms WHERE id = ?', id)?.kind;
+  if (scope.platformId && kindOf(scope.platformId) === PVAULT_KIND) ids.add(scope.platformId);
+  for (const cid of checkIds) {
+    const c = db().get<{ source: string; platform_id: string }>('SELECT source, platform_id FROM access_checks WHERE id = ?', cid);
+    if (c?.source === 'privilege-vault' && kindOf(c.platform_id) === PVAULT_KIND) ids.add(c.platform_id);
+  }
+  return [...ids].sort();
+}
+
+/**
+ * Who used the privileged secrets of a vault platform in the pack's period – views, checkouts, password displays,
+ * edits and access requests from the vault's audit, read now with the creator's right to use the platform (never a
+ * secret value). Privileged: the platform variables privilegedFolders and privilegedTemplates; neither set – every
+ * secret the account may list. A read that fails is named under "omitted".
+ */
+async function addPrivilegedUse(b: PackBuilder, platformId: string, from: string, to: string, u: AuthUser): Promise<PrivilegedUseSection | null> {
+  const { getPlatform, getSecrets } = await import('../platforms/service.js');
+  let platform;
+  try {
+    platform = getPlatform(platformId);
+  } catch {
+    b.omitted.push(`Privileged use of platform ${platformId}: the platform is gone`);
+    return null;
+  }
+  if (!platform.permissions.includes('use')) {
+    b.omitted.push(`Privileged use of "${platform.name}": ${u.username} may not use the platform – ask someone who may`);
+    return null;
+  }
+  const vars = platform.config.variables ?? {};
+  const privileged = { folders: pvList(vars.privilegedFolders), templates: pvList(vars.privilegedTemplates) };
+  try {
+    const secrets = getSecrets(platformId);
+    const { buildUrl } = await import('../platforms/http.js');
+    const { assertOutboundAllowed } = await import('../platforms/outbound.js');
+    const { outboundContext } = await import('../platforms/policyContext.js');
+    await assertOutboundAllowed(await buildUrl(platform, secrets, '/', {}), outboundContext());
+    const { privilegedUse } = await import('../pvault/service.js');
+    const r = await privilegedUse(platform, secrets, { from, to, ...privileged });
+    const dir = `privileged-use/${safe(platformId)}`;
+    const files = [
+      await b.json(`${dir}/events.json`, {
+        platformId,
+        platformName: platform.name,
+        from,
+        to,
+        readAt: nowIso(),
+        privileged,
+        secrets: r.secrets,
+        truncated: r.truncated,
+        note: 'Read from the vault audit when the pack was built; metadata only – Steward never reads secret values.',
+        events: r.events,
+      }),
+    ];
+    const head = ['at', 'secretId', 'secret', 'folder', 'user', 'action', 'notes', 'ticket'] as const;
+    files.push(
+      await b.buffer(
+        `${dir}/events.csv`,
+        csvTable(
+          head,
+          r.events.map((e) => head.map((h) => e[h])),
+        ),
+      ),
+    );
+    if (r.truncated) b.omitted.push(`Privileged use of "${platform.name}": more events than the limit – the newest are left out; choose a shorter period`);
+    return { platformId, platformName: platform.name, privileged, secrets: r.secrets, events: r.events.length, truncated: r.truncated, files };
+  } catch (e) {
+    b.omitted.push(`Privileged use of "${platform.name}" could not be read from the vault: ${(e as Error).message.slice(0, 300)}`);
+    return null;
+  }
+}
+
 // ---------- building ----------
 
 const isText = (p: string) => /\.(json|csv|txt|md|pem|eml)$/i.test(p);
@@ -610,6 +697,12 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
         'monitors/monitors.json',
         monitors.map(({ files: _f, ...m }) => m),
       );
+    // privileged use of the vault platforms in scope (#205)
+    const privilegedUse: PrivilegedUseSection[] = [];
+    for (const pid of vaultPlatformsOf(scope, checks)) {
+      const sec = await addPrivilegedUse(b, pid, from, to, u);
+      if (sec) privilegedUse.push(sec);
+    }
 
     // 4. audit log excerpt with a fresh signed checkpoint (auditors and administrators only)
     let auditInfo: Record<string, unknown> = { included: false };
@@ -649,6 +742,7 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
       controls,
       ...(catalogue ? { catalogue } : {}),
       items: list.map(({ via, ...i }) => ({ ...i, via })),
+      ...(privilegedUse.length ? { privilegedUse } : {}),
       audit: auditInfo,
       omitted: b.omitted,
       files: b.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 })),
@@ -667,7 +761,15 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
       filtered: !complete,
       controls,
       catalogue,
-      items: list.map((i) => ({ kind: i.kind, label: i.document ? `${i.label} · ${i.document.edition}` : i.label, at: i.at, files: i.files.length })),
+      items: [
+        ...list.map((i) => ({ kind: i.kind, label: i.document ? `${i.label} · ${i.document.edition}` : i.label, at: i.at, files: i.files.length })),
+        ...privilegedUse.map((p) => ({
+          kind: 'privilegedUse',
+          label: `${p.platformName}: ${p.events} event(s) on ${p.secrets} secret(s)${p.truncated ? ' (truncated)' : ''}`,
+          at: to,
+          files: p.files.length,
+        })),
+      ],
       omitted: b.omitted,
     });
     await b.buffer('index.pdf', pdf);
