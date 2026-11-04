@@ -76,6 +76,11 @@ const BASE: MantineThemeOverride = {
     Button: { defaultProps: { variant: 'filled' } },
     ActionIcon: { defaultProps: { variant: 'filled' } },
     ThemeIcon: { defaultProps: { variant: 'filled' } },
+    // Mantine puts a focusable <div role="presentation" tabindex="-1"> first in every menu dropdown to catch the
+    // initial focus. A focusable element cannot be presentational, so role="menu" gets a child that is not a
+    // menu item (axe "aria-required-children", critical). Without it, opening a menu focuses its first item
+    // (WAI-ARIA menu button pattern); the arrow keys, Escape and focus return work as before.
+    Menu: { defaultProps: { withInitialFocusPlaceholder: false } },
     // the command palette's result list scrolls; make it reachable by keyboard (axe "scrollable-region-focusable")
     SpotlightActionsList: { defaultProps: { viewportProps: { tabIndex: 0 } } },
     TableScrollContainer: { defaultProps: { scrollAreaProps: { viewportProps: { tabIndex: 0 } } } },
