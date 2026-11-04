@@ -100,7 +100,7 @@ const { basePath, publicUrl } = check('SM_BASE_PATH', () => resolveBasePath(proc
 const examplesDir = env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples');
 
 export const config = {
-  version: '0.3.1',
+  version: '0.4.0',
   host: env.SM_HOST,
   port: env.SM_PORT,
   dataDir,
