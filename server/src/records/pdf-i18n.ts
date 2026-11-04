@@ -1,4 +1,4 @@
-import { DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE, type RecordFieldDef, type ReportLang, INCIDENT_RECORD_TYPE } from '@sm/shared';
+import { DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE, type RecordFieldDef, type RecordTableColumn, type ReportLang, INCIDENT_RECORD_TYPE } from '@sm/shared';
 
 /**
  * Texts of the record PDF (English and German). Like the run reports, the
@@ -104,6 +104,12 @@ const en = {
   act_supersede: 'Superseded',
   act_deprecate: 'Deprecated',
   act_withdraw: 'Withdrawn',
+  act_verify: 'Verified',
+  act_document: 'Documented',
+  evidence: 'Evidence',
+  evidenceIntro:
+    'Added after the approval (e.g. the confirmation of the implementation): not part of the approved content, each recorded with its SHA-256 in the audit log.',
+  addedBy: 'Added',
   // living documents
   edition: 'Edition',
   editionNo: 'Edition {edition}',
@@ -238,6 +244,12 @@ const de: Record<RecordMsgKey, string> = {
   act_supersede: 'Ersetzt',
   act_deprecate: 'Als veraltet markiert',
   act_withdraw: 'Außer Kraft gesetzt',
+  act_verify: 'Geprüft',
+  act_document: 'Dokumentiert',
+  evidence: 'Nachweise',
+  evidenceIntro:
+    'Nach der Freigabe hinzugefügt (z. B. die Bestätigung der Umsetzung): nicht Teil des freigegebenen Inhalts, jeweils mit SHA-256 im Audit-Log festgehalten.',
+  addedBy: 'Hinzugefügt',
   edition: 'Fassung',
   editionNo: 'Fassung {edition}',
   editionDraft: 'Entwurf der Fassung {edition}',
@@ -277,7 +289,17 @@ const CATALOG: Record<ReportLang, Record<RecordMsgKey, string>> = { en, de };
  * A test keeps them equal to the web translations.
  */
 export const BUILTIN_TEXTS: Partial<
-  Record<ReportLang, { types: Record<string, string>; fields: Record<string, string>; options: Record<string, Record<string, string>> }>
+  Record<
+    ReportLang,
+    {
+      types: Record<string, string>;
+      fields: Record<string, string>;
+      options: Record<string, Record<string, string>>;
+      /** Columns of table fields (#208) and their select options, by column key */
+      columns: Record<string, string>;
+      columnOptions: Record<string, Record<string, string>>;
+    }
+  >
 > = {
   de: {
     types: {
@@ -287,6 +309,8 @@ export const BUILTIN_TEXTS: Partial<
       SDR: 'Sicherheitsentscheidung',
       DOC: 'Servicedokumentation',
       PIR: 'Incident-Review',
+      FWC: 'Firewall-Änderung',
+      FWR: 'Freigegebene Firewall-Regeln',
     },
     fields: {
       reason: 'Begründung',
@@ -303,8 +327,33 @@ export const BUILTIN_TEXTS: Partial<
       incidentEnd: 'Ende des Vorfalls',
       severity: 'Schweregrad',
       cause: 'Ursache',
+      implementer: 'Umgesetzt durch',
+      provider: 'Dienstleister',
+      providerTicket: 'Ticket des Dienstleisters',
+      rules: 'Regeln',
+      approvedRules: 'Freigegebene Regeln',
     },
-    options: { risk: { low: 'niedrig', medium: 'mittel', high: 'hoch' }, severity: { minor: 'gering', major: 'erheblich', critical: 'kritisch' } },
+    options: {
+      risk: { low: 'niedrig', medium: 'mittel', high: 'hoch' },
+      severity: { minor: 'gering', major: 'erheblich', critical: 'kritisch' },
+      implementer: { internal: 'intern', provider: 'Dienstleister' },
+    },
+    columns: {
+      change: 'Änderung',
+      source: 'Quelle',
+      destination: 'Ziel',
+      service: 'Protokoll/Port',
+      action: 'Aktion',
+      enforcedAt: 'Durchgesetzt an',
+      purpose: 'Zweck',
+      expiry: 'Ablauf',
+      approvedBy: 'Freigegeben durch Änderung',
+    },
+    columnOptions: {
+      change: { add: 'hinzufügen', remove: 'entfernen' },
+      action: { allow: 'erlauben', deny: 'verweigern' },
+      enforcedAt: { perimeter: 'Perimeter-Firewall', host: 'Host-Firewall', cloud: 'Cloud-Security-Group' },
+    },
   },
 };
 
@@ -330,5 +379,23 @@ export function recordTexts(lang: ReportLang) {
     b && builtinField(typeKey, f)?.options?.includes(v) ? (b.options[f.key]?.[v] ?? v) : v;
   /** Name of a built-in link type (runbook, repository, …) */
   const linkType = (key: string) => lookup('lt', key);
-  return { t, status: (s: string) => lookup('st', s), action: (a: string) => lookup('act', a), linkType, typeName, fieldLabel, option };
+  const builtinColumn = (typeKey: string, f: Pick<RecordFieldDef, 'key'>, c: Pick<RecordTableColumn, 'key'>) =>
+    builtinField(typeKey, f)?.columns?.find((d) => d.key === c.key);
+  /** Label of a column of a table field: translated while it is the built-in English default. */
+  const columnLabel = (typeKey: string, f: Pick<RecordFieldDef, 'key'>, c: Pick<RecordTableColumn, 'key' | 'label'>) =>
+    b && builtinColumn(typeKey, f, c)?.label === c.label ? (b.columns[c.key] ?? c.label) : c.label;
+  /** A select value of a built-in column, translated. */
+  const columnOption = (typeKey: string, f: Pick<RecordFieldDef, 'key'>, c: Pick<RecordTableColumn, 'key'>, v: string) =>
+    b && builtinColumn(typeKey, f, c)?.options?.includes(v) ? (b.columnOptions[c.key]?.[v] ?? v) : v;
+  return {
+    t,
+    status: (s: string) => lookup('st', s),
+    action: (a: string) => lookup('act', a),
+    linkType,
+    typeName,
+    fieldLabel,
+    option,
+    columnLabel,
+    columnOption,
+  };
 }

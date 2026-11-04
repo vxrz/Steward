@@ -39,6 +39,9 @@ import { byEnvironment, environmentValue } from './environments.js';
 import { credentialsBelongingTo, toCredential } from '../credentials/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { assignCreatorTeams, forgetOwningTeams } from '../auth/policy.js';
+import { listBacklinks } from '../records/links.js';
+import { firewallOf } from '../records/firewall.js';
+import { attributesFor, attributesInput, attributesOf, changedAttributes, forgetSegments, memberCount, membersOf, segmentsOf } from './network.js';
 
 /**
  * Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on – often several
@@ -58,6 +61,8 @@ interface SystemRow {
   owners: string;
   note: string;
   platform_id: string | null;
+  /** JSON: the attributes of its kind (#208) */
+  attributes: string;
   sbom_format: string | null;
   sbom_name: string | null;
   sbom_imported_at: string | null;
@@ -103,6 +108,8 @@ export const systemInput = z
     platformId: z.string().trim().min(1).max(200).nullable().optional(),
     /** The whole stack (missing: unchanged), like a component's */
     stack: z.array(stackEntryInput).max(COMPONENT_LIMITS.stackPerComponent).optional(),
+    /** Attributes of the kind (#208: a network segment's); missing: unchanged; other kinds have none */
+    attributes: attributesInput.optional(),
   })
   .strict();
 export type SystemInput = z.infer<typeof systemInput>;
@@ -167,6 +174,7 @@ function toSummary(r: SystemRow, x: { stack: StackEntry[]; links: LinkRow[]; pla
     cmdbUrl: r.cmdb_url,
     owners: ownersOf(r),
     note: r.note,
+    attributes: attributesOf(r.kind, r.attributes),
     platform: p && visible ? { id: p.id, name: p.name, environment: p.environment } : null,
     platformHidden: !!p && !visible,
     applicationCount: new Set(x.links.map((l) => l.application_id)).size,
@@ -189,7 +197,7 @@ const sbomOf = (r: SystemRow): SystemDetail['sbom'] =>
     : null;
 
 /** A system with its stack, SBOM, creation and applications (the public API's list and the detail page). */
-export type SystemEntry = Omit<SystemDetail, 'canEdit' | 'credentials'>;
+export type SystemEntry = Omit<SystemDetail, 'canEdit' | 'credentials' | 'members' | 'backlinks' | 'firewall'>;
 
 type AppRef = { id: string; name: string; archived: number; owners: string };
 /** The applications the reader may see (#131), by id. */
@@ -228,6 +236,7 @@ function toEntryOf(
     stack,
     sbom: sbomOf(r),
     applications,
+    segments: segmentsOf(r.id),
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedBy: r.updated_by,
@@ -314,6 +323,10 @@ export function getSystem(id: string): SystemDetail {
   return {
     ...toEntryOf(r, stacksOf([id]).get(id) ?? [], links, { platforms: platformsById(), apps: appsById(), u }),
     credentials: systemCredentials(id, u),
+    members: r.kind === 'network' ? membersOf(id) : [],
+    // records that link to it: firewall changes and their approved rules are in the panel (firewall), the rest here
+    backlinks: listBacklinks('system', id),
+    firewall: firewallOf(id),
     canEdit: canEditSystem(u, r),
   };
 }
@@ -381,13 +394,14 @@ export function createSystem(input: SystemInput): SystemDetail {
   const platformId = input.platformId ?? null;
   checkPlatform(platformId, u);
   if (input.stack) requireKnownProducts(input.stack);
+  const attributes = attributesFor(input.kind, input.attributes, null);
   const id = newId('sys_');
   const now = nowIso();
   const owners = [...new Set(input.owners)];
   db().tx(() => {
     db().run(
-      `INSERT INTO systems (id, name, kind, vendor, cmdb_url, owners, note, platform_id, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO systems (id, name, kind, vendor, cmdb_url, owners, note, platform_id, attributes, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       input.name,
       input.kind,
@@ -396,6 +410,7 @@ export function createSystem(input: SystemInput): SystemDetail {
       JSON.stringify(owners),
       input.note,
       platformId,
+      JSON.stringify(attributes),
       now,
       u.username,
       now,
@@ -408,7 +423,15 @@ export function createSystem(input: SystemInput): SystemDetail {
       entityType: 'system',
       entityId: id,
       summary: `System "${input.name}" (${input.kind}) created${diff?.added.length ? ` (stack: ${stackSummary(diff)})` : ''}`,
-      details: { name: input.name, kind: input.kind, vendor: input.vendor, owners, platformId, stack: diff?.added ?? [] },
+      details: {
+        name: input.name,
+        kind: input.kind,
+        vendor: input.vendor,
+        owners,
+        platformId,
+        stack: diff?.added ?? [],
+        ...(input.kind === 'network' ? { attributes } : {}),
+      },
     });
   });
   return getSystem(id);
@@ -423,6 +446,13 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
   const platformId = input.platformId === undefined ? cur.platform_id : input.platformId;
   if (platformId !== cur.platform_id) checkPlatform(platformId, u);
   if (input.stack) requireKnownProducts(input.stack);
+  // a segment with systems in it stays a segment (remove them first)
+  if (cur.kind === 'network' && input.kind !== 'network') {
+    const n = memberCount(id);
+    if (n) throw new HttpError(409, `Systems are in the segment "${cur.name}" (${n})`, 'SEGMENT_IN_USE', { name: cur.name, count: n });
+  }
+  const beforeAttributes = attributesOf(cur.kind, cur.attributes);
+  const attributes = attributesFor(input.kind, input.attributes, cur.kind === input.kind ? beforeAttributes : null);
   const owners = [...new Set(input.owners)];
   const next = {
     name: input.name,
@@ -432,14 +462,16 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
     owners: JSON.stringify(owners),
     note: input.note,
     platform_id: platformId,
+    attributes: JSON.stringify(attributes),
   };
-  const fields = (Object.keys(next) as (keyof typeof next)[]).filter((k) => next[k] !== cur[k]);
+  const attributeChanges = changedAttributes(beforeAttributes, attributes);
+  const fields = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (k === 'attributes' ? attributeChanges.length > 0 : next[k] !== cur[k]));
   db().tx(() => {
     const diff = input.stack ? writeStack(systemHolder(id), input.stack, u) : { added: [], changed: [], removed: [] };
     const stackChanged = diff.added.length + diff.changed.length + diff.removed.length > 0;
     if (!fields.length && !stackChanged) return;
     db().run(
-      'UPDATE systems SET name = ?, kind = ?, vendor = ?, cmdb_url = ?, owners = ?, note = ?, platform_id = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      'UPDATE systems SET name = ?, kind = ?, vendor = ?, cmdb_url = ?, owners = ?, note = ?, platform_id = ?, attributes = ?, updated_at = ?, updated_by = ? WHERE id = ?',
       next.name,
       next.kind,
       next.vendor,
@@ -447,6 +479,7 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
       next.owners,
       next.note,
       next.platform_id,
+      next.attributes,
       nowIso(),
       u.username,
       id,
@@ -455,12 +488,27 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
       action: 'system.changed',
       entityType: 'system',
       entityId: id,
-      summary: `System "${input.name}" changed (${[...fields.map((f) => (f === 'cmdb_url' ? 'cmdbUrl' : f === 'platform_id' ? 'platform' : f)), ...(stackChanged ? [`stack: ${stackSummary(diff)}`] : [])].join(', ')})`,
+      summary: `System "${input.name}" changed (${[
+        ...fields.map((f) =>
+          f === 'cmdb_url' ? 'cmdbUrl' : f === 'platform_id' ? 'platform' : f === 'attributes' ? `attributes: ${attributeChanges.join(', ')}` : f,
+        ),
+        ...(stackChanged ? [`stack: ${stackSummary(diff)}`] : []),
+      ].join(', ')})`,
       details: {
         changes: fields,
         ...(fields.includes('name') ? { name: { old: cur.name, new: input.name } } : {}),
         ...(fields.includes('owners') ? { owners: { old: ownersOf(cur), new: owners } } : {}),
         ...(fields.includes('platform_id') ? { platformId: { old: cur.platform_id, new: platformId } } : {}),
+        ...(fields.includes('kind') ? { kind: { old: cur.kind, new: input.kind } } : {}),
+        ...(attributeChanges.length
+          ? {
+              attributes: {
+                changed: attributeChanges,
+                old: Object.fromEntries(attributeChanges.map((k) => [k, beforeAttributes[k as keyof typeof beforeAttributes] ?? null])),
+                new: Object.fromEntries(attributeChanges.map((k) => [k, attributes[k as keyof typeof attributes] ?? null])),
+              },
+            }
+          : {}),
         ...(stackChanged ? { stack: diff } : {}),
       },
     });
@@ -478,9 +526,13 @@ export function deleteSystem(id: string): void {
   const creds = Number(db().get<{ n: number }>("SELECT COUNT(*) AS n FROM credentials WHERE belongs_kind = 'system' AND belongs_id = ?", id)?.n ?? 0);
   if (creds)
     throw new HttpError(409, `Credentials register entries belong to "${cur.name}" (${creds})`, 'SYSTEM_HAS_CREDENTIALS', { name: cur.name, count: creds });
+  // systems in a segment keep their segment: take them out first (#208)
+  const members = memberCount(id);
+  if (members) throw new HttpError(409, `Systems are in the segment "${cur.name}" (${members})`, 'SEGMENT_IN_USE', { name: cur.name, count: members });
   const stack = db().all<StackRow>('SELECT * FROM system_stack WHERE system_id = ?', id);
   db().tx(() => {
     db().run('DELETE FROM system_stack WHERE system_id = ?', id);
+    const segments = forgetSegments(id);
     db().run('DELETE FROM systems WHERE id = ?', id);
     // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
     forgetOwningTeams('system', id);
@@ -489,7 +541,12 @@ export function deleteSystem(id: string): void {
       entityType: 'system',
       entityId: id,
       summary: `System "${cur.name}" deleted`,
-      details: { name: cur.name, kind: cur.kind, stack: stack.map((s) => ({ product: s.product, version: s.version, source: s.source })) },
+      details: {
+        name: cur.name,
+        kind: cur.kind,
+        stack: stack.map((s) => ({ product: s.product, version: s.version, source: s.source })),
+        ...(segments.length ? { segments: segments.map((s) => ({ segmentId: s.segment_id, address: s.address })) } : {}),
+      },
     });
   });
 }

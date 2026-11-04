@@ -422,13 +422,15 @@ describe('lists, links and permissions', () => {
   });
 
   it('leaves the other workflows unchanged', () => {
-    // the transitions of change, decision and access records are exactly what they were
+    // the transitions of change, decision and access records are exactly what they were – plus the optional
+    // verification of a change (0.5.0, #208): close still works from implemented
     expect(RECORD_WORKFLOWS.change.transitions.map((t) => `${t.action}:${t.from.join('|')}>${t.to}`)).toEqual([
       'submit:draft>submitted',
       'approve:submitted>approved',
       'reject:submitted>rejected',
       'implement:approved>implemented',
-      'close:implemented>closed',
+      'verify:implemented>verified',
+      'close:implemented|verified>closed',
       'cancel:draft|submitted>cancelled',
     ]);
     for (const w of ['change', 'decision', 'access'] as const) {

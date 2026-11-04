@@ -257,10 +257,13 @@
       "services_one": "{{count}} service you may not publish was left out.",
       "services_other": "{{count}} services you may not publish were left out.",
       "team_one": "The team branding was left out (you are not a member of the team).",
-      "team_other": "The team branding was left out (you are not a member of the team)."
+      "team_other": "The team branding was left out (you are not a member of the team).",
+      "segments_one": "{{count}} segment could not be added.",
+      "segments_other": "{{count}} segments could not be added."
     },
     "copiedFrom": "Copied from",
     "copiedAt": "on {{date}} by {{by}}",
-    "copiedFromHidden": "A copy, made on {{date}} by {{by}} (the original is gone or not visible to you)."
+    "copiedFromHidden": "A copy, made on {{date}} by {{by}} (the original is gone or not visible to you).",
+    "systemNote": "The copy has the attributes and the stack entered by hand, and is in the same segments without the original’s addresses. The CMDB entry, the platform and the systems in a segment are not copied."
   }
 }

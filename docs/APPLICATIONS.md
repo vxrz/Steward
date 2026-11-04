@@ -185,9 +185,11 @@ steps:
 
 A **system** is what applications run on: a server, a VM, a cluster, an appliance, a cloud service. One system often hosts several applications, so it is kept once – with its own tech stack (the operating system and runtimes live on the system, not on each application) – under _Catalogue → Systems_.
 
-A system has a **name** and a **kind** (server, virtual machine, cluster, appliance, cloud service, other); everything else is optional: the **vendor or provider** (AWS, Azure, on-premises, the hoster), a link to the **CMDB** entry, the users and teams **responsible**, a note, its **tech stack** (by hand or from an SBOM, exactly like a component's) and the **Steward platform** it is – "this cluster is the platform _Kubernetes (prod)_" – so shared infrastructure that also has an API is described once. Readers who may not see that platform see _A platform you may not see_; saving the system keeps it.
+A system has a **name** and a **kind** (server, virtual machine, cluster, appliance, cloud service, other, network segment); everything else is optional: the **vendor or provider** (AWS, Azure, on-premises, the hoster), a link to the **CMDB** entry, the users and teams **responsible**, a note, its **tech stack** (by hand or from an SBOM, exactly like a component's) and the **Steward platform** it is – "this cluster is the platform _Kubernetes (prod)_" – so shared infrastructure that also has an API is described once. Readers who may not see that platform see _A platform you may not see_; saving the system keeps it.
 
 The system page lists the applications that run on it with their environment. A system is deleted only when no application runs on it any more.
+
+**Network segments and firewall changes** (0.5.0, optional): a system of the kind _Network segment_ has a VLAN ID, subnets, a zone or security level, a site and who manages its firewall; any system can be _in_ segments, with its address there. The system page's _Firewall & network_ panel shows the segments, the approved firewall rules, the firewall changes and the provider's tickets. Systems are a link kind, so documents, firewall changes and ticket references can name a server directly. _Duplicate_ copies a system with its attributes and its segments (without addresses). Nothing of this is required – see [FIREWALL-CHANGES.md](FIREWALL-CHANGES.md).
 
 ### Runs on
 

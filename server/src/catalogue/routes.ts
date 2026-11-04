@@ -9,6 +9,7 @@ import * as cia from './cia.js';
 import * as comps from './components.js';
 import * as lifecycle from './lifecycle.js';
 import * as systems from './systems.js';
+import * as net from './network.js';
 import * as envs from './environments.js';
 import * as maint from './maintenance.js';
 import { contentDisposition } from '../records/attachments.js';
@@ -164,6 +165,12 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
     systems.deleteSystem(params(req).id!);
     return { ok: true };
   });
+  // network context (#208): the segments a system is in, with its address there
+  app.post('/systems/:id/segments', async (req) => net.addToSegment(params(req).id!, net.segmentLinkInput.parse(req.body)));
+  app.put('/systems/:id/segments/:segmentLinkId', async (req) =>
+    net.updateSegmentLink(params(req).id!, params(req).segmentLinkId!, net.segmentLinkUpdate.parse(req.body)),
+  );
+  app.delete('/systems/:id/segments/:segmentLinkId', async (req) => net.removeFromSegment(params(req).id!, params(req).segmentLinkId!));
   app.post('/systems/:id/sbom/preview', { bodyLimit: LARGE_BODIES.sbom.bytes }, async (req) =>
     systems.previewSystemSbom(params(req).id!, comps.sbomInput.parse(req.body)),
   );

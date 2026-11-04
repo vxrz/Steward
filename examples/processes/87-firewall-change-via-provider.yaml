@@ -1,0 +1,181 @@
+name: "Firewall change via provider (manual procedure)"
+description: |
+  The steps of a firewall change that a provider implements in its own change
+  process – for a network segment (e.g. a shopfloor IoT VLAN) or a server the
+  provider manages. Steward documents each step; the rules themselves stay in
+  the firewall change record (record type FWC) and, once it is closed, in the
+  "Approved firewall rules" document of each segment or system
+  (docs/FIREWALL-CHANGES.md).
+
+  Request → four-eyes approval → submit to the provider → wait for the
+  provider's ticket and confirmation (evidence) → verify the connection (an
+  HTTP check against the target, and a second person) → close.
+
+  Bind the target slot to a platform whose base URL is the service the rule
+  opens (auth "none" is enough); leave the check path empty to skip the HTTP
+  check and verify by hand only. Link the run to the firewall change record:
+  the run counts as its evidence, and its protocol PDF lists every step with
+  who did it, who verified it and the SHA-256 of each evidence file.
+
+  Recommended schedule: none – on demand, one run per firewall change.
+tags: [manual, procedure, firewall, change]
+connections:
+  - slot: target
+    description: The service the rule opens (base URL), for the HTTP connectivity check
+inputs:
+  - name: change
+    label: Firewall change (record number)
+    type: string
+    required: true
+    default: FWC-2026-0001
+  - name: provider
+    label: Provider
+    type: string
+    default: NetOps GmbH
+  - name: checkPath
+    label: Path to call for the connectivity check (empty – check by hand only)
+    type: string
+    default: /
+steps:
+  - id: request
+    type: userTask
+    mode: manual
+    name: Request the change
+    title: "Request firewall change {{ inputs.change }}"
+    instructions: |
+      Write the firewall change in Steward (*Documents → New → FWC*): the
+      affected segments and systems as links, the reason, the risk and one
+      rule line per rule (source, destination, protocol/port, action, where it
+      is enforced, purpose, expiry). Submit it for approval.
+    checklist:
+      - Firewall change written with all rule lines
+      - Affected segments and systems linked
+      - Risk assessed; rollback described
+    checklistAllRequired: true
+    fields:
+      - id: record
+        type: link
+        label: Link to the firewall change in Steward
+        use: required
+    evidence: "off"
+
+  - id: approve
+    type: userTask
+    mode: approve
+    name: Approve the change (four-eyes)
+    title: "Approve firewall change {{ inputs.change }}?"
+    instructions: |
+      Requested by {{ run.actor }}. Check the rule lines in {{ inputs.change }}:
+      no broader access than needed (source, destination, port), an expiry
+      for temporary rules. Approve the record in Steward as well – its
+      approval is the one the approved rules refer to.
+    assignees: [role:approver, role:admin]
+    fourEyes: true
+    saveAs: approval
+
+  - id: submit
+    type: userTask
+    mode: manual
+    name: Submit to the provider
+    title: "Submit {{ inputs.change }} to {{ inputs.provider }}"
+    instructions: |
+      Open a change ticket with {{ inputs.provider }} through their change
+      process, with the approved rule lines. Add the ticket as a ticket
+      reference in Steward that names the firewall change and the affected
+      systems (*Tickets → New*).
+    checklist:
+      - Ticket opened with the approved rule lines only
+      - Ticket reference added in Steward
+    checklistAllRequired: true
+    fields:
+      - id: providerTicket
+        type: ticket
+        label: Provider ticket
+        hint: e.g. CHG-4711
+        use: required
+      - id: submittedAt
+        type: datetime
+        label: Submitted at
+    evidence: optional
+    backdateDays: 3
+
+  - id: implemented
+    type: userTask
+    mode: manual
+    name: Wait for the provider's confirmation
+    title: "{{ inputs.provider }} implemented {{ inputs.change }}"
+    instructions: |
+      Wait until the provider reports the ticket as implemented. Attach their
+      confirmation (e-mail as .eml or .msg, PDF) or an export of the rules as
+      evidence, and mark the firewall change as implemented in Steward.
+    checklist:
+      - The provider reports the ticket as implemented
+      - Firewall change marked as implemented in Steward
+    checklistAllRequired: true
+    fields:
+      - id: implementedAt
+        type: datetime
+        label: Implemented at (as the provider reports)
+        use: required
+    evidence: required
+    backdateDays: 14
+
+  - id: probe
+    type: http
+    name: Connectivity check (HTTP)
+    when: "$string(inputs.checkPath) != ''"
+    connection: target
+    method: GET
+    path: "{{ inputs.checkPath }}"
+    onError: continue
+    saveAs: probe
+
+  - id: reachable
+    type: check
+    name: The target answers
+    when: "$string(inputs.checkPath) != ''"
+    condition: "$exists(vars.probe.status) and vars.probe.status < 500"
+    message: "{{ vars.probe.error ? vars.probe.error : 'HTTP ' & vars.probe.status & ' in ' & vars.probe.durationMs & ' ms' }}"
+
+  - id: verify
+    type: userTask
+    mode: manual
+    name: Verify the change
+    title: "Verify {{ inputs.change }}"
+    instructions: |
+      Check from the source that the connection works as requested – and that
+      nothing broader is open. A second person verifies this step; mark the
+      firewall change as verified in Steward (someone other than the person
+      who marked it implemented).
+    checklist:
+      - Connection works from the source
+      - No broader access than the rule lines
+      - Firewall change marked as verified in Steward
+    checklistAllRequired: true
+    fields:
+      - id: howChecked
+        type: text
+        label: How it was checked
+        hint: e.g. curl from a Hall 3 client, monitor check
+        use: required
+    evidence: optional
+    verification:
+      required: true
+      notRunStarter: true
+      onReject: return
+
+  - id: close
+    type: userTask
+    mode: manual
+    name: Close the change
+    title: "Close {{ inputs.change }}"
+    instructions: |
+      Close the firewall change in Steward. Closing drafts the next edition of
+      the "Approved firewall rules" of each affected segment and system; an
+      approver confirms it, so the document shows the approved state.
+    checklist:
+      - Firewall change closed in Steward
+      - Next edition of the approved rules submitted
+      - Provider ticket closed
+    checklistAllRequired: true
+    evidence: "off"

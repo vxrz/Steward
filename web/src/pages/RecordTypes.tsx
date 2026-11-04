@@ -28,6 +28,7 @@ import { PageHeader } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { useRecordTypes, useTypeName } from '../components/records/common';
 import { fieldLabel, typeDescription } from '../components/records/builtin';
+import { TableColumnsEditor } from '../components/records/TableField';
 
 /** Record types (administrators): number prefix, name, workflow, template and fields. */
 export function RecordTypesPage() {
@@ -272,6 +273,7 @@ function TypeModal({ type, onClose }: { type: RecordType | null; onClose: () => 
               {f.kind === 'select' && (
                 <TagsInput size="xs" mt={6} label={t('types.field.options')} value={f.options ?? []} onChange={(v) => updateField(i, { options: v })} />
               )}
+              {f.kind === 'table' && <TableColumnsEditor columns={f.columns ?? []} onChange={(columns) => updateField(i, { columns })} />}
             </Paper>
           ))}
           <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setFields((fs) => [...fs, emptyField()])} w="fit-content">

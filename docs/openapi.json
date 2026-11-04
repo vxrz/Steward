@@ -5382,7 +5382,7 @@
           },
           "status": {
             "type": "string",
-            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, closed, cancelled, proposed, accepted, superseded, deprecated, documented, verified, in_review, published, revising, withdrawn"
+            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, verified, closed, cancelled, proposed, accepted, superseded, deprecated, documented, in_review, published, revising, withdrawn"
           },
           "edition": {
             "type": [
@@ -5509,7 +5509,7 @@
           },
           "status": {
             "type": "string",
-            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, closed, cancelled, proposed, accepted, superseded, deprecated, documented, verified, in_review, published, revising, withdrawn"
+            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, verified, closed, cancelled, proposed, accepted, superseded, deprecated, documented, in_review, published, revising, withdrawn"
           },
           "tags": {
             "type": "array",
@@ -5637,7 +5637,7 @@
           },
           "status": {
             "type": "string",
-            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, closed, cancelled, proposed, accepted, superseded, deprecated, documented, verified, in_review, published, revising, withdrawn"
+            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, verified, closed, cancelled, proposed, accepted, superseded, deprecated, documented, in_review, published, revising, withdrawn"
           },
           "tags": {
             "type": "array",
@@ -5818,7 +5818,8 @@
                     "file",
                     "generated",
                     "signed",
-                    "retired"
+                    "retired",
+                    "evidence"
                   ],
                   "description": "file: part of the content; generated: a PDF Steward made; signed: a signed copy of a generated PDF; retired: a file of an earlier edition of a living document"
                 },
@@ -6202,7 +6203,8 @@
               "file",
               "generated",
               "signed",
-              "retired"
+              "retired",
+              "evidence"
             ],
             "description": "file: part of the content; generated: a PDF Steward made; signed: a signed copy of a generated PDF; retired: a file of an earlier edition of a living document"
           },
@@ -10329,7 +10331,8 @@
                     "cluster",
                     "appliance",
                     "cloud-service",
-                    "other"
+                    "other",
+                    "network"
                   ]
                 },
                 "vendor": {
@@ -10803,7 +10806,8 @@
               "cluster",
               "appliance",
               "cloud-service",
-              "other"
+              "other",
+              "network"
             ]
           },
           "vendor": {
@@ -10823,6 +10827,57 @@
           },
           "note": {
             "type": "string"
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "vlanId": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "802.1Q VLAN ID (1–4094)"
+              },
+              "subnets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Subnets in CIDR notation (IPv4 or IPv6), format-checked only"
+              },
+              "zone": {
+                "type": "string",
+                "description": "Zone or security level, e.g. an IEC 62443 zone"
+              },
+              "site": {
+                "type": "string"
+              },
+              "firewallManagedBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "team",
+                      "provider"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Who manages the firewall of the segment: the own team or a provider"
+              },
+              "firewallProvider": {
+                "type": "string",
+                "description": "The provider, when a provider manages the firewall"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Attributes of the kind: a network segment (kind network) has all of these, other kinds none (an empty object)"
           },
           "platform": {
             "anyOf": [
@@ -11074,6 +11129,73 @@
             },
             "description": "Applications that run on it, per environment"
           },
+          "segments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Id of the \"in segment\" link"
+                },
+                "segmentId": {
+                  "type": "string",
+                  "description": "The network segment (a system of kind network)"
+                },
+                "segmentName": {
+                  "type": "string"
+                },
+                "vlanId": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "subnets": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "zone": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string",
+                  "description": "IP address or host name of the system in the segment; empty when not documented"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "createdBy": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "segmentId",
+                "segmentName",
+                "vlanId",
+                "subnets",
+                "zone",
+                "address",
+                "note",
+                "createdAt",
+                "createdBy"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The network segments the system is in (segments the token owner may not see are left out)"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -11099,6 +11221,7 @@
           "cmdbUrl",
           "owners",
           "note",
+          "attributes",
           "platform",
           "platformHidden",
           "applicationCount",
@@ -11108,6 +11231,7 @@
           "stack",
           "sbom",
           "applications",
+          "segments",
           "createdAt",
           "createdBy",
           "updatedAt",
@@ -21733,7 +21857,7 @@
         "tags": [
           "Services"
         ],
-        "description": "The systems applications run on (servers, VMs, clusters, appliances, cloud services), ordered by name, with their tech stack, the Steward platform they are, and the applications that run on them per environment.",
+        "description": "The systems applications run on (servers, VMs, clusters, appliances, cloud services, network segments), ordered by name, with their tech stack, the Steward platform they are, the applications that run on them per environment, the attributes of a network segment and the segments a system is in.",
         "parameters": [
           {
             "schema": {

@@ -23,6 +23,7 @@ export const DUPLICATE_KINDS = [
   'maintenance-window',
   'access-check',
   'status-page',
+  'system',
 ] as const;
 export type DuplicateKind = (typeof DUPLICATE_KINDS)[number];
 

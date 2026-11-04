@@ -1,4 +1,12 @@
-import { ACCESS_RECORD_TYPE, DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE, type RecordFieldDef, type RecordType, INCIDENT_RECORD_TYPE } from '@sm/shared';
+import {
+  ACCESS_RECORD_TYPE,
+  DEFAULT_RECORD_TYPES,
+  DOCUMENT_RECORD_TYPE,
+  type RecordFieldDef,
+  type RecordTableColumn,
+  type RecordType,
+  INCIDENT_RECORD_TYPE,
+} from '@sm/shared';
 import i18n from '../../i18n';
 import { setBuiltinFieldLabel } from '../../i18n/errors';
 
@@ -59,6 +67,22 @@ export function optionLabel(typeKey: string, f: Pick<RecordFieldDef, 'key'>, val
   const def = defaultField(typeKey, f.key);
   if (!def?.options?.includes(value)) return value;
   return tr(`options.${f.key}.${value}`, value);
+}
+
+const defaultColumn = (typeKey: string, fieldKey: string, columnKey: string) => defaultField(typeKey, fieldKey)?.columns?.find((c) => c.key === columnKey);
+
+/** Label of a column of a table field (#208): translated while it is the built-in English default. */
+export function columnLabel(typeKey: string, fieldKey: string, c: Pick<RecordTableColumn, 'key' | 'label'>): string {
+  const def = defaultColumn(typeKey, fieldKey, c.key);
+  if (!def || def.label !== c.label) return c.label;
+  return tr(`columns.${c.key}`, c.label);
+}
+
+/** Text of a select option of a column (the stored value stays the same in every language). */
+export function columnOptionLabel(typeKey: string, fieldKey: string, c: Pick<RecordTableColumn, 'key'>, value: string): string {
+  const def = defaultColumn(typeKey, fieldKey, c.key);
+  if (!def?.options?.includes(value)) return value;
+  return tr(`columnOptions.${c.key}.${value}`, value);
 }
 
 /** Field definitions with translated labels and help (for display; never send them back to the server). */

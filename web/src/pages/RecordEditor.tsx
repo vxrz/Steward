@@ -12,6 +12,7 @@ import { MarkdownView } from '../components/records/MarkdownView';
 import { useTypeName } from '../components/records/common';
 import { fieldHelp, fieldLabel, optionLabel } from '../components/records/builtin';
 import { confirmDanger } from '../components/confirm';
+import { TableFieldInput } from '../components/records/TableField';
 
 interface Draft {
   title: string;
@@ -35,6 +36,8 @@ function FieldInput({ typeKey, def, value, onChange }: { typeKey: string; def: R
       return <TextInput {...common} type="date" onChange={(e) => onChange(e.currentTarget.value)} />;
     case 'datetime':
       return <TextInput {...common} value={localValue(value)} type="datetime-local" onChange={(e) => onChange(e.currentTarget.value)} />;
+    case 'table':
+      return <TableFieldInput typeKey={typeKey} def={def} value={value} onChange={onChange} />;
     case 'select':
       return (
         <Select
@@ -169,15 +172,17 @@ export function RecordEditorPage() {
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 4 }}>
             <Stack gap="sm">
-              {rec.type.fields.map((f) => (
-                <FieldInput
-                  key={f.key}
-                  typeKey={rec.typeKey}
-                  def={f}
-                  value={draft.fields[f.key] ?? ''}
-                  onChange={(v) => set({ fields: { ...draft.fields, [f.key]: v } })}
-                />
-              ))}
+              {rec.type.fields
+                .filter((f) => f.kind !== 'table')
+                .map((f) => (
+                  <FieldInput
+                    key={f.key}
+                    typeKey={rec.typeKey}
+                    def={f}
+                    value={draft.fields[f.key] ?? ''}
+                    onChange={(v) => set({ fields: { ...draft.fields, [f.key]: v } })}
+                  />
+                ))}
               <TagInput label={t('editor.tags')} description={t('editor.tagsHelp')} value={draft.tags} onChange={(v) => set({ tags: v })} max={30} lower />
               <TextInput
                 label={t('editor.comment')}
@@ -192,6 +197,20 @@ export function RecordEditorPage() {
             </Stack>
           </Grid.Col>
         </Grid>
+        {/* table fields (#208) take the whole width */}
+        <Stack gap="md" mt="md">
+          {rec.type.fields
+            .filter((f) => f.kind === 'table')
+            .map((f) => (
+              <FieldInput
+                key={f.key}
+                typeKey={rec.typeKey}
+                def={f}
+                value={draft.fields[f.key] ?? ''}
+                onChange={(v) => set({ fields: { ...draft.fields, [f.key]: v } })}
+              />
+            ))}
+        </Stack>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={cancel}>
             {t('common:cancel')}

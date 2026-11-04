@@ -41,7 +41,7 @@ export const Record_ = z.object({
 export const RecordAttachment = z.object({
   id: z.string(),
   kind: z
-    .enum(['file', 'generated', 'signed', 'retired'])
+    .enum(['file', 'generated', 'signed', 'retired', 'evidence'])
     .describe(
       'file: part of the content; generated: a PDF Steward made; signed: a signed copy of a generated PDF; retired: a file of an earlier edition of a living document',
     ),
