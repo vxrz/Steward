@@ -6,6 +6,9 @@ import {
   SNOWFLAKE_SCOPE_RE,
   CONFLUENT_KIND,
   confluentCrnProblem,
+  ENTRA_KIND,
+  entraScopeProblem,
+  type EntraScope,
   isGitPlatformKind,
   type AccessChange,
   type AccessChangeKind,
@@ -201,8 +204,8 @@ const subjectRef = z
   .toLowerCase()
   .regex(/^(user|team):.{1,128}$/, 'Use user:<name> or team:<name>');
 
-/** Sources with a scope (kept in the dataset_key column): Git, Snowflake, Confluent (v0.4.0). */
-const scoped = (source: string) => source === 'git' || source === 'snowflake' || source === 'confluent';
+/** Sources with a scope (kept in the dataset_key column): Git, Snowflake, Confluent (v0.4.0), Entra ID (v0.5.0). */
+const scoped = (source: string) => source === 'git' || source === 'snowflake' || source === 'confluent' || source === 'entra';
 const SCOPE_RE = /^([A-Za-z0-9_.$-]+(\/[A-Za-z0-9_.-]+){0,10})?$/;
 
 export const checkInput = z
@@ -229,7 +232,7 @@ export const checkInput = z
   .strict()
   .superRefine((c, ctx) => {
     if (c.source === 'dataset' && !c.datasetKey) ctx.addIssue({ code: 'custom', path: ['datasetKey'], message: 'A dataset check needs the dataset key' });
-    if (c.scope && c.source !== 'confluent' && !SCOPE_RE.test(c.scope))
+    if (c.scope && c.source !== 'confluent' && c.source !== 'entra' && !SCOPE_RE.test(c.scope))
       ctx.addIssue({
         code: 'custom',
         path: ['scope'],
@@ -238,6 +241,10 @@ export const checkInput = z
     if (c.source === 'git' && !c.scope) ctx.addIssue({ code: 'custom', path: ['scope'], message: 'A Git check needs the organisation, group or repository' });
     if (c.source === 'confluent') {
       const problem = c.scope ? confluentCrnProblem(c.scope) : 'A Confluent check needs the CRN of the organization, environment or cluster';
+      if (problem) ctx.addIssue({ code: 'custom', path: ['scope'], message: problem });
+    }
+    if (c.source === 'entra') {
+      const problem = entraScopeProblem(c.scope);
       if (problem) ctx.addIssue({ code: 'custom', path: ['scope'], message: problem });
     }
     if (c.source === 'snowflake' && c.scope && !SNOWFLAKE_SCOPE_RE.test(c.scope))
@@ -314,6 +321,8 @@ function validatePlatform(u: AuthUser, input: CheckInput): void {
   if (input.source === 'aws' && p.kind !== 'aws') throw new HttpError(400, 'The AWS source needs an AWS account platform', 'ACCESS_CHECK_AWS_SOURCE');
   if (input.source === 'confluent' && p.kind !== CONFLUENT_KIND)
     throw new HttpError(400, 'The Confluent source needs a Confluent Cloud API platform', 'ACCESS_CHECK_CONFLUENT_SOURCE');
+  if (input.source === 'entra' && p.kind !== ENTRA_KIND)
+    throw new HttpError(400, 'The Entra ID source needs a Microsoft Graph platform', 'ACCESS_CHECK_ENTRA_SOURCE');
 }
 
 export function listChecks(): AccessCheck[] {
@@ -712,6 +721,52 @@ async function collectConfluent(c: CheckRow): Promise<{ subjects: AccessSubject[
   };
 }
 
+/**
+ * Entra ID through Microsoft Graph (v0.5.0): users with their groups, directory roles and app roles (or one part: the
+ * scope) – read as the check's owner. Parts the tenant cannot read (licence, permission) are left out and named.
+ */
+async function collectEntra(c: CheckRow): Promise<{ subjects: AccessSubject[]; sourceRunId: null; notes: string[] }> {
+  const owner = ownerUser(c);
+  const platform = runAs(owner, () => getPlatform(c.platform_id));
+  if (!platform.permissions.includes('use'))
+    throw new HttpError(403, `The owner ${c.owner} may not use the platform "${platform.name}"`, 'ACCESS_CHECK_OWNER', {
+      owner: c.owner,
+      context: 'platform',
+      name: platform.name,
+    });
+  if (platform.kind !== ENTRA_KIND) throw new HttpError(400, 'The Entra ID source needs a Microsoft Graph platform', 'ACCESS_CHECK_ENTRA_SOURCE');
+  const secrets = getSecrets(c.platform_id);
+  await assertOutboundAllowed(await buildUrl(platform, secrets, '/', {}), outboundContext());
+  const { entraAccess } = await import('../entra/service.js');
+  let got: Awaited<ReturnType<typeof entraAccess>>;
+  try {
+    got = await entraAccess(platform, secrets, (c.dataset_key ?? '') as EntraScope | '');
+  } catch (e) {
+    if (e instanceof HttpError && e.statusCode < 500) throw e;
+    const { signInHint } = await import('../entra/service.js');
+    throw new HttpError(502, `Entra ID could not be read: ${signInHint((e as Error).message)}`.slice(0, 700), 'ACCESS_CHECK_ENTRA_READ', {
+      detail: (e as Error).message.slice(0, 300),
+    });
+  }
+  if (got.subjects.length > LIMITS.subjects)
+    throw new HttpError(400, `The tenant has more than ${LIMITS.subjects} subjects`, 'SNAPSHOT_TOO_LARGE', { max: LIMITS.subjects });
+  return {
+    subjects: normalizeSubjects(
+      got.subjects.map((x) => ({
+        id: clip(x.id),
+        name: clip(x.name),
+        type: x.type,
+        rights: x.rights.map(clip),
+        aliases: x.aliases,
+        activity: x.activity,
+        activityInfo: x.activityInfo,
+      })),
+    ),
+    sourceRunId: null,
+    notes: got.notes,
+  };
+}
+
 /** A dataset in the access snapshot shape, published by a process (never a dry run). */
 function collectDataset(c: CheckRow): { subjects: AccessSubject[]; sourceRunId: string } {
   // the rows of every partition (dashboards/datasets.ts keeps them there only)
@@ -819,7 +874,9 @@ export async function readCheckSource(
               ? await collectAws(c)
               : c.source === 'confluent'
                 ? await collectConfluent(c)
-                : collectDataset(c);
+                : c.source === 'entra'
+                  ? await collectEntra(c)
+                  : collectDataset(c);
     return { subjects: got.subjects, origin: 'live', takenAt: nowIso(), error: null };
   } catch (e) {
     const last = db().get<SnapshotRow>('SELECT * FROM access_snapshots WHERE check_id = ? ORDER BY seq DESC LIMIT 1', checkId);
@@ -843,7 +900,7 @@ export async function runCheck(id: string, o: { actor: string; trigger: 'schedul
   if (running.has(id)) throw new HttpError(409, 'This check is running already', 'ACCESS_CHECK_RUNNING');
   running.add(id);
   try {
-    let collected: { subjects: AccessSubject[]; sourceRunId: string | null };
+    let collected: { subjects: AccessSubject[]; sourceRunId: string | null; notes?: string[] };
     try {
       collected =
         c.source === 'insights-hub'
@@ -856,7 +913,9 @@ export async function runCheck(id: string, o: { actor: string; trigger: 'schedul
                 ? await collectAws(c)
                 : c.source === 'confluent'
                   ? await collectConfluent(c)
-                  : collectDataset(c);
+                  : c.source === 'entra'
+                    ? await collectEntra(c)
+                    : collectDataset(c);
     } catch (e) {
       const msg = (e as Error).message.slice(0, 500);
       db().tx(() => {
@@ -991,6 +1050,8 @@ export async function runCheck(id: string, o: { actor: string; trigger: 'schedul
           sameAs,
           sourceRunId: collected.sourceRunId,
           findings: findings.map((f) => f.id),
+          // parts of the source that could not be read (Entra ID: licence or permission)
+          ...(collected.notes?.length ? { notAvailable: collected.notes.map((n) => n.slice(0, 300)) } : {}),
         },
       });
       for (const f of findings) {

@@ -28,6 +28,8 @@ import { IconArrowsDiff, IconEdit, IconFlask, IconPlayerPlay, IconPlus, IconShie
 import { useTranslation } from 'react-i18next';
 import {
   CONFLUENT_KIND,
+  ENTRA_KIND,
+  ENTRA_SCOPES,
   GIT_PLATFORM_KINDS,
   type AccessCheck,
   type AccessFinding,
@@ -641,7 +643,14 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
   const pickPlatform = (v: string | null) => {
     const p = usable.find((x) => x.id === v);
     const git = !!p && (GIT_PLATFORM_KINDS as readonly string[]).includes(p.kind);
-    const direct = p?.kind === 'snowflake' || p?.kind === 'aws' ? (p.kind as 'snowflake' | 'aws') : p?.kind === CONFLUENT_KIND ? 'confluent' : null;
+    const direct =
+      p?.kind === 'snowflake' || p?.kind === 'aws'
+        ? (p.kind as 'snowflake' | 'aws')
+        : p?.kind === CONFLUENT_KIND
+          ? 'confluent'
+          : p?.kind === ENTRA_KIND
+            ? 'entra'
+            : null;
     setF((x) => ({ ...x, platformId: v ?? '', source: git ? 'git' : direct ? direct : p && p.kind !== 'insights-hub' ? 'dataset' : x.source }));
   };
   const preset = fromPlatform?.id;
@@ -655,7 +664,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
       const body = {
         ...f,
         datasetKey: f.source === 'dataset' ? f.datasetKey : null,
-        scope: f.source === 'git' || f.source === 'snowflake' || f.source === 'confluent' ? f.scope.trim() : null,
+        scope: f.source === 'git' || f.source === 'snowflake' || f.source === 'confluent' || f.source === 'entra' ? f.scope.trim() : null,
       };
       const saved = check ? await put<AccessCheck>(`/compliance/access-checks/${check.id}`, body) : await post<AccessCheck>('/compliance/access-checks', body);
       await qc.invalidateQueries({ queryKey: ['access-checks'] });
@@ -699,6 +708,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
             { value: 'snowflake', label: t('sources.snowflake') },
             { value: 'aws', label: t('sources.aws') },
             { value: 'confluent', label: t('sources.confluent') },
+            { value: 'entra', label: t('sources.entra') },
           ]}
           value={f.source}
           onChange={(v) => up('source', (v as AccessCheck['source']) ?? 'insights-hub')}
@@ -735,6 +745,20 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
             onChange={(e) => up('scope', e.currentTarget.value)}
             maxLength={500}
             classNames={{ input: 'mono' }}
+          />
+        )}
+        {f.source === 'entra' && (
+          <Select
+            label={t('reconciliation.entraScope')}
+            description={t('reconciliation.entraScopeHelp')}
+            allowDeselect={false}
+            data={[
+              { value: 'all', label: t('reconciliation.entraScopes.all') },
+              ...ENTRA_SCOPES.map((x) => ({ value: x, label: t(`reconciliation.entraScopes.${x}`) })),
+            ]}
+            // the empty scope (everything) is "all" in the list
+            value={f.scope || 'all'}
+            onChange={(v) => up('scope', !v || v === 'all' ? '' : v)}
           />
         )}
         {f.source === 'dataset' && (
