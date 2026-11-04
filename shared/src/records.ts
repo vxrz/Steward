@@ -138,7 +138,7 @@ export const RECORD_STATUS_COLORS: Record<string, string> = {
   accepted: 'green',
   rejected: 'red',
   implemented: 'teal',
-  closed: 'dark',
+  closed: 'gray',
   cancelled: 'gray',
   superseded: 'orange',
   deprecated: 'yellow',
@@ -147,7 +147,7 @@ export const RECORD_STATUS_COLORS: Record<string, string> = {
   in_review: 'blue',
   published: 'green',
   revising: 'cyan',
-  withdrawn: 'dark',
+  withdrawn: 'gray',
 };
 
 // ---------- record types ----------
