@@ -743,6 +743,8 @@
     "noRuns": "noch keine Ausführungen",
     "unsaved": "ungespeicherte Änderungen",
     "exportYaml": "YAML exportieren",
+    "exportPostman": "Für Postman exportieren",
+    "exportPostmanHint": "Collection und Environment (ZIP), ohne Geheimnisse",
     "run": "Ausführen",
     "readOnly": "schreibgeschützt",
     "fullScreen": "Vollbild",

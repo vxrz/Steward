@@ -129,6 +129,8 @@
     "test": "Test connection",
     "more": "More",
     "saveAsType": "Save as connector type",
+    "exportPostman": "Export for Postman",
+    "exportPostmanHint": "Environment and a collection of the API operations (ZIP), without secrets",
     "delete": "Delete platform",
     "testOk": "Connection works",
     "testNotOk": "Connection failed",

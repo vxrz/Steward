@@ -10,6 +10,7 @@ import {
   Collapse,
   Group,
   Loader,
+  Menu,
   Modal,
   Stack,
   Switch,
@@ -30,6 +31,7 @@ import {
   IconDeviceDesktop,
   IconDeviceFloppy,
   IconDownload,
+  IconFileExport,
   IconInfoCircle,
   IconPlayerPlay,
 } from '@tabler/icons-react';
@@ -42,7 +44,7 @@ import { statusLabel } from '../components/common';
 import { useMe } from '../auth';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
-import { RunDialog } from '../components/RunDialog';
+import { RunDialog, loadBindings } from '../components/RunDialog';
 import { AccessEditor } from '../components/AccessEditor';
 import { OwningTeams } from '../components/OwningTeams';
 import { SourcePanel, VersionsPanel } from '../components/editor/DefinitionTabs';
@@ -67,6 +69,16 @@ const byNode = (list: ValidationIssue[]) => {
   for (const i of list) if (i.nodeId && !m.has(i.nodeId)) m.set(i.nodeId, issueText(i));
   return m;
 };
+
+/** The Postman export, for the platforms last chosen in the run dialog (otherwise the server takes the only fitting one). */
+function postmanUrl(processId: string): string {
+  const stored: unknown = loadBindings(processId);
+  const bindings = Object.entries(stored && typeof stored === 'object' ? stored : {})
+    .filter(([slot, id]) => /^[A-Za-z_]\w*$/.test(slot) && typeof id === 'string' && /^[^,:]{1,200}$/.test(id))
+    .map(([slot, id]) => `${slot}:${id}`)
+    .join(',');
+  return apiUrl(`/processes/${processId}/export/postman${bindings ? `?bindings=${encodeURIComponent(bindings)}` : ''}`);
+}
 
 export function ProcessEditorPage() {
   const { t, i18n } = useTranslation(['editor', 'common']);
@@ -202,6 +214,16 @@ export function ProcessEditorPage() {
             <CopiedFromNote kind="process" id={p.id} pathOf={(id) => `/processes/${id}`} />
           </>
         }
+        menu={{
+          extra: (
+            <Menu.Item component="a" href={postmanUrl(p.id)} leftSection={<IconFileExport size={14} />} data-testid="export-postman">
+              <Text size="sm">{t('page.exportPostman')}</Text>
+              <Text size="xs" c="dimmed">
+                {t('page.exportPostmanHint')}
+              </Text>
+            </Menu.Item>
+          ),
+        }}
         actions={
           <>
             {problems.length > 0 && (

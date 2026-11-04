@@ -9,6 +9,7 @@ import {
   IconDots,
   IconKey,
   IconLock,
+  IconFileExport,
   IconPlug,
   IconPlugConnected,
   IconPlayerRecord,
@@ -22,7 +23,7 @@ import {
 } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { AclEntry, Platform } from '@sm/shared';
-import { del, get, notifyError, notifyOk, post, put } from '../api';
+import { apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
 import { AccessEditor } from '../components/AccessEditor';
 import { OwningTeams } from '../components/OwningTeams';
 import { useMe } from '../auth';
@@ -94,6 +95,8 @@ export function PlatformDetailPage() {
   const p = platform.data;
   const canManage = p.permissions.includes('manage');
   const canUse = p.permissions.includes('use');
+  // who sees the platform may export it for Postman (#204): its settings without the secrets
+  const canExport = p.permissions.length > 0;
   const tokenLogin =
     p.config.auth?.type === 'oauth2_client_credentials' ||
     p.config.auth?.type === 'token_request' ||
@@ -184,7 +187,7 @@ export function PlatformDetailPage() {
                 {t('detail.test')}
               </Button>
             )}
-            {(canManage || isAdmin) && (
+            {(canManage || isAdmin || canExport) && (
               <Menu position="bottom-end">
                 <Menu.Target>
                   <Button size="xs" variant="default" aria-label={t('detail.more')} px={8}>
@@ -202,6 +205,17 @@ export function PlatformDetailPage() {
                       {t('detail.saveAsType')}
                     </Menu.Item>
                   )}
+                  <Menu.Item
+                    component="a"
+                    href={apiUrl(`/platforms/${p.id}/export/postman`)}
+                    leftSection={<IconFileExport size={14} />}
+                    data-testid="export-postman"
+                  >
+                    <Text size="sm">{t('detail.exportPostman')}</Text>
+                    <Text size="xs" c="dimmed">
+                      {t('detail.exportPostmanHint')}
+                    </Text>
+                  </Menu.Item>
                   {canManage && (
                     <Menu.Item color="red" leftSection={<IconTrash size={14} />} onClick={() => setDeleting(true)}>
                       {t('detail.delete')}

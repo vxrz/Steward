@@ -129,6 +129,8 @@
     "test": "Verbindung testen",
     "more": "Mehr",
     "saveAsType": "Als Konnektortyp speichern",
+    "exportPostman": "Für Postman exportieren",
+    "exportPostmanHint": "Environment und eine Collection der API-Operationen (ZIP), ohne Geheimnisse",
     "delete": "Plattform löschen",
     "testOk": "Verbindung funktioniert",
     "testNotOk": "Verbindung fehlgeschlagen",
