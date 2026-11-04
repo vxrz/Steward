@@ -18,6 +18,7 @@ import { mockS3 } from './mockS3.js';
 import { mockAws } from './mockAws.js';
 import { mockSnowflake } from './mockSnowflake.js';
 import { mockConfluent } from './mockConfluent.js';
+import { mockGraph } from './mockGraph.js';
 import { mockDtrack } from './mockDtrack.js';
 import { mockEndoflife } from './mockEndoflife.js';
 import { mockUsageRoutes } from './mockUsage.js';
@@ -222,6 +223,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   await mockAws(app);
   await mockSnowflake(app);
   await mockConfluent(app);
+  await mockGraph(app);
   await mockDtrack(app);
   await mockEndoflife(app);
 

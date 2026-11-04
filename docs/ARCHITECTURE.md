@@ -116,6 +116,7 @@ Packaging: the same server runs as a desktop executable (a Node.js single execut
 | `mcp/`                                                          | The MCP server, OAuth for MCP clients, the platform gateway and approved write requests; the stdio bridge.                             |
 | `export/`                                                       | Postman export of processes and platforms: collections and environments without secrets ([POSTMAN.md](POSTMAN.md)).                    |
 | `aws/`, `kafka/`, `mqtt/`, `snowflake/`, `dtrack/`, `semantic/` | Clients for the platform kinds that are not plain REST.                                                                                |
+| `entra/`                                                        | Microsoft Graph for Entra ID: paging and throttling, access, app credentials, connection test, register import.                        |
 | `system/`, `theme/`, `teams/`, `i18n/`                          | Readiness, system status and update notice; branding; team settings; server-side translations.                                         |
 | `log.ts`, `telemetry.ts`, `metrics.ts`, `errorReporting.ts`     | Logs (pino), OpenTelemetry traces, Prometheus metrics, optional Sentry-compatible error reporting.                                     |
 | `cli/`, `desktop/`                                              | Command-line tools (admin, migrate, backup, db-copy, …) and the desktop launcher.                                                      |

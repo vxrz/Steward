@@ -1,0 +1,281 @@
+# steward-min-version: 0.5.0
+name: "Entra ID – Privileged directory role review (four-eyes)"
+description: |
+  Periodic attestation of the privileged directory roles of an Entra ID
+  tenant: every active assignment and – with Entra ID P2 – every eligible one
+  (Privileged Identity Management) of the roles under review, to users,
+  role-assignable groups and service principals, with the scope and the
+  principal's last sign-in. The reviewer ticks the assignments that remain
+  justified (recently active people and service principals are preselected), a
+  second person confirms the removals (four-eyes), and a manual step lists
+  what to remove in the Entra admin center (Roles & admins, or PIM for
+  eligible assignments) – Steward reads Entra ID only –, which a second person
+  verifies. The removals are documented as access changes with the rights the
+  access reconciliation (source "Entra ID") uses, e.g.
+  `role:Global Administrator` or `role:Application Administrator (eligible)`.
+
+  Recommended schedule: monthly (`0 7 1 * *`) or quarterly. Publishes
+  `entra.privileged-roles` (one row per assignment). Needs
+  RoleManagement.Read.Directory and Directory.Read.All; eligible assignments
+  need Entra ID P2, the last sign-in AuditLog.Read.All and P1 – without them
+  the review says "not available" and goes on (docs/ENTRA.md).
+recommendedSchedule: "0 7 1 * *"
+tags: [access-review, governance, privileged, entra-id]
+connections:
+  - slot: graph
+    kind: microsoft-graph
+    description: Entra ID tenant (Microsoft Graph, read-only)
+inputs:
+  - name: roles
+    label: Roles under review (display names)
+    type: list
+    default:
+      - Global Administrator
+      - Privileged Role Administrator
+      - Privileged Authentication Administrator
+      - Security Administrator
+      - Conditional Access Administrator
+      - User Administrator
+      - Application Administrator
+      - Cloud Application Administrator
+      - Authentication Administrator
+      - Exchange Administrator
+      - SharePoint Administrator
+      - Intune Administrator
+      - Groups Administrator
+      - Helpdesk Administrator
+  - name: includeMarkedPrivileged
+    label: Also every other role Microsoft marks as privileged
+    type: boolean
+    default: true
+  - name: activeWithinDays
+    label: Preselect people who signed in within (days)
+    type: number
+    default: 30
+steps:
+  - id: readDefinitions
+    type: http
+    name: Directory roles
+    connection: graph
+    method: GET
+    path: /v1.0/roleManagement/directory/roleDefinitions
+    query: { $select: "id,displayName,isPrivileged,isBuiltIn" }
+    paginate: { mode: nextLink, nextPath: "`@odata.nextLink`", itemsPath: value, maxPages: 20 }
+    saveAs: definitions
+  - id: readActive
+    type: http
+    name: Active role assignments
+    connection: graph
+    method: GET
+    path: /v1.0/roleManagement/directory/roleAssignments
+    query: { $expand: principal }
+    paginate: { mode: nextLink, nextPath: "`@odata.nextLink`", itemsPath: value, maxPages: 100 }
+    saveAs: active
+  - id: readEligible
+    type: http
+    name: Eligible role assignments (PIM, Entra ID P2)
+    connection: graph
+    method: GET
+    path: /v1.0/roleManagement/directory/roleEligibilityScheduleInstances
+    query: { $expand: principal }
+    paginate: { mode: nextLink, nextPath: "`@odata.nextLink`", itemsPath: value, maxPages: 100 }
+    onError: continue
+    saveAs: eligible
+  - id: readSignIns
+    type: http
+    name: Last sign-in of the users (Entra ID P1)
+    connection: graph
+    method: GET
+    path: /v1.0/users
+    query: { $select: "id,signInActivity,accountEnabled", $top: 999 }
+    paginate: { mode: nextLink, nextPath: "`@odata.nextLink`", itemsPath: value, maxPages: 100 }
+    onError: continue
+    saveAs: signIns
+  - id: rows
+    type: set
+    name: One row per privileged assignment
+    values:
+      pim: "{{ $not($exists(vars.eligible.error)) }}"
+      signInsReadable: "{{ $not($exists(vars.signIns.error)) }}"
+      roleNames: >-
+        {{ [$distinct($append(inputs.roles, inputs.includeMarkedPrivileged ? vars.definitions.body[isPrivileged = true].displayName : []))] }}
+      rows: >-
+        {{ (
+          $defs := $merge(vars.definitions.body.{ id: displayName });
+          $wanted := vars.roleNames;
+          $users := $exists(vars.signIns.error) ? {} : $merge(vars.signIns.body.{ id: $ });
+          $signIns := $not($exists(vars.signIns.error));
+          $one := function($a, $eligible) {(
+            $role := $lookup($defs, $a.roleDefinitionId);
+            $p := $a.principal;
+            $type := $p.`@odata.type` = '#microsoft.graph.group' ? 'group' : ($p.`@odata.type` = '#microsoft.graph.servicePrincipal' ? 'service principal' : 'user');
+            $u := $lookup($users, $a.principalId);
+            $times := [$ts($u.signInActivity.lastSignInDateTime), $ts($u.signInActivity.lastNonInteractiveSignInDateTime)];
+            $last := $count($times) ? $max($times) : undefined;
+            $scope := $a.directoryScopeId ? $a.directoryScopeId : '/';
+            $role in $wanted ? {
+              "key": ($eligible ? 'e|' : 'a|') & $a.id,
+              "role": $role,
+              "assignment": $eligible ? 'eligible' : 'active',
+              "scope": $scope = '/' ? 'tenant' : $scope,
+              "principalType": $type,
+              "principal": $p.displayName ? $p.displayName : $a.principalId,
+              "upn": $p.userPrincipalName ? $p.userPrincipalName : '',
+              "subjectId": $type = 'user' ? ($p.userPrincipalName ? $p.userPrincipalName : $a.principalId) : ($type = 'group' ? 'group:' : 'sp:') & $p.displayName,
+              "right": 'role:' & $role & ($scope = '/' ? '' : ' @' & $scope) & ($eligible ? ' (eligible)' : ''),
+              "enabled": $type != 'user' or $not($u.accountEnabled = false),
+              "lastSignIn": $type != 'user' ? '–' : ($signIns ? ($last ? $fromMillis($last, '[Y0001]-[M01]-[D01]') : 'never') : 'not available'),
+              "days": $last ? $daysSince($last) : null
+            } : undefined
+          )};
+          [$append(
+            [vars.active.body.$one($, false)],
+            $exists(vars.eligible.error) ? [] : [vars.eligible.body.$one($, true)]
+          )]
+        ) }}
+      inactive: "{{ [vars.rows[principalType = 'user' and (enabled = false or lastSignIn = 'never' or (days != null and days > $inputs.activeWithinDays))]] }}"
+      globalAdmins: "{{ $count(vars.rows[role = 'Global Administrator' and assignment = 'active']) }}"
+  - id: attest
+    type: userTask
+    name: Which privileged assignments remain justified?
+    when: "$count(vars.rows) > 0"
+    mode: select
+    title: "Privileged role review: tick the {{ $count(vars.rows) }} assignment(s) that remain justified"
+    instructions: |
+      Roles under review: {{ $join(vars.roleNames, ', ') }}.
+      **Unticked** assignments are removed after a second person confirms.
+      People who signed in within the last {{ inputs.activeWithinDays }} days, groups and service principals are preselected.
+      {{ vars.pim ? '' : 'Eligible assignments (PIM): not available – Entra ID P2 or the permission is missing.' }}
+      {{ vars.signInsReadable ? '' : 'Last sign-in: not available (Entra ID P1 or AuditLog.Read.All missing).' }}
+    items: vars.rows
+    itemKey: key
+    columns:
+      - { label: Role, value: role }
+      - { label: Assignment, value: assignment }
+      - { label: Scope, value: scope }
+      - { label: Principal, value: "principal & (upn ? ' <' & upn & '>' : '')" }
+      - { label: Type, value: principalType }
+      - { label: Last sign-in, value: lastSignIn }
+      - { label: Days, value: "days != null ? days : '–'" }
+    preselect: "principalType != 'user' or (enabled and days != null and days <= $inputs.activeWithinDays)"
+    saveAs: attestation
+  - id: confirm
+    type: userTask
+    name: Confirm the removals (four-eyes)
+    when: "$count(vars.attestation.unselected) > 0"
+    mode: approve
+    title: "Remove {{ $count(vars.attestation.unselected) }} privileged role assignment(s)?"
+    instructions: |
+      Reviewed by {{ vars.attestation.decidedBy }}. A different person has to confirm.
+
+      {{ $join(vars.attestation.unselected.('- ' & principal & ' – ' & role & ' (' & assignment & ', ' & scope & ')'), '\n') }}
+    assignees: [role:approver, role:admin]
+    fourEyes: true
+    onReject: continue
+    saveAs: removal
+  - id: removeInEntra
+    type: userTask
+    mode: manual
+    name: Remove the assignments in the Entra admin center
+    when: "vars.removal.approved = true"
+    title: "Remove {{ $count(vars.attestation.unselected) }} role assignment(s) in Entra ID"
+    instructions: |
+      Steward reads Entra ID only. Remove these assignments – active ones under Roles & admins → the role → Assignments,
+      eligible ones under Privileged Identity Management → Microsoft Entra roles → Assignments → Eligible:
+
+      {{ $join(vars.attestation.unselected.('- ' & role & ' (' & assignment & ', ' & scope & ') – ' & principal & (upn ? ' <' & upn & '>' : '')), '\n') }}
+
+      A second person verifies the result before the removals are documented.
+    checklist:
+      - Assignments removed (Roles & admins, or PIM for eligible ones)
+      - "Checked: the role lists no longer show the principals"
+    checklistAllRequired: true
+    fields:
+      - id: ticket
+        type: ticket
+        label: Change ticket
+        hint: e.g. CHG0012345
+    evidence: optional
+    verification:
+      required: true
+      onReject: return
+    saveAs: removed
+  - id: documentRemoved
+    type: accessChange
+    name: Document the removed assignments
+    when: "vars.removal.approved = true and vars.removed.completed = true"
+    connection: graph
+    kind: revoke
+    items: vars.attestation.unselected
+    subjectId: subjectId
+    subjectName: principal
+    rights: "[right]"
+    reason: "Privileged role review: assignment not attested"
+    requestRef: "{{ vars.removed.fields.ticket ? vars.removed.fields.ticket : '' }}"
+    approvedBy: "{{ vars.removal.decidedBy }}"
+  - id: publish
+    type: publish
+    name: Publish the review result
+    dataset: entra.privileged-roles
+    title: Entra ID privileged roles
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Role, value: role }
+      - { label: Assignment, value: assignment }
+      - { label: Scope, value: scope }
+      - { label: Principal, value: principal }
+      - { label: Type, value: principalType }
+      - { label: Last sign-in, value: lastSignIn }
+      - label: Review
+        value: >-
+          key in $vars.attestation.selectedKeys ? 'kept'
+            : ($vars.removal.approved = true ? ($vars.removed.completed = true ? 'removed' : 'to remove')
+            : ($exists($vars.attestation) ? 'removal rejected' : 'not reviewed'))
+    status: >-
+      principalType = 'user' and (enabled = false or lastSignIn = 'never') ? 'critical'
+        : (principalType = 'user' and days != null and days > $inputs.activeWithinDays ? 'warning' : 'good')
+    statusText: >-
+      principalType = 'user' and enabled = false ? 'disabled account holds ' & role
+        : (principalType = 'user' and lastSignIn = 'never' ? 'never signed in'
+        : (principalType = 'user' and days != null and days > $inputs.activeWithinDays ? 'no sign-in for ' & days & ' days' : ''))
+    metrics:
+      assignments: "$count(vars.rows)"
+      active: "$count(vars.rows[assignment = 'active'])"
+      eligible: "$count(vars.rows[assignment = 'eligible'])"
+      globalAdmins: "vars.globalAdmins"
+      inactive: "$count(vars.inactive)"
+      removed: "vars.removal.approved = true and vars.removed.completed = true ? $count(vars.attestation.unselected) : 0"
+    staleAfterMinutes: 89280
+  - id: globalAdminCheck
+    type: check
+    name: Few permanent Global Administrators
+    severity: warning
+    condition: "vars.globalAdmins <= 4"
+    message: "{{ vars.globalAdmins }} active Global Administrator assignment(s) – Microsoft recommends fewer than five, the rest eligible through PIM"
+    headline: "{{ vars.globalAdmins }} permanent Global Administrators"
+    value: "vars.globalAdmins"
+  - id: inactiveCheck
+    type: check
+    name: No privileged role on an inactive account
+    severity: warning
+    condition: "$count(vars.inactive) = 0"
+    message: "{{ $count(vars.inactive) = 0 ? 'Every person with a privileged role signed in within ' & inputs.activeWithinDays & ' days' : $join(vars.inactive.(principal & ': ' & role & ' (' & lastSignIn & ')'), '; ') }}"
+    headline: "{{ $count(vars.inactive) }} privileged assignment(s) on inactive accounts"
+    value: "$count(vars.inactive)"
+    items: "vars.inactive.(principal & ': ' & role & ', last sign-in ' & lastSignIn)"
+  - id: summary
+    type: report
+    name: Summary
+    title: Privileged directory role review
+    text: |
+      - Assignments reviewed: **{{ $count(vars.rows) }}** ({{ $count(vars.rows[assignment = 'active']) }} active, {{ vars.pim ? $count(vars.rows[assignment = 'eligible']) & ' eligible' : 'eligible: not available (licence or permission)' }})
+      - Kept: **{{ $count(vars.attestation.selected) }}**
+      - Removed: **{{ vars.removal.approved = true and vars.removed.completed = true ? $count(vars.attestation.unselected) : 0 }}**{{ vars.removal.approved = false ? ' (removal rejected by ' & vars.removal.decidedBy & ')' : '' }}{{ vars.removed.verifiedBy ? ' – verified by ' & vars.removed.verifiedBy : '' }}{{ run.dryRun ? ' – dry run' : '' }}
+    rows: vars.rows
+    columns:
+      - { label: Role, value: role }
+      - { label: Principal, value: principal }
+      - { label: Assignment, value: assignment }
+      - label: Result
+        value: "key in $vars.attestation.selectedKeys ? 'kept' : ($vars.removal.approved = true ? 'removed' : 'kept (not confirmed)')"

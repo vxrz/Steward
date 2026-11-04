@@ -1,0 +1,34 @@
+name: Entra ID governance
+description: Who has access to the Entra ID tenant, and is it still justified? Guests, privileged directory roles, stale accounts, group memberships and app secrets and certificates that expire – fed by the Entra ID guest review, privileged role review, stale accounts, group review and expiring app credentials processes.
+refreshSeconds: 300
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **Entra ID governance** – read by the processes *Entra ID – Guest user review*, *Privileged directory role review*, *Stale accounts*, *Group owner and membership review* and *Expiring app secrets and certificates* from Microsoft Graph (read-only). Opening this page never calls Graph.
+      The access reconciliation with the source "Entra ID" keeps the history of who had which group, role and app role; Credentials → Import from Entra ID puts the app secrets and certificates into the credentials register.
+  - { id: guests, type: kpi, title: Guests, dataset: entra.guests, metric: guests, width: 3 }
+  - { id: staleGuests, type: kpi, title: Guests without recent sign-in, dataset: entra.guests, metric: stale, goodWhen: down, width: 3 }
+  - { id: pending, type: kpi, title: Invitations pending, dataset: entra.guests, metric: pendingInvitations, goodWhen: down, width: 3 }
+  - { id: staleAccounts, type: kpi, title: Stale accounts, dataset: entra.stale-accounts, metric: stale, goodWhen: down, width: 3 }
+  - { id: privileged, type: kpi, title: Privileged assignments, dataset: entra.privileged-roles, metric: assignments, goodWhen: down, width: 3 }
+  - { id: globalAdmins, type: kpi, title: Permanent Global Administrators, dataset: entra.privileged-roles, metric: globalAdmins, goodWhen: down, width: 3 }
+  - { id: eligible, type: kpi, title: Eligible (PIM), dataset: entra.privileged-roles, metric: eligible, goodWhen: up, width: 3 }
+  - { id: inactiveAdmins, type: kpi, title: Privileged without recent sign-in, dataset: entra.privileged-roles, metric: inactive, goodWhen: down, width: 3 }
+  - { id: expiring, type: kpi, title: App credentials ending soon, dataset: entra.app-credentials, metric: expiring, goodWhen: down, width: 3 }
+  - { id: expired, type: kpi, title: App credentials expired, dataset: entra.app-credentials, metric: expired, goodWhen: down, width: 3 }
+  - { id: ownerless, type: kpi, title: Groups without owner, dataset: entra.group-members, metric: ownerless, goodWhen: down, width: 3 }
+  - { id: disabledInGroups, type: kpi, title: Disabled accounts in groups, dataset: entra.stale-accounts, metric: disabledInGroups, goodWhen: down, width: 3 }
+  - { id: credentials, type: table, title: App secrets and certificates needing attention, dataset: entra.app-credentials, problemsOnly: true, width: 12 }
+  - { id: roles, type: table, title: Privileged role assignments, dataset: entra.privileged-roles, width: 12 }
+  - { id: guestTable, type: table, title: Guests to review, dataset: entra.guests, problemsOnly: true, width: 6 }
+  - { id: staleTable, type: table, title: Stale accounts, dataset: entra.stale-accounts, width: 6 }
+  - { id: groupTable, type: table, title: Group memberships to look at, dataset: entra.group-members, problemsOnly: true, width: 12 }
+  - id: howto
+    type: markdown
+    width: 12
+    text: |
+      **Cadence:** expiring app credentials daily · stale accounts weekly · privileged role review monthly · guest and group reviews quarterly.
+      Removals are made in the Entra admin center after a second person confirms (four-eyes) and are documented as access changes.
+  - { id: fresh, type: freshness, width: 12 }

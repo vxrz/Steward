@@ -377,6 +377,119 @@ describe('AWS – keys and costs from the cloud accounts of applications', () =>
   });
 });
 
+describe('Entra ID – reviews and reports on the simulated tenant', () => {
+  const graph = () => platformByKind['microsoft-graph']!;
+  const review = async (processId: string, inputs: Record<string, unknown> = {}) => {
+    let items: any[] = [];
+    const r = await finish(await start(processId, { graph: graph() }, inputs), (x) => {
+      items = x;
+      return x.filter((i) => i.preselected).map((i) => i.key);
+    });
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    return { r, items, manual: r.tasks.find((t: any) => t.mode === 'manual')?.instructions as string | undefined };
+  };
+  /** The access change entries of the Graph platform that match (they are written when the run ends) */
+  const changes = async (match: (e: any) => boolean, n: number) => {
+    let found: any[] = [];
+    for (let i = 0; i < 50; i++) {
+      found = (await s.api('GET', `/compliance/access-changes?platformId=${graph()}`)).filter(match);
+      if (found.length >= n) break;
+      await sleep(200);
+    }
+    return found;
+  };
+
+  it('guest review: invitation state, last sign-in and groups; stale guests deleted after four-eyes and documented', async () => {
+    const { r, items, manual } = await review('entra-guest-review');
+    const pre = Object.fromEntries(items.map((i) => [i.cells[0].split(' <')[0], i.preselected]));
+    expect(pre).toEqual({ 'Paula Partner': true, 'Gary Guest': false, 'Ingrid Invited': false });
+    expect(r.tasks.find((t: any) => t.mode === 'approve')).toMatchObject({ decidedBy: 'adam', fourEyes: true });
+    expect(manual).toContain('Gary Guest – gary_old-partner.example#EXT#@example.onmicrosoft.com');
+    const d = await s.api('GET', '/datasets/entra.guests');
+    const by = Object.fromEntries(d.rows.map((x: any) => [x.Guest, x]));
+    expect(by['Paula Partner']).toMatchObject({
+      'E-mail': 'paula@fabrikam.example',
+      Groups: 'Contractors, Developers, Partner Portal Users',
+      Review: 'kept',
+      _status: 'good',
+    });
+    expect(by['Gary Guest']).toMatchObject({ Days: 400, Review: 'deleted', _status: 'critical' });
+    expect(by['Ingrid Invited']).toMatchObject({ Invitation: 'PendingAcceptance', 'Last sign-in': 'never', _status: 'warning' });
+    expect(d.metrics).toMatchObject({ guests: 3, stale: 1, neverSignedIn: 1, pendingInvitations: 1, removed: 2 });
+    // the deletions are documented as offboardings of the UPN the Entra ID access source uses
+    const entries = await changes((e) => e.kind === 'offboarding', 2);
+    expect(entries.map((e: any) => e.subjectId).sort()).toEqual([
+      'gary_old-partner.example#EXT#@example.onmicrosoft.com',
+      'ingrid_invited.example#EXT#@example.onmicrosoft.com',
+    ]);
+  });
+
+  it('privileged role review: active and eligible assignments with the rights the access source uses', async () => {
+    const { items, manual } = await review('entra-privileged-role-review');
+    const rows = items.map((i) => `${i.cells[3].split(' <')[0]}: ${i.cells[0]} (${i.cells[1]}) ${i.preselected ? 'kept' : 'removed'}`).sort();
+    expect(rows).toEqual([
+      'Alice Admin: Global Administrator (active) kept',
+      'Bob Builder: Application Administrator (eligible) kept',
+      'HR Sync: User Administrator (active) kept',
+      'IT Admins: User Administrator (active) kept',
+    ]);
+    expect(manual).toBeUndefined();
+    const d = await s.api('GET', '/datasets/entra.privileged-roles');
+    expect(d.metrics).toMatchObject({ assignments: 4, active: 3, eligible: 1, globalAdmins: 1, inactive: 0 });
+    const hr = d.rows.find((x: any) => x.Principal === 'HR Sync');
+    expect(hr).toMatchObject({ Type: 'service principal', Scope: expect.stringMatching(/^\/administrativeUnits\//), 'Last sign-in': '–' });
+  });
+
+  it('stale accounts: no sign-in for N days, never signed in, disabled accounts still in groups', async () => {
+    const { r } = await review('entra-stale-accounts');
+    const d = await s.api('GET', '/datasets/entra.stale-accounts');
+    expect(Object.fromEntries(d.rows.map((x: any) => [x.Account, x.Finding]))).toEqual({
+      'Max Stale': 'no sign-in for 200 days',
+      'Nora Never': 'never signed in (created 120 days ago)',
+      'Carl Disabled': 'disabled, still in 1 group(s)',
+      'Gary Guest': 'no sign-in for 400 days',
+      'Ingrid Invited': 'never signed in (created 45 days ago)',
+    });
+    expect(d.metrics).toMatchObject({ accounts: 9, stale: 2, neverSignedIn: 2, disabledInGroups: 1 });
+    expect(r.steps.find((x: any) => x.stepId === 'staleCheck').status).toBe('failed');
+  });
+
+  it('group review: direct and nested members, owners, guests and disabled accounts', async () => {
+    const { items, manual } = await review('entra-group-review');
+    expect(Object.fromEntries(items.map((i) => [`${i.cells[0]}|${i.cells[1].split(' <')[0]}`, i.preselected]))).toEqual({
+      'Developers|Bob Builder': true,
+      'Developers|Max Stale': false,
+      'Developers|Carl Disabled': false,
+      'Developers|Gary Guest': false,
+      'Partner Portal Users|Paula Partner': true,
+      'Partner Portal Users|Ingrid Invited': false,
+    });
+    expect(manual).toContain('Developers: Carl Disabled <carl.disabled@example.com>');
+    const d = await s.api('GET', '/datasets/entra.group-members');
+    const paula = d.rows.find((x: any) => x.Group === 'Developers' && x.Member === 'Paula Partner');
+    expect(paula).toMatchObject({ Via: 'nested group', Review: 'in the nested group', _status: 'warning' });
+    expect(d.metrics).toMatchObject({ groups: 2, memberships: 7, ownerless: 1, disabled: 1 });
+    const entries = await changes((e) => e.subjectId === 'max.stale@example.com', 1);
+    expect(entries[0]).toMatchObject({ kind: 'revoke', revoked: ['group:Developers'], approvedBy: 'adam' });
+  });
+
+  it('expiring app credentials: expired, ending soon, replaced and left over', async () => {
+    const { r } = await review('entra-app-credentials');
+    const d = await s.api('GET', '/datasets/entra.app-credentials');
+    const by = Object.fromEntries(d.rows.map((x: any) => [`${x.Application} ${x.Type} ${x.Name}`, x]));
+    expect(by['Legacy Reports certificate CN=legacy-reports']).toMatchObject({
+      Finding: expect.stringMatching(/^ends in [23] day\(s\)$/),
+      _status: 'critical',
+    });
+    expect(by['Payroll secret prod']._status).toBe('warning');
+    expect(by['HR Sync secret old']).toMatchObject({ Finding: 'expired, replaced – delete it', _status: 'warning' });
+    expect(by['HR Sync secret rotation 2026']._status).toBe('good');
+    expect(d.metrics).toMatchObject({ credentials: 6, expired: 0, expiring: 2, leftover: 1, applications: 4 });
+    expect(JSON.stringify(d.rows)).not.toContain('dmo');
+    expect(r.steps.find((x: any) => x.stepId === 'expiringCheck').status).toBe('failed');
+  });
+});
+
 describe('Prometheus – SLO and error-budget report', () => {
   it('computes the availability, the budget left and the burn rates per service', async () => {
     const r = await finish(await start('prometheus-slo-report', { prometheus: platformByKind.prometheus! }));
@@ -423,6 +536,7 @@ describe('monitor examples', () => {
       'mqtt-presses',
       'checkmk-database-host',
       'new-critical-vulnerabilities',
+      'entra-app-credentials',
     ]) {
       const m = ((await s.api('GET', '/monitors')) as any[]).find((x) => x.key === key);
       const def = (await s.api('GET', `/monitors/${m.id}`)).definition;

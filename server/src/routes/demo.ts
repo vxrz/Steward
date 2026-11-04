@@ -17,7 +17,7 @@ import { DEMO_KAFKA_BOOTSTRAP } from '../kafka/client.js';
 import { DEMO_GATUS } from '../mock/mockGatus.js';
 import { MOCK_UTS_PROVIDER } from '../mock/mockUsage.js';
 import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
-import { PRESET_SPECS } from '../platforms/presets.js';
+import { PRESETS, PRESET_SPECS } from '../platforms/presets.js';
 import { audit } from '../audit.js';
 import { createUser, findUserByName, saveTeam } from '../auth/users.js';
 import type { ComponentType, Role } from '@sm/shared';
@@ -35,6 +35,7 @@ import { currentActor } from '../auth/context.js';
 import { DEMO_AWS } from '../mock/mockAws.js';
 import { DEMO_DTRACK } from '../mock/mockDtrack.js';
 import { DEMO_SNOWFLAKE, setSnowflakePublicKey } from '../mock/mockSnowflake.js';
+import { DEMO_GRAPH } from '../mock/mockGraph.js';
 
 /** Creates demo platforms (pointing to the built-in mock) and imports all templates. */
 export const DEMO_USER_PASSWORD = 'Demo-password-1';
@@ -403,6 +404,26 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
       },
       secrets: { accessKeyId: DEMO_AWS.accessKeyId, secretAccessKey: DEMO_AWS.secretAccessKey },
     });
+    platforms++;
+  }
+  if (!existing.has('Microsoft Graph (demo)')) {
+    // Entra ID (v0.5.0): a simulated tenant – guests, a stale and a disabled account, nested groups, PIM, app credentials
+    const preset = PRESETS.find((x) => x.kind === 'microsoft-graph')!;
+    const g = createPlatform({
+      name: 'Microsoft Graph (demo)',
+      kind: 'microsoft-graph',
+      environment: 'demo',
+      description:
+        'Simulated Entra ID tenant "Contoso (demo)" served by the built-in mock (Microsoft Graph and its sign-in): users and guests, nested groups, directory roles with PIM, app registrations whose secrets expire. See docs/ENTRA.md.',
+      baseUrl: `${base}/graph`,
+      config: {
+        ...preset.config,
+        variables: { tenantId: DEMO_GRAPH.tenantId, loginUrl: `${base}/graph/login` },
+        http: { ...preset.config.http, proxy: 'none' },
+      },
+      secrets: { clientId: DEMO_GRAPH.clientId, clientSecret: DEMO_GRAPH.clientSecret },
+    });
+    for (const s of PRESET_SPECS['microsoft-graph']!()) addSpec(g.id, s.name, s.content);
     platforms++;
   }
   if (!existing.has('endoflife.date (demo)')) {

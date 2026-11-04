@@ -108,7 +108,7 @@ describe('control catalogues', () => {
   });
 
   it('designers and administrators map items to controls; everyone sees the coverage per period', async () => {
-    const procs = await dana('GET', '/compliance/tag-targets?kind=process&q=privileged');
+    const procs = await dana('GET', '/compliance/tag-targets?kind=process&q=privileged%20access%20review');
     expect(procs.length).toBe(1);
     expect(await status(olivia('POST', `/compliance/controls/${c82.id}/tags`, { kind: 'process', targetId: procs[0].id }))).toBe(403);
     expect(await status(dana('POST', `/compliance/controls/${c82.id}/tags`, { kind: 'process', targetId: 'prc_none' }))).toBe(404);

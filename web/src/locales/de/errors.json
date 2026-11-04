@@ -790,7 +790,11 @@
     "FWC_SYSTEM_HIDDEN": "Diese Firewall-Änderung betrifft ein System, das Sie nicht sehen dürfen: Jemand, der es sieht, schließt die Änderung ab.",
     "FWC_RULES_FORBIDDEN": "Sie dürfen die freigegebenen Firewall-Regeln von „{{name}}“ nicht ändern.",
     "FWC_RULES_IN_REVIEW": "Die freigegebenen Firewall-Regeln {{number}} von „{{name}}“ warten auf die Freigabe einer früheren Änderung: Geben Sie diese Ausgabe zuerst frei oder lehnen Sie sie ab.",
-    "FOUR_EYES_IMPLEMENTER": "Vier-Augen-Prinzip: Wer eine Änderung umgesetzt hat, kann sie nicht prüfen."
+    "FOUR_EYES_IMPLEMENTER": "Vier-Augen-Prinzip: Wer eine Änderung umgesetzt hat, kann sie nicht prüfen.",
+    "ACCESS_CHECK_ENTRA_SOURCE": "Die Quelle Entra ID braucht eine Microsoft-Graph-Plattform.",
+    "ACCESS_CHECK_ENTRA_READ": "Entra ID konnte nicht gelesen werden: {{detail}}",
+    "ENTRA_PLATFORM_REQUIRED": "Für den Import von App-Zugangsdaten ist eine Microsoft-Graph-Plattform nötig.",
+    "ENTRA_READ": "Entra ID konnte nicht gelesen werden: {{detail}}"
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

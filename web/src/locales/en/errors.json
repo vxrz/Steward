@@ -790,7 +790,11 @@
     "FWC_SYSTEM_HIDDEN": "This firewall change affects a system you may not see: someone who sees it closes the change.",
     "FWC_RULES_FORBIDDEN": "You may not change the approved firewall rules of “{{name}}”.",
     "FWC_RULES_IN_REVIEW": "The approved firewall rules {{number}} of “{{name}}” wait for the approval of an earlier change: approve or reject that edition first.",
-    "FOUR_EYES_IMPLEMENTER": "Four-eyes principle: the person who implemented a change cannot verify it."
+    "FOUR_EYES_IMPLEMENTER": "Four-eyes principle: the person who implemented a change cannot verify it.",
+    "ACCESS_CHECK_ENTRA_SOURCE": "The Entra ID source needs a Microsoft Graph platform.",
+    "ACCESS_CHECK_ENTRA_READ": "Entra ID could not be read: {{detail}}",
+    "ENTRA_PLATFORM_REQUIRED": "Importing app credentials needs a Microsoft Graph platform.",
+    "ENTRA_READ": "Entra ID could not be read: {{detail}}"
   },
   "boundary": {
     "title": "Something went wrong on this page",

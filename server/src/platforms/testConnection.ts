@@ -50,6 +50,29 @@ export async function runConnectionTest(p: Platform, secrets: Record<string, str
     return r;
   };
   const testPath = p.config.testPath || '/';
+  // Microsoft Graph (v0.5.0): the sign-in, the admin consent and every part Steward reads, with what is missing
+  if (p.kind === 'microsoft-graph') {
+    const t0 = Date.now();
+    try {
+      const r = await (await import('../entra/service.js')).testGraph(p, secrets);
+      const message = redactSecrets(r.message, secrets);
+      return done(
+        {
+          ok: r.ok,
+          status: r.ok ? 200 : 0,
+          durationMs: Date.now() - t0,
+          message,
+          body: null,
+          token: tokenInfo(p.id),
+          checks: redactSecrets(r.checks, secrets),
+        },
+        `Connection test "${p.name}": ${message.slice(0, 300)}${r.ok ? '' : ' – failed'}`,
+      );
+    } catch (e) {
+      const message = redactSecrets((e as Error).message, secrets);
+      return done({ ok: false, status: 0, durationMs: Date.now() - t0, message }, `Connection test "${p.name}" failed: ${message.slice(0, 200)}`);
+    }
+  }
   // Kafka (#112) and MQTT (#113) are no HTTP APIs: their test connects to the cluster or broker; AWS (#116) asks STS who it is
   if (p.kind === 'kafka' || p.kind === 'mqtt' || p.kind === 'aws' || p.kind === 'snowflake') {
     const t0 = Date.now();

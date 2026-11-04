@@ -26,6 +26,7 @@ import { ACCESS, me } from '../auth/access.js';
  *   POST   /credentials/:id/reviewed      mark reviewed {reviewedAt?, comment}
  *   POST   /credentials/:id/archive|restore  administrators
  *   DELETE /credentials/:id               administrators
+ *   POST   /credentials/import/entra      app secrets and certificates of an Entra ID tenant as entries (v0.5.0)
  */
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
@@ -122,6 +123,12 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post('/credentials', async (req) => svc.createCredential(svc.credentialInputSchema.parse(req.body ?? {})));
+
+  // Entra ID (v0.5.0): app registration secrets and certificates as entries, their expiry kept up to date
+  app.post('/credentials/import/entra', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
+    const { entraImportSchema, importEntraCredentials } = await import('../entra/register.js');
+    return importEntraCredentials(entraImportSchema.parse(req.body ?? {}));
+  });
 
   app.get('/credentials/:id', async (req) => svc.getCredential(params(req).id!));
 

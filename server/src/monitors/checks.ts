@@ -4,7 +4,7 @@ import tls from 'node:tls';
 import { Agent, EnvHttpProxyAgent, fetch, type Dispatcher } from 'undici';
 import type { CheckOf, MonitorStatus, Platform } from '@sm/shared';
 import { evalExpr } from '../engine/expr.js';
-import { platformRequest, type HttpResult } from '../platforms/http.js';
+import { buildUrl, platformRequest, type HttpResult } from '../platforms/http.js';
 import { findRecording, missingRecording } from '../platforms/recordings.js';
 import { assertAddressSafe, assertNetAllowed, assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
@@ -710,6 +710,22 @@ async function checkSnowflake(c: CheckOf<'snowflake'>, ctx: ExecContext): Promis
   }
 }
 
+// ---------- Entra ID ----------
+
+/** Expiring app credentials or Microsoft 365 service health of an Entra ID tenant (v0.5.0). */
+async function checkEntra(c: CheckOf<'entra'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  if (platform.kind !== 'microsoft-graph') return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a Microsoft Graph platform` };
+  await assertOutboundAllowed(await buildUrl(platform, secrets, '/', {}), outboundContext());
+  const { entraCheck, signInHint } = await import('../entra/service.js');
+  try {
+    return { ...(await entraCheck(platform, secrets, c)), durationMs: Date.now() - t0 };
+  } catch (e) {
+    return { status: 'unknown', message: `Entra ID could not be read: ${signInHint((e as Error).message)}`.slice(0, 1000), durationMs: Date.now() - t0 };
+  }
+}
+
 // ---------- Dependency-Track ----------
 
 /** What a project had, read at most every 5 minutes per platform and project (findings change with BOM uploads, not by the minute). */
@@ -910,7 +926,8 @@ type Active =
   | CheckOf<'kafka'>
   | CheckOf<'mqtt'>
   | CheckOf<'snowflake'>
-  | CheckOf<'dependency-track'>;
+  | CheckOf<'dependency-track'>
+  | CheckOf<'entra'>;
 
 /** Runs an active check; heartbeat and sub-monitor checks are evaluated by the engine from stored state. */
 export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawResult> {
@@ -940,6 +957,8 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkSnowflake(c, ctx);
       case 'dependency-track':
         return await checkDtrack(c, ctx);
+      case 'entra':
+        return await checkEntra(c, ctx);
       case 'kafka':
         return await checkKafka(c, ctx);
       case 'mqtt':

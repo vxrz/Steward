@@ -15,6 +15,7 @@ import {
   IconWorldWww,
   IconSnowflake,
   IconShieldCheck,
+  IconUserShield,
 } from '@tabler/icons-react';
 import type { CheckDef, CheckType } from '@sm/shared';
 import i18n from '../../i18n';
@@ -35,6 +36,7 @@ export const CHECK_ICONS: Record<CheckType, typeof IconApi> = {
   mqtt: IconAntenna,
   snowflake: IconSnowflake,
   'dependency-track': IconShieldCheck,
+  entra: IconUserShield,
   monitor: IconHierarchy2,
 };
 
@@ -55,6 +57,7 @@ const DEFAULT_NAMES: Record<CheckType, string> = {
   mqtt: 'MQTT topics',
   snowflake: 'Snowflake table fresh',
   'dependency-track': 'No critical vulnerabilities',
+  entra: 'App credentials valid',
   monitor: 'Sub-monitor',
 };
 
@@ -104,6 +107,8 @@ export function newCheck(type: CheckType, id: string): CheckDef {
       return { ...base, name, type, platform: '', mode: 'freshness', object: '', maxAgeMinutes: 1440, failAs: 'down' } as CheckDef;
     case 'dependency-track':
       return { ...base, name, type, platform: '', project: '', maxCritical: 0, policyFail: true, failAs: 'down' } as CheckDef;
+    case 'entra':
+      return { ...base, name, type, platform: '', mode: 'app-credentials', withinDays: 30, downWithinDays: 7 } as CheckDef;
     case 'monitor':
       return { ...base, name, type, monitor: '' } as CheckDef;
   }

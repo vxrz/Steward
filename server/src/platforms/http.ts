@@ -11,7 +11,7 @@ import { logger } from '../log.js';
 import { emit } from '../events.js';
 import { guardedLookup } from './outbound.js';
 import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
-import { JWT_ALGS, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
+import { JWT_ALGS, certificateThumbprints, clientAssertion, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
 import { where as originAndPath } from './answers.js';
 
 export interface HttpRequest {
@@ -68,6 +68,22 @@ export function tokenInfo(platformId: string): { fetchedAt: string; expiresAt: s
   return t ? { fetchedAt: new Date(t.fetchedAt).toISOString(), expiresAt: new Date(t.expiresAt).toISOString() } : awsCredentialInfo(platformId);
 }
 
+/**
+ * The claims of the platform's cached access token when it is a JWT (Entra ID: roles = the application permissions with
+ * admin consent, v0.5.0) – never the token itself; null without a cached JWT.
+ */
+export function tokenClaims(platformId: string): Record<string, unknown> | null {
+  const t = tokenCache.get(platformId);
+  const parts = t?.header[1].replace(/^Bearer\s+/i, '').split('.');
+  if (!parts || parts.length !== 3) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf8')) as unknown;
+    return claims && typeof claims === 'object' && !Array.isArray(claims) ? (claims as Record<string, unknown>) : null;
+  } catch {
+    return null; // not a JWT (an opaque token): no claims to read
+  }
+}
+
 /** Whether the platform logs in for a token that Steward caches (OAuth2 client credentials or a custom login). */
 export function usesCachedToken(p: Platform): boolean {
   const type = p.config.auth?.type;
@@ -121,7 +137,8 @@ function dispatcherFor(p: Platform): Dispatcher {
 }
 
 function authScope(p: Platform, secrets: Record<string, string>) {
-  return { vars: p.config.variables ?? {}, secrets, baseUrl: p.baseUrl, platform: { name: p.name, kind: p.kind } };
+  // without a trailing slash, so "{{ baseUrl }}/.default" (Microsoft Graph) stays one URL
+  return { vars: p.config.variables ?? {}, secrets, baseUrl: p.baseUrl.replace(/\/+$/, ''), platform: { name: p.name, kind: p.kind } };
 }
 
 export async function resolveBaseUrl(p: Platform, secrets: Record<string, string>): Promise<string> {
@@ -408,13 +425,23 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       let expiresIn = 1800;
       if (auth.type === 'oauth2_client_credentials') {
         if (!auth.tokenUrl) throw new Error('OAuth2 token URL is not configured');
-        if (!secrets.clientId || !secrets.clientSecret) throw new Error('Secrets "clientId" and "clientSecret" are required');
+        // a signed client assertion instead of the secret (certificate credentials, v0.5.0): chosen, or no secret but a private key
+        const assertion = auth.clientAuth === 'assertion' || (!secrets.clientSecret && !!secrets.privateKey?.trim());
+        if (!secrets.clientId || (!assertion && !secrets.clientSecret))
+          throw new Error('Secrets "clientId" and "clientSecret" (or "privateKey" with "certificate" for a client assertion) are required');
         const url = await renderString(auth.tokenUrl, scope);
         const form: Record<string, string> = { grant_type: 'client_credentials' };
-        if (auth.scope) form.scope = auth.scope;
+        // the scope may name the base URL or a variable (Microsoft Graph: {{ baseUrl }}/.default, national clouds)
+        if (auth.scope) form.scope = await renderString(auth.scope, scope);
         for (const [k, v] of Object.entries(auth.extraParams ?? {})) form[k] = await renderString(v, scope);
         const headers: Record<string, string> = {};
-        if ((auth.clientAuth ?? 'basic') === 'basic') {
+        if (assertion) {
+          const key = privateKeyOf(secrets.privateKey, secrets.privateKeyPassphrase);
+          const thumbprints = certificateThumbprints(secrets.certificate, String(p.config.variables?.certificateThumbprint ?? ''));
+          form.client_id = secrets.clientId;
+          form.client_assertion_type = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
+          form.client_assertion = clientAssertion(key, { clientId: secrets.clientId, tokenUrl: url, thumbprints });
+        } else if ((auth.clientAuth ?? 'basic') === 'basic') {
           headers.authorization = 'Basic ' + Buffer.from(`${secrets.clientId}:${secrets.clientSecret}`).toString('base64');
         } else {
           form.client_id = secrets.clientId;
