@@ -50,3 +50,4 @@ export * from './onboarding.js';
 export * from './duplicate.js';
 export * from './network.js';
 export * from './entra.js';
+export * from './assurance.js';

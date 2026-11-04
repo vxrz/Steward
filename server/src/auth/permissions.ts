@@ -10,6 +10,7 @@ import {
 import { HttpError, type ErrorParams } from '../util.js';
 import type { AuthUser } from './context.js';
 import { aliasSubjects, sameIdentity } from './aliases.js';
+import { fourEyesRequired } from './assurance-policy.js';
 import { memberships, platformAccess, processAccess } from './policy.js';
 
 /**
@@ -125,7 +126,8 @@ export function decisionCheck(
   if (!u) return { ok: false, reason: 'Not signed in', code: 'NOT_SIGNED_IN' };
   if (task.status !== 'open') return { ok: false, reason: `Task is ${task.status}`, code: 'TASK_CLOSED' };
   if (task.manual?.stage === 'verify') return verificationCheck(u, task.manual, run, perms);
-  if (task.fourEyes && sameIdentity(run.actor, u)) {
+  // the step's own switch, or the assurance policy for every approval (run.decide, auth/assurance-policy.ts)
+  if (fourEyesRequired('run.decide', task.fourEyes) && sameIdentity(run.actor, u)) {
     return { ok: false, reason: 'Four-eyes principle: someone other than the person who started the run must decide', code: 'FOUR_EYES_RUN' };
   }
   if (task.assignees.length) {

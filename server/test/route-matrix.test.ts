@@ -213,6 +213,14 @@ const EXPECT: Record<string, Access> = {
   'POST /api/backups/restore-test': ADMIN,
   'GET /api/audit/public-key.pem': ADMIN_AUDITOR,
   'GET /api/audit/export': ADMIN_AUDITOR,
+  // ---- assurance policy (#210): administrators and auditors read it, administrators change it (sessions only) ----
+  'GET /api/assurance/policy': ADMIN_AUDITOR,
+  'PUT /api/assurance/policy': ADMIN,
+  'POST /api/assurance/policy/changes/:changeId/approve': ADMIN,
+  'POST /api/assurance/policy/changes/:changeId/reject': ADMIN,
+  'GET /api/assurance/policy/history': ADMIN_AUDITOR,
+  'GET /api/assurance/policy/as-of': ADMIN_AUDITOR,
+  'GET /api/assurance/report': ADMIN_AUDITOR,
 
   // ---- platforms (no access list: admins manage, designers and operators use) ----
   'GET /api/platform-presets': ALL,
@@ -841,6 +849,9 @@ const SESSION_ONLY = [
   'POST /api/auth/step-up/sso/complete',
   'PUT /api/settings',
   'PUT /api/settings/instance',
+  'PUT /api/assurance/policy',
+  'POST /api/assurance/policy/changes/:changeId/approve',
+  'POST /api/assurance/policy/changes/:changeId/reject',
   'POST /api/vault/passphrase',
   'POST /api/vault/lock',
   'POST /api/sync-sources',
@@ -932,6 +943,9 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   },
   'POST /api/compliance/evidence-packs': 'always',
   'GET /api/audit/export': 'always',
+  'PUT /api/assurance/policy': 'always',
+  'POST /api/assurance/policy/changes/:changeId/approve': 'always',
+  'GET /api/assurance/report': 'always',
   'PUT /api/audit/anchoring': 'always',
   'PUT /api/audit/archive': 'always',
   'GET /api/audit/archives/:archiveId/file': 'always',
@@ -943,6 +957,19 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'PUT /api/platforms/:id/mcp-gateway': { sensitive: { enabled: true, writes: 'confirm' }, harmless: { enabled: true } },
   'PUT /api/backups/passphrase': 'always',
 };
+
+/**
+ * Control points whose step-up the assurance policy turns on (#210, auth/assurance.ts) – off by default, so they never
+ * ask with the default policy (server/test/assurance.test.ts turns them on).
+ */
+const STEP_UP_BY_POLICY = [
+  'POST /api/records/:id/transition',
+  'POST /api/tasks/:id/verify',
+  'POST /api/compliance/findings/:findingId/document',
+  'POST /api/compliance/findings/:findingId/dismiss',
+  'POST /api/compliance/person-reviews/:reviewId/submit',
+  'POST /api/compliance/person-reviews/:reviewId/approval',
+];
 
 /** GET routes whose fixtures cannot give a 2xx (nothing to find); refusals are still checked. */
 const NO_POSITIVE = new Set([
@@ -1090,6 +1117,8 @@ const QUERY: Record<string, string> = {
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
   'GET /api/ticket-references/open-counts': '?kind=service',
   'GET /api/compliance/coverage': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
+  'GET /api/assurance/policy/as-of': '?at=2026-01-01T00:00:00Z',
+  'GET /api/assurance/report': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
   'GET /api/v1/control-coverage': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
   'GET /api/compliance/tag-targets': '?kind=process&q=',
   'GET /api/compliance/tagged': '?kind=recordType&targetId=rty_ac',
@@ -1600,7 +1629,7 @@ describe('route permission matrix', () => {
   it('asks for a step-up on every sensitive route (sessions) and refuses API tokens there', async () => {
     const { stepUpRoutes } = await import('../src/app.js');
     expect(stepUpRoutes(s.app), 'routes with a step-up rule (config.stepUp) – see STEP_UP').toEqual(
-      Object.fromEntries(Object.entries(STEP_UP).map(([k, v]) => [k, v === 'always' ? 'always' : 'rule'])),
+      Object.fromEntries([...Object.entries(STEP_UP).map(([k, v]) => [k, v === 'always' ? 'always' : 'rule']), ...STEP_UP_BY_POLICY.map((k) => [k, 'policy'])]),
     );
     // a session of its own that is not confirmed (a sign-in counts as a confirmation: ended here)
     const cookie = await loginCookie(s.base, 'admin', 'Admin-password-1');

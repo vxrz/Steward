@@ -384,6 +384,13 @@ export const STEP_UP_ACTIONS = [
   'changeBackups',
   'allowMcpWrites',
   'allowMcpClient',
+  // 0.5.0 (#210): the assurance policy itself, and control points whose step-up an administrator can turn on
+  'changeAssurancePolicy',
+  'approveRecord',
+  'decideAccessCheck',
+  'decidePersonReview',
+  'verifyManualStep',
+  'closeFirewallChange',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 

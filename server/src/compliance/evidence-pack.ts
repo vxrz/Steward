@@ -44,6 +44,7 @@ import { evidenceForControls, evidenceOf, getControl, type PackCoverageStatus } 
 import { getReview, verifySeal } from './person-reviews.js';
 import { getCheck, getSnapshot, listFindings, listSnapshots, verifyChain } from './reconciliation.js';
 import { renderPackPdf } from './pack-pdf.js';
+import { assuranceReportJson, collectAssuranceReport, renderAssurancePdf } from './assurance-report.js';
 import { AUDIT_EXCERPT_FILE, MANIFEST_SIGNATURE_DOMAIN, type AuditExcerpt, type PackManifest } from './evidence-verify.js';
 import { ZipLimitError, ZipWriter, type WrittenEntry } from './zip.js';
 import { env } from '../config.js';
@@ -178,6 +179,8 @@ export const packInput = z
     from: z.string().datetime({ offset: true }),
     to: z.string().datetime({ offset: true }),
     lang: z.enum(REPORT_LANGS).default('en'),
+    /** Add the assurance report of the period (#210): the policy, its changes and how each event met it (auditors and administrators) */
+    assurance: z.boolean().default(false),
   })
   .strict()
   .refine((p) => Date.parse(p.from) < Date.parse(p.to), { error: 'from must be before to', path: ['to'] })
@@ -228,10 +231,10 @@ export function createPack(input: z.infer<typeof packInput>): EvidencePack {
       entityType: 'evidence_pack',
       entityId: id,
       summary: `Evidence pack "${title}" requested (${scopeLabel(scope, u)}, ${from} – ${to})`,
-      details: { scope, from, to, lang: input.lang },
+      details: { scope, from, to, lang: input.lang, ...(input.assurance ? { assurance: true } : {}) },
     });
   });
-  const build = runAs(u, () => buildPack(id, input.lang));
+  const build = runAs(u, () => buildPack(id, input.lang, { assurance: input.assurance }));
   pending.set(id, build);
   void build.finally(() => pending.delete(id));
   return getPack(id);
@@ -437,7 +440,7 @@ class PackBuilder {
 
 const safe = (s: string) => s.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 120) || 'file';
 
-async function buildPack(id: string, lang: ReportLang): Promise<void> {
+async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boolean } = {}): Promise<void> {
   const row = db().get<PackRow>('SELECT * FROM evidence_packs WHERE id = ?', id)!;
   const u = me();
   const scope = parseJson<EvidencePackScope>(row.scope, {});
@@ -616,6 +619,21 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
     if (capabilities(u).viewAudit) auditInfo = await addAuditExcerpt(b, from, to);
     else b.omitted.push('Audit log excerpt: only auditors and administrators may export the audit log');
 
+    // 4b. the assurance report of the period (#210): PDF/A and JSON, listed in the signed manifest like every file
+    let assuranceInfo: Record<string, unknown> = { included: false };
+    if (opts.assurance && capabilities(u).viewAudit) {
+      const report = collectAssuranceReport({ from, to, lang }, u);
+      await b.buffer('assurance/assurance-report.pdf', await renderAssurancePdf(report.model));
+      await b.json('assurance/assurance-report.json', assuranceReportJson(report));
+      assuranceInfo = {
+        included: true,
+        files: ['assurance/assurance-report.pdf', 'assurance/assurance-report.json'],
+        policyVersion: report.model.endVersion,
+        events: report.events.length,
+        exceptions: report.model.exceptions.length,
+      };
+    } else if (opts.assurance) b.omitted.push('Assurance report: only auditors and administrators may read it');
+
     // 5. index (JSON and PDF/A)
     const meta = {
       id,
@@ -650,6 +668,7 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
       ...(catalogue ? { catalogue } : {}),
       items: list.map(({ via, ...i }) => ({ ...i, via })),
       audit: auditInfo,
+      assurance: assuranceInfo,
       omitted: b.omitted,
       files: b.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 })),
     };
@@ -669,6 +688,7 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
       catalogue,
       items: list.map((i) => ({ kind: i.kind, label: i.document ? `${i.label} · ${i.document.edition}` : i.label, at: i.at, files: i.files.length })),
       omitted: b.omitted,
+      assurance: assuranceInfo.included === true,
     });
     await b.buffer('index.pdf', pdf);
 

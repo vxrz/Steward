@@ -30,6 +30,7 @@ import {
 import { exportMarkdown, IMPORT_LIMITS, importMarkdown } from './markdown-io.js';
 import { generateRecordPdf, pdfInput } from './pdf.js';
 import { uploadSignedPdf } from './signed.js';
+import { recordTransitionStepUp } from './assurance.js';
 import * as docs from './documents.js';
 import * as linkTypes from './link-types.js';
 import * as catalogue from '../catalogue/service.js';
@@ -199,7 +200,7 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
   app.put('/records/:id', async (req) => svc.updateRecord(params(req).id!, updateBody.parse(req.body)));
   app.get('/records/:id/versions', async (req) => svc.listVersions(params(req).id!));
   app.get('/records/:id/versions/:version', async (req) => svc.getVersion(params(req).id!, z.coerce.number().int().min(1).parse(params(req).version)));
-  app.post('/records/:id/transition', async (req) => {
+  app.post('/records/:id/transition', { config: { stepUp: recordTransitionStepUp } }, async (req) => {
     const b = z
       .object({
         action: z.string().min(1).max(40),

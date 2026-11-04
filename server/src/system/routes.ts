@@ -22,6 +22,7 @@ import { dismissUpdateNotice, updateNoticeFor } from './update-notice.js';
 import { z } from 'zod';
 import { ACCESS } from '../auth/access.js';
 import { env } from '../config.js';
+import { pendingPolicyChange } from '../auth/assurance.js';
 
 /**
  *   GET /api/about          signed-in users: version and build of the server
@@ -127,6 +128,8 @@ export function systemStatus(full: boolean): SystemStatus {
                 ),
               0,
             ),
+            // a request to loosen the assurance policy waits for a second administrator (auth/assurance.ts)
+            assurancePendingChange: safe(() => pendingPolicyChange(), null),
           }
         : {}),
     },

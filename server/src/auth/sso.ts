@@ -36,6 +36,8 @@ import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { checkMac, configMac } from '../integrity.js';
 import { readSetting, writeSetting } from '../settings.js';
 import { createSession, getUser, listTeams, listUsers, type CreatedSession } from './users.js';
+import type { StepUpDetail } from './context.js';
+import { invalidateAliases } from './aliases.js';
 import { BRAND, TEAM_ROLES } from '@sm/shared';
 import { config as appConfig } from '../config.js';
 import { aliasTarget } from './aliases.js';
@@ -555,7 +557,7 @@ interface Pending {
   /** A test sign-in by an administrator: records the claims, never signs in or changes an account */
   test?: { testId: string };
   /** A step-up of a signed-in session: checks the identity, never signs in or changes an account */
-  stepUp?: { sessionId: string; userId: string; popup: boolean; actions: StepUpAction[]; startedAt: number };
+  stepUp?: { sessionId: string; userId: string; popup: boolean; actions: StepUpAction[]; startedAt: number; mfa?: StepUpMfaAsk };
 }
 const pending = new Map<string, Pending>();
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -589,18 +591,23 @@ async function authorizationUrl(p: SsoProvider, config: oidc.Configuration, flow
     code_challenge: await oidc.calculatePKCECodeChallenge(verifier),
     code_challenge_method: 'S256',
     ...(prompt ? { prompt } : {}),
-    ...(flow.stepUp ? stepUpParameters(p) : {}),
+    ...(flow.stepUp ? stepUpParameters(p, flow.stepUp.mfa) : {}),
   });
   return url.href;
 }
 
-/** What a step-up asks the provider for: a fresh sign-in, and multi-factor authentication when the provider requires it. */
-function stepUpParameters(p: SsoProvider): Record<string, string> {
+/**
+ * What a step-up asks the provider for: a fresh sign-in, and multi-factor authentication when the provider requires it
+ * – or when the assurance policy does for what is confirmed (auth/assurance.ts): then the provider's own way of asking,
+ * else the policy's acr values.
+ */
+function stepUpParameters(p: SsoProvider, mfa?: StepUpMfaAsk): Record<string, string> {
   const out: Record<string, string> = { max_age: '0' };
-  if (!p.stepUpMfa) return out;
+  if (!p.stepUpMfa && !mfa?.required) return out;
   // Entra ID: a Conditional Access authentication context (its policy decides: MFA, a compliant device …)
   if (p.type === 'entra' && p.stepUpAuthContext) out.claims = JSON.stringify({ id_token: { acrs: { essential: true, value: p.stepUpAuthContext } } });
   else if (p.stepUpAcrValues) out.acr_values = p.stepUpAcrValues;
+  else if (mfa?.required && mfa.acrValues.length) out.acr_values = mfa.acrValues.join(' ');
   return out;
 }
 
@@ -672,7 +679,14 @@ export type StepUpCallback = {
   /** What the person confirms, and when they started (shown on the callback page) */
   actions: StepUpAction[];
   startedAt: number;
-} & ({ ok: true; method: 'sso' | 'sso+mfa'; at: number; provider: string } | { ok: false; code: string; message: string });
+} & ({ ok: true; method: 'sso' | 'sso+mfa'; at: number; provider: string; detail: StepUpDetail } | { ok: false; code: string; message: string });
+
+/** The assurance policy asks the step-up for multi-factor authentication (what counts as MFA: amr / acr values). */
+export interface StepUpMfaAsk {
+  required: boolean;
+  amrValues: string[];
+  acrValues: string[];
+}
 
 /** Handle the redirect back from the identity provider. A sign-in returns a session; a test sign-in only records the claims. */
 export async function finishSignIn(currentUrl: URL, meta: { ip?: string; userAgent?: string }): Promise<CallbackResult> {
@@ -688,7 +702,7 @@ export async function finishSignIn(currentUrl: URL, meta: { ip?: string; userAge
   const user = provisionUser(p, mergedClaims(p, received));
   // a sign-in the provider says was fresh (auth_time) confirms the session for sensitive actions right away
   const fresh = freshAuthentication(p, received.idToken);
-  const session = createSession(user.id, user.username, meta, p.displayName, 'refusal' in fresh ? {} : { stepUp: fresh });
+  const session = createSession(user.id, user.username, meta, p.displayName, 'refusal' in fresh ? {} : { stepUp: { ...fresh, detail: fresh.detail } });
   return { kind: 'session', ...session, returnTo: flow.returnTo, username: user.username };
 }
 
@@ -708,7 +722,8 @@ function freshAuthentication(
   p: SsoProvider,
   idToken: Claims,
   now = Date.now(),
-): { at: number; method: 'sso' | 'sso+mfa' } | { refusal: { code: string; message: string } } {
+  ask?: StepUpMfaAsk,
+): { at: number; method: 'sso' | 'sso+mfa'; detail: StepUpDetail } | { refusal: { code: string; message: string } } {
   const t = idToken.auth_time;
   if (typeof t !== 'number' || !Number.isFinite(t)) {
     return {
@@ -735,6 +750,18 @@ function freshAuthentication(
       : asked === 'acr'
         ? claimStrings(idToken.acr).some((a) => p.stepUpAcrValues.split(' ').includes(a))
         : amrMfa;
+  // the assurance policy's own view of multi-factor (#210): an amr or acr value it counts
+  const policyMfa =
+    !!ask &&
+    (claimStrings(idToken.amr).some((a) => ask.amrValues.includes(a.toLowerCase())) || claimStrings(idToken.acr).some((a) => ask.acrValues.includes(a)));
+  if (ask?.required && !p.stepUpMfa && !policyMfa && !proven) {
+    return {
+      refusal: {
+        code: 'STEP_UP_MFA_REQUIRED',
+        message: `${p.displayName} did not confirm a multi-factor sign-in (claims amr / acr) – this action needs one`,
+      },
+    };
+  }
   if (p.stepUpMfa && !proven) {
     return {
       refusal: {
@@ -748,14 +775,27 @@ function freshAuthentication(
       },
     };
   }
-  return { at: Math.min(at, now), method: amrMfa || (p.stepUpMfa && proven) ? 'sso+mfa' : 'sso' };
+  const acr = claimStrings(idToken.acr)[0];
+  const detail: StepUpDetail = {
+    authTime: t,
+    ...(Array.isArray(idToken.amr) || typeof idToken.amr === 'string'
+      ? {
+          amr: claimStrings(idToken.amr)
+            .slice(0, 20)
+            .map((x) => x.slice(0, 100)),
+        }
+      : {}),
+    ...(acr ? { acr: acr.slice(0, 200) } : {}),
+    provider: p.displayName,
+  };
+  return { at: Math.min(at, now), method: amrMfa || policyMfa || ((p.stepUpMfa || ask?.required) && proven) ? 'sso+mfa' : 'sso', detail };
 }
 
 /** Starts a step-up of a single sign-on session: a fresh sign-in at the provider the account signs in with. */
 export async function startStepUp(
   u: { id: string; sessionId: string },
   redirectUri: string,
-  opts: { returnTo?: string; popup: boolean; actions?: StepUpAction[] },
+  opts: { returnTo?: string; popup: boolean; actions?: StepUpAction[]; mfa?: StepUpMfaAsk },
 ): Promise<{ authorizationUrl: string; expiresAt: string }> {
   const account = getUser(u.id);
   const p = db().get<ProviderRow>('SELECT * FROM identity_providers WHERE id = ?', account.authSource);
@@ -766,7 +806,14 @@ export async function startStepUp(
     providerId: provider.id,
     redirectUri,
     returnTo: safeReturnTo(opts.returnTo),
-    stepUp: { sessionId: u.sessionId, userId: u.id, popup: opts.popup, actions: [...new Set(opts.actions ?? [])], startedAt: Date.now() },
+    stepUp: {
+      sessionId: u.sessionId,
+      userId: u.id,
+      popup: opts.popup,
+      actions: [...new Set(opts.actions ?? [])],
+      startedAt: Date.now(),
+      ...(opts.mfa?.required ? { mfa: opts.mfa } : {}),
+    },
   });
   return { authorizationUrl: url, expiresAt: new Date(Date.now() + STATE_TTL_MS).toISOString() };
 }
@@ -820,9 +867,9 @@ async function finishStepUp(flow: Pending, state: string, currentUrl: URL): Prom
     if (d.preview.outcome !== 'signIn' && d.preview.outcome !== 'relink') {
       return refuse('STEP_UP_REFUSED', `Your sign-in at ${p.displayName} was refused – ask an administrator`, d.preview.refusal?.code);
     }
-    const fresh = freshAuthentication(p, received.idToken);
+    const fresh = freshAuthentication(p, received.idToken, Date.now(), su.mfa);
     if ('refusal' in fresh) return refuse(fresh.refusal.code, fresh.refusal.message);
-    return { ...base, ok: true, method: fresh.method, at: fresh.at, provider: p.displayName };
+    return { ...base, ok: true, method: fresh.method, at: fresh.at, provider: p.displayName, detail: fresh.detail };
   } catch (e) {
     return refuse('STEP_UP_SSO_FAILED', (e as Error).message.slice(0, 300));
   }
@@ -1202,6 +1249,8 @@ function provisionUser(p: SsoProvider, claims: Claims): UserInfo {
     // issuer + sub is recorded when an identity is linked (created, linked, re-linked) – never on a plain sign-in, so a
     // later sign-in cannot move an account's earlier link to whoever signed in last; it belongs to this identity only
     if (v.outcome !== 'signIn') db().run('UPDATE users SET external_sub = NULL WHERE external_sub = ? AND id <> ?', d.subKey, userId);
+    // the four-eyes rules know the new link at once (auth/aliases.ts sameIdentity)
+    if (v.outcome !== 'signIn') invalidateAliases();
 
     const current = db().get<{ profile: string | null }>('SELECT profile FROM users WHERE id = ?', userId);
     const set = (field: keyof ProviderConfig['sync']) => fresh || p.sync[field] === 'always';

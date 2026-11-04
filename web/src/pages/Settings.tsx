@@ -30,6 +30,7 @@ import {
   IconScale,
   IconSettings,
   IconShieldLock,
+  IconShieldCheck,
   IconDatabase,
   IconTrashX,
   IconWorld,
@@ -65,6 +66,7 @@ import { confirmDanger, confirmDialog } from '../components/confirm';
 import { EnvironmentsCard } from '../components/catalogue/environments';
 import { EndOfLifeButton } from '../components/catalogue/lifecycle';
 import { SignInPolicyCard } from '../components/security/SignInPolicyCard';
+import { AssurancePolicyPanel } from '../components/assurance/AssurancePolicyPanel';
 import { CiaScalePage } from './CiaScale';
 import { RulesPanel } from './Scorecard';
 
@@ -72,11 +74,12 @@ import { RulesPanel } from './Scorecard';
  * Settings by area (#136). Each area has a stable URL (/settings/<area>); everything here is an instance setting that
  * administrators change. Personal settings are on the profile, team settings on the team.
  */
-export const SETTINGS_AREAS = ['general', 'security', 'integrations', 'notifications', 'appearance', 'catalogue', 'data'] as const;
+export const SETTINGS_AREAS = ['general', 'security', 'assurance', 'integrations', 'notifications', 'appearance', 'catalogue', 'data'] as const;
 export type SettingsArea = (typeof SETTINGS_AREAS)[number];
 const AREA_ICONS: Record<SettingsArea, Icon> = {
   general: IconSettings,
   security: IconShieldLock,
+  assurance: IconShieldCheck,
   integrations: IconPlugConnected,
   notifications: IconBell,
   appearance: IconPalette,
@@ -247,6 +250,8 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
           <AdminTokensCard />
         </>
       );
+    case 'assurance':
+      return <AssurancePolicyPanel />;
     case 'integrations':
       return (
         <>

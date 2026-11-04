@@ -69,6 +69,8 @@ export interface SystemStatus {
     allowedHosts?: string[];
     /** full view: an outbound HTTP(S) proxy is configured in the environment */
     proxyFromEnvironment?: boolean;
+    /** full view: a request to loosen the assurance policy waits for a second administrator (#210) */
+    assurancePendingChange?: { id: string; requestedBy: string; expiresAt: string } | null;
   };
   runtime: {
     node: string;

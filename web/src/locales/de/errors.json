@@ -794,7 +794,15 @@
     "ACCESS_CHECK_ENTRA_SOURCE": "Die Quelle Entra ID braucht eine Microsoft-Graph-Plattform.",
     "ACCESS_CHECK_ENTRA_READ": "Entra ID konnte nicht gelesen werden: {{detail}}",
     "ENTRA_PLATFORM_REQUIRED": "Für den Import von App-Zugangsdaten ist eine Microsoft-Graph-Plattform nötig.",
-    "ENTRA_READ": "Entra ID konnte nicht gelesen werden: {{detail}}"
+    "ENTRA_READ": "Entra ID konnte nicht gelesen werden: {{detail}}",
+    "ASSURANCE_MFA_REQUIRED": "Dafür ist eine Bestätigung mit Multi-Faktor-Authentisierung nötig.",
+    "ASSURANCE_MFA_REQUIRED_password": "Dafür ist eine Bestätigung mit Multi-Faktor-Authentisierung nötig: Ein Passwort reicht dafür nicht. Melden Sie sich per Single Sign-on an und bestätigen Sie mit einem zweiten Faktor.",
+    "ASSURANCE_MAX_AGE": "Eine Bestätigung gilt höchstens {{max}} Minuten (SM_STEP_UP_MINUTES).",
+    "ASSURANCE_CHANGE_PENDING": "{{user}} hat bereits beantragt, die Richtlinie zu lockern – dieser Antrag wird zuerst freigegeben oder abgelehnt.",
+    "ASSURANCE_CHANGE_DECIDED": "Über die Änderung der Richtlinie wurde bereits entschieden.",
+    "ASSURANCE_CHANGE_NOT_FOUND": "Diese Änderung der Richtlinie gibt es nicht.",
+    "FOUR_EYES_POLICY": "Vier-Augen-Prinzip: Die Lockerung, die Sie beantragt haben, gibt ein anderer Administrator frei.",
+    "PERIOD_TOO_LONG": "Der Zeitraum darf höchstens {{max}} Tage lang sein."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

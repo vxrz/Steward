@@ -412,6 +412,9 @@
     "langDe": "German",
     "contentsHelp": "The pack holds an index (PDF/A and index.json), run protocols, document PDFs with their files, access change entries, reconciliation snapshots and findings, scheduled reports and – for auditors and administrators – an audit log excerpt with a signed checkpoint.",
     "create": "Create pack",
-    "permissionsNote": "The pack only holds what you may see. Creating and downloading it is recorded in the audit log."
+    "permissionsNote": "The pack only holds what you may see. Creating and downloading it is recorded in the audit log.",
+    "includeAssurance": "Include the assurance report",
+    "includeAssuranceHint": "The assurance policy in force in the period, its changes, how each event was confirmed, and the exceptions (PDF and JSON).",
+    "assuranceReport": "Assurance report (PDF)"
   }
 }

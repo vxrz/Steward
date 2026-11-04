@@ -350,7 +350,7 @@ export const VARS = {
     group: 'Sign-in and sessions',
     default: '5',
     description:
-      'How long a confirmation for sensitive actions lasts (step-up: the password again or a fresh single sign-on), 1–15; also the oldest `auth_time` accepted. See [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#step-up-re-authentication)',
+      'How long a confirmation for sensitive actions lasts (step-up: the password again or a fresh single sign-on), 1–15; also the oldest `auth_time` accepted. The longest age: the assurance policy can set a shorter one per action ([docs/ASSURANCE.md](docs/ASSURANCE.md)). See [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#step-up-re-authentication)',
     readme: true,
   }),
   SM_PASSWORD_HASH_CONCURRENCY: v(int(2, 1, 64), {

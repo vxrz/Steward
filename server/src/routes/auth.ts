@@ -25,6 +25,7 @@ import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_C
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { auditPendingUpgrades } from '../upgrades.js';
 import { ACCESS, me } from '../auth/access.js';
+import { assuranceStepUpStatus, ssoMfaAsk } from '../auth/assurance.js';
 
 /** Things that need the decrypted vault: pending audit entries, scheduler, recovery of waiting runs. */
 async function onUnlocked(): Promise<void> {
@@ -242,7 +243,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- catalog texts and the provider's refusal, HTML-escaped; the link is a validated app path
       return `${head}<p>${esc(serverT(lang, 'stepUp.failed'))}</p><p>${esc(r.message)}</p>${r.popup ? '' : `<p><a href="${esc(back)}">${esc(serverT(lang, 'stepUp.back'))}</a></p>`}</html>`;
     }
-    const ticket = stepUp.issueStepUpTicket({ sessionId: r.sessionId, userId: r.userId, method: r.method, at: r.at, provider: r.provider });
+    const ticket = stepUp.issueStepUpTicket({ sessionId: r.sessionId, userId: r.userId, method: r.method, at: r.at, provider: r.provider, detail: r.detail });
     const url = config.basePath + '/api/auth/step-up/sso/complete';
     return (
       // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- catalog texts HTML-escaped; values are JSON string literals with "<" escaped (js()), safe inside <script>; the return path is validated (below the base path)
@@ -255,7 +256,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   }
 
   // ---------- step-up re-authentication (auth/step-up.ts): sessions only (config.access) ----------
-  app.get('/auth/step-up', { config: { access: ACCESS.session } }, async () => stepUp.stepUpStatus(stepUp.requireSession(me())));
+  // ?action=: the state under that action's rule of the assurance policy (its age, multi-factor) – for a confirmation before a download
+  app.get('/auth/step-up', { config: { access: ACCESS.session } }, async (req) => {
+    const q = z.object({ action: z.enum(STEP_UP_ACTIONS).optional() }).parse(req.query ?? {});
+    return assuranceStepUpStatus(stepUp.requireSession(me()), q.action);
+  });
   // the password again: limited and counted like a sign-in
   app.post('/auth/step-up', { bodyLimit: 16 * 1024, config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
     const b = z.object({ password: z.string().max(1024) }).parse(req.body);
@@ -279,7 +284,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         actions: z.array(z.enum(STEP_UP_ACTIONS)).max(STEP_UP_ACTIONS.length).default([]),
       })
       .parse(req.body ?? {});
-    return sso.startStepUp({ id: u.id, sessionId: u.session.id }, sso.redirectUriFor(req), b);
+    // a second factor is asked for when the assurance policy requires one for what is confirmed
+    return sso.startStepUp({ id: u.id, sessionId: u.session.id }, sso.redirectUriFor(req), { ...b, mfa: ssoMfaAsk(b.actions) });
   });
   app.post('/auth/step-up/sso/complete', { bodyLimit: 4 * 1024, config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const b = z.object({ ticket: z.string().max(100) }).parse(req.body);

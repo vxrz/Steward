@@ -59,6 +59,21 @@ export function initCompliance(): void {
 }
 
 /** Compliance (web UI API): access changes, access reconciliation, controls and evidence packs. Permissions are checked in the services. */
+/**
+ * Decisions in access checks and person reviews are control points of the assurance policy (#210, auth/assurance.ts):
+ * their step-up is off until an administrator turns it on. Only the people who may decide are asked.
+ */
+const findingStepUp = (right: 'canDocument' | 'canDismiss') => ({
+  action: 'decideAccessCheck' as const,
+  optional: true,
+  who: (req: FastifyRequest) => rec.getFinding((req.params as { findingId: string }).findingId)[right],
+});
+const reviewStepUp = (right: 'canDecide' | 'canApprove') => ({
+  action: 'decidePersonReview' as const,
+  optional: true,
+  who: (req: FastifyRequest) => pr.getReview((req.params as { reviewId: string }).reviewId)[right],
+});
+
 export async function complianceRoutes(app: FastifyInstance): Promise<void> {
   initCompliance();
 
@@ -105,8 +120,8 @@ export async function complianceRoutes(app: FastifyInstance): Promise<void> {
   app.post('/compliance/person-reviews', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => pr.createReview(pr.reviewInput.parse(req.body)));
   app.get('/compliance/person-reviews/:reviewId', async (req) => pr.getReview(params(req).reviewId!));
   app.put('/compliance/person-reviews/:reviewId/decisions', async (req) => pr.decide(params(req).reviewId!, pr.decisionsInput.parse(req.body)));
-  app.post('/compliance/person-reviews/:reviewId/submit', async (req) => pr.submit(params(req).reviewId!));
-  app.post('/compliance/person-reviews/:reviewId/approval', async (req) =>
+  app.post('/compliance/person-reviews/:reviewId/submit', { config: { stepUp: reviewStepUp('canDecide') } }, async (req) => pr.submit(params(req).reviewId!));
+  app.post('/compliance/person-reviews/:reviewId/approval', { config: { stepUp: reviewStepUp('canApprove') } }, async (req) =>
     pr.approve(
       params(req).reviewId!,
       z
@@ -148,8 +163,10 @@ export async function complianceRoutes(app: FastifyInstance): Promise<void> {
       .parse(req.query);
     return rec.listFindings(q);
   });
-  app.post('/compliance/findings/:findingId/document', async (req) => rec.documentFinding(params(req).findingId!, rec.documentInput.parse(req.body)));
-  app.post('/compliance/findings/:findingId/dismiss', async (req) => {
+  app.post('/compliance/findings/:findingId/document', { config: { stepUp: findingStepUp('canDocument') } }, async (req) =>
+    rec.documentFinding(params(req).findingId!, rec.documentInput.parse(req.body)),
+  );
+  app.post('/compliance/findings/:findingId/dismiss', { config: { stepUp: findingStepUp('canDismiss') } }, async (req) => {
     const b = z
       .object({ comment: z.string().max(2000) })
       .strict()

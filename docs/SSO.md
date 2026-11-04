@@ -162,6 +162,8 @@ A sign-in whose `auth_time` is fresh confirms the new session right away (with M
 
 **Entra ID Conditional Access authentication context** is the strongest option: the policy lives in Entra (MFA strength, device compliance, sign-in frequency _every time_), and Steward only accepts a token that says the policy was met. Tokens of earlier sign-ins don't carry the context, so the step-up always goes through the policy.
 
+**Per action instead of per provider** (0.5.0): the [assurance policy](ASSURANCE.md#multi-factor-authentication) can require MFA for single actions (control points). Steward then asks the provider for it the same way (the provider's acr values or authentication context, else the policy's acr values) and accepts the `amr` values and `acr` values the policy lists. A provider that sends neither (Google) cannot confirm such actions with single sign-on.
+
 ## Presets
 
 ### Microsoft Entra ID
