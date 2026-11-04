@@ -90,6 +90,11 @@ export const paginateSchema = z.object({
   firstPage: z.number().int().optional(),
   /** 'nextLink' mode: expression for the next URL (absolute or relative). */
   nextPath: z.string().optional(),
+  /**
+   * 'page' and 'offset' modes (v0.5.0): expression on a page's body that says whether another page follows (e.g.
+   * hasNext) – for APIs that return fewer items than asked for before the end. Without it: a short page is the last.
+   */
+  morePath: z.string().optional(),
   maxPages: z.number().int().min(1).optional(),
 });
 export type Paginate = z.infer<typeof paginateSchema>;

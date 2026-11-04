@@ -41,6 +41,8 @@ export function registerBuiltInJobs(): void {
   every5('aws', 30 * MINUTE, () => import('../aws/service.js').then((m) => m.runAwsJob()));
   every5('snowflake', 30 * MINUTE, () => import('../snowflake/service.js').then((m) => m.runSnowflakeJob()));
   every5('dependency-track', 30 * MINUTE, () => import('../dtrack/service.js').then((m) => m.runDtrackJob()));
+  // credentials register entries linked to their IBM Verify Privilege Vault secret (#205): metadata every few hours
+  every5('vault-links', 30 * MINUTE, () => import('../credentials/vault.js').then((m) => m.runVaultLinkJob()));
   // daily summaries of the people who turned them on (notifications/summary.ts)
   every5('daily-summary', 10 * MINUTE, () => import('../notifications/summary.js').then((m) => m.runDailySummaries()));
   // maintenance windows: reminders, start and end messages (catalogue/maintenance.ts)

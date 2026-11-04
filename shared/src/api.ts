@@ -465,6 +465,22 @@ export interface AuthConfig {
   /** token_request: expression for lifetime in seconds (optional) */
   expiresInPath?: string;
   /**
+   * token_request (v0.5.0): renew an expired token with a refresh token before signing in again (an OAuth2
+   * refresh_token grant, e.g. IBM Verify Privilege Vault). tokenPath: expression for the refresh token in the login and
+   * refresh answers; request: the refresh call, its templates also see {{ refreshToken }}. When the refresh fails,
+   * Steward signs in again with the login request.
+   */
+  refresh?: {
+    tokenPath: string;
+    request: {
+      method: 'POST' | 'GET' | 'PUT';
+      url: string;
+      headers?: Record<string, string>;
+      body?: unknown;
+      bodyType?: 'json' | 'form';
+    };
+  };
+  /**
    * Header added to API calls; template with {{ token }}. bearer: the header the token goes in – Authorization (default,
    * as `Bearer <token>`) or another name, which gets the bare token (GitLab's default: PRIVATE-TOKEN).
    */

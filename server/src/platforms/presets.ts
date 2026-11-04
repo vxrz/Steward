@@ -3,6 +3,7 @@ import { gatusOpenApiSpec } from './gatusSpec.js';
 import { forgejoSpec, githubSpec, gitlabSpec } from './gitSpecs.js';
 import { prometheusSpec } from './prometheusSpec.js';
 import { graphSpec } from './graphSpec.js';
+import { pvaultSpec } from './pvaultSpec.js';
 import { readAsset } from '../reports/pdf/assets.js';
 
 /**
@@ -500,6 +501,54 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'privilege-vault',
+    label: 'IBM Verify Privilege Vault (privileged access, read-only)',
+    description:
+      'IBM Security Verify Privilege Vault 12 (Delinea Secret Server under the IBM name), on premises or in the cloud, as a source of evidence: access reviews read who may use which secret and folder – directly, through a group or a role, with the permission (List, View, Edit, Owner); the hygiene template, dashboard and monitor check find failed heartbeats, passwords not rotated within N days or expired, automatic changing turned off, secrets without an owner and privileged secrets without checkout or approval; credentials register entries can link their vault secret; the privileged-use template reads views, checkouts and access requests for evidence packs. Steward never reads a secret value: the value endpoints are refused for this kind. Base URL: the application root – https://HOST/SecretServer on premises, https://TENANT.secretservercloud.com in the cloud. Sign-in: a service account (an application account is best) with user name and password; variable domain for a directory account; variables privilegedFolders and privilegedTemplates (comma-separated) name what evidence packs read the privileged use of. For a private CA, add it under the HTTP settings. Minimum permissions and how to check that the account cannot view values: docs/IBM-PAM.md.',
+    baseUrl: 'https://pam.example.local/SecretServer',
+    config: {
+      auth: {
+        type: 'token_request',
+        request: {
+          method: 'POST',
+          url: '/oauth2/token',
+          body: {
+            grant_type: 'password',
+            username: '{{ secrets.username }}',
+            password: '{{ secrets.password }}',
+            // only sent when the variable is set (a directory account)
+            domain: "{{ vars.domain != '' ? vars.domain }}",
+          },
+          bodyType: 'form',
+        },
+        tokenPath: 'access_token',
+        expiresInPath: 'expires_in',
+        headerName: 'Authorization',
+        headerValue: 'Bearer {{ token }}',
+        refresh: {
+          tokenPath: 'refresh_token',
+          request: { method: 'POST', url: '/oauth2/token', body: { grant_type: 'refresh_token', refresh_token: '{{ refreshToken }}' }, bodyType: 'form' },
+        },
+      },
+      // privilegedFolders / privilegedTemplates (comma-separated): what evidence packs read the privileged use of
+      variables: { domain: '', privilegedFolders: '', privilegedTemplates: '' },
+      http: {},
+      testPath: '/api/v1/users/current',
+    },
+    secretFields: [
+      { key: 'username', label: 'Service account (user name)', help: 'An application account or a local user with the read-only role of docs/IBM-PAM.md' },
+      { key: 'password', label: 'Password' },
+    ],
+    docs: [
+      { title: 'Verify Privilege Vault: APIs and scripting', url: 'https://ibm.docs.delinea.com/online-help/isvp-vault/api-scripting/index.htm' },
+      {
+        title: 'Script authentication using tokens',
+        url: 'https://ibm.docs.delinea.com/online-help/isvp-vault/api-scripting/authentication/script-token-auth/index.htm',
+      },
+      { title: 'Developer resources (11.6)', url: 'https://ibm.docs.delinea.com/online-help/isvp-vault-11-6-x/developer-resources/index.htm' },
+    ],
+  },
+  {
     kind: 'generic',
     label: 'Generic REST API',
     description: 'Any HTTP API. Pick the auth type and add an OpenAPI specification for operation lookup.',
@@ -534,4 +583,6 @@ export const PRESET_SPECS: Record<string, () => { name: string; content: string 
   prometheus: () => [{ name: 'Prometheus HTTP API (read endpoints)', content: JSON.stringify(prometheusSpec(), null, 2) }],
   // Entra ID read endpoints (v0.5.0)
   'microsoft-graph': () => [{ name: 'Microsoft Graph (Entra ID read endpoints)', content: JSON.stringify(graphSpec(), null, 2) }],
+  // metadata only, no value endpoint (#205); the value endpoints are refused for the kind (deniedPaths.ts)
+  'privilege-vault': () => [{ name: 'IBM Verify Privilege Vault REST API (metadata)', content: JSON.stringify(pvaultSpec(), null, 2) }],
 };

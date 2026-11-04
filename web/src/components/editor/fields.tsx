@@ -412,6 +412,7 @@ function PaginateEditor({ value, onChange }: { value?: Paginate; onChange: (v: u
           {mode !== 'nextLink' && txt('sizeParam', t('paginate.sizeParam'), PAGINATE_DEFAULTS[mode]?.sizeParam)}
           {mode === 'page' && txt('totalPagesPath', t('paginate.totalPagesPath'), 'page.totalPages')}
           {mode === 'page' && num('firstPage', t('paginate.firstPage'), '0')}
+          {(mode === 'page' || mode === 'offset') && txt('morePath', t('paginate.morePath'), 'hasNext')}
           {mode === 'nextLink' && txt('nextPath', t('paginate.nextPath'), '_links.next.href')}
           {num('maxPages', t('paginate.maxPages'), '500')}
         </SimpleGrid>

@@ -75,6 +75,7 @@ const TEXTS = {
       personReview: 'Person access review',
       report: 'Scheduled report',
       monitor: 'Monitor',
+      privilegedUse: 'Privileged use (vault audit)',
     },
   },
   de: {
@@ -143,6 +144,7 @@ const TEXTS = {
       personReview: 'Personenprüfung',
       report: 'Geplanter Bericht',
       monitor: 'Monitor',
+      privilegedUse: 'Privilegierte Nutzung (Tresor-Audit)',
     },
   },
 };

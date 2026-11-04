@@ -330,6 +330,7 @@ const PLATFORM_KIND: Partial<Record<string, string>> = {
   snowflake: 'snowflake',
   'dependency-track': 'dependency-track',
   entra: 'microsoft-graph',
+  'privilege-vault': 'privilege-vault',
   zabbix: 'zabbix',
 };
 

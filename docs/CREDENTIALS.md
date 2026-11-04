@@ -46,6 +46,10 @@ _Credentials → Import from Entra ID_ (v0.5.0; people who may add entries, with
 
 An entry is found again by the key id in its location: a later import adds only new secrets and certificates and – when Entra ID says another end date (a renewed secret keeps its key id only in rare cases; a rotated one is a new entry) – changes the entry's _Expires_, with the history event _Expiry updated from Entra ID_ and the audit entry `credential.expiry_synced`. Everything else you changed (owners, notes, roles, reminders) stays. Graph returns names, ids and dates only, never a secret's value; Steward does not keep the hint (the first characters of a secret). API: `POST /api/credentials/import/entra` (`{ platformId, withinDays?, dryRun? }`). See [ENTRA.md](ENTRA.md).
 
+### Vault secret (IBM Verify Privilege Vault)
+
+An entry whose secret lives in IBM Verify Privilege Vault can name it: _Vault secret_ (the vault platform) and _Secret_ (search by name). Every six hours, or with _Read now_, Steward reads the secret's name, template, folder, last password change and expiry – never its value. The vault's last change counts as the last rotation when it is newer, so _Rotation interval_ is checked against it and an overdue rotation is flagged and reminded; the vault's expiry counts when the entry has none. A change found in the vault is a _Rotated_ event (`credential.vault_rotated`, actor `system`). See [IBM-PAM.md](IBM-PAM.md#credentials-register-link).
+
 ## Status
 
 | Status   | Meaning                                                                      |

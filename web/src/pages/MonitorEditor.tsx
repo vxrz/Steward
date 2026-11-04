@@ -102,6 +102,7 @@ const TRYABLE = new Set<CheckType>([
   'snowflake',
   'dependency-track',
   'entra',
+  'privilege-vault',
 ]);
 interface Preview {
   status: MonitorStatus;

@@ -272,7 +272,17 @@
     "entraApps": "App-Registrierungen (optional)",
     "entraAppsHint": "Anzeigenamen oder Anwendungs-IDs; leer: jede App-Registrierung",
     "entraServices": "Dienste (optional)",
-    "entraServicesHint": "z. B. Exchange Online, Microsoft Teams; leer: jeder Dienst. Benötigt ServiceHealth.Read.All."
+    "entraServicesHint": "z. B. Exchange Online, Microsoft Teams; leer: jeder Dienst. Benötigt ServiceHealth.Read.All.",
+    "vaultFolder": "Ordner (optional)",
+    "vaultFolderHint": "Nur Secrets dieses Ordners und der Ordner darunter, z. B. \\IT\\Server; leer: alle Secrets, die das Dienstkonto auflisten darf",
+    "vaultPrivilegedFolders": "Privilegierte Ordner",
+    "vaultPrivilegedFoldersHint": "Secrets in diesen Ordnern (und darunter) gelten als privilegiert: Sie brauchen Check-out und Genehmigung, und jeder Befund an ihnen lässt die Prüfung scheitern. Geben Sie einen Pfad ein und drücken Sie die Eingabetaste.",
+    "vaultPrivilegedTemplates": "Privilegierte Vorlagen",
+    "vaultPrivilegedTemplatesHint": "Secrets dieser Vorlagen gelten ebenfalls als privilegiert, z. B. Windows Account",
+    "vaultMaxAgeDays": "Rotiert innerhalb von (Tagen)",
+    "vaultMaxFindings": "Erlaubte Befunde",
+    "vaultMaxFindingsHint": "An nicht privilegierten Secrets",
+    "vaultFailAs": "Bei Befunden"
   },
   "detail": {
     "template": "Vorlage",
@@ -627,6 +637,10 @@
     "entra": {
       "label": "Entra ID (über Microsoft Graph)",
       "help": "App-Registrierungen, deren Geheimnisse oder Zertifikate innerhalb von N Tagen ablaufen, oder der Dienststatus von Microsoft 365"
+    },
+    "privilege-vault": {
+      "label": "Tresor-Hygiene (IBM Verify Privilege Vault)",
+      "help": "Secrets in IBM Verify Privilege Vault: fehlgeschlagene Heartbeats, nicht rotierte oder abgelaufene Passwörter, automatischer Wechsel aus, kein Besitzer, privilegierte Secrets ohne Check-out oder Genehmigung"
     }
   },
   "newCheck": {
@@ -646,7 +660,8 @@
     "monitor": "Untermonitor",
     "snowflake": "Snowflake-Tabelle aktuell",
     "dependency-track": "Keine kritischen Schwachstellen",
-    "entra": "App-Zugangsdaten gültig"
+    "entra": "App-Zugangsdaten gültig",
+    "privilege-vault": "Tresor-Hygiene"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"

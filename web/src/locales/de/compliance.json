@@ -45,7 +45,8 @@
     "snowflake": "Snowflake-Rollen und -Berechtigungen",
     "aws": "AWS-IAM-Benutzer, -Gruppen und -Richtlinien",
     "confluent": "Confluent-Cloud-Rollenbindungen und ACLs",
-    "entra": "Entra-ID-Benutzer, Gruppen, Rollen und App-Rollen"
+    "entra": "Entra-ID-Benutzer, Gruppen, Rollen und App-Rollen",
+    "privilege-vault": "Berechtigungen und Rollen in IBM Verify Privilege Vault"
   },
   "rights": {
     "granted": "Erteilt",
@@ -292,7 +293,9 @@
       "roles": "Verzeichnisrollen (privilegierter Zugriff)",
       "apps": "App-Rollenzuweisungen",
       "guests": "Nur Gäste"
-    }
+    },
+    "vaultScope": "Ordner (optional)",
+    "vaultScopeHelp": "Ein Ordnerpfad wie \\IT\\Server: nur dessen Secrets und Ordner und die darunter. Leer: alle Secrets, die das Dienstkonto auflisten darf. Benutzer erscheinen mit ihrem Benutzernamen (Domäne\\Name) und ihrer E-Mail-Adresse; Rechte über Gruppen nennen die Gruppe, Rollen werden mit aufgeführt."
   },
   "personReviews": {
     "title": "Personenprüfungen",

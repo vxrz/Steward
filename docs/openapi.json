@@ -3954,6 +3954,7 @@
               "snowflake",
               "dependency-track",
               "entra",
+              "privilege-vault",
               "monitor"
             ]
           },
@@ -4375,6 +4376,7 @@
                     "snowflake",
                     "dependency-track",
                     "entra",
+                    "privilege-vault",
                     "monitor"
                   ]
                 },

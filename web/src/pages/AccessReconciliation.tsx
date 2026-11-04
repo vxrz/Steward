@@ -30,6 +30,7 @@ import {
   CONFLUENT_KIND,
   ENTRA_KIND,
   ENTRA_SCOPES,
+  PVAULT_KIND,
   GIT_PLATFORM_KINDS,
   type AccessCheck,
   type AccessFinding,
@@ -650,7 +651,9 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
           ? 'confluent'
           : p?.kind === ENTRA_KIND
             ? 'entra'
-            : null;
+            : p?.kind === PVAULT_KIND
+              ? 'privilege-vault'
+              : null;
     setF((x) => ({ ...x, platformId: v ?? '', source: git ? 'git' : direct ? direct : p && p.kind !== 'insights-hub' ? 'dataset' : x.source }));
   };
   const preset = fromPlatform?.id;
@@ -664,7 +667,10 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
       const body = {
         ...f,
         datasetKey: f.source === 'dataset' ? f.datasetKey : null,
-        scope: f.source === 'git' || f.source === 'snowflake' || f.source === 'confluent' || f.source === 'entra' ? f.scope.trim() : null,
+        scope:
+          f.source === 'git' || f.source === 'snowflake' || f.source === 'confluent' || f.source === 'entra' || f.source === 'privilege-vault'
+            ? f.scope.trim()
+            : null,
       };
       const saved = check ? await put<AccessCheck>(`/compliance/access-checks/${check.id}`, body) : await post<AccessCheck>('/compliance/access-checks', body);
       await qc.invalidateQueries({ queryKey: ['access-checks'] });
@@ -709,6 +715,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
             { value: 'aws', label: t('sources.aws') },
             { value: 'confluent', label: t('sources.confluent') },
             { value: 'entra', label: t('sources.entra') },
+            { value: 'privilege-vault', label: t('sources.privilege-vault') },
           ]}
           value={f.source}
           onChange={(v) => up('source', (v as AccessCheck['source']) ?? 'insights-hub')}
@@ -759,6 +766,18 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
             // the empty scope (everything) is "all" in the list
             value={f.scope || 'all'}
             onChange={(v) => up('scope', !v || v === 'all' ? '' : v)}
+          />
+        )}
+        {f.source === 'privilege-vault' && (
+          <TextInput
+            label={t('reconciliation.vaultScope')}
+            description={t('reconciliation.vaultScopeHelp')}
+            // i18n-ignore: an example folder path, the same in every language
+            placeholder={'\\IT\\Servers'}
+            value={f.scope}
+            onChange={(e) => up('scope', e.currentTarget.value)}
+            maxLength={500}
+            classNames={{ input: 'mono' }}
           />
         )}
         {f.source === 'dataset' && (

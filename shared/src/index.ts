@@ -51,3 +51,4 @@ export * from './duplicate.js';
 export * from './network.js';
 export * from './entra.js';
 export * from './assurance.js';
+export * from './pvault.js';

@@ -623,6 +623,8 @@ function CredentialDrawer({
             </SimpleGrid>
           </Paper>
 
+          {c.vault && <VaultPanel c={c} onRead={reload} />}
+
           <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
             {c.belongsTo && (
               <Field label={t('fields.belongsTo')}>
@@ -933,5 +935,64 @@ function BelongsToLink({ b }: { b: CredentialBelongsTo }) {
         {b.kind === 'component' ? `${b.applicationName} / ${b.name}` : b.name}
       </Anchor>
     </Text>
+  );
+}
+
+/** The entry's secret in IBM Verify Privilege Vault (#205): what Steward last read – never its value – and "Read now". */
+function VaultPanel({ c, onRead }: { c: Credential; onRead: () => Promise<void> }) {
+  const { t } = useTranslation(['credentials', 'common']);
+  const [busy, setBusy] = useState(false);
+  const v = c.vault!;
+  const r = v.readout;
+  const sec = r?.secret ?? null;
+  const read = async () => {
+    setBusy(true);
+    try {
+      await post(`/credentials/${c.id}/vault/read`);
+      await onRead();
+    } catch (e) {
+      notifyError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Paper withBorder p="sm" data-testid="credential-vault">
+      <Group justify="space-between" mb="xs" wrap="nowrap">
+        <Title order={6}>{t('vault.title')}</Title>
+        {c.permissions.includes('edit') && (
+          <Button size="xs" variant="subtle" leftSection={<IconRefresh size={14} />} loading={busy} onClick={read}>
+            {t('vault.readNow')}
+          </Button>
+        )}
+      </Group>
+      {r?.error && (
+        <Alert color="orange" mb="xs" p="xs">
+          <Text size="sm">{t('vault.readFailed', { error: r.error })}</Text>
+        </Alert>
+      )}
+      {!r && (
+        <Text size="sm" c="dimmed">
+          {t('vault.notRead', { id: v.secretId })}
+        </Text>
+      )}
+      {sec && (
+        <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs">
+          <Field label={t('vault.secret')}>
+            {sec.name} (#{sec.id})
+          </Field>
+          <Field label={t('vault.template')}>{sec.template || '–'}</Field>
+          <Field label={t('vault.folder')}>{sec.folder || '–'}</Field>
+          <Field label={t('vault.lastChange')}>{sec.lastChangeAt ? fmtDay(sec.lastChangeAt) : t('vault.never')}</Field>
+          <Field label={t('vault.expires')}>{sec.expiresAt ? fmtDay(sec.expiresAt) : '–'}</Field>
+          <Field label={t('vault.autoChange')}>{sec.autoChangeEnabled ? t('vault.on') : t('vault.off')}</Field>
+          <Field label={t('vault.heartbeat')}>{sec.heartbeat ?? '–'}</Field>
+          <Field label={t('vault.readAt')}>{fmtRelative(r!.readAt)}</Field>
+        </SimpleGrid>
+      )}
+      <Text size="xs" c="dimmed" mt="xs">
+        {t('vault.hint')}
+      </Text>
+    </Paper>
   );
 }

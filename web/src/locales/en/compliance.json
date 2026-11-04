@@ -45,7 +45,8 @@
     "snowflake": "Snowflake roles and grants",
     "aws": "AWS IAM users, groups and policies",
     "confluent": "Confluent Cloud role bindings and ACLs",
-    "entra": "Entra ID users, groups, roles and app roles"
+    "entra": "Entra ID users, groups, roles and app roles",
+    "privilege-vault": "IBM Verify Privilege Vault permissions and roles"
   },
   "rights": {
     "granted": "Granted",
@@ -292,7 +293,9 @@
       "roles": "Directory roles (privileged access)",
       "apps": "App role assignments",
       "guests": "Guests only"
-    }
+    },
+    "vaultScope": "Folder (optional)",
+    "vaultScopeHelp": "A folder path such as \\IT\\Servers: only its secrets and folders, and those below it. Empty: every secret the service account may list. Users appear with their user name (domain\\name) and their e-mail address; rights through groups say which group, roles are listed too."
   },
   "personReviews": {
     "title": "Person reviews",

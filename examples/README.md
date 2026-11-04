@@ -1,6 +1,6 @@
 # Example library: service management & housekeeping
 
-Ready-to-use procedures, dashboards and monitors for **Siemens Insights Hub**, **Industrial Edge Management**, **Gatus**, **CheckMk**, **Prometheus**, **Kubernetes**, the Git hosts **GitHub, GitLab and Forgejo**, **Kafka**, **Dependency-Track**, **Snowflake**, **AWS**, **MQTT** and the service catalogue (applications, tech stacks, end of life).
+Ready-to-use procedures, dashboards and monitors for **Siemens Insights Hub**, **Industrial Edge Management**, **Gatus**, **CheckMk**, **Prometheus**, **Kubernetes**, the Git hosts **GitHub, GitLab and Forgejo**, **Kafka**, **Dependency-Track**, **Snowflake**, **AWS**, **MQTT**, **IBM Verify Privilege Vault** and the service catalogue (applications, tech stacks, end of life).
 
 - **Processes** (`processes/*.yaml`) appear in the app under **Processes → From template**. The gallery shows which platforms a template needs, when to run it and which dashboards it feeds (see [Template metadata](#template-metadata)).
 - **Dashboards** (`dashboards/*.yaml`) appear under **Dashboards → From template**.
@@ -62,6 +62,8 @@ The processes are written in the compact sequential YAML format and become node 
 | 90  | Building block – Resolve an Insights Hub group                         | Reusable sub-process: group/role by name → id and members (returned as `outputs`)                                                                                                                                                                          | – (called by other processes)        | no                                  | –                                                         |
 | 91  | Insights Hub – Add users to a group (with sub-process)                 | Resolves the group via #90 as a sub-process, looks up users in parallel, adds missing memberships after approval and documents them                                                                                                                        | on demand                            | yes (group membership)              | –                                                         |
 | 92  | Git – Member and outside-collaborator review (GitHub, GitLab, Forgejo) | Owners, members, outside collaborators, 2FA and last activity where the host offers them; attest → four-eyes → manual removal with maker–checker → access changes                                                                                          | quarterly                            | no (removal by hand, documented)    | `git.members`                                             |
+| 93  | IBM Verify Privilege Vault – Secret hygiene                            | Failed heartbeats, passwords not rotated or expired, automatic changing off, secrets without an owner, privileged secrets without checkout or approval (metadata only, never a value)                                                                      | daily                                | no                                  | `pv.hygiene`                                              |
+| 94  | IBM Verify Privilege Vault – Privileged use                            | Views, checkouts, password displays, edits and access requests of the privileged secrets in the last days                                                                                                                                                  | weekly (8 days)                      | no                                  | `pv.privileged-use`                                       |
 
 Processes 85 and 87 are **manual procedures**: people do the work outside Steward and document it step by step (see [docs/MANUAL-STEPS.md](../docs/MANUAL-STEPS.md)). In the process editor, _New manual procedure_ starts one from scratch.
 
@@ -89,6 +91,7 @@ Every process that removes access asks a second person first (`fourEyes: true`, 
 | Kafka topics           | Topics not to standard, lagging consumers, quiet topics                                                                                                                       | 83                                             |
 | Vulnerabilities        | Open critical and high findings and failing policies per project                                                                                                              | 86                                             |
 | Entra ID governance    | Guests, privileged directory roles (Global Administrators, PIM), stale accounts, groups without owner, app secrets and certificates ending                                    | 25, 23, 22, 21, 24                             |
+| Vault hygiene          | Secrets of IBM Verify Privilege Vault needing attention and the privileged use                                                                                                | 93, 94                                         |
 
 Dashboards only read stored datasets: opening them never calls a platform. A dataset shows as _stale_ when a run is overdue. For runs without a schedule the publishing step's `staleAfterMinutes` is the limit; the examples set it to about twice the suggested schedule (three times for schedules of an hour or less): 180 for hourly, 2880 for daily, 20160 for weekly, 89280 for monthly and 264960 for quarterly processes. _Refresh_ on a dashboard re-runs the feeding processes with the inputs and connections of their last run.
 
@@ -149,7 +152,7 @@ The flows were built against the documented Insights Hub APIs and the simulated 
 
 ### Files for a newer Steward
 
-An example that uses something a release added says so in a comment line at the top, e.g. `# steward-min-version: 0.2.6`. Git sync lists it as _Needs Steward 0.2.6 or newer_ on older installations instead of staging it; for every importer it is a plain comment, so the file still imports into older versions as before. The examples for the platforms added after 0.2.0 carry it: 77, 78, 79 and 65 (0.2.6: `$systems()`, CheckMk, Kubernetes, Prometheus), 82, 83, 84 and 92 (0.2.7: Git hosts, Kafka), 61–64 (0.2.8: Snowflake, AWS) and 86 (0.2.9: Dependency-Track). The others work with 0.2.0. Add the line when an example starts to use a function, node, platform or field of a newer release.
+An example that uses something a release added says so in a comment line at the top, e.g. `# steward-min-version: 0.2.6`. Git sync lists it as _Needs Steward 0.2.6 or newer_ on older installations instead of staging it; for every importer it is a plain comment, so the file still imports into older versions as before. The examples for the platforms added after 0.2.0 carry it: 77, 78, 79 and 65 (0.2.6: `$systems()`, CheckMk, Kubernetes, Prometheus), 82, 83, 84 and 92 (0.2.7: Git hosts, Kafka), 61–64 (0.2.8: Snowflake, AWS) 86 (0.2.9: Dependency-Track) and 87–88 (0.5.0: IBM Verify Privilege Vault, `morePath` paging). The others work with 0.2.0. Add the line when an example starts to use a function, node, platform or field of a newer release.
 
 ### Template metadata
 
@@ -188,17 +191,18 @@ An example that uses something a release added says so in a comment line at the 
 
 Re-running a setup finds what exists: processes and dashboards are kept as they are or updated to the template (_Update to the template_, a new process version), schedules of the process and monitors with the example's key are always kept. The setup and the turn-on are audited (`template_bundle.setup`, `template_bundle.turned_on`) besides the entries of every object made. Setting a bundle up needs the right to create processes (designers, administrators) and _use_ on the platform. API: `GET /api/template-bundles`, `POST /api/template-bundles/:id/setup` (`{ bindings: { <key>: <platformId> }, existing: skip | update, monitors, dryRuns }`), `POST /api/template-bundles/:id/turn-on` (`{ schedules, monitors }`).
 
-| Bundle                                   | Platform                | Processes              | Dashboard            | Monitor (optional)           |
-| ---------------------------------------- | ----------------------- | ---------------------- | -------------------- | ---------------------------- |
-| 10 Access governance (Insights Hub)      | Insights Hub            | 15, 16, 14, 12, 10, 11 | Access governance    | –                            |
-| 20 Tenant usage (Insights Hub)           | Insights Hub            | 32                     | Tenant usage         | –                            |
-| 30 Snowflake                             | Snowflake               | 62, 61                 | Snowflake account    | Snowflake account            |
-| 40 Git repositories (health and members) | GitHub, GitLab, Forgejo | 82, 92                 | Repositories         | Repository pipelines         |
-| 50 AWS (access keys and costs)           | AWS                     | 63, 64                 | Cloud costs and keys | –                            |
-| 60 Service levels (Prometheus)           | Prometheus              | 65                     | Service levels       | Error budget burn rate       |
-| 70 Kubernetes (namespace health)         | Kubernetes              | 79                     | Kubernetes           | Kubernetes namespace         |
-| 80 Vulnerabilities (Dependency-Track)    | Dependency-Track        | 86                     | Vulnerabilities      | New critical vulnerabilities |
-| 15 Entra ID access governance            | Microsoft Graph         | 25, 23, 22, 21, 24     | Entra ID governance  | Entra ID app credentials     |
+| Bundle                                   | Platform                   | Processes              | Dashboard            | Monitor (optional)           |
+| ---------------------------------------- | -------------------------- | ---------------------- | -------------------- | ---------------------------- |
+| 10 Access governance (Insights Hub)      | Insights Hub               | 15, 16, 14, 12, 10, 11 | Access governance    | –                            |
+| 20 Tenant usage (Insights Hub)           | Insights Hub               | 32                     | Tenant usage         | –                            |
+| 30 Snowflake                             | Snowflake                  | 62, 61                 | Snowflake account    | Snowflake account            |
+| 40 Git repositories (health and members) | GitHub, GitLab, Forgejo    | 82, 92                 | Repositories         | Repository pipelines         |
+| 50 AWS (access keys and costs)           | AWS                        | 63, 64                 | Cloud costs and keys | –                            |
+| 60 Service levels (Prometheus)           | Prometheus                 | 65                     | Service levels       | Error budget burn rate       |
+| 70 Kubernetes (namespace health)         | Kubernetes                 | 79                     | Kubernetes           | Kubernetes namespace         |
+| 80 Vulnerabilities (Dependency-Track)    | Dependency-Track           | 86                     | Vulnerabilities      | New critical vulnerabilities |
+| 15 Entra ID access governance            | Microsoft Graph            | 25, 23, 22, 21, 24     | Entra ID governance  | Entra ID app credentials     |
+| 90 Privileged access governance          | IBM Verify Privilege Vault | 93, 94                 | Vault hygiene        | Vault hygiene                |
 
 The format:
 
@@ -227,21 +231,22 @@ monitors:
 
 `monitors/*.yaml` are monitor definitions (`kind: monitor`) and templates (`kind: monitorTemplate`), importable under **Monitors → Import → From the example library** and checked by `npm run validate`. Import them in file order (a sub-monitor before the monitor that includes it). See [docs/MONITORS.md](../docs/MONITORS.md).
 
-| #   | Monitor                                 | What it shows                                                                                                            |
-| --- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| 10  | Machine 17 – machine data               | Heartbeat of on-change machine data (maximum age) and its freshness in Insights Hub                                      |
-| 11  | Machine 17 – PowerMeter                 | PowerMeter reachable → data reported by the gateway → data in Insights Hub; the machine data as a sub-monitor            |
-| 20  | Plant services                          | Steward's own HTTP and platform checks next to Gatus endpoints, with a dependency between two Gatus endpoints            |
-| 30  | PowerMeter with machine data (template) | Parameters for IP address, assets, cadence; create one monitor per machine from a CSV                                    |
-| 40  | New critical vulnerabilities            | Open critical findings and failing policy violations of production projects in Dependency-Track                          |
-| 50  | Snowflake account                       | Freshness of a table, failing tasks of a database, credits of a warehouse (check type `snowflake`)                       |
-| 51  | Error budget burn rate                  | Fast (1 h, 14.4×) and slow (6 h, 6×) burn of an error budget from Prometheus (check type `prometheus`)                   |
-| 52  | Kubernetes namespace                    | Every deployment of a namespace ready, no pod crash-looping, one deployment on its own (check type `kubernetes`)         |
-| 53  | Repository pipelines                    | The default-branch pipeline and the critical/high alerts of repositories on GitHub, GitLab or Forgejo (check type `git`) |
-| 54  | Kafka – orders topic                    | New messages within 15 minutes, the lag of two consumer groups (check type `kafka`)                                      |
-| 55  | Presses reporting over MQTT             | Every device of a topic pattern reports, the broker has clients (check type `mqtt`)                                      |
-| 56  | Database host (CheckMk)                 | A host and its services as CheckMk sees them, services depending on the host (check type `checkmk`)                      |
-| 57  | TCP service (template)                  | A TCP port answers; one monitor per service from a form or CSV (check type `tcp`)                                        |
-| 58  | Entra ID app credentials                | App secrets and certificates ending within 30 days, Microsoft 365 service health (check type `entra`)                    |
+| #   | Monitor                                 | What it shows                                                                                                                                |
+| --- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 10  | Machine 17 – machine data               | Heartbeat of on-change machine data (maximum age) and its freshness in Insights Hub                                                          |
+| 11  | Machine 17 – PowerMeter                 | PowerMeter reachable → data reported by the gateway → data in Insights Hub; the machine data as a sub-monitor                                |
+| 20  | Plant services                          | Steward's own HTTP and platform checks next to Gatus endpoints, with a dependency between two Gatus endpoints                                |
+| 30  | PowerMeter with machine data (template) | Parameters for IP address, assets, cadence; create one monitor per machine from a CSV                                                        |
+| 40  | New critical vulnerabilities            | Open critical findings and failing policy violations of production projects in Dependency-Track                                              |
+| 50  | Snowflake account                       | Freshness of a table, failing tasks of a database, credits of a warehouse (check type `snowflake`)                                           |
+| 51  | Error budget burn rate                  | Fast (1 h, 14.4×) and slow (6 h, 6×) burn of an error budget from Prometheus (check type `prometheus`)                                       |
+| 52  | Kubernetes namespace                    | Every deployment of a namespace ready, no pod crash-looping, one deployment on its own (check type `kubernetes`)                             |
+| 53  | Repository pipelines                    | The default-branch pipeline and the critical/high alerts of repositories on GitHub, GitLab or Forgejo (check type `git`)                     |
+| 54  | Kafka – orders topic                    | New messages within 15 minutes, the lag of two consumer groups (check type `kafka`)                                                          |
+| 55  | Presses reporting over MQTT             | Every device of a topic pattern reports, the broker has clients (check type `mqtt`)                                                          |
+| 56  | Database host (CheckMk)                 | A host and its services as CheckMk sees them, services depending on the host (check type `checkmk`)                                          |
+| 57  | TCP service (template)                  | A TCP port answers; one monitor per service from a form or CSV (check type `tcp`)                                                            |
+| 58  | Entra ID app credentials                | App secrets and certificates ending within 30 days, Microsoft 365 service health (check type `entra`)                                        |
+| 59  | Vault hygiene                           | Failed heartbeats, rotation, owners and checkout/approval of privileged secrets in IBM Verify Privilege Vault (check type `privilege-vault`) |
 
 The monitors name their platform generically (`platform: Snowflake`, `platform: GitHub`, …): on import Steward takes the only platform of that kind, or the only one whose name starts with it, and otherwise asks which platform to use. Replace the objects (tables, namespaces, topics, hosts) with your own.

@@ -9,7 +9,7 @@ How Steward signs in to a platform is its **auth type** (_Platforms → a platfo
 | Static bearer token             | `token`                                                     | GitHub, GitLab, Forgejo, Kubernetes, CheckMk                  |
 | API key                         | `apiKey` (header or query)                                  |                                                               |
 | OAuth2 client credentials       | `clientId`, `clientSecret` – or `privateKey`, `certificate` | Insights Hub, Microsoft Graph (Entra ID)                      |
-| Custom login request            | any, referenced as `{{ secrets.x }}`                        | Industrial Edge Management                                    |
+| Custom login request            | any, referenced as `{{ secrets.x }}`                        | Industrial Edge Management, IBM Verify Privilege Vault        |
 | **Key-pair JWT**                | `privateKey` (PEM), optionally `privateKeyPassphrase`       | Snowflake; Google service accounts, Salesforce (exchange)     |
 | **AWS request signing (SigV4)** | `accessKeyId`, `secretAccessKey`, optionally `sessionToken` | AWS APIs, S3 and S3-compatible storage                        |
 
@@ -24,6 +24,20 @@ _Platforms → Add platform_ opens a wizard (v0.4.0): **1** choose a connector (
 The platform page shows the **last connection test** – passed or failed, when, by whom (or the periodic test), its message. **Test periodically** (off by default; every 15 minutes to once a day, platform managers) runs the same test from the server; when it starts failing, the platform's managers (else administrators) get **Platform connection failing**, routed like every other notification ([NOTIFICATIONS.md](NOTIFICATIONS.md)) – once per failing period. Every test is in the audit log (`platform.tested`, `details.periodic` for the periodic one), the setting too (`platform.health_changed`). API: `GET/PUT /api/platforms/:id/health`.
 
 The tab **Get started** lists the same "what's next" as the wizard's last step (`GET /api/platforms/:id/get-started`).
+
+## Custom login request with a refresh token
+
+A custom login (`token_request`) posts its request (`auth.request`), takes the token from the answer (`tokenPath`, default `access_token`) and keeps it until shortly before its lifetime (`expiresInPath`) ends. With **`auth.refresh`** (v0.5.0) an expired token is first renewed with the refresh token of the last answer; only when that fails does Steward sign in again:
+
+```json
+"refresh": {
+  "tokenPath": "refresh_token",
+  "request": { "method": "POST", "url": "/oauth2/token", "bodyType": "form",
+               "body": { "grant_type": "refresh_token", "refresh_token": "{{ refreshToken }}" } }
+}
+```
+
+The refresh token is kept with the cached token in memory, never stored, and masked like it. A `401` from the platform drops both and signs in again. The preset _IBM Verify Privilege Vault_ uses it ([IBM-PAM.md](IBM-PAM.md#sign-in)).
 
 ## Key-pair JWT
 

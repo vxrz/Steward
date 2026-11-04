@@ -26,6 +26,7 @@ export const JSON_API_KINDS: ReadonlySet<string> = new Set([
   'industrial-edge-management',
   'confluent-cloud',
   'microsoft-graph',
+  'privilege-vault',
 ]);
 
 /** The API base URL a kind expects, for the hints. */
@@ -37,6 +38,7 @@ const API_EXAMPLES: Record<string, string> = {
   kubernetes: 'https://HOST:6443',
   checkmk: 'https://HOST/SITE/check_mk/api/1.0',
   [DTRACK_KIND]: 'the API server, not the UI',
+  'privilege-vault': 'https://HOST/SecretServer or https://TENANT.secretservercloud.com',
 };
 
 export interface TestVerdict {
