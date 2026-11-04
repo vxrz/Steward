@@ -183,6 +183,7 @@ export const CREDENTIAL_EVENT_KINDS = [
   'archived',
   'restored',
   'reminded',
+  'expiryImported',
 ] as const;
 export type CredentialEventKind = (typeof CREDENTIAL_EVENT_KINDS)[number];
 

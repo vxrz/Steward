@@ -765,7 +765,11 @@
     "DUPLICATE_NO_SERVICES": "Sie dürfen keinen der Services dieser Statusseite veröffentlichen.",
     "FORBIDDEN_duplicate": "Sie dürfen hiervon keine Kopie anlegen.",
     "FORBIDDEN_duplicateAccess": "Nur wer das Original verwalten darf, kann dessen Zugriffseinstellungen kopieren.",
-    "SCHEDULE_NOT_FOUND": "Zeitplan {{id}} nicht gefunden."
+    "SCHEDULE_NOT_FOUND": "Zeitplan {{id}} nicht gefunden.",
+    "ACCESS_CHECK_ENTRA_SOURCE": "Die Quelle Entra ID braucht eine Microsoft-Graph-Plattform.",
+    "ACCESS_CHECK_ENTRA_READ": "Entra ID konnte nicht gelesen werden: {{detail}}",
+    "ENTRA_PLATFORM_REQUIRED": "Für den Import von App-Zugangsdaten ist eine Microsoft-Graph-Plattform nötig.",
+    "ENTRA_READ": "Entra ID konnte nicht gelesen werden: {{detail}}"
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

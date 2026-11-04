@@ -765,7 +765,11 @@
     "DUPLICATE_NO_SERVICES": "You may not publish any of the services of this status page.",
     "FORBIDDEN_duplicate": "You may not create a copy of this.",
     "FORBIDDEN_duplicateAccess": "Only someone who may manage the original can copy its access settings.",
-    "SCHEDULE_NOT_FOUND": "Schedule {{id}} not found."
+    "SCHEDULE_NOT_FOUND": "Schedule {{id}} not found.",
+    "ACCESS_CHECK_ENTRA_SOURCE": "The Entra ID source needs a Microsoft Graph platform.",
+    "ACCESS_CHECK_ENTRA_READ": "Entra ID could not be read: {{detail}}",
+    "ENTRA_PLATFORM_REQUIRED": "Importing app credentials needs a Microsoft Graph platform.",
+    "ENTRA_READ": "Entra ID could not be read: {{detail}}"
   },
   "boundary": {
     "title": "Something went wrong on this page",

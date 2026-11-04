@@ -614,6 +614,8 @@ const EXPECT: Record<string, Access> = {
   'POST /api/credentials/:id/reviewed': RUN,
   'POST /api/credentials/:id/restore': ADMIN,
   'POST /api/credentials/:id/archive': ADMIN,
+  // app secrets and certificates of an Entra ID tenant as entries (v0.5.0): who may create entries and use the platform
+  'POST /api/credentials/import/entra': RUN,
 
   // ---- MCP (bearer MCP tokens only; see mcp.test.ts) ----
   'POST /api/mcp': HOOK,

@@ -54,6 +54,7 @@ import { confirmDanger } from '../components/confirm';
 import { OwningTeams } from '../components/OwningTeams';
 import { ListPage } from '../components/page/ListPage';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
+import { EntraImportButton } from '../components/credentials/EntraImport';
 
 export const CREDENTIAL_TYPE_IDS: CredentialType[] = ['apiClient', 'technicalUser', 'password', 'token', 'certificate', 'agentCertificate', 'sshKey', 'other'];
 export const CREDENTIAL_STATUS_IDS: CredentialStatus[] = ['ok', 'dueSoon', 'overdue', 'expired'];
@@ -340,6 +341,7 @@ export function CredentialsPage() {
           >
             {t('exportCsv')}
           </Button>
+          {list.data?.canCreate && <EntraImportButton onImported={refresh} />}
           {list.data?.canCreate && (
             <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setEditing('new')}>
               {t('new')}
