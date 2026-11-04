@@ -1,0 +1,22 @@
+# steward-min-version: 0.5.0
+name: Entra ID access governance
+description: |
+  Who has access to the Entra ID tenant, and is it still justified? The quarterly guest and group reviews, the monthly
+  privileged directory role review (four-eyes), the weekly stale accounts report and the daily check of app secrets and
+  certificates that expire, with the "Entra ID governance" dashboard and, optionally, the app credentials monitor.
+  Read-only: removals are made in the Entra admin center after a second person confirms (docs/ENTRA.md).
+tags: [access-review, governance, entra-id]
+platforms:
+  - key: graph
+    label: Entra ID tenant (Microsoft Graph)
+    kinds: [microsoft-graph]
+processes:
+  - template: 25-entra-app-credentials
+  - template: 23-entra-stale-accounts
+  - template: 22-entra-privileged-role-review
+  - template: 21-entra-guest-review
+  - template: 24-entra-group-review
+dashboards: [21-entra-access-governance]
+monitors:
+  - file: 58-entra-app-credentials.yaml
+    optional: true

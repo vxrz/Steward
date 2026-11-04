@@ -519,7 +519,13 @@ export async function mockGraph(app: FastifyInstance): Promise<void> {
 
   app.get(`${R}/v1.0/groups`, async (req, reply) => {
     const fields = selectOf(req);
-    return list(req, reply, '/v1.0/groups', () => state.groups.map((g) => pick(groupJson(g), fields)));
+    const filter = String((req.query as Q).$filter ?? '').trim();
+    return list(req, reply, '/v1.0/groups', () => {
+      // displayName eq '<name>' (the group review), compared as Graph does: without regard to case
+      const eq = filter.startsWith("displayName eq '") && filter.endsWith("'") ? filter.slice(16, -1).toLowerCase() : null;
+      if (filter && eq === null) throw new Error(`Unsupported query filter for groups: ${filter.slice(0, 80)}`);
+      return state.groups.filter((g) => eq === null || g.displayName.toLowerCase() === eq).map((g) => pick(groupJson(g), fields));
+    });
   });
 
   const closure = (g: MockGroup, seen = new Set<string>()): string[] => {

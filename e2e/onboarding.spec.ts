@@ -107,7 +107,7 @@ test('template bundles: set up together, with the result and the turn-on step', 
   await setup.getByRole('button', { name: 'Back to the templates' }).click();
   // the gallery lists the bundles above the templates
   const section = gallery.getByTestId('bundle-section');
-  await expect(section.getByTestId('bundle-card')).toHaveCount(8);
+  await expect(section.getByTestId('bundle-card')).toHaveCount(9);
   await gallery.getByRole('textbox', { name: 'Search' }).fill('snowflake');
   await expect(section.getByTestId('bundle-card')).toHaveCount(1);
   await section.getByRole('button', { name: 'Set up Snowflake (project access and account hygiene)' }).click();
