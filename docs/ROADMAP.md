@@ -55,14 +55,15 @@ Themes of this release (details in the CHANGELOG once released):
 - **Getting started.** Onboarding for a new installation, ready-made bundles of procedures, dashboards and monitors, simpler set-up of the integrations.
 - **Architecture documentation.** [ARCHITECTURE.md](ARCHITECTURE.md) with C4 diagrams and [decision records](adr/README.md).
 
-## After 0.4.0 – more platforms
+## After 0.4.0 – audit-proof changes and more platforms
 
 In this order:
 
-1. **Microsoft Graph / Entra ID** ([#202](https://github.com/vxrz/Steward/issues/202)): a read-only platform for access reviews of groups, directory roles and app roles, guests and stale accounts, and app registrations whose secrets or certificates expire soon (into the credentials register).
-2. **Postman export** ([#204](https://github.com/vxrz/Steward/issues/204)): processes and platforms as Postman collections and environments – sign-in, requests and checks as scripts, never a secret; an import of requests and auth later.
-3. **IBM PAM** ([#205](https://github.com/vxrz/Steward/issues/205), likely IBM Verify Privilege Vault): who may use which privileged secret, rotation and heartbeat hygiene, links from the credentials register, and secret checkouts as evidence – never the secret values.
-4. **Direct SQL databases** ([#203](https://github.com/vxrz/Steward/issues/203)): PostgreSQL, MariaDB/MySQL and SQL Server first, Oracle later; read-only by default, for grant reviews, account hygiene, monitor checks and datasets. The first platform kind that is not HTTP, so a decision record comes first.
+1. **Audit-proof firewall changes** ([#208](https://github.com/vxrz/Steward/issues/208)), opt-in and without becoming a CMDB: network segments (for example shopfloor IoT subnets) as a system kind, the network context of chosen systems, a _Firewall change_ record type with four-eyes approval, evidence and verification, an _Approved firewall rules_ document per segment or system with a yearly review, and a process template for changes made by a provider.
+2. **Microsoft Graph / Entra ID** ([#202](https://github.com/vxrz/Steward/issues/202)): a read-only platform for access reviews of groups, directory roles and app roles, guests and stale accounts, and app registrations whose secrets or certificates expire soon (into the credentials register).
+3. **Postman export** ([#204](https://github.com/vxrz/Steward/issues/204)): processes and platforms as Postman collections and environments – sign-in, requests and checks as scripts, never a secret; an import of requests and auth later.
+4. **IBM PAM** ([#205](https://github.com/vxrz/Steward/issues/205), likely IBM Verify Privilege Vault): who may use which privileged secret, rotation and heartbeat hygiene, links from the credentials register, and secret checkouts as evidence – never the secret values.
+5. **Direct SQL databases** ([#203](https://github.com/vxrz/Steward/issues/203)): PostgreSQL, MariaDB/MySQL and SQL Server first, Oracle later; read-only by default, for grant reviews, account hygiene, monitor checks and datasets. The first platform kind that is not HTTP, so a decision record comes first.
 
 ## Later
 
