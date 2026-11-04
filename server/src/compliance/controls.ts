@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import {
   ACCESS_TYPE_ID,
+  FIREWALL_RULES_TYPE_ID,
+  FIREWALL_TYPE_ID,
   CONTROL_TAG_KINDS,
   type Control,
   type ControlCatalogue,
@@ -19,7 +21,7 @@ import { permissionsFor } from '../processes/service.js';
 import { permissionsOfRow } from '../monitors/model.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canManageCatalogues, canReadCheck, canTagControls, forbid, me, readsEverything, same, SYSTEM_USER } from './access.js';
-import { BUILTIN_CATALOGUES, DEFAULT_ACCESS_CONTROLS } from './catalogues.js';
+import { BUILTIN_CATALOGUES, DEFAULT_ACCESS_CONTROLS, DEFAULT_FIREWALL_CONTROLS } from './catalogues.js';
 import { toAccessChange } from './access-changes.js';
 import { personReviewEvidence } from './person-reviews.js';
 import type { RecordRow } from '../records/model.js';
@@ -118,6 +120,21 @@ export function ensureCatalogues(): void {
           "INSERT INTO control_tags (control_id, kind, target_id, created_at, created_by) VALUES (?, 'recordType', ?, ?, 'system') ON CONFLICT DO NOTHING",
           ctl.id,
           ACCESS_TYPE_ID,
+          now,
+        );
+    }
+    // firewall changes and approved firewall rules (#208)
+    for (const d of DEFAULT_FIREWALL_CONTROLS) {
+      const ctl = db().get<{ id: string }>(
+        'SELECT c.id FROM controls c JOIN control_catalogues k ON k.id = c.catalogue_id WHERE k.key = ? AND c.ref = ?',
+        d.catalogue,
+        d.ref,
+      );
+      if (ctl)
+        db().run(
+          "INSERT INTO control_tags (control_id, kind, target_id, created_at, created_by) VALUES (?, 'recordType', ?, ?, 'system') ON CONFLICT DO NOTHING",
+          ctl.id,
+          d.recordType === 'change' ? FIREWALL_TYPE_ID : FIREWALL_RULES_TYPE_ID,
           now,
         );
     }

@@ -38,12 +38,12 @@ function algFor(key: crypto.KeyObject, alg: JwtAlg): void {
 /** A signed JWT with the given claims; iat and exp are set here (lifetime capped at an hour), jti is random. */
 export function signJwt(
   key: crypto.KeyObject,
-  o: { alg: JwtAlg; claims: Record<string, unknown>; lifetimeSeconds?: number; kid?: string; now?: number },
+  o: { alg: JwtAlg; claims: Record<string, unknown>; lifetimeSeconds?: number; kid?: string; now?: number; header?: Record<string, string> },
 ): { jwt: string; exp: number } {
   algFor(key, o.alg);
   const iat = Math.floor((o.now ?? Date.now()) / 1000);
   const exp = iat + Math.max(30, Math.min(JWT_MAX_LIFETIME, Math.floor(o.lifetimeSeconds ?? JWT_MAX_LIFETIME)));
-  const header = { alg: o.alg, typ: 'JWT', ...(o.kid ? { kid: o.kid } : {}) };
+  const header = { ...(o.header ?? {}), alg: o.alg, typ: 'JWT', ...(o.kid ? { kid: o.kid } : {}) };
   const payload = { ...o.claims, iat, exp, jti: crypto.randomUUID() };
   const input = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`;
   const hash = `sha${o.alg.slice(2)}`;
@@ -53,6 +53,48 @@ export function signJwt(
       ? crypto.sign(hash, Buffer.from(input), { key, padding: crypto.constants.RSA_PKCS1_PSS_PADDING, saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST })
       : crypto.sign(hash, Buffer.from(input), key);
   return { jwt: `${input}.${b64url(sig)}`, exp };
+}
+
+/**
+ * The certificate thumbprints a client assertion names its key by (Entra ID, v0.5.0): `x5t#S256` (SHA-256) and `x5t`
+ * (SHA-1, what the Entra portal shows as the thumbprint), base64url of the DER certificate's hash. From the public
+ * certificate (PEM, credential certificate) or – without one – from a SHA-1 thumbprint in hex (variable
+ * certificateThumbprint), which gives only `x5t`.
+ */
+/** A fingerprint of node:crypto (hex pairs separated by colons) as base64url. */
+export const thumbprintB64 = (fingerprint: string): string => Buffer.from(fingerprint.replace(/:/g, ''), 'hex').toString('base64url');
+
+export function certificateThumbprints(certPem: string | undefined, sha1Hex?: string): Record<string, string> {
+  if (certPem?.trim()) {
+    let cert: crypto.X509Certificate;
+    try {
+      cert = new crypto.X509Certificate(certPem);
+    } catch (e) {
+      throw new Error(`The certificate cannot be read (PEM of the public certificate expected): ${(e as Error).message}`);
+    }
+    // The thumbprints only name the certificate (JWS headers, RFC 7515 4.1.7/4.1.8); the signature itself is RS256 or
+    // stronger. x5t is defined as the SHA-1 thumbprint and is still required by older identity providers.
+    return { 'x5t#S256': thumbprintB64(cert.fingerprint256), x5t: thumbprintB64(cert.fingerprint) };
+  }
+  const hex = (sha1Hex ?? '').replace(/[\s:]/g, '');
+  if (/^[0-9a-f]{40}$/i.test(hex)) return { x5t: Buffer.from(hex, 'hex').toString('base64url') };
+  throw new Error('A client assertion needs the public certificate (credential certificate, PEM) or its SHA-1 thumbprint (variable certificateThumbprint)');
+}
+
+/**
+ * A client assertion (RFC 7523 private_key_jwt, as Entra ID expects it): iss and sub the client id, aud the token
+ * endpoint, nbf now, signed with RS256 (or PS256 for an RSA-PSS key) and named by the certificate's thumbprints.
+ */
+export function clientAssertion(key: crypto.KeyObject, o: { clientId: string; tokenUrl: string; thumbprints: Record<string, string>; now?: number }): string {
+  const now = o.now ?? Date.now();
+  const alg: JwtAlg = key.asymmetricKeyType === 'rsa-pss' ? 'PS256' : key.asymmetricKeyType === 'ec' ? 'ES256' : 'RS256';
+  return signJwt(key, {
+    alg,
+    claims: { iss: o.clientId, sub: o.clientId, aud: o.tokenUrl, nbf: Math.floor(now / 1000) },
+    lifetimeSeconds: 600,
+    header: o.thumbprints,
+    now,
+  }).jwt;
 }
 
 /**

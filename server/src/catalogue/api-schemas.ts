@@ -13,6 +13,7 @@ import {
   SERVICE_CRITICALITIES,
   STACK_SOURCES,
   SYSTEM_KINDS,
+  FIREWALL_MANAGERS,
 } from '@sm/shared';
 import { RecordLink } from '../records/api-schemas.js';
 
@@ -254,6 +255,17 @@ export const SystemEntry = z.object({
   cmdbUrl: z.string().describe('http(s) link to the CMDB entry, or empty'),
   owners: z.array(z.string()).describe('Steward users and teams responsible: user:<name>, team:<name>'),
   note: z.string(),
+  attributes: z
+    .object({
+      vlanId: z.number().int().nullable().describe('802.1Q VLAN ID (1–4094)'),
+      subnets: z.array(z.string()).describe('Subnets in CIDR notation (IPv4 or IPv6), format-checked only'),
+      zone: z.string().describe('Zone or security level, e.g. an IEC 62443 zone'),
+      site: z.string(),
+      firewallManagedBy: z.enum(FIREWALL_MANAGERS).nullable().describe('Who manages the firewall of the segment: the own team or a provider'),
+      firewallProvider: z.string().describe('The provider, when a provider manages the firewall'),
+    })
+    .partial()
+    .describe('Attributes of the kind: a network segment (kind network) has all of these, other kinds none (an empty object)'),
   platform: z
     .object({ id: z.string(), name: z.string(), environment: z.string() })
     .nullable()
@@ -277,6 +289,22 @@ export const SystemEntry = z.object({
       }),
     )
     .describe('Applications that run on it, per environment'),
+  segments: z
+    .array(
+      z.object({
+        id: z.string().describe('Id of the "in segment" link'),
+        segmentId: z.string().describe('The network segment (a system of kind network)'),
+        segmentName: z.string(),
+        vlanId: z.number().int().nullable(),
+        subnets: z.array(z.string()),
+        zone: z.string(),
+        address: z.string().describe('IP address or host name of the system in the segment; empty when not documented'),
+        note: z.string(),
+        createdAt: ts(),
+        createdBy: z.string(),
+      }),
+    )
+    .describe('The network segments the system is in (segments the token owner may not see are left out)'),
   createdAt: ts(),
   createdBy: z.string(),
   updatedAt: ts(),

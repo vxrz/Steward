@@ -552,6 +552,10 @@
     "data": {
       "title": "Daten & Aufbewahrung",
       "description": "Wie lange Daten aufbewahrt werden, Speicher, Bereinigung und Sicherungen."
+    },
+    "assurance": {
+      "title": "Absicherungsrichtlinie",
+      "description": "Wo eine zweite Person (Vier-Augen-Prinzip) oder eine erneute Bestätigung verlangt ist, die Grundlinie, Abweichungen und der Absicherungsbericht."
     }
   },
   "endOfLife": {

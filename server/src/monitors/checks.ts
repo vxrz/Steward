@@ -4,11 +4,11 @@ import tls from 'node:tls';
 import { Agent, EnvHttpProxyAgent, fetch, type Dispatcher } from 'undici';
 import type { CheckOf, MonitorStatus, Platform } from '@sm/shared';
 import { evalExpr } from '../engine/expr.js';
-import { platformRequest, type HttpResult } from '../platforms/http.js';
+import { buildUrl, platformRequest, type HttpResult } from '../platforms/http.js';
 import { findRecording, missingRecording } from '../platforms/recordings.js';
 import { assertAddressSafe, assertNetAllowed, assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
-import { BRAND, isGitPlatformKind } from '@sm/shared';
+import { BRAND, PVAULT_KIND, isGitPlatformKind, type PvFindingKind } from '@sm/shared';
 import { freshnessStatus, freshnessWindowSeconds, fmtAge, statusMatcher } from './logic.js';
 import { promInstant, seriesName } from '../platforms/prometheus.js';
 import { readNamespace } from '../catalogue/kubernetes.js';
@@ -710,6 +710,22 @@ async function checkSnowflake(c: CheckOf<'snowflake'>, ctx: ExecContext): Promis
   }
 }
 
+// ---------- Entra ID ----------
+
+/** Expiring app credentials or Microsoft 365 service health of an Entra ID tenant (v0.5.0). */
+async function checkEntra(c: CheckOf<'entra'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  if (platform.kind !== 'microsoft-graph') return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a Microsoft Graph platform` };
+  await assertOutboundAllowed(await buildUrl(platform, secrets, '/', {}), outboundContext());
+  const { entraCheck, signInHint } = await import('../entra/service.js');
+  try {
+    return { ...(await entraCheck(platform, secrets, c)), durationMs: Date.now() - t0 };
+  } catch (e) {
+    return { status: 'unknown', message: `Entra ID could not be read: ${signInHint((e as Error).message)}`.slice(0, 1000), durationMs: Date.now() - t0 };
+  }
+}
+
 // ---------- Dependency-Track ----------
 
 /** What a project had, read at most every 5 minutes per platform and project (findings change with BOM uploads, not by the minute). */
@@ -759,6 +775,76 @@ async function checkDtrack(c: CheckOf<'dependency-track'>, ctx: ExecContext): Pr
     value,
   };
 }
+
+// ---------- IBM Verify Privilege Vault ----------
+
+/** What a vault's hygiene was, read at most every 10 minutes per check (permissions are one call per secret). */
+const vaultSeen = new Map<string, { at: number; read: Awaited<ReturnType<typeof import('../pvault/hygiene.js').vaultHygiene>> }>();
+
+/** Hygiene of the vault's secrets (#205): heartbeat, rotation, expiry, automatic changing, owner, checkout and approval. */
+async function checkPrivilegeVault(c: CheckOf<'privilege-vault'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  if (platform.kind !== PVAULT_KIND)
+    return { status: 'unknown', message: `Check could not run: "${platform.name}" is not an IBM Verify Privilege Vault platform` };
+  const opts = {
+    folder: c.folder ?? '',
+    maxAgeDays: c.maxAgeDays,
+    folders: c.privilegedFolders,
+    templates: c.privilegedTemplates,
+    ...(c.kinds?.length ? { kinds: c.kinds } : {}),
+  };
+  const key = `${platform.id}|${JSON.stringify(opts)}`;
+  let read;
+  try {
+    const seen = vaultSeen.get(key);
+    if (seen && Date.now() - seen.at < 10 * 60_000) read = seen.read;
+    else {
+      const { vaultHygiene } = await import('../pvault/hygiene.js');
+      read = await vaultHygiene(platform, secrets, opts);
+      vaultSeen.set(key, { at: Date.now(), read });
+    }
+  } catch (e) {
+    return { status: 'unknown', message: `The vault could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
+  }
+  const ms = Date.now() - t0;
+  const value = { secrets: read.secrets, privileged: read.privileged, findings: read.findings.length, ...read.counts };
+  const counts = Object.entries(read.counts)
+    .filter(([, n]) => n)
+    .map(([k, n]) => `${n} ${PV_FINDING_LABELS[k as PvFindingKind]}`);
+  const privileged = read.findings.filter((f) => f.privileged);
+  const shown = read.findings
+    .slice(0, 3)
+    .map((f) => `${f.secret}: ${f.detail}`)
+    .join('; ');
+  if (read.findings.length > c.maxFindings || privileged.length)
+    return {
+      status: c.failAs,
+      message:
+        `Vault: ${read.findings.length} finding(s) in ${read.secrets} secrets${privileged.length ? `, ${privileged.length} on privileged secrets` : ''} – ${counts.join(', ')}${shown ? ` (${shown})` : ''}`.slice(
+          0,
+          500,
+        ),
+      durationMs: ms,
+      value,
+    };
+  return {
+    status: 'up',
+    message: `Vault: ${read.secrets} secrets (${read.privileged} privileged), ${read.findings.length ? `${read.findings.length} finding(s), at most ${c.maxFindings} allowed` : 'no findings'}`,
+    durationMs: ms,
+    value,
+  };
+}
+
+const PV_FINDING_LABELS: Record<PvFindingKind, string> = {
+  heartbeat: 'failed heartbeat',
+  notRotated: 'not rotated',
+  expired: 'expired',
+  autoChangeOff: 'automatic changing off',
+  noOwner: 'without owner',
+  noCheckout: 'privileged without checkout',
+  noApproval: 'privileged without approval',
+};
 
 // ---------- Kafka ----------
 
@@ -910,7 +996,9 @@ type Active =
   | CheckOf<'kafka'>
   | CheckOf<'mqtt'>
   | CheckOf<'snowflake'>
-  | CheckOf<'dependency-track'>;
+  | CheckOf<'dependency-track'>
+  | CheckOf<'entra'>
+  | CheckOf<'privilege-vault'>;
 
 /** Runs an active check; heartbeat and sub-monitor checks are evaluated by the engine from stored state. */
 export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawResult> {
@@ -940,6 +1028,10 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkSnowflake(c, ctx);
       case 'dependency-track':
         return await checkDtrack(c, ctx);
+      case 'entra':
+        return await checkEntra(c, ctx);
+      case 'privilege-vault':
+        return await checkPrivilegeVault(c, ctx);
       case 'kafka':
         return await checkKafka(c, ctx);
       case 'mqtt':

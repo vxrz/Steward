@@ -19,6 +19,8 @@ import {
   type CredentialStatus,
   type CredentialUrl,
   type MonitorPermission,
+  type PvSecretReadout,
+  PVAULT_KIND,
   emailAddressSchema,
 } from '@sm/shared';
 import { db } from '../db.js';
@@ -82,6 +84,9 @@ export interface CredentialRow {
   certificate: string | null;
   gatus_platform_id: string | null;
   gatus_endpoint_key: string | null;
+  vault_platform_id?: string | null;
+  vault_secret_id?: number | null;
+  vault_state?: string | null;
   reminders: string | null;
   notes: string;
   tags: string;
@@ -184,9 +189,31 @@ export const canReadRegister = (u: AuthUser | null = currentUser()): boolean => 
 
 const addDays = (iso: string, days: number) => new Date(Date.parse(iso) + days * DAY).toISOString();
 
-export function nextRotation(r: Pick<CredentialRow, 'rotation_interval_days' | 'last_rotated_at' | 'issued_at' | 'created_at'>): string | null {
+/** What was last read from the entry's vault secret (#205), when the read worked. */
+function vaultSecret(r: Pick<CredentialRow, 'vault_state' | 'vault_platform_id'>): NonNullable<PvSecretReadout['secret']> | null {
+  if (!r.vault_platform_id || !r.vault_state) return null;
+  const v = parseJson<PvSecretReadout | null>(r.vault_state, null);
+  return v?.secret ?? null;
+}
+
+/** The last rotation: the entry's date, or the vault's last change when that is newer (#205). */
+export function lastRotation(r: Pick<CredentialRow, 'last_rotated_at' | 'vault_state' | 'vault_platform_id'>): string | null {
+  const v = vaultSecret(r)?.lastChangeAt ?? null;
+  if (!v) return r.last_rotated_at;
+  return !r.last_rotated_at || v > r.last_rotated_at ? v : r.last_rotated_at;
+}
+
+/** The expiry: the entry's own, else the vault's (#205). */
+export function effectiveExpiry(r: Pick<CredentialRow, 'expires_at' | 'vault_state' | 'vault_platform_id'>): string | null {
+  return r.expires_at ?? vaultSecret(r)?.expiresAt ?? null;
+}
+
+export function nextRotation(
+  r: Pick<CredentialRow, 'rotation_interval_days' | 'last_rotated_at' | 'issued_at' | 'created_at'> &
+    Partial<Pick<CredentialRow, 'vault_state' | 'vault_platform_id'>>,
+): string | null {
   if (!r.rotation_interval_days) return null;
-  return addDays(r.last_rotated_at ?? r.issued_at ?? r.created_at, r.rotation_interval_days);
+  return addDays(lastRotation({ vault_state: null, vault_platform_id: null, ...r }) ?? r.issued_at ?? r.created_at, r.rotation_interval_days);
 }
 export function nextReview(r: Pick<CredentialRow, 'review_interval_days' | 'last_reviewed_at' | 'created_at'>): string | null {
   if (!r.review_interval_days) return null;
@@ -204,7 +231,7 @@ export const daysUntil = (due: number, now: number): number => {
 
 export function computeDues(r: CredentialRow, now = Date.now(), dueSoonDays = reminderSettings().dueSoonDays): CredentialDue[] {
   const list: [CredentialDueKind, string | null][] = [
-    ['expiry', r.expires_at],
+    ['expiry', effectiveExpiry(r)],
     ['rotation', nextRotation(r)],
     ['review', nextReview(r)],
   ];
@@ -311,6 +338,10 @@ export function toCredential(r: CredentialRow, u: AuthUser | null = currentUser(
     dues,
     certificate: r.certificate ? parseJson<CertificateInfo | null>(r.certificate, null) : null,
     gatus: r.gatus_platform_id && r.gatus_endpoint_key ? { platformId: r.gatus_platform_id, endpointKey: r.gatus_endpoint_key } : null,
+    vault:
+      r.vault_platform_id && r.vault_secret_id
+        ? { platformId: r.vault_platform_id, secretId: Number(r.vault_secret_id), readout: parseJson<PvSecretReadout | null>(r.vault_state ?? null, null) }
+        : null,
     reminders: r.reminders ? parseJson(r.reminders, null) : null,
     notes: r.notes,
     tags: parseJson(r.tags, []),
@@ -397,6 +428,11 @@ export const credentialInputSchema = z.object({
     .object({ platformId: z.string().min(1).max(100), endpointKey: z.string().trim().min(1).max(300) })
     .nullable()
     .optional(),
+  /** Its secret in IBM Verify Privilege Vault (#205); missing: unchanged on update, null removes the link */
+  vault: z
+    .object({ platformId: z.string().min(1).max(100), secretId: z.number().int().min(1).max(2_147_483_647) })
+    .nullable()
+    .optional(),
   reminders: z
     .object({
       daysBefore: z.array(z.number().int().min(0).max(365)).max(10).optional(),
@@ -472,6 +508,20 @@ function checkPlatform(id: string | null | undefined, unchanged: string | null):
   const p = db().get<{ acl: string }>('SELECT acl FROM platforms WHERE id = ?', id);
   if (!p || !platformPermissions(currentUser(), { id, acl: parseJson(p.acl, []) }).length)
     throw new HttpError(400, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
+}
+
+/** A vault link needs an IBM Verify Privilege Vault platform the user may use (an unchanged link is kept). */
+function checkVault(v: CredentialInput['vault'], before?: CredentialRow): void {
+  if (!v || (v.platformId === before?.vault_platform_id && v.secretId === Number(before?.vault_secret_id))) return;
+  const p = db().get<{ kind: string }>('SELECT kind FROM platforms WHERE id = ?', v.platformId);
+  if (!p || p.kind !== PVAULT_KIND) throw new HttpError(400, 'A vault link needs an IBM Verify Privilege Vault platform', 'CREDENTIAL_VAULT_PLATFORM');
+  let perms: string[] = [];
+  try {
+    perms = platforms.getPlatform(v.platformId).permissions;
+  } catch {
+    /* not visible */
+  }
+  if (!perms.includes('use')) throw new HttpError(400, 'A vault link needs a vault platform you may use', 'CREDENTIAL_VAULT_PLATFORM');
 }
 
 function checkGatus(g: CredentialInput['gatus']): void {
@@ -723,7 +773,17 @@ function prepare(b: CredentialInput, before?: CredentialRow): { values: Record<s
   const stored = new Set(before ? emailsOf(parseJson(before.owners, [])) : []);
   assertEmailsAllowed(emailsOf(b.owners).filter((e) => !stored.has(e)));
   checkGatus(b.gatus);
+  checkVault(b.vault, before);
   const values = Object.fromEntries(Object.entries(COLUMNS).map(([col, fn]) => [col, fn(b)]));
+  // the vault link (#205): missing in an update keeps it; a new link is read again (the job, or "Read now")
+  const link =
+    b.vault === undefined
+      ? { platformId: before?.vault_platform_id ?? null, secretId: before?.vault_secret_id ?? null }
+      : { platformId: b.vault?.platformId ?? null, secretId: b.vault?.secretId ?? null };
+  values.vault_platform_id = link.platformId;
+  values.vault_secret_id = link.secretId;
+  const sameLink = !!before && link.platformId === (before.vault_platform_id ?? null) && Number(link.secretId) === Number(before.vault_secret_id ?? NaN);
+  values.vault_state = sameLink ? (before.vault_state ?? null) : null;
   // what it belongs to: missing in an update keeps it
   const belongs =
     b.belongsTo === undefined ? { kind: before?.belongs_kind ?? null, id: before?.belongs_id ?? null } : (b.belongsTo ?? { kind: null, id: null });

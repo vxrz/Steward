@@ -384,6 +384,13 @@ export const STEP_UP_ACTIONS = [
   'changeBackups',
   'allowMcpWrites',
   'allowMcpClient',
+  // 0.5.0 (#210): the assurance policy itself, and control points whose step-up an administrator can turn on
+  'changeAssurancePolicy',
+  'approveRecord',
+  'decideAccessCheck',
+  'decidePersonReview',
+  'verifyManualStep',
+  'closeFirewallChange',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 
@@ -435,8 +442,12 @@ export interface AuthConfig {
   /** oauth2: token endpoint (template, scope: vars, secrets) */
   tokenUrl?: string;
   scope?: string;
-  /** oauth2: send client credentials as Basic header or in the form body */
-  clientAuth?: 'basic' | 'body';
+  /**
+   * oauth2: send client credentials as Basic header or in the form body; assertion (v0.5.0): a client assertion JWT
+   * signed with the private key (secrets privateKey, certificate – Entra ID certificate credentials). basic/body
+   * without a client secret but with a private key use the assertion too.
+   */
+  clientAuth?: 'basic' | 'body' | 'assertion';
   extraParams?: Record<string, string>;
   /** apiKey */
   apiKeyIn?: 'header' | 'query';
@@ -453,6 +464,22 @@ export interface AuthConfig {
   tokenPath?: string;
   /** token_request: expression for lifetime in seconds (optional) */
   expiresInPath?: string;
+  /**
+   * token_request (v0.5.0): renew an expired token with a refresh token before signing in again (an OAuth2
+   * refresh_token grant, e.g. IBM Verify Privilege Vault). tokenPath: expression for the refresh token in the login and
+   * refresh answers; request: the refresh call, its templates also see {{ refreshToken }}. When the refresh fails,
+   * Steward signs in again with the login request.
+   */
+  refresh?: {
+    tokenPath: string;
+    request: {
+      method: 'POST' | 'GET' | 'PUT';
+      url: string;
+      headers?: Record<string, string>;
+      body?: unknown;
+      bodyType?: 'json' | 'form';
+    };
+  };
   /**
    * Header added to API calls; template with {{ token }}. bearer: the header the token goes in – Authorization (default,
    * as `Bearer <token>`) or another name, which gets the bare token (GitLab's default: PRIVATE-TOKEN).

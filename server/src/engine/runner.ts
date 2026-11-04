@@ -29,6 +29,7 @@ import { HttpError, newId, nowIso, parseJson, pathInside, sha256, sleep } from '
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { openInputs, sealInputs, secretValuesOf } from './secret-inputs.js';
 import { platformRequest, resolveBaseUrl, secretValues, buildUrl, credentialsAllowed, type HttpResult } from '../platforms/http.js';
+import { assertPathAllowed } from '../platforms/deniedPaths.js';
 import { findRecording, missingRecording } from '../platforms/recordings.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import {
@@ -1539,6 +1540,8 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
     return hit.result;
   };
   const doRequest = async (url: string, q: Record<string, unknown>) => {
+    // paths the kind never calls (a vault's values): refused in a test run too, before a recorded answer is looked up
+    if (ctx.recorded) assertPathAllowed(b.platform.kind, await buildUrl(b.platform, b.secrets, url, q));
     if (ctx.recorded) return replay(url, q);
     const target = await buildUrl(b.platform, b.secrets, url, q);
     // the AWS endpoint the step names is the platform's own origin for this call – only then, not every amazonaws.com host
@@ -1641,15 +1644,18 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
       const page = await extract(res.body);
       items.push(...page);
       if (page.length === 0 || pages >= maxPages) break;
+      // the API says whether more follow (hasNext): a short page is then not the end
+      const more = pg.morePath ? await ctx.data(pg.morePath, res.body) : undefined;
+      if (pg.morePath && !more) break;
       if (pg.mode === 'page') {
         const totalPages = Number(await ctx.data(pg.totalPagesPath ?? 'page.totalPages', res.body));
         pageNo++;
         if (Number.isFinite(totalPages) && totalPages > 0) {
           if (pageNo - (pg.firstPage ?? 0) >= totalPages) break;
-        } else if (page.length < size) break;
+        } else if (page.length < size && !pg.morePath) break;
       } else {
         pageNo += page.length;
-        if (page.length < size) break;
+        if (page.length < size && !pg.morePath) break;
       }
     }
   } else if (pg.mode === 'nextLink') {

@@ -257,10 +257,13 @@
       "services_one": "{{count}} Service, den Sie nicht veröffentlichen dürfen, wurde weggelassen.",
       "services_other": "{{count}} Services, die Sie nicht veröffentlichen dürfen, wurden weggelassen.",
       "team_one": "Das Team-Branding wurde weggelassen (Sie sind nicht Mitglied des Teams).",
-      "team_other": "Das Team-Branding wurde weggelassen (Sie sind nicht Mitglied des Teams)."
+      "team_other": "Das Team-Branding wurde weggelassen (Sie sind nicht Mitglied des Teams).",
+      "segments_one": "{{count}} Segment konnte nicht hinzugefügt werden.",
+      "segments_other": "{{count}} Segmente konnten nicht hinzugefügt werden."
     },
     "copiedFrom": "Kopiert von",
     "copiedAt": "am {{date}} von {{by}}",
-    "copiedFromHidden": "Eine Kopie, angelegt am {{date}} von {{by}} (das Original gibt es nicht mehr oder Sie dürfen es nicht sehen)."
+    "copiedFromHidden": "Eine Kopie, angelegt am {{date}} von {{by}} (das Original gibt es nicht mehr oder Sie dürfen es nicht sehen).",
+    "systemNote": "Die Kopie hat die Attribute und den von Hand eingegebenen Stack und ist in denselben Segmenten, ohne die Adressen des Originals. Der CMDB-Eintrag, die Plattform und die Systeme in einem Segment werden nicht kopiert."
   }
 }

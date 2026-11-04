@@ -165,8 +165,8 @@ registerLinkKind('record', {
   },
 });
 
-/** Services and applications: everyone reads them, unless they belong to teams the reader is not in (#131). */
-const catalogueVisible = (kind: 'service' | 'application', id: string, owners: string | null) => {
+/** Services, applications and systems: everyone reads them, unless they belong to teams the reader is not in (#131). */
+const catalogueVisible = (kind: 'service' | 'application' | 'system', id: string, owners: string | null) => {
   const u = currentUser();
   return !u || canViewCatalogue(u, { kind, id, owners: parseJson<string[]>(owners, []) });
 };
@@ -207,6 +207,27 @@ registerLinkKind('application', {
       .filter((a) => catalogueVisible('application', a.id, a.owners))
       .slice(0, limit)
       .map((a) => ({ kind: 'application' as const, id: a.id, label: a.name, detail: a.vendor || undefined }));
+  },
+});
+
+// Systems (#208): network segments and servers, so firewall changes, documents and tickets can name them; seen like
+// every catalogue item (owning teams, #131).
+registerLinkKind('system', {
+  resolve(id) {
+    const s = db().get<{ name: string; kind: string; vendor: string; owners: string }>('SELECT name, kind, vendor, owners FROM systems WHERE id = ?', id);
+    return s && catalogueVisible('system', id, s.owners)
+      ? { label: s.name, path: `/systems/${id}`, detail: [s.kind, s.vendor].filter(Boolean).join(' · ') }
+      : null;
+  },
+  search(q, limit) {
+    return db()
+      .all<{ id: string; name: string; kind: string; vendor: string; owners: string }>(
+        "SELECT id, name, kind, vendor, owners FROM systems WHERE lower(name) LIKE ? ESCAPE '\\' ORDER BY name",
+        like(q),
+      )
+      .filter((s) => catalogueVisible('system', s.id, s.owners))
+      .slice(0, limit)
+      .map((s) => ({ kind: 'system' as const, id: s.id, label: s.name, detail: [s.kind, s.vendor].filter(Boolean).join(' · ') }));
   },
 });
 

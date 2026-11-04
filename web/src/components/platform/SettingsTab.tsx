@@ -42,7 +42,8 @@ export function requiredSecrets(auth: AuthConfig | undefined): string[] {
     case 'apiKey':
       return ['apiKey'];
     case 'oauth2_client_credentials':
-      return ['clientId', 'clientSecret'];
+      // a client assertion (certificate, v0.5.0) instead of the secret
+      return auth.clientAuth === 'assertion' ? ['clientId', 'privateKey'] : ['clientId', 'clientSecret'];
     case 'jwt':
       return ['privateKey'];
     case 'aws_sigv4':
@@ -264,10 +265,11 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
                     data={[
                       { value: 'basic', label: t('settings.clientAuthBasic') },
                       { value: 'body', label: t('settings.clientAuthBody') },
+                      { value: 'assertion', label: t('settings.clientAuthAssertion') },
                     ]}
                     value={auth.clientAuth ?? 'basic'}
                     allowDeselect={false}
-                    onChange={(v) => setAuth({ clientAuth: (v as 'basic' | 'body') ?? 'basic' })}
+                    onChange={(v) => setAuth({ clientAuth: (v as 'basic' | 'body' | 'assertion') ?? 'basic' })}
                   />
                 </SimpleGrid>
                 <div>

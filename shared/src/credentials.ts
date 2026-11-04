@@ -3,6 +3,7 @@
  * are kept, when they expire or need rotating). Steward never stores a secret
  * value here – there is deliberately no field for one.
  */
+import type { PvSecretReadout, PvVaultLink } from './pvault.js';
 
 export const CREDENTIAL_TYPES = ['apiClient', 'technicalUser', 'password', 'token', 'certificate', 'agentCertificate', 'sshKey', 'other'] as const;
 export type CredentialType = (typeof CREDENTIAL_TYPES)[number];
@@ -160,6 +161,12 @@ export interface Credential {
   certificate: CertificateInfo | null;
   /** Keep "expires at" in sync with a Gatus endpoint's certificate expiry (metrics mode) */
   gatus: { platformId: string; endpointKey: string } | null;
+  /**
+   * The entry's secret in IBM Verify Privilege Vault (v0.5.0, #205): what Steward last read about it (name, template,
+   * folder, last change, expiry – never its value). Its last change counts as the last rotation and its expiry as the
+   * entry's when the entry has none.
+   */
+  vault: (PvVaultLink & { readout: PvSecretReadout | null }) | null;
   reminders: CredentialReminderOverride | null;
   notes: string;
   tags: string[];
@@ -183,6 +190,7 @@ export const CREDENTIAL_EVENT_KINDS = [
   'archived',
   'restored',
   'reminded',
+  'expiryImported',
 ] as const;
 export type CredentialEventKind = (typeof CREDENTIAL_EVENT_KINDS)[number];
 

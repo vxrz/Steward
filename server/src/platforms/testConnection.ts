@@ -1,4 +1,4 @@
-import type { Platform } from '@sm/shared';
+import { PVAULT_KIND, type Platform } from '@sm/shared';
 import { audit } from '../audit.js';
 import { buildUrl, platformRequest, secretValues, tokenInfo } from './http.js';
 import { judgeHttpTest } from './connectionTest.js';
@@ -50,8 +50,31 @@ export async function runConnectionTest(p: Platform, secrets: Record<string, str
     return r;
   };
   const testPath = p.config.testPath || '/';
+  // Microsoft Graph (v0.5.0): the sign-in, the admin consent and every part Steward reads, with what is missing
+  if (p.kind === 'microsoft-graph') {
+    const t0 = Date.now();
+    try {
+      const r = await (await import('../entra/service.js')).testGraph(p, secrets);
+      const message = redactSecrets(r.message, secrets);
+      return done(
+        {
+          ok: r.ok,
+          status: r.ok ? 200 : 0,
+          durationMs: Date.now() - t0,
+          message,
+          body: null,
+          token: tokenInfo(p.id),
+          checks: redactSecrets(r.checks, secrets),
+        },
+        `Connection test "${p.name}": ${message.slice(0, 300)}${r.ok ? '' : ' – failed'}`,
+      );
+    } catch (e) {
+      const message = redactSecrets((e as Error).message, secrets);
+      return done({ ok: false, status: 0, durationMs: Date.now() - t0, message }, `Connection test "${p.name}" failed: ${message.slice(0, 200)}`);
+    }
+  }
   // Kafka (#112) and MQTT (#113) are no HTTP APIs: their test connects to the cluster or broker; AWS (#116) asks STS who it is
-  if (p.kind === 'kafka' || p.kind === 'mqtt' || p.kind === 'aws' || p.kind === 'snowflake') {
+  if (p.kind === 'kafka' || p.kind === 'mqtt' || p.kind === 'aws' || p.kind === 'snowflake' || p.kind === PVAULT_KIND) {
     const t0 = Date.now();
     try {
       let checks: { name: string; ok: boolean; message: string }[] | undefined;
@@ -62,10 +85,21 @@ export async function runConnectionTest(p: Platform, secrets: Record<string, str
             ? await (await import('../aws/service.js')).testAws(p, secrets).then((r) => ((checks = r.checks), r.message))
             : p.kind === 'snowflake'
               ? await (await import('../snowflake/service.js')).testSnowflake(p, secrets)
-              : await (await import('../mqtt/listener.js')).testMqtt(p, secrets);
+              : p.kind === PVAULT_KIND
+                ? // IBM Verify Privilege Vault (#205): signs in, then every read Steward makes, naming missing permissions
+                  await (await import('../pvault/service.js')).testPrivilegeVault(p, secrets).then((r) => ((checks = r.checks), r.message))
+                : await (await import('../mqtt/listener.js')).testMqtt(p, secrets);
       // AWS: every part Steward reads, with what is missing (the test passes when STS works)
       return done(
-        { ok: true, status: 200, durationMs: Date.now() - t0, message, body: null, token: null, ...(checks ? { checks: redactSecrets(checks, secrets) } : {}) },
+        {
+          ok: true,
+          status: 200,
+          durationMs: Date.now() - t0,
+          message,
+          body: null,
+          token: p.kind === PVAULT_KIND ? tokenInfo(p.id) : null,
+          ...(checks ? { checks: redactSecrets(checks, secrets) } : {}),
+        },
         `Connection test "${p.name}": ${message}`,
       );
     } catch (e) {

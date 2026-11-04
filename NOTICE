@@ -10,3 +10,9 @@ Open Font License 1.1 (licence texts next to the font files):
 - Inter, Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
 - JetBrains Mono, Copyright 2020 The JetBrains Mono Project Authors
   (https://github.com/JetBrains/JetBrainsMono)
+
+The tests check Postman exports against the Postman Collection Format v2.1.0
+JSON Schema (server/test/fixtures/postman/collection-v2.1.0.schema.json),
+Copyright Postman, Inc. (https://github.com/postmanlabs/schemas), licensed
+under the Apache License, Version 2.0; bundled into one file with the
+comments removed (the file's "$comment" says what changed).

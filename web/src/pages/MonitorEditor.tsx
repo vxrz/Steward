@@ -101,6 +101,8 @@ const TRYABLE = new Set<CheckType>([
   'mqtt',
   'snowflake',
   'dependency-track',
+  'entra',
+  'privilege-vault',
 ]);
 interface Preview {
   status: MonitorStatus;

@@ -2,6 +2,8 @@ import type { PlatformPreset } from '@sm/shared';
 import { gatusOpenApiSpec } from './gatusSpec.js';
 import { forgejoSpec, githubSpec, gitlabSpec } from './gitSpecs.js';
 import { prometheusSpec } from './prometheusSpec.js';
+import { graphSpec } from './graphSpec.js';
+import { pvaultSpec } from './pvaultSpec.js';
 import { readAsset } from '../reports/pdf/assets.js';
 
 /**
@@ -379,6 +381,57 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'microsoft-graph',
+    label: 'Microsoft Graph (Entra ID, read-only)',
+    description:
+      'One Entra ID tenant through Microsoft Graph, read-only: an access check of source "Entra ID" snapshots users (by user principal name, e-mail addresses as other names, so person reviews include Entra ID), guests, disabled accounts, group memberships (also nested) and owners, directory roles (active and, with Entra ID P2, eligible through PIM) and app role assignments; templates review guests, privileged roles, stale accounts and groups and list app secrets and certificates that expire; monitors check expiring app credentials and Microsoft 365 service health. Register an app in Entra ID with the application permissions User.Read.All, Group.Read.All, Directory.Read.All, AuditLog.Read.All, RoleManagement.Read.Directory and Application.Read.All (optionally ServiceHealth.Read.All) and grant admin consent. Variable tenantId: the directory (tenant) id; credential clientId and either clientSecret or – recommended – certificate and privateKey (sign-in with a client assertion). National clouds: change the base URL (e.g. https://graph.microsoft.us) and the variable loginUrl (https://login.microsoftonline.us). See docs/ENTRA.md.',
+    baseUrl: 'https://graph.microsoft.com',
+    config: {
+      auth: {
+        type: 'oauth2_client_credentials',
+        tokenUrl: '{{ vars.loginUrl }}/{{ vars.tenantId }}/oauth2/v2.0/token',
+        scope: '{{ baseUrl }}/.default',
+        clientAuth: 'body',
+      },
+      variables: { tenantId: '00000000-0000-0000-0000-000000000000', loginUrl: 'https://login.microsoftonline.com' },
+      // Graph throttles with 429 and Retry-After: a few more retries, waiting as long as it asks (up to a minute)
+      http: { retry: { maxRetries: 4, baseDelayMs: 1000, maxDelayMs: 60000 } },
+      testPath: '/v1.0/organization?$select=id,displayName',
+    },
+    secretFields: [
+      { key: 'clientId', label: 'Application (client) ID', help: 'Entra admin center → App registrations → the app → Overview' },
+      {
+        key: 'clientSecret',
+        label: 'Client secret (or use a certificate)',
+        help: 'The secret’s value (not its secret id); leave empty when signing in with a certificate',
+      },
+      {
+        key: 'certificate',
+        label: 'Certificate (PEM, public part)',
+        help: 'The certificate uploaded to the app registration (Certificates & secrets) – Steward sends its thumbprint',
+      },
+      { key: 'privateKey', label: 'Private key of the certificate (PEM, PKCS#8)', help: 'Signs the client assertion; it never leaves Steward' },
+      { key: 'privateKeyPassphrase', label: 'Passphrase of the private key (optional)' },
+    ],
+    docs: [
+      {
+        title: 'Register an application',
+        url: 'https://learn.microsoft.com/entra/identity-platform/quickstart-register-app',
+      },
+      {
+        title: 'Client credentials flow',
+        url: 'https://learn.microsoft.com/entra/identity-platform/v2-oauth2-client-creds-grant-flow',
+      },
+      {
+        title: 'Certificate credentials (client assertion)',
+        url: 'https://learn.microsoft.com/entra/identity-platform/certificate-credentials',
+      },
+      { title: 'Microsoft Graph permissions reference', url: 'https://learn.microsoft.com/graph/permissions-reference' },
+      { title: 'Graph throttling', url: 'https://learn.microsoft.com/graph/throttling' },
+      { title: 'National cloud deployments', url: 'https://learn.microsoft.com/graph/deployments' },
+    ],
+  },
+  {
     kind: 'mqtt',
     label: 'MQTT broker (monitor checks)',
     description:
@@ -448,6 +501,54 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'privilege-vault',
+    label: 'IBM Verify Privilege Vault (privileged access, read-only)',
+    description:
+      'IBM Security Verify Privilege Vault 12 (Delinea Secret Server under the IBM name), on premises or in the cloud, as a source of evidence: access reviews read who may use which secret and folder – directly, through a group or a role, with the permission (List, View, Edit, Owner); the hygiene template, dashboard and monitor check find failed heartbeats, passwords not rotated within N days or expired, automatic changing turned off, secrets without an owner and privileged secrets without checkout or approval; credentials register entries can link their vault secret; the privileged-use template reads views, checkouts and access requests for evidence packs. Steward never reads a secret value: the value endpoints are refused for this kind. Base URL: the application root – https://HOST/SecretServer on premises, https://TENANT.secretservercloud.com in the cloud. Sign-in: a service account (an application account is best) with user name and password; variable domain for a directory account; variables privilegedFolders and privilegedTemplates (comma-separated) name what evidence packs read the privileged use of. For a private CA, add it under the HTTP settings. Minimum permissions and how to check that the account cannot view values: docs/IBM-PAM.md.',
+    baseUrl: 'https://pam.example.local/SecretServer',
+    config: {
+      auth: {
+        type: 'token_request',
+        request: {
+          method: 'POST',
+          url: '/oauth2/token',
+          body: {
+            grant_type: 'password',
+            username: '{{ secrets.username }}',
+            password: '{{ secrets.password }}',
+            // only sent when the variable is set (a directory account)
+            domain: "{{ vars.domain != '' ? vars.domain }}",
+          },
+          bodyType: 'form',
+        },
+        tokenPath: 'access_token',
+        expiresInPath: 'expires_in',
+        headerName: 'Authorization',
+        headerValue: 'Bearer {{ token }}',
+        refresh: {
+          tokenPath: 'refresh_token',
+          request: { method: 'POST', url: '/oauth2/token', body: { grant_type: 'refresh_token', refresh_token: '{{ refreshToken }}' }, bodyType: 'form' },
+        },
+      },
+      // privilegedFolders / privilegedTemplates (comma-separated): what evidence packs read the privileged use of
+      variables: { domain: '', privilegedFolders: '', privilegedTemplates: '' },
+      http: {},
+      testPath: '/api/v1/users/current',
+    },
+    secretFields: [
+      { key: 'username', label: 'Service account (user name)', help: 'An application account or a local user with the read-only role of docs/IBM-PAM.md' },
+      { key: 'password', label: 'Password' },
+    ],
+    docs: [
+      { title: 'Verify Privilege Vault: APIs and scripting', url: 'https://ibm.docs.delinea.com/online-help/isvp-vault/api-scripting/index.htm' },
+      {
+        title: 'Script authentication using tokens',
+        url: 'https://ibm.docs.delinea.com/online-help/isvp-vault/api-scripting/authentication/script-token-auth/index.htm',
+      },
+      { title: 'Developer resources (11.6)', url: 'https://ibm.docs.delinea.com/online-help/isvp-vault-11-6-x/developer-resources/index.htm' },
+    ],
+  },
+  {
     kind: 'generic',
     label: 'Generic REST API',
     description: 'Any HTTP API. Pick the auth type and add an OpenAPI specification for operation lookup.',
@@ -480,4 +581,8 @@ export const PRESET_SPECS: Record<string, () => { name: string; content: string 
   forgejo: () => [{ name: 'Forgejo / Gitea API (subset)', content: JSON.stringify(forgejoSpec(), null, 2) }],
   // PromQL through the MCP gateway and in process steps (v0.3.1)
   prometheus: () => [{ name: 'Prometheus HTTP API (read endpoints)', content: JSON.stringify(prometheusSpec(), null, 2) }],
+  // Entra ID read endpoints (v0.5.0)
+  'microsoft-graph': () => [{ name: 'Microsoft Graph (Entra ID read endpoints)', content: JSON.stringify(graphSpec(), null, 2) }],
+  // metadata only, no value endpoint (#205); the value endpoints are refused for the kind (deniedPaths.ts)
+  'privilege-vault': () => [{ name: 'IBM Verify Privilege Vault REST API (metadata)', content: JSON.stringify(pvaultSpec(), null, 2) }],
 };

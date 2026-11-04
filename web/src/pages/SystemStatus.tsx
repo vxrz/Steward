@@ -3,6 +3,7 @@ import { ActionIcon, Alert, Anchor, Badge, Button, Card, Code, CopyButton, Group
 import { useQuery } from '@tanstack/react-query';
 import { IconCheck, IconCopy, IconExternalLink, IconRefresh } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { BRAND } from '../../../shared/src/brand';
 import type { SystemStatus } from '../../../shared/src/system';
 import { get } from '../api';
@@ -359,6 +360,20 @@ export function SystemStatusPage() {
               {s.security.proxyFromEnvironment !== undefined && (
                 <Row label={t('status.security.proxy')}>
                   <Toggle on={s.security.proxyFromEnvironment} />
+                </Row>
+              )}
+              {s.security.assurancePendingChange !== undefined && (
+                <Row label={t('status.security.assurancePending')}>
+                  {s.security.assurancePendingChange ? (
+                    <Anchor component={Link} to="/settings/assurance" size="sm" data-testid="status-assurance-pending">
+                      {t('status.security.assurancePendingBy', {
+                        user: s.security.assurancePendingChange.requestedBy,
+                        date: fmtDate(s.security.assurancePendingChange.expiresAt),
+                      })}
+                    </Anchor>
+                  ) : (
+                    t('status.security.assuranceNone')
+                  )}
                 </Row>
               )}
             </Section>

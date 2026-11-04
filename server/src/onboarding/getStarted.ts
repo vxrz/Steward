@@ -1,7 +1,9 @@
 import {
   CONFLUENT_KIND,
+  ENTRA_KIND,
   MONITOR_TYPE_KINDS,
   NON_HTTP_KINDS,
+  PVAULT_KIND,
   SNOWFLAKE_KIND,
   isGitPlatformKind,
   type PlatformGetStarted,
@@ -21,6 +23,8 @@ export function accessSourcesFor(kind: string): string[] {
   if (kind === SNOWFLAKE_KIND) return ['snowflake'];
   if (kind === 'aws') return ['aws'];
   if (kind === CONFLUENT_KIND) return ['confluent'];
+  if (kind === ENTRA_KIND) return ['entra'];
+  if (kind === PVAULT_KIND) return ['privilege-vault'];
   return [];
 }
 

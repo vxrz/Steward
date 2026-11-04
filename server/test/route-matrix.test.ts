@@ -213,6 +213,14 @@ const EXPECT: Record<string, Access> = {
   'POST /api/backups/restore-test': ADMIN,
   'GET /api/audit/public-key.pem': ADMIN_AUDITOR,
   'GET /api/audit/export': ADMIN_AUDITOR,
+  // ---- assurance policy (#210): administrators and auditors read it, administrators change it (sessions only) ----
+  'GET /api/assurance/policy': ADMIN_AUDITOR,
+  'PUT /api/assurance/policy': ADMIN,
+  'POST /api/assurance/policy/changes/:changeId/approve': ADMIN,
+  'POST /api/assurance/policy/changes/:changeId/reject': ADMIN,
+  'GET /api/assurance/policy/history': ADMIN_AUDITOR,
+  'GET /api/assurance/policy/as-of': ADMIN_AUDITOR,
+  'GET /api/assurance/report': ADMIN_AUDITOR,
 
   // ---- platforms (no access list: admins manage, designers and operators use) ----
   'GET /api/platform-presets': ALL,
@@ -251,6 +259,8 @@ const EXPECT: Record<string, Access> = {
   'POST /api/platforms/:id/specs/:specId/copy': ADMIN,
   'POST /api/platforms/:id/specs/built-in': ADMIN,
   'GET /api/platforms/:id/operations': USE,
+  // Postman export (#204): who sees the platform (its page shows the same, no secret); audited
+  'GET /api/platforms/:id/export/postman': USE,
   'GET /api/platforms/:id/docs': USE,
   'POST /api/platforms/:id/docs': ADMIN,
   'DELETE /api/platforms/:id/docs/:docId': ADMIN,
@@ -279,6 +289,8 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/processes/:id/access': ADMIN,
   'GET /api/processes/:id/versions': ALL,
   'GET /api/processes/:id/export': ALL,
+  // Postman export (#204): who may view the process; connections only with platforms the caller can see; audited
+  'GET /api/processes/:id/export/postman': ALL,
   'GET /api/processes/:id/scope': ALL,
   'POST /api/processes/:id/evaluate': RUN,
   'POST /api/runs': RUN,
@@ -429,6 +441,9 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/records/:id/links/:linkId': RUN,
   'POST /api/records/:id/attachments': RUN,
   'DELETE /api/records/:id/attachments/:attId': RUN,
+  // evidence after the approval and the approved firewall rules of what a firewall change affects (#208)
+  'POST /api/records/:id/evidence': RUN,
+  'GET /api/records/:id/firewall': ALL,
   'GET /api/records/:id/attachments/:attId/download': ALL,
   'POST /api/records/:id/pdf': ACTIVE,
   'POST /api/records/:id/signed': ACTIVE,
@@ -552,6 +567,10 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/systems/:id': DESIGN,
   'POST /api/systems/:id/sbom/preview': DESIGN,
   'POST /api/systems/:id/sbom': DESIGN,
+  // network context (#208): who may change the system
+  'POST /api/systems/:id/segments': DESIGN,
+  'PUT /api/systems/:id/segments/:segmentLinkId': DESIGN,
+  'DELETE /api/systems/:id/segments/:segmentLinkId': DESIGN,
   'POST /api/applications/:id/systems': DESIGN,
   'PUT /api/applications/:id/systems/:systemLinkId': DESIGN,
   'DELETE /api/applications/:id/systems/:systemLinkId': DESIGN,
@@ -612,8 +631,13 @@ const EXPECT: Record<string, Access> = {
   'GET /api/credentials/:id/history': NOT_VIEWER,
   'POST /api/credentials/:id/rotated': RUN,
   'POST /api/credentials/:id/reviewed': RUN,
+  // the vault link (#205): read now – its editors; find a secret – whoever may use the vault platform
+  'POST /api/credentials/:id/vault/read': RUN,
+  'GET /api/credentials/vault-secrets': USE,
   'POST /api/credentials/:id/restore': ADMIN,
   'POST /api/credentials/:id/archive': ADMIN,
+  // app secrets and certificates of an Entra ID tenant as entries (v0.5.0): who may create entries and use the platform
+  'POST /api/credentials/import/entra': RUN,
 
   // ---- MCP (bearer MCP tokens only; see mcp.test.ts) ----
   'POST /api/mcp': HOOK,
@@ -791,6 +815,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/maintenance-windows/:id/duplicate': DESIGN,
   'POST /api/compliance/access-checks/:accessCheckId/duplicate': DESIGN,
   'POST /api/status-pages/:pageId/duplicate': DESIGN,
+  'POST /api/systems/:id/duplicate': DESIGN,
   // the suggestion for the dialog (fixture: the demo process) and where a copy came from (everyone who sees it)
   'GET /api/duplicates/:kind/:id': DESIGN,
   'GET /api/duplicates/:kind/:id/source': ALL,
@@ -827,6 +852,9 @@ const SESSION_ONLY = [
   'POST /api/auth/step-up/sso/complete',
   'PUT /api/settings',
   'PUT /api/settings/instance',
+  'PUT /api/assurance/policy',
+  'POST /api/assurance/policy/changes/:changeId/approve',
+  'POST /api/assurance/policy/changes/:changeId/reject',
   'POST /api/vault/passphrase',
   'POST /api/vault/lock',
   'POST /api/sync-sources',
@@ -861,6 +889,7 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
       'POST /api/applications/:id/duplicate',
       'POST /api/services/:id/duplicate',
       'POST /api/report-schedules/:id/duplicate',
+      'POST /api/systems/:id/duplicate',
     ].map((k) => [k, { sensitive: { copyAccess: true }, harmless: { copyAccess: false, key: '!' } }]),
   ),
   // allowing an MCP client gives it lasting access as the person (#12); denying needs no confirmation
@@ -917,6 +946,9 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   },
   'POST /api/compliance/evidence-packs': 'always',
   'GET /api/audit/export': 'always',
+  'PUT /api/assurance/policy': 'always',
+  'POST /api/assurance/policy/changes/:changeId/approve': 'always',
+  'GET /api/assurance/report': 'always',
   'PUT /api/audit/anchoring': 'always',
   'PUT /api/audit/archive': 'always',
   'GET /api/audit/archives/:archiveId/file': 'always',
@@ -928,6 +960,19 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'PUT /api/platforms/:id/mcp-gateway': { sensitive: { enabled: true, writes: 'confirm' }, harmless: { enabled: true } },
   'PUT /api/backups/passphrase': 'always',
 };
+
+/**
+ * Control points whose step-up the assurance policy turns on (#210, auth/assurance.ts) – off by default, so they never
+ * ask with the default policy (server/test/assurance.test.ts turns them on).
+ */
+const STEP_UP_BY_POLICY = [
+  'POST /api/records/:id/transition',
+  'POST /api/tasks/:id/verify',
+  'POST /api/compliance/findings/:findingId/document',
+  'POST /api/compliance/findings/:findingId/dismiss',
+  'POST /api/compliance/person-reviews/:reviewId/submit',
+  'POST /api/compliance/person-reviews/:reviewId/approval',
+];
 
 /** GET routes whose fixtures cannot give a 2xx (nothing to find); refusals are still checked. */
 const NO_POSITIVE = new Set([
@@ -1002,6 +1047,7 @@ function fill(url: string): string {
     .replace(/:applicationId/g, fx.application!)
     .replace(/:componentId/g, fx.component!)
     .replace(/:systemLinkId/g, fx.systemLink!)
+    .replace(/:segmentLinkId/g, 'ssg_none')
     .replace(/:systemId/g, fx.system!)
     .replace(/:dutyId/g, fx.duty!)
     .replace(/:skipId/g, fx.dutySkip!)
@@ -1074,6 +1120,8 @@ const QUERY: Record<string, string> = {
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
   'GET /api/ticket-references/open-counts': '?kind=service',
   'GET /api/compliance/coverage': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
+  'GET /api/assurance/policy/as-of': '?at=2026-01-01T00:00:00Z',
+  'GET /api/assurance/report': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
   'GET /api/v1/control-coverage': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
   'GET /api/compliance/tag-targets': '?kind=process&q=',
   'GET /api/compliance/tagged': '?kind=recordType&targetId=rty_ac',
@@ -1406,6 +1454,8 @@ beforeAll(async () => {
   };
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;
+  const vaultPlatform = (await a('GET', '/platforms')).find((p: { kind: string }) => p.kind === 'privilege-vault').id;
+  QUERY['GET /api/credentials/vault-secrets'] = `?platformId=${vaultPlatform}&q=`;
   // compliance: the demo access check with a finding, a control, an access change entry, an evidence pack
   const accessCheck = (await a('GET', '/compliance/access-checks'))[0];
   const sim = await a('POST', '/compliance/demo/simulate-change', { accessCheckId: accessCheck.id });
@@ -1584,7 +1634,7 @@ describe('route permission matrix', () => {
   it('asks for a step-up on every sensitive route (sessions) and refuses API tokens there', async () => {
     const { stepUpRoutes } = await import('../src/app.js');
     expect(stepUpRoutes(s.app), 'routes with a step-up rule (config.stepUp) – see STEP_UP').toEqual(
-      Object.fromEntries(Object.entries(STEP_UP).map(([k, v]) => [k, v === 'always' ? 'always' : 'rule'])),
+      Object.fromEntries([...Object.entries(STEP_UP).map(([k, v]) => [k, v === 'always' ? 'always' : 'rule']), ...STEP_UP_BY_POLICY.map((k) => [k, 'policy'])]),
     );
     // a session of its own that is not confirmed (a sign-in counts as a confirmation: ended here)
     const cookie = await loginCookie(s.base, 'admin', 'Admin-password-1');

@@ -5,7 +5,7 @@ import { db } from '../db.js';
 import { config } from '../config.js';
 import { audit } from '../audit.js';
 import { HttpError, nowIso } from '../util.js';
-import { currentUser, type AuthUser, type SessionMeta } from './context.js';
+import { currentUser, type AuthUser, type SessionMeta, type StepUpDetail } from './context.js';
 import { capabilities } from './permissions.js';
 import { getUser, verifyStepUpPassword } from './users.js';
 import { getProvider } from './sso.js';
@@ -35,6 +35,13 @@ export interface StepUpRule {
   who?: keyof Capabilities | ((req: FastifyRequest) => boolean);
   /** Only these requests are sensitive (default: every request) */
   when?: (req: FastifyRequest) => boolean;
+  /**
+   * The control points of the request (auth/assurance.ts), when they depend on it – e.g. approving a record or closing
+   * a firewall change. Default: the point of `action`. The assurance policy decides whether a confirmation is needed.
+   */
+  points?: (req: FastifyRequest) => string[];
+  /** The point's step-up is off unless the assurance policy turns it on (new control points of 0.5.0) */
+  optional?: boolean;
 }
 
 declare module 'fastify' {
@@ -68,11 +75,11 @@ export function stepUpApplies(req: FastifyRequest, rule: StepUpRule | undefined,
   }
 }
 
-export function steppedUpUntil(s: SessionMeta | undefined, now = Date.now()): number | null {
+export function steppedUpUntil(s: SessionMeta | undefined, now = Date.now(), maxAgeMs = stepUpWindowMs()): number | null {
   if (!s) return null;
   if (s.method === 'emergency') return Number.MAX_SAFE_INTEGER;
   if (s.stepUpAt === null) return null;
-  const until = s.stepUpAt + stepUpWindowMs();
+  const until = s.stepUpAt + Math.min(maxAgeMs, stepUpWindowMs());
   return until > now ? until : null;
 }
 
@@ -91,24 +98,38 @@ export function stepUpInfo(s: SessionMeta | undefined, account: { authSource: st
   return { method: 'none', windowMinutes };
 }
 
-/** The step-up hook (app.ts, inside the request context): undefined (go on) or the refusal to send. */
-export function stepUpCheck(req: FastifyRequest): { status: number; body: Record<string, unknown> } | undefined {
+/** The route's step-up rule when it applies to this request (the hook itself is auth/assurance.ts stepUpCheck). */
+export function applicableRule(req: FastifyRequest): { u: AuthUser; rule: StepUpRule } | undefined {
   const u = currentUser();
   const rule = req.routeOptions.config?.stepUp;
   if (!u || !rule || !stepUpApplies(req, rule, u)) return undefined;
-  return stepUpRefusal(u, rule.action);
+  return { u, rule };
 }
 
-/** The answer for a caller that has not confirmed: `u.session` is unset for API tokens. */
-export function stepUpRefusal(u: AuthUser, action: StepUpAction): { status: number; body: Record<string, unknown> } | undefined {
+/**
+ * The answer for a caller that has not confirmed: `u.session` is unset for API tokens. `opts` (assurance policy): how
+ * old the confirmation may be for this action, and whether it needs multi-factor authentication.
+ */
+export function stepUpRefusal(
+  u: AuthUser,
+  action: StepUpAction,
+  opts: { maxAgeMs?: number; mfa?: boolean; fresh?: boolean } = {},
+): { status: number; body: Record<string, unknown> } | undefined {
   if (!u.session) {
     return {
       status: 403,
       body: { error: 'API tokens cannot do this – sign in to the web UI and confirm it there', code: 'SESSION_REQUIRED', params: { context: 'stepUp' } },
     };
   }
-  if (steppedUpUntil(u.session)) return undefined;
-  const stepUp = { ...stepUpInfo(u.session, getUser(u.id)), action };
+  const maxAgeMs = Math.min(opts.maxAgeMs ?? stepUpWindowMs(), stepUpWindowMs());
+  if (!opts.fresh && steppedUpUntil(u.session, Date.now(), maxAgeMs)) return undefined;
+  const info = stepUpInfo(u.session, getUser(u.id));
+  const stepUp = {
+    ...info,
+    windowMinutes: Math.round(maxAgeMs / 60_000),
+    ...(opts.mfa && info.method === 'sso' ? { mfa: true } : {}),
+    action,
+  };
   return {
     status: 403,
     body: {
@@ -123,9 +144,21 @@ export function stepUpRefusal(u: AuthUser, action: StepUpAction): { status: numb
   };
 }
 
-function markSteppedUp(sessionId: string, method: string, at: number): void {
-  db().run('UPDATE sessions SET step_up_at = ?, step_up_method = ? WHERE id = ?', new Date(at).toISOString(), method, sessionId);
+function markSteppedUp(sessionId: string, method: string, at: number, detail: StepUpDetail | null = null): void {
+  db().run(
+    'UPDATE sessions SET step_up_at = ?, step_up_method = ?, step_up_detail = ? WHERE id = ?',
+    new Date(at).toISOString(),
+    method,
+    detail ? JSON.stringify(detail) : null,
+    sessionId,
+  );
 }
+
+/**
+ * A reference of a session for the audit log (the assurance proof, step-up entries): the same for every entry of one
+ * session, not the session's id (which is the hash of its cookie and stays in the database).
+ */
+export const sessionRef = (sessionId: string): string => crypto.createHash('sha256').update(`steward-session-ref\n${sessionId}`).digest('hex').slice(0, 16);
 
 /** The signed-in session of the request (not an API token). */
 export function requireSession(u: AuthUser | null): AuthUser & { session: SessionMeta } {
@@ -143,9 +176,9 @@ export function recordStepUpFailure(sessionId: string, code: string, message: st
   failures.set(sessionId, { code, message: message.slice(0, 300), at: nowIso() });
 }
 
-export function stepUpStatus(u: AuthUser & { session: SessionMeta }): StepUpStatus {
+export function stepUpStatus(u: AuthUser & { session: SessionMeta }, maxAgeMs?: number): StepUpStatus {
   const info = stepUpInfo(u.session, getUser(u.id));
-  const until = steppedUpUntil(u.session);
+  const until = steppedUpUntil(u.session, Date.now(), maxAgeMs);
   const failure = failures.get(u.session.id);
   return {
     ...info,
@@ -176,7 +209,7 @@ export async function passwordStepUp(u: AuthUser & { session: SessionMeta }, pas
         entityType: 'user',
         entityId: u.id,
         summary: `Confirmation of ${u.username} refused: wrong password (attempt ${(e as { attempt?: number }).attempt ?? 1})`,
-        details: { method: 'password', reason: 'wrong_password', ip },
+        details: { method: 'password', reason: 'wrong_password', ip, session: sessionRef(u.session.id) },
       });
     }
     throw e;
@@ -188,15 +221,15 @@ export async function passwordStepUp(u: AuthUser & { session: SessionMeta }, pas
     entityType: 'user',
     entityId: u.id,
     summary: `${u.username} confirmed it is them with the password (valid ${Math.round(stepUpWindowMs() / 60_000)} min)`,
-    details: { method: 'password', ip },
+    details: { method: 'password', ip, session: sessionRef(u.session.id) },
   });
-  return stepUpStatus({ ...u, session: { ...u.session, stepUpAt: at, stepUpMethod: 'password' } });
+  return stepUpStatus({ ...u, session: { ...u.session, stepUpAt: at, stepUpMethod: 'password', stepUpDetail: null } });
 }
 
 /** Ends the confirmation early (the person is done, like `sudo -k`). */
 export function endStepUp(u: AuthUser & { session: SessionMeta }): void {
   if (u.session.method === 'emergency' || u.session.stepUpAt === null) return;
-  db().run('UPDATE sessions SET step_up_at = NULL, step_up_method = NULL WHERE id = ?', u.session.id);
+  db().run('UPDATE sessions SET step_up_at = NULL, step_up_method = NULL, step_up_detail = NULL WHERE id = ?', u.session.id);
   audit({ action: 'auth.step_up_ended', entityType: 'user', entityId: u.id, summary: `${u.username} ended the confirmation of their session` });
 }
 
@@ -208,6 +241,8 @@ interface Ticket {
   method: 'sso' | 'sso+mfa';
   at: number;
   provider: string;
+  /** auth_time, amr, acr of the ID token */
+  detail?: StepUpDetail;
   expires: number;
 }
 const tickets = new Map<string, Ticket>();
@@ -237,19 +272,26 @@ export function redeemStepUpTicket(u: AuthUser & { session: SessionMeta }, ticke
       entityType: 'user',
       entityId: u.id,
       summary: `Confirmation of ${u.username} refused: the single sign-on was finished for another session or too late`,
-      details: { method: 'sso', reason: 'ticket' },
+      details: { method: 'sso', reason: 'ticket', session: sessionRef(u.session.id) },
     });
     throw new HttpError(403, 'The confirmation belongs to another session or expired – try again', 'STEP_UP_TICKET');
   }
   tickets.delete(ticket);
-  markSteppedUp(u.session.id, t.method, t.at);
+  markSteppedUp(u.session.id, t.method, t.at, t.detail ?? null);
   failures.delete(u.session.id);
   audit({
     action: 'auth.step_up',
     entityType: 'user',
     entityId: u.id,
     summary: `${u.username} confirmed it is them with a fresh sign-in at ${t.provider}${t.method === 'sso+mfa' ? ' (multi-factor)' : ''}`,
-    details: { method: t.method, provider: t.provider },
+    details: {
+      method: t.method,
+      provider: t.provider,
+      session: sessionRef(u.session.id),
+      ...(t.detail?.authTime !== undefined ? { authTime: new Date(t.detail.authTime * 1000).toISOString() } : {}),
+      ...(t.detail?.amr ? { amr: t.detail.amr } : {}),
+      ...(t.detail?.acr ? { acr: t.detail.acr } : {}),
+    },
   });
-  return stepUpStatus({ ...u, session: { ...u.session, stepUpAt: t.at, stepUpMethod: t.method } });
+  return stepUpStatus({ ...u, session: { ...u.session, stepUpAt: t.at, stepUpMethod: t.method, stepUpDetail: t.detail ?? null } });
 }

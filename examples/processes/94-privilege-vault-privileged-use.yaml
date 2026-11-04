@@ -1,0 +1,180 @@
+# steward-min-version: 0.5.0
+name: "IBM Verify Privilege Vault – Privileged use"
+description: |
+  Who used the privileged secrets of IBM Security Verify Privilege Vault in the
+  last days: views, checkouts and check-ins, password displays, launches and
+  edits from each secret's audit, and the access requests with their answer.
+  Privileged: secrets in the given folders (and below) or of the given templates;
+  neither set – every secret of the folder. Metadata only, never a value
+  (docs/IBM-PAM.md). Read-only.
+
+  Recommended schedule: weekly (`0 7 * * 1`) with 8 days. Publishes
+  `pv.privileged-use` (one row per use) for the "Vault hygiene" dashboard; the
+  run protocol is evidence of the period. Evidence packs of the vault platform
+  also read the audit of their own period (docs/COMPLIANCE.md). The newest 500
+  audit records of each secret are read per run – run it often enough.
+tags: [security, privileged-access, privilege-vault, evidence]
+connections:
+  - slot: vault
+    kind: privilege-vault
+    description: IBM Verify Privilege Vault (service account with the read-only role of docs/IBM-PAM.md, including View Secret Audit)
+inputs:
+  - name: days
+    label: The last days
+    type: number
+    default: 8
+  - name: privilegedFolders
+    label: Privileged folders (comma-separated, e.g. \Privileged)
+    type: string
+    default: "\\Privileged"
+  - name: privilegedTemplates
+    label: Privileged templates (comma-separated)
+    type: string
+    default: ""
+steps:
+  - id: secrets
+    type: http
+    name: Secrets (summaries)
+    connection: vault
+    method: GET
+    path: /api/v1/secrets
+    query: { "filter.includeRestricted": "true", "filter.includeInactive": "false" }
+    paginate: { mode: offset, pageParam: skip, sizeParam: take, pageSize: 500, itemsPath: records, morePath: hasNext, maxPages: 40 }
+    saveAs: secrets
+  - id: chosen
+    type: set
+    name: Privileged secrets
+    values:
+      from: "{{ $fromMillis($millis() - (inputs.days ? inputs.days : 8) * 86400000) }}"
+      list: >-
+        {{ (
+          $within := function($path, $folder) { (
+            $p := $lowercase($trim($path));
+            $f := $lowercase($trim($folder));
+            $p = $f or $substring($p, 0, $length($f) + 1) = $f & '\\'
+          ) };
+          $pf := [$split(inputs.privilegedFolders ? inputs.privilegedFolders : '', ',').$trim($)[$ != '']];
+          $pt := [$split(inputs.privilegedTemplates ? inputs.privilegedTemplates : '', ',').$lowercase($trim($))[$ != '']];
+          [vars.secrets.body.(
+            $s := $;
+            ($count($pf) = 0 and $count($pt) = 0) or $count($pf[$within($s.folderPath, $)]) > 0 or $lowercase($s.secretTemplateName) in $pt
+              ? { "id": $s.id, "name": $s.name, "folder": $s.folderPath }
+          )]
+        ) }}
+  - id: read
+    type: forEach
+    name: Audit of each secret (4 in parallel)
+    items: "vars.list"
+    as: secret
+    concurrency: 4
+    maxItems: 2000
+    saveAs: read
+    steps:
+      - id: audits
+        type: http
+        name: Audit (newest 500)
+        connection: vault
+        method: GET
+        path: "/api/v1/secrets/{{ vars.secret.id }}/audits"
+        query: { "sortBy[0].name": "dateRecorded", "sortBy[0].direction": "desc", take: "500" }
+        saveAs: audits
+      - id: uses
+        type: set
+        name: Uses of the secret in the period
+        values:
+          events: >-
+            {{ (
+              $from := $toMillis(vars.from);
+              $ms := function($d) { $d ? $toMillis($contains($d, /([zZ]|[+-][0-9][0-9]:?[0-9][0-9])$/) ? $d : $d & 'Z') : 0 };
+              $system := ['HEARTBEAT', 'HEARTBEATSUCCESS', 'HEARTBEATFAILURE', 'RPC', 'PASSWORDCHANGE', 'CHANGEPASSWORD', 'DISCOVERY'];
+              $s := vars.secret;
+              [vars.audits.body.records[$ms(dateRecorded) >= $from and $not($uppercase($replace(action, ' ', '')) in $system)].{
+                "key": $string($s.id) & '-' & $string(id),
+                "at": dateRecorded,
+                "secret": $s.name,
+                "folder": $s.folder,
+                "user": byUserDisplayName,
+                "action": $uppercase(action),
+                "notes": notes,
+                "ticket": ticketNumber
+              }]
+            ) }}
+  - id: requests
+    type: forEach
+    name: Access requests by state
+    items: "['Approved', 'Denied', 'Canceled', 'Pending']"
+    as: status
+    # in parallel: each state's result is kept (results)
+    concurrency: 2
+    maxItems: 4
+    saveAs: requests
+    steps:
+      - id: page
+        type: http
+        name: Access requests of the state
+        connection: vault
+        method: GET
+        path: /api/v1/secret-access-requests
+        query: { "filter.status": "{{ vars.status }}" }
+        paginate: { mode: offset, pageParam: skip, sizeParam: take, pageSize: 500, itemsPath: records, morePath: hasNext, maxPages: 20 }
+        onError: continue
+        saveAs: page
+      - id: found
+        type: set
+        name: Requests of the state
+        values:
+          found: "{{ vars.page.body ? vars.page.body : [] }}"
+  - id: evaluate
+    type: set
+    name: Uses in the period
+    values:
+      rows: >-
+        {{ (
+          $from := $toMillis(vars.from);
+          $ms := function($d) { $d ? $toMillis($contains($d, /([zZ]|[+-][0-9][0-9]:?[0-9][0-9])$/) ? $d : $d & 'Z') : 0 };
+          $ids := vars.list.id;
+          $secrets := vars.list;
+          $events := [vars.read.results.events];
+          $req := [vars.requests.results.found[secretId in $ids and $ms(requestDate) >= $from].(
+            $r := $;
+            {
+              "key": 'request-' & $string(secretAccessRequestId),
+              "at": requestDate,
+              "secret": secretName,
+              "folder": $join($secrets[id = $r.secretId].folder, ''),
+              "user": requestUsername,
+              "action": 'ACCESS REQUEST ' & $uppercase(status),
+              "notes": requestComment & (approverDisplayName ? ' – answered by ' & approverDisplayName : ''),
+              "ticket": ticketNumber
+            }
+          )];
+          $sort($append($events, $req), function($a, $b) { $a.at > $b.at })
+        ) }}
+  - id: publish
+    type: publish
+    name: Publish the uses
+    dataset: pv.privileged-use
+    title: Privileged use
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: When, value: at }
+      - { label: Secret, value: secret }
+      - { label: Folder, value: folder }
+      - { label: User, value: user }
+      - { label: Action, value: action }
+      - { label: Notes, value: notes }
+      - { label: Ticket, value: ticket }
+    metrics:
+      events: "$count(vars.rows)"
+      views: "$count(vars.rows[$contains(action, 'VIEW') or $contains(action, 'DISPLAY')])"
+      checkouts: "$count(vars.rows[action = 'CHECKOUT'])"
+      requests: "$count(vars.rows[$contains(action, 'ACCESS REQUEST')])"
+      users: "$count($distinct(vars.rows.user))"
+      secrets: "$count(vars.list)"
+    staleAfterMinutes: 11520
+  - id: summary
+    type: log
+    name: Summary
+    level: info
+    message: "{{ $count(vars.rows) }} uses of {{ $count(vars.list) }} privileged secrets since {{ $substring(vars.from, 0, 10) }}"

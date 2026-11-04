@@ -21,6 +21,7 @@ import {
   Textarea,
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
+import { useDebouncedValue } from '@mantine/hooks';
 import { IconPlus, IconShieldLock, IconTrash, IconUpload, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type {
@@ -42,6 +43,7 @@ import type {
   CredentialBelongsKind,
   CredentialBelongsTarget,
 } from '@sm/shared';
+import { PVAULT_KIND } from '@sm/shared';
 import { api, get, getOptional, notifyError, post } from '../../api';
 import { TagInput } from '../tags';
 import { useMe } from '../../auth';
@@ -74,6 +76,8 @@ interface Draft {
   reviewIntervalDays: number | null;
   lastReviewedAt: string | null;
   gatus: { platformId: string; endpointKey: string } | null;
+  /** The secret in IBM Verify Privilege Vault (#205); label: how the picker shows it */
+  vault: { platformId: string; secretId: number; label?: string } | null;
   reminders: CredentialReminderOverride | null;
   notes: string;
   tags: string[];
@@ -82,6 +86,9 @@ interface Draft {
 
 /** Plain e-mail addresses per entry (server: MAX_CREDENTIAL_OWNER_EMAILS). */
 const MAX_OWNER_EMAILS = 10;
+
+/** How a vault secret is shown in the picker: folder, name and id. */
+const vaultLabel = (x: { id: number; name: string; folderPath: string }) => `${x.folderPath ? `${x.folderPath}\\` : ''}${x.name} (#${x.id})`;
 
 const fromEntry = (c: Credential | null): Draft =>
   c
@@ -106,6 +113,13 @@ const fromEntry = (c: Credential | null): Draft =>
         reviewIntervalDays: c.reviewIntervalDays,
         lastReviewedAt: c.lastReviewedAt,
         gatus: c.gatus,
+        vault: c.vault
+          ? {
+              platformId: c.vault.platformId,
+              secretId: c.vault.secretId,
+              label: c.vault.readout?.secret ? vaultLabel({ ...c.vault.readout.secret, folderPath: c.vault.readout.secret.folder }) : `#${c.vault.secretId}`,
+            }
+          : null,
         reminders: c.reminders,
         notes: c.notes,
         tags: c.tags,
@@ -132,6 +146,7 @@ const fromEntry = (c: Credential | null): Draft =>
         reviewIntervalDays: 365,
         lastReviewedAt: null,
         gatus: null,
+        vault: null,
         reminders: null,
         notes: '',
         tags: [],
@@ -202,6 +217,16 @@ export function CredentialEditor({
     queryFn: () => getOptional<GatusEndpointState[]>(`/gatus/sources/${d.gatus!.platformId}/endpoints`, []),
     enabled: !!d.gatus?.platformId,
   });
+  const [vaultSearch, setVaultSearch] = useState('');
+  const [vaultQuery] = useDebouncedValue(vaultSearch, 300);
+  const vaultSecrets = useQuery({
+    queryKey: ['vault-secrets', d.vault?.platformId, vaultQuery],
+    queryFn: () =>
+      get<{ id: number; name: string; folderPath: string; templateName: string }[]>(
+        `/credentials/vault-secrets?platformId=${encodeURIComponent(d.vault!.platformId)}&q=${encodeURIComponent(vaultQuery)}`,
+      ),
+    enabled: !!d.vault?.platformId && vaultQuery.trim().length >= 2,
+  });
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
   const isCert = d.type === 'certificate' || d.type === 'agentCertificate';
   // an uploaded certificate sets the expiry unless a date was entered by hand
@@ -244,8 +269,11 @@ export function CredentialEditor({
     setBusy(true);
     setError(null);
     try {
+      const { vault, ...rest } = d;
       const body = {
-        ...d,
+        ...rest,
+        // the vault link (#205): a platform without a chosen secret is no link
+        vault: vault?.secretId ? { platformId: vault.platformId, secretId: vault.secretId } : null,
         location: { text: d.location.text, url: d.location.url.trim() || null },
         platformText: d.platformId ? '' : d.platformText,
         usedBy: { ...d.usedBy, urls: d.usedBy.urls.map((x) => ({ label: x.label.trim(), url: x.url.trim() })) },
@@ -263,6 +291,11 @@ export function CredentialEditor({
   };
 
   const gatusPlatforms = (platforms.data ?? []).filter((p) => p.kind === 'gatus');
+  const vaultPlatforms = (platforms.data ?? []).filter((p) => p.kind === PVAULT_KIND && p.permissions.includes('use'));
+  const vaultOptions = [
+    ...(d.vault?.secretId ? [{ value: String(d.vault.secretId), label: d.vault.label ?? `#${d.vault.secretId}` }] : []),
+    ...(vaultSecrets.data ?? []).filter((x) => x.id !== d.vault?.secretId).map((x) => ({ value: String(x.id), label: vaultLabel(x) })),
+  ];
   const belongsData = (['application', 'component', 'system'] as const)
     .map((kind) => ({
       group: t(`belongsKinds.${kind}`),
@@ -646,6 +679,37 @@ export function CredentialEditor({
                 value={d.gatus.endpointKey || null}
                 onChange={(v) => set({ gatus: { platformId: d.gatus!.platformId, endpointKey: v ?? '' } })}
                 nothingFoundMessage={t('editor.gatusNoEndpoints')}
+              />
+            )}
+          </SimpleGrid>
+        )}
+
+        {(vaultPlatforms.length > 0 || d.vault) && (
+          <SimpleGrid cols={{ base: 1, sm: 2 }}>
+            <Select
+              label={t('vault.platform')}
+              description={t('vault.platformHint')}
+              clearable
+              data={[
+                ...vaultPlatforms.map((p) => ({ value: p.id, label: p.name })),
+                ...(d.vault && !vaultPlatforms.some((p) => p.id === d.vault!.platformId) ? [{ value: d.vault.platformId, label: d.vault.platformId }] : []),
+              ]}
+              value={d.vault?.platformId ?? null}
+              onChange={(v) => set({ vault: v ? { platformId: v, secretId: 0 } : null })}
+            />
+            {d.vault && (
+              <Select
+                label={t('vault.secret')}
+                description={t('vault.secretHint')}
+                searchable
+                data-testid="credential-vault-secret"
+                data={vaultOptions}
+                value={d.vault.secretId ? String(d.vault.secretId) : null}
+                searchValue={vaultSearch}
+                onSearchChange={setVaultSearch}
+                filter={({ options }) => options}
+                onChange={(v, o) => set({ vault: { platformId: d.vault!.platformId, secretId: v ? Number(v) : 0, label: o?.label } })}
+                nothingFoundMessage={vaultQuery.trim().length >= 2 ? t('vault.noSecrets') : t('vault.typeToSearch')}
               />
             )}
           </SimpleGrid>

@@ -43,6 +43,7 @@ describe('template bundles', () => {
     const list = await s.api('GET', '/template-bundles');
     expect(list.map((b: any) => b.id)).toEqual([
       '10-ih-access-governance',
+      '15-entra-id-access-governance',
       '20-ih-tenant-usage',
       '30-snowflake',
       '40-git-repositories',
@@ -50,6 +51,7 @@ describe('template bundles', () => {
       '60-prometheus-slo',
       '70-kubernetes',
       '80-dependency-track',
+      '90-privileged-access-governance',
     ]);
     for (const b of list) expect(b.problems, b.id).toEqual([]);
     const ag = list[0];
@@ -201,6 +203,23 @@ describe('what next with a platform', () => {
     expect(gh.mcp).toBe(true);
     const aws = await s.api('GET', `/platforms/${byName('AWS (demo)').id}/get-started`);
     expect(aws.templates.map((t: any) => t.id)).toEqual(['63-aws-iam-key-age', '64-aws-costs-per-application']);
+    // Entra ID (v0.5.0): the five templates, the bundle, the monitor check and the access source
+    const entra = await s.api('GET', `/platforms/${byName('Microsoft Graph (demo)').id}/get-started`);
+    expect(entra).toMatchObject({
+      kind: 'microsoft-graph',
+      bundles: [{ id: '15-entra-id-access-governance', name: 'Entra ID access governance' }],
+      monitorTypes: ['entra', 'platform'],
+      monitorExamples: [{ file: '58-entra-app-credentials.yaml', name: 'Entra ID app credentials' }],
+      accessSources: ['entra'],
+      mcp: true,
+    });
+    expect(entra.templates.map((t: any) => t.id)).toEqual([
+      '21-entra-guest-review',
+      '22-entra-privileged-role-review',
+      '23-entra-stale-accounts',
+      '24-entra-group-review',
+      '25-entra-app-credentials',
+    ]);
   });
 });
 

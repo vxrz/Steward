@@ -4,6 +4,7 @@ import {
   Alert,
   Badge,
   Button,
+  Checkbox,
   Code,
   Group,
   Modal,
@@ -22,7 +23,9 @@ import { useSearchParams } from 'react-router-dom';
 import { IconDownload, IconPackageExport, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Control, EvidencePack, EvidencePacksMeta, Platform, ServiceSummary } from '@sm/shared';
-import { apiUrl, del, get, getOptional, notifyError, post } from '../api';
+import { apiUrl, confirmedDownload, del, get, getOptional, notifyError, post } from '../api';
+import { useMe } from '../auth';
+import { assuranceReportUrl } from '../components/assurance/AssurancePolicyPanel';
 import { EmptyState, QueryState, TONE, useCreateParam } from '../components/common';
 import { PeriodPicker, periodRange, presetPeriod, validPeriod, type Period } from '../components/compliance/common';
 import { fmtBytes, fmtDate, fmtRelative } from '../format';
@@ -215,6 +218,9 @@ function NewPackModal({ onClose }: { onClose: () => void }) {
     params.get('from') && params.get('to') ? { preset: 'custom', from: params.get('from')!, to: params.get('to')! } : presetPeriod('90'),
   );
   const [busy, setBusy] = useState(false);
+  // the assurance report of the period (#210): auditors and administrators
+  const { caps } = useMe();
+  const [assurance, setAssurance] = useState(false);
   const controls = useQuery({ queryKey: ['controls-all'], queryFn: () => get<Control[]>('/compliance/controls') });
   const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => getOptional<Platform[]>('/platforms', []) });
   const services = useQuery({ queryKey: ['services'], queryFn: () => getOptional<ServiceSummary[]>('/services', []) });
@@ -235,7 +241,14 @@ function NewPackModal({ onClose }: { onClose: () => void }) {
     setBusy(true);
     try {
       const r = periodRange(period);
-      await post('/compliance/evidence-packs', { title: title.trim() || undefined, scope, from: r.from, to: r.to, lang });
+      await post('/compliance/evidence-packs', {
+        title: title.trim() || undefined,
+        scope,
+        from: r.from,
+        to: r.to,
+        lang,
+        ...(assurance ? { assurance: true } : {}),
+      });
       await qc.invalidateQueries({ queryKey: ['evidence-packs'] });
       onClose();
     } catch (e) {
@@ -306,6 +319,28 @@ function NewPackModal({ onClose }: { onClose: () => void }) {
           onChange={(v) => setLang((v as 'en') ?? 'en')}
           w={{ base: '100%', xs: 200 }}
         />
+        {caps.viewAudit && (
+          <Group gap="xs" wrap="wrap" justify="space-between">
+            <Checkbox
+              label={t('packs.includeAssurance')}
+              description={t('packs.includeAssuranceHint')}
+              checked={assurance}
+              onChange={(e) => setAssurance(e.currentTarget.checked)}
+              data-testid="pack-include-assurance"
+            />
+            <Button
+              component="a"
+              size="xs"
+              variant="default"
+              href={validPeriod(period) ? assuranceReportUrl(periodRange(period), lang) : undefined}
+              onClick={confirmedDownload('exportAuditLog')}
+              disabled={!validPeriod(period)}
+              leftSection={<IconDownload size={14} aria-hidden />}
+            >
+              {t('packs.assuranceReport')}
+            </Button>
+          </Group>
+        )}
         <Alert color="gray" variant="light">
           <Text size="sm">{t('packs.contentsHelp')}</Text>
         </Alert>

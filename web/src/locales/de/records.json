@@ -10,7 +10,9 @@
     "SDR": "Sicherheitsentscheidung",
     "AC": "Zugriffsänderung",
     "DOC": "Servicedokumentation",
-    "PIR": "Incident-Review"
+    "PIR": "Incident-Review",
+    "FWC": "Firewall-Änderung",
+    "FWR": "Freigegebene Firewall-Regeln"
   },
   "builtin": {
     "types": {
@@ -41,6 +43,14 @@
       "PIR": {
         "description": "Eine Nachbetrachtung eines Vorfalls: was wann geschah, die Auswirkungen, die Ursache, die Erkenntnisse und die Maßnahmen gegen eine Wiederholung (mit Verantwortlichen und Fälligkeit). Angenommen von jemand anderem als der Autorin oder dem Autor.",
         "template": "## Zusammenfassung\n\n\n## Zeitlicher Ablauf\n\n\n## Was gut lief\n\n- \n\n## Was besser laufen kann\n\n- \n\n## Erkenntnisse\n\n- \n"
+      },
+      "FWC": {
+        "description": "Eine Änderung von Firewall-Regeln für ein Netzsegment oder ein System: wer sie angefordert hat und warum, die Regelzeilen, wer sie umsetzt (das eigene Team oder ein Dienstleister) und die Nachweise. Freigegeben und geprüft von anderen Personen als der anfordernden und der umsetzenden; das Abschließen aktualisiert die freigegebenen Regeln.",
+        "template": "## Betroffene Segmente und Systeme\n\nUnter Links verknüpfen (Notiz: betroffen).\n\n## Beschreibung\n\n\n## Umsetzung\n\n1. \n\n## Verifizierung\n\n"
+      },
+      "FWR": {
+        "description": "Die freigegebenen Firewall-Regeln eines Netzsegments oder Systems. Jede abgeschlossene Firewall-Änderung entwirft die nächste Ausgabe, die eine freigebende Person bestätigt; die Regeln werden jährlich rezertifiziert.",
+        "template": "## Geltungsbereich\n\n\n## Hinweise\n\n"
       }
     },
     "fields": {
@@ -141,6 +151,23 @@
       "cause": {
         "label": "Ursache",
         "help": "Die Grundursache und was dazu beigetragen hat"
+      },
+      "implementer": {
+        "label": "Umgesetzt durch"
+      },
+      "provider": {
+        "label": "Dienstleister",
+        "help": "Der Dienstleister, der die Änderung umsetzt, falls einer"
+      },
+      "providerTicket": {
+        "label": "Ticket des Dienstleisters",
+        "help": "Die Ticketnummer des Dienstleisters; legen Sie das Ticket auch als Ticket-Referenz an, die diese Änderung nennt"
+      },
+      "rules": {
+        "label": "Regeln"
+      },
+      "approvedRules": {
+        "label": "Freigegebene Regeln"
       }
     },
     "options": {
@@ -169,6 +196,36 @@
         "minor": "gering",
         "major": "erheblich",
         "critical": "kritisch"
+      },
+      "implementer": {
+        "internal": "intern",
+        "provider": "Dienstleister"
+      }
+    },
+    "columns": {
+      "change": "Änderung",
+      "source": "Quelle",
+      "destination": "Ziel",
+      "service": "Protokoll/Port",
+      "action": "Aktion",
+      "enforcedAt": "Durchgesetzt an",
+      "purpose": "Zweck",
+      "expiry": "Ablauf",
+      "approvedBy": "Freigegeben durch Änderung"
+    },
+    "columnOptions": {
+      "change": {
+        "add": "hinzufügen",
+        "remove": "entfernen"
+      },
+      "action": {
+        "allow": "erlauben",
+        "deny": "verweigern"
+      },
+      "enforcedAt": {
+        "perimeter": "Perimeter-Firewall",
+        "host": "Host-Firewall",
+        "cloud": "Cloud-Security-Group"
       }
     }
   },
@@ -297,7 +354,8 @@
       "service": "Service",
       "credential": "Zugangsdaten",
       "application": "Anwendung",
-      "external": "Externer Link"
+      "external": "Externer Link",
+      "system": "System"
     },
     "target": "Ziel",
     "search": "Zum Suchen tippen",
@@ -348,7 +406,13 @@
     "added": "Hinzugefügt",
     "actions": "Aktionen",
     "removeNamed": "{{name}} entfernen",
-    "removeConfirm": "{{name}} aus dem Dokument entfernen?"
+    "removeConfirm": "{{name}} aus dem Dokument entfernen?",
+    "evidence": {
+      "title": "Nachweise",
+      "upload": "Nachweis hinzufügen",
+      "help": "Nach der Freigabe hinzugefügt, z. B. die Bestätigung des Dienstleisters oder ein Regelexport. Nachweise gehören nicht zum freigegebenen Inhalt: Sie werden mit ihrem SHA-256 im Audit-Log festgehalten und lassen sich nicht entfernen.",
+      "empty": "Noch keine Nachweise."
+    }
   },
   "discussion": {
     "comment": "Kommentar",
@@ -518,7 +582,8 @@
       "textarea": "Text (mehrzeilig)",
       "date": "Datum",
       "datetime": "Datum und Uhrzeit",
-      "select": "Auswahl"
+      "select": "Auswahl",
+      "table": "Tabelle"
     },
     "builtinHint": "Eingebaute Dokumentarten werden in der Sprache der jeweiligen Person angezeigt, solange ihre Texte unverändert sind. Texte, die Sie hier ändern, sehen alle so, wie Sie sie eingeben.",
     "reviewInterval": "Überprüfungsintervall (Monate)",
@@ -703,5 +768,38 @@
     "started": "Incident-Review begonnen",
     "openMeasures": "Offene Maßnahmen aus Incident-Reviews",
     "openMeasuresHelp": "Maßnahmen aus Incident-Reviews zu diesem Dienst, die noch nicht erledigt sind."
+  },
+  "table": {
+    "empty": "Keine Zeilen.",
+    "actions": "Aktionen",
+    "cell": "{{column}}, Zeile {{row}}",
+    "removeRow": "Zeile {{n}} entfernen",
+    "addRow": "Zeile hinzufügen",
+    "columns": "Spalten",
+    "columnKey": "Spaltenschlüssel",
+    "columnLabel": "Spaltenbezeichnung",
+    "columnKind": "Spaltenart",
+    "kinds": {
+      "text": "Text",
+      "select": "Auswahl",
+      "date": "Datum"
+    },
+    "removeColumn": "Spalte {{n}} entfernen",
+    "addColumn": "Spalte hinzufügen"
+  },
+  "firewall": {
+    "title": "Gegenüber den freigegebenen Regeln",
+    "help": "Je betroffenem Segment oder System: die freigegebenen Firewall-Regeln und was jede Regelzeile ändert. Das Abschließen der Änderung entwirft jeweils die nächste Ausgabe, die eine freigebende Person bestätigt.",
+    "noSystems": "Verknüpfen Sie zuerst die betroffenen Netzsegmente oder Systeme unter Links.",
+    "noDocument": "Noch keine freigegebenen Regeln – das Abschließen der Änderung legt sie an",
+    "against": "Regelzeilen gegenüber den freigegebenen Regeln von {{name}}",
+    "row": "Zeile {{n}}",
+    "comparison": {
+      "new": "neue Regel",
+      "changed": "ändert eine Regel",
+      "same": "bereits freigegeben",
+      "removes": "entfernt eine Regel",
+      "notFound": "nichts zu entfernen"
+    }
   }
 }

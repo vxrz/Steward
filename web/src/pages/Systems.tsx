@@ -14,6 +14,7 @@ import { EnvironmentBadge, useEnvironmentList } from '../components/catalogue/en
 import { StackFields, stackBody, stackRowsOf, type StackRow } from '../components/catalogue/ComponentsPanel';
 import { ListPage } from '../components/page/ListPage';
 import { platformKeys } from '../queryKeys';
+import { NetworkFields, emptyNetwork, networkErrors } from '../components/catalogue/network';
 
 /** Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on. */
 export function SystemsPage() {
@@ -189,6 +190,9 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
   // a platform the reader may not see stays as it is (null here means "keep" only when hidden)
   const [platformId, setPlatformId] = useState<string | null>(system?.platform?.id ?? null);
   const [stack, setStack] = useState<StackRow[]>(stackRowsOf(system?.stack ?? []));
+  // a network segment (#208): its attributes, all optional
+  const [network, setNetwork] = useState(emptyNetwork(system?.kind === 'network' ? system.attributes : undefined));
+  const [networkShown, setNetworkShown] = useState(false);
   const [busy, setBusy] = useState(false);
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
@@ -196,6 +200,10 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
   });
   const save = async () => {
     if (!v.validate()) return;
+    if (kind === 'network' && Object.keys(networkErrors(network)).length) {
+      setNetworkShown(true);
+      return;
+    }
     setBusy(true);
     const body = {
       name: name.trim(),
@@ -206,6 +214,7 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
       note,
       platformId: system?.platformHidden && platformId === null ? undefined : platformId,
       stack: stackBody(stack),
+      attributes: kind === 'network' ? network : {},
     };
     try {
       onSaved(system ? await put<SystemDetail>(`/systems/${system.id}`, body) : await post<SystemDetail>('/systems', body));
@@ -259,6 +268,7 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
               error={v.error('cmdbUrl')}
             />
           </Group>
+          {kind === 'network' && <NetworkFields value={network} onChange={setNetwork} showErrors={networkShown} />}
           <SubjectsInput label={t('owners')} description={t('systems.ownersHelp')} value={owners} onChange={setOwners} max={20} />
           <Select
             label={t('systems.platform')}

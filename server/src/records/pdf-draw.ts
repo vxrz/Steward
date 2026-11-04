@@ -1,6 +1,7 @@
 import {
   inlineText,
   parseMarkdown,
+  tableRows,
   type MdBlock,
   type RecordAttachment,
   type RecordDetail,
@@ -307,10 +308,12 @@ export async function drawRecordPdf(o: RecordPdfModel): Promise<{ pdf: Buffer; t
   documentControl(w, rec, R, tr, section, personLabel);
 
   // the definitions frozen with the content: labels and options as they were approved
+  const tables = rec.fieldDefs.filter((f) => f.kind === 'table');
+  const simple = rec.fieldDefs.filter((f) => f.kind !== 'table');
   if (rec.fieldDefs.length) {
     section(t('fields'));
     w.keyValues(
-      rec.fieldDefs.map((f) => {
+      simple.map((f) => {
         const raw = rec.fields[f.key] ?? '';
         const value = !raw
           ? '–'
@@ -324,6 +327,24 @@ export async function drawRecordPdf(o: RecordPdfModel): Promise<{ pdf: Buffer; t
         return { label: R.fieldLabel(rec.typeKey, f), value, span: f.kind === 'textarea' ? (2 as const) : (1 as const) };
       }),
     );
+    // table fields (#208): a table each, the columns as defined (more than 9 would not be readable on A4)
+    for (const f of tables) {
+      w.subheading(R.fieldLabel(rec.typeKey, f));
+      const cols = (f.columns ?? []).slice(0, 9);
+      w.table(
+        cols.map((c) => ({ header: R.columnLabel(rec.typeKey, f, c), width: c.kind === 'text' ? 1.6 : 1 })),
+        tableRows(rec.fields[f.key]).map((row) =>
+          cols.map((c) => {
+            const v = row[c.key] ?? '';
+            if (!v) return '–';
+            if (c.kind === 'select') return R.columnOption(rec.typeKey, f, c, v);
+            if (c.kind === 'date') return tr.date(v + 'T12:00:00Z');
+            return v;
+          }),
+        ),
+        { empty: t('none'), size: 7 },
+      );
+    }
   }
 
   section(t('content'));
@@ -343,6 +364,21 @@ export async function drawRecordPdf(o: RecordPdfModel): Promise<{ pdf: Buffer; t
     files.map((f) => [f.filename, tr.bytes(f.size), f.sha256]),
     { empty: t('none'), size: 7.4 },
   );
+  // evidence added after the approval (#208): not content, each with its hash
+  const evidence = rec.attachments.filter((a: RecordAttachment) => a.kind === 'evidence');
+  if (evidence.length) {
+    section(t('evidence'));
+    w.paragraph(t('evidenceIntro'), { tone: 'muted', size: 8 });
+    w.table(
+      [
+        { header: t('file'), width: 3 },
+        { header: t('addedBy'), width: 2.4 },
+        { header: t('sha256'), width: 4.6, mono: true },
+      ],
+      evidence.map((f) => [f.filename, `${tr.dateTime(f.createdAt)} · ${personLabel(f.createdBy)}`, f.sha256]),
+      { size: 7.4 },
+    );
+  }
 
   // external links: "external · Runbook" (built-in types translated, administrators' own as named)
   const linkTypeLabel = (key: string | null) => {

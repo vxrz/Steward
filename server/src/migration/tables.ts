@@ -53,6 +53,8 @@ export const NOT_MOVED: Record<string, string> = {
   imported_audit_log: 'history of earlier moves',
   audit_archives: "archives of this instance's own audit log (the files stay in its data folder; the target starts its own)",
   identity_aliases: 'history of earlier moves',
+  assurance_policy_changes:
+    "pending changes of this instance's assurance policy (7 days at most; the target keeps its own policy, set it there – a second administrator approves loosening it)",
   schema_version: 'maintained by the migrations',
   schema_migrations: 'maintained by the migrations',
   sqlite_sequence: 'SQLite internal',
@@ -144,6 +146,7 @@ export const HISTORY_COLUMNS: string[] = [
   'systems.sbom_imported_by',
   'system_stack.set_by',
   'application_systems.created_by',
+  'system_segments.created_by',
   'access_findings.resolved_by',
   'access_findings.dismiss_requested_by',
   'access_snapshots.taken_by',

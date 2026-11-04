@@ -295,7 +295,7 @@ export function serviceApiRoutes(get: Get): void {
       tag: 'Services',
       summary: 'List systems',
       description:
-        'The systems applications run on (servers, VMs, clusters, appliances, cloud services), ordered by name, with their tech stack, the Steward platform they are, and the applications that run on them per environment.',
+        'The systems applications run on (servers, VMs, clusters, appliances, cloud services, network segments), ordered by name, with their tech stack, the Steward platform they are, the applications that run on them per environment, the attributes of a network segment and the segments a system is in.',
       query: SystemListQuery,
       paginated: true,
       response: {
@@ -326,7 +326,14 @@ export function serviceApiRoutes(get: Get): void {
       response: { $ref: 'SystemEntry#' },
     },
     async (req) => {
-      const { canEdit: _c, credentials: _cr, ...x } = found(() => systems.getSystem((req.params as { systemId: string }).systemId), 'System');
+      const {
+        canEdit: _c,
+        credentials: _cr,
+        members: _m,
+        backlinks: _b,
+        firewall: _f,
+        ...x
+      } = found(() => systems.getSystem((req.params as { systemId: string }).systemId), 'System');
       return x;
     },
   );

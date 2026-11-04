@@ -84,7 +84,8 @@ export function setStepUpHandler(fn: ((info: StepUpInfo) => Promise<boolean>) | 
  * has none. True when the download may start.
  */
 export async function confirmFirst(action: StepUpAction): Promise<boolean> {
-  const s = await get<StepUpStatus>('/auth/step-up');
+  // under the action's rule of the assurance policy (its age, multi-factor)
+  const s = await get<StepUpStatus>(`/auth/step-up?action=${encodeURIComponent(action)}`);
   if (s.until) return true;
   return onStepUp ? onStepUp({ ...s, action }) : false;
 }

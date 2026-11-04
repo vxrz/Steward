@@ -260,7 +260,29 @@
     "dtrackPolicyFail": "A failing policy violation counts like a critical finding",
     "lastReport": "Last report received",
     "lastReportHint": "{{when}} – the condition and status expression see exactly these fields",
-    "lastReportNone": "No report received yet (or the check is not saved yet). Once the gateway reports, its last report is shown here."
+    "lastReportNone": "No report received yet (or the check is not saved yet). Once the gateway reports, its last report is shown here.",
+    "entraMode": "What to check",
+    "entraModes": {
+      "app-credentials": "App secrets and certificates that expire",
+      "service-health": "Microsoft 365 service health"
+    },
+    "entraWithinDays": "Degraded when expiring within (days)",
+    "entraWithinDaysHint": "Per app registration and type, the secret or certificate that lasts longest counts: a rotated one next to a newer one does not.",
+    "entraDownWithinDays": "Down when expiring within (days, expired too)",
+    "entraApps": "App registrations (optional)",
+    "entraAppsHint": "Display names or application ids; empty: every app registration",
+    "entraServices": "Services (optional)",
+    "entraServicesHint": "e.g. Exchange Online, Microsoft Teams; empty: every service. Needs ServiceHealth.Read.All.",
+    "vaultFolder": "Folder (optional)",
+    "vaultFolderHint": "Only secrets of this folder and below, e.g. \\IT\\Servers; empty: every secret the service account may list",
+    "vaultPrivilegedFolders": "Privileged folders",
+    "vaultPrivilegedFoldersHint": "Secrets in these folders (and below) count as privileged: they need checkout and approval, and any finding on them fails the check. Enter a path and press Enter.",
+    "vaultPrivilegedTemplates": "Privileged templates",
+    "vaultPrivilegedTemplatesHint": "Secrets of these templates count as privileged too, e.g. Windows Account",
+    "vaultMaxAgeDays": "Rotated within (days)",
+    "vaultMaxFindings": "Findings allowed",
+    "vaultMaxFindingsHint": "On other than privileged secrets",
+    "vaultFailAs": "When there are findings"
   },
   "detail": {
     "template": "template",
@@ -611,6 +633,14 @@
     "dependency-track": {
       "label": "Vulnerabilities (Dependency-Track)",
       "help": "A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation"
+    },
+    "entra": {
+      "label": "Entra ID (Microsoft Graph)",
+      "help": "App registrations whose secrets or certificates expire within N days, or the Microsoft 365 service health"
+    },
+    "privilege-vault": {
+      "label": "Vault hygiene (IBM Verify Privilege Vault)",
+      "help": "Secrets of IBM Verify Privilege Vault: failed heartbeats, passwords not rotated or expired, automatic changing off, no owner, privileged secrets without checkout or approval"
     }
   },
   "newCheck": {
@@ -629,7 +659,9 @@
     "mqtt": "MQTT topics",
     "monitor": "Sub-monitor",
     "snowflake": "Snowflake table fresh",
-    "dependency-track": "No critical vulnerabilities"
+    "dependency-track": "No critical vulnerabilities",
+    "entra": "App credentials valid",
+    "privilege-vault": "Vault hygiene"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}"

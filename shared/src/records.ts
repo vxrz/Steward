@@ -7,6 +7,7 @@
 import type { ErrorParams } from './errors.js';
 import type { ImportedHistoryRef } from './api.js';
 import type { DocumentApplicationRef, ServiceApplication, ServiceProtectionNeed } from './catalogue.js';
+import { FIREWALL_RECORD_TYPE, FIREWALL_RULES_RECORD_TYPE } from './network.js';
 
 // ---------- workflows ----------
 
@@ -27,6 +28,11 @@ export interface RecordTransitionDef {
   optionalRecord?: boolean;
   /** Living documents: the target when the document already has an approved edition (reject → revising instead of draft) */
   toWithEdition?: string;
+  /**
+   * A second person confirms what someone else did (verifying a change, #208): editors and approvers of the record,
+   * but not whoever did the transition named here (four-eyes)
+   */
+  secondPersonAfter?: string;
 }
 
 export interface RecordWorkflow {
@@ -42,6 +48,11 @@ export interface RecordWorkflow {
   editable?: string[];
   /** Status a new revision starts in (default: the initial status) */
   reviseTo?: string;
+  /**
+   * Statuses in which evidence files can be added (#208): they are not content (the approved content stays frozen and
+   * its hash unchanged), each is kept with its SHA-256 in the audit log and is never removed
+   */
+  evidence?: string[];
   transitions: RecordTransitionDef[];
 }
 
@@ -49,15 +60,18 @@ export const RECORD_WORKFLOWS: Record<RecordWorkflowKey, RecordWorkflow> = {
   change: {
     key: 'change',
     initial: 'draft',
-    statuses: ['draft', 'submitted', 'approved', 'rejected', 'implemented', 'closed', 'cancelled'],
+    statuses: ['draft', 'submitted', 'approved', 'rejected', 'implemented', 'verified', 'closed', 'cancelled'],
     terminal: ['closed', 'cancelled'],
     revisable: ['submitted', 'rejected'],
+    evidence: ['approved', 'implemented'],
     transitions: [
       { action: 'submit', from: ['draft'], to: 'submitted' },
       { action: 'approve', from: ['submitted'], to: 'approved', approval: true },
       { action: 'reject', from: ['submitted'], to: 'rejected', approval: true, commentRequired: true },
       { action: 'implement', from: ['approved'], to: 'implemented' },
-      { action: 'close', from: ['implemented'], to: 'closed' },
+      // optional for change requests, required for firewall changes (#208): someone other than the implementer checks it
+      { action: 'verify', from: ['implemented'], to: 'verified', secondPersonAfter: 'implement' },
+      { action: 'close', from: ['implemented', 'verified'], to: 'closed' },
       { action: 'cancel', from: ['draft', 'submitted'], to: 'cancelled' },
     ],
   },
@@ -124,7 +138,7 @@ export const RECORD_STATUS_COLORS: Record<string, string> = {
   accepted: 'green',
   rejected: 'red',
   implemented: 'teal',
-  closed: 'dark',
+  closed: 'gray',
   cancelled: 'gray',
   superseded: 'orange',
   deprecated: 'yellow',
@@ -133,13 +147,53 @@ export const RECORD_STATUS_COLORS: Record<string, string> = {
   in_review: 'blue',
   published: 'green',
   revising: 'cyan',
-  withdrawn: 'dark',
+  withdrawn: 'gray',
 };
 
 // ---------- record types ----------
 
-export const RECORD_FIELD_KINDS = ['text', 'textarea', 'date', 'datetime', 'select'] as const;
+export const RECORD_FIELD_KINDS = ['text', 'textarea', 'date', 'datetime', 'select', 'table'] as const;
 export type RecordFieldKind = (typeof RECORD_FIELD_KINDS)[number];
+
+/** Kinds of the columns of a table field (#208). */
+export const TABLE_COLUMN_KINDS = ['text', 'select', 'date'] as const;
+export type TableColumnKind = (typeof TABLE_COLUMN_KINDS)[number];
+
+/** A column of a table field: one line of text, a choice or a date per row. */
+export interface RecordTableColumn {
+  /** camelCase key of the cell in each row */
+  key: string;
+  label: string;
+  kind: TableColumnKind;
+  required?: boolean;
+  /** For kind "select" */
+  options?: string[];
+}
+
+/** Limits of a table field: columns per field, rows per value, characters per cell. */
+export const TABLE_LIMITS = { columns: 12, rows: 200, cell: 500, /** the stored value (JSON) */ chars: 100_000 } as const;
+
+/**
+ * The rows of a table field's value. The value is stored as a string like every field (JSON: an array of objects
+ * with a string per column key) so the content hash and the API stay as they are; unreadable values give no rows.
+ */
+export function tableRows(value: string | null | undefined): Record<string, string>[] {
+  if (!value) return [];
+  try {
+    const v: unknown = JSON.parse(value);
+    if (!Array.isArray(v)) return [];
+    return v
+      .filter((r): r is Record<string, unknown> => !!r && typeof r === 'object' && !Array.isArray(r))
+      .map((r) => Object.fromEntries(Object.entries(r).map(([k, x]) => [k, typeof x === 'string' ? x : x === null || x === undefined ? '' : String(x)])));
+  } catch {
+    return [];
+  }
+}
+
+/** A table value as text lines (version comparison, plain exports): one line per row, the cells separated by " | ". */
+export function tableAsText(columns: readonly Pick<RecordTableColumn, 'key'>[], value: string | null | undefined): string[] {
+  return tableRows(value).map((r) => columns.map((c) => r[c.key] ?? '').join(' | '));
+}
 
 export interface RecordFieldDef {
   /** camelCase key in `fields` */
@@ -149,6 +203,8 @@ export interface RecordFieldDef {
   required?: boolean;
   /** For kind "select" */
   options?: string[];
+  /** For kind "table": its columns */
+  columns?: RecordTableColumn[];
   help?: string;
 }
 
@@ -232,6 +288,9 @@ export const DEFAULT_RECORD_TYPES: RecordTypeDefinition[] = [
     template: decisionTemplate('\n## Risk assessment\n\n\n## Review date\n\n'),
     fields: DECISION_FIELDS,
   },
+  // #208: created in existing installations too (records/types.ts), with fixed ids rty_fwc and rty_fwr
+  FIREWALL_RECORD_TYPE,
+  FIREWALL_RULES_RECORD_TYPE,
 ];
 
 /** Fixed id of the built-in type for living documents (created in every installation, also existing ones). */
@@ -384,7 +443,7 @@ export interface DocumentChangelogRow {
  * generically as { kind, id }: a new kind needs a resolver on the server and
  * an entry here.
  */
-export const LINK_KINDS = ['process', 'run', 'monitor', 'platform', 'dashboard', 'record', 'service', 'credential', 'application'] as const;
+export const LINK_KINDS = ['process', 'run', 'monitor', 'platform', 'dashboard', 'record', 'service', 'credential', 'application', 'system'] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];
 
 /**
@@ -486,8 +545,12 @@ export interface Backlink {
 
 export interface RecordAttachment {
   id: string;
-  /** file: part of the content; generated: a PDF Steward made; signed: a signed copy uploaded back; retired: a file of an earlier edition of a living document, no longer part of the content */
-  kind: 'file' | 'generated' | 'signed' | 'retired';
+  /**
+   * file: part of the content; generated: a PDF Steward made; signed: a signed copy uploaded back; retired: a file of
+   * an earlier edition of a living document, no longer part of the content; evidence: added after the approval (e.g.
+   * the provider's confirmation of a change), not content, kept with its SHA-256 (#208)
+   */
+  kind: 'file' | 'generated' | 'signed' | 'retired' | 'evidence';
   filename: string;
   mime: string;
   size: number;
@@ -621,6 +684,8 @@ export interface RecordPermissions {
   uploadSigned: boolean;
   /** Admins may attach a PDF that is not derived from a generated one as a plain attachment */
   attachPlainPdf: boolean;
+  /** May add evidence files (after the approval, change workflow, #208) */
+  attachEvidence: boolean;
 }
 
 export interface RecordDetail extends RecordSummary {

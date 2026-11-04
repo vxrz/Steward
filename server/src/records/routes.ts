@@ -19,6 +19,7 @@ import * as types from './types.js';
 import { addLink, linkInput, linkUpdate, listBacklinks, removeLink, searchTargets, targetVisible, updateLink } from './links.js';
 import {
   addAttachment,
+  addEvidence,
   ATTACHMENT_EXTENSIONS,
   attachmentForDownload,
   contentDisposition,
@@ -29,9 +30,11 @@ import {
 import { exportMarkdown, IMPORT_LIMITS, importMarkdown } from './markdown-io.js';
 import { generateRecordPdf, pdfInput } from './pdf.js';
 import { uploadSignedPdf } from './signed.js';
+import { recordTransitionStepUp } from './assurance.js';
 import * as docs from './documents.js';
 import * as linkTypes from './link-types.js';
 import * as catalogue from '../catalogue/service.js';
+import { firewallContext } from './firewall.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 
@@ -197,7 +200,7 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
   app.put('/records/:id', async (req) => svc.updateRecord(params(req).id!, updateBody.parse(req.body)));
   app.get('/records/:id/versions', async (req) => svc.listVersions(params(req).id!));
   app.get('/records/:id/versions/:version', async (req) => svc.getVersion(params(req).id!, z.coerce.number().int().min(1).parse(params(req).version)));
-  app.post('/records/:id/transition', async (req) => {
+  app.post('/records/:id/transition', { config: { stepUp: recordTransitionStepUp } }, async (req) => {
     const b = z
       .object({
         action: z.string().min(1).max(40),
@@ -277,6 +280,13 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
     const f = await uploadedFile(req, MAX_ATTACHMENT_BYTES);
     return addAttachment(params(req).id!, f.filename, f.data);
   });
+  // evidence after the approval (#208): not content, never removed
+  app.post('/records/:id/evidence', async (req) => {
+    const f = await uploadedFile(req, MAX_ATTACHMENT_BYTES);
+    return addEvidence(params(req).id!, f.filename, f.data);
+  });
+  // firewall changes (#208): the approved rules of what it affects and what each rule line does to them
+  app.get('/records/:id/firewall', async (req) => firewallContext(svc.readRecordRow(params(req).id!)));
   app.delete('/records/:id/attachments/:attId', async (req) => {
     removeAttachment(params(req).id!, params(req).attId!);
     return { ok: true };

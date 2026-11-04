@@ -21,6 +21,16 @@ export interface SessionMeta {
   stepUpAt: number | null;
   /** How: password, sso or sso+mfa */
   stepUpMethod: string | null;
+  /** What the identity provider said at the last step-up (single sign-on): auth_time (s), amr, acr */
+  stepUpDetail?: StepUpDetail | null;
+}
+
+/** The identity provider's claims of a single sign-on confirmation (kept with the session, named in the audit proof). */
+export interface StepUpDetail {
+  authTime?: number;
+  amr?: string[];
+  acr?: string;
+  provider?: string;
 }
 
 interface RequestStore {
@@ -28,6 +38,8 @@ interface RequestStore {
   ip?: string;
   /** Owning teams of all resources, read once per request (auth/policy.ts) */
   teamIndex?: Map<string, { id: string; name: string }[]>;
+  /** How this request met the assurance policy (auth/assurance.ts): written into its audit entries */
+  assurance?: { proofs: Record<string, unknown>[]; consumed: boolean };
 }
 
 /** Per-request context so services can attribute audit entries to the signed-in user. */

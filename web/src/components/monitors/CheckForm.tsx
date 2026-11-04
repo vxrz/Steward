@@ -787,6 +787,136 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
           />
         </>
       )}
+      {c.type === 'entra' && (
+        <>
+          <PlatformSelect
+            value={c.platform}
+            onChange={(v) => set({ platform: v })}
+            platforms={platforms}
+            kind="microsoft-graph"
+            disabled={disabled}
+            error={err('platform')}
+          />
+          <Select
+            label={t('form.entraMode')}
+            allowDeselect={false}
+            disabled={disabled}
+            data={(['app-credentials', 'service-health'] as const).map((m) => ({ value: m, label: t(`form.entraModes.${m}`) }))}
+            value={c.mode ?? 'app-credentials'}
+            onChange={(v) => set({ mode: (v as 'app-credentials' | 'service-health') ?? 'app-credentials' })}
+          />
+          {(c.mode ?? 'app-credentials') === 'app-credentials' ? (
+            <>
+              <Group grow align="flex-start">
+                <NumberInput
+                  label={t('form.entraWithinDays')}
+                  description={t('form.entraWithinDaysHint')}
+                  min={1}
+                  max={365}
+                  disabled={disabled}
+                  value={c.withinDays ?? 30}
+                  onChange={(v) => set({ withinDays: Number(v) || 30 })}
+                />
+                <NumberInput
+                  label={t('form.entraDownWithinDays')}
+                  min={0}
+                  max={365}
+                  disabled={disabled}
+                  value={c.downWithinDays ?? 7}
+                  onChange={(v) => set({ downWithinDays: v === '' ? 7 : Number(v) })}
+                />
+              </Group>
+              <TagsInput
+                error={err('apps')}
+                data-field="apps"
+                label={t('form.entraApps')}
+                description={t('form.entraAppsHint')}
+                disabled={disabled}
+                value={c.apps ?? []}
+                onChange={(v) => set({ apps: v.length ? v : undefined })}
+              />
+            </>
+          ) : (
+            <TagsInput
+              error={err('services')}
+              data-field="services"
+              label={t('form.entraServices')}
+              description={t('form.entraServicesHint')}
+              disabled={disabled}
+              value={c.services ?? []}
+              onChange={(v) => set({ services: v.length ? v : undefined })}
+            />
+          )}
+        </>
+      )}
+      {c.type === 'privilege-vault' && (
+        <>
+          <PlatformSelect
+            value={c.platform}
+            onChange={(v) => set({ platform: v })}
+            platforms={platforms}
+            kind="privilege-vault"
+            disabled={disabled}
+            error={err('platform')}
+          />
+          <TextInput
+            error={err('folder')}
+            data-field="folder"
+            label={t('form.vaultFolder')}
+            description={t('form.vaultFolderHint')}
+            disabled={disabled}
+            value={c.folder ?? ''}
+            onChange={(e) => set({ folder: e.currentTarget.value || undefined })}
+            classNames={{ input: 'mono' }}
+          />
+          <TagsInput
+            label={t('form.vaultPrivilegedFolders')}
+            description={t('form.vaultPrivilegedFoldersHint')}
+            disabled={disabled}
+            value={c.privilegedFolders ?? []}
+            onChange={(v) => set({ privilegedFolders: v })}
+            classNames={{ input: 'mono' }}
+          />
+          <TagsInput
+            label={t('form.vaultPrivilegedTemplates')}
+            description={t('form.vaultPrivilegedTemplatesHint')}
+            disabled={disabled}
+            value={c.privilegedTemplates ?? []}
+            onChange={(v) => set({ privilegedTemplates: v })}
+          />
+          <Group grow align="flex-start">
+            <NumberInput
+              error={err('maxAgeDays')}
+              data-field="maxAgeDays"
+              label={t('form.vaultMaxAgeDays')}
+              min={1}
+              max={3650}
+              disabled={disabled}
+              value={c.maxAgeDays ?? 90}
+              onChange={(v) => set({ maxAgeDays: Number(v) || 90 })}
+            />
+            <NumberInput
+              label={t('form.vaultMaxFindings')}
+              description={t('form.vaultMaxFindingsHint')}
+              min={0}
+              disabled={disabled}
+              value={c.maxFindings ?? 0}
+              onChange={(v) => set({ maxFindings: Number(v) || 0 })}
+            />
+            <Select
+              label={t('form.vaultFailAs')}
+              allowDeselect={false}
+              disabled={disabled}
+              data={[
+                { value: 'down', label: t('status.down') },
+                { value: 'degraded', label: t('status.degraded') },
+              ]}
+              value={c.failAs ?? 'degraded'}
+              onChange={(v) => set({ failAs: (v as 'down' | 'degraded') ?? 'degraded' })}
+            />
+          </Group>
+        </>
+      )}
       {c.type === 'snowflake' && (
         <>
           <PlatformSelect

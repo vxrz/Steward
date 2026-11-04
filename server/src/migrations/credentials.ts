@@ -75,4 +75,14 @@ export const CREDENTIAL_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX credentials_belongs ON credentials(belongs_kind, belongs_id);
     `,
   },
+  {
+    // #205: the entry's secret in IBM Verify Privilege Vault and what was last read about it (metadata, never a value)
+    name: 'credentials-004-vault-link',
+    sql: `
+      ALTER TABLE credentials ADD COLUMN vault_platform_id TEXT;
+      ALTER TABLE credentials ADD COLUMN vault_secret_id INTEGER;
+      ALTER TABLE credentials ADD COLUMN vault_state TEXT;
+      CREATE INDEX credentials_vault ON credentials(vault_platform_id);
+    `,
+  },
 ];

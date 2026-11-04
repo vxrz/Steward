@@ -275,7 +275,10 @@
       },
       "fromEnv": "set by {{name}}",
       "pendingNone": "{{name}}=none takes effect after the first single sign-on of an administrator",
-      "emergencyWindows": "Open emergency access windows"
+      "emergencyWindows": "Open emergency access windows",
+      "assurancePending": "Pending policy change",
+      "assurancePendingBy": "{{user}} asked to loosen the assurance policy – a second administrator approves it (until {{date}})",
+      "assuranceNone": "none"
     },
     "jobs": {
       "title": "Background jobs",

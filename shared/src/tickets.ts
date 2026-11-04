@@ -16,7 +16,7 @@ export const TICKET_OPEN_STATUSES: readonly TicketStatus[] = ['open', 'waitingVe
 export const isTicketOpen = (s: string): boolean => (TICKET_OPEN_STATUSES as readonly string[]).includes(s);
 
 /** Kinds of Steward items a ticket can name as affected (stored in the generic link model). */
-export const TICKET_LINK_KINDS = ['service', 'platform', 'credential', 'record', 'monitor', 'process'] as const satisfies readonly LinkKind[];
+export const TICKET_LINK_KINDS = ['service', 'platform', 'credential', 'record', 'monitor', 'process', 'system'] as const satisfies readonly LinkKind[];
 export type TicketLinkKind = (typeof TICKET_LINK_KINDS)[number];
 
 /** A source of tickets (configurable by administrators). */

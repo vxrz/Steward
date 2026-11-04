@@ -552,6 +552,10 @@
     "data": {
       "title": "Data & retention",
       "description": "How long data is kept, storage, cleanup and backups."
+    },
+    "assurance": {
+      "title": "Assurance policy",
+      "description": "Where a second person (four-eyes) or a fresh confirmation (step-up) is required, the baseline, overrides and the assurance report."
     }
   },
   "endOfLife": {

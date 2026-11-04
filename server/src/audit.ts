@@ -4,7 +4,7 @@ import { db } from './db.js';
 import { likeEscape } from './database/sql.js';
 import { vault, verifySignature } from './vault.js';
 import { canonicalJson, nowIso, parseJson, sha256 } from './util.js';
-import { currentActor, currentUser } from './auth/context.js';
+import { currentActor, currentStore, currentUser } from './auth/context.js';
 import { logger } from './log.js';
 
 /**
@@ -102,6 +102,22 @@ export const PENDING_MAX = 1000;
 const pending: (Capped & { ts: string; actor: string })[] = [];
 let droppedWhileLocked = 0;
 
+/**
+ * Entries written by a request that passed a control point of the assurance policy carry how it was met (who, which
+ * rule, how confirmed – auth/assurance.ts), inside the HMAC chain. Entries of "system" (a job of the request) too.
+ */
+function withAssurance(input: AuditInput): AuditInput {
+  const bag = currentStore()?.assurance;
+  if (!bag?.proofs.length) return input;
+  bag.consumed = true;
+  const d = input.details;
+  const plain = d !== null && typeof d === 'object' && !Array.isArray(d);
+  return {
+    ...input,
+    details: { ...(plain ? (d as Record<string, unknown>) : d === undefined || d === null ? {} : { value: d }), assurance: bag.proofs.map((p) => ({ ...p })) },
+  };
+}
+
 /** Entries of a session opened with emergency access carry the flag in the summary and the details. */
 function flagEmergency(input: AuditInput, grantId: string): AuditInput {
   const d = input.details;
@@ -118,7 +134,7 @@ export function audit(input: AuditInput): AuditEntry {
   // explicitly (a check run, a report); entries of someone else (such as "system") stay unflagged
   const user = currentUser();
   const emergency = user?.emergency && (input.actor === undefined || input.actor === user.username) ? user.emergency : undefined;
-  const c = capped(emergency ? flagEmergency(input, emergency.grantId) : input);
+  const c = capped(withAssurance(emergency ? flagEmergency(input, emergency.grantId) : input));
   if (!vault().unlocked) {
     const e = { ...c, actor: c.actor ?? capText(currentActor(), LIMITS.actor), ts: nowIso() };
     if (pending.length >= PENDING_MAX) {

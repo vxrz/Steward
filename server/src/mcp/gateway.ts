@@ -35,6 +35,7 @@ import { parseYaml, SPEC_YAML } from '../yaml-safe.js';
 import { GATEWAY_TIMEOUT_MS, MAX_GATEWAY_RESPONSE_BYTES, gatewayConcurrency, gatewayRateLimit } from './config.js';
 import { ToolError, cap, cursorArg, defineTool, limitArg, type ToolContext, type ToolDef } from './tooling.js';
 import { createGatewayRequest } from './requests.js';
+import { effectiveMcpMode } from '../auth/assurance-policy.js';
 
 export const READ_METHODS = new Set(['GET', 'HEAD']);
 export const gatewayLimiter = new TokenBucketLimiter();
@@ -58,7 +59,8 @@ function gatewaySemaphore(p: Platform): Semaphore {
  * only as a request a person approves in Steward first (the token owner, or a second person) – never directly.
  */
 export function writeDecision(platform: Platform, op: { method: string }): { allowed: boolean; mode: McpWriteMode; reason: string } {
-  const mode = platform.config.mcpGateway?.writes ?? 'off';
+  // the assurance policy can require a second person for every platform (mcp.write): "confirm" becomes "fourEyes"
+  const mode = effectiveMcpMode(platform.config.mcpGateway?.writes ?? 'off');
   if (mode === 'off')
     return {
       allowed: false,
@@ -357,7 +359,7 @@ export const gatewayTools: ToolDef[] = [
     handler: (a) => {
       const p = gatewayPlatform(a.platformId);
       const all = platforms.listOperations(p.id);
-      const writes = p.config.mcpGateway?.writes ?? 'off';
+      const writes = effectiveMcpMode(p.config.mcpGateway?.writes ?? 'off');
       const read = all.filter((o) => READ_METHODS.has(o.method) || writes !== 'off');
       const words = (a.query ?? '').toLowerCase().split(/\s+/).filter(Boolean);
       const hits = read

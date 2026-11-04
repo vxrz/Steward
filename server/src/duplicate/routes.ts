@@ -26,6 +26,7 @@ const ROUTES: Record<DuplicateKind, { path: string; param: string }> = {
   'maintenance-window': { path: '/maintenance-windows/:id/duplicate', param: 'id' },
   'access-check': { path: '/compliance/access-checks/:accessCheckId/duplicate', param: 'accessCheckId' },
   'status-page': { path: '/status-pages/:pageId/duplicate', param: 'pageId' },
+  system: { path: '/systems/:id/duplicate', param: 'id' },
 };
 
 const param = (req: FastifyRequest, name: string) => String((req.params as Record<string, string>)[name] ?? '');

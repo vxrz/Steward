@@ -1,6 +1,6 @@
 # Single sign-on (OpenID Connect)
 
-Steward signs people in through any OpenID Connect provider: Microsoft Entra ID, Keycloak, Okta, Google Workspace, Authentik, ADFS and others. This page explains how to set up a provider, how the claims of a sign-in become a Steward account, and how to test it without signing anyone in.
+Steward signs people in through any OpenID Connect provider: Microsoft Entra ID, Keycloak, Okta, Google Workspace, Authentik, ADFS and others. This page explains how to set up a provider, how the claims of a sign-in become a Steward account, and how to test it without signing anyone in. Reading an Entra ID tenant for access reviews (users, groups, roles, app credentials) is a platform of its own, with its own app registration: see [ENTRA.md](ENTRA.md).
 
 Sign-in uses the authorization code flow with PKCE ([openid-client](https://github.com/panva/openid-client)). Steward checks the issuer, audience, signature (JWKS), expiry, nonce and state of every ID token. The client secret is stored encrypted with the master passphrase, and the provider's settings are sealed: settings changed outside Steward are refused until an administrator saves them again.
 
@@ -161,6 +161,8 @@ A sign-in whose `auth_time` is fresh confirms the new session right away (with M
 | Generic            | depends                                            | required – check with the test sign-in                                                                                                      | `amr` or `acr_values`, as your provider supports.                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 **Entra ID Conditional Access authentication context** is the strongest option: the policy lives in Entra (MFA strength, device compliance, sign-in frequency _every time_), and Steward only accepts a token that says the policy was met. Tokens of earlier sign-ins don't carry the context, so the step-up always goes through the policy.
+
+**Per action instead of per provider** (0.5.0): the [assurance policy](ASSURANCE.md#multi-factor-authentication) can require MFA for single actions (control points). Steward then asks the provider for it the same way (the provider's acr values or authentication context, else the policy's acr values) and accepts the `amr` values and `acr` values the policy lists. A provider that sends neither (Google) cannot confirm such actions with single sign-on.
 
 ## Presets
 

@@ -35,7 +35,7 @@ type GroupKey = 'industrial' | 'monitoring' | 'cloud' | 'development' | 'messagi
 const GROUPS: { key: GroupKey; kinds: string[] }[] = [
   { key: 'industrial', kinds: ['insights-hub', 'industrial-edge-management', 'mqtt'] },
   { key: 'monitoring', kinds: ['gatus', 'checkmk', 'prometheus', 'zabbix'] },
-  { key: 'cloud', kinds: ['aws', 'kubernetes', 'snowflake', 'kafka', 'confluent-cloud'] },
+  { key: 'cloud', kinds: ['aws', 'kubernetes', 'snowflake', 'kafka', 'confluent-cloud', 'microsoft-graph'] },
   { key: 'development', kinds: ['github', 'gitlab', 'forgejo', 'dependency-track', 'endoflife-date'] },
   { key: 'messaging', kinds: ['teams'] },
 ];

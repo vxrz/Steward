@@ -8,8 +8,8 @@ How Steward signs in to a platform is its **auth type** (_Platforms → a platfo
 | Basic                           | `username`, `password`                                      | many on-prem APIs; on Kafka platforms the Schema Registry key |
 | Static bearer token             | `token`                                                     | GitHub, GitLab, Forgejo, Kubernetes, CheckMk                  |
 | API key                         | `apiKey` (header or query)                                  |                                                               |
-| OAuth2 client credentials       | `clientId`, `clientSecret`                                  | Insights Hub, Entra ID apps                                   |
-| Custom login request            | any, referenced as `{{ secrets.x }}`                        | Industrial Edge Management                                    |
+| OAuth2 client credentials       | `clientId`, `clientSecret` – or `privateKey`, `certificate` | Insights Hub, Microsoft Graph (Entra ID)                      |
+| Custom login request            | any, referenced as `{{ secrets.x }}`                        | Industrial Edge Management, IBM Verify Privilege Vault        |
 | **Key-pair JWT**                | `privateKey` (PEM), optionally `privateKeyPassphrase`       | Snowflake; Google service accounts, Salesforce (exchange)     |
 | **AWS request signing (SigV4)** | `accessKeyId`, `secretAccessKey`, optionally `sessionToken` | AWS APIs, S3 and S3-compatible storage                        |
 
@@ -24,6 +24,20 @@ _Platforms → Add platform_ opens a wizard (v0.4.0): **1** choose a connector (
 The platform page shows the **last connection test** – passed or failed, when, by whom (or the periodic test), its message. **Test periodically** (off by default; every 15 minutes to once a day, platform managers) runs the same test from the server; when it starts failing, the platform's managers (else administrators) get **Platform connection failing**, routed like every other notification ([NOTIFICATIONS.md](NOTIFICATIONS.md)) – once per failing period. Every test is in the audit log (`platform.tested`, `details.periodic` for the periodic one), the setting too (`platform.health_changed`). API: `GET/PUT /api/platforms/:id/health`.
 
 The tab **Get started** lists the same "what's next" as the wizard's last step (`GET /api/platforms/:id/get-started`).
+
+## Custom login request with a refresh token
+
+A custom login (`token_request`) posts its request (`auth.request`), takes the token from the answer (`tokenPath`, default `access_token`) and keeps it until shortly before its lifetime (`expiresInPath`) ends. With **`auth.refresh`** (v0.5.0) an expired token is first renewed with the refresh token of the last answer; only when that fails does Steward sign in again:
+
+```json
+"refresh": {
+  "tokenPath": "refresh_token",
+  "request": { "method": "POST", "url": "/oauth2/token", "bodyType": "form",
+               "body": { "grant_type": "refresh_token", "refresh_token": "{{ refreshToken }}" } }
+}
+```
+
+The refresh token is kept with the cached token in memory, never stored, and masked like it. A `401` from the platform drops both and signs in again. The preset _IBM Verify Privilege Vault_ uses it ([IBM-PAM.md](IBM-PAM.md#sign-in)).
 
 ## Key-pair JWT
 
@@ -48,6 +62,10 @@ http:
 ```
 
 Create the key pair with `openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt -out steward_key.p8` and `openssl rsa -in steward_key.p8 -pubout`, and give the user the public key (`ALTER USER … SET RSA_PUBLIC_KEY = '…'`). The private key goes into the credential `privateKey`; it never leaves Steward.
+
+## Client assertion (certificate)
+
+OAuth2 client credentials can sign in with a **client assertion** instead of the client secret (v0.5.0; RFC 7523 `private_key_jwt`, what Entra ID calls certificate credentials): _Send client credentials as → Client assertion signed with a certificate_ (`clientAuth: assertion`), or simply no `clientSecret` but a `privateKey`. For every token Steward signs a JWT valid for ten minutes – RS256 for an RSA key, PS256 for RSA-PSS, ES256 for EC –, with the client id as `iss` and `sub`, the token URL as `aud`, `nbf`, `iat`, `exp` and a random `jti`, and names the certificate in its header by `x5t#S256` and `x5t` (SHA-256 and SHA-1 thumbprints of the credential `certificate`, the public certificate in PEM; or `x5t` from the variable `certificateThumbprint`, a SHA-1 thumbprint in hex). It posts `client_id`, `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer` and `client_assertion` to the token URL; the private key never leaves Steward. The _scope_ may use `{{ baseUrl }}` and `{{ vars.x }}` like the token URL – Microsoft Graph asks for `{{ baseUrl }}/.default`. See [ENTRA.md](ENTRA.md#certificate-or-client-secret).
 
 ## AWS request signing (SigV4)
 

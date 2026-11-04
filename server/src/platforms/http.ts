@@ -11,8 +11,9 @@ import { logger } from '../log.js';
 import { emit } from '../events.js';
 import { guardedLookup } from './outbound.js';
 import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
-import { JWT_ALGS, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
+import { JWT_ALGS, certificateThumbprints, clientAssertion, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
 import { where as originAndPath } from './answers.js';
+import { assertPathAllowed, stripValues } from './deniedPaths.js';
 
 export interface HttpRequest {
   method: string;
@@ -57,6 +58,8 @@ interface CachedToken {
   header: [string, string];
   fetchedAt: number;
   expiresAt: number;
+  /** token_request with auth.refresh (v0.5.0): renews the token once it expired, before signing in again */
+  refreshToken?: string;
 }
 
 const tokenCache = new Map<string, CachedToken>();
@@ -66,6 +69,22 @@ const dispatcherCache = new Map<string, { stamp: string; dispatcher: Dispatcher 
 export function tokenInfo(platformId: string): { fetchedAt: string; expiresAt: string } | null {
   const t = tokenCache.get(platformId);
   return t ? { fetchedAt: new Date(t.fetchedAt).toISOString(), expiresAt: new Date(t.expiresAt).toISOString() } : awsCredentialInfo(platformId);
+}
+
+/**
+ * The claims of the platform's cached access token when it is a JWT (Entra ID: roles = the application permissions with
+ * admin consent, v0.5.0) – never the token itself; null without a cached JWT.
+ */
+export function tokenClaims(platformId: string): Record<string, unknown> | null {
+  const t = tokenCache.get(platformId);
+  const parts = t?.header[1].replace(/^Bearer\s+/i, '').split('.');
+  if (!parts || parts.length !== 3) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf8')) as unknown;
+    return claims && typeof claims === 'object' && !Array.isArray(claims) ? (claims as Record<string, unknown>) : null;
+  } catch {
+    return null; // not a JWT (an opaque token): no claims to read
+  }
 }
 
 /** Whether the platform logs in for a token that Steward caches (OAuth2 client credentials or a custom login). */
@@ -121,7 +140,8 @@ function dispatcherFor(p: Platform): Dispatcher {
 }
 
 function authScope(p: Platform, secrets: Record<string, string>) {
-  return { vars: p.config.variables ?? {}, secrets, baseUrl: p.baseUrl, platform: { name: p.name, kind: p.kind } };
+  // without a trailing slash, so "{{ baseUrl }}/.default" (Microsoft Graph) stays one URL
+  return { vars: p.config.variables ?? {}, secrets, baseUrl: p.baseUrl.replace(/\/+$/, ''), platform: { name: p.name, kind: p.kind } };
 }
 
 export async function resolveBaseUrl(p: Platform, secrets: Record<string, string>): Promise<string> {
@@ -406,15 +426,26 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       if (cached && cached.expiresAt > Date.now() + 30000) return cached.header;
       let token: string;
       let expiresIn = 1800;
+      let refreshToken: string | undefined;
       if (auth.type === 'oauth2_client_credentials') {
         if (!auth.tokenUrl) throw new Error('OAuth2 token URL is not configured');
-        if (!secrets.clientId || !secrets.clientSecret) throw new Error('Secrets "clientId" and "clientSecret" are required');
+        // a signed client assertion instead of the secret (certificate credentials, v0.5.0): chosen, or no secret but a private key
+        const assertion = auth.clientAuth === 'assertion' || (!secrets.clientSecret && !!secrets.privateKey?.trim());
+        if (!secrets.clientId || (!assertion && !secrets.clientSecret))
+          throw new Error('Secrets "clientId" and "clientSecret" (or "privateKey" with "certificate" for a client assertion) are required');
         const url = await renderString(auth.tokenUrl, scope);
         const form: Record<string, string> = { grant_type: 'client_credentials' };
-        if (auth.scope) form.scope = auth.scope;
+        // the scope may name the base URL or a variable (Microsoft Graph: {{ baseUrl }}/.default, national clouds)
+        if (auth.scope) form.scope = await renderString(auth.scope, scope);
         for (const [k, v] of Object.entries(auth.extraParams ?? {})) form[k] = await renderString(v, scope);
         const headers: Record<string, string> = {};
-        if ((auth.clientAuth ?? 'basic') === 'basic') {
+        if (assertion) {
+          const key = privateKeyOf(secrets.privateKey, secrets.privateKeyPassphrase);
+          const thumbprints = certificateThumbprints(secrets.certificate, String(p.config.variables?.certificateThumbprint ?? ''));
+          form.client_id = secrets.clientId;
+          form.client_assertion_type = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
+          form.client_assertion = clientAssertion(key, { clientId: secrets.clientId, tokenUrl: url, thumbprints });
+        } else if ((auth.clientAuth ?? 'basic') === 'basic') {
           headers.authorization = 'Basic ' + Buffer.from(`${secrets.clientId}:${secrets.clientSecret}`).toString('base64');
         } else {
           form.client_id = secrets.clientId;
@@ -428,33 +459,26 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       } else {
         const rq = auth.request;
         if (!rq?.url) throw new Error('Login request URL is not configured');
-        const url = await renderString(rq.url, scope);
-        const fullUrl = /^https?:/i.test(url) ? url : (await resolveBaseUrl(p, secrets)) + url;
-        const r = await rawRequest(
-          p,
-          {
-            method: rq.method ?? 'POST',
-            url: fullUrl,
-            headers: (await render(rq.headers ?? {}, scope)) as Record<string, string>,
-            body: rq.body === undefined ? undefined : await render(rq.body, scope),
-            bodyType: rq.bodyType ?? 'json',
-          },
-          signal,
-        );
-        if (!r.ok) throw new Error(`Login request ${rq.method ?? 'POST'} ${where(fullUrl)} failed with HTTP ${r.status}: ${short(r.body)}`);
-        const t = await evalExpr(auth.tokenPath || 'access_token', r.body, { headers: r.headers });
-        if (!t || typeof t !== 'string') throw new Error(`Login response did not contain a token at "${auth.tokenPath}"`);
-        token = t;
-        if (auth.expiresInPath) {
-          const e = Number(await evalExpr(auth.expiresInPath, r.body));
-          if (e > 0) expiresIn = e;
+        let got: Awaited<ReturnType<typeof tokenCall>> | null = null;
+        // an expired token with a refresh token (v0.5.0): renew it first, sign in again only when that fails
+        if (auth.refresh?.request?.url && cached?.refreshToken) {
+          try {
+            got = await tokenCall(p, secrets, auth, auth.refresh.request, { ...scope, refreshToken: cached.refreshToken }, 'Token refresh', signal);
+            got.refreshToken ??= cached.refreshToken;
+          } catch (e) {
+            logger.debug({ platform: p.name, error: (e as Error).message.slice(0, 300) }, 'token refresh failed – signing in again');
+          }
         }
+        got ??= await tokenCall(p, secrets, auth, rq, scope, 'Login request', signal);
+        token = got.token;
+        if (got.expiresIn) expiresIn = got.expiresIn;
+        refreshToken = got.refreshToken;
       }
       const headerName = (auth.headerName || 'Authorization').toLowerCase();
       const headerValue = await renderString(auth.headerValue || 'Bearer {{ token }}', { ...scope, token });
       const header: [string, string] = [headerName, headerValue];
       const now = Date.now();
-      tokenCache.set(p.id, { header, fetchedAt: now, expiresAt: now + expiresIn * 1000 });
+      tokenCache.set(p.id, { header, fetchedAt: now, expiresAt: now + expiresIn * 1000, ...(refreshToken ? { refreshToken } : {}) });
       return header;
     }
     case 'jwt': {
@@ -495,6 +519,47 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
     default:
       throw new Error(`Unsupported auth type ${(auth as AuthConfig).type}`);
   }
+}
+
+type TokenRequest = NonNullable<AuthConfig['request']>;
+
+/** One login or refresh call of a token_request platform: the token, its lifetime and the refresh token (auth.refresh). */
+async function tokenCall(
+  p: Platform,
+  secrets: Record<string, string>,
+  auth: AuthConfig,
+  rq: TokenRequest,
+  scope: Record<string, unknown>,
+  what: string,
+  signal?: AbortSignal,
+): Promise<{ token: string; expiresIn: number | null; refreshToken?: string }> {
+  const url = await renderString(rq.url, scope);
+  const fullUrl = /^https?:/i.test(url) ? url : (await resolveBaseUrl(p, secrets)) + url;
+  const r = await rawRequest(
+    p,
+    {
+      method: rq.method ?? 'POST',
+      url: fullUrl,
+      headers: (await render(rq.headers ?? {}, scope)) as Record<string, string>,
+      body: rq.body === undefined ? undefined : await render(rq.body, scope),
+      bodyType: rq.bodyType ?? 'json',
+    },
+    signal,
+  );
+  if (!r.ok) throw new Error(`${what} ${rq.method ?? 'POST'} ${where(fullUrl)} failed with HTTP ${r.status}: ${short(r.body)}`);
+  const t = await evalExpr(auth.tokenPath || 'access_token', r.body, { headers: r.headers });
+  if (!t || typeof t !== 'string') throw new Error(`${what === 'Login request' ? 'Login' : what} response did not contain a token at "${auth.tokenPath}"`);
+  let expiresIn: number | null = null;
+  if (auth.expiresInPath) {
+    const e = Number(await evalExpr(auth.expiresInPath, r.body));
+    if (e > 0) expiresIn = e;
+  }
+  let refreshToken: string | undefined;
+  if (auth.refresh?.tokenPath) {
+    const rt = await evalExpr(auth.refresh.tokenPath, r.body);
+    if (typeof rt === 'string' && rt) refreshToken = rt;
+  }
+  return { token: t, expiresIn, ...(refreshToken ? { refreshToken } : {}) };
 }
 
 // ---------- AWS SigV4 (#114) ----------
@@ -719,6 +784,8 @@ async function followRedirects(
   let sawHttps = /^https:/i.test(url);
   const leakValues = secretValues(secrets);
   for (let hop = 0; ; hop++) {
+    // paths the kind never calls (v0.5.0): a redirect cannot lead there either
+    assertPathAllowed(p.kind, url);
     const hopTrusted = await credentialsAllowed(p, secrets, url);
     // AWS SigV4: only requests to the platform's own origins are signed
     let sign: HttpRequest['sign'];
@@ -797,6 +864,8 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
     query[p.config.auth.apiKeyName || 'api_key'] = secrets.apiKey ?? '';
   }
   const url = await buildUrl(p, secrets, req.url, query);
+  // paths the kind never calls, e.g. a vault's secret values (v0.5.0, deniedPaths.ts)
+  assertPathAllowed(p.kind, url);
   if (!trusted) {
     let host = '';
     try {
@@ -835,7 +904,9 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
     const retryable = error ? !!error.retryable : RETRYABLE_STATUS.has(res!.status);
     if (!retryable || !mayRetry || attempt > policy.maxRetries || signal?.aborted) {
       if (error) throw error;
-      return attempt > 1 ? { ...res!, attempts: attempt } : res!;
+      // value keys of a vault's answers never leave this function (deniedPaths.ts)
+      const out = { ...res!, body: stripValues(p.kind, res!.body) };
+      return attempt > 1 ? { ...out, attempts: attempt } : out;
     }
     const delay = retryDelay(policy, attempt, res?.headers['retry-after']);
     const info = {
@@ -871,6 +942,6 @@ export function secretValues(secrets: Record<string, string>): string[] {
   const vals = Object.entries(secrets)
     .filter(([k, v]) => typeof v === 'string' && v.length >= 4 && !IDENTIFIER_KEYS.test(k))
     .map(([, v]) => v);
-  const tok = [...tokenCache.values()].map((t) => t.header[1].replace(/^(Bearer|Basic)\s+/i, ''));
+  const tok = [...tokenCache.values()].flatMap((t) => [t.header[1].replace(/^(Bearer|Basic)\s+/i, ''), ...(t.refreshToken ? [t.refreshToken] : [])]);
   return [...vals, ...tok];
 }

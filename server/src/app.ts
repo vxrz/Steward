@@ -20,7 +20,8 @@ import { LINK_PARAM, readCookie, SESSION_COOKIE, SESSION_HEADER } from './auth/c
 import { connectVaultToDatabase } from './vault-rotation.js';
 import { instanceRoutes } from './instance.js';
 import { bearerToken, tokenUser } from './auth/tokens.js';
-import { stepUpCheck, type StepUpRule } from './auth/step-up.js';
+import type { StepUpRule } from './auth/step-up.js';
+import { recordUnwrittenProofs, stepUpCheck } from './auth/assurance.js';
 import { logger } from './log.js';
 import { publicApi } from './api/index.js';
 import { clientConfig, cspConnectSources, reportError } from './errorReporting.js';
@@ -186,7 +187,7 @@ const ANONYMOUS_BODY_LIMIT = 64 * 1024;
  * sets one): the route permission matrix test checks them all.
  */
 type RegisteredRoute = { method: string; url: string; bodyLimit?: number };
-type TableRow = RegisteredRoute & { stepUp?: 'always' | 'rule'; route: { url: string; config?: unknown } };
+type TableRow = RegisteredRoute & { stepUp?: 'always' | 'rule' | 'policy'; route: { url: string; config?: unknown } };
 const ROUTE_TABLES = new WeakMap<FastifyInstance, TableRow[]>();
 export const registeredRoutes = (app: FastifyInstance): RegisteredRoute[] =>
   (ROUTE_TABLES.get(app) ?? []).map(({ method, url, bodyLimit }) => ({ method, url, ...(bodyLimit !== undefined ? { bodyLimit } : {}) }));
@@ -208,7 +209,7 @@ export function resolveAccess(url: string, routeConfig: unknown): ResolvedAccess
 export const routeAccess = (app: FastifyInstance): Record<string, ResolvedAccess> =>
   Object.fromEntries((ROUTE_TABLES.get(app) ?? []).map((r) => [`${r.method} ${r.url}`, resolveAccess(r.url, r.route.config)]));
 /** Routes with a step-up rule (auth/step-up.ts): "always", or "rule" when only some requests are sensitive. */
-export const stepUpRoutes = (app: FastifyInstance): Record<string, 'always' | 'rule'> =>
+export const stepUpRoutes = (app: FastifyInstance): Record<string, 'always' | 'rule' | 'policy'> =>
   Object.fromEntries((ROUTE_TABLES.get(app) ?? []).filter((r) => r.stepUp).map((r) => [`${r.method} ${r.url}`, r.stepUp!]));
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
@@ -250,7 +251,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   ROUTE_TABLES.set(app, routeTable);
   app.addHook('onRoute', (r) => {
     const rule = (r.config as { stepUp?: StepUpRule } | undefined)?.stepUp;
-    const stepUp = !rule ? undefined : rule.when ? ('rule' as const) : ('always' as const);
+    // 'policy': a control point whose step-up an administrator turns on (auth/assurance.ts) – off by default
+    const stepUp = !rule ? undefined : rule.optional ? ('policy' as const) : rule.when ? ('rule' as const) : ('always' as const);
     // the route object itself: plugins (public API, MCP) add to its config after this hook
     for (const method of [r.method].flat())
       if (method !== 'HEAD') routeTable.push({ method, url: r.url, bodyLimit: r.bodyLimit, route: r, ...(stepUp ? { stepUp } : {}) });
@@ -394,6 +396,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     if (refusal) return void reply.code(refusal.status).send(refusal.body);
     done();
   });
+  // a confirmed step-up whose route wrote no audit entry is recorded on its own (auth/assurance.ts)
+  app.addHook('onResponse', async (req, reply) => recordUnwrittenProofs(req, reply));
 
   // One log line per API request: debug for routine reads, info for changes, warn/error for problems.
   app.addHook('onResponse', async (req, reply) => {

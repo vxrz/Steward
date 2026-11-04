@@ -18,7 +18,7 @@ import { audit } from '../audit.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { checkPasswordPolicy, dummyHash, hashPassword, temporaryPassword, verifyPasswordAsync } from './passwords.js';
 import { recordFailedLogin } from './login-audit.js';
-import type { AuthUser, SessionMeta } from './context.js';
+import type { AuthUser, SessionMeta, StepUpDetail } from './context.js';
 import { passwordLoginMode } from '../settings.js';
 import { config } from '../config.js';
 import { aliasTarget, invalidateAliases, teamAliasTarget } from './aliases.js';
@@ -677,7 +677,7 @@ export function createSession(
   username: string,
   meta: { ip?: string; userAgent?: string },
   method: string,
-  opts: { emergencyGrantId?: string; stepUp?: { at: number; method: string } } = {},
+  opts: { emergencyGrantId?: string; stepUp?: { at: number; method: string; detail?: StepUpDetail } } = {},
 ): CreatedSession {
   const token = crypto.randomBytes(32).toString('base64url');
   const sessionKey = crypto.randomBytes(32).toString('base64url');
@@ -686,7 +686,7 @@ export function createSession(
   const emergency = !!opts.emergencyGrantId;
   db().tx(() => {
     db().run(
-      'INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, ip, user_agent, binding, method, emergency_grant_id, step_up_at, step_up_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, ip, user_agent, binding, method, emergency_grant_id, step_up_at, step_up_method, step_up_detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       hashToken(token),
       userId,
       ts,
@@ -701,6 +701,7 @@ export function createSession(
       // a sign-in is a confirmation too: the password just entered, or a fresh sign-in at the provider (auth_time, see sso.ts)
       opts.stepUp ? new Date(opts.stepUp.at).toISOString() : method === 'password' && !emergency ? ts : null,
       opts.stepUp ? opts.stepUp.method : method === 'password' && !emergency ? 'password' : null,
+      opts.stepUp?.detail ? JSON.stringify(opts.stepUp.detail) : null,
     );
     db().run('UPDATE users SET last_login_at = ? WHERE id = ?', ts, userId);
     db().run('DELETE FROM sessions WHERE expires_at < ?', ts);
@@ -777,6 +778,7 @@ export function sessionUser(token: string | undefined, binding: SessionBinding):
     method: string | null;
     step_up_at: string | null;
     step_up_method: string | null;
+    step_up_detail?: string | null;
   }>('SELECT * FROM sessions WHERE id = ?', id);
   if (!s) return null;
   const now = Date.now();
@@ -814,6 +816,7 @@ export function sessionUser(token: string | undefined, binding: SessionBinding):
     method: emergency ? 'emergency' : s.method === 'sso' ? 'sso' : 'password',
     stepUpAt: s.step_up_at ? Date.parse(s.step_up_at) : null,
     stepUpMethod: s.step_up_method,
+    stepUpDetail: parseJson<StepUpDetail | null>(s.step_up_detail ?? null, null),
   };
   if (emergency) {
     // An emergency session is for fixing sign-in: no forced password change in between.

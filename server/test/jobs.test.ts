@@ -172,6 +172,7 @@ describe('background jobs', () => {
       'aws',
       'snowflake',
       'dependency-track',
+      'vault-links',
       'daily-summary',
       'cleanup',
       'audit-checkpoint',

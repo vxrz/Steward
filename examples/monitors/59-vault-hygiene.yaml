@@ -1,0 +1,24 @@
+# Vault hygiene (#205): IBM Verify Privilege Vault's secrets, metadata only. Degraded when a secret has a finding –
+# a failed heartbeat, a password not changed within 90 days or expired, automatic changing off, no owner – and always
+# when a privileged secret (in \Privileged or of the template Windows Account) has one, including missing checkout or
+# approval. The platform is the name of your vault platform (or its beginning); on import you choose it otherwise.
+# Adjust the folders and templates that count as privileged. See docs/IBM-PAM.md.
+kind: monitor
+key: vault-hygiene
+name: Vault hygiene
+description: Failed heartbeats, passwords not rotated, missing owners and privileged secrets without checkout or approval in IBM Verify Privilege Vault.
+tags: [security, privilege-vault]
+intervalSeconds: 3600
+aggregate: { rule: worst }
+checks:
+  - id: privileged
+    name: Privileged secrets
+    type: privilege-vault
+    platform: IBM Verify Privilege Vault
+    maxAgeDays: 90
+    privilegedFolders: ['\Privileged']
+    privilegedTemplates: [Windows Account]
+    maxFindings: 0
+    failAs: degraded
+    x: 0
+    y: 0

@@ -15,7 +15,7 @@ import { TicketForm } from './TicketForm';
  * "Open tickets" on a service, platform or record page: the ticket references that name the item as
  * affected (open ones first; resolved and closed on request).
  */
-export function TicketsPanel({ kind, id, label }: { kind: 'service' | 'platform' | 'record' | 'credential'; id: string; label: string }) {
+export function TicketsPanel({ kind, id, label }: { kind: 'service' | 'platform' | 'record' | 'credential' | 'system'; id: string; label: string }) {
   const { t } = useTranslation('tickets');
   const qc = useQueryClient();
   const navigate = useNavigate();

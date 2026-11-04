@@ -1,0 +1,222 @@
+# steward-min-version: 0.5.0
+name: "IBM Verify Privilege Vault – Secret hygiene"
+description: |
+  Reads the secrets of IBM Security Verify Privilege Vault (metadata only, never
+  a value – docs/IBM-PAM.md) and finds what needs attention: failed heartbeats,
+  passwords not changed within the given days (or never, or the last change
+  failed), expired passwords, automatic password changing turned off, secrets
+  nobody owns, and privileged secrets without checkout or without approval.
+  Privileged: secrets in the given folders (and below) or of the given
+  templates. Read-only.
+
+  Recommended schedule: daily (`0 6 * * *`), with "message on change" in the
+  schedule's notification policy. Publishes `pv.hygiene` (one row per secret;
+  metrics secrets, privileged, findings and one per kind) for the "Vault
+  hygiene" dashboard. Monitors use the check type "Vault hygiene (IBM Verify
+  Privilege Vault)" for the same findings.
+tags: [security, privileged-access, privilege-vault, credentials]
+connections:
+  - slot: vault
+    kind: privilege-vault
+    description: IBM Verify Privilege Vault (service account with the read-only role of docs/IBM-PAM.md)
+inputs:
+  - name: maxAgeDays
+    label: Rotated within (days)
+    type: number
+    default: 90
+  - name: privilegedFolders
+    label: Privileged folders (comma-separated, e.g. \Privileged)
+    type: string
+    default: "\\Privileged"
+  - name: privilegedTemplates
+    label: Privileged templates (comma-separated, e.g. Windows Account)
+    type: string
+    default: ""
+  - name: folder
+    label: Only this folder and below (empty – all the account may list)
+    type: string
+    default: ""
+  - name: checkOwner
+    label: Check that every secret has an owner (one call per secret)
+    type: boolean
+    default: true
+steps:
+  - id: secrets
+    type: http
+    name: Secrets (summaries)
+    connection: vault
+    method: GET
+    path: /api/v1/secrets
+    query: { "filter.includeRestricted": "true", "filter.includeInactive": "false" }
+    paginate: { mode: offset, pageParam: skip, sizeParam: take, pageSize: 500, itemsPath: records, morePath: hasNext, maxPages: 40 }
+    saveAs: secrets
+  - id: folders
+    type: http
+    name: Folders (for inherited permissions)
+    connection: vault
+    method: GET
+    path: /api/v1/folders
+    query: { "filter.folderTypeId": "1" }
+    paginate: { mode: offset, pageParam: skip, sizeParam: take, pageSize: 500, itemsPath: records, morePath: hasNext, maxPages: 20 }
+    when: "inputs.checkOwner = true"
+    saveAs: folders
+  - id: chosen
+    type: set
+    name: Secrets in scope
+    values:
+      list: >-
+        {{ (
+          $within := function($path, $folder) { (
+            $p := $lowercase($trim($path));
+            $f := $lowercase($trim($folder));
+            $f = '' or $p = $f or $substring($p, 0, $length($f) + 1) = $f & '\\'
+          ) };
+          $pf := [$split(inputs.privilegedFolders ? inputs.privilegedFolders : '', ',').$trim($)[$ != '']];
+          $pt := [$split(inputs.privilegedTemplates ? inputs.privilegedTemplates : '', ',').$lowercase($trim($))[$ != '']];
+          $folders := vars.folders.body ? vars.folders.body : [];
+          $eff := function($id) { (
+            $f := $folders[id = $id][0];
+            $exists($f) and $f.inheritPermissions = true and $f.parentFolderId > 0 ? $eff($f.parentFolderId) : $id
+          ) };
+          [vars.secrets.body[$within(folderPath, $$.inputs.folder ? $$.inputs.folder : '')].(
+            $s := $;
+            {
+              "id": id,
+              "name": name,
+              "folder": folderPath,
+              "template": secretTemplateName,
+              "inherits": inheritsPermissions != false,
+              "effFolder": $eff(folderId),
+              "privileged": $count($pf[$within($s.folderPath, $)]) > 0 or $lowercase(secretTemplateName) in $pt,
+              "heartbeat": $string(lastHeartBeatStatus),
+              "changed": lastPasswordChangeAttempt,
+              "outOfSync": isOutOfSync = true,
+              "expiresIn": daysUntilExpiration,
+              "autoChange": autoChangeEnabled = true,
+              "checkout": checkOutEnabled = true,
+              "approval": requiresApproval = true
+            }
+          )]
+        ) }}
+  - id: owners
+    type: forEach
+    name: Owner of each secret (4 in parallel)
+    when: "inputs.checkOwner = true"
+    items: "vars.list"
+    as: secret
+    concurrency: 4
+    maxItems: 5000
+    saveAs: owners
+    steps:
+      - id: perms
+        type: http
+        name: Permissions of the secret
+        connection: vault
+        method: GET
+        path: /api/v1/secret-permissions
+        query: { "filter.secretId": "{{ vars.secret.id }}", take: "500" }
+        saveAs: perms
+      - id: folderPerms
+        type: http
+        name: Permissions of its folder (inherited)
+        connection: vault
+        method: GET
+        path: /api/v1/folder-permissions
+        query: { "filter.folderId": "{{ vars.secret.effFolder }}", take: "500" }
+        when: "$count(vars.perms.body.records) = 0 and vars.secret.inherits = true and vars.secret.effFolder > 0"
+        saveAs: folderPerms
+      - id: owned
+        type: set
+        name: Owned?
+        values:
+          owner: >-
+            {{ {
+              "id": vars.secret.id,
+              "owned": $count(vars.perms.body.records[$lowercase(secretAccessRoleName) = 'owner']) > 0
+                or $count(vars.folderPerms.body.records[$lowercase(secretAccessRoleName) = 'owner']) > 0
+            } }}
+  - id: evaluate
+    type: set
+    name: Findings
+    values:
+      rows: >-
+        {{ (
+          $now := $millis();
+          $failed := ['failed', 'unabletoconnect', 'unknownerror', 'incompatiblehost', 'accountlockedout', 'dnsmismatch', 'unabletovalidateserverpublickey', 'argumenterror', 'accessdenied'];
+          $max := inputs.maxAgeDays ? inputs.maxAgeDays : 90;
+          $owners := vars.owners.results.owner;
+          $ms := function($d) { $d ? $toMillis($contains($d, /([zZ]|[+-][0-9][0-9]:?[0-9][0-9])$/) ? $d : $d & 'Z') : null };
+          [vars.list.(
+            $s := $;
+            $never := $not($s.changed);
+            $age := $never ? 0 : $floor(($now - $ms($s.changed)) / 86400000);
+            $expired := $type($s.expiresIn) = 'number' ? $s.expiresIn < 0 : false;
+            $stale := $s.outOfSync or $never or $age > $max;
+            $o := $owners[id = $s.id][0];
+            $f := [
+              $lowercase($s.heartbeat) in $failed ? 'heartbeat ' & $s.heartbeat : null,
+              $s.outOfSync ? 'last password change failed' : ($never ? 'never rotated' : ($age > $max ? 'not rotated for ' & $age & ' days' : null)),
+              $expired ? 'expired ' & (0 - $s.expiresIn) & ' days ago' : null,
+              $s.autoChange ? null : 'automatic changing off',
+              $exists($o) and $o.owned = false ? 'no owner' : null,
+              $s.privileged and $not($s.checkout) ? 'no checkout' : null,
+              $s.privileged and $not($s.approval) ? 'no approval' : null
+            ][$ != null];
+            {
+              "key": $string($s.id),
+              "secret": $s.name,
+              "folder": $s.folder,
+              "template": $s.template,
+              "privileged": $s.privileged ? 'yes' : 'no',
+              "lastChange": $s.changed ? $substring($s.changed, 0, 10) : 'never',
+              "findings": $count($f) > 0 ? $join($f, ', ') : '',
+              "count": $count($f),
+              "heartbeat": $lowercase($s.heartbeat) in $failed ? 1 : 0,
+              "notRotated": $stale ? 1 : 0,
+              "expired": $expired ? 1 : 0,
+              "autoChangeOff": $s.autoChange ? 0 : 1,
+              "noOwner": $exists($o) and $o.owned = false ? 1 : 0,
+              "noCheckout": $s.privileged and $not($s.checkout) ? 1 : 0,
+              "noApproval": $s.privileged and $not($s.approval) ? 1 : 0,
+              "status": $count($f) = 0 ? 'good' : ($s.privileged or $lowercase($s.heartbeat) in $failed ? 'critical' : 'warning')
+            }
+          )]
+        ) }}
+      exposed: "{{ [vars.rows[privileged = 'yes' and count > 0]] }}"
+  - id: publish
+    type: publish
+    name: Publish for the dashboard
+    dataset: pv.hygiene
+    title: Vault hygiene
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Secret, value: secret }
+      - { label: Folder, value: folder }
+      - { label: Template, value: template }
+      - { label: Privileged, value: privileged }
+      - { label: Last change, value: lastChange }
+      - { label: Findings, value: findings }
+    status: status
+    statusText: findings
+    metrics:
+      secrets: "$count(vars.rows)"
+      privileged: "$count(vars.rows[privileged = 'yes'])"
+      findings: "$sum(vars.rows.count)"
+      heartbeat: "$sum(vars.rows.heartbeat)"
+      notRotated: "$sum(vars.rows.notRotated)"
+      expired: "$sum(vars.rows.expired)"
+      autoChangeOff: "$sum(vars.rows.autoChangeOff)"
+      noOwner: "$sum(vars.rows.noOwner)"
+      noCheckout: "$sum(vars.rows.noCheckout)"
+      noApproval: "$sum(vars.rows.noApproval)"
+    staleAfterMinutes: 2880
+  - id: privilegedClean
+    type: check
+    name: Privileged secrets without findings
+    severity: warning
+    condition: "$count(vars.exposed) = 0"
+    message: "{{ $count(vars.exposed) = 0 ? 'No privileged secret has a finding' : $join(vars.exposed.(secret & ' – ' & findings), ' · ') }}"
+    headline: "{{ $count(vars.exposed) }} privileged secrets need attention"
+    value: "$count(vars.exposed)"
+    items: "vars.exposed.(folder & ' – ' & secret & ': ' & findings)"

@@ -1,3 +1,4 @@
+import { PV_FINDING_KINDS } from './pvault.js';
 /**
  * Monitors: composable, dependency-aware health checks.
  *
@@ -54,6 +55,8 @@ export const CHECK_TYPES = [
   'mqtt',
   'snowflake',
   'dependency-track',
+  'entra',
+  'privilege-vault',
   'monitor',
 ] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
@@ -77,9 +80,17 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
     label: 'Vulnerabilities (Dependency-Track)',
     help: 'A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation',
   },
+  'privilege-vault': {
+    label: 'Vault hygiene (IBM Verify Privilege Vault)',
+    help: 'Secrets of IBM Verify Privilege Vault: failed heartbeats, passwords not rotated or expired, automatic changing off, no owner, privileged secrets without checkout or approval',
+  },
   snowflake: {
     label: 'Snowflake',
     help: 'A Snowflake table changed recently enough, no task of a database failed, or a warehouse stayed within its credits',
+  },
+  entra: {
+    label: 'Entra ID (Microsoft Graph)',
+    help: 'App registrations whose secrets or certificates expire within N days, or the Microsoft 365 service health',
   },
   git: {
     label: 'Repository pipeline',
@@ -299,6 +310,24 @@ export const checkSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     ...checkBase,
+    type: z.literal('privilege-vault'),
+    platform: platformRef,
+    /** Only secrets of this folder and below (\IT\Servers); empty: all the service account may list (#205) */
+    folder: z.string().trim().max(500).optional(),
+    /** A password changed longer ago (or never) counts as not rotated */
+    maxAgeDays: z.number().int().min(1).max(3650).default(90),
+    /** Folders (and below) and templates whose secrets count as privileged: they need checkout and approval */
+    privilegedFolders: z.array(z.string().trim().min(1).max(500)).max(50).default([]),
+    privilegedTemplates: z.array(z.string().trim().min(1).max(200)).max(50).default([]),
+    /** The findings looked for (default all) */
+    kinds: z.array(z.enum(PV_FINDING_KINDS)).max(PV_FINDING_KINDS.length).optional(),
+    /** Findings allowed before the check fails (default 0) */
+    maxFindings: z.number().int().min(0).max(100000).default(0),
+    /** Status with more findings: degraded (default) or down; a finding on a privileged secret always counts */
+    failAs: z.enum(['down', 'degraded']).default('degraded'),
+  }),
+  z.object({
+    ...checkBase,
     type: z.literal('snowflake'),
     platform: platformRef,
     /**
@@ -342,6 +371,23 @@ export const checkSchema = z.discriminatedUnion('type', [
     quietAs: z.enum(['down', 'degraded']).default('down'),
     /** degraded below this many connected clients (brokers that publish $SYS/broker/clients/connected) */
     minClients: z.number().int().min(0).optional(),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('entra'),
+    platform: platformRef,
+    /**
+     * app-credentials: per app registration and type, the secret or certificate that lasts longest ends within
+     * withinDays (degraded) or downWithinDays (down; expired too) – a rotated one next to a newer one does not count;
+     * service-health: a Microsoft 365 service is not operational (degraded; an interruption: down) (v0.5.0)
+     */
+    mode: z.enum(['app-credentials', 'service-health']).default('app-credentials'),
+    withinDays: z.number().int().min(1).max(365).default(30),
+    downWithinDays: z.number().int().min(0).max(365).default(7),
+    /** app-credentials: only these app registrations (display names or application ids); empty: all */
+    apps: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
+    /** service-health: only these services (e.g. "Exchange Online", "Microsoft Teams"); empty: all */
+    services: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
   }),
   z.object({ ...checkBase, type: z.literal('monitor'), monitor: z.string().trim().min(1).max(200) }),
 ]);

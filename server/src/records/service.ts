@@ -23,6 +23,7 @@ import {
   type RecordWorkflow,
   type ReviewStatus,
   INCIDENT_RECORD_TYPE,
+  TABLE_LIMITS,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit, authenticRows, importedHistoryFor } from '../audit.js';
@@ -31,6 +32,7 @@ import { findUserByName, getUser } from '../auth/users.js';
 import { resolveLocale, t as tr, type MessageKey } from '../i18n/index.js';
 import { getSettings } from '../settings.js';
 import { isAdmin } from '../auth/permissions.js';
+import { noteFourEyes } from '../auth/assurance.js';
 import { canDocumentAccessOn, isSubjectOf, isSystem } from '../compliance/access.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
@@ -72,6 +74,8 @@ import {
   type EditionRow,
 } from './document-model.js';
 import { assignCreatorTeams } from '../auth/policy.js';
+import { sameIdentity } from '../auth/aliases.js';
+import { applyClose, firewallActionReason, planClose } from './firewall.js';
 
 /**
  * Records: numbered, versioned documents with a workflow (change requests,
@@ -111,6 +115,11 @@ export function cleanFields(
     }
     if (raw === null || raw === undefined) continue;
     const field = fieldParam(o.typeKey, def);
+    if (def.kind === 'table') {
+      const v = cleanTable(def, raw, field);
+      if (v) out[k] = v;
+      continue;
+    }
     if (typeof raw !== 'string' && typeof raw !== 'number' && typeof raw !== 'boolean')
       throw new HttpError(400, `Field "${def.label}" must be text`, 'RECORD_FIELD_TEXT', { field });
     const v = String(raw).trim();
@@ -131,6 +140,88 @@ export function cleanFields(
       throw new HttpError(400, `Field "${def.label}" must be a single line`, 'RECORD_FIELD_SINGLE_LINE', { field });
     out[k] = v;
   }
+  return out;
+}
+
+/**
+ * A table field's value as stored (#208): JSON, an array of rows with a string per column (in column order); empty
+ * rows are dropped, cells checked by their column. An empty table is no value. Arrays are taken as well as their JSON.
+ */
+function cleanTable(def: RecordFieldDef, raw: unknown, field: ReturnType<typeof fieldParam>): string {
+  const columns = def.columns ?? [];
+  let value: unknown = raw;
+  if (typeof raw === 'string') {
+    if (!raw.trim()) return '';
+    if (raw.length > TABLE_LIMITS.chars)
+      throw new HttpError(400, `Field "${def.label}" is too long (at most ${TABLE_LIMITS.chars} characters)`, 'RECORD_FIELD_TOO_LONG', {
+        field,
+        max: TABLE_LIMITS.chars,
+      });
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      value = undefined;
+    }
+  }
+  if (!Array.isArray(value)) throw new HttpError(400, `Field "${def.label}" must be a table (a list of rows)`, 'RECORD_TABLE_INVALID', { field });
+  if (value.length > TABLE_LIMITS.rows)
+    throw new HttpError(400, `Field "${def.label}" has too many rows (at most ${TABLE_LIMITS.rows})`, 'RECORD_TABLE_ROWS', { field, max: TABLE_LIMITS.rows });
+  const known = new Map(columns.map((c) => [c.key, c]));
+  const rows: Record<string, string>[] = [];
+  value.forEach((row: unknown, i) => {
+    if (!row || typeof row !== 'object' || Array.isArray(row))
+      throw new HttpError(400, `Field "${def.label}" must be a table (a list of rows)`, 'RECORD_TABLE_INVALID', { field });
+    const cells: Record<string, string> = {};
+    for (const [key, cell] of Object.entries(row as Record<string, unknown>)) {
+      const col = known.get(key);
+      if (!col) throw new HttpError(400, `Field "${def.label}" has no column "${key}"`, 'RECORD_TABLE_COLUMN_UNKNOWN', { field, column: key });
+      if (cell === null || cell === undefined) continue;
+      if (typeof cell !== 'string' && typeof cell !== 'number' && typeof cell !== 'boolean')
+        throw new HttpError(400, `Field "${def.label}": every cell is text`, 'RECORD_TABLE_INVALID', { field });
+      cells[key] = String(cell).trim();
+    }
+    if (!Object.values(cells).some(Boolean)) return;
+    const n = i + 1;
+    for (const col of columns) {
+      const v = cells[col.key] ?? '';
+      const at = { field, row: n, column: col.label };
+      if (!v) {
+        if (col.required) throw new HttpError(400, `Field "${def.label}", row ${n}: "${col.label}" is required`, 'RECORD_TABLE_CELL_REQUIRED', at);
+        continue;
+      }
+      if (v.length > TABLE_LIMITS.cell)
+        throw new HttpError(
+          400,
+          `Field "${def.label}", row ${n}: "${col.label}" is too long (at most ${TABLE_LIMITS.cell} characters)`,
+          'RECORD_TABLE_CELL_TOO_LONG',
+          {
+            ...at,
+            max: TABLE_LIMITS.cell,
+          },
+        );
+      if (/[\r\n]/.test(v)) throw new HttpError(400, `Field "${def.label}", row ${n}: "${col.label}" must be a single line`, 'RECORD_TABLE_CELL_LINE', at);
+      if (col.kind === 'select' && !(col.options ?? []).includes(v))
+        throw new HttpError(
+          400,
+          `Field "${def.label}", row ${n}: "${col.label}" must be one of ${(col.options ?? []).join(', ')}`,
+          'RECORD_TABLE_CELL_OPTION',
+          {
+            ...at,
+            options: (col.options ?? []).join(', '),
+          },
+        );
+      if (col.kind === 'date' && (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(Date.parse(v))))
+        throw new HttpError(400, `Field "${def.label}", row ${n}: "${col.label}" must be a date (YYYY-MM-DD)`, 'RECORD_TABLE_CELL_DATE', at);
+    }
+    rows.push(Object.fromEntries(columns.map((c) => [c.key, cells[c.key] ?? ''])));
+  });
+  if (!rows.length) return '';
+  const out = JSON.stringify(rows);
+  if (out.length > TABLE_LIMITS.chars)
+    throw new HttpError(400, `Field "${def.label}" is too long (at most ${TABLE_LIMITS.chars} characters)`, 'RECORD_FIELD_TOO_LONG', {
+      field,
+      max: TABLE_LIMITS.chars,
+    });
   return out;
 }
 
@@ -395,7 +486,20 @@ export function permissionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkfl
     generatePdf: edit || canApproveRecord(u, r),
     uploadSigned: edit || canApproveRecord(u, r),
     attachPlainPdf: isAdmin(u),
+    attachEvidence: edit && (wf.evidence ?? []).includes(r.status),
   };
+}
+
+/** Who did the last transition with this action in the record's current revision (four-eyes of a second person). */
+function lastActor(r: Pick<RecordRow, 'id' | 'revision'>, action: string): string | null {
+  return (
+    db().get<{ actor: string }>(
+      "SELECT actor FROM record_events WHERE record_id = ? AND kind = 'transition' AND action = ? AND revision = ? ORDER BY created_at DESC, id DESC LIMIT 1",
+      r.id,
+      action,
+      Number(r.revision),
+    )?.actor ?? null
+  );
 }
 
 function actionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkflow): RecordActionInfo[] {
@@ -411,9 +515,17 @@ function actionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkflow): Record
       // access change entries: nobody verifies a change of their own access
       if (!reason && isAccessEntry(r) && isSubjectOf(u.username, accessFields(r)))
         reason = { code: 'FOUR_EYES_SUBJECT', message: 'Four-eyes principle: the subject of an access change cannot verify it' };
+    } else if (t.secondPersonAfter) {
+      // a second person confirms what someone else did (verifying a change): editors and approvers, not the one who did it
+      if (!canEditRecord(u, r) && !canApproveRecord(u, r))
+        reason = { code: 'RECORD_EDITORS_ONLY', message: 'Only designers, operators, approvers, administrators and the owner can do this' };
+      else if (sameIdentity(lastActor(r, t.secondPersonAfter), u))
+        reason = { code: 'FOUR_EYES_IMPLEMENTER', message: 'Four-eyes principle: the person who implemented a change cannot verify it' };
     } else if (!canEditRecord(u, r)) reason = { code: 'RECORD_EDITORS_ONLY', message: 'Only designers, operators, administrators and the owner can do this' };
     else if (isAccessEntry(r) && !canDocumentAccessOn(u, accessFields(r).platform ?? ''))
       reason = { code: 'ACCESS_PLATFORM_REQUIRED', message: 'Only people who may use the platform document its access changes' };
+    // firewall changes (#208): the affected items named, evidence before verifying, verified before closing
+    if (!reason && u) reason = firewallActionReason(r, t.action) ?? undefined;
     out.push({
       action: t.action,
       to: t.toWithEdition && edition ? t.toWithEdition : t.to,
@@ -869,6 +981,8 @@ export function transition(idOrNumber: string, input: TransitionInput): RecordDe
     });
   const info = actionsOf(u, r, wf).find((a) => a.action === def.action)!;
   if (!info.allowed) throw new HttpError(403, info.reason ?? 'Not allowed', info.reasonCode ?? 'FORBIDDEN');
+  // the assurance proof of the decision (auth/assurance.ts): who asked, who decides – checked above (fourEyesReason)
+  if (def.approval) noteFourEyes('record.approve', [r.owner, r.created_by, r.submitted_by], u);
   const comment = (input.comment ?? '').trim();
   if (comment.length > LIMITS.comment)
     throw new HttpError(400, `The comment is too long (at most ${LIMITS.comment} characters)`, 'COMMENT_TOO_LONG', { max: LIMITS.comment });
@@ -931,6 +1045,8 @@ export function transition(idOrNumber: string, input: TransitionInput): RecordDe
       number: r.number,
       version: Number(r.version),
     });
+  // a firewall change updates the approved rules of what it affects when it is closed: checked before anything changes
+  const firewallSteps = def.action === 'close' ? planClose(r) : [];
   const now = nowIso();
   let approved: EditionRow | undefined;
   let row = r;
@@ -1010,6 +1126,7 @@ export function transition(idOrNumber: string, input: TransitionInput): RecordDe
     ) {
       addLink('record', r.id, { kind: 'record', id: superseding.id, note: isDoc ? 'replaced by' : 'superseded by' }, r.number);
     }
+    if (firewallSteps.length) applyClose(row, firewallSteps);
   });
   emit('record.transitioned', { recordId: r.id, typeId: r.type_id, action: def.action, to });
   return getRecord(r.id);
@@ -1219,6 +1336,12 @@ export function requireEditable(
   if (o.notTerminal && wf.terminal.includes(r.status))
     throw new HttpError(409, `${r.number} is ${r.status}: it cannot change any more.`, 'RECORD_CLOSED', { number: r.number, status: statusParam(r.status) });
   return { r, t, wf };
+}
+
+/** A record the signed-in user may read (404 otherwise). */
+export function readRecordRow(idOrNumber: string): RecordRow {
+  me();
+  return requireRecordRow(idOrNumber);
 }
 
 export function touch(recordId: string): void {

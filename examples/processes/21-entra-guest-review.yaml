@@ -1,0 +1,269 @@
+# steward-min-version: 0.5.0
+name: "Entra ID – Guest user review"
+description: |
+  Periodic review of the guests (B2B users) of an Entra ID tenant: every guest
+  with the e-mail address, the invitation state, the last sign-in and the
+  groups they belong to. The reviewer ticks who keeps access (guests who
+  signed in within N days are preselected); a second person confirms the
+  removals (four-eyes), and a manual step lists the guests to delete in the
+  Entra admin center – Steward reads Entra ID only –, which a second person
+  verifies. The removals are documented as access changes (offboarding), so
+  the access reconciliation with the source "Entra ID" finds them explained.
+
+  Recommended schedule: quarterly (`0 7 1 1,4,7,10 *`). Publishes
+  `entra.guests` (one row per guest) for the "Entra ID governance"
+  dashboard. Needs a Microsoft Graph platform with User.Read.All and
+  Group.Read.All; the last sign-in needs AuditLog.Read.All and Entra ID P1 –
+  without it the review runs with "not available" and preselects nobody
+  (docs/ENTRA.md).
+recommendedSchedule: "0 7 1 1,4,7,10 *"
+tags: [access-review, governance, entra-id, guests]
+connections:
+  - slot: graph
+    kind: microsoft-graph
+    description: Entra ID tenant (Microsoft Graph, read-only)
+inputs:
+  - name: activeWithinDays
+    label: Preselect guests who signed in within (days)
+    type: number
+    default: 90
+  - name: pendingDays
+    label: Invitations not accepted after (days) are flagged
+    type: number
+    default: 30
+steps:
+  - id: readGuests
+    type: http
+    name: Guests with their last sign-in
+    connection: graph
+    method: GET
+    path: /v1.0/users
+    query:
+      $filter: "userType eq 'Guest'"
+      $select: id,displayName,userPrincipalName,mail,otherMails,accountEnabled,createdDateTime,externalUserState,signInActivity
+      $top: 999
+    paginate: { mode: nextLink, nextPath: "`@odata.nextLink`", itemsPath: value, maxPages: 100 }
+    onError: continue
+    saveAs: guestsRead
+  - id: readGuestsPlain
+    type: http
+    name: Guests (without sign-in activity – licence or permission missing)
+    when: "$exists(vars.guestsRead.error)"
+    connection: graph
+    method: GET
+    path: /v1.0/users
+    query:
+      $filter: "userType eq 'Guest'"
+      $select: id,displayName,userPrincipalName,mail,otherMails,accountEnabled,createdDateTime,externalUserState
+      $top: 999
+    paginate: { mode: nextLink, nextPath: "`@odata.nextLink`", itemsPath: value, maxPages: 100 }
+    saveAs: guestsPlain
+  - id: readGroups
+    type: http
+    name: Groups
+    connection: graph
+    method: GET
+    path: /v1.0/groups
+    query: { $select: "id,displayName", $top: 999 }
+    paginate: { mode: nextLink, nextPath: "`@odata.nextLink`", itemsPath: value, maxPages: 100 }
+    saveAs: groupsRead
+  - id: members
+    type: forEach
+    name: Members of each group (4 in parallel)
+    items: vars.groupsRead.body
+    as: g
+    concurrency: 4
+    maxItems: 2000
+    saveAs: members
+    steps:
+      - id: readMembers
+        type: http
+        name: Members, also through nested groups
+        connection: graph
+        method: GET
+        path: "/v1.0/groups/{{ vars.g.id }}/transitiveMembers"
+        query: { $select: "id", $top: 999 }
+        paginate: { mode: nextLink, nextPath: "`@odata.nextLink`", itemsPath: value, maxPages: 100 }
+        saveAs: m
+      - id: pairs
+        type: set
+        name: Group and member ids
+        values:
+          pairs: "{{ (  $g := vars.g; [vars.m.body.{ 'member': id, 'group': $g.displayName }] ) }}"
+  - id: rows
+    type: set
+    name: One row per guest
+    values:
+      signIns: "{{ $not($exists(vars.guestsRead.error)) }}"
+      rows: >-
+        {{ (
+          $list := $exists(vars.guestsRead.error) ? vars.guestsPlain.body : vars.guestsRead.body;
+          $pairs := [vars.members.results.pairs];
+          $signIns := $not($exists(vars.guestsRead.error));
+          [$list.(
+            $u := $;
+            $times := [$ts(signInActivity.lastSignInDateTime), $ts(signInActivity.lastNonInteractiveSignInDateTime)];
+            $last := $count($times) ? $max($times) : undefined;
+            $groups := $pairs[member = $u.id].group;
+            {
+              "key": id,
+              "id": id,
+              "upn": userPrincipalName,
+              "name": displayName,
+              "mail": mail ? mail : (otherMails[0] ? otherMails[0] : ''),
+              "enabled": accountEnabled != false,
+              "state": externalUserState ? externalUserState : '–',
+              "createdDays": $daysSince(createdDateTime),
+              "lastSignIn": $signIns ? ($last ? $fromMillis($last, '[Y0001]-[M01]-[D01]') : 'never') : 'not available',
+              "days": $last ? $daysSince($last) : null,
+              "groups": $count($groups) ? $join($sort($distinct($groups)), ', ') : '–',
+              "groupCount": $count($distinct($groups))
+            }
+          )]
+        ) }}
+      pending: "{{ [vars.rows[state = 'PendingAcceptance' and createdDays > $inputs.pendingDays]] }}"
+      stale: "{{ [vars.rows[enabled and days != null and days > $inputs.activeWithinDays]] }}"
+      never: "{{ [vars.rows[enabled and lastSignIn = 'never']] }}"
+  - id: attest
+    type: userTask
+    name: Which guests keep access?
+    when: "$count(vars.rows) > 0"
+    mode: select
+    title: "Guest review: tick the {{ $count(vars.rows) }} guest(s) who keep access"
+    instructions: |
+      **Unticked** guests are deleted from the tenant after a second person confirms.
+      Guests who signed in within the last {{ inputs.activeWithinDays }} days are preselected.
+      {{ vars.signIns ? '' : 'The last sign-in is not available (Entra ID P1 or AuditLog.Read.All missing): decide by the groups and the invitation state.' }}
+    items: vars.rows
+    itemKey: key
+    columns:
+      - { label: Guest, value: "name & (mail ? ' <' & mail & '>' : '')" }
+      - { label: Invitation, value: state }
+      - { label: Last sign-in, value: lastSignIn }
+      - { label: Days, value: "days != null ? days : '–'" }
+      - { label: Groups, value: groups }
+      - { label: Enabled, value: "enabled ? 'yes' : 'no'" }
+    preselect: "enabled and days != null and days <= $inputs.activeWithinDays"
+    saveAs: attestation
+  - id: confirm
+    type: userTask
+    name: Confirm the removals (four-eyes)
+    when: "$count(vars.attestation.unselected) > 0"
+    mode: approve
+    title: "Delete {{ $count(vars.attestation.unselected) }} guest(s) from Entra ID?"
+    instructions: |
+      Reviewed by {{ vars.attestation.decidedBy }}. A different person has to confirm.
+
+      {{ $join(vars.attestation.unselected.('- ' & name & ' (' & mail & ') – last sign-in ' & lastSignIn & ', groups: ' & groups), '\n') }}
+    assignees: [role:approver, role:admin]
+    fourEyes: true
+    onReject: continue
+    saveAs: removal
+  - id: removeInEntra
+    type: userTask
+    mode: manual
+    name: Delete the guests in the Entra admin center
+    when: "vars.removal.approved = true"
+    title: "Delete {{ $count(vars.attestation.unselected) }} guest(s) in Entra ID"
+    instructions: |
+      Steward reads Entra ID only. In the Entra admin center (Users → All users, filter "User type: Guest")
+      delete these guests – a deleted user can be restored for 30 days:
+
+      {{ $join(vars.attestation.unselected.('- ' & name & ' – ' & upn), '\n') }}
+
+      A second person verifies the result before the removals are documented.
+    checklist:
+      - Guests deleted in the Entra admin center (Users → Delete)
+      - "Checked: the guests are under Deleted users"
+    checklistAllRequired: true
+    fields:
+      - id: ticket
+        type: ticket
+        label: Change ticket
+        hint: e.g. CHG0012345
+    evidence: optional
+    verification:
+      required: true
+      onReject: return
+    saveAs: removed
+  - id: documentRemoved
+    type: accessChange
+    name: Document the removed guests
+    when: "vars.removal.approved = true and vars.removed.completed = true"
+    connection: graph
+    kind: offboarding
+    items: vars.attestation.unselected
+    subjectId: upn
+    subjectName: name
+    reason: "Guest review: access not attested"
+    requestRef: "{{ vars.removed.fields.ticket ? vars.removed.fields.ticket : '' }}"
+    approvedBy: "{{ vars.removal.decidedBy }}"
+  - id: publish
+    type: publish
+    name: Publish the guests
+    dataset: entra.guests
+    title: Entra ID guests
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Guest, value: name }
+      - { label: E-mail, value: mail }
+      - { label: Invitation, value: state }
+      - { label: Last sign-in, value: lastSignIn }
+      - { label: Days, value: "days != null ? days : '–'" }
+      - { label: Groups, value: groups }
+      - label: Review
+        value: >-
+          key in $vars.attestation.selectedKeys ? 'kept'
+            : ($vars.removal.approved = true ? ($vars.removed.completed = true ? 'deleted' : 'to delete')
+            : ($exists($vars.attestation) ? 'removal rejected' : 'not reviewed'))
+    status: >-
+      state = 'PendingAcceptance' and createdDays > $inputs.pendingDays ? 'warning'
+        : (enabled and lastSignIn = 'never' ? 'warning'
+        : (enabled and days != null and days > $inputs.activeWithinDays ? 'critical' : 'good'))
+    statusText: >-
+      state = 'PendingAcceptance' and createdDays > $inputs.pendingDays ? 'invitation not accepted for ' & createdDays & ' days'
+        : (enabled and lastSignIn = 'never' ? 'never signed in'
+        : (enabled and days != null and days > $inputs.activeWithinDays ? 'no sign-in for ' & days & ' days' : ''))
+    metrics:
+      guests: "$count(vars.rows)"
+      stale: "$count(vars.stale)"
+      neverSignedIn: "$count(vars.never)"
+      pendingInvitations: "$count(vars.pending)"
+      inGroups: "$count(vars.rows[groupCount > 0])"
+      removed: "vars.removal.approved = true and vars.removed.completed = true ? $count(vars.attestation.unselected) : 0"
+    staleAfterMinutes: 264960
+  - id: staleCheck
+    type: check
+    name: No guest without a recent sign-in
+    severity: warning
+    condition: "$count(vars.stale) = 0"
+    message: "{{ $count(vars.stale) = 0 ? 'Every enabled guest signed in within ' & inputs.activeWithinDays & ' days (or the sign-in is not available)' : $join(vars.stale.(name & ': ' & days & ' days'), '; ') }}"
+    headline: "{{ $count(vars.stale) }} guest(s) without a sign-in for more than {{ inputs.activeWithinDays }} days"
+    value: "$count(vars.stale)"
+    items: "vars.stale.(name & ' (' & mail & '): last sign-in ' & lastSignIn)"
+  - id: pendingCheck
+    type: check
+    name: No old pending invitation
+    severity: info
+    condition: "$count(vars.pending) = 0"
+    message: "{{ $count(vars.pending) = 0 ? 'No invitation is pending for more than ' & inputs.pendingDays & ' days' : $join(vars.pending.(name & ' (' & mail & ')'), '; ') }}"
+    headline: "{{ $count(vars.pending) }} invitation(s) not accepted after {{ inputs.pendingDays }} days"
+    value: "$count(vars.pending)"
+    items: "vars.pending.(name & ' (' & mail & '), invited ' & createdDays & ' days ago')"
+  - id: summary
+    type: report
+    name: Summary
+    title: Guest user review
+    text: |
+      - Guests: **{{ $count(vars.rows) }}** – without a sign-in for {{ inputs.activeWithinDays }} days: **{{ $count(vars.stale) }}**, never signed in: **{{ $count(vars.never) }}**, invitations pending: **{{ $count(vars.pending) }}**
+      - Kept: **{{ $count(vars.attestation.selected) }}**
+      - Deleted: **{{ vars.removal.approved = true and vars.removed.completed = true ? $count(vars.attestation.unselected) : 0 }}**{{ vars.removal.approved = false ? ' (removal rejected by ' & vars.removal.decidedBy & ')' : '' }}{{ vars.removed.verifiedBy ? ' – verified by ' & vars.removed.verifiedBy : '' }}{{ run.dryRun ? ' – dry run' : '' }}
+      {{ vars.signIns ? '' : '- Last sign-in: not available (licence or permission)' }}
+    rows: vars.rows
+    columns:
+      - { label: Guest, value: name }
+      - { label: Last sign-in, value: lastSignIn }
+      - { label: Groups, value: groups }
+      - label: Result
+        value: "key in $vars.attestation.selectedKeys ? 'kept' : ($vars.removal.approved = true ? 'deleted' : 'kept (not confirmed)')"

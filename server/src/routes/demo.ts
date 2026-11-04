@@ -17,10 +17,10 @@ import { DEMO_KAFKA_BOOTSTRAP } from '../kafka/client.js';
 import { DEMO_GATUS } from '../mock/mockGatus.js';
 import { MOCK_UTS_PROVIDER } from '../mock/mockUsage.js';
 import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
-import { PRESET_SPECS } from '../platforms/presets.js';
+import { PRESETS, PRESET_SPECS } from '../platforms/presets.js';
 import { audit } from '../audit.js';
 import { createUser, findUserByName, saveTeam } from '../auth/users.js';
-import type { ComponentType, Role } from '@sm/shared';
+import { PVAULT_KIND, type ComponentType, type Role } from '@sm/shared';
 import { createDashboard, listDashboardTemplates } from '../dashboards/service.js';
 import { listSchedules, saveSchedule } from '../scheduler.js';
 import { startRun } from '../engine/runner.js';
@@ -35,6 +35,8 @@ import { currentActor } from '../auth/context.js';
 import { DEMO_AWS } from '../mock/mockAws.js';
 import { DEMO_DTRACK } from '../mock/mockDtrack.js';
 import { DEMO_SNOWFLAKE, setSnowflakePublicKey } from '../mock/mockSnowflake.js';
+import { DEMO_GRAPH } from '../mock/mockGraph.js';
+import { DEMO_PVAULT } from '../mock/mockPrivilegeVault.js';
 
 /** Creates demo platforms (pointing to the built-in mock) and imports all templates. */
 export const DEMO_USER_PASSWORD = 'Demo-password-1';
@@ -358,6 +360,22 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
     });
     platforms++;
   }
+  if (!existing.has('IBM Verify Privilege Vault (demo)')) {
+    // IBM Verify Privilege Vault (#205): six secrets with every hygiene finding, folders, groups, roles, audits
+    const preset = PRESETS.find((x) => x.kind === PVAULT_KIND)!;
+    const v = createPlatform({
+      name: 'IBM Verify Privilege Vault (demo)',
+      kind: PVAULT_KIND,
+      environment: 'demo',
+      description:
+        'Simulated IBM Verify Privilege Vault 12 (Secret Server REST API) served by the built-in mock: folders \\IT, \\Privileged and \\Shared, six secrets, groups, roles and audits. Steward never reads secret values. See docs/IBM-PAM.md.',
+      baseUrl: `${base}/pvault/SecretServer`,
+      config: { ...preset.config, variables: { ...preset.config.variables, privilegedFolders: '\\Privileged' }, http: { proxy: 'none' } },
+      secrets: { username: DEMO_PVAULT.username, password: DEMO_PVAULT.password },
+    });
+    for (const sp of PRESET_SPECS[PVAULT_KIND]!()) addSpec(v.id, sp.name, sp.content);
+    platforms++;
+  }
   if (!existing.has('Snowflake (demo)')) {
     // Snowflake (#115): a key pair for the demo user – the mock knows the public key, Steward keeps the private one
     const keys = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -403,6 +421,26 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
       },
       secrets: { accessKeyId: DEMO_AWS.accessKeyId, secretAccessKey: DEMO_AWS.secretAccessKey },
     });
+    platforms++;
+  }
+  if (!existing.has('Microsoft Graph (demo)')) {
+    // Entra ID (v0.5.0): a simulated tenant – guests, a stale and a disabled account, nested groups, PIM, app credentials
+    const preset = PRESETS.find((x) => x.kind === 'microsoft-graph')!;
+    const g = createPlatform({
+      name: 'Microsoft Graph (demo)',
+      kind: 'microsoft-graph',
+      environment: 'demo',
+      description:
+        'Simulated Entra ID tenant "Contoso (demo)" served by the built-in mock (Microsoft Graph and its sign-in): users and guests, nested groups, directory roles with PIM, app registrations whose secrets expire. See docs/ENTRA.md.',
+      baseUrl: `${base}/graph`,
+      config: {
+        ...preset.config,
+        variables: { tenantId: DEMO_GRAPH.tenantId, loginUrl: `${base}/graph/login` },
+        http: { ...preset.config.http, proxy: 'none' },
+      },
+      secrets: { clientId: DEMO_GRAPH.clientId, clientSecret: DEMO_GRAPH.clientSecret },
+    });
+    for (const s of PRESET_SPECS['microsoft-graph']!()) addSpec(g.id, s.name, s.content);
     platforms++;
   }
   if (!existing.has('endoflife.date (demo)')) {

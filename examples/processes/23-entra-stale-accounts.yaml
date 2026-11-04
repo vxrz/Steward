@@ -1,0 +1,178 @@
+# steward-min-version: 0.5.0
+name: "Entra ID – Stale accounts (no sign-in for N days)"
+description: |
+  The enabled accounts of an Entra ID tenant that have not signed in for N
+  days – interactive or not –, those that never signed in although they were
+  created more than M days ago, and the disabled accounts that still belong to
+  groups. Members and guests, with the last sign-in, the creation date and the
+  group count. A report with checks, no change: decide with the guest review,
+  a person review or the offboarding process what to do with them.
+
+  Recommended schedule: weekly (`20 6 * * 1`), with "message on change" in the
+  schedule's notification policy. Publishes `entra.stale-accounts` (one row
+  per stale account). Needs User.Read.All and – for the sign-in activity –
+  AuditLog.Read.All and Entra ID P1 (docs/ENTRA.md).
+recommendedSchedule: "20 6 * * 1"
+tags: [access-review, governance, entra-id, hygiene]
+connections:
+  - slot: graph
+    kind: microsoft-graph
+    description: Entra ID tenant (Microsoft Graph, read-only)
+inputs:
+  - name: staleDays
+    label: No sign-in for more than (days)
+    type: number
+    default: 90
+  - name: graceDays
+    label: Never signed in – created more than (days) ago
+    type: number
+    default: 30
+  - name: includeGuests
+    label: Include guests
+    type: boolean
+    default: true
+steps:
+  - id: readUsers
+    type: http
+    name: Users with their sign-in activity
+    connection: graph
+    method: GET
+    path: /v1.0/users
+    query:
+      $select: id,displayName,userPrincipalName,mail,userType,accountEnabled,createdDateTime,signInActivity
+      $top: 999
+    paginate: { mode: nextLink, nextPath: "`@odata.nextLink`", itemsPath: value, maxPages: 200 }
+    saveAs: users
+  - id: readGroups
+    type: http
+    name: Groups
+    connection: graph
+    method: GET
+    path: /v1.0/groups
+    query: { $select: "id,displayName", $top: 999 }
+    paginate: { mode: nextLink, nextPath: "`@odata.nextLink`", itemsPath: value, maxPages: 100 }
+    saveAs: groups
+  - id: members
+    type: forEach
+    name: Direct members of each group (4 in parallel)
+    items: vars.groups.body
+    as: g
+    concurrency: 4
+    maxItems: 2000
+    saveAs: members
+    steps:
+      - id: readMembers
+        type: http
+        name: Direct members
+        connection: graph
+        method: GET
+        path: "/v1.0/groups/{{ vars.g.id }}/members"
+        query: { $select: "id", $top: 999 }
+        paginate: { mode: nextLink, nextPath: "`@odata.nextLink`", itemsPath: value, maxPages: 100 }
+        saveAs: m
+      - id: ids
+        type: set
+        name: Member ids
+        values:
+          ids: "{{ [vars.m.body.id] }}"
+  - id: rows
+    type: set
+    name: Stale accounts
+    values:
+      all: >-
+        {{ (
+          $memberIds := [vars.members.results.ids];
+          [vars.users.body[$inputs.includeGuests or userType != 'Guest'].(
+            $times := [$ts(signInActivity.lastSignInDateTime), $ts(signInActivity.lastNonInteractiveSignInDateTime)];
+            $last := $count($times) ? $max($times) : undefined;
+            $id := id;
+            {
+              "key": id,
+              "upn": userPrincipalName,
+              "name": displayName,
+              "type": userType = 'Guest' ? 'guest' : 'member',
+              "enabled": accountEnabled != false,
+              "createdDays": $daysSince(createdDateTime),
+              "lastSignIn": $last ? $fromMillis($last, '[Y0001]-[M01]-[D01]') : 'never',
+              "days": $last ? $daysSince($last) : null,
+              "groups": $count($memberIds[$ = $id])
+            }
+          )]
+        ) }}
+      rows: >-
+        {{ [vars.all[
+          (enabled and days != null and days > $inputs.staleDays)
+          or (enabled and days = null and createdDays > $inputs.graceDays)
+          or (enabled = false and groups > 0)
+        ].$merge([$, {
+          "reason": enabled = false ? 'disabled, still in ' & groups & ' group(s)'
+            : (days = null ? 'never signed in (created ' & createdDays & ' days ago)' : 'no sign-in for ' & days & ' days')
+        }])] }}
+      stale: "{{ [vars.rows[enabled and days != null]] }}"
+      never: "{{ [vars.rows[enabled and days = null]] }}"
+      disabled: "{{ [vars.rows[enabled = false]] }}"
+  - id: publish
+    type: publish
+    name: Publish the stale accounts
+    dataset: entra.stale-accounts
+    title: Entra ID stale accounts
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Account, value: name }
+      - { label: User principal name, value: upn }
+      - { label: Type, value: type }
+      - { label: Last sign-in, value: lastSignIn }
+      - { label: Days, value: "days != null ? days : '–'" }
+      - { label: Groups, value: groups }
+      - { label: Finding, value: reason }
+    status: "enabled = false or type = 'guest' ? 'critical' : 'warning'"
+    statusText: reason
+    metrics:
+      accounts: "$count(vars.all)"
+      stale: "$count(vars.stale)"
+      neverSignedIn: "$count(vars.never)"
+      disabledInGroups: "$count(vars.disabled)"
+    staleAfterMinutes: 20160
+  - id: staleCheck
+    type: check
+    name: No enabled account without a sign-in for N days
+    severity: warning
+    condition: "$count(vars.stale) = 0"
+    message: "{{ $count(vars.stale) = 0 ? 'Every enabled account signed in within ' & inputs.staleDays & ' days' : $join(vars.stale.(upn & ': ' & days & ' days'), '; ') }}"
+    headline: "{{ $count(vars.stale) }} enabled account(s) without a sign-in for more than {{ inputs.staleDays }} days"
+    value: "$count(vars.stale)"
+    items: "vars.stale.(name & ' (' & type & '): last sign-in ' & lastSignIn)"
+  - id: neverCheck
+    type: check
+    name: No account that never signed in
+    severity: info
+    condition: "$count(vars.never) = 0"
+    message: "{{ $count(vars.never) = 0 ? 'No enabled account older than ' & inputs.graceDays & ' days is unused' : $join(vars.never.upn, '; ') }}"
+    headline: "{{ $count(vars.never) }} account(s) never signed in"
+    value: "$count(vars.never)"
+    items: "vars.never.(name & ' (created ' & createdDays & ' days ago)')"
+  - id: disabledCheck
+    type: check
+    name: Disabled accounts hold no group membership
+    severity: warning
+    condition: "$count(vars.disabled) = 0"
+    message: "{{ $count(vars.disabled) = 0 ? 'No disabled account is still in a group' : $join(vars.disabled.(upn & ': ' & groups & ' group(s)'), '; ') }}"
+    headline: "{{ $count(vars.disabled) }} disabled account(s) still in groups"
+    value: "$count(vars.disabled)"
+    items: "vars.disabled.(name & ': ' & groups & ' group(s)')"
+  - id: summary
+    type: report
+    name: Summary
+    title: Stale accounts
+    text: |
+      - Accounts read: **{{ $count(vars.all) }}**
+      - No sign-in for more than {{ inputs.staleDays }} days: **{{ $count(vars.stale) }}**
+      - Never signed in (created more than {{ inputs.graceDays }} days ago): **{{ $count(vars.never) }}**
+      - Disabled but still in groups: **{{ $count(vars.disabled) }}**
+    rows: vars.rows
+    columns:
+      - { label: Account, value: name }
+      - { label: Type, value: type }
+      - { label: Last sign-in, value: lastSignIn }
+      - { label: Finding, value: reason }

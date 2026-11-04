@@ -548,7 +548,8 @@
     "totalPagesPath": "Total pages path",
     "firstPage": "First page number",
     "nextPath": "Next URL path",
-    "maxPages": "Max pages (safety)"
+    "maxPages": "Max pages (safety)",
+    "morePath": "More pages path (optional, e.g. hasNext)"
   },
   "actions": {
     "label": "Actions",
@@ -743,6 +744,8 @@
     "noRuns": "no runs yet",
     "unsaved": "unsaved changes",
     "exportYaml": "Export YAML",
+    "exportPostman": "Export for Postman",
+    "exportPostmanHint": "Collection and environment (ZIP), without secrets",
     "run": "Run",
     "readOnly": "read-only",
     "fullScreen": "Full screen",

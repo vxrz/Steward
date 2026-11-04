@@ -24,8 +24,11 @@ import { ACCESS, me } from '../auth/access.js';
  *   GET    /credentials/:id/history       events
  *   POST   /credentials/:id/rotated       mark rotated {rotatedAt?, comment, expiresAt?, certificate?}
  *   POST   /credentials/:id/reviewed      mark reviewed {reviewedAt?, comment}
+ *   POST   /credentials/:id/vault/read    read the linked vault secret now (metadata, never its value; #205)
+ *   GET    /credentials/vault-secrets     secrets of a vault platform to link (?platformId=…&q=…; the requester may use it)
  *   POST   /credentials/:id/archive|restore  administrators
  *   DELETE /credentials/:id               administrators
+ *   POST   /credentials/import/entra      app secrets and certificates of an Entra ID tenant as entries (v0.5.0)
  */
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
@@ -123,6 +126,12 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/credentials', async (req) => svc.createCredential(svc.credentialInputSchema.parse(req.body ?? {})));
 
+  // Entra ID (v0.5.0): app registration secrets and certificates as entries, their expiry kept up to date
+  app.post('/credentials/import/entra', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
+    const { entraImportSchema, importEntraCredentials } = await import('../entra/register.js');
+    return importEntraCredentials(entraImportSchema.parse(req.body ?? {}));
+  });
+
   app.get('/credentials/:id', async (req) => svc.getCredential(params(req).id!));
 
   app.put('/credentials/:id', async (req) => svc.updateCredential(params(req).id!, svc.credentialInputSchema.parse(req.body ?? {})));
@@ -132,6 +141,16 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
   app.post('/credentials/:id/rotated', async (req) => svc.markRotated(params(req).id!, svc.rotatedSchema.parse(req.body ?? {})));
 
   app.post('/credentials/:id/reviewed', async (req) => svc.markReviewed(params(req).id!, svc.reviewedSchema.parse(req.body ?? {})));
+
+  // IBM Verify Privilege Vault (#205): read the linked secret now; find a secret to link
+  app.post('/credentials/:id/vault/read', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) =>
+    (await import('./vault.js')).readVaultLinkNow(params(req).id!),
+  );
+  app.get('/credentials/vault-secrets', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+    me();
+    const q = z.object({ platformId: z.string().min(1).max(100), q: z.string().max(100).default('') }).parse(req.query ?? {});
+    return (await import('./vault.js')).findVaultSecrets(q.platformId, q.q);
+  });
 
   app.post('/credentials/:id/archive', async (req) => svc.setArchived(params(req).id!, true));
   app.post('/credentials/:id/restore', async (req) => svc.setArchived(params(req).id!, false));
