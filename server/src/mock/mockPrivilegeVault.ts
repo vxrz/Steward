@@ -659,29 +659,34 @@ export async function mockPrivilegeVault(app: FastifyInstance): Promise<void> {
   });
   app.get(`${A}/secret-access-requests`, async (req, reply) => {
     if (!who(req, reply)) return reply;
+    // one state per call (SecretAccessStatus), Pending when none is given; others are refused like the API's validation
+    const status = String((req.query as Record<string, string | undefined>)['filter.status'] ?? 'Pending');
+    if (!['Approved', 'Denied', 'Canceled', 'Pending'].includes(status)) return reply.code(400).send({ message: 'The request is invalid.' });
     return paged(
       req,
-      state.requests.map((r) => {
-        const x = state.secrets.find((y) => y.id === r.secretId)!;
-        return {
-          secretAccessRequestId: r.id,
-          secretId: r.secretId,
-          secretName: x.name,
-          folderId: x.folderId,
-          requestUsername: r.user,
-          requestingUserId: userOf(state.users.find((u) => u.userName === r.user)?.id ?? null)?.id ?? 0,
-          status: r.status,
-          requestDate: iso(r.daysAgo),
-          responseDate: r.status === 'Pending' ? null : iso(r.daysAgo - 0.1),
-          approverDisplayName: r.approver,
-          requestComment: r.comment,
-          responseComment: '',
-          ticketNumber: '',
-          startDate: iso(r.daysAgo),
-          expirationDate: iso(r.daysAgo - 1),
-          completed: r.status !== 'Pending',
-        };
-      }),
+      state.requests
+        .filter((r) => r.status === status)
+        .map((r) => {
+          const x = state.secrets.find((y) => y.id === r.secretId)!;
+          return {
+            secretAccessRequestId: r.id,
+            secretId: r.secretId,
+            secretName: x.name,
+            folderId: x.folderId,
+            requestUsername: r.user,
+            requestingUserId: userOf(state.users.find((u) => u.userName === r.user)?.id ?? null)?.id ?? 0,
+            status: r.status,
+            requestDate: iso(r.daysAgo),
+            responseDate: r.status === 'Pending' ? null : iso(r.daysAgo - 0.1),
+            approverDisplayName: r.approver,
+            requestComment: r.comment,
+            responseComment: '',
+            ticketNumber: '',
+            startDate: iso(r.daysAgo),
+            expirationDate: iso(r.daysAgo - 1),
+            completed: r.status !== 'Pending',
+          };
+        }),
     );
   });
 }

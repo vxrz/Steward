@@ -17,6 +17,9 @@ import { platformRequest } from '../platforms/http.js';
 
 export const API = '/api/v1';
 
+/** The states of an access request (SecretAccessStatus). */
+export const PV_REQUEST_STATES = ['Approved', 'Denied', 'Canceled', 'Pending'] as const;
+
 interface Paged<T> {
   records?: T[];
   hasNext?: boolean;
@@ -401,24 +404,33 @@ export class PvClient {
     return out.slice(0, PVAULT_LIMITS.auditPerSecret);
   }
 
-  /** Access requests (all states the account may see). */
+  /**
+   * Access requests the account may see – on the vault, the ones it made or may approve – in every state
+   * (filter.status takes one of Approved, Denied, Canceled, Pending).
+   */
   async accessRequests(): Promise<PvAccessRequest[]> {
-    const rows = await this.list<Record<string, unknown>>('/secret-access-requests', { 'filter.status': 'All' });
-    return rows.map((r) => ({
-      id: num(r.secretAccessRequestId) ?? 0,
-      secretId: num(r.secretId) ?? 0,
-      secret: str(r.secretName),
-      folderId: num(r.folderId),
-      user: str(r.requestUsername) || str(r.requestingUserId),
-      status: str(r.status),
-      requestedAt: iso(r.requestDate),
-      respondedAt: iso(r.responseDate),
-      approver: str(r.approverDisplayName),
-      comment: str(r.requestComment).slice(0, 500),
-      ticket: str(r.ticketNumber).slice(0, 100),
-      startAt: iso(r.startDate),
-      expiresAt: iso(r.expirationDate),
-    }));
+    const out: PvAccessRequest[] = [];
+    for (const status of PV_REQUEST_STATES) {
+      const rows = await this.list<Record<string, unknown>>('/secret-access-requests', { 'filter.status': status });
+      for (const r of rows)
+        out.push({
+          id: num(r.secretAccessRequestId) ?? 0,
+          secretId: num(r.secretId) ?? 0,
+          secret: str(r.secretName),
+          folderId: num(r.folderId),
+          user: str(r.requestUsername) || str(r.requestingUserId),
+          status: str(r.status) || status,
+          requestedAt: iso(r.requestDate),
+          respondedAt: iso(r.responseDate),
+          approver: str(r.approverDisplayName),
+          comment: str(r.requestComment).slice(0, 500),
+          ticket: str(r.ticketNumber).slice(0, 100),
+          startAt: iso(r.startDate),
+          expiresAt: iso(r.expirationDate),
+        });
+    }
+    // a request listed under two states (it changed between the calls) once
+    return [...new Map(out.map((r) => [r.id, r])).values()];
   }
 
   async templates(): Promise<{ id: number; name: string; heartbeatEnabled: boolean }[]> {

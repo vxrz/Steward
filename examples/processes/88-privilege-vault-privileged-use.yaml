@@ -100,15 +100,30 @@ steps:
               }]
             ) }}
   - id: requests
-    type: http
-    name: Access requests
-    connection: vault
-    method: GET
-    path: /api/v1/secret-access-requests
-    query: { "filter.status": "All" }
-    paginate: { mode: offset, pageParam: skip, sizeParam: take, pageSize: 500, itemsPath: records, morePath: hasNext, maxPages: 20 }
-    onError: continue
+    type: forEach
+    name: Access requests by state
+    items: "['Approved', 'Denied', 'Canceled', 'Pending']"
+    as: status
+    # in parallel: each state's result is kept (results)
+    concurrency: 2
+    maxItems: 4
     saveAs: requests
+    steps:
+      - id: page
+        type: http
+        name: Access requests of the state
+        connection: vault
+        method: GET
+        path: /api/v1/secret-access-requests
+        query: { "filter.status": "{{ vars.status }}" }
+        paginate: { mode: offset, pageParam: skip, sizeParam: take, pageSize: 500, itemsPath: records, morePath: hasNext, maxPages: 20 }
+        onError: continue
+        saveAs: page
+      - id: found
+        type: set
+        name: Requests of the state
+        values:
+          found: "{{ vars.page.body ? vars.page.body : [] }}"
   - id: evaluate
     type: set
     name: Uses in the period
@@ -118,14 +133,15 @@ steps:
           $from := $toMillis(vars.from);
           $ms := function($d) { $d ? $toMillis($contains($d, /([zZ]|[+-][0-9][0-9]:?[0-9][0-9])$/) ? $d : $d & 'Z') : 0 };
           $ids := vars.list.id;
+          $secrets := vars.list;
           $uses := [vars.read.results.uses];
-          $req := [vars.requests.body[secretId in $ids and $ms(requestDate) >= $from].(
+          $req := [vars.requests.results.found[secretId in $ids and $ms(requestDate) >= $from].(
             $r := $;
             {
               "key": 'request-' & $string(secretAccessRequestId),
               "at": requestDate,
               "secret": secretName,
-              "folder": $join(vars.list[id = $r.secretId].folder, ''),
+              "folder": $join($secrets[id = $r.secretId].folder, ''),
               "user": requestUsername,
               "action": 'ACCESS REQUEST ' & $uppercase(status),
               "notes": requestComment & (approverDisplayName ? ' – answered by ' & approverDisplayName : ''),

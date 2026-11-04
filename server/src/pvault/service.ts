@@ -94,7 +94,7 @@ export async function testPrivilegeVault(p: Platform, secrets: Record<string, st
   );
   await probe(
     'Access requests',
-    () => c.get<Page>('/secret-access-requests', { ...one, 'filter.status': 'All' }),
+    () => c.get<Page>('/secret-access-requests', { ...one, 'filter.status': 'Approved' }),
     () => 'readable',
   );
   const missing = checks.filter((x) => !x.ok);
