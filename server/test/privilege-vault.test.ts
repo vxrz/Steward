@@ -475,6 +475,62 @@ describe('privileged use', () => {
   });
 });
 
+describe('credentials register link', () => {
+  const ENTRY = { name: 'SQL sa account', type: 'technicalUser', ownerSubjects: [], rotationIntervalDays: 90 };
+  let id: string;
+  it('links an entry to its vault secret and reads its metadata: rotation overdue, expired', async () => {
+    mock.resetPvault();
+    const found = await s.api('GET', `/credentials/vault-secrets?platformId=${platformId}&q=sa`);
+    expect(found).toEqual([{ id: 103, name: 'sa@sql1', folderPath: '\\Privileged', templateName: 'SQL Server Account' }]);
+    const other = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'generic');
+    await expect(s.api('POST', '/credentials', { ...ENTRY, vault: { platformId: other.id, secretId: 103 } })).rejects.toMatchObject({
+      body: { code: 'CREDENTIAL_VAULT_PLATFORM' },
+    });
+    const c = await s.api('POST', '/credentials', { ...ENTRY, vault: { platformId, secretId: 103 } });
+    id = c.id;
+    expect(c.vault).toEqual({ platformId, secretId: 103, readout: null });
+    const r = await s.api('POST', `/credentials/${id}/vault/read`, {});
+    expect(r.vault.readout).toMatchObject({
+      error: null,
+      secret: { id: 103, name: 'sa@sql1', template: 'SQL Server Account', folder: '\\Privileged', autoChangeEnabled: false, heartbeat: 'Failed' },
+    });
+    // the vault's last change (200 days ago) is the last rotation: overdue; its expiry (20 days ago) the entry's
+    expect(r.dues.find((d: any) => d.kind === 'rotation')).toMatchObject({ status: 'overdue' });
+    expect(r.dues.find((d: any) => d.kind === 'expiry')).toMatchObject({ status: 'expired' });
+    expect(r.status).toBe('expired');
+    // an update that does not name the link keeps it
+    const u = await s.api('PUT', `/credentials/${id}`, { ...ENTRY, description: 'kept', version: r.version });
+    expect(u.vault).toMatchObject({ secretId: 103, readout: { secret: { name: 'sa@sql1' } } });
+  });
+
+  it('a rotation in the vault moves the due date and is a history event', async () => {
+    const c = await s.api('POST', '/credentials', { ...ENTRY, name: 'db1 root', vault: { platformId, secretId: 101 } });
+    await s.api('POST', `/credentials/${c.id}/vault/read`, {});
+    mock.rotatePvaultSecret(101);
+    const r = await s.api('POST', `/credentials/${c.id}/vault/read`, {});
+    expect(Date.parse(r.vault.readout.secret.lastChangeAt)).toBeGreaterThan(Date.now() - 86_400_000);
+    expect(r.dues.find((d: any) => d.kind === 'rotation').daysLeft).toBeGreaterThanOrEqual(89);
+    const h = await s.api('GET', `/credentials/${c.id}/history`);
+    expect(h[0]).toMatchObject({ kind: 'rotated', actor: 'system', comment: 'Rotated in the vault' });
+    const log = await s.api('GET', `/audit?entityType=credential&entityId=${c.id}&limit=5`);
+    expect(log.map((e: any) => e.action)).toContain('credential.vault_rotated');
+  });
+
+  it('the job reads stale links; a failed read keeps what was read, with the error', async () => {
+    const { runVaultLinkJob } = await import('../src/credentials/vault.js');
+    expect(await runVaultLinkJob()).toBe(0);
+    expect(await runVaultLinkJob(Date.now() + 7 * 3_600_000)).toBeGreaterThanOrEqual(2);
+    await s.api('PUT', `/platforms/${platformId}/secrets`, { password: 'wrong' });
+    try {
+      const r = await s.api('POST', `/credentials/${id}/vault/read`, {});
+      expect(r.vault.readout.error).toMatch(/failed with HTTP 400/);
+      expect(r.vault.readout.secret.name).toBe('sa@sql1');
+    } finally {
+      await s.api('PUT', `/platforms/${platformId}/secrets`, { password: mock.DEMO_PVAULT.password });
+    }
+  });
+});
+
 describe('values never get stored', () => {
   it('drops field values a summary carries (a later version, a proxy) before anything is stored or logged', async () => {
     mock.setPvaultLeak(true);
@@ -492,7 +548,13 @@ describe('values never get stored', () => {
       });
       const run = await s.waitRun((await s.api('POST', '/runs', { processId: proc.id, bindings: { vault: platformId } })).id, ['succeeded', 'failed']);
       expect(run.status).toBe('succeeded');
-      const stored = JSON.stringify([await s.api('GET', `/runs/${run.id}`), await s.api('GET', '/datasets/test.vault-leak')]);
+      const cred = await s.api('POST', '/credentials', { name: 'Leak check', type: 'password', ownerSubjects: [], vault: { platformId, secretId: 103 } });
+      await s.api('POST', `/credentials/${cred.id}/vault/read`, {});
+      const stored = JSON.stringify([
+        await s.api('GET', `/runs/${run.id}`),
+        await s.api('GET', '/datasets/test.vault-leak'),
+        await s.api('GET', `/credentials/${cred.id}`),
+      ]);
       expect(stored).toContain('sa@sql1');
       for (const v of VALUES) expect(stored).not.toContain(v);
       // the database and the logs of the data folder hold none either

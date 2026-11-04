@@ -335,6 +335,12 @@ export function addPvaultFolderPermission(folderId: number, userId: number | nul
   state.folders.find((f) => f.id === folderId)?.perms.push([userId, groupId, role, role]);
 }
 
+/** Tests and the demo: the vault changed a secret's password now. */
+export function rotatePvaultSecret(id: number): void {
+  const x = state.secrets.find((y) => y.id === id);
+  if (x) x.changedDaysAgo = 0;
+}
+
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * DAY).toISOString();
 const folderOf = (id: number) => state.folders.find((f) => f.id === id);
 const userOf = (id: number | null) => (id === null ? undefined : state.users.find((u) => u.id === id));

@@ -612,6 +612,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/credentials/:id/history': NOT_VIEWER,
   'POST /api/credentials/:id/rotated': RUN,
   'POST /api/credentials/:id/reviewed': RUN,
+  // the vault link (#205): read now – its editors; find a secret – whoever may use the vault platform
+  'POST /api/credentials/:id/vault/read': RUN,
+  'GET /api/credentials/vault-secrets': USE,
   'POST /api/credentials/:id/restore': ADMIN,
   'POST /api/credentials/:id/archive': ADMIN,
 
@@ -1406,6 +1409,8 @@ beforeAll(async () => {
   };
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;
+  const vaultPlatform = (await a('GET', '/platforms')).find((p: { kind: string }) => p.kind === 'privilege-vault').id;
+  QUERY['GET /api/credentials/vault-secrets'] = `?platformId=${vaultPlatform}&q=`;
   // compliance: the demo access check with a finding, a control, an access change entry, an evidence pack
   const accessCheck = (await a('GET', '/compliance/access-checks'))[0];
   const sim = await a('POST', '/compliance/demo/simulate-change', { accessCheckId: accessCheck.id });
