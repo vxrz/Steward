@@ -1,0 +1,285 @@
+{
+  "title": "Assurance policy",
+  "intro": "Which actions need a second person (four-eyes) and which need a fresh confirmation that it is the signed-in person (step-up). Locked rules are the baseline and cannot be lowered. A stricter rule applies at once; a looser one waits for a second administrator (at most 7 days).",
+  "docs": "What is enforced and what proves it: docs/ASSURANCE.md",
+  "version": "Version {{version}}",
+  "since": "in force since {{date}}",
+  "defaults": "the defaults (as in 0.4.0)",
+  "groups": {
+    "identity": "Identity and access",
+    "audit": "Audit and evidence",
+    "records": "Changes and records",
+    "processes": "Processes and runs",
+    "mcp": "MCP and AI",
+    "catalogue": "Catalogue",
+    "system": "System and data"
+  },
+  "columns": {
+    "point": "Control point",
+    "fourEyes": "Four-eyes",
+    "stepUp": "Step-up",
+    "maxAge": "Max. age",
+    "mfa": "MFA"
+  },
+  "levels": {
+    "off": "Off",
+    "optional": "Per item",
+    "required": "Required"
+  },
+  "baseline": "Baseline – cannot be lowered",
+  "notSupported": "not available",
+  "newPoint": "new",
+  "fourEyesLabel": "Four-eyes: {{point}}",
+  "stepUpLabel": "Step-up: {{point}}",
+  "maxAgeLabel": "Maximum age of the confirmation in minutes: {{point}}",
+  "maxAgePlaceholder": "{{count}} min",
+  "mfaLabel": "Require multi-factor authentication: {{point}}",
+  "mfa": {
+    "title": "What counts as multi-factor",
+    "hint": "A single sign-on step-up shows multi-factor authentication when the ID token’s amr contains one of these values, or its acr is one of the acr values (which Steward then asks the provider for). A password step-up never counts where MFA is required.",
+    "amr": "amr values (RFC 8176)",
+    "acr": "acr values"
+  },
+  "comment": "Why (shown to the second administrator)",
+  "loosens_one": "{{count}} change loosens the policy: it waits for a second administrator.",
+  "loosens_other": "{{count}} changes loosen the policy: they wait for a second administrator.",
+  "saved": "Saved: the stricter rules apply now.",
+  "savedPending": "Saved: the looser rules wait for a second administrator.",
+  "unchanged": "Nothing changed – the baseline cannot be lowered.",
+  "pending": {
+    "title": "A looser policy waits for a second administrator",
+    "by": "Asked for by {{user}} on {{date}} – expires on {{expires}}.",
+    "reason": "Reason: {{comment}}",
+    "approve": "Approve",
+    "reject": "Reject",
+    "withdraw": "Withdraw",
+    "approved": "Approved: the looser rules apply now.",
+    "rejected": "Rejected: the rules stay as they are.",
+    "withdrawn": "Withdrawn."
+  },
+  "change": "{{point}} – {{field}}: {{from}} → {{to}}",
+  "fields": {
+    "fourEyes": "four-eyes",
+    "stepUp": "step-up",
+    "maxAgeMinutes": "max. age",
+    "mfa": "MFA",
+    "values": "values"
+  },
+  "values": {
+    "on": "on",
+    "off": "off",
+    "window": "SM_STEP_UP_MINUTES",
+    "none": "none"
+  },
+  "mfaLists": {
+    "amrValues": "MFA amr values",
+    "acrValues": "MFA acr values"
+  },
+  "overrides": {
+    "title": "Overrides of single items",
+    "hint": "These items add to the policy where they are set. The rule that applies to each is the strictest of the baseline, the policy and the item.",
+    "item": "Item",
+    "own": "Own setting",
+    "applies": "Applies",
+    "empty": "No item adds to the policy.",
+    "kinds": {
+      "recordType": "Record type",
+      "processStep": "Process step",
+      "manualStep": "Manual step",
+      "platformMcp": "Platform (MCP)",
+      "personReview": "Person review",
+      "setting": "Setting"
+    },
+    "fourEyes": "four-eyes",
+    "stepUp": "step-up",
+    "neither": "–"
+  },
+  "history": {
+    "title": "History",
+    "empty": "The policy has not changed yet: the defaults apply.",
+    "version": "Version",
+    "at": "Date",
+    "by": "Changed by",
+    "approvedBy": "Approved by",
+    "what": "What changed"
+  },
+  "report": {
+    "title": "Assurance report",
+    "hint": "The policy in force in a period and its changes, per control point how each event was confirmed, and the exceptions (emergency sign-ins, missing MFA, loosening). PDF/A, also part of evidence packs.",
+    "from": "From",
+    "to": "To",
+    "language": "Language",
+    "download": "Download PDF",
+    "json": "JSON"
+  },
+  "points": {
+    "apiToken": {
+      "create": {
+        "label": "Create an API token",
+        "description": "A token outlives the session and acts as the person."
+      }
+    },
+    "user": {
+      "create": {
+        "label": "Create an account with roles",
+        "description": "A new account with roles gives lasting access."
+      },
+      "change": {
+        "label": "Change an account's roles or sign-in",
+        "description": "Roles, the sign-in provider an account is bound to, activating or deactivating an administrator."
+      },
+      "resetPassword": {
+        "label": "Reset a password",
+        "description": "A temporary password lets the administrator sign in as the person."
+      }
+    },
+    "team": {
+      "members": {
+        "label": "Add team members or roles in a team",
+        "description": "Teams are subjects of access lists: a new member gets their rights."
+      }
+    },
+    "access": {
+      "grant": {
+        "label": "Give rights in an access list",
+        "description": "Access lists of platforms, processes and monitors, owning teams, copies with their access settings."
+      }
+    },
+    "sso": {
+      "providers": {
+        "label": "Add, change or delete a sign-in provider",
+        "description": "Single sign-on providers decide who signs in as whom."
+      }
+    },
+    "signIn": {
+      "settings": {
+        "label": "Change sign-in, outbound or four-eyes settings",
+        "description": "Password sign-in, the outbound policy and allow-list, turning four-eyes dismissals off."
+      }
+    },
+    "vault": {
+      "passphrase": {
+        "label": "Change the master passphrase",
+        "description": "The passphrase protects every credential and the audit key."
+      }
+    },
+    "assurance": {
+      "policy": {
+        "label": "Change the assurance policy",
+        "description": "This policy itself: every change needs a step-up; loosening it a second administrator."
+      }
+    },
+    "accessCheck": {
+      "decide": {
+        "label": "Document or dismiss access check findings",
+        "description": "Decisions on undocumented access changes. Four-eyes: dismissals are confirmed by a second person (also the setting under Settings → Catalogue)."
+      }
+    },
+    "personReview": {
+      "decide": {
+        "label": "Submit and approve person access reviews",
+        "description": "Four-eyes: a second person approves the review (each review has its own switch)."
+      }
+    },
+    "audit": {
+      "anchoring": {
+        "label": "Change audit anchoring and archiving",
+        "description": "Where the signed checkpoints go, and archiving of old entries."
+      },
+      "export": {
+        "label": "Export the audit log",
+        "description": "The audit log, its archives and the assurance report leave Steward in bulk."
+      }
+    },
+    "evidencePack": {
+      "export": {
+        "label": "Export an evidence pack",
+        "description": "Evidence of a period leaves Steward in bulk."
+      }
+    },
+    "credentials": {
+      "export": {
+        "label": "Export the credential register",
+        "description": "The register (no secrets) leaves Steward as CSV."
+      }
+    },
+    "record": {
+      "approve": {
+        "label": "Approve or reject a record",
+        "description": "The owner, author, submitter and content authors never decide their own record. A step-up makes the decision an electronic-signature-like confirmation."
+      }
+    },
+    "document": {
+      "reviewOwner": {
+        "label": "Make oneself the review owner of a document",
+        "description": "An approver who wrote a document cannot make themselves its review owner."
+      }
+    },
+    "firewallChange": {
+      "close": {
+        "label": "Close a firewall change",
+        "description": "Closing a record of the type FWC (firewall change). Without that type, nothing reaches this point."
+      }
+    },
+    "run": {
+      "decide": {
+        "label": "Decide an approval in a run",
+        "description": "Four-eyes: someone other than the person who started the run decides (each step has its own switch)."
+      }
+    },
+    "manualStep": {
+      "verify": {
+        "label": "Verify a manual step",
+        "description": "Whoever completed a manual step or added its evidence never verifies it."
+      }
+    },
+    "duty": {
+      "skip": {
+        "label": "Decide an exception of a service duty",
+        "description": "Another person than the one who asked decides."
+      }
+    },
+    "mcp": {
+      "write": {
+        "label": "Approve a changing call of an AI assistant",
+        "description": "Per platform: confirmed by the token owner or approved by a second person. Required: every platform needs a second person."
+      },
+      "allowWrites": {
+        "label": "Let AI assistants request changing calls",
+        "description": "Turning on changing calls through MCP on a platform, or confirm instead of four-eyes."
+      },
+      "allowClient": {
+        "label": "Allow an AI assistant (MCP client)",
+        "description": "The client then acts as the person through MCP."
+      }
+    },
+    "catalogue": {
+      "ciaScale": {
+        "label": "Change the CIA scale",
+        "description": "It maps or flags the protection needs of every application at once."
+      }
+    },
+    "notifications": {
+      "delivery": {
+        "label": "Change where notifications go",
+        "description": "SMTP server, Teams and webhook URLs, the base URL of links, allowed e-mail domains, the emergency alert."
+      }
+    },
+    "backup": {
+      "settings": {
+        "label": "Change the backups",
+        "description": "Where encrypted backups go and their passphrase."
+      }
+    },
+    "migration": {
+      "export": {
+        "label": "Export this instance",
+        "description": "Every credential leaves in the package."
+      },
+      "apply": {
+        "label": "Import an instance",
+        "description": "A whole instance comes in."
+      }
+    }
+  }
+}

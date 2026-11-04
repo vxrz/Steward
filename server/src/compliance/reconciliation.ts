@@ -26,6 +26,7 @@ import { vault } from '../vault.js';
 import { currentActor, currentUser, runAs, type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
 import { sameIdentity } from '../auth/aliases.js';
+import { fourEyesRequired, noteFourEyes } from '../auth/assurance.js';
 import { findUserByName, listTeams, listUsers, toAuthUser } from '../auth/users.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { permissionsFor } from '../processes/service.js';
@@ -1199,7 +1200,8 @@ function effectiveStatus(f: FindingRow): AccessFindingStatus {
   return f.record_id && recordCounts(f.record_id) ? 'documented' : 'open';
 }
 
-const fourEyesDismissals = (): boolean => getSettings().findingDismissFourEyes === true;
+// the setting, or the assurance policy for every check (accessCheck.decide, auth/assurance.ts)
+const fourEyesDismissals = (): boolean => fourEyesRequired('accessCheck.decide', getSettings().findingDismissFourEyes === true);
 const subjectOfFinding = (u: AuthUser | null, f: FindingRow) => !!u && isSubjectOf(u.username, { subjectId: f.subject_id, subjectName: f.subject_name });
 
 /** Dismiss (or, with four-eyes dismissals, ask to dismiss or confirm the dismissal of) a finding: the owner of the check or an administrator – never its subject, and not twice the same person. */
@@ -1422,6 +1424,7 @@ export function dismissFinding(id: string, comment: string): AccessFinding {
     });
     return getFinding(f.id);
   }
+  if (requested) noteFourEyes('accessCheck.decide', [requested], u, { itemRequires: true });
   db().tx(() => {
     db().run(
       "UPDATE access_findings SET status = 'dismissed', resolved_by = ?, resolved_at = ?, comment = ? WHERE id = ?",

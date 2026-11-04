@@ -28,6 +28,7 @@ import { require, requireCapability } from '../auth/permissions.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { me } from '../auth/access.js';
+import { fourEyesRequired, noteFourEyes } from '../auth/assurance.js';
 import { requireRun, requirePlatform, withDecisionRights, visibleTasks, visibleRuns } from './helpers.js';
 
 /** Query strings are validated like bodies: one value per parameter, bounded, numbers as numbers. */
@@ -214,16 +215,24 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     const b = z
       .object({ approved: z.boolean(), selectedKeys: z.array(z.string().max(500)).max(10000).default([]), comment: z.string().max(5000).optional() })
       .parse(req.body) as TaskDecision;
+    // the assurance proof (auth/assurance.ts): the run's starter asked, this person decides
+    if (fourEyesRequired('run.decide', t.fourEyes)) noteFourEyes('run.decide', [t.startedBy], me(), { itemRequires: t.fourEyes });
     await completeTask(id, b);
     return { ok: true };
   });
   // manual steps: the second person verifies (or sends back / rejects) what the first one entered
-  app.post('/tasks/:id/verify', async (req) => {
+  // (a step-up when the assurance policy asks for one on verifying manual steps – off by default)
+  const verifiable = (req: FastifyRequest) => {
+    const t = visibleTasks().find((x) => x.id === params(req).id);
+    return !!t && t.mode === 'manual' && t.manual?.stage === 'verify' && !!t.canDecide;
+  };
+  app.post('/tasks/:id/verify', { config: { stepUp: { action: 'verifyManualStep', optional: true, who: verifiable } } }, async (req) => {
     const id = params(req).id!;
     const t = visibleTasks().find((x) => x.id === id);
     if (!t) throw new HttpError(404, 'Task not found', 'TASK_NOT_FOUND');
     if (t.mode !== 'manual' || t.manual?.stage !== 'verify') throw new HttpError(409, 'This step does not wait for a verification', 'TASK_NOT_IN_VERIFICATION');
     if (!t.canDecide) throw new HttpError(403, t.cannotDecideReason ?? 'You may not verify this step', t.cannotDecideCode ?? 'FORBIDDEN', t.cannotDecideParams);
+    noteFourEyes('manualStep.verify', [t.manual.submission?.completedBy, ...(t.manual.submission?.evidence ?? []).map((e) => e.uploadedBy)], me());
     return { ok: true, ...(await verifyManualTask(id, verificationSchema.parse(req.body))) };
   });
   /** A manual step the current user may work on now (only they add or remove its evidence). */

@@ -3,6 +3,7 @@ import { renderRunReport } from '../run-report.js';
 import { renderSummaryReport } from '../summary-report.js';
 import { renderScheduledReport } from '../scheduled-report.js';
 import { drawPackPdf } from '../../compliance/pack-pdf.js';
+import { drawAssurancePdf } from '../../compliance/assurance-pdf.js';
 // sections of scheduled reports registered by other features (as in reports/schedules.ts)
 import '../../records/report-section.js';
 import '../../tickets/report-section.js';
@@ -19,6 +20,7 @@ export const PDF_DRAWERS = {
   summary: renderSummaryReport,
   scheduled: renderScheduledReport,
   pack: drawPackPdf,
+  assurance: drawAssurancePdf,
 };
 
 export type PdfDrawers = typeof PDF_DRAWERS;

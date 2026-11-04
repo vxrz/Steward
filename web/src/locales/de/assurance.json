@@ -1,0 +1,285 @@
+{
+  "title": "Absicherungsrichtlinie",
+  "intro": "Welche Aktionen eine zweite Person brauchen (Vier-Augen-Prinzip) und welche eine erneute Bestätigung, dass es die angemeldete Person ist. Gesperrte Regeln sind die Grundlinie und lassen sich nicht absenken. Eine strengere Regel gilt sofort; eine lockerere wartet auf einen zweiten Administrator (höchstens 7 Tage).",
+  "docs": "Was durchgesetzt wird und was es belegt: docs/ASSURANCE.md",
+  "version": "Fassung {{version}}",
+  "since": "gilt seit {{date}}",
+  "defaults": "die Voreinstellungen (wie in 0.4.0)",
+  "groups": {
+    "identity": "Identität und Zugriff",
+    "audit": "Audit und Nachweise",
+    "records": "Änderungen und Dokumente",
+    "processes": "Prozesse und Ausführungen",
+    "mcp": "MCP und KI",
+    "catalogue": "Katalog",
+    "system": "System und Daten"
+  },
+  "columns": {
+    "point": "Kontrollpunkt",
+    "fourEyes": "Vier Augen",
+    "stepUp": "Bestätigung",
+    "maxAge": "Max. Alter",
+    "mfa": "MFA"
+  },
+  "levels": {
+    "off": "Aus",
+    "optional": "Je Element",
+    "required": "Verlangt"
+  },
+  "baseline": "Grundlinie – lässt sich nicht absenken",
+  "notSupported": "nicht verfügbar",
+  "newPoint": "neu",
+  "fourEyesLabel": "Vier Augen: {{point}}",
+  "stepUpLabel": "Erneute Bestätigung: {{point}}",
+  "maxAgeLabel": "Höchstalter der Bestätigung in Minuten: {{point}}",
+  "maxAgePlaceholder": "{{count}} Min.",
+  "mfaLabel": "Multi-Faktor-Authentisierung verlangen: {{point}}",
+  "mfa": {
+    "title": "Was als Multi-Faktor zählt",
+    "hint": "Eine erneute Bestätigung per Single Sign-on zeigt Multi-Faktor-Authentisierung, wenn amr im ID-Token einen dieser Werte enthält oder acr einer der acr-Werte ist (die Steward dann beim Anbieter anfragt). Eine Bestätigung mit Passwort zählt nie, wo MFA verlangt ist.",
+    "amr": "amr-Werte (RFC 8176)",
+    "acr": "acr-Werte"
+  },
+  "comment": "Begründung (sieht der zweite Administrator)",
+  "loosens_one": "{{count}} Änderung lockert die Richtlinie: Sie wartet auf einen zweiten Administrator.",
+  "loosens_other": "{{count}} Änderungen lockern die Richtlinie: Sie warten auf einen zweiten Administrator.",
+  "saved": "Gespeichert: Die strengeren Regeln gelten jetzt.",
+  "savedPending": "Gespeichert: Die lockereren Regeln warten auf einen zweiten Administrator.",
+  "unchanged": "Nichts geändert – die Grundlinie lässt sich nicht absenken.",
+  "pending": {
+    "title": "Eine lockerere Richtlinie wartet auf einen zweiten Administrator",
+    "by": "Beantragt von {{user}} am {{date}} – läuft am {{expires}} ab.",
+    "reason": "Begründung: {{comment}}",
+    "approve": "Freigeben",
+    "reject": "Ablehnen",
+    "withdraw": "Zurückziehen",
+    "approved": "Freigegeben: Die lockereren Regeln gelten jetzt.",
+    "rejected": "Abgelehnt: Die Regeln bleiben, wie sie sind.",
+    "withdrawn": "Zurückgezogen."
+  },
+  "change": "{{point}} – {{field}}: {{from}} → {{to}}",
+  "fields": {
+    "fourEyes": "Vier Augen",
+    "stepUp": "Bestätigung",
+    "maxAgeMinutes": "max. Alter",
+    "mfa": "MFA",
+    "values": "Werte"
+  },
+  "values": {
+    "on": "an",
+    "off": "aus",
+    "window": "SM_STEP_UP_MINUTES",
+    "none": "keine"
+  },
+  "mfaLists": {
+    "amrValues": "MFA-amr-Werte",
+    "acrValues": "MFA-acr-Werte"
+  },
+  "overrides": {
+    "title": "Abweichungen einzelner Elemente",
+    "hint": "Diese Elemente verschärfen die Richtlinie dort, wo sie eingestellt sind. Für jedes gilt die strengste Regel aus Grundlinie, Richtlinie und Element.",
+    "item": "Element",
+    "own": "Eigene Einstellung",
+    "applies": "Es gilt",
+    "empty": "Kein Element verschärft die Richtlinie.",
+    "kinds": {
+      "recordType": "Dokumenttyp",
+      "processStep": "Prozessschritt",
+      "manualStep": "Manueller Schritt",
+      "platformMcp": "Plattform (MCP)",
+      "personReview": "Personenprüfung",
+      "setting": "Einstellung"
+    },
+    "fourEyes": "Vier Augen",
+    "stepUp": "Bestätigung",
+    "neither": "–"
+  },
+  "history": {
+    "title": "Verlauf",
+    "empty": "Die Richtlinie wurde noch nicht geändert: Es gelten die Voreinstellungen.",
+    "version": "Version",
+    "at": "Datum",
+    "by": "Geändert von",
+    "approvedBy": "Freigegeben von",
+    "what": "Was sich geändert hat"
+  },
+  "report": {
+    "title": "Absicherungsbericht",
+    "hint": "Die in einem Zeitraum geltende Richtlinie und ihre Änderungen, je Kontrollpunkt, wie jedes Ereignis bestätigt wurde, und die Ausnahmen (Notfallanmeldungen, fehlende MFA, Lockerungen). PDF/A, auch Teil von Nachweispaketen.",
+    "from": "Von",
+    "to": "Bis",
+    "language": "Sprache",
+    "download": "PDF herunterladen",
+    "json": "JSON"
+  },
+  "points": {
+    "apiToken": {
+      "create": {
+        "label": "Ein API-Token erstellen",
+        "description": "Ein Token überdauert die Sitzung und handelt als die Person."
+      }
+    },
+    "user": {
+      "create": {
+        "label": "Ein Konto mit Rollen anlegen",
+        "description": "Ein neues Konto mit Rollen gibt dauerhaften Zugriff."
+      },
+      "change": {
+        "label": "Rollen oder Anmeldung eines Kontos ändern",
+        "description": "Rollen, der Anmeldeanbieter eines Kontos, das Aktivieren oder Deaktivieren eines Administrators."
+      },
+      "resetPassword": {
+        "label": "Ein Passwort zurücksetzen",
+        "description": "Mit einem vorläufigen Passwort kann sich der Administrator als die Person anmelden."
+      }
+    },
+    "team": {
+      "members": {
+        "label": "Teammitglieder oder Rollen in einem Team hinzufügen",
+        "description": "Teams stehen in Zugriffslisten: Ein neues Mitglied erhält deren Rechte."
+      }
+    },
+    "access": {
+      "grant": {
+        "label": "Rechte in einer Zugriffsliste vergeben",
+        "description": "Zugriffslisten von Plattformen, Prozessen und Monitoren, zuständige Teams, Kopien mit ihren Zugriffseinstellungen."
+      }
+    },
+    "sso": {
+      "providers": {
+        "label": "Einen Anmeldeanbieter hinzufügen, ändern oder löschen",
+        "description": "Anbieter für Single Sign-on entscheiden, wer sich als wer anmeldet."
+      }
+    },
+    "signIn": {
+      "settings": {
+        "label": "Anmelde-, Ausgangs- oder Vier-Augen-Einstellungen ändern",
+        "description": "Passwortanmeldung, Ausgangsrichtlinie und Freigabeliste, das Abschalten des Vier-Augen-Verwerfens."
+      }
+    },
+    "vault": {
+      "passphrase": {
+        "label": "Die Master-Passphrase ändern",
+        "description": "Die Passphrase schützt alle Zugangsdaten und den Audit-Schlüssel."
+      }
+    },
+    "assurance": {
+      "policy": {
+        "label": "Die Absicherungsrichtlinie ändern",
+        "description": "Diese Richtlinie selbst: Jede Änderung braucht eine erneute Bestätigung, eine Lockerung einen zweiten Administrator."
+      }
+    },
+    "accessCheck": {
+      "decide": {
+        "label": "Befunde von Zugriffsprüfungen dokumentieren oder verwerfen",
+        "description": "Entscheidungen über nicht dokumentierte Zugriffsänderungen. Vier Augen: Eine zweite Person bestätigt das Verwerfen (auch die Einstellung unter Einstellungen → Katalog)."
+      }
+    },
+    "personReview": {
+      "decide": {
+        "label": "Personenprüfungen einreichen und freigeben",
+        "description": "Vier Augen: Eine zweite Person gibt die Prüfung frei (jede Prüfung hat einen eigenen Schalter)."
+      }
+    },
+    "audit": {
+      "anchoring": {
+        "label": "Verankerung und Archivierung des Audit-Logs ändern",
+        "description": "Wohin die signierten Prüfpunkte gehen, und die Archivierung alter Einträge."
+      },
+      "export": {
+        "label": "Das Audit-Log exportieren",
+        "description": "Das Audit-Log, seine Archive und der Absicherungsbericht verlassen Steward in großer Menge."
+      }
+    },
+    "evidencePack": {
+      "export": {
+        "label": "Ein Nachweispaket exportieren",
+        "description": "Nachweise eines Zeitraums verlassen Steward in großer Menge."
+      }
+    },
+    "credentials": {
+      "export": {
+        "label": "Das Zugangsdatenregister exportieren",
+        "description": "Das Register (ohne Geheimnisse) verlässt Steward als CSV."
+      }
+    },
+    "record": {
+      "approve": {
+        "label": "Ein Dokument freigeben oder ablehnen",
+        "description": "Verantwortliche, Verfasser, Einreichende und Autoren des Inhalts entscheiden nie über ihr eigenes Dokument. Mit erneuter Bestätigung wird die Entscheidung zu einer Bestätigung ähnlich einer elektronischen Signatur."
+      }
+    },
+    "document": {
+      "reviewOwner": {
+        "label": "Sich selbst als Verantwortlichen der Überprüfung eines Dokuments eintragen",
+        "description": "Wer ein Dokument geschrieben hat, kann sich nicht als Verantwortlichen seiner Überprüfung eintragen."
+      }
+    },
+    "firewallChange": {
+      "close": {
+        "label": "Eine Firewall-Änderung abschließen",
+        "description": "Das Abschließen eines Dokuments des Typs FWC (Firewall-Änderung). Ohne diesen Typ erreicht nichts diesen Punkt."
+      }
+    },
+    "run": {
+      "decide": {
+        "label": "Über eine Freigabe in einer Ausführung entscheiden",
+        "description": "Vier Augen: Eine andere Person als die, die die Ausführung gestartet hat, entscheidet (jeder Schritt hat einen eigenen Schalter)."
+      }
+    },
+    "manualStep": {
+      "verify": {
+        "label": "Einen manuellen Schritt prüfen",
+        "description": "Wer einen manuellen Schritt erledigt oder Nachweise hinzugefügt hat, prüft ihn nie."
+      }
+    },
+    "duty": {
+      "skip": {
+        "label": "Über eine Ausnahme einer Servicepflicht entscheiden",
+        "description": "Eine andere Person als die, die sie beantragt hat, entscheidet."
+      }
+    },
+    "mcp": {
+      "write": {
+        "label": "Einen ändernden Aufruf eines KI-Assistenten freigeben",
+        "description": "Je Plattform: vom Besitzer des Tokens bestätigt oder von einer zweiten Person freigegeben. Verlangt: Jede Plattform braucht eine zweite Person."
+      },
+      "allowWrites": {
+        "label": "KI-Assistenten ändernde Aufrufe anfragen lassen",
+        "description": "Ändernde Aufrufe über MCP auf einer Plattform einschalten, oder Bestätigen statt Vier Augen."
+      },
+      "allowClient": {
+        "label": "Einen KI-Assistenten (MCP-Client) zulassen",
+        "description": "Der Client handelt dann über MCP als die Person."
+      }
+    },
+    "catalogue": {
+      "ciaScale": {
+        "label": "Die CIA-Skala ändern",
+        "description": "Sie ordnet den Schutzbedarf aller Anwendungen auf einmal zu oder markiert ihn."
+      }
+    },
+    "notifications": {
+      "delivery": {
+        "label": "Ändern, wohin Benachrichtigungen gehen",
+        "description": "SMTP-Server, Teams- und Webhook-URLs, die Basis-URL von Links, erlaubte E-Mail-Domänen, die Notfallwarnung."
+      }
+    },
+    "backup": {
+      "settings": {
+        "label": "Die Sicherungen ändern",
+        "description": "Wohin verschlüsselte Sicherungen gehen und ihre Passphrase."
+      }
+    },
+    "migration": {
+      "export": {
+        "label": "Diese Instanz exportieren",
+        "description": "Alle Zugangsdaten verlassen Steward im Paket."
+      },
+      "apply": {
+        "label": "Eine Instanz importieren",
+        "description": "Eine ganze Instanz kommt herein."
+      }
+    }
+  }
+}

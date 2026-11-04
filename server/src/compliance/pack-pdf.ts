@@ -39,6 +39,9 @@ const TEXTS = {
     integrityText:
       'manifest.json lists every file of this pack with its SHA-256 and is signed (manifest.sig, Ed25519) with the key that also signs the audit checkpoints of this installation. Check the pack with: npm run evidence:verify -- <pack.zip> --fingerprint <fingerprint> (or: steward evidence verify …), with the fingerprint of the installation’s key as shown under Audit log → Anchoring outside the database – not the one printed here, which anyone building a pack could choose.',
     keyFingerprint: 'Key fingerprint',
+    assurance: 'Assurance report',
+    assuranceText:
+      'assurance/assurance-report.pdf (and .json) shows the assurance policy in force in the period, its changes, per control point how each event was confirmed (four-eyes, step-up with its method), and the exceptions.',
     disclaimer:
       'This pack collects evidence that Steward recorded. It does not certify compliance with ISO/IEC 27001, IEC 62443 or any other standard – the assessment is up to your organisation and its auditors.',
     more: '… and {n} more (see index.json)',
@@ -103,6 +106,9 @@ const TEXTS = {
     integrityText:
       'manifest.json führt jede Datei dieses Pakets mit ihrem SHA-256 auf und ist signiert (manifest.sig, Ed25519) – mit dem Schlüssel, der auch die Prüfpunkte des Audit-Logs dieser Installation signiert. Prüfen Sie das Paket mit: npm run evidence:verify -- <paket.zip> --fingerprint <Fingerabdruck> (oder: steward evidence verify …), mit dem Fingerabdruck des Schlüssels der Installation, wie ihn Audit-Log → Verankerung außerhalb der Datenbank zeigt – nicht dem hier gedruckten, den jeder wählen könnte, der ein Paket baut.',
     keyFingerprint: 'Fingerabdruck des Schlüssels',
+    assurance: 'Absicherungsbericht',
+    assuranceText:
+      'assurance/assurance-report.pdf (und .json) zeigt die im Zeitraum geltende Absicherungsrichtlinie, ihre Änderungen, je Kontrollpunkt, wie jedes Ereignis bestätigt wurde (Vier-Augen-Prinzip, erneute Bestätigung mit ihrer Art), und die Ausnahmen.',
     disclaimer:
       'Dieses Paket sammelt Nachweise, die Steward aufgezeichnet hat. Es bescheinigt keine Konformität mit ISO/IEC 27001, IEC 62443 oder anderen Normen – die Bewertung liegt bei Ihrer Organisation und ihren Auditoren.',
     more: '… und {n} weitere (siehe index.json)',
@@ -159,6 +165,8 @@ export interface PackPdfModel {
   catalogue?: PackCatalogue | null;
   items: { kind: string; label: string; at: string; files: number }[];
   omitted: string[];
+  /** The pack holds the assurance report (#210) */
+  assurance?: boolean;
 }
 
 const MAX_ROWS = 400;
@@ -303,6 +311,11 @@ export async function drawPackPdf(m: PackPdfModel, brand: BrandingInput, o: { co
   if (m.omitted.length) {
     w.subheading(L.omitted, 'warning');
     for (const x of m.omitted.slice(0, 50)) w.paragraph(`• ${x}`, { size: 8 });
+  }
+
+  if (m.assurance) {
+    w.subheading(L.assurance);
+    w.paragraph(L.assuranceText, { size: 8.5 });
   }
 
   w.section(`${n + 1}. ${L.integrity}`);

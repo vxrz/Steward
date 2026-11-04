@@ -31,6 +31,7 @@ import { findUserByName, getUser } from '../auth/users.js';
 import { resolveLocale, t as tr, type MessageKey } from '../i18n/index.js';
 import { getSettings } from '../settings.js';
 import { isAdmin } from '../auth/permissions.js';
+import { noteFourEyes } from '../auth/assurance.js';
 import { canDocumentAccessOn, isSubjectOf, isSystem } from '../compliance/access.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
@@ -869,6 +870,8 @@ export function transition(idOrNumber: string, input: TransitionInput): RecordDe
     });
   const info = actionsOf(u, r, wf).find((a) => a.action === def.action)!;
   if (!info.allowed) throw new HttpError(403, info.reason ?? 'Not allowed', info.reasonCode ?? 'FORBIDDEN');
+  // the assurance proof of the decision (auth/assurance.ts): who asked, who decides – checked above (fourEyesReason)
+  if (def.approval) noteFourEyes('record.approve', [r.owner, r.created_by, r.submitted_by], u);
   const comment = (input.comment ?? '').trim();
   if (comment.length > LIMITS.comment)
     throw new HttpError(400, `The comment is too long (at most ${LIMITS.comment} characters)`, 'COMMENT_TOO_LONG', { max: LIMITS.comment });

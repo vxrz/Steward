@@ -15,6 +15,7 @@ import { likeEscape } from '../database/sql.js';
 import { audit } from '../audit.js';
 import { type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
+import { fourEyesRequired, noteFourEyes, samePerson } from '../auth/assurance.js';
 import { findUserByName } from '../auth/users.js';
 import { canonicalJson, HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { canCreateChecks, canReadCheck, identitiesOf, readsEverything, same, visiblePlatformName } from './access.js';
@@ -112,8 +113,11 @@ function isThePerson(u: AuthUser, r: Pick<ReviewRow, 'person_user' | 'identifier
 
 const mayRead = (u: AuthUser, r: ReviewRow) => readsEverything(u) || same(r.created_by, u.username) || has(u, ['approver']);
 const mayDecide = (u: AuthUser, r: ReviewRow) => r.status === 'open' && (same(r.created_by, u.username) || isAdmin(u)) && !isThePerson(u, r);
+// the reviewer never approves (by identity: former names and a linked single sign-on identity count, auth/assurance.ts)
 const mayApprove = (u: AuthUser, r: ReviewRow) =>
-  r.status === 'submitted' && (has(u, ['approver']) || isAdmin(u)) && !same(r.submitted_by, u.username) && !isThePerson(u, r);
+  r.status === 'submitted' && (has(u, ['approver']) || isAdmin(u)) && !samePerson(r.submitted_by, u) && !isThePerson(u, r);
+/** Whether the review needs a second person: its own switch, or the assurance policy for every review (personReview.decide). */
+const needsSecondPerson = (r: Pick<ReviewRow, 'four_eyes'>) => fourEyesRequired('personReview.decide', !!r.four_eyes);
 
 const mayRecheck = (u: AuthUser, r: ReviewRow) =>
   (r.status === 'approved' || r.status === 'closed') && (same(r.created_by, u.username) || isAdmin(u) || has(u, ['approver']));
@@ -426,9 +430,9 @@ export function submit(id: string): PersonReview {
       action: 'compliance.person_review_submitted',
       entityType: 'person_review',
       entityId: id,
-      summary: `Person review "${r.title}" of ${r.person_name} submitted${r.four_eyes ? ' for approval' : ''}`,
+      summary: `Person review "${r.title}" of ${r.person_name} submitted${needsSecondPerson(r) ? ' for approval' : ''}`,
     });
-    if (!r.four_eyes) seal(id, u.username, '');
+    if (!needsSecondPerson(r)) seal(id, u.username, '');
   });
   return toReview(u, rowOf(id));
 }
@@ -444,6 +448,7 @@ export function approve(id: string, input: { approve: boolean; comment: string }
         : 'An approver or administrator other than the reviewer – and not the person reviewed – approves',
       'PERSON_REVIEW_APPROVE',
     );
+  noteFourEyes('personReview.decide', [r.submitted_by, r.created_by], u, { itemRequires: !!r.four_eyes });
   db().tx(() => {
     if (input.approve) seal(id, u.username, input.comment.trim());
     else {

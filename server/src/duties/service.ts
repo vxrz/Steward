@@ -17,6 +17,7 @@ import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { matches, processPermissions } from '../auth/permissions.js';
 import { sameIdentity } from '../auth/aliases.js';
+import { noteFourEyes } from '../auth/assurance.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
 import { logger } from '../log.js';
 import { t, type MessageKey } from '../i18n/index.js';
@@ -705,6 +706,7 @@ export function decideSkip(dutyId: string, skipId: string, input: z.infer<typeof
   if (r.status !== 'pending') throw new HttpError(409, `The exception is ${r.status} already`, 'DUTY_SKIP_DECIDED', { status: r.status });
   // four-eyes: never the person who asked (also under a former name)
   if (sameIdentity(r.requested_by, u)) throw new HttpError(403, 'Four-eyes principle: another person decides the exception you asked for', 'FOUR_EYES_SKIP');
+  noteFourEyes('duty.skip', [r.requested_by], u);
   const approve = input.decision === 'approve';
   if (approve) {
     const { e } = periodState(d, s, r.period_key, now);

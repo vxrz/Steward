@@ -52,6 +52,8 @@ export function registerBuiltInJobs(): void {
   // periodic connection tests of the platforms that turned them on (platforms/health.ts); Kafka topic prefixes kept in sync (kafka/prefixes.ts)
   every5('platform-health', 5 * MINUTE, () => import('../platforms/health.js').then((m) => m.runPlatformHealthJob()));
   every5('kafka-topic-prefixes', 10 * MINUTE, () => import('../kafka/prefixes.js').then((m) => m.runTopicPrefixJob()));
+  // assurance policy: requests to loosen it that no second administrator approved within 7 days expire (auth/assurance.ts)
+  every5('assurance-policy-changes', MINUTE, () => import('../auth/assurance.js').then((m) => m.expirePolicyChanges()));
 
   // retention clean-up: one minute after the start, then daily (maintenance.ts)
   registerJob({

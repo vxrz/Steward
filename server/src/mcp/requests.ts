@@ -19,6 +19,7 @@ import { logger } from '../log.js';
 import { config } from '../config.js';
 import { runAs, type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
+import { effectiveMcpMode, noteFourEyes, samePerson } from '../auth/assurance.js';
 import { findUserByName, listUsers, toAuthUser } from '../auth/users.js';
 import * as platforms from '../platforms/service.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
@@ -119,7 +120,8 @@ function usesPlatform(u: AuthUser, platformId: string | null): boolean {
 
 const isOpen = (r: Row) => r.status === 'pending' && r.expires_at > nowIso();
 /** fourEyes: an approver or administrator other than the token owner, who may use the platform */
-const secondPerson = (u: AuthUser, r: Row) => !same(u.username, r.requested_by) && (isAdmin(u) || has(u, ['approver'])) && usesPlatform(u, r.platform_id);
+// (by identity: former names and a linked single sign-on identity are the token owner too, auth/assurance.ts)
+const secondPerson = (u: AuthUser, r: Row) => !samePerson(r.requested_by, u) && (isAdmin(u) || has(u, ['approver'])) && usesPlatform(u, r.platform_id);
 const mayApprove = (u: AuthUser, r: Row) => {
   if (!isOpen(r)) return false;
   const review = reviewOf(r);
@@ -542,6 +544,7 @@ export async function decide(id: string, input: { approve: boolean; comment: str
           : 'An approver or administrator other than the token owner approves this request',
       'MCP_REQUEST_APPROVE',
     );
+  if (r.mode === 'fourEyes') noteFourEyes('mcp.write', [r.requested_by], u, { itemRequires: true });
   // claim it: whoever gets here first runs it, exactly once
   const at = nowIso();
   if (
@@ -629,7 +632,7 @@ async function execute(r: Row): Promise<{ status?: number; body?: unknown; runId
       }
       if (!p.config.mcpGateway?.enabled || !p.permissions.includes('use'))
         return { error: 'The MCP gateway of the platform was turned off, or the token owner may no longer use it' };
-      const now = p.config.mcpGateway.writes ?? 'off';
+      const now = effectiveMcpMode(p.config.mcpGateway.writes ?? 'off');
       if (now === 'off') return { error: 'Changing calls through MCP were turned off for this platform in the meantime' };
       if (now === 'fourEyes' && r.mode === 'confirm') return { error: 'The platform now needs a second person to approve changing calls – ask again' };
       const query = parseJson<Record<string, QueryValue>>(r.query, {});

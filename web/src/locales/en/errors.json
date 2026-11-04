@@ -765,7 +765,15 @@
     "DUPLICATE_NO_SERVICES": "You may not publish any of the services of this status page.",
     "FORBIDDEN_duplicate": "You may not create a copy of this.",
     "FORBIDDEN_duplicateAccess": "Only someone who may manage the original can copy its access settings.",
-    "SCHEDULE_NOT_FOUND": "Schedule {{id}} not found."
+    "SCHEDULE_NOT_FOUND": "Schedule {{id}} not found.",
+    "ASSURANCE_MFA_REQUIRED": "This needs a confirmation with multi-factor authentication.",
+    "ASSURANCE_MFA_REQUIRED_password": "This needs a confirmation with multi-factor authentication: a password cannot give one. Sign in with single sign-on and confirm with a second factor.",
+    "ASSURANCE_MAX_AGE": "A confirmation lasts at most {{max}} minutes (SM_STEP_UP_MINUTES).",
+    "ASSURANCE_CHANGE_PENDING": "{{user}} asked to loosen the policy already – that request is approved or rejected first.",
+    "ASSURANCE_CHANGE_DECIDED": "The policy change was decided already.",
+    "ASSURANCE_CHANGE_NOT_FOUND": "The policy change does not exist.",
+    "FOUR_EYES_POLICY": "Four-eyes principle: another administrator approves the loosening you asked for.",
+    "PERIOD_TOO_LONG": "The period may be at most {{max}} days."
   },
   "boundary": {
     "title": "Something went wrong on this page",

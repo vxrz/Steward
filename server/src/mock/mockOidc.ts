@@ -96,6 +96,8 @@ export interface MockIdentitySpec {
    * requested authentication context when acr_values or a claims request for acrs asks for it; 'always'; 'never'.
    */
   mfa?: 'whenAsked' | 'always' | 'never';
+  /** The amr claim exactly as given (e.g. ["pwd", "otp"]) instead of the one `mfa` gives – for the assurance policy's list of MFA values */
+  amr?: string[];
 }
 const custom = new Map<string, MockIdentitySpec>();
 const MAX_CUSTOM = 50;
@@ -165,7 +167,7 @@ function authClaims(q: Record<string, string>, spec: MockIdentitySpec | undefine
   const mfa = spec?.mfa === 'always' || (spec?.mfa !== 'never' && asked);
   return {
     auth_time: authTime,
-    amr: mfa ? ['pwd', 'mfa'] : ['pwd'],
+    amr: spec?.amr ?? (mfa ? ['pwd', 'mfa'] : ['pwd']),
     ...(acrValues.length ? { acr: mfa ? acrValues[0] : '0' } : {}),
     ...(contexts.length ? { acrs: mfa ? contexts : [] } : {}),
   };
