@@ -1,6 +1,6 @@
 # Single sign-on (OpenID Connect)
 
-Steward signs people in through any OpenID Connect provider: Microsoft Entra ID, Keycloak, Okta, Google Workspace, Authentik, ADFS and others. This page explains how to set up a provider, how the claims of a sign-in become a Steward account, and how to test it without signing anyone in.
+Steward signs people in through any OpenID Connect provider: Microsoft Entra ID, Keycloak, Okta, Google Workspace, Authentik, ADFS and others. This page explains how to set up a provider, how the claims of a sign-in become a Steward account, and how to test it without signing anyone in. Reading an Entra ID tenant for access reviews (users, groups, roles, app credentials) is a platform of its own, with its own app registration: see [ENTRA.md](ENTRA.md).
 
 Sign-in uses the authorization code flow with PKCE ([openid-client](https://github.com/panva/openid-client)). Steward checks the issuer, audience, signature (JWKS), expiry, nonce and state of every ID token. The client secret is stored encrypted with the master passphrase, and the provider's settings are sealed: settings changed outside Steward are refused until an administrator saves them again.
 

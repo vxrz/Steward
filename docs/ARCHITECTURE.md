@@ -115,6 +115,7 @@ Packaging: the same server runs as a desktop executable (a Node.js single execut
 | `sync/`, `migration/`, `backup/`, `upgrades.ts`                 | Git sync of the library, moving an instance, backups (local and S3), upgrade bookkeeping.                                              |
 | `mcp/`                                                          | The MCP server, OAuth for MCP clients, the platform gateway and approved write requests; the stdio bridge.                             |
 | `aws/`, `kafka/`, `mqtt/`, `snowflake/`, `dtrack/`, `semantic/` | Clients for the platform kinds that are not plain REST.                                                                                |
+| `entra/`                                                        | Microsoft Graph for Entra ID: paging and throttling, access, app credentials, connection test, register import.                        |
 | `system/`, `theme/`, `teams/`, `i18n/`                          | Readiness, system status and update notice; branding; team settings; server-side translations.                                         |
 | `log.ts`, `telemetry.ts`, `metrics.ts`, `errorReporting.ts`     | Logs (pino), OpenTelemetry traces, Prometheus metrics, optional Sentry-compatible error reporting.                                     |
 | `cli/`, `desktop/`                                              | Command-line tools (admin, migrate, backup, db-copy, …) and the desktop launcher.                                                      |

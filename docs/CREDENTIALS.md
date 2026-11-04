@@ -40,6 +40,12 @@ If Gatus already checks the certificate of an HTTPS endpoint, link the entry to 
 
 Certificates Gatus does not see, such as agent certificates of Insights Hub agents, are uploaded or entered by hand.
 
+### App credentials from Entra ID
+
+_Credentials → Import from Entra ID_ (v0.5.0; people who may add entries, with _use_ on a Microsoft Graph platform) turns the **client secrets and certificates of an Entra ID tenant's app registrations** – and the signing certificates of its enterprise applications – into entries: one per secret or certificate, of type _API client / OAuth client_ or _Certificate_, linked to the platform, with the end date as _Expires_ and the start date as _Issued_, the location `Entra ID: App registrations → <app> → Certificates & secrets → client secret “<name>” (key id …)` and a link to the app's page in the Entra admin center, tag `entra-id`. **Preview** first shows what would be added; _Only those that end within (days)_ narrows it (credentials that ended more than 30 days ago are always left out).
+
+An entry is found again by the key id in its location: a later import adds only new secrets and certificates and – when Entra ID says another end date (a renewed secret keeps its key id only in rare cases; a rotated one is a new entry) – changes the entry's _Expires_, with the history event _Expiry updated from Entra ID_ and the audit entry `credential.expiry_synced`. Everything else you changed (owners, notes, roles, reminders) stays. Graph returns names, ids and dates only, never a secret's value; Steward does not keep the hint (the first characters of a secret). API: `POST /api/credentials/import/entra` (`{ platformId, withinDays?, dryRun? }`). See [ENTRA.md](ENTRA.md).
+
 ## Status
 
 | Status   | Meaning                                                                      |
@@ -141,4 +147,4 @@ The checks are deliberately conservative to avoid false alarms. They cannot catc
 
 ## Audit
 
-`credential.created`, `credential.updated` (with the changed fields, before and after), `credential.roles_changed` (added, removed, changed, reason), `credential.rotated`, `credential.reviewed`, `credential.archived`, `credential.restored`, `credential.deleted`, `credential.expiry_synced`, `credential.exported`, `credential.settings_changed`. The entry's own history shows the same events plus the reminders that were sent.
+`credential.created`, `credential.updated` (with the changed fields, before and after), `credential.roles_changed` (added, removed, changed, reason), `credential.rotated`, `credential.reviewed`, `credential.archived`, `credential.restored`, `credential.deleted`, `credential.expiry_synced` (from Gatus or Entra ID), `credential.imported` (an import from Entra ID, on the platform), `credential.exported`, `credential.settings_changed`. The entry's own history shows the same events plus the reminders that were sent.
