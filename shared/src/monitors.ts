@@ -54,6 +54,7 @@ export const CHECK_TYPES = [
   'mqtt',
   'snowflake',
   'dependency-track',
+  'entra',
   'monitor',
 ] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
@@ -80,6 +81,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   snowflake: {
     label: 'Snowflake',
     help: 'A Snowflake table changed recently enough, no task of a database failed, or a warehouse stayed within its credits',
+  },
+  entra: {
+    label: 'Entra ID (Microsoft Graph)',
+    help: 'App registrations whose secrets or certificates expire within N days, or the Microsoft 365 service health',
   },
   git: {
     label: 'Repository pipeline',
@@ -342,6 +347,23 @@ export const checkSchema = z.discriminatedUnion('type', [
     quietAs: z.enum(['down', 'degraded']).default('down'),
     /** degraded below this many connected clients (brokers that publish $SYS/broker/clients/connected) */
     minClients: z.number().int().min(0).optional(),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('entra'),
+    platform: platformRef,
+    /**
+     * app-credentials: per app registration and type, the secret or certificate that lasts longest ends within
+     * withinDays (degraded) or downWithinDays (down; expired too) – a rotated one next to a newer one does not count;
+     * service-health: a Microsoft 365 service is not operational (degraded; an interruption: down) (v0.5.0)
+     */
+    mode: z.enum(['app-credentials', 'service-health']).default('app-credentials'),
+    withinDays: z.number().int().min(1).max(365).default(30),
+    downWithinDays: z.number().int().min(0).max(365).default(7),
+    /** app-credentials: only these app registrations (display names or application ids); empty: all */
+    apps: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
+    /** service-health: only these services (e.g. "Exchange Online", "Microsoft Teams"); empty: all */
+    services: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
   }),
   z.object({ ...checkBase, type: z.literal('monitor'), monitor: z.string().trim().min(1).max(200) }),
 ]);

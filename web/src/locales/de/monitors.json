@@ -260,7 +260,19 @@
     "dtrackPolicyFail": "Ein fehlgeschlagener Richtlinienverstoß zählt wie ein kritischer Befund",
     "lastReport": "Zuletzt empfangene Meldung",
     "lastReportHint": "{{when}} – Bedingung und Status-Ausdruck sehen genau diese Felder",
-    "lastReportNone": "Noch keine Meldung empfangen (oder die Prüfung ist noch nicht gespeichert). Sobald das Gateway meldet, steht hier seine letzte Meldung."
+    "lastReportNone": "Noch keine Meldung empfangen (oder die Prüfung ist noch nicht gespeichert). Sobald das Gateway meldet, steht hier seine letzte Meldung.",
+    "entraMode": "Was geprüft wird",
+    "entraModes": {
+      "app-credentials": "Ablaufende App-Geheimnisse und -Zertifikate",
+      "service-health": "Dienststatus von Microsoft 365"
+    },
+    "entraWithinDays": "Beeinträchtigt, wenn Ablauf innerhalb von (Tagen)",
+    "entraWithinDaysHint": "Je App-Registrierung und Art zählt das Geheimnis oder Zertifikat, das am längsten gilt: ein rotiertes neben einem neueren zählt nicht.",
+    "entraDownWithinDays": "Ausgefallen, wenn Ablauf innerhalb von (Tagen, auch abgelaufen)",
+    "entraApps": "App-Registrierungen (optional)",
+    "entraAppsHint": "Anzeigenamen oder Anwendungs-IDs; leer: jede App-Registrierung",
+    "entraServices": "Dienste (optional)",
+    "entraServicesHint": "z. B. Exchange Online, Microsoft Teams; leer: jeder Dienst. Benötigt ServiceHealth.Read.All."
   },
   "detail": {
     "template": "Vorlage",
@@ -611,6 +623,10 @@
     "dependency-track": {
       "label": "Schwachstellen (Dependency-Track)",
       "help": "Ein Dependency-Track-Projekt hat nicht mehr offene kritische (oder hohe) Befunde als erlaubt und keinen fehlgeschlagenen Richtlinienverstoß"
+    },
+    "entra": {
+      "label": "Entra ID (über Microsoft Graph)",
+      "help": "App-Registrierungen, deren Geheimnisse oder Zertifikate innerhalb von N Tagen ablaufen, oder der Dienststatus von Microsoft 365"
     }
   },
   "newCheck": {
@@ -629,7 +645,8 @@
     "mqtt": "MQTT-Topics",
     "monitor": "Untermonitor",
     "snowflake": "Snowflake-Tabelle aktuell",
-    "dependency-track": "Keine kritischen Schwachstellen"
+    "dependency-track": "Keine kritischen Schwachstellen",
+    "entra": "App-Zugangsdaten gültig"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"
