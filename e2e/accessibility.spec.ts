@@ -134,6 +134,36 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     await expect(page.getByRole('textbox', { name: 'Search', exact: true })).toBeFocused();
     await expectAccessible(page, 'command palette');
   });
+
+  // Open menus: the dropdown's children (Mantine's focus placeholder, aria-required-children) and red items
+  // (Delete platform, Archive) on the dropdown and on the hover background (color-contrast), in both schemes.
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`open menus (${scheme})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto('/platforms');
+      await settle(page);
+      await page.getByText('Insights Hub (demo)').first().click();
+      const more = page.getByRole('button', { name: 'More', exact: true });
+      await more.click();
+      // opening a menu focuses its first item (WAI-ARIA menu button pattern)
+      await expect(page.getByRole('menuitem').first()).toBeFocused();
+      await expectAccessible(page, `platform menu (${scheme})`);
+      await page.getByRole('menuitem', { name: 'Delete platform' }).hover();
+      await expectAccessible(page, `platform menu, red item hovered (${scheme})`);
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('menu')).toBeHidden();
+      await expect(more).toBeFocused();
+
+      await page.goto('/processes');
+      await settle(page);
+      await page
+        .getByRole('button', { name: /^More actions for / })
+        .first()
+        .click();
+      await expect(page.getByRole('menuitem', { name: 'Archive' })).toBeVisible();
+      await expectAccessible(page, `process card menu (${scheme})`);
+    });
+  }
 });
 
 test.describe('accessibility – signed out', () => {

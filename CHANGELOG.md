@@ -53,6 +53,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Open menus are accessible.** Every dropdown menu (the _More_ menus of platforms, processes, dashboards and monitors, the user menu, the Help menu) began with an invisible focusable element that is not a menu item, so screen readers got an invalid menu (axe `aria-required-children`, critical). Opening a menu now focuses its first item, as the WAI-ARIA menu button pattern describes; the arrow keys, Escape and the return of the focus work as before. Red menu items (_Delete platform_, _Archive_, _Sign out_) were too light to read in both colour schemes (3.3:1 on white, 4.1:1 in dark mode) and now reach 4.5:1, also when hovered. `e2e/accessibility.spec.ts` checks open menus in light and dark mode.
 - **Closed and withdrawn documents are readable in dark mode**: their status badge used a near-black colour (2.8:1 on the dark background); it is grey now, like _Cancelled_.
 
 ## [0.4.0] - 2026-11-04
