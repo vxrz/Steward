@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { config } from '../config.js';
+import { thumbprintB64 } from '../platforms/jwt.js';
 
 /**
  * A simulated Microsoft Graph with the Entra ID sign-in for demo mode and tests (v0.5.0): the read endpoints Steward
@@ -332,11 +333,7 @@ function assertionProblem(jwt: string, tokenUrl: string, clientId: string): [cod
   }
   const cert = certificates
     .map((pem) => new crypto.X509Certificate(pem))
-    .find(
-      (c) =>
-        header['x5t#S256'] === crypto.createHash('sha256').update(c.raw).digest('base64url') ||
-        header.x5t === crypto.createHash('sha1').update(c.raw).digest('base64url'),
-    );
+    .find((c) => header['x5t#S256'] === thumbprintB64(c.fingerprint256) || header.x5t === thumbprintB64(c.fingerprint));
   if (!cert) return ['AADSTS700027', `The certificate with identifier used to sign the client assertion is not registered on application.`];
   const alg = header.alg === 'PS256' ? { padding: crypto.constants.RSA_PKCS1_PSS_PADDING, saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST } : {};
   const ok = crypto.verify('sha256', Buffer.from(`${parts[0]}.${parts[1]}`), { key: cert.publicKey, ...alg }, Buffer.from(parts[2]!, 'base64url'));

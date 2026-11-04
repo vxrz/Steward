@@ -575,6 +575,31 @@ describe('processes', () => {
     expectValid(x.collection);
   });
 
+  it('values in the generated scripts cannot end a script or a tag: <, > and the line separators are escaped', () => {
+    const x = exportProcess(
+      {
+        name: 'Escaping',
+        connections: [{ slot: 'api' }],
+        steps: [
+          { id: 'list', type: 'http', connection: 'api', method: 'GET', path: '/items', saveAs: 'list' },
+          {
+            id: 'tricky',
+            type: 'check',
+            name: 'Ends </script> here\u2028next',
+            condition: "$count(vars.list.body[name = '</script><b>\u2029']) = 0",
+          },
+        ],
+      },
+      { api: platform({ type: 'none' }) },
+    );
+    const t = scriptOf(requests(x.collection)[0]!, 'test');
+    expect(t).not.toMatch(/<\/?script|<b>/i);
+    expect(t).not.toMatch(/[\u2028\u2029]/);
+    expect(t).toContain('\\u003c/script\\u003e');
+    expect(() => new Function(t)).not.toThrow();
+    expectValid(x.collection);
+  });
+
   it('a JSONata check reading an earlier answer gets it stored whole by that request', () => {
     const x = exportProcess(
       {

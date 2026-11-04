@@ -61,18 +61,20 @@ export function signJwt(
  * certificate (PEM, credential certificate) or – without one – from a SHA-1 thumbprint in hex (variable
  * certificateThumbprint), which gives only `x5t`.
  */
+/** A fingerprint of node:crypto (hex pairs separated by colons) as base64url. */
+export const thumbprintB64 = (fingerprint: string): string => Buffer.from(fingerprint.replace(/:/g, ''), 'hex').toString('base64url');
+
 export function certificateThumbprints(certPem: string | undefined, sha1Hex?: string): Record<string, string> {
   if (certPem?.trim()) {
-    let der: Buffer;
+    let cert: crypto.X509Certificate;
     try {
-      der = new crypto.X509Certificate(certPem).raw;
+      cert = new crypto.X509Certificate(certPem);
     } catch (e) {
       throw new Error(`The certificate cannot be read (PEM of the public certificate expected): ${(e as Error).message}`);
     }
-    return {
-      'x5t#S256': crypto.createHash('sha256').update(der).digest('base64url'),
-      x5t: crypto.createHash('sha1').update(der).digest('base64url'),
-    };
+    // The thumbprints only name the certificate (JWS headers, RFC 7515 4.1.7/4.1.8); the signature itself is RS256 or
+    // stronger. x5t is defined as the SHA-1 thumbprint and is still required by older identity providers.
+    return { 'x5t#S256': thumbprintB64(cert.fingerprint256), x5t: thumbprintB64(cert.fingerprint) };
   }
   const hex = (sha1Hex ?? '').replace(/[\s:]/g, '');
   if (/^[0-9a-f]{40}$/i.test(hex)) return { x5t: Buffer.from(hex, 'hex').toString('base64url') };

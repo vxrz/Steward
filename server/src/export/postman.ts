@@ -159,7 +159,12 @@ function slug(s: string): string {
 const script = (listen: PmScript['listen'], lines: string[]): PmScript => ({ listen, script: { type: 'text/javascript', exec: lines } });
 const attr = (key: string, value: string): PmAuthAttr => ({ key, value, type: 'string' });
 const v = (name: string) => `{{${name}}}`;
-const js = (x: unknown) => JSON.stringify(x);
+/**
+ * A value as a JavaScript literal for the generated scripts: JSON, with <, > and the line separators U+2028/U+2029
+ * escaped too, so no value can end the script or a surrounding tag, whatever a collection is later embedded in.
+ */
+const js = (x: unknown): string =>
+  (JSON.stringify(x) ?? 'undefined').replace(/[<>\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 const code = (s: string) => '`' + s.replace(/`/g, "'").replace(/\s+/g, ' ').trim().slice(0, 300) + '`';
 
 /** Collects the environment's values and the collection's variables (first definition of a key wins). */
