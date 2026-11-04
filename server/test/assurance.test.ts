@@ -204,6 +204,10 @@ describe('assurance policy (server)', () => {
     // the baseline cannot be lowered: nothing changes, nothing waits
     const base = await setPolicy(s.api, { 'vault.passphrase': { stepUp: false } });
     expect(base).toMatchObject({ applied: [], pending: null });
+    // the web app sends every point's rule as it shows it (null four-eyes where a point has none): nothing changes
+    const shown = await s.api('GET', '/assurance/policy');
+    const asShown = Object.fromEntries(Object.entries(shown.rules).map(([k, r]: [string, any]) => [k, r.instance]));
+    expect(await s.api('PUT', '/assurance/policy', { points: asShown, mfa: shown.policy.mfa })).toMatchObject({ applied: [], pending: null });
     // longer than SM_STEP_UP_MINUTES is refused
     expect(await refusal(setPolicy(s.api, { 'audit.export': { maxAgeMinutes: 60 } }))).toMatchObject({ status: 400, code: 'ASSURANCE_MAX_AGE' });
   });

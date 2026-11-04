@@ -275,7 +275,10 @@
       },
       "fromEnv": "festgelegt durch {{name}}",
       "pendingNone": "{{name}}=none gilt nach der ersten Single-Sign-on-Anmeldung eines Administrators",
-      "emergencyWindows": "Offene Notfallzugangs-Fenster"
+      "emergencyWindows": "Offene Notfallzugangs-Fenster",
+      "assurancePending": "Ausstehende Richtlinienänderung",
+      "assurancePendingBy": "{{user}} hat beantragt, die Absicherungsrichtlinie zu lockern – ein zweiter Administrator gibt sie frei (bis {{date}})",
+      "assuranceNone": "keine"
     },
     "jobs": {
       "title": "Hintergrundaufgaben",

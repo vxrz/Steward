@@ -79,3 +79,10 @@ export const scheduleKeys = {
   /** Report schedules of the reports page */
   reportsList: ['report-schedules', 'reports'] as const,
 };
+
+/** The assurance policy (#210): Settings → Assurance policy, its history. */
+export const assuranceKeys = {
+  all: ['assurance'] as const,
+  policy: ['assurance', 'policy'] as const,
+  history: ['assurance', 'history'] as const,
+};

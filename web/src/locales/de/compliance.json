@@ -402,6 +402,9 @@
     "langDe": "Deutsch",
     "contentsHelp": "Das Paket enthält ein Verzeichnis (PDF/A und index.json), Ausführungsprotokolle, Dokument-PDFs mit ihren Dateien, Zugriffsänderungen, Abgleich-Snapshots und -Befunde, geplante Berichte und – für Auditoren und Administratoren – einen Auszug aus dem Audit-Log mit signiertem Prüfpunkt.",
     "create": "Paket erstellen",
-    "permissionsNote": "Das Paket enthält nur, was Sie sehen dürfen. Erstellen und Herunterladen werden im Audit-Log festgehalten."
+    "permissionsNote": "Das Paket enthält nur, was Sie sehen dürfen. Erstellen und Herunterladen werden im Audit-Log festgehalten.",
+    "includeAssurance": "Absicherungsbericht beilegen",
+    "includeAssuranceHint": "Die im Zeitraum geltende Absicherungsrichtlinie, ihre Änderungen, wie jedes Ereignis bestätigt wurde, und die Ausnahmen (PDF und JSON).",
+    "assuranceReport": "Absicherungsbericht (PDF)"
   }
 }

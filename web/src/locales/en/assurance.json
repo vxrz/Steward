@@ -3,8 +3,8 @@
   "intro": "Which actions need a second person (four-eyes) and which need a fresh confirmation that it is the signed-in person (step-up). Locked rules are the baseline and cannot be lowered. A stricter rule applies at once; a looser one waits for a second administrator (at most 7 days).",
   "docs": "What is enforced and what proves it: docs/ASSURANCE.md",
   "version": "Version {{version}}",
-  "since": "in force since {{date}}",
-  "defaults": "the defaults (as in 0.4.0)",
+  "since": "In force since {{date}}.",
+  "defaults": "The defaults apply (as in 0.4.0).",
   "groups": {
     "identity": "Identity and access",
     "audit": "Audit and evidence",
@@ -69,7 +69,8 @@
     "on": "on",
     "off": "off",
     "window": "SM_STEP_UP_MINUTES",
-    "none": "none"
+    "none": "none",
+    "always": "Always"
   },
   "mfaLists": {
     "amrValues": "MFA amr values",

@@ -3,8 +3,8 @@
   "intro": "Welche Aktionen eine zweite Person brauchen (Vier-Augen-Prinzip) und welche eine erneute Bestätigung, dass es die angemeldete Person ist. Gesperrte Regeln sind die Grundlinie und lassen sich nicht absenken. Eine strengere Regel gilt sofort; eine lockerere wartet auf einen zweiten Administrator (höchstens 7 Tage).",
   "docs": "Was durchgesetzt wird und was es belegt: docs/ASSURANCE.md",
   "version": "Fassung {{version}}",
-  "since": "gilt seit {{date}}",
-  "defaults": "die Voreinstellungen (wie in 0.4.0)",
+  "since": "Gilt seit {{date}}.",
+  "defaults": "Es gelten die Voreinstellungen (wie in 0.4.0).",
   "groups": {
     "identity": "Identität und Zugriff",
     "audit": "Audit und Nachweise",
@@ -69,7 +69,8 @@
     "on": "an",
     "off": "aus",
     "window": "SM_STEP_UP_MINUTES",
-    "none": "keine"
+    "none": "keine",
+    "always": "Immer"
   },
   "mfaLists": {
     "amrValues": "MFA-amr-Werte",

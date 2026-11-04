@@ -96,6 +96,7 @@ const SETTING_ENTRIES: [string, string][] = [
   ['security', 'mcp:settings.title'],
   ['security', 'settings:vault.title'],
   ['security', 'settings:tokens.title'],
+  ['assurance', 'settings:areas.assurance.title'],
   ['integrations', 'tickets:settings.title'],
   ['integrations', 'gitSync:sources.title'],
   ['integrations', 'settings:migration.title'],

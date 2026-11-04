@@ -230,7 +230,8 @@ export const defaultAssurancePolicy = (): AssurancePolicy => ({ version: 0, poin
 
 const pointRuleInput = z
   .object({
-    fourEyes: z.enum(FOUR_EYES_LEVELS).optional(),
+    // null: the point has no four-eyes (the web app sends every point's rule as it shows it)
+    fourEyes: z.enum(FOUR_EYES_LEVELS).nullable().optional(),
     stepUp: z.boolean().optional(),
     maxAgeMinutes: z.number().int().min(1).max(ASSURANCE_LIMITS.maxAgeMinutes).nullable().optional(),
     mfa: z.boolean().optional(),
@@ -258,7 +259,7 @@ export const assurancePolicyInput = z
         ctx.addIssue({ code: 'custom', path: ['points', key], message: `Unknown control point "${key}"` });
         continue;
       }
-      if (r.fourEyes !== undefined && (!p.supports.fourEyes || !(p.fourEyesLevels ?? []).includes(r.fourEyes)))
+      if (r.fourEyes !== undefined && r.fourEyes !== null && (!p.supports.fourEyes || !(p.fourEyesLevels ?? []).includes(r.fourEyes)))
         ctx.addIssue({ code: 'custom', path: ['points', key, 'fourEyes'], message: `"${key}" does not take four-eyes "${r.fourEyes}"` });
       if (!p.supports.stepUp && (r.stepUp || r.mfa || (r.maxAgeMinutes ?? null) !== null))
         ctx.addIssue({ code: 'custom', path: ['points', key, 'stepUp'], message: `"${key}" has no step-up` });
