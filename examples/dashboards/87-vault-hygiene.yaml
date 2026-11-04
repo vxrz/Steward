@@ -25,7 +25,7 @@ widgets:
     days: 30
     width: 8
   - { id: problems, type: table, title: Needing attention, dataset: pv.hygiene, problemsOnly: true, width: 12 }
-  - { id: uses, type: kpi, title: Privileged uses (last run), dataset: pv.privileged-use, metric: uses, width: 4 }
+  - { id: uses, type: kpi, title: Privileged uses (last run), dataset: pv.privileged-use, metric: events, width: 4 }
   - { id: checkouts, type: kpi, title: Checkouts, dataset: pv.privileged-use, metric: checkouts, width: 4 }
   - { id: requests, type: kpi, title: Access requests, dataset: pv.privileged-use, metric: requests, width: 4 }
   - { id: use, type: table, title: Privileged use, dataset: pv.privileged-use, width: 12 }

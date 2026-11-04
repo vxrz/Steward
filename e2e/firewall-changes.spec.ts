@@ -98,7 +98,7 @@ test.describe('as a designer', () => {
       await rules.getByRole('textbox', { name: 'Purpose, row 1' }).fill(RULE.purpose);
       await expectAccessible(page, 'firewall change editor');
       await page.getByRole('button', { name: 'Save', exact: true }).click();
-      await expect(page).toHaveURL(new RegExp(`/records/${recordId}$`));
+      await expect(page).toHaveURL((u) => u.pathname.endsWith(`/records/${recordId}`));
       const table = page.getByTestId('record-table-rules');
       await expect(table.getByRole('row', { name: /tcp\/443/ })).toContainText('perimeter firewall');
       await expect(page.getByTestId('firewall-context')).toContainText('new rule');

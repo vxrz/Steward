@@ -471,7 +471,7 @@ describe('privileged use', () => {
       'CHECKIN',
       'PASSWORDDISPLAYED',
     ]);
-    expect(d.metrics).toMatchObject({ uses: 7, checkouts: 1, requests: 2, secrets: 2 });
+    expect(d.metrics).toMatchObject({ events: 7, checkouts: 1, requests: 2, secrets: 2 });
     expect(d.rows[0]).toMatchObject({ Secret: 'sa@sql1', Folder: '\\Privileged', User: 'erika' });
   });
 });

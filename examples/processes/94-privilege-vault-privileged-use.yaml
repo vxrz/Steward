@@ -82,7 +82,7 @@ steps:
         type: set
         name: Uses of the secret in the period
         values:
-          uses: >-
+          events: >-
             {{ (
               $from := $toMillis(vars.from);
               $ms := function($d) { $d ? $toMillis($contains($d, /([zZ]|[+-][0-9][0-9]:?[0-9][0-9])$/) ? $d : $d & 'Z') : 0 };
@@ -134,7 +134,7 @@ steps:
           $ms := function($d) { $d ? $toMillis($contains($d, /([zZ]|[+-][0-9][0-9]:?[0-9][0-9])$/) ? $d : $d & 'Z') : 0 };
           $ids := vars.list.id;
           $secrets := vars.list;
-          $uses := [vars.read.results.uses];
+          $events := [vars.read.results.events];
           $req := [vars.requests.results.found[secretId in $ids and $ms(requestDate) >= $from].(
             $r := $;
             {
@@ -148,7 +148,7 @@ steps:
               "ticket": ticketNumber
             }
           )];
-          $sort($append($uses, $req), function($a, $b) { $a.at > $b.at })
+          $sort($append($events, $req), function($a, $b) { $a.at > $b.at })
         ) }}
   - id: publish
     type: publish
@@ -166,7 +166,7 @@ steps:
       - { label: Notes, value: notes }
       - { label: Ticket, value: ticket }
     metrics:
-      uses: "$count(vars.rows)"
+      events: "$count(vars.rows)"
       views: "$count(vars.rows[$contains(action, 'VIEW') or $contains(action, 'DISPLAY')])"
       checkouts: "$count(vars.rows[action = 'CHECKOUT'])"
       requests: "$count(vars.rows[$contains(action, 'ACCESS REQUEST')])"
