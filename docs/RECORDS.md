@@ -23,17 +23,19 @@ The **service catalogue** is a deliberately small list of the services the team 
 
 ## Document types
 
-Steward creates seven types on first start (`DOC` and `PIR` are added to existing installations on the first start after the update). Administrators change them under _Documents → Document types_: key (number prefix), name, description, workflow, Markdown template and fields.
+Steward creates nine types on first start (`DOC`, `PIR`, `FWC` and `FWR` are added to existing installations on the first start after the update). Administrators change them under _Documents → Document types_: key (number prefix), name, description, workflow, Markdown template and fields.
 
-| Key   | Name                         | Workflow | Fields                                                                                                                    |
-| ----- | ---------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `CR`  | Change request               | change   | reason\*, risk\* (low/medium/high), impact, rollback plan\*, planned start, planned end                                   |
-| `ADR` | Architecture decision record | decision | decision date, deciders, consulted, informed                                                                              |
-| `DR`  | Decision record              | decision | as ADR                                                                                                                    |
-| `SDR` | Security decision record     | decision | as ADR; template with _Risk assessment_ and _Review date_                                                                 |
-| `AC`  | Access change                | access   | platform\*, subject\*, change\*, rights before/after, reason\*, request, approver, performed by\*, performed at\*         |
-| `DOC` | Service documentation        | document | none; template with _Purpose and scope_, _Responsibilities_, _Content_, _Related documents_; review every 12 months       |
-| `PIR` | Incident review              | decision | incident start\*, incident end, severity\* (minor/major/critical), impact\*, cause; measures ([below](#incident-reviews)) |
+| Key   | Name                         | Workflow | Fields                                                                                                                                                                                                            |
+| ----- | ---------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CR`  | Change request               | change   | reason\*, risk\* (low/medium/high), impact, rollback plan\*, planned start, planned end                                                                                                                           |
+| `ADR` | Architecture decision record | decision | decision date, deciders, consulted, informed                                                                                                                                                                      |
+| `DR`  | Decision record              | decision | as ADR                                                                                                                                                                                                            |
+| `SDR` | Security decision record     | decision | as ADR; template with _Risk assessment_ and _Review date_                                                                                                                                                         |
+| `AC`  | Access change                | access   | platform\*, subject\*, change\*, rights before/after, reason\*, request, approver, performed by\*, performed at\*                                                                                                 |
+| `DOC` | Service documentation        | document | none; template with _Purpose and scope_, _Responsibilities_, _Content_, _Related documents_; review every 12 months                                                                                               |
+| `PIR` | Incident review              | decision | incident start\*, incident end, severity\* (minor/major/critical), impact\*, cause; measures ([below](#incident-reviews))                                                                                         |
+| `FWC` | Firewall change              | change   | reason\*, risk\*, implemented by\* (internal/provider), provider, provider ticket, planned start and end (the maintenance window), rollback plan, rules\* (table); see [FIREWALL-CHANGES.md](FIREWALL-CHANGES.md) |
+| `FWR` | Approved firewall rules      | document | approved rules (table); one edition per closed firewall change; review every 12 months                                                                                                                            |
 
 \* required before the document can be submitted.
 
@@ -41,12 +43,20 @@ _SDR_ is read as "security decision record". If your team uses the abbreviation 
 
 Notes:
 
-- Field kinds: text (one line), text (several lines), date, date and time, choice. Field keys are camelCase (`rollbackPlan`).
+- Field kinds: text (one line), text (several lines), date, date and time, choice, table ([below](#table-fields)). Field keys are camelCase (`rollbackPlan`).
 - The key and the workflow of a type cannot change once it has documents: the key is part of their numbers and of the content hash they were approved with. Change the name instead, or create a new type.
 - Fields can change at any time. Frozen documents keep the field labels, kinds and choices they had when they were frozen (the PDF and the document page show those); values without a definition are shown by their key.
 - Archived types keep their documents but accept no new ones.
 - Types with the workflow _document_ have a **review interval** in months (default 12; 0 = no periodic reviews). If an installation already used the key `DOC` for its own type, the built-in type gets the key `SDOC`.
 - The context, decision, consequences and alternatives of a decision record are sections of the Markdown text (the template has the headings), not fields.
+
+### Table fields
+
+A field of the kind **table** (0.5.0) holds rows with fixed columns – e.g. the rule lines of a firewall change. Each column has a key (camelCase), a label, a kind (text, choice with its options, date) and may be required. Limits: 12 columns, 200 rows, 500 characters per cell, one line each.
+
+- The value is stored like every field value, as a string: JSON, an array of rows with a string per column (`[{"source":"10.20.30.0/24","service":"tcp/443"}]`). Steward checks every cell by its column, drops empty rows, keeps the column order and stores an empty table as no value – so the content hash covers the table exactly.
+- The document page shows the table below the text, the editor edits it row by row, _Versions_ compares it row by row, the PDF prints it as a table (the first nine columns) and the Markdown export keeps the JSON in the frontmatter.
+- In the API (`fields`) send the JSON as a string.
 
 ## Numbers
 
@@ -59,10 +69,13 @@ Imported files get a new number. The number from the file (`# 7. …`, `number:`
 **Change** (change requests):
 
 ```
-Draft ──submit──▶ Submitted ──approve──▶ Approved ──implement──▶ Implemented ──close──▶ Closed
+Draft ──submit──▶ Submitted ──approve──▶ Approved ──implement──▶ Implemented ──(verify──▶ Verified)──close──▶ Closed
   │                  │  └──reject──▶ Rejected
   └──cancel──▶ Cancelled ◀──cancel──┘
 ```
+
+- **Verify** (0.5.0, optional for change requests): from _Implemented_, someone other than the person who marked the change implemented confirms it worked (editors and approvers); _Close_ works from _Implemented_ and _Verified_. Firewall changes must be verified, with evidence first ([FIREWALL-CHANGES.md](FIREWALL-CHANGES.md#steps)).
+- **Evidence** (0.5.0): while a change is _Approved_ or _Implemented_, editors add evidence files (_Attachments → Add evidence_), e.g. the confirmation of a provider. They are not content – the approved content and its hash stay as they are –, each is audited with its SHA-256 (`record.evidence_added`) and checked on every download, and none can be removed. The PDF lists them in a section of their own.
 
 **Access** (access change entries, see [COMPLIANCE.md](COMPLIANCE.md)): Draft ──document──▶ Documented ──verify──▶ Verified; Draft ──cancel──▶ Cancelled. _Verify_ is an approval (four-eyes; the person who performed the change cannot verify it either). The fields of the access change type cannot be removed: the reconciliation and the evidence packs read them.
 
