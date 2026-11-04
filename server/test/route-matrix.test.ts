@@ -251,6 +251,8 @@ const EXPECT: Record<string, Access> = {
   'POST /api/platforms/:id/specs/:specId/copy': ADMIN,
   'POST /api/platforms/:id/specs/built-in': ADMIN,
   'GET /api/platforms/:id/operations': USE,
+  // Postman export (#204): who sees the platform (its page shows the same, no secret); audited
+  'GET /api/platforms/:id/export/postman': USE,
   'GET /api/platforms/:id/docs': USE,
   'POST /api/platforms/:id/docs': ADMIN,
   'DELETE /api/platforms/:id/docs/:docId': ADMIN,
@@ -279,6 +281,8 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/processes/:id/access': ADMIN,
   'GET /api/processes/:id/versions': ALL,
   'GET /api/processes/:id/export': ALL,
+  // Postman export (#204): who may view the process; connections only with platforms the caller can see; audited
+  'GET /api/processes/:id/export/postman': ALL,
   'GET /api/processes/:id/scope': ALL,
   'POST /api/processes/:id/evaluate': RUN,
   'POST /api/runs': RUN,
