@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { StepUpAction } from './api.js';
+import { boundedRecord } from './zodLimits.js';
 
 /**
  * Assurance policy (#210, docs/ASSURANCE.md): one catalogue of the control points where Steward can require a second
@@ -246,7 +247,7 @@ const valueList = z
 /** PUT /api/assurance/policy: the whole policy (points left out get their defaults). */
 export const assurancePolicyInput = z
   .object({
-    points: z.record(z.string().max(100), pointRuleInput).default({}),
+    points: boundedRecord(pointRuleInput, 100).default({}),
     mfa: z.object({ amrValues: valueList, acrValues: valueList }).strict().optional(),
     /** Why (kept with the change, shown to the second administrator) */
     comment: z.string().trim().max(ASSURANCE_LIMITS.comment).optional(),
