@@ -57,6 +57,8 @@ interface CachedToken {
   header: [string, string];
   fetchedAt: number;
   expiresAt: number;
+  /** token_request with auth.refresh (v0.5.0): renews the token once it expired, before signing in again */
+  refreshToken?: string;
 }
 
 const tokenCache = new Map<string, CachedToken>();
@@ -406,6 +408,7 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       if (cached && cached.expiresAt > Date.now() + 30000) return cached.header;
       let token: string;
       let expiresIn = 1800;
+      let refreshToken: string | undefined;
       if (auth.type === 'oauth2_client_credentials') {
         if (!auth.tokenUrl) throw new Error('OAuth2 token URL is not configured');
         if (!secrets.clientId || !secrets.clientSecret) throw new Error('Secrets "clientId" and "clientSecret" are required');
@@ -428,33 +431,26 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       } else {
         const rq = auth.request;
         if (!rq?.url) throw new Error('Login request URL is not configured');
-        const url = await renderString(rq.url, scope);
-        const fullUrl = /^https?:/i.test(url) ? url : (await resolveBaseUrl(p, secrets)) + url;
-        const r = await rawRequest(
-          p,
-          {
-            method: rq.method ?? 'POST',
-            url: fullUrl,
-            headers: (await render(rq.headers ?? {}, scope)) as Record<string, string>,
-            body: rq.body === undefined ? undefined : await render(rq.body, scope),
-            bodyType: rq.bodyType ?? 'json',
-          },
-          signal,
-        );
-        if (!r.ok) throw new Error(`Login request ${rq.method ?? 'POST'} ${where(fullUrl)} failed with HTTP ${r.status}: ${short(r.body)}`);
-        const t = await evalExpr(auth.tokenPath || 'access_token', r.body, { headers: r.headers });
-        if (!t || typeof t !== 'string') throw new Error(`Login response did not contain a token at "${auth.tokenPath}"`);
-        token = t;
-        if (auth.expiresInPath) {
-          const e = Number(await evalExpr(auth.expiresInPath, r.body));
-          if (e > 0) expiresIn = e;
+        let got: Awaited<ReturnType<typeof tokenCall>> | null = null;
+        // an expired token with a refresh token (v0.5.0): renew it first, sign in again only when that fails
+        if (auth.refresh?.request?.url && cached?.refreshToken) {
+          try {
+            got = await tokenCall(p, secrets, auth, auth.refresh.request, { ...scope, refreshToken: cached.refreshToken }, 'Token refresh', signal);
+            got.refreshToken ??= cached.refreshToken;
+          } catch (e) {
+            logger.debug({ platform: p.name, error: (e as Error).message.slice(0, 300) }, 'token refresh failed – signing in again');
+          }
         }
+        got ??= await tokenCall(p, secrets, auth, rq, scope, 'Login request', signal);
+        token = got.token;
+        if (got.expiresIn) expiresIn = got.expiresIn;
+        refreshToken = got.refreshToken;
       }
       const headerName = (auth.headerName || 'Authorization').toLowerCase();
       const headerValue = await renderString(auth.headerValue || 'Bearer {{ token }}', { ...scope, token });
       const header: [string, string] = [headerName, headerValue];
       const now = Date.now();
-      tokenCache.set(p.id, { header, fetchedAt: now, expiresAt: now + expiresIn * 1000 });
+      tokenCache.set(p.id, { header, fetchedAt: now, expiresAt: now + expiresIn * 1000, ...(refreshToken ? { refreshToken } : {}) });
       return header;
     }
     case 'jwt': {
@@ -495,6 +491,47 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
     default:
       throw new Error(`Unsupported auth type ${(auth as AuthConfig).type}`);
   }
+}
+
+type TokenRequest = NonNullable<AuthConfig['request']>;
+
+/** One login or refresh call of a token_request platform: the token, its lifetime and the refresh token (auth.refresh). */
+async function tokenCall(
+  p: Platform,
+  secrets: Record<string, string>,
+  auth: AuthConfig,
+  rq: TokenRequest,
+  scope: Record<string, unknown>,
+  what: string,
+  signal?: AbortSignal,
+): Promise<{ token: string; expiresIn: number | null; refreshToken?: string }> {
+  const url = await renderString(rq.url, scope);
+  const fullUrl = /^https?:/i.test(url) ? url : (await resolveBaseUrl(p, secrets)) + url;
+  const r = await rawRequest(
+    p,
+    {
+      method: rq.method ?? 'POST',
+      url: fullUrl,
+      headers: (await render(rq.headers ?? {}, scope)) as Record<string, string>,
+      body: rq.body === undefined ? undefined : await render(rq.body, scope),
+      bodyType: rq.bodyType ?? 'json',
+    },
+    signal,
+  );
+  if (!r.ok) throw new Error(`${what} ${rq.method ?? 'POST'} ${where(fullUrl)} failed with HTTP ${r.status}: ${short(r.body)}`);
+  const t = await evalExpr(auth.tokenPath || 'access_token', r.body, { headers: r.headers });
+  if (!t || typeof t !== 'string') throw new Error(`${what === 'Login request' ? 'Login' : what} response did not contain a token at "${auth.tokenPath}"`);
+  let expiresIn: number | null = null;
+  if (auth.expiresInPath) {
+    const e = Number(await evalExpr(auth.expiresInPath, r.body));
+    if (e > 0) expiresIn = e;
+  }
+  let refreshToken: string | undefined;
+  if (auth.refresh?.tokenPath) {
+    const rt = await evalExpr(auth.refresh.tokenPath, r.body);
+    if (typeof rt === 'string' && rt) refreshToken = rt;
+  }
+  return { token: t, expiresIn, ...(refreshToken ? { refreshToken } : {}) };
 }
 
 // ---------- AWS SigV4 (#114) ----------
@@ -871,6 +908,6 @@ export function secretValues(secrets: Record<string, string>): string[] {
   const vals = Object.entries(secrets)
     .filter(([k, v]) => typeof v === 'string' && v.length >= 4 && !IDENTIFIER_KEYS.test(k))
     .map(([, v]) => v);
-  const tok = [...tokenCache.values()].map((t) => t.header[1].replace(/^(Bearer|Basic)\s+/i, ''));
+  const tok = [...tokenCache.values()].flatMap((t) => [t.header[1].replace(/^(Bearer|Basic)\s+/i, ''), ...(t.refreshToken ? [t.refreshToken] : [])]);
   return [...vals, ...tok];
 }

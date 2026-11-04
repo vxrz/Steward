@@ -548,7 +548,8 @@
     "totalPagesPath": "Pfad der Seitenanzahl",
     "firstPage": "Nummer der ersten Seite",
     "nextPath": "Pfad der nächsten URL",
-    "maxPages": "Max. Seiten (Sicherheitsgrenze)"
+    "maxPages": "Max. Seiten (Sicherheitsgrenze)",
+    "morePath": "Pfad „weitere Seiten“ (optional, z. B. hasNext)"
   },
   "actions": {
     "label": "Aktionen",

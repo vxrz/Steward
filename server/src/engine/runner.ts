@@ -1641,15 +1641,18 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
       const page = await extract(res.body);
       items.push(...page);
       if (page.length === 0 || pages >= maxPages) break;
+      // the API says whether more follow (hasNext): a short page is then not the end
+      const more = pg.morePath ? await ctx.data(pg.morePath, res.body) : undefined;
+      if (pg.morePath && !more) break;
       if (pg.mode === 'page') {
         const totalPages = Number(await ctx.data(pg.totalPagesPath ?? 'page.totalPages', res.body));
         pageNo++;
         if (Number.isFinite(totalPages) && totalPages > 0) {
           if (pageNo - (pg.firstPage ?? 0) >= totalPages) break;
-        } else if (page.length < size) break;
+        } else if (page.length < size && !pg.morePath) break;
       } else {
         pageNo += page.length;
-        if (page.length < size) break;
+        if (page.length < size && !pg.morePath) break;
       }
     }
   } else if (pg.mode === 'nextLink') {
