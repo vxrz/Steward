@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  boundedRecord,
   EMPTY_NETWORK_ATTRIBUTES,
   FIREWALL_MANAGERS,
   NETWORK_LIMITS,
@@ -44,7 +45,7 @@ export const networkAttributesInput = z
   .strict();
 
 /** Attributes as given (validated by the kind on save): an object, at most a few keys. */
-export const attributesInput = z.record(z.string().max(40), z.unknown()).refine((o) => Object.keys(o).length <= 20, 'Too many attributes');
+export const attributesInput = boundedRecord(z.unknown(), 20);
 
 /**
  * The attributes stored for a kind: a network segment's checked attributes (subnets once each, a provider only when
