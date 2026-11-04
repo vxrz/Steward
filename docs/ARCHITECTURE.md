@@ -19,7 +19,7 @@ flowchart TB
 
   subgraph platforms [Managed platforms]
     ih["Siemens Insights Hub,<br/>Industrial Edge (IEM)"]
-    rest["Any REST API, Kubernetes, AWS,<br/>Snowflake, Kafka, MQTT, Git hosts,<br/>Prometheus, CheckMk, Dependency-Track, Gatus"]
+    rest["Any REST API, Kubernetes, AWS,<br/>Snowflake, Kafka, MQTT, Git hosts,<br/>Prometheus, CheckMk, Dependency-Track, Gatus,<br/>IBM Verify Privilege Vault"]
   end
 
   idp["Identity provider<br/>(OIDC, Entra ID)"]
@@ -115,6 +115,7 @@ Packaging: the same server runs as a desktop executable (a Node.js single execut
 | `sync/`, `migration/`, `backup/`, `upgrades.ts`                 | Git sync of the library, moving an instance, backups (local and S3), upgrade bookkeeping.                                              |
 | `mcp/`                                                          | The MCP server, OAuth for MCP clients, the platform gateway and approved write requests; the stdio bridge.                             |
 | `aws/`, `kafka/`, `mqtt/`, `snowflake/`, `dtrack/`, `semantic/` | Clients for the platform kinds that are not plain REST.                                                                                |
+| `pvault/`                                                       | IBM Verify Privilege Vault: access source, hygiene, privileged use – metadata only ([IBM-PAM.md](IBM-PAM.md)).                         |
 | `system/`, `theme/`, `teams/`, `i18n/`                          | Readiness, system status and update notice; branding; team settings; server-side translations.                                         |
 | `log.ts`, `telemetry.ts`, `metrics.ts`, `errorReporting.ts`     | Logs (pino), OpenTelemetry traces, Prometheus metrics, optional Sentry-compatible error reporting.                                     |
 | `cli/`, `desktop/`                                              | Command-line tools (admin, migrate, backup, db-copy, …) and the desktop launcher.                                                      |

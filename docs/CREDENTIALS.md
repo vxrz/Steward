@@ -40,6 +40,10 @@ If Gatus already checks the certificate of an HTTPS endpoint, link the entry to 
 
 Certificates Gatus does not see, such as agent certificates of Insights Hub agents, are uploaded or entered by hand.
 
+### Vault secret (IBM Verify Privilege Vault)
+
+An entry whose secret lives in IBM Verify Privilege Vault can name it: _Vault secret_ (the vault platform) and _Secret_ (search by name). Every six hours, or with _Read now_, Steward reads the secret's name, template, folder, last password change and expiry – never its value. The vault's last change counts as the last rotation when it is newer, so _Rotation interval_ is checked against it and an overdue rotation is flagged and reminded; the vault's expiry counts when the entry has none. A change found in the vault is a _Rotated_ event (`credential.vault_rotated`, actor `system`). See [IBM-PAM.md](IBM-PAM.md#credentials-register-link).
+
 ## Status
 
 | Status   | Meaning                                                                      |
