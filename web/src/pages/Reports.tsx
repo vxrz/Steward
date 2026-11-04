@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActionIcon,
   Anchor,
@@ -37,6 +37,8 @@ import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { CronPreview } from '../components/CronPreview';
 import { useMe } from '../auth';
+import { monitorKeys, processKeys, scheduleKeys } from '../queryKeys';
+import { DuplicateActionIcon, useDuplicate } from '../components/duplicate/DuplicateButton';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
 const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties', 'scorecard'];
@@ -83,18 +85,29 @@ const emptyDraft = (lang: 'en' | 'de'): Draft => ({
 export function ReportsPage() {
   const { t, i18n } = useTranslation(['reportSchedules', 'common']);
   const qc = useQueryClient();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const highlight = params.get('report');
   const schedules = useQuery({
-    queryKey: ['report-schedules'],
+    queryKey: scheduleKeys.reports,
     queryFn: () => get<{ items: ReportSchedule[]; canCreate: boolean; sections: string[] }>('/report-schedules'),
   });
-  const generated = useQuery({ queryKey: ['report-schedules', 'reports'], queryFn: () => get<ReportRecord[]>('/report-schedules/reports') });
+  const generated = useQuery({ queryKey: scheduleKeys.reportsList, queryFn: () => get<ReportRecord[]>('/report-schedules/reports') });
   const summaries = useQuery({ queryKey: ['reports', 'summary'], queryFn: () => getOptional<ReportRecord[]>('/reports?kind=summary', []) });
   const [draft, setDraft] = useState<Draft | null>(null);
   useCreateParam(schedules.data?.canCreate, () => setDraft(emptyDraft(i18n.language.startsWith('de') ? 'de' : 'en')));
   const [running, setRunning] = useState<string | null>(null);
-  const refresh = () => qc.invalidateQueries({ queryKey: ['report-schedules'] });
+  const duplicate = useDuplicate();
+  // ?edit=<id> (a copy opens in edit mode)
+  useEffect(() => {
+    const id = params.get('edit');
+    const found = id && schedules.data?.items.find((x) => x.id === id);
+    if (found && found.canEdit) {
+      setDraft(toDraft(found));
+      params.delete('edit');
+      setParams(params, { replace: true });
+    }
+  }, [params, schedules.data, setParams]);
+  const refresh = () => qc.invalidateQueries({ queryKey: scheduleKeys.reports });
   const reports = [...(generated.data ?? []), ...(summaries.data ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   const runNow = async (s: ReportSchedule) => {
@@ -209,30 +222,33 @@ export function ReportsPage() {
                       </Table.Td>
                       <Table.Td className="nowrap">{s.enabled && s.nextRunAt ? fmtDate(s.nextRunAt) : '–'}</Table.Td>
                       <Table.Td>
-                        {s.canEdit && (
-                          <Group gap={2} wrap="nowrap" justify="flex-end">
-                            <Tooltip label={t('runNow')}>
-                              <ActionIcon variant="subtle" loading={running === s.id} onClick={() => runNow(s)} aria-label={t('runNowOf', { name: s.name })}>
-                                <IconPlayerPlay size={16} />
+                        <Group gap={2} wrap="nowrap" justify="flex-end">
+                          {schedules.data?.canCreate && <DuplicateActionIcon name={s.name} onClick={() => duplicate.open('report-schedule', s.id)} />}
+                          {s.canEdit && (
+                            <>
+                              <Tooltip label={t('runNow')}>
+                                <ActionIcon variant="subtle" loading={running === s.id} onClick={() => runNow(s)} aria-label={t('runNowOf', { name: s.name })}>
+                                  <IconPlayerPlay size={16} />
+                                </ActionIcon>
+                              </Tooltip>
+                              <ActionIcon variant="subtle" onClick={() => setDraft(toDraft(s))} aria-label={t('editOf', { name: s.name })}>
+                                <IconEdit size={16} />
                               </ActionIcon>
-                            </Tooltip>
-                            <ActionIcon variant="subtle" onClick={() => setDraft(toDraft(s))} aria-label={t('editOf', { name: s.name })}>
-                              <IconEdit size={16} />
-                            </ActionIcon>
-                            <ActionIcon
-                              variant="subtle"
-                              color="red"
-                              aria-label={t('deleteOf', { name: s.name })}
-                              onClick={async () => {
-                                if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: s.name }) }))) return;
-                                await del(`/report-schedules/${s.id}`).catch(notifyError);
-                                refresh();
-                              }}
-                            >
-                              <IconTrash size={16} />
-                            </ActionIcon>
-                          </Group>
-                        )}
+                              <ActionIcon
+                                variant="subtle"
+                                color="red"
+                                aria-label={t('deleteOf', { name: s.name })}
+                                onClick={async () => {
+                                  if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: s.name }) }))) return;
+                                  await del(`/report-schedules/${s.id}`).catch(notifyError);
+                                  refresh();
+                                }}
+                              >
+                                <IconTrash size={16} />
+                              </ActionIcon>
+                            </>
+                          )}
+                        </Group>
                       </Table.Td>
                     </Table.Tr>
                   ))}
@@ -299,6 +315,7 @@ export function ReportsPage() {
           )}
         </Card>
       </Stack>
+      {duplicate.dialog}
       {draft && (
         <ScheduleModal
           draft={draft}
@@ -331,8 +348,8 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
   const [d, setD] = useState<Draft>(draft);
   const [busy, setBusy] = useState(false);
   const { me, isAdmin } = useMe();
-  const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors') });
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
+  const monitors = useQuery({ queryKey: monitorKeys.all, queryFn: () => get<MonitorSummary[]>('/monitors') });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
   const recordTypes = useQuery({ queryKey: ['record-types', false], queryFn: () => get<RecordType[]>('/record-types'), enabled: sections.includes('records') });
   const typeName = useTypeName();
   const gatus = useQuery({ queryKey: ['gatus-sources'], queryFn: () => getOptional<GatusMetricsSource[]>('/gatus/sources', []) });

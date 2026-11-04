@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { allowEmailDomains, setup, startTestServer, type TestServer } from './helpers.js';
+import { allowEmailDomains, setup, startTestServer, type TestServer, setEnv } from './helpers.js';
 
 /**
  * Audit anchoring (server/src/audit-anchor.ts, #23): the formats an anchor can come in, anchors configured outside the
@@ -18,11 +18,8 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
 });
-afterEach(() => {
-  if (env.anchor === undefined) delete process.env.SM_AUDIT_ANCHOR;
-  else process.env.SM_AUDIT_ANCHOR = env.anchor;
-  if (env.file === undefined) delete process.env.SM_AUDIT_ANCHOR_FILE;
-  else process.env.SM_AUDIT_ANCHOR_FILE = env.file;
+afterEach(async () => {
+  await setEnv({ SM_AUDIT_ANCHOR: env.anchor, SM_AUDIT_ANCHOR_FILE: env.file });
 });
 afterAll(async () => {
   await s?.app.close();
@@ -70,13 +67,12 @@ describe('reading an anchor', () => {
 describe('anchors configured outside the database', () => {
   it('a missing or broken anchor fails the verification with its source named, instead of being ignored', async () => {
     const { configuredAnchors, verifyWithAnchors } = await import('../src/audit-anchor.js');
-    process.env.SM_AUDIT_ANCHOR_FILE = path.join(os.tmpdir(), 'sm-no-such-anchor.json');
+    await setEnv({ SM_AUDIT_ANCHOR_FILE: path.join(os.tmpdir(), 'sm-no-such-anchor.json') });
     const missing = await verifyWithAnchors();
     expect(missing.ok).toBe(false);
     expect(missing.message).toContain('The anchor file SM_AUDIT_ANCHOR_FILE cannot be used: SM_AUDIT_ANCHOR_FILE');
     expect(missing.anchors).toEqual([expect.objectContaining({ source: 'anchor file SM_AUDIT_ANCHOR_FILE', ok: false })]);
-    delete process.env.SM_AUDIT_ANCHOR_FILE;
-    process.env.SM_AUDIT_ANCHOR = 'garbage';
+    await setEnv({ SM_AUDIT_ANCHOR_FILE: undefined, SM_AUDIT_ANCHOR: 'garbage' });
     expect(configuredAnchors().errors).toEqual([expect.objectContaining({ source: 'anchor in SM_AUDIT_ANCHOR' })]);
     expect((await verifyWithAnchors()).ok).toBe(false);
   });
@@ -87,7 +83,7 @@ describe('anchors configured outside the database', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-anchor-'));
     const file = path.join(dir, 'anchor.json');
     fs.writeFileSync(file, JSON.stringify(cp));
-    process.env.SM_AUDIT_ANCHOR_FILE = file;
+    await setEnv({ SM_AUDIT_ANCHOR_FILE: file });
     expect(configuredAnchors().names).toContain('anchor file SM_AUDIT_ANCHOR_FILE');
     const r = await verifyWithAnchors();
     expect(r.ok).toBe(true);
@@ -121,12 +117,11 @@ describe('checkpoints', () => {
     expect(anchoringStatus().latest).not.toBeNull();
   });
 
-  it('the hourly job starts once and stops', async () => {
-    const { startAuditJobs, stopAuditJobs } = await import('../src/audit-anchor.js');
-    startAuditJobs();
-    startAuditJobs();
-    stopAuditJobs();
-    stopAuditJobs();
+  it('the hourly checkpoint is a background job', async () => {
+    const { registerBuiltInJobs } = await import('../src/jobs/builtin.js');
+    const { listJobs } = await import('../src/jobs/registry.js');
+    registerBuiltInJobs();
+    expect(listJobs().find((j) => j.name === 'audit-checkpoint')).toMatchObject({ everySeconds: 3600, nextRunAt: null });
   });
 });
 

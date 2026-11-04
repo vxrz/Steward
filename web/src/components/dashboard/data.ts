@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { Dataset, DatasetMeta, DatasetStatus, MetricSeries } from '@sm/shared';
 import { ApiError, get } from '../../api';
+import { datasetKeys } from '../../queryKeys';
 
 /** Dashboard-wide settings shared with widgets. */
 export interface DashboardCtx {
@@ -23,7 +24,7 @@ const opts = (refreshMs: number) => ({
 
 export function useDatasetMetas() {
   const { refreshMs } = useDashboardCtx();
-  return useQuery({ queryKey: ['datasets'], queryFn: () => get<DatasetMeta[]>('/datasets'), ...opts(refreshMs) });
+  return useQuery({ queryKey: datasetKeys.all, queryFn: () => get<DatasetMeta[]>('/datasets'), ...opts(refreshMs) });
 }
 
 /** The sources a widget shows: its own pinned ones, else the dashboard's filter (#142). */
@@ -72,7 +73,7 @@ export function useDataset(key: string | undefined, scope?: string[] | null) {
   const { refreshMs } = useDashboardCtx();
   const qs = sourceQuery(scope);
   return useQuery({
-    queryKey: ['dataset', key, qs],
+    queryKey: datasetKeys.detail(key, qs),
     queryFn: () => get<Dataset>(`/datasets/${encodeURIComponent(key!)}${qs ? `?${qs}` : ''}`),
     enabled: !!key,
     ...opts(refreshMs),
@@ -84,7 +85,7 @@ export function useMetrics(key: string | undefined, names: string[], days: numbe
   const { refreshMs } = useDashboardCtx();
   const qs = sourceQuery(scope);
   return useQuery({
-    queryKey: ['dataset-metrics', key, names.join(','), days, qs],
+    queryKey: datasetKeys.metrics(key, names.join(','), days, qs),
     queryFn: () =>
       get<MetricSeries[]>(
         `/datasets/${encodeURIComponent(key!)}/metrics?days=${days}&points=200&trend=${days}d${names.length ? `&names=${encodeURIComponent(names.join(','))}` : ''}${qs ? `&${qs}` : ''}`,

@@ -103,6 +103,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/about': ALL,
   'GET /api/system/status': ADMIN_AUDITOR,
   'GET /api/system/update-notice': ADMIN,
+  'GET /api/system/jobs': ADMIN,
+  'POST /api/system/jobs/:name/run': ADMIN,
   'POST /api/system/update-notice/dismiss': ADMIN,
   'GET /api/metrics': ADMIN_AUDITOR,
   'GET /api/public-api': ALL,
@@ -198,6 +200,11 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/audit/anchoring': ADMIN,
   'GET /api/audit/anchor.json': ADMIN_AUDITOR,
   'POST /api/audit/checkpoint': ADMIN_AUDITOR,
+  'POST /api/audit/verify/full': ADMIN,
+  'GET /api/audit/archive': ADMIN_AUDITOR,
+  'PUT /api/audit/archive': ADMIN,
+  'POST /api/audit/archive/run': ADMIN,
+  'GET /api/audit/archives/:archiveId/file': ADMIN_AUDITOR,
   'GET /api/backups': ADMIN,
   'GET /api/backups/stored': ADMIN,
   'PUT /api/backups/settings': ADMIN,
@@ -224,6 +231,10 @@ const EXPECT: Record<string, Access> = {
   'POST /api/platforms/:id/contract-check': ADMIN,
   'PUT /api/platforms/:id/secrets': ADMIN,
   'POST /api/platforms/:id/test': USE,
+  // what's next with a platform and its health (v0.4.0): like the platform itself; the periodic test by its managers
+  'GET /api/platforms/:id/get-started': USE,
+  'GET /api/platforms/:id/health': USE,
+  'PUT /api/platforms/:id/health': ADMIN,
   'POST /api/platforms/:id/request': USE,
   // recorded responses (#105): read like the explorer, changed like the platform
   'GET /api/platforms/:id/recordings': USE,
@@ -254,6 +265,10 @@ const EXPECT: Record<string, Access> = {
 
   // ---- processes, runs, tasks, schedules, triggers ----
   'GET /api/templates': ALL,
+  // template bundles (v0.4.0): everyone sees the list, who may create processes sets them up
+  'GET /api/template-bundles': ALL,
+  'POST /api/template-bundles/:id/setup': DESIGN,
+  'POST /api/template-bundles/:id/turn-on': DESIGN,
   'GET /api/processes': ALL,
   'POST /api/processes': DESIGN,
   'POST /api/processes/validate': ALL,
@@ -520,6 +535,13 @@ const EXPECT: Record<string, Access> = {
   'POST /api/applications/:id/components/:componentId/cluster': DESIGN,
   'POST /api/applications/:id/components/:componentId/repository': DESIGN,
   'POST /api/applications/:id/components/:componentId/topic': DESIGN,
+  // Kafka topics by prefix (v0.4.0): who may change the application; the synced prefixes are read like the application
+  'POST /api/applications/:id/kafka-topics/list': DESIGN,
+  'POST /api/applications/:id/kafka-topics': DESIGN,
+  'GET /api/applications/:id/topic-prefixes': ALL,
+  'POST /api/applications/:id/topic-prefixes/:syncId/check': DESIGN,
+  'POST /api/applications/:id/topic-prefixes/:syncId/dismiss': DESIGN,
+  'DELETE /api/applications/:id/topic-prefixes/:syncId': DESIGN,
   'POST /api/applications/:id/components/:componentId/aws': DESIGN,
   'POST /api/applications/:id/components/:componentId/snowflake': DESIGN,
   'POST /api/applications/:id/components/:componentId/dependency-track': DESIGN,
@@ -754,6 +776,24 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/settings/mcp-oauth/clients/:clientId': ADMIN,
   'DELETE /api/settings/mcp-oauth/grants/:grantId': ADMIN,
   'PUT /api/settings/daily-summary': ADMIN,
+
+  // ---- duplicating (0.4.0): who may see the original and create the kind (duplicate.test.ts checks the rules) ----
+  'POST /api/monitors/:id/duplicate': DESIGN,
+  'POST /api/processes/:id/duplicate': DESIGN,
+  'POST /api/dashboards/:id/duplicate': DESIGN,
+  'POST /api/credentials/:id/duplicate': RUN,
+  'POST /api/applications/:id/duplicate': DESIGN,
+  'POST /api/services/:id/duplicate': DESIGN,
+  // the run right on the schedule's process
+  'POST /api/schedules/:id/duplicate': RUN,
+  // the fixture schedule is the administrator's: auditors see it, everyone but viewers creates report schedules
+  'POST /api/report-schedules/:id/duplicate': ADMIN_AUDITOR,
+  'POST /api/maintenance-windows/:id/duplicate': DESIGN,
+  'POST /api/compliance/access-checks/:accessCheckId/duplicate': DESIGN,
+  'POST /api/status-pages/:pageId/duplicate': DESIGN,
+  // the suggestion for the dialog (fixture: the demo process) and where a copy came from (everyone who sees it)
+  'GET /api/duplicates/:kind/:id': DESIGN,
+  'GET /api/duplicates/:kind/:id/source': ALL,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
@@ -810,6 +850,19 @@ const SESSION_ONLY = [
  * one that does not (`harmless`, never STEP_UP_REQUIRED). A route that loses its step-up fails this test.
  */
 const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown }> = {
+  // copying the access settings of an original shares the copy with its access list and owning teams (0.4.0);
+  // harmless: no access settings, refused for the key (nothing is created)
+  ...Object.fromEntries(
+    [
+      'POST /api/monitors/:id/duplicate',
+      'POST /api/processes/:id/duplicate',
+      'POST /api/dashboards/:id/duplicate',
+      'POST /api/credentials/:id/duplicate',
+      'POST /api/applications/:id/duplicate',
+      'POST /api/services/:id/duplicate',
+      'POST /api/report-schedules/:id/duplicate',
+    ].map((k) => [k, { sensitive: { copyAccess: true }, harmless: { copyAccess: false, key: '!' } }]),
+  ),
   // allowing an MCP client gives it lasting access as the person (#12); denying needs no confirmation
   'POST /api/oauth/authorize': {
     sensitive: { request: { response_type: 'code', client_id: 'mcpc_matrix', redirect_uri: 'http://127.0.0.1:1/cb' }, approve: true },
@@ -865,6 +918,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/compliance/evidence-packs': 'always',
   'GET /api/audit/export': 'always',
   'PUT /api/audit/anchoring': 'always',
+  'PUT /api/audit/archive': 'always',
+  'GET /api/audit/archives/:archiveId/file': 'always',
   'GET /api/credentials/export.csv': 'always',
   'POST /api/migration/export': 'always',
   'POST /api/migration/imports/staged/:id/apply': 'always',
@@ -896,6 +951,7 @@ const NO_POSITIVE = new Set([
   'GET /api/auth/oidc/callback', // redirects
   'GET /api/auth/oidc/:id/start',
   'GET /api/audit/anchor.json', // no checkpoint file yet
+  'GET /api/audit/archives/:archiveId/file', // no audit archive (archiving is off)
   'GET /api/reports/branding/logo', // no logo uploaded
   'GET /api/settings/notifications/look/logo',
   'GET /api/theme/logo',
@@ -923,6 +979,7 @@ function fill(url: string): string {
     .replace(/\*/g, 'nothing-here')
     .replace(/\/api\/platform-types\/:kind/, `/api/platform-types/${fx.platformKind}`)
     .replace(/\/api\/owning-teams\/:kind\/:id/, `/api/owning-teams/process/${fx.process}`)
+    .replace(/\/api\/duplicates\/:kind\/:id/, `/api/duplicates/process/${fx.process}`)
     .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : fx.platform!)
     .replace(/:specId/g, fx.spec!)
     .replace(/:docId/g, fx.doc!)
@@ -1151,6 +1208,7 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/settings': { outboundPolicy: 'open' },
   'PUT /api/settings/instance': { outboundPolicy: 'open' },
   'PUT /api/audit/anchoring': { emailRecipients: [] },
+  'PUT /api/audit/archive': { archive: false, upload: false, retentionDays: 0 },
   'PUT /api/credentials/settings': {},
   'POST /api/vault/passphrase': { current: 'correct horse battery', next: 'correct horse battery 2' },
   'POST /api/vault/unlock': { passphrase: 'correct horse battery' },

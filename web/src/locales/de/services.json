@@ -117,5 +117,31 @@
     "linkInvalid": "Dieser Link zur Statusseite ist nicht (mehr) gültig. Fragen Sie die Person, die ihn Ihnen geschickt hat.",
     "noneForViewer": "Noch keine Statusseiten.",
     "signOut": "Abmelden"
+  },
+  "hub": {
+    "tabsLabel": "Bereiche von {{name}}",
+    "tabs": {
+      "overview": "Überblick",
+      "applications": "Anwendungen",
+      "systems": "Systeme",
+      "duties": "Pflichten",
+      "objectives": "Ziele",
+      "maintenance": "Wartung",
+      "documents": "Dokumente",
+      "tickets": "Ticket-Referenzen",
+      "scorecard": "Scorecard"
+    },
+    "archivedScorecard": "Ein archivierter Service hat keine Scorecard.",
+    "systems": {
+      "title": "Läuft auf",
+      "help": "Die Systeme, auf denen die Anwendungen des Service laufen, je Umgebung. Ändern Sie sie an der Anwendung (Läuft auf).",
+      "empty": "Noch keine Anwendung des Service nennt die Systeme, auf denen sie läuft.",
+      "noApplications": "Der Service hat noch keine Anwendungen: Fügen Sie sie im Reiter Anwendungen hinzu.",
+      "system": "System",
+      "kind": "Art",
+      "vendor": "Anbieter",
+      "environment": "Umgebung",
+      "applications": "Anwendungen"
+    }
   }
 }

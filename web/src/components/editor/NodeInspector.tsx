@@ -10,6 +10,7 @@ import { fmtDate, fmtDuration, fmtRelative } from '../../format';
 import { inspectNode, isNotFound, useLatestRun, useRunDetail } from './editorApi';
 import { errorText } from '../../i18n/errors';
 import { withBase } from '../../basePath';
+import { runKeys } from '../../queryKeys';
 
 type Activation = NodeInspection['activations'][number];
 
@@ -157,9 +158,9 @@ export function NodeInspector({ processId, nodeId }: { processId?: string; nodeI
             variant="subtle"
             aria-label={t('inspector.reloadLabel')}
             onClick={() => {
-              qc.invalidateQueries({ queryKey: ['runs', 'latest', processId] });
+              qc.invalidateQueries({ queryKey: runKeys.latest(processId) });
               qc.invalidateQueries({ queryKey: ['inspect'] });
-              qc.invalidateQueries({ queryKey: ['run', runId] });
+              qc.invalidateQueries({ queryKey: runKeys.detail(runId) });
             }}
           >
             <IconRefresh size={14} />

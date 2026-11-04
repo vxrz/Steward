@@ -6,7 +6,8 @@ import { IconCalendarTime, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from 
 import { Trans, useTranslation } from 'react-i18next';
 import { DEFAULT_SCHEDULE_NOTIFY, type ProcessDetail, type ProcessSummary, type Schedule } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
-import { EmptyState, PageHeader, QueryState, StatusBadge, useCreateParam, useFieldErrors } from '../components/common';
+import { QueryState, StatusBadge, useCreateParam, useFieldErrors } from '../components/common';
+import { AutomateTabs } from '../components/page/LinkTabs';
 import { InputsForm, defaultInputs } from '../components/InputsForm';
 import { BindingsForm, loadBindings } from '../components/RunDialog';
 import { fmtDate, fmtRelative } from '../format';
@@ -16,6 +17,9 @@ import { confirmDanger } from '../components/confirm';
 import { RunModeField } from '../components/RunModeField';
 import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/notify/NotifyPolicy';
 import { CronWarnings, useCronPreview } from '../components/CronPreview';
+import { ListPage } from '../components/page/ListPage';
+import { processKeys, scheduleKeys } from '../queryKeys';
+import { DuplicateActionIcon, useDuplicate } from '../components/duplicate/DuplicateButton';
 
 const PRESETS = [
   { key: 'every15', cron: '*/15 * * * *' },
@@ -27,7 +31,7 @@ const PRESETS = [
   { key: 'quarterly', cron: '0 6 1 1,4,7,10 *' },
 ] as const;
 
-type Draft = Omit<Schedule, 'id' | 'createdAt' | 'processName' | 'lastRunAt' | 'lastRunId' | 'lastRunStatus' | 'nextRunAt'> & { id?: string };
+type Draft = Omit<Schedule, 'id' | 'createdAt' | 'processName' | 'lastRunAt' | 'lastRunId' | 'lastRunStatus' | 'nextRunAt' | 'missed'> & { id?: string };
 
 const emptyDraft = (): Draft => ({
   name: '',
@@ -39,15 +43,37 @@ const emptyDraft = (): Draft => ({
   dryRun: false,
   enabled: true,
   allowOverlap: false,
+  catchUp: 'none',
   notify: { ...DEFAULT_SCHEDULE_NOTIFY },
 });
+
+const MISSED_SHOWN_DAYS = 7;
+
+/** Fires missed while Steward was not running (found at its last start), for a week after they were found. */
+function MissedBadge({ missed }: { missed?: Schedule['missed'] }) {
+  const { t } = useTranslation('schedules');
+  if (!missed || Date.now() - Date.parse(missed.detectedAt) > MISSED_SHOWN_DAYS * 86400000) return null;
+  const times = missed.times.map((x) => fmtDate(x)).join(', ') + (missed.count > missed.times.length ? ` … (${missed.count})` : '');
+  return (
+    <Tooltip
+      multiline
+      maw={360}
+      label={`${t('missed.tooltip', { times, when: fmtDate(missed.detectedAt) })} ${missed.catchUp ? t('missed.caughtUp') : t('missed.notCaughtUp')}`}
+    >
+      <Badge size="xs" color="orange" variant="light" data-testid="schedule-missed">
+        {t('missed.badge', { count: missed.count })}
+      </Badge>
+    </Tooltip>
+  );
+}
 
 export function SchedulesPage() {
   const { t } = useTranslation(['schedules', 'common']);
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const schedules = useQuery({ queryKey: ['schedules'], queryFn: () => get<Schedule[]>('/schedules'), refetchInterval: 10000 });
+  const schedules = useQuery({ queryKey: scheduleKeys.all, queryFn: () => get<Schedule[]>('/schedules'), refetchInterval: 10000 });
   const [draft, setDraft] = useState<Draft | null>(null);
+  const duplicate = useDuplicate();
   // ?new=1 opens a new schedule; &processId=… preselects the process (the template gallery's next steps)
   useCreateParam(true, () => setDraft({ ...emptyDraft(), processId: new URLSearchParams(window.location.search).get('processId') ?? '' }));
 
@@ -70,7 +96,7 @@ export function SchedulesPage() {
     try {
       if (id) await put(`/schedules/${id}`, body);
       else await post('/schedules', body);
-      qc.invalidateQueries({ queryKey: ['schedules'] });
+      qc.invalidateQueries({ queryKey: scheduleKeys.all });
       return true;
     } catch (e) {
       notifyError(e, t('notSaved'));
@@ -79,30 +105,29 @@ export function SchedulesPage() {
   };
 
   return (
-    <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDraft(emptyDraft())}>
-            {t('new')}
+    <ListPage
+      tabs={<AutomateTabs active="/schedules" />}
+      title={t('title')}
+      description={t('description')}
+      primaryAction={
+        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDraft(emptyDraft())}>
+          {t('new')}
+        </Button>
+      }
+      empty={{
+        show: schedules.data?.length === 0,
+        icon: IconCalendarTime,
+        title: t('emptyState.title'),
+        text: t('emptyState.text'),
+        whoCanAct: t('common:whoCanAct.schedules'),
+        action: (
+          <Button leftSection={<IconPlus size={16} />} onClick={() => setDraft(emptyDraft())}>
+            {t('emptyState.action')}
           </Button>
-        }
-      />
+        ),
+      }}
+    >
       <QueryState query={schedules} />
-      {schedules.data?.length === 0 && (
-        <EmptyState
-          icon={IconCalendarTime}
-          title={t('emptyState.title')}
-          action={
-            <Button leftSection={<IconPlus size={16} />} onClick={() => setDraft(emptyDraft())}>
-              {t('emptyState.action')}
-            </Button>
-          }
-        >
-          {t('emptyState.text')}
-        </EmptyState>
-      )}
       {!!schedules.data?.length && (
         <div className="table-scroll">
           <Table highlightOnHover fz="sm">
@@ -134,6 +159,7 @@ export function SchedulesPage() {
                         {s.name}
                       </Text>
                       <PauseBadge pause={s.notify?.pause} />
+                      <MissedBadge missed={s.missed} />
                     </Group>
                     <Text size="xs" c="dimmed">
                       <Link to={`/processes/${s.processId}`}>{s.processName}</Link>
@@ -182,13 +208,14 @@ export function SchedulesPage() {
                           <IconPlayerPlay size={16} />
                         </ActionIcon>
                       </Tooltip>
+                      <DuplicateActionIcon name={s.name} onClick={() => duplicate.open('schedule', s.id)} />
                       {s.canEdit && (
                         <PauseControl
                           pause={s.notify?.pause}
                           onPause={async (p) => {
                             try {
                               await post(`/schedules/${s.id}/pause`, { until: p.until, reason: p.reason, inApp: p.inApp });
-                              await qc.invalidateQueries({ queryKey: ['schedules'] });
+                              await qc.invalidateQueries({ queryKey: scheduleKeys.all });
                             } catch (e) {
                               notifyError(e);
                             }
@@ -196,7 +223,7 @@ export function SchedulesPage() {
                           onResume={async () => {
                             try {
                               await post(`/schedules/${s.id}/resume`, {});
-                              await qc.invalidateQueries({ queryKey: ['schedules'] });
+                              await qc.invalidateQueries({ queryKey: scheduleKeys.all });
                             } catch (e) {
                               notifyError(e);
                             }
@@ -216,7 +243,7 @@ export function SchedulesPage() {
                           onClick={async () => {
                             if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: s.name }) }))) return;
                             await del(`/schedules/${s.id}`).catch(notifyError);
-                            qc.invalidateQueries({ queryKey: ['schedules'] });
+                            qc.invalidateQueries({ queryKey: scheduleKeys.all });
                           }}
                         >
                           <IconTrash size={16} />
@@ -242,7 +269,8 @@ export function SchedulesPage() {
           }}
         />
       )}
-    </>
+      {duplicate.dialog}
+    </ListPage>
   );
 }
 
@@ -254,9 +282,9 @@ function presetLabel(cron: string): string {
 function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () => void; onSave: (d: Draft) => void }) {
   const { t } = useTranslation(['schedules', 'common']);
   const [d, setD] = useState<Draft>(draft);
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
   const proc = useQuery({
-    queryKey: ['process', d.processId],
+    queryKey: processKeys.detail(d.processId),
     queryFn: () => get<ProcessDetail>(`/processes/${d.processId}`),
     enabled: !!d.processId,
   });
@@ -345,6 +373,12 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
           description={t('form.overlapHint')}
           checked={d.allowOverlap}
           onChange={(e) => setD({ ...d, allowOverlap: e.currentTarget.checked })}
+        />
+        <Switch
+          label={t('form.catchUp')}
+          description={t('form.catchUpHint')}
+          checked={d.catchUp === 'once'}
+          onChange={(e) => setD({ ...d, catchUp: e.currentTarget.checked ? 'once' : 'none' })}
         />
         <NotifyPolicyFields value={d.notify ?? DEFAULT_SCHEDULE_NOTIFY} onChange={(notify) => setD({ ...d, notify })} />
         <Group justify="flex-end">

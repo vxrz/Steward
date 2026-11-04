@@ -7,29 +7,32 @@ import { IconDots, IconDownload, IconEdit, IconRefresh, IconTrash, IconDeviceFlo
 import { Trans, useTranslation } from 'react-i18next';
 import type { Dashboard, DashboardDefinition, DatasetStatus } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put, apiUrl } from '../api';
-import { DetailState, PageHeader } from '../components/common';
+import { DetailState } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { fmtRelative } from '../format';
 import { useMe } from '../auth';
+import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { DashboardContext, useDashboardCtx, useDatasetMetas } from '../components/dashboard/data';
 import { WidgetGrid } from '../components/dashboard/widgets';
 import { DashboardEditor } from '../components/dashboard/DashboardEditor';
 import { confirmDanger } from '../components/confirm';
 import '../components/dashboard/viz.css';
 import { OwningTeams } from '../components/OwningTeams';
+import { DetailHeader } from '../components/page/DetailPage';
+import { dashboardKeys } from '../queryKeys';
 
 export function DashboardViewPage() {
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const dash = useQuery({ queryKey: ['dashboard', id], queryFn: () => get<Dashboard>(`/dashboards/${id}`), enabled: !!id });
+  const dash = useQuery({ queryKey: dashboardKeys.detail(id), queryFn: () => get<Dashboard>(`/dashboards/${id}`), enabled: !!id });
   const [draft, setDraft] = useState<DashboardDefinition | null>(null);
   const [fastUntil, setFastUntil] = useState(0);
   const [statusFilter, setStatusFilter] = useState<{ dataset: string; status: DatasetStatus } | null>(null);
   const [busy, setBusy] = useState(false);
   // the source filter (#142): part of the URL for sharing, remembered per user and dashboard
-  const { username } = useMe();
+  const { username, caps } = useMe();
   const [params, setParams] = useSearchParams();
   const storeKey = `sm.dashboardSources.${username}.${id}`;
   const [sources, setSourcesState] = useState<string[] | null>(() => {
@@ -105,8 +108,8 @@ export function DashboardViewPage() {
     setBusy(true);
     try {
       const saved = await put<Dashboard>(`/dashboards/${d.id}`, { definition: draft });
-      qc.setQueryData(['dashboard', id], saved);
-      qc.invalidateQueries({ queryKey: ['dashboards'] });
+      qc.setQueryData(dashboardKeys.detail(id), saved);
+      qc.invalidateQueries({ queryKey: dashboardKeys.all });
       setDraft(null);
       notifyOk(t('view.saved'));
     } catch (e) {
@@ -118,7 +121,8 @@ export function DashboardViewPage() {
 
   return (
     <DashboardContext.Provider value={ctx}>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: def.name, kind: 'dashboard' }}
         back="dashboards"
         title={
           <Group gap="xs" wrap="wrap">
@@ -130,6 +134,7 @@ export function DashboardViewPage() {
           <>
             {def.description && <>{def.description} · </>}
             <LastUpdate keys={def.widgets.map((w) => w.dataset).filter((x): x is string => !!x)} />
+            {d && <CopiedFromNote kind="dashboard" id={d.id} pathOf={(x) => `/dashboards/${x}`} />}
           </>
         }
         actions={
@@ -147,6 +152,7 @@ export function DashboardViewPage() {
               <Button size="xs" variant="light" leftSection={<IconRefresh size={14} />} loading={busy} onClick={refresh}>
                 {t('view.refresh')}
               </Button>
+              {caps.createProcesses && <DuplicateButton kind="dashboard" id={d.id} />}
               {d.canEdit && (
                 <Button size="xs" variant="default" leftSection={<IconEdit size={14} />} onClick={() => setDraft(structuredClone(d.definition))}>
                   {t('common:edit')}
@@ -170,7 +176,7 @@ export function DashboardViewPage() {
                         if (!(await confirmDanger({ action: 'delete', message: t('view.deleteConfirm', { name: d.name }) }))) return;
                         try {
                           await del(`/dashboards/${d.id}`);
-                          qc.invalidateQueries({ queryKey: ['dashboards'] });
+                          qc.invalidateQueries({ queryKey: dashboardKeys.all });
                           navigate('/dashboards');
                         } catch (e) {
                           notifyError(e);

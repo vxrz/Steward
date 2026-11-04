@@ -123,7 +123,8 @@
       "reports": "Reports for me",
       "reviews": "Document reviews due for me",
       "duties": "Service duties due or missed that I am responsible for",
-      "trends": "Trends of dashboard metrics: limits reached soon and strong changes"
+      "trends": "Trends of dashboard metrics: limits reached soon and strong changes",
+      "topics": "New Kafka topics under prefixes of my applications that are kept in sync"
     },
     "skipEmpty": "Send nothing on days without anything to report",
     "save": "Save",

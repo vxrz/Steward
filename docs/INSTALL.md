@@ -68,6 +68,8 @@ This works for `localhost` and for HTTPS addresses. The app shell is cached, but
 
 See _Quick start_ and _Everyday use_ in the [README](../README.md). `npm run desktop` starts the desktop launcher from source, i.e. per-user data folder and app window.
 
+`npm start` runs the server from its TypeScript sources (with `tsx`, a development dependency). `npm run build` also compiles the server to plain JavaScript in `server/dist/` (`npm run build:server`, esbuild); `npm run start:dist` runs that – what the container image runs (`node --enable-source-maps server/dist/index.js`), without a TypeScript loader. The command-line tools are compiled next to it: `node server/dist/admin.js`, `migrate.js`, `backup.js`, `db-copy.js`, `evidence-verify.js`, `audit-verify-export.js`, `mcp.js` and `healthcheck.js`.
+
 ## 4. Container
 
 Every release publishes a signed image to the GitHub Container Registry, for linux/amd64 and linux/arm64:
@@ -103,6 +105,7 @@ docker build --build-arg WITH_BROWSER=1 -t steward .   # with Chromium for brows
 Images are published from 0.2.0 on. For older versions, build the image from the checkout.
 
 - Data lives in the `sm-data` volume (`/data`). Back it up.
+- The image runs the compiled server (`node server/dist/index.js`); the command-line tools are `node server/dist/<tool>.js` (`admin`, `migrate`, `backup`, `db-copy`, `evidence-verify`, `audit-verify-export`). The image has no TypeScript sources and no `tsx` any more – from 0.4.0 on, `node --import tsx server/src/cli/….ts` no longer works in it.
 - The compose file publishes the port on `127.0.0.1` only. To serve colleagues:
   - put it behind a reverse proxy with TLS, or set `SM_TLS_CERT`/`SM_TLS_KEY`;
   - set `SM_ALLOWED_HOSTS` to the DNS name and `SM_PUBLIC_URL` to the external URL;
@@ -156,7 +159,9 @@ docker compose -f docker-compose.postgres.yml up -d    # app + postgres:16, see 
 
 **Requirements.** You need PostgreSQL 12 or later; it was tested with 16. The server must be built with ICU, as the official images and the Debian, Ubuntu and RHEL packages are. ICU provides the case-insensitive collation for user and team names. The database user needs to be able to create tables in the schema: the database owner can, and with another schema `CREATE` on the database is enough. Tables are created and upgraded automatically at start-up, the same way as on SQLite.
 
-**One instance per database schema.** The scheduler and the run engine keep state in memory, so two instances on the same data would run schedules twice. At start-up the app takes a PostgreSQL advisory lock for its schema. If another instance holds the lock, the app refuses to start and says which database session has it. After a hard crash of the VM, the old session can linger until the database notices that it is gone. End it with `SELECT pg_terminate_backend(<pid>)`.
+**One instance per database schema.** The scheduler and the run engine keep state in memory, so two instances on the same data would run schedules twice. Before it opens the database, the app takes a **lease** for its schema: one row in the table `sm_instance_lease`, renewed every 10 seconds and valid for 45. A stopped instance deletes its lease, so the next one starts at once; a crashed one stops renewing it, so its lease frees itself after at most 45 seconds (an instance restarted on the same machine after `kill -9` takes over at once, because it can see that the old process is gone). A second instance does not exit: it waits, logs `waiting for the database lease` once a minute with the holder's name and version, answers `/api/health` with 200 and `/api/ready` with 503 meanwhile, and takes over when the lease is released or has expired. So a rolling update or a Kubernetes pod that starts before the old one has stopped just waits, instead of restarting in a loop. If an instance loses its lease while it runs (the database was unreachable for longer than 45 seconds, or someone else took it), it stops at once with exit code 70 and is restarted by its supervisor.
+
+The PostgreSQL advisory lock of earlier versions is still taken, by the lease holder, so an instance of 0.3 or older (which only knows the lock) and a newer one never run side by side, and command-line tools that take the lock (`db:copy`) stay refused while Steward runs. It no longer decides: after a hard crash of a VM, its old database session can linger with the lock until the database notices that it is gone. When the lease of that instance has expired, the new instance ends that session itself (`pg_terminate_backend`, which the database user may do for its own sessions) and starts – there is nothing to do by hand any more. Set no high availability up with two active instances; a second, waiting instance is fine. On **SQLite** there is no such lock: a second instance with the same data directory and port fails with _address in use_; do not start one on another port.
 
 **The data directory is still needed.** It holds `vault.json` (the encrypted key material: without it, the credentials stored in the database cannot be decrypted), screenshots and files of runs (`artifacts/`), reports and uploaded docs. Give the app a persistent `SM_DATA_DIR`. In the compose file this is the `steward-data` volume.
 
@@ -182,7 +187,7 @@ npm run db:copy -- --from sqlite:./data/service-manager.db --to postgres://stewa
 - Both databases are first brought to the current schema version.
 - Rows are copied verbatim, in foreign-key order and in batches, in one transaction on the target, and the row counts are checked before the commit. So the tamper-evident audit chain still verifies (Admin → Audit → Verify).
 - Afterwards, start the app with `SM_DATABASE_URL` and the same data directory.
-- In a container: `docker compose -f docker-compose.postgres.yml run --rm steward node --import tsx server/src/cli/db-copy.ts --from sqlite:/data/service-manager.db`. The target then defaults to `SM_DATABASE_URL`.
+- In a container: `docker compose -f docker-compose.postgres.yml run --rm steward node server/dist/db-copy.js --from sqlite:/data/service-manager.db`. The target then defaults to `SM_DATABASE_URL`.
 
 **Things to know.**
 
@@ -190,6 +195,7 @@ npm run db:copy -- --from sqlite:./data/service-manager.db --to postgres://stewa
 - The app talks to PostgreSQL through one connection, and each query waits for the answer. On the same host or LAN this costs about 0.2–0.3 ms per query, against about 0.01 ms for SQLite, and is not noticeable in the UI. Keep the database close to the app: a slow network link makes every request slower. A statement that runs longer than about 25 s is cancelled.
 - Size on the _Settings → Data & retention_ page is the size of the schema's tables and indexes. PostgreSQL's autovacuum reclaims space after the retention cleanup.
 - `/api/ready` checks that the database is reachable and writable, for both kinds.
+- **Statement timeouts.** Every statement has the same server-side limit (about 25 s), for requests and for background work alike. A lower limit for requests was considered and left out: the app shares one database session between requests, background jobs and runs (statements run one after another on it), so a different limit would need an extra `SET statement_timeout` each time the two interleave – they do at every pause – and a `SET` in a transaction that is rolled back is undone with it; runs started by a request also continue in its context. A slow statement still shows: it holds up the event loop, which `sm_event_loop_lag_seconds` measures and the log reports (`the event loop was blocked`, over `SM_EVENT_LOOP_WARN_MS`, default 1000 ms).
 
 ## 6. Updating
 
@@ -272,7 +278,7 @@ steward admin reset-password alice --activate  # also reactivates a deactivated 
 npm run admin -- reset-password admin          # from the source tree
 ```
 
-In the container: `docker compose stop steward && docker compose run --rm steward node --import tsx server/src/cli/admin.ts reset-password admin`, then start it again.
+In the container: `docker compose stop steward && docker compose run --rm steward node server/dist/admin.js reset-password admin`, then start it again.
 
 The passphrase comes from `SM_MASTER_PASSPHRASE_FILE`/`SM_MASTER_PASSPHRASE`, `--passphrase-stdin` or a prompt. Run `steward admin --help` for all options; `--json` gives machine-readable output.
 
@@ -307,7 +313,7 @@ Step by step:
 
 1. **Desktop executable.** Open a terminal on the computer where Steward runs and run `steward admin emergency-access <your user name>` (Windows: `steward.exe admin …`; add `--data-dir` if you use your own data folder). Enter the master passphrase. Open the printed link.
 2. **Node.js.** In the project folder, as the account that runs Steward: `npm run admin -- emergency-access <your user name>`. Use the same `SM_DATA_DIR`, `SM_DATABASE_URL` and `SM_PUBLIC_URL` as the service.
-3. **Container.** While it runs: `docker compose exec steward node --import tsx server/src/cli/admin.ts emergency-access alice` (with `SM_MASTER_PASSPHRASE_FILE` set in the compose file the command reads the passphrase from the secret, otherwise it asks for it). If it does not run: `docker compose run --rm steward node --import tsx server/src/cli/admin.ts emergency-access alice`, then `docker compose up -d`.
+3. **Container.** While it runs: `docker compose exec steward node server/dist/admin.js emergency-access alice` (with `SM_MASTER_PASSPHRASE_FILE` set in the compose file the command reads the passphrase from the secret, otherwise it asks for it). If it does not run: `docker compose run --rm steward node server/dist/admin.js emergency-access alice`, then `docker compose up -d`.
 4. Sign in with the link, repair the sign-in (_Users & teams → Single sign-on_: client secret, issuer, mappings), check that a single sign-on administrator gets in again, and **sign out**.
 
 If the provider stays down for longer, switch password sign-in back on from the emergency session (_Settings → Sign-in_) or on the server with Steward stopped:
@@ -491,16 +497,16 @@ Per platform, _Additional CA certificate (PEM)_ trusts a CA for that platform on
 
 ## Request ids and error answers
 
-Every response carries an `X-Request-Id` header: a random UUID, or the id your reverse proxy or client sent in `X-Request-Id` when it is at most 64 characters of letters, digits and `. _ : -` (anything else is replaced). The same id is in the server's log lines for the request (`reqId`) and in error reports (`request_id`, [ERROR-REPORTING.md](ERROR-REPORTING.md)). An unexpected error never shows its message to the caller – it may name SQL, internal types or upstream addresses – but `{"error": "Internal error (request id …)", "code": "INTERNAL_ERROR"}`; the web app shows _Something went wrong (reference …)_, so people can quote the reference and you can find the error in the log. Deliberate errors (permissions, validation, a platform's answer) keep their message.
+Every response carries an `X-Request-Id` header: a random UUID, or the id your reverse proxy or client sent in `X-Request-Id` when it is at most 64 characters of letters, digits and `. _ : -` (anything else is replaced). The same id is in the server's log lines for the request (`reqId`) and in error reports (`request_id`, [ERROR-REPORTING.md](ERROR-REPORTING.md)). An unexpected error never shows its message to the caller – it may name SQL, internal types or upstream addresses – but a problem (`application/problem+json`, [API.md](API.md#the-internal-api)) with `"error": "Internal error (request id …)"`, `"code": "INTERNAL_ERROR"` and the `requestId`; the web app shows _Something went wrong (reference …)_, so people can quote the reference and you can find the error in the log. Deliberate errors (permissions, validation, a platform's answer) keep their message.
 
 ## Health and readiness
 
 Every installation answers two public endpoints, without signing in:
 
-| Endpoint          | Answers                                                                                                                                                                                                                                                                                                                                                                                                 | Use it for                                                                                                                            |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/health` | Always `200 {"ok": true, "version": "…"}` while the process runs                                                                                                                                                                                                                                                                                                                                        | Liveness: container `HEALTHCHECK`, Kubernetes `livenessProbe`, a simple uptime check                                                  |
-| `GET /api/ready`  | `200` when the vault is unlocked, the database is writable and the enabled schedules are armed; otherwise `503` with the failing checks: `{"ready": false, "checks": {"vault": {"ok": false, "message": "Vault is locked"}, …}}`. A database or schedule failure has a generic message here (`Database not available`); the error itself is in the server log and on _System status_ for administrators | Readiness: Kubernetes `readinessProbe`, load balancers, Gatus/Zabbix/Uptime Kuma alerts ("Steward needs someone to unlock the vault") |
+| Endpoint          | Answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Use it for                                                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/health` | Always `200 {"ok": true, "version": "…"}` while the process runs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Liveness: container `HEALTHCHECK`, Kubernetes `livenessProbe`, a simple uptime check                                                  |
+| `GET /api/ready`  | `200` when the vault is unlocked, the database is writable and the enabled schedules are armed; otherwise `503` with the failing checks: `{"ready": false, "checks": {"vault": {"ok": false, "message": "Vault is locked"}, …}}`. A database or schedule failure has a generic message here (`Database not available`); the error itself is in the server log and on _System status_ for administrators. Also `503` while Steward is shutting down (`Shutting down`) and, on PostgreSQL, while it waits for another instance to release the database (`Waiting for the database: …`) | Readiness: Kubernetes `readinessProbe`, load balancers, Gatus/Zabbix/Uptime Kuma alerts ("Steward needs someone to unlock the vault") |
 
 ```yaml
 # Kubernetes
@@ -532,6 +538,35 @@ For Zabbix, use an _HTTP agent_ item on `/api/ready` with a trigger on the statu
 **Version in `/api/health`.** The health endpoint keeps returning the version: monitoring and rollout checks use it to confirm which version runs, and the version is public anyway (the web UI's code and footer contain it), so hiding it here would add no protection. There is no separate `/api/version`. Signed-in users see the build details on the **About** page (`GET /api/about`).
 
 **System status page.** _Settings → System status_ (administrators; auditors get a view without paths, host names and connection details) shows the readiness checks, database type and size, vault, scheduler with the next runs, monitor engine, notification channels, error reporting, tracing, metrics access, public API, retention, TLS and runtime details (Node.js, platform, uptime, memory, time zone, installation type), with the two URLs above ready to copy. It reads `GET /api/system/status`, which never contains secrets.
+
+**Background jobs.** Below that, administrators see the server's periodic background jobs – reminders (credentials, documents, tickets, measures), service duties, the scorecard, the integrations of applications (Kubernetes, repositories, Kafka, AWS, Snowflake, Dependency-Track), daily summaries, the retention clean-up, audit checkpoints and the Git sync – with their interval, last run, duration, result (with the error), next run and a **Run now** button (audited as `job.run_requested`). A job never runs twice at the same time: a start while it still runs is skipped and counted. A job that runs longer than its time limit is recorded as _timed out_. Their state is kept in the database and survives restarts; `/api/metrics` has `sm_job_last_success_timestamp_seconds{job}`, `sm_job_duration_seconds{job}` and `sm_job_failures_total{job}` for alerts (`time() - sm_job_last_success_timestamp_seconds{job="duties"} > 3600`). It reads `GET /api/system/jobs`; **Run now** is `POST /api/system/jobs/<name>/run`.
+
+## Stopping and restarting
+
+On **SIGTERM** or **SIGINT** (Ctrl+C) Steward stops in order:
+
+1. `/api/ready` answers 503, no new runs start (a start answers `503 SHUTTING_DOWN`) and no schedule fires any more. Report schedules, access checks, backups, background jobs and monitors stop.
+2. Running steps get up to `SM_SHUTDOWN_GRACE_SECONDS` (default **25**) to finish. Runs that wait for a person, a timer or a sub-process run are not waited for: they are stored and continue after the restart. Runs queued for a free slot stay queued.
+3. Runs still running after that are marked **interrupted** (audit entry `run.interrupted`, _Review and resume or cancel it_), as the next start would do.
+4. The HTTP server closes, notifications, logs and error reports are flushed, and on PostgreSQL the lease is released, so a new instance starts at once. The log ends with `service manager stopped`. A second signal stops at once.
+
+Give the container a little more than the grace period before it is killed: Kubernetes waits 30 seconds by default (`terminationGracePeriodSeconds`), which fits the default of 25. **Docker waits only 10 seconds** by default; the compose files set `stop_grace_period: 30s`. With a longer `SM_SHUTDOWN_GRACE_SECONDS`, raise both:
+
+```yaml
+# docker compose
+services:
+  steward:
+    stop_grace_period: 65s
+    environment:
+      SM_SHUTDOWN_GRACE_SECONDS: '60'
+---
+# Kubernetes (pod spec)
+terminationGracePeriodSeconds: 65
+```
+
+**Missed schedule times.** Times of a schedule that fall into a period when Steward was not running (or its vault was locked) are not run later on their own. At the next start Steward compares each enabled schedule with the last time its scheduler ran (it notes that every minute and when it stops) and reports the missed times once per schedule: a message _Missed while Steward was not running: <schedule>_ to its owner and the administrators (like a skipped schedule), an audit entry `schedule.missed`, and a badge on the schedule. A schedule with **Catch up after a restart** (`catchUp: once`) starts one run right after the start, however many times were missed (audited as `schedule.caught_up`); otherwise it waits for its next time. The first start after an update from 0.3 has no such record yet and reports nothing.
+
+**Run limit.** At most `SM_MAX_CONCURRENT_RUNS` (default **20**) runs run at the same time. Further runs – started by a person, a schedule, a webhook, a monitor or a sub-process step – wait in status _queued_ (_Waiting for a free slot_ on the run's page) and start in the order they arrived, as soon as a run ends or begins waiting for a decision. Queued runs survive a restart. `0` turns the limit off.
 
 ## Version and build information
 

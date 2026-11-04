@@ -67,6 +67,16 @@ describe('Snowflake platform', () => {
     expect(t).toMatchObject({ ok: false, message: expect.stringMatching(/HTTP 401.*JWT token is invalid/) });
     // 390144 alone says nothing: the hint names the usual causes
     expect(t.message).toContain("that user's RSA_PUBLIC_KEY (DESC USER) belongs to the platform's private key");
+    // … in a component's readout and in a monitor check as well (0.4.0)
+    const app = await s.api('POST', '/applications', { name: 'Shop with the other key', owners: [] });
+    const a = await s.api('POST', `/applications/${app.id}/components`, { type: 'snowflake-database', name: 'SHOP', platformId: p.id });
+    const cmp = a.components.find((c: any) => c.name === 'SHOP');
+    const read = await s.api('POST', `/applications/${app.id}/components/${cmp.id}/snowflake`, {});
+    expect(read.components.find((c: any) => c.id === cmp.id).snowflake.error).toMatch(/JWT token is invalid.*RSA_PUBLIC_KEY \(DESC USER\)/);
+    const check = await s.api('POST', '/monitors/check-preview', {
+      check: { id: 'sf', name: 'Orders fresh', type: 'snowflake', platform: p.id, mode: 'freshness', object: 'SHOP.SALES.ORDERS', maxAgeMinutes: 60 },
+    });
+    expect(check).toMatchObject({ status: 'unknown', message: expect.stringMatching(/^Snowflake could not be read: .*JWT token is invalid.*RSA_PUBLIC_KEY/) });
   });
 
   it('a 390144 with a region in the account identifier says what the JWT needs', async () => {
@@ -97,6 +107,7 @@ describe('access reviews with the Snowflake source', () => {
     const r = await s.api('POST', `/compliance/access-checks/${c.id}/run`, {});
     const snap = await s.api('GET', `/compliance/access-checks/${c.id}/snapshots/${r.snapshot.id}`);
     expect(JSON.stringify(snap.data)).not.toContain('"activity"'); // the last login changes daily: never in a snapshot
+    expect(JSON.stringify(snap.data)).not.toContain('"activityInfo"');
     return Object.fromEntries(snap.data.map((x: any) => [x.id, { type: x.type, rights: x.rights, ...(x.aliases ? { aliases: x.aliases } : {}) }]));
   };
 
@@ -135,6 +146,11 @@ describe('access reviews with the Snowflake source', () => {
       ['Z005IJKL', 'USAGE DATABASE PRD_SDC_OPQ_PBI_DEV'],
     ]);
     expect(r.items[0].subjectActivity).toMatch(/^last login \d{4}-\d{2}-\d{2} \(380 days ago\)$/);
+    // the same as data (the web app's own words), and the e-mail address that matched (0.4.0)
+    expect(r.items[0].subjectActivityInfo).toMatchObject({ passwordWithoutMfa: false });
+    expect(Date.now() - Date.parse(r.items[0].subjectActivityInfo.lastLoginAt)).toBeGreaterThan(379 * 86_400_000);
+    expect(r.items[0].matchedAliases).toEqual(['karla.lang@example.com']);
+    expect(JSON.stringify(await s.api('GET', `/compliance/access-checks/${c.id}`))).not.toContain('activityInfo');
     const hans = await s.api('POST', '/compliance/person-reviews', {
       title: 'Review Hans Ilg',
       personName: 'Hans Ilg',
@@ -144,6 +160,7 @@ describe('access reviews with the Snowflake source', () => {
     // through PRD_SDC_OPQ_PBI_DEV_READONLY; signs in with a password and no MFA
     expect(hans.items.map((i: any) => i.right)).toEqual(['MONITOR DATABASE PRD_SDC_OPQ_PBI_DEV', 'USAGE DATABASE PRD_SDC_OPQ_PBI_DEV']);
     expect(hans.items[0].subjectActivity).toContain('password without MFA');
+    expect(hans.items[0].subjectActivityInfo.passwordWithoutMfa).toBe(true);
   });
 
   it('lists who reaches a schema or a table, through the role hierarchy', async () => {

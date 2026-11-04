@@ -35,7 +35,7 @@ import {
 } from '@sm/shared';
 import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, post, put } from '../api';
-import { EmptyState, Hint, PageHeader, QueryState, useFieldErrors } from '../components/common';
+import { EmptyState, Hint, QueryState, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, fmtUptime, monitorStatusLabel, monitorStatusLower } from '../components/monitors/status';
@@ -43,6 +43,8 @@ import { CopyBlock, ImportModal, InstantiateModal, SecretsModal, gatewayCurl } f
 import { confirmDanger } from '../components/confirm';
 import { DataTable, type DataColumn } from '../components/DataTable';
 import { appUrl } from '../basePath';
+import { ListPage } from '../components/page/ListPage';
+import { monitorKeys } from '../queryKeys';
 
 export function MonitorsPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -50,7 +52,7 @@ export function MonitorsPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') ?? 'monitors';
-  const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors'), refetchInterval: 10000 });
+  const monitors = useQuery({ queryKey: monitorKeys.all, queryFn: () => get<MonitorSummary[]>('/monitors'), refetchInterval: 10000 });
   const [importing, setImporting] = useState(false);
   const [secrets, setSecrets] = useState<MonitorSaveResult | null>(null);
   const canCreate = useMe().caps.createMonitors;
@@ -67,18 +69,18 @@ export function MonitorsPage() {
   const shown = (statusFilter.length ? list.filter((m) => statusFilter.includes(m.status)) : list).filter((m) => tagsMatch(m.tags, tag));
 
   return (
-    <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          canCreate && (
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => navigate('/monitors/new')}>
-              {t('new')}
-            </Button>
-          )
-        }
-      />
+    <ListPage
+      view={tab === 'monitors' ? 'monitors' : undefined}
+      title={t('title')}
+      description={t('description')}
+      primaryAction={
+        canCreate && (
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => navigate('/monitors/new')}>
+            {t('new')}
+          </Button>
+        )
+      }
+    >
       <Group justify="space-between" mb="md" gap="xs">
         <SegmentedControl
           size="xs"
@@ -125,6 +127,7 @@ export function MonitorsPage() {
             <EmptyState
               icon={IconHeartRateMonitor}
               title={t('emptyState.title')}
+              whoCanAct={t('common:whoCanAct.monitors')}
               action={
                 canCreate && (
                   <>
@@ -152,7 +155,7 @@ export function MonitorsPage() {
       {tab === 'templates' && (
         <TemplatesTab
           canCreate={canCreate}
-          onCreated={(r) => (setSecrets({ monitor: r[0]!.monitor, secrets: r.flatMap((x) => x.secrets) }), qc.invalidateQueries({ queryKey: ['monitors'] }))}
+          onCreated={(r) => (setSecrets({ monitor: r[0]!.monitor, secrets: r.flatMap((x) => x.secrets) }), qc.invalidateQueries({ queryKey: monitorKeys.all }))}
         />
       )}
       {tab === 'gateways' && canCreate && <GatewaysTab />}
@@ -160,14 +163,14 @@ export function MonitorsPage() {
         <ImportModal
           onClose={() => setImporting(false)}
           onImported={(r) => {
-            qc.invalidateQueries({ queryKey: ['monitors'] });
+            qc.invalidateQueries({ queryKey: monitorKeys.all });
             if (r.secrets.length) setSecrets(r);
             navigate(`/monitors/${r.monitor.id}`);
           }}
         />
       )}
       {secrets && <SecretsModal result={secrets} onClose={() => setSecrets(null)} />}
-    </>
+    </ListPage>
   );
 }
 
@@ -288,8 +291,8 @@ function MonitorTable({ monitors, onTag }: { monitors: MonitorSummary[]; onTag: 
 function TemplatesTab({ canCreate, onCreated }: { canCreate: boolean; onCreated: (r: MonitorSaveResult[]) => void }) {
   const { t } = useTranslation('monitors');
   const navigate = useNavigate();
-  const templates = useQuery({ queryKey: ['monitor-templates'], queryFn: () => get<MonitorSummary[]>('/monitors?templates=1') });
-  const all = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors') });
+  const templates = useQuery({ queryKey: monitorKeys.templates, queryFn: () => get<MonitorSummary[]>('/monitors?templates=1') });
+  const all = useQuery({ queryKey: monitorKeys.all, queryFn: () => get<MonitorSummary[]>('/monitors') });
   const [using, setUsing] = useState<MonitorDetail | null>(null);
   return (
     <>
@@ -360,10 +363,10 @@ type GatewayDraft = {
 function GatewaysTab() {
   const { t } = useTranslation(['monitors', 'common']);
   const qc = useQueryClient();
-  const gateways = useQuery({ queryKey: ['monitor-gateways'], queryFn: () => get<MonitorGateway[]>('/monitor-gateways'), refetchInterval: 15000 });
+  const gateways = useQuery({ queryKey: monitorKeys.gateways, queryFn: () => get<MonitorGateway[]>('/monitor-gateways'), refetchInterval: 15000 });
   const [draft, setDraft] = useState<GatewayDraft | null>(null);
   const [secret, setSecret] = useState<{ gateway: MonitorGateway; secret: string } | null>(null);
-  const refresh = () => qc.invalidateQueries({ queryKey: ['monitor-gateways'] });
+  const refresh = () => qc.invalidateQueries({ queryKey: monitorKeys.gateways });
   const save = async (d: GatewayDraft) => {
     const { id, ...body } = d;
     try {

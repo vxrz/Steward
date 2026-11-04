@@ -1,0 +1,14 @@
+# steward-min-version: 0.4.0
+name: Tenant usage (Insights Hub)
+description: |
+  Users, assets, agents and asset attributes of the Insights Hub tenant against your licence, every day, with the
+  "Tenant usage" dashboard. Failing checks (80 % warning, 95 % critical) notify the schedule's owner.
+tags: [usage, licence, insights-hub]
+platforms:
+  - key: hub
+    label: Insights Hub tenant
+    kinds: [insights-hub]
+processes:
+  - template: 32-ih-tenant-usage
+    schedule: "20 6 * * *"
+dashboards: [50-tenant-usage]

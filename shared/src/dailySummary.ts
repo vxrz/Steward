@@ -1,8 +1,20 @@
 /** Optional daily summary per user (server/src/notifications/summary.ts, docs/NOTIFICATIONS.md). */
 
-export const DAILY_SUMMARY_SECTIONS = ['runs', 'tasks', 'monitors', 'credentials', 'tickets', 'records', 'reviews', 'duties', 'reports', 'trends'] as const;
+export const DAILY_SUMMARY_SECTIONS = [
+  'runs',
+  'tasks',
+  'monitors',
+  'credentials',
+  'tickets',
+  'records',
+  'reviews',
+  'duties',
+  'reports',
+  'trends',
+  'topics',
+] as const;
 /** Sections added after a version: people who had every section of the time get them too */
-export const LATER_SUMMARY_SECTIONS: Partial<Record<(typeof DAILY_SUMMARY_SECTIONS)[number], string>> = { trends: '0.2.6' };
+export const LATER_SUMMARY_SECTIONS: Partial<Record<(typeof DAILY_SUMMARY_SECTIONS)[number], string>> = { trends: '0.2.6', topics: '0.4.0' };
 /** Within this many days, a metric reaching its limit is listed (#145) */
 export const SUMMARY_FORECAST_DAYS = 30;
 /** A change of at least this many percent in 7 days is a strong trend */

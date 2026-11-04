@@ -32,7 +32,7 @@ The values are **Gatus' own uptime figures**. Steward does not calculate service
 
 ## Define an objective
 
-1. Open the service: _Service management → Services → (service)_.
+1. Open the service: _Catalogue → Services → (service)_, tab _Objectives_ (the scorecard has its own tab).
 2. In _Availability objectives_, choose _Add objective_.
 3. Choose the Gatus platform and the endpoint – or a Prometheus platform and the PromQL query with `$window`. The list shows the Gatus platforms with metrics mode and the Prometheus platforms that you may see, and the endpoints Gatus reported to them.
 4. Check the name (it starts as the endpoint's name), set the targets, and choose the application if the objective is about one.
@@ -109,19 +109,19 @@ Archived services have no scorecard.
 
 Administrators can say which document types an application needs because of its protection need, for example: _applications rated confidentiality **high** or above should have an authorization concept_. A rule names
 
-- a **document type** – a record type with the living-document workflow ([RECORDS.md](RECORDS.md));
+- a **document type** – a type with the living-document workflow ([RECORDS.md](RECORDS.md));
 - a **dimension** – confidentiality, integrity or availability;
 - a **minimum level** of that dimension's CIA scale.
 
 For each application of a service rated at least that level (a valid rating; ratings to re-rate do not count), the scorecard expects a **released** document of the type that applies to the application – or that is linked to the service and not limited to other applications. A missing one sets _Attention_ for documentation.
 
-The list **starts empty**: document types differ per installation, and a rule that names a type you do not have would only produce noise. A sensible first rule, after you created a record type `AUTHZ` (_Authorization concept_, workflow _living document_):
+The list **starts empty**: document types differ per installation, and a rule that names a type you do not have would only produce noise. A sensible first rule, after you created a document type `AUTHZ` (_Authorization concept_, workflow _living document_):
 
 | Document type | Dimension       | From level |
 | ------------- | --------------- | ---------- |
 | `AUTHZ`       | Confidentiality | High       |
 
-_Service management → Scorecard → Expected documents → Add rule_. A rule can be turned off. A rule whose type was archived or whose level is no longer on the scale is kept but not applied (shown as _Not applied_).
+_Catalogue → Scorecard → Expected documents → Add rule_. A rule can be turned off. A rule whose type was archived or whose level is no longer on the scale is kept but not applied (shown as _Not applied_).
 
 ## Rollup and trend
 
@@ -136,7 +136,7 @@ Once an hour, Steward stores **today's scorecard of every service** (a _snapshot
 ## Where you see it
 
 - **Service page**: the _Scorecard_ section (four parts with details and the stored days) and the _Availability objectives_ section.
-- **Service management → Scorecard**: rollup, trend, every service with its parts, the rules. _Attention needed only_ and the owner filter narrow the list.
+- **Catalogue → Scorecard**: rollup, trend, every service with its parts, the rules. _Attention needed only_ and the owner filter narrow the list.
 - **Start page**: the tile _Services needing attention_. Administrators, designers and auditors see every service, everyone else the services they own; people who own no service do not get the tile. The tile reads the newest stored snapshot (written every hour), so a new service shows there within the hour.
 - **Scheduled reports**: the section _Service scorecard_ (see below).
 

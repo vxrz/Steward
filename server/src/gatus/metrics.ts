@@ -8,6 +8,7 @@ import { assertOutboundAllowed } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { platformFor } from '../monitors/platforms.js';
 import { parsePrometheus, type PromSample } from './prometheus.js';
+import { env } from '../config.js';
 
 /**
  * Gatus metrics mode: Steward scrapes Gatus' Prometheus endpoint (/metrics,
@@ -479,7 +480,7 @@ async function fetchUptimes(platformId: string, owner: string): Promise<void> {
           secrets,
           { method: 'GET', url: `/api/v1/endpoints/${encodeURIComponent(key)}/uptimes/${d}`, maxResponseBytes: 4096 },
           AbortSignal.timeout(10000),
-        ).catch(() => null);
+        ).catch(() => null); // an uptime that cannot be read stays empty
         if (r?.ok) out[d === '1h' ? 'h1' : d === '24h' ? 'h24' : d === '7d' ? 'd7' : 'd30'] = parseUptime(r.body);
       }
       db().run('UPDATE gatus_endpoints SET gatus_uptime = ? WHERE platform_id = ? AND key = ?', JSON.stringify(out), platformId, key);
@@ -511,7 +512,7 @@ export function tickScraper(now = Date.now()): string[] {
 
 export function startGatusScraper(): void {
   // tests drive the scraper themselves
-  if (timer || process.env.SM_GATUS_AUTOSTART === '0') return;
+  if (timer || !env.SM_GATUS_AUTOSTART) return;
   timer = setInterval(() => {
     try {
       tickScraper();

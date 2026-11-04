@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { EvaluateRequest, EvaluateResult, NodeInspection, ProcessDetail, ProcessSummary, RunDetail, RunSummary, ScopeHints } from '@sm/shared';
 import { ApiError, api } from '../../api';
+import { processKeys, runKeys } from '../../queryKeys';
 
 /** Editor support endpoints (expression assistant, live preview, node inspector, version diff). */
 
@@ -32,7 +33,7 @@ export function useScopeHints(processId: string | undefined) {
 /** Latest run of a process (shares the cache with useLastRun). */
 export function useLatestRun(processId: string | undefined, enabled = true) {
   return useQuery({
-    queryKey: ['runs', 'latest', processId],
+    queryKey: runKeys.latest(processId),
     queryFn: () => api<RunSummary[]>('GET', `/runs?processId=${encodeURIComponent(processId!)}&limit=1`),
     enabled: enabled && !!processId,
     staleTime: 5000,
@@ -40,16 +41,16 @@ export function useLatestRun(processId: string | undefined, enabled = true) {
 }
 
 export function useRunDetail(runId: string | undefined) {
-  return useQuery({ queryKey: ['run', runId], queryFn: () => api<RunDetail>('GET', `/runs/${runId}`), enabled: !!runId });
+  return useQuery({ queryKey: runKeys.detail(runId), queryFn: () => api<RunDetail>('GET', `/runs/${runId}`), enabled: !!runId });
 }
 
 export function useProcesses() {
-  return useQuery({ queryKey: ['processes'], queryFn: () => api<ProcessSummary[]>('GET', '/processes'), staleTime: 30000 });
+  return useQuery({ queryKey: processKeys.all, queryFn: () => api<ProcessSummary[]>('GET', '/processes'), staleTime: 30000 });
 }
 
 export function useProcessVersion(processId: string | undefined, version?: number) {
   return useQuery({
-    queryKey: ['process', processId, 'version', version ?? 'current'],
+    queryKey: processKeys.version(processId, version ?? 'current'),
     queryFn: () => fetchProcessVersion(processId!, version),
     enabled: !!processId,
     retry: false,

@@ -28,7 +28,7 @@ One application can have several platforms, for example _Insights Hub_ ← _IH t
 
 ## Create an application
 
-1. _Service management → Applications → New application_ (designers and administrators).
+1. _Catalogue → Applications → New application_ (designers and administrators).
 2. Enter the name and, if you like, vendor, version, URL, description, criticality, the responsible users and teams, the CMDB entry and tags. A tag is a key with an optional value: type the key, **Tab** to the value, **Enter** to add it – `env: prod`, or just `pci`. A key with a value uses letters, digits, `.` `_` `-` `/`; tags from before stay as they are. Clicking a tag in a list or on a page filters the list by it (`?tag=env=prod`), and _any env_ widens the filter to every value of the key. The same tags work on services, processes, monitors, records and credentials.
 3. _Save_. The application page opens.
 
@@ -183,7 +183,7 @@ steps:
 
 ### Systems
 
-A **system** is what applications run on: a server, a VM, a cluster, an appliance, a cloud service. One system often hosts several applications, so it is kept once – with its own tech stack (the operating system and runtimes live on the system, not on each application) – under _Service management → Systems_.
+A **system** is what applications run on: a server, a VM, a cluster, an appliance, a cloud service. One system often hosts several applications, so it is kept once – with its own tech stack (the operating system and runtimes live on the system, not on each application) – under _Catalogue → Systems_.
 
 A system has a **name** and a **kind** (server, virtual machine, cluster, appliance, cloud service, other); everything else is optional: the **vendor or provider** (AWS, Azure, on-premises, the hoster), a link to the **CMDB** entry, the users and teams **responsible**, a note, its **tech stack** (by hand or from an SBOM, exactly like a component's) and the **Steward platform** it is – "this cluster is the platform _Kubernetes (prod)_" – so shared infrastructure that also has an API is described once. Readers who may not see that platform see _A platform you may not see_; saving the system keeps it.
 
@@ -205,7 +205,7 @@ Not part of Steward: IP addresses, ports, firewall rules, hardware details, disc
 
 ## Maintenance windows
 
-_Service management → Maintenance_ lists planned work as a list or a month calendar. A window has a title, a start and an end, and lists what it affects: platforms, systems, applications and services. It happens once or repeats **weekly** or **monthly** (every n weeks or months, optionally up to a last start). Repetition keeps the wall-clock time in the instance's time zone across daylight saving changes; a monthly window on the 29th to 31st falls on the last day of shorter months.
+_Catalogue → Maintenance_ lists planned work as a list or a month calendar. A window has a title, a start and an end, and lists what it affects: platforms, systems, applications and services. It happens once or repeats **weekly** or **monthly** (every n weeks or months, optionally up to a last start). Repetition keeps the wall-clock time in the instance's time zone across daylight saving changes; a monthly window on the 29th to 31st falls on the last day of shorter months.
 
 What a window reaches:
 
@@ -221,6 +221,8 @@ While a window lasts:
 Announcements (notification event _Maintenance_, see [NOTIFICATIONS.md](NOTIFICATIONS.md)) go to the responsible people and the owners of what the window lists and reaches: when it is planned, a reminder before each occurrence (24 hours by default, 0 for none), when it starts and when it ends. Each is sent once per occurrence.
 
 The details offer the window as a calendar file (_Add to calendar (.ics)_, with its repetition), the next occurrences and how many platforms, monitors, applications and services it reaches. A window can name the change record that approves it. Platform, system, application and service pages show the maintenance going on and the next windows, with _Plan maintenance_ for those who may change the item.
+
+**Disabled windows:** _Enabled_ in the form switches a window off without cancelling it: a disabled window neither quiets monitors nor pauses messages nor counts as planned minutes, and announces nothing; it is announced as planned when it is enabled. A copy (_Duplicate_ in the details) starts disabled. The public API lists only enabled windows.
 
 **Who may plan:** designers and administrators, and anyone who may change every listed item (owners of services, applications and systems; the _manage_ right on platforms). The same people change or cancel a window; cancelling removes the coming occurrences and keeps the window for the record. Everyone signed in reads windows; platforms the reader may not see are listed without a name. Every change is in the audit trail (`maintenance.*`). API: `/api/maintenance-windows` (web UI), `GET /api/v1/maintenance-windows` (public, read-only, with the occurrences in a range).
 
@@ -320,14 +322,14 @@ A stored scale that does not validate – for example from a migration package �
 
 ## Documents that apply to an application
 
-A living document (a record type with the workflow _document_) that belongs to a service can name the applications it **applies to** – an ICAM concept for _Insights Hub_, an authorization concept for _Industrial Edge_.
+A living document (a document type with the workflow _document_) that belongs to a service can name the applications it **applies to** – an ICAM concept for _Insights Hub_, an authorization concept for _Industrial Edge_.
 
 - On the document page, _Applies to → Change_, choose the applications and _Save_ (whoever may edit the document; not for withdrawn documents). Leave it empty when it applies to the whole service.
 - _New document_ on the service page offers the applications of the service.
 - The service page groups its documents by application, and lists the rest under _Whole service_.
 - The application page lists its documents with edition, status and review status.
 
-The scope is not part of the document's content: changing it needs no new edition. It is audited on the record and on each application concerned (`application.document_added`, `application.document_removed`): whoever may edit the document can name any application, and the application's history shows it.
+The scope is not part of the document's content: changing it needs no new edition. It is audited on the document and on each application concerned (`application.document_added`, `application.document_removed`): whoever may edit the document can name any application, and the application's history shows it.
 
 ## Who may do what
 
@@ -344,7 +346,7 @@ The scope is not part of the document's content: changing it needs no new editio
 | Change the environment list                                                    | Administrators                                                                            |
 | Add applications to a service, change their role, override its protection need | Whoever may edit the service (designers, administrators, its responsible users and teams) |
 | Change the CIA scale                                                           | Administrators, with a fresh confirmation (step-up)                                       |
-| Change the applications a document applies to                                  | Whoever may edit the record                                                               |
+| Change the applications a document applies to                                  | Whoever may edit the document                                                             |
 
 Applications have no access lists, like services: the catalogue is readable for everyone. Only platforms keep their own access lists – an application never shows a platform to someone who may not see it.
 

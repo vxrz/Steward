@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import sea from 'node:sea';
 import type { BuildInfo, DeploymentKind } from '@sm/shared';
-import { config } from './config.js';
+import { config, env } from './config.js';
 
 /**
  * Version and build of the running server.
@@ -15,8 +15,8 @@ import { config } from './config.js';
 const clean = (v: string | undefined) => (v && v.trim() && !/^(unknown|development)$/i.test(v.trim()) ? v.trim() : null);
 
 export function buildInfo(): BuildInfo {
-  const commit = clean(process.env.SM_BUILD_COMMIT);
-  const date = clean(process.env.SM_BUILD_DATE);
+  const commit = clean(env.SM_BUILD_COMMIT);
+  const date = clean(env.SM_BUILD_DATE);
   return {
     version: config.version,
     commit: commit ? commit.slice(0, 40) : null,
@@ -28,8 +28,7 @@ let deployment: DeploymentKind | undefined;
 /** How this server runs: the single-file desktop executable, a container or a plain Node.js process. */
 export function deploymentKind(): DeploymentKind {
   if (deployment) return deployment;
-  const env = process.env.SM_DEPLOYMENT;
-  if (env === 'container' || env === 'executable' || env === 'node') return (deployment = env);
+  if (env.SM_DEPLOYMENT) return (deployment = env.SM_DEPLOYMENT);
   let inSea = false;
   try {
     inSea = sea.isSea();

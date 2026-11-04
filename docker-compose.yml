@@ -10,6 +10,8 @@ services:
     # To always build locally: "docker compose build --pull && docker compose up -d".
     build: .
     restart: unless-stopped
+    # SIGTERM gives running steps SM_SHUTDOWN_GRACE_SECONDS (25) to finish; Docker's default would kill after 10 s
+    stop_grace_period: 30s
     ports:
       - "127.0.0.1:4310:4310" # remove "127.0.0.1:" to expose on the network (then also set SM_ALLOWED_HOSTS and TLS)
     volumes:

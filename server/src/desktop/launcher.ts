@@ -3,7 +3,7 @@
  * app window (Edge/Chrome "--app" mode, falling back to the default browser).
  * Running it again while it is already running just opens the window.
  */
-import { adminArgv, args, backupArgv, evidenceArgv, inExecutable, mcpArgv, migrateArgv, usageError } from './env.js';
+import { adminArgv, args, auditArgv, backupArgv, evidenceArgv, inExecutable, mcpArgv, migrateArgv, usageError } from './env.js';
 import { EXIT_FAILURE, EXIT_OK, UsageError, usageFailure } from '../cli/args.js';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -31,6 +31,7 @@ Options:
   migrate …            Move this instance to another one: 'migrate export --out <file>' (see 'migrate --help')
   mcp …                MCP stdio bridge for desktop AI clients (see 'mcp --help')
   evidence verify …    Check an audit evidence pack offline (see 'evidence verify --help')
+  audit verify-archive …  Check audit archives offline (see 'audit verify-archive --help')
   backup …             Decrypt or check a backup offline: 'backup verify <file>' (see 'backup --help')
   -V, --version        Print the version
   -h, --help           Show this help
@@ -131,10 +132,11 @@ async function portAnswers(url: string): Promise<boolean> {
 /** --send-test-error: checks the error reporting configuration end to end. */
 async function sendTestError(): Promise<number> {
   const { initErrorReporting, sendTestEvent, errorReportingSettings, parseDsn } = await import('../errorReporting.js');
+  const { env } = await import('../config.js');
   const settings = errorReportingSettings();
   if (!settings.dsn) {
     console.error(
-      process.env.SM_SENTRY_DSN ? 'SM_SENTRY_DSN is not a valid DSN (https://<key>@<host>/<project>).' : 'SM_SENTRY_DSN is not set – error reporting is off.',
+      env.SM_SENTRY_DSN ? 'SM_SENTRY_DSN is not a valid DSN (https://<key>@<host>/<project>).' : 'SM_SENTRY_DSN is not set – error reporting is off.',
     );
     return EXIT_FAILURE;
   }
@@ -183,6 +185,22 @@ async function main(): Promise<number> {
     }
     const { runEvidenceVerify } = await import('../cli/evidence-verify.js');
     return runEvidenceVerify(evidenceArgv.slice(1), `${BRAND.slug} evidence verify`);
+  }
+  if (auditArgv) {
+    if (auditArgv[0] !== 'verify-archive') {
+      if (auditArgv[0] === '--help' || auditArgv[0] === '-h') {
+        process.stdout.write(
+          `Usage: ${BRAND.slug} audit verify-archive <archive.zip> […] [--public-key <key> | --fingerprint <fp> | --trust-pack-key] [--json]\n`,
+        );
+        return EXIT_OK;
+      }
+      return usageFailure(
+        new UsageError(auditArgv[0] ? `unknown command 'audit ${auditArgv[0]}'` : 'missing command', "Use 'audit verify-archive <archive.zip>'"),
+        `${BRAND.slug} audit verify-archive`,
+      );
+    }
+    const { runAuditArchiveVerify } = await import('../cli/audit-archive-verify.js');
+    return runAuditArchiveVerify(auditArgv.slice(1), `${BRAND.slug} audit verify-archive`);
   }
   if (backupArgv) {
     const { runBackupCli } = await import('../cli/backup.js');
@@ -242,6 +260,8 @@ main().then(
   (e) => {
     const err = e as NodeJS.ErrnoException;
     if (err.code === 'EADDRINUSE') console.error(`Port in use. Start with --port <other port>.`);
+    // invalid SM_* variables: config.ts names each one on its own line
+    else if (err?.name === 'ConfigError') console.error(err.message);
     else console.error(err?.stack ?? err);
     process.exitCode = EXIT_FAILURE;
   },

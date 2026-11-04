@@ -54,7 +54,7 @@ Rules:
 - A source user name that is an account on the target must be mapped to that very account – also for administrators. Otherwise the former name would become an alias of another account and match `user:<name>` everywhere, including what the existing account gets in future. If they are different people, give the target account another name before the import (or create it under another name).
 - A team name that exists on the target must be mapped to that team.
 
-**Who owns something or may do something** follows the mapping: owners of processes, schedules, dashboards, monitors, triggers, report schedules, access checks, records and services, access lists, assignees of decisions, responsible people of ticket references, credential owners, report recipients and monitor subscribers.
+**Who owns something or may do something** follows the mapping: owners of processes, schedules, dashboards, monitors, triggers, report schedules, access checks, documents and services, access lists, assignees of decisions, responsible people of ticket references, credential owners, report recipients and monitor subscribers.
 
 **Who did something** stays as it was: authors, approvers, deciders, the people in the audit log and in run protocols. That is evidence, often inside hashes and signatures, and is never rewritten. Instead, the former names become **aliases** of the target accounts: a process step still assigned to `user:arvid` reaches `arvid@corp.example`, and the four-eyes rules know that `arvid` and `arvid@corp.example` are one person (whoever started a run as `arvid` cannot approve it as `arvid@corp.example`). A former name cannot become a new account. _Settings → Migration_ shows the mapping as _local: arvid → arvid@corp.example (existing account)_, also next to every entry of the imported audit history.
 
@@ -63,7 +63,7 @@ Rules:
 - The source writes `instance.exported` (with the package id) and a signed checkpoint that covers it. The package carries the source's audit log up to that checkpoint, and the source's public key.
 - The target keeps it **unchanged** as imported history, in its own table: original entries, hashes and the signed checkpoint. It is checked at the import and again on _Settings → Migration_ (_Verified_): the entries form an unbroken chain and match the checkpoint signed by the source's key.
 - The target's own chain gets one entry `instance.imported` with the package's SHA-256, the source's fingerprint and version, the counts, the checkpoint the history ends with, and the mapping table (its SHA-256, and the table itself while it is small). The full table is kept with the import and checked against this entry.
-- Evidence that moved stays verifiable: run protocol seals, approvals of living documents, frozen records, report fingerprints and access snapshots are checked against the imported history. Answers that rest on it say so – _verified against the imported audit history of <source fingerprint>_ – so nobody mistakes them for this instance's own evidence: the run report PDF, `protocol.importedHistory` of `GET /api/v1/runs/{runId}`, _Verify a report_, the record page, signed PDFs and _Verify history_ of access checks.
+- Evidence that moved stays verifiable: run protocol seals, approvals of living documents, frozen documents, report fingerprints and access snapshots are checked against the imported history. Answers that rest on it say so – _verified against the imported audit history of <source fingerprint>_ – so nobody mistakes them for this instance's own evidence: the run report PDF, `protocol.importedHistory` of `GET /api/v1/runs/{runId}`, _Verify a report_, the record page, signed PDFs and _Verify history_ of access checks.
 
 ## Security
 
@@ -78,6 +78,7 @@ Rules:
 - **Versions:** the target runs the same or a newer Steward version. An older package is loaded as its version wrote it and then migrated with the same database migrations an update would run. A package from a newer version is refused – update the target first.
 - **Either database:** SQLite and PostgreSQL work as source and target in any combination.
 - An instance that holds an imported package cannot be exported again yet.
+- An instance whose archived audit entries were deleted from the database (audit retention, [SECURITY-HARDENING.md](SECURITY-HARDENING.md#audit-log-as-evidence)) cannot be exported yet: the package carries the audit log from entry #1. Archiving alone is fine.
 - The package is a ZIP inside: at most 4 GB and 65,000 files.
 - The export reads the database in one transaction: during an export from the web UI Steward pauses for a moment.
 
@@ -95,7 +96,7 @@ steward migrate inspect move.smig --mapping-template mapping.json   # dry run, w
 steward migrate import move.smig --mapping mapping.json --fingerprint 1a2b:3c4d:…
 ```
 
-In a container: `docker compose stop steward`, then `docker compose run --rm -v "$PWD":/move steward node --import tsx server/src/cli/migrate.ts import /move/move.smig --mapping /move/mapping.json --fingerprint …`, then `docker compose up -d`.
+In a container: `docker compose stop steward`, then `docker compose run --rm -v "$PWD":/move steward node server/dist/migrate.js import /move/move.smig --mapping /move/mapping.json --fingerprint …`, then `docker compose up -d`.
 
 A mapping file:
 

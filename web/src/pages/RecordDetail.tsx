@@ -63,7 +63,7 @@ import {
   isEmailAddress,
 } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, patch, post, put } from '../api';
-import { DetailState, PageHeader } from '../components/common';
+import { DetailState } from '../components/common';
 import { UnifiedDiff } from '../components/editor/VersionDiff';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field, LinksPanel, RecordStatusBadge, useTypeName, type LinkInput } from '../components/records/common';
@@ -76,6 +76,7 @@ import { confirmDanger } from '../components/confirm';
 import { DocumentChangelog, EditionBadge, EditionFields, ReviewStatusBadge } from '../components/records/DocumentPanel';
 import { MeasuresPanel, TimelineButton } from '../components/records/IncidentReview';
 import { OwningTeams } from '../components/OwningTeams';
+import { DetailHeader } from '../components/page/DetailPage';
 
 const TABS = ['content', 'changelog', 'versions', 'links', 'attachments', 'discussion', 'pdfs', 'access'] as const;
 type Tab = (typeof TABS)[number];
@@ -113,7 +114,8 @@ export function RecordDetailPage() {
 
   return (
     <>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: `${rec.number} ${rec.title}`, kind: 'record' }}
         back="records"
         title={
           <Group gap="sm" wrap="wrap">

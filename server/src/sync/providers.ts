@@ -148,7 +148,7 @@ type FetchResponse = Awaited<ReturnType<typeof fetch>>;
 async function readCapped(res: FetchResponse, max: number): Promise<Buffer> {
   const declared = Number(res.headers.get('content-length') ?? 0);
   if (declared > max) {
-    await res.body?.cancel().catch(() => undefined);
+    await res.body?.cancel().catch(() => undefined); // the body is not read: a failed cancel changes nothing
     throw new HttpError(502, `The Git host sent ${declared} bytes – more than the limit of ${max}`, 'GIT_TOO_LARGE', { limit: max });
   }
   const chunks: Buffer[] = [];
@@ -160,7 +160,7 @@ async function readCapped(res: FetchResponse, max: number): Promise<Buffer> {
     if (done) break;
     total += value.byteLength;
     if (total > max) {
-      await reader.cancel().catch(() => undefined);
+      await reader.cancel().catch(() => undefined); // the rest is not read: a failed cancel changes nothing
       throw new HttpError(502, `The Git host sent more than the limit of ${max} bytes`, 'GIT_TOO_LARGE', { limit: max });
     }
     chunks.push(Buffer.from(value));
@@ -213,7 +213,7 @@ class Client {
       });
     }
     if (res.status >= 300 && res.status < 400) {
-      await res.body?.cancel().catch(() => undefined);
+      await res.body?.cancel().catch(() => undefined); // the body is not read: a failed cancel changes nothing
       throw new HttpError(
         502,
         `${what}: the Git host answered with a redirect (HTTP ${res.status}). Redirects are not followed – check the repository and API URL.`,
@@ -222,11 +222,11 @@ class Client {
       );
     }
     if (res.status === 404 && opts.allow404) {
-      await res.body?.cancel().catch(() => undefined);
+      await res.body?.cancel().catch(() => undefined); // the body is not read: a failed cancel changes nothing
       return { status: 404, body: Buffer.alloc(0), headers: res.headers };
     }
     if (!res.ok) {
-      await res.body?.cancel().catch(() => undefined);
+      await res.body?.cancel().catch(() => undefined); // the body is not read: a failed cancel changes nothing
       throw statusError(res.status, what);
     }
     return { status: res.status, body: await readCapped(res, opts.max ?? MAX_JSON_BYTES), headers: res.headers };

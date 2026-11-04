@@ -115,6 +115,16 @@ function checkServices(ids: string[], u: AuthUser, kept: string[] = []): void {
   }
 }
 
+/** Whether the current user may publish this service on a status page (see checkServices; duplicating a page). */
+export function mayPublishService(id: string): boolean {
+  try {
+    checkServices([id], me());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function createPage(input: z.infer<typeof pageInput>): StatusPage {
   const u = me();
   if (!canEdit(u)) forbid('set up status pages', 'statusPages');

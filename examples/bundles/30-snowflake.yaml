@@ -1,0 +1,19 @@
+# steward-min-version: 0.4.0
+name: Snowflake (project access and account hygiene)
+description: |
+  The quarterly project access review (database grants down to the users, four-eyes, documented revocations) and the
+  daily account hygiene check (inactive people, password sign-ins without MFA, admin role holders, credits, failed
+  tasks), with the "Snowflake account" dashboard and, optionally, the Snowflake monitor (freshness, tasks, credits –
+  adjust its table, database and warehouse). The Snowflake connection stays read-only (docs/SNOWFLAKE.md).
+tags: [access-review, governance, snowflake]
+platforms:
+  - key: snowflake
+    label: Snowflake account
+    kinds: [snowflake]
+processes:
+  - template: 62-snowflake-account-hygiene
+  - template: 61-snowflake-project-access-review
+dashboards: [61-snowflake-account]
+monitors:
+  - file: 50-snowflake-account.yaml
+    optional: true

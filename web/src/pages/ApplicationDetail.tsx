@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActionIcon, Anchor, Badge, Box, Button, Grid, Group, Modal, Paper, Select, Stack, Table, Text } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { IconArchive, IconArchiveOff, IconEdit, IconExternalLink, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { TagBadges } from '../components/tags';
 import type { ApplicationDetail, ApplicationDocument, Platform } from '@sm/shared';
 import { del, get, notifyError, patch, post } from '../api';
-import { DetailState, PageHeader, subjectLabel, useFieldErrors } from '../components/common';
+import { DetailState, subjectLabel, useFieldErrors } from '../components/common';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field, LinksPanel, RecordStatusBadge } from '../components/records/common';
 import { EditionBadge, ReviewStatusBadge } from '../components/records/DocumentPanel';
@@ -23,6 +23,10 @@ import { RunsOnPanel } from '../components/catalogue/RunsOnPanel';
 import { CatalogueCredentials } from '../components/catalogue/CatalogueCredentials';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { OwningTeams } from '../components/OwningTeams';
+import { DetailHeader } from '../components/page/DetailPage';
+import { platformKeys } from '../queryKeys';
+import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
+import { useMe } from '../auth';
 
 export function ApplicationDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
@@ -30,6 +34,16 @@ export function ApplicationDetailPage() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['application', id], queryFn: () => get<ApplicationDetail>(`/applications/${id}`) });
   const [editing, setEditing] = useState(false);
+  // ?edit=1: a copy opens in edit mode (Duplicate)
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    if (params.get('edit') !== '1') return;
+    setEditing(true);
+    params.delete('edit');
+    setParams(params, { replace: true });
+  }, [params, setParams]);
+  const { hasRole } = useMe();
+  const canCreate = hasRole('admin') || hasRole('designer');
   const roleLabel = useRoleLabel();
   const refresh = (a?: ApplicationDetail) => {
     if (a) qc.setQueryData(['application', id], a);
@@ -49,7 +63,8 @@ export function ApplicationDetailPage() {
   };
   return (
     <>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: a.name, kind: 'application' }}
         back="applications"
         title={
           <Group gap="sm" wrap="wrap">
@@ -62,16 +77,26 @@ export function ApplicationDetailPage() {
             )}
           </Group>
         }
-        description={t('detailLine', { user: a.updatedBy, date: fmtDate(a.updatedAt) })}
+        description={
+          <>
+            {t('detailLine', { user: a.updatedBy, date: fmtDate(a.updatedAt) })}
+            <CopiedFromNote kind="application" id={a.id} pathOf={(id) => `/applications/${id}`} />
+          </>
+        }
         actions={
-          a.canEdit && (
+          (a.canEdit || canCreate) && (
             <>
-              <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}>
-                {t('common:edit')}
-              </Button>
-              <Button size="xs" variant="default" leftSection={a.archived ? <IconArchiveOff size={14} /> : <IconArchive size={14} />} onClick={archive}>
-                {a.archived ? t('restore') : t('archive')}
-              </Button>
+              {canCreate && <DuplicateButton kind="application" id={a.id} />}
+              {a.canEdit && (
+                <>
+                  <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}>
+                    {t('common:edit')}
+                  </Button>
+                  <Button size="xs" variant="default" leftSection={a.archived ? <IconArchiveOff size={14} /> : <IconArchive size={14} />} onClick={archive}>
+                    {a.archived ? t('restore') : t('archive')}
+                  </Button>
+                </>
+              )}
             </>
           )
         }
@@ -181,7 +206,7 @@ export function ApplicationDetailPage() {
           <OwningTeams kind="application" id={a.id} mt="md" />
         </Grid.Col>
       </Grid>
-      {editing && <ApplicationFormModal app={a} onClose={() => setEditing(false)} onSaved={(x) => refresh(x)} />}
+      {editing && a.canEdit && <ApplicationFormModal app={a} onClose={() => setEditing(false)} onSaved={(x) => refresh(x)} />}
     </>
   );
 }
@@ -263,7 +288,7 @@ function IntegrationsPanel({ app, onSaved }: { app: ApplicationDetail; onSaved: 
 
 function AddPlatformModal({ app, onClose, onSaved }: { app: ApplicationDetail; onClose: () => void; onSaved: (a: ApplicationDetail) => void }) {
   const { t } = useTranslation(['applications', 'common']);
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const mapped = new Set(app.integrations.map((i) => i.platformId));
   const [platformId, setPlatformId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

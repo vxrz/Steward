@@ -1,0 +1,18 @@
+# steward-min-version: 0.4.0
+name: Git repositories (health and members)
+description: |
+  Repository health every hour (branch protection, pipeline of the default branch, latest release, alerts, expiring
+  tokens) and the quarterly member and outside-collaborator review, with the "Repositories" dashboard and, optionally,
+  the pipeline monitor. Works with GitHub, GitLab and Forgejo/Gitea – one setup per host (docs/GIT-PLATFORMS.md).
+tags: [repositories, access-review, git]
+platforms:
+  - key: git
+    label: Git host
+    kinds: [github, gitlab, forgejo]
+processes:
+  - template: 82-github-repository-health
+  - template: 92-git-member-review
+dashboards: [82-repositories]
+monitors:
+  - file: 53-repository-pipelines.yaml
+    optional: true

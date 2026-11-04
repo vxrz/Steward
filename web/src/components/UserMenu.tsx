@@ -31,7 +31,7 @@ export async function signOut(qc: ReturnType<typeof useQueryClient>): Promise<vo
   try {
     await post('/auth/logout');
   } catch {
-    /* ignore */
+    /* signed out locally either way */
   }
   await resetToAuth(qc);
 }
@@ -128,7 +128,7 @@ export function UserMenu() {
             {colorScheme === 'dark' ? t('lightMode') : t('darkMode')}
           </Menu.Item>
           {canInstall && (
-            <Menu.Item leftSection={<IconDownload size={14} />} onClick={() => install().catch(() => undefined)}>
+            <Menu.Item leftSection={<IconDownload size={14} />} onClick={() => install().catch(() => undefined /* the prompt was dismissed */)}>
               {t('userMenu.installApp')}
             </Menu.Item>
           )}

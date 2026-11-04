@@ -20,7 +20,7 @@ test('a duty is due until its process ran, and an exception needs a second perso
   const dutyName = uniq('Monthly restore test');
 
   // define the duty on the service page
-  await page.goto(`/services/${svc.id}`);
+  await page.goto(`/services/${svc.id}/duties`);
   const panel = page.getByTestId('duties-panel');
   await expect(panel).toContainText('No duties yet');
   await panel.getByRole('button', { name: 'Add duty' }).click();

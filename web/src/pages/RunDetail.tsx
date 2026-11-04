@@ -18,22 +18,13 @@ import {
 import { outcomeOf, topSeverity, type AuditEntry, type ProcessDetail, type RunChild, type RunDetail, type RunStepRecord } from '@sm/shared';
 import { get, notifyError, post, apiUrl } from '../api';
 import { fmtDate, fmtDuration, fmtNumber, fmtTime, runDuration } from '../format';
-import {
-  DetailState,
-  JsonView,
-  Markdown,
-  PageHeader,
-  SEVERITY_COLORS,
-  SeverityBadge,
-  StatusBadge,
-  TONE,
-  severityLabel,
-  statusLabel,
-} from '../components/common';
+import { DetailState, JsonView, Markdown, SEVERITY_COLORS, SeverityBadge, StatusBadge, TONE, severityLabel, statusLabel } from '../components/common';
 import { errorSteps, findingsOf, findingsText } from '../components/RunTable';
 import { TaskPanel } from '../components/TaskPanel';
 import { RunDialog } from '../components/RunDialog';
 import { GenerateReportDialog, RunReportsPanel, canReport } from '../components/reports/RunReports';
+import { DetailHeader } from '../components/page/DetailPage';
+import { processKeys, runKeys } from '../queryKeys';
 
 const ACTIVE = ['running', 'waiting', 'queued'];
 /** Long runs (for-each over thousands of items) render their steps and log lines in pages. */
@@ -51,12 +42,12 @@ export function RunDetailPage() {
   const [logLimit, setLogLimit] = useState(LOG_PAGE);
   const [pdfOpen, setPdfOpen] = useState(false);
   const run = useQuery({
-    queryKey: ['run', id],
+    queryKey: runKeys.detail(id),
     queryFn: () => get<RunDetail>(`/runs/${id}`),
     refetchInterval: (q) => (q.state.data && ACTIVE.includes(q.state.data.status) ? 1500 : false),
   });
   const proc = useQuery({
-    queryKey: ['process', run.data?.processId],
+    queryKey: processKeys.detail(run.data?.processId),
     queryFn: () => get<ProcessDetail>(`/processes/${run.data!.processId}`),
     enabled: !!run.data?.processId,
     retry: false,
@@ -74,7 +65,7 @@ export function RunDetailPage() {
   const action = async (what: 'cancel' | 'resume') => {
     try {
       await post(`/runs/${r.id}/${what}`);
-      await qc.invalidateQueries({ queryKey: ['run', id] });
+      await qc.invalidateQueries({ queryKey: runKeys.detail(id) });
     } catch (e) {
       notifyError(e);
     }
@@ -87,7 +78,8 @@ export function RunDetailPage() {
 
   return (
     <>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: r.processName, kind: 'run' }}
         back="runs"
         title={
           <Group gap="xs">
@@ -122,7 +114,7 @@ export function RunDetailPage() {
         }
         actions={
           <>
-            {canRun && ['running', 'waiting', 'interrupted'].includes(r.status) && (
+            {canRun && ['queued', 'running', 'waiting', 'interrupted'].includes(r.status) && (
               <Button size="xs" color="red" variant="light" leftSection={<IconPlayerStop size={14} />} onClick={() => action('cancel')}>
                 {t('detail.cancel')}
               </Button>
@@ -210,6 +202,11 @@ export function RunDetailPage() {
                 </Text>
               )}
             </Stack>
+          </Alert>
+        )}
+        {r.status === 'queued' && (
+          <Alert color="gray" title={t('detail.queued')} data-testid="run-queued">
+            {t('detail.queuedText')}
           </Alert>
         )}
         {r.status === 'interrupted' && (

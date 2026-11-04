@@ -8,6 +8,7 @@ import type { Dashboard, EvidencePack, PersonReviewSummary } from '@sm/shared';
 import { get } from '../../api';
 import { useMe } from '../../auth';
 import { fmtNumber, fmtRelative } from '../../format';
+import { dashboardKeys } from '../../queryKeys';
 
 /** What the start page focuses on: operations (admins, designers, operators), compliance (auditors) or the viewer's dashboards. */
 export type StartFocus = 'operations' | 'compliance' | 'viewer';
@@ -103,7 +104,7 @@ export function ComplianceCard() {
 /** Viewers' start page: the dashboards they may open. */
 export function DashboardsCard() {
   const { t } = useTranslation('dashboard');
-  const dashboards = useQuery({ queryKey: ['dashboards'], queryFn: () => get<Dashboard[]>('/dashboards') });
+  const dashboards = useQuery({ queryKey: dashboardKeys.all, queryFn: () => get<Dashboard[]>('/dashboards') });
   const list = dashboards.data ?? [];
   return (
     <Card withBorder component="section" aria-labelledby="start-dashboards" data-testid="start-dashboards">

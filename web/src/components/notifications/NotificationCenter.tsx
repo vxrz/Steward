@@ -13,6 +13,7 @@ const EVENT_COLORS: Record<string, string> = {
   'check.failed': 'orange',
   'dataset.stale': 'yellow',
   'schedule.skipped': 'gray',
+  'platform.failing': 'red',
 };
 
 /** Bell with unread badge; opens a drawer with the latest notifications. */

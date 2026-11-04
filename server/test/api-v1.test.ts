@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import { allowEmailDomains, authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
+import { allowEmailDomains, authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer, setEnv } from './helpers.js';
 
 let s: TestServer;
 const PW = 'Demo-password-1';
@@ -167,8 +167,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await s?.app.close();
-  if (rateLimitBefore === undefined) delete process.env.SM_API_RATE_LIMIT;
-  else process.env.SM_API_RATE_LIMIT = rateLimitBefore;
+  await setEnv({ SM_API_RATE_LIMIT: rateLimitBefore });
 });
 
 describe('authentication', () => {
@@ -758,7 +757,7 @@ describe('services', () => {
 describe('rate limiting', () => {
   it('answers 429 with Retry-After and RateLimit headers', async () => {
     const before = process.env.SM_API_RATE_LIMIT;
-    process.env.SM_API_RATE_LIMIT = '3';
+    await setEnv({ SM_API_RATE_LIMIT: '3' });
     try {
       const t = await newToken(s.api, 'limited');
       const first = await v1(t, '/me');
@@ -774,18 +773,17 @@ describe('rate limiting', () => {
       // other tokens have their own bucket
       expect((await v1(tokens.vera, '/me')).status).toBe(200);
     } finally {
-      if (before === undefined) delete process.env.SM_API_RATE_LIMIT;
-      else process.env.SM_API_RATE_LIMIT = before;
+      await setEnv({ SM_API_RATE_LIMIT: before });
     }
   });
 });
 
 describe('documentation', () => {
   const docsPage = (headers: Record<string, string> = {}) => fetch(s.base + '/api/docs/', { headers: { accept: 'text/html', ...headers } });
-  const env = (k: string, v: string | undefined) => (v === undefined ? delete process.env[k] : (process.env[k] = v));
+  const env = (k: string, v: string | undefined) => setEnv({ [k]: v });
 
   it('defaults to signed-in users', async () => {
-    env('SM_API_DOCS', undefined);
+    await env('SM_API_DOCS', undefined);
     expect((await docsPage()).status).toBe(401);
     expect((await fetch(s.base + '/api/docs/json')).status).toBe(401);
     expect((await v1(null, '/openapi.json')).status).toBe(401);
@@ -804,41 +802,41 @@ describe('documentation', () => {
 
   it('can be public or off (environment overrides the setting)', async () => {
     try {
-      env('SM_API_DOCS', 'public');
+      await env('SM_API_DOCS', 'public');
       expect((await docsPage()).status).toBe(200);
       expect((await v1(null, '/openapi.json')).status).toBe(200);
-      env('SM_API_DOCS', 'off');
+      await env('SM_API_DOCS', 'off');
       expect((await docsPage()).status).toBe(404);
       expect((await fetch(s.base + '/api/docs/static/swagger-ui-bundle.js')).status).toBe(404);
       expect((await v1(null, '/openapi.json')).status).toBe(404);
       expect((await v1(tokens.vera, '/openapi.json')).status).toBe(200);
       expect((await s.api('GET', '/public-api')).docsUrl).toBeNull();
       // setting (no environment variable)
-      env('SM_API_DOCS', undefined);
+      await env('SM_API_DOCS', undefined);
       await s.api('PUT', '/settings', { apiDocs: 'off' });
       expect((await docsPage()).status).toBe(404);
       await s.api('PUT', '/settings', { apiDocs: 'public' });
       expect((await docsPage()).status).toBe(200);
       const st = await s.api('GET', '/public-api');
       expect(st).toMatchObject({ enabled: true, basePath: '/api/v1', docs: 'public', docsSource: 'settings', docsUrl: '/api/docs/' });
-      env('SM_API_DOCS', 'authenticated');
+      await env('SM_API_DOCS', 'authenticated');
       expect((await docsPage()).status).toBe(401);
       expect((await s.api('GET', '/public-api')).docsSource).toBe('env');
     } finally {
-      env('SM_API_DOCS', undefined);
+      await env('SM_API_DOCS', undefined);
       await s.api('PUT', '/settings', { apiDocs: 'authenticated' });
     }
   });
 
   it('turns the whole API off with SM_API_V1=off', async () => {
     try {
-      env('SM_API_V1', 'off');
+      await env('SM_API_V1', 'off');
       expect((await v1(tokens.admin, '/me')).status).toBe(404);
       expect((await v1(null, '/health')).status).toBe(404);
       expect((await docsPage({ cookie: await sessionCookie('vera', PW) })).status).toBe(404);
       expect((await s.api('GET', '/public-api')).enabled).toBe(false);
     } finally {
-      env('SM_API_V1', undefined);
+      await env('SM_API_V1', undefined);
     }
     expect((await v1(tokens.admin, '/me')).status).toBe(200);
   });

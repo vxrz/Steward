@@ -74,16 +74,33 @@ export function auditRoutes(get: Get): void {
       operationId: 'verifyAuditLog',
       tag: 'Audit',
       summary: 'Verify the hash chain of the audit log',
-      description: 'Auditors and administrators. The verification itself is recorded in the audit log.',
+      description:
+        'Auditors and administrators. Incremental by default: the entries after the newest signed checkpoint (each checkpoint is signed only after the entries up to it verified); `full=true` checks every entry in the database. The verification itself is recorded in the audit log.',
+      query: S.AuditVerifyQuery,
       response: S.ref('AuditVerifyResult'),
     },
-    async () => {
+    async (req) => {
       requireCapability(currentUser(), 'viewAudit', 'verify the audit log');
+      const q = query<{ full?: boolean }>(req);
+      const mode = q.full ? 'full' : 'incremental';
       // compared with the configured anchors (local anchor file, SM_AUDIT_ANCHOR[_FILE]); a success is checkpointed
-      const r = await verifyWithAnchors();
-      audit({ action: 'audit.verified', entityType: 'audit', summary: `Audit chain verified via the API: ${r.message}`, details: verificationResult(r, null) });
+      const r = await verifyWithAnchors([], { mode });
+      audit({
+        action: 'audit.verified',
+        entityType: 'audit',
+        summary: `Audit chain verified via the API${mode === 'full' ? ' in full' : ''}: ${r.message}`,
+        details: verificationResult(r, null),
+      });
       if (r.ok) await createCheckpoint('verify');
-      return { ok: r.ok, checked: r.checked, firstBadSeq: r.firstBadSeq ?? null, message: r.message };
+      return {
+        ok: r.ok,
+        checked: r.checked,
+        firstBadSeq: r.firstBadSeq ?? null,
+        message: r.message,
+        mode: r.mode ?? mode,
+        fromSeq: r.fromSeq ?? null,
+        deletedThroughSeq: r.deletedThroughSeq ?? null,
+      };
     },
   );
 }

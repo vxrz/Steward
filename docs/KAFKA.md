@@ -50,6 +50,20 @@ On the application page, _Components → Add_: type **Kafka topic**, the topic n
 
 Processes see what Steward read as `readout` of each component of an application input – that is how _Kafka – Topic standards_ works without calling the cluster.
 
+### Add topics by prefix
+
+Teams often name their topics by a convention (`smo-ie.dev.machines`, `smo-ie.dev.alerts`, …). _Components → Add Kafka topics by prefix_ on the application page:
+
+1. Choose the **Kafka platform** and the **prefix** (`smo-ie.dev.`) and, optionally, the environment the topics belong to.
+2. _List the topics_ reads the cluster's topic list (read-only, with the same client as above) and shows every topic whose name **starts with** the prefix – a plain comparison, no pattern; internal topics (`_…`) are left out, at most 500 at once. Topics the application has already (same name and environment) are ticked and greyed.
+3. Choose the topics and _Add_: each becomes a **Kafka topic** component with that environment and platform – checked and audited like a component added by hand, and read every 6 hours like the others. Names the cluster does not list under the prefix are refused.
+
+**Keep in sync.** With _Keep in sync_ on, Steward remembers the prefix (at most 20 per application) and reads it again once a day with the rights of the person who set it up. New topics under it that are not components yet are **offered** above the component list – _Add all_ or _Dismiss_ – and in the **daily summary** (section _New Kafka topics_) of everyone who may change the application. Topics listed when the prefix was set up but not chosen are not offered again; dismissed ones neither. _Stop_ ends the sync; the components stay. Everything is in the application's history (`application.topics_added`, `application.topic_prefix_synced`, `application.topics_offered`, `application.topics_dismissed`, `application.topic_prefix_unsynced`).
+
+API: `POST /api/applications/:id/kafka-topics/list` (`{ platformId, prefix, environment }`), `POST /api/applications/:id/kafka-topics` (`{ platformId, prefix, environment, topics, keepInSync }`), `GET /api/applications/:id/topic-prefixes`, `POST …/topic-prefixes/:syncId/check`, `POST …/topic-prefixes/:syncId/dismiss` (`{ topics }`), `DELETE …/topic-prefixes/:syncId`. Who may change the application uses them; the platform must be one they may use.
+
+**Access reviews of Confluent Cloud** (role bindings and ACLs) are a separate platform, see [CONFLUENT.md](CONFLUENT.md).
+
 ## Monitor check
 
 ```yaml
@@ -81,4 +95,4 @@ For troubleshooting, a platform manager can read the newest messages of a topic:
 
 ## Demo and tests
 
-Demo mode adds **Kafka (demo)**, a simulated cluster (`server/src/mock/mockKafka.ts`; reached only in demo mode, bootstrap `kafka.demo.invalid:9092`) with the topics `orders` (a consumer group that keeps up and one that is stuck), `payments` (no message for 3 hours) and `shop-events` (compacted), and a Schema Registry. Peek is on in the demo. Tests: `server/test/kafka.test.ts` and the example runs in `server/test/examples.test.ts`.
+Demo mode adds **Kafka (demo)**, a simulated cluster (`server/src/mock/mockKafka.ts`; reached only in demo mode, bootstrap `kafka.demo.invalid:9092`) with the topics `orders` (a consumer group that keeps up and one that is stuck), `payments` (no message for 3 hours) and `shop-events` (compacted), and a Schema Registry. Peek is on in the demo. Tests: `server/test/kafka.test.ts`, `server/test/kafka-prefix.test.ts` (topics by prefix) and the example runs in `server/test/examples.test.ts`.

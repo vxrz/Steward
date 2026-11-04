@@ -49,7 +49,7 @@ test.describe('System status', () => {
   test('administrators: readiness, health check URLs and runtime details', async ({ loginAs }) => {
     const page = await loginAs('admin');
     await page.goto('/settings');
-    await page.getByRole('link', { name: 'System status' }).click();
+    await page.getByRole('main').getByRole('link', { name: 'System status' }).click();
     await expect(page).toHaveURL(/\/settings\/status$/);
     await expect(page.getByRole('heading', { name: 'System status', level: 1 })).toBeVisible();
     await expect(page.getByTestId('readiness')).toHaveText('ready');
@@ -57,6 +57,14 @@ test.describe('System status', () => {
     await expect(page.getByRole('button', { name: new RegExp(`^Copy http://127\\.0\\.0\\.1:\\d+${appHref('/api/ready')}$`) })).toBeVisible();
     await expect(page.getByRole('rowheader', { name: 'Data folder' })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'SQLite', exact: true }).or(page.getByRole('cell', { name: 'PostgreSQL', exact: true }))).toBeVisible();
+    // the background jobs, with "Run now"
+    const jobs = page.getByTestId('background-jobs');
+    await expect(jobs.locator('[data-job="cleanup"]')).toContainText('every 24 hours');
+    const stale = jobs.locator('[data-job="stale-datasets"]');
+    await expect(stale).toContainText('every 5 minutes');
+    await stale.getByRole('button', { name: 'Run now: stale-datasets' }).click();
+    await expect(page.getByText('stale-datasets started')).toBeVisible();
+    await expect(stale).toContainText(/Succeeded|Running/);
     await expectAccessible(page, 'system status');
   });
 
@@ -67,6 +75,7 @@ test.describe('System status', () => {
     await auditor.getByRole('menuitem', { name: 'System status' }).click();
     await expect(auditor.getByText(/Limited view for auditors/)).toBeVisible();
     await expect(auditor.getByRole('rowheader', { name: 'Data folder' })).toHaveCount(0);
+    await expect(auditor.getByTestId('background-jobs')).toHaveCount(0);
 
     const viewer = await loginAs('vera');
     await viewer.goto('/');

@@ -7,7 +7,8 @@ import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
-import { config } from './config.js';
+import { config, env } from './config.js';
+import { internalProblemJson } from './problem-json.js';
 import { vault } from './vault.js';
 import { HttpError } from './util.js';
 import { registerRoutes } from './routes/index.js';
@@ -232,7 +233,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
             cert: fs.readFileSync(config.tls.cert),
             key: fs.readFileSync(config.tls.key),
             minVersion: 'TLSv1.2' as const,
-            ciphers: process.env.SM_TLS_CIPHERS || TLS_CIPHERS,
+            ciphers: env.SM_TLS_CIPHERS || TLS_CIPHERS,
             honorCipherOrder: true,
           },
         }
@@ -243,6 +244,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     reply.header(REQUEST_ID_HEADER, req.id);
     return payload;
   });
+  // internal API errors as problem details (RFC 9457), with error/code/params/requestId as extension members
+  app.addHook('onSend', internalProblemJson);
   const routeTable: TableRow[] = [];
   ROUTE_TABLES.set(app, routeTable);
   app.addHook('onRoute', (r) => {
@@ -283,7 +286,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     const url = req.routeOptions.url ?? req.url.split('?')[0]!;
     if (url.startsWith('/mock/')) return;
     const host = String(req.headers.host ?? '').replace(/:\d+$/, '');
-    const allowedHosts = ['localhost', '127.0.0.1', '[::1]', ...(process.env.SM_ALLOWED_HOSTS?.split(',') ?? [])];
+    const allowedHosts = ['localhost', '127.0.0.1', '[::1]', ...env.SM_ALLOWED_HOSTS];
     if (!allowedHosts.includes(host)) {
       if (isPublicApiPath(url)) {
         return reply
@@ -335,7 +338,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       link: typeof linkKey === 'string' ? linkKey : undefined,
       read: isRead(req.method),
     });
-    const isPublic = access.auth === 'public' || access.auth === 'hook' || (url === '/api/metrics' && process.env.SM_METRICS_PUBLIC === '1');
+    const isPublic = access.auth === 'public' || access.auth === 'hook' || (url === '/api/metrics' && env.SM_METRICS_PUBLIC);
     // API tokens act as their owner when there is no signed-in session.
     const bearer = info ? undefined : bearerToken(req.headers.authorization);
     if (bearer) {

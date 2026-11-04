@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { IconArrowDown, IconArrowUp, IconArrowsSort, IconSortAscending, IconSortDescending } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { formatLocale } from '../i18n';
+import { useListView } from './page/ListPage';
 
 export type SortValue = string | number | boolean | null | undefined;
 export type SortDir = 'asc' | 'desc';
@@ -90,6 +91,9 @@ export function DataTable<T>({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const narrow = useMediaQuery(`(max-width: ${cardBreakpoint})`) ?? false;
+  // the list page's table/card toggle (ListPage) overrides the choice by width
+  const view = useListView();
+  const cards = view === 'cards' || (view === 'auto' && narrow);
   const [sort, setSort] = useState<SortState | null>(defaultSort);
   const sorted = useMemo(() => {
     const col = sort && columns.find((c) => c.key === sort.key);
@@ -100,7 +104,7 @@ export function DataTable<T>({
   const sortable = columns.filter((c) => c.sortValue);
   const labelOf = (c: DataColumn<T>) => c.label ?? (typeof c.header === 'string' ? c.header : c.key);
 
-  if (narrow && card) {
+  if (cards && card) {
     return (
       <>
         {sortable.length > 0 && rows.length > 1 && (

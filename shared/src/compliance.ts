@@ -108,7 +108,7 @@ export interface AccessChange {
 export const ACCESS_SNAPSHOT_COLUMNS = { subjectId: 'subjectId', subjectName: 'subjectName', subjectType: 'subjectType', right: 'right', rights: 'rights' };
 
 /** insights-hub: its identity management; dataset: a snapshot a process publishes; git: members of an organisation, group or repository on a Git platform (#107) */
-export const ACCESS_CHECK_SOURCES = ['insights-hub', 'dataset', 'git', 'snowflake', 'aws'] as const;
+export const ACCESS_CHECK_SOURCES = ['insights-hub', 'dataset', 'git', 'snowflake', 'aws', 'confluent'] as const;
 export type AccessCheckSource = (typeof ACCESS_CHECK_SOURCES)[number];
 
 export interface AccessSubject {
@@ -121,6 +121,16 @@ export interface AccessSubject {
   aliases?: string[];
   /** A hint for reviewers read with the rights, e.g. "last login 2026-10-30 (4 days ago)"; never part of a snapshot */
   activity?: string;
+  /** The same hint as data, for the web UI's own words (Snowflake); never part of a snapshot */
+  activityInfo?: SubjectActivityInfo;
+}
+
+/** What a source knows about a subject's use of its account (person reviews). */
+export interface SubjectActivityInfo {
+  /** The last successful sign-in (null: never signed in) */
+  lastLoginAt: string | null;
+  /** Signs in with a password and has no second factor */
+  passwordWithoutMfa: boolean;
 }
 
 export interface AccessCheck {
@@ -386,6 +396,10 @@ export interface PersonReviewSource {
   matched: number;
   /** Hints for the reviewer per matched subject id, e.g. the last login (sources that know it: Snowflake) */
   activity?: Record<string, string>;
+  /** The same hints as data, per matched subject id */
+  activityInfo?: Record<string, SubjectActivityInfo>;
+  /** Other names of a matched subject that equal one of the person's identifiers (e.g. the e-mail address), per subject id */
+  aliases?: Record<string, string[]>;
 }
 
 export interface PersonReviewItem {
@@ -396,6 +410,9 @@ export interface PersonReviewItem {
   subjectType: string | null;
   /** The source's hint about the subject when the review started, e.g. "last login 2026-10-30 (4 days ago)" */
   subjectActivity?: string;
+  subjectActivityInfo?: SubjectActivityInfo;
+  /** The subject's other names that matched the person (e.g. the e-mail address of a Snowflake user) */
+  matchedAliases?: string[];
   right: string;
   decision: PersonReviewDecision | null;
   comment: string;

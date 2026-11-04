@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { startReverseProxy, type ReverseProxy } from '../../scripts/reverse-proxy.mjs';
-import { BASE_PATH, MASTER_PASSPHRASE, ROOT, USERS } from './env';
+import { BASE_PATH, MASTER_PASSPHRASE, ROOT, USERS, serverArgs } from './env';
 import { waitForStart } from './started';
 
 /**
@@ -45,7 +45,7 @@ export async function startIsolatedServer(opts: { demo?: boolean } = {}): Promis
   let exited: number | null | undefined;
   const spawnServer = () => {
     exited = undefined;
-    child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
+    child = spawn(process.execPath, serverArgs(), {
       cwd: path.join(ROOT, 'server'),
       env: {
         ...process.env,

@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import { describe, expect, it } from 'vitest';
 import type { AuditCheckpoint, AuditEntry } from '@sm/shared';
+import { setEnv } from './helpers.js';
 
 /**
  * A migration package is read within bounds: the audit history is checked and taken over line by line (never held in
@@ -104,12 +105,12 @@ describe('size and disk space', () => {
   it('has an absolute ceiling for what a package unpacks to (SM_MIGRATION_MAX_UNPACKED_MB, default 20 GiB)', async () => {
     const { checkUnpackedSize, maxUnpackedBytes } = await import('../src/migration/import.js');
     expect(maxUnpackedBytes()).toBe(20 * 1024 ** 3);
-    process.env.SM_MIGRATION_MAX_UNPACKED_MB = '10';
+    await setEnv({ SM_MIGRATION_MAX_UNPACKED_MB: '10' });
     try {
       expect(() => checkUnpackedSize(10 * 1024 ** 2)).not.toThrow();
       expect(() => checkUnpackedSize(10 * 1024 ** 2 + 1)).toThrow(expect.objectContaining({ code: 'MIGRATION_UNPACKED_TOO_LARGE', statusCode: 413 }));
     } finally {
-      delete process.env.SM_MIGRATION_MAX_UNPACKED_MB;
+      await setEnv({ SM_MIGRATION_MAX_UNPACKED_MB: undefined });
     }
   });
 

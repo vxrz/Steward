@@ -2,7 +2,7 @@ import type { CauseRef, CheckDef, CheckOf, MonitorStatus } from '@sm/shared';
 import { db } from '../db.js';
 import { vault } from '../vault.js';
 import { logger } from '../log.js';
-import { config } from '../config.js';
+import { config, env } from '../config.js';
 import { parseJson } from '../util.js';
 import { evalExpr } from '../engine/expr.js';
 import { SpanStatusCode, withSpan } from '../telemetry.js';
@@ -42,8 +42,8 @@ import { subMonitorMessage } from './redact.js';
  * - All state is in the database, so a restart continues where it stopped.
  */
 
-const TICK_MS = Number(process.env.SM_MONITOR_TICK_MS ?? 1000);
-const CONCURRENCY = Math.max(1, Number(process.env.SM_MONITOR_CONCURRENCY ?? 8));
+const TICK_MS = env.SM_MONITOR_TICK_MS;
+const CONCURRENCY = env.SM_MONITOR_CONCURRENCY;
 const KEEP_RESULTS = 50;
 
 let clock: () => number = () => Date.now();
@@ -72,7 +72,7 @@ const iso = (ms: number) => new Date(ms).toISOString();
 
 function track<T>(p: Promise<T>): Promise<T> {
   tracked.add(p);
-  void p.finally(() => tracked.delete(p)).catch(() => undefined);
+  void p.finally(() => tracked.delete(p)).catch(() => undefined); // only the bookkeeping: the caller handles the promise's failure
   return p;
 }
 
@@ -132,7 +132,7 @@ export function startMonitorEngine(): void {
   } catch (err) {
     logger.error({ err }, 'monitors could not be loaded');
   }
-  if (process.env.SM_MONITOR_AUTOSTART === '0') return;
+  if (!env.SM_MONITOR_AUTOSTART) return;
   if (config.demo) void import('./demo.js').then((d) => d.startGatewaySimulator());
   timer = setInterval(() => {
     try {

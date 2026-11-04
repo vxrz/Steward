@@ -6,20 +6,21 @@ import { db } from './db.js';
 import { audit } from './audit.js';
 import { logger } from './log.js';
 import { getSettings, readSetting, writeSetting } from './settings.js';
-import { deleteReadOlderThan } from './notifications/store.js';
 import { deleteMonitorDataBefore } from './monitors/retention.js';
 import { pruneGatusData } from './gatus/metrics.js';
+import { runArchiving } from './audit-archive.js';
 
 /**
  * Retention: removes finished runs (with steps, logs, tasks and artifacts) and
- * read notifications after the configured number of days. The audit log is
- * never touched – it keeps the history of deleted runs.
+ * read notifications after the configured number of days – in small batches with
+ * a turn for the event loop in between, so a large cleanup does not block requests.
+ * The audit log keeps the history of deleted runs; its own retention (archived
+ * entries, off by default) is audit-archive.ts, run from here once a day.
  */
 type LastCleanup = NonNullable<MaintenanceStatus['lastCleanup']>;
 
 const LAST_KEY = 'maintenance.lastCleanup';
 const FINISHED = ['succeeded', 'failed', 'cancelled'];
-const BATCH = 200;
 const DAY_MS = 86400000;
 
 const artifactsDir = () => path.join(config.dataDir, 'artifacts');
@@ -80,8 +81,28 @@ function deleteRunFiles(runId: string, artifactPaths: string[]): void {
   }
 }
 
-/** Deletes finished runs that ended before `cutoff`. Returns counts. */
-export function deleteRunsBefore(cutoff: string): { runs: number; artifacts: number } {
+/** Rows per statement (each its own transaction); the event loop gets a turn in between, so requests are served. */
+export const DELETE_BATCH = 500;
+/** Runs per round */
+const RUN_BATCH = 50;
+const turn = () => new Promise((resolve) => setImmediate(resolve));
+
+/** Deletes the rows of `table` matching `where` in batches of DELETE_BATCH (by its `id`), yielding in between. */
+export async function deleteInBatches(table: string, where: string, params: unknown[]): Promise<number> {
+  let n = 0;
+  for (;;) {
+    const c = db().run(`DELETE FROM ${table} WHERE id IN (SELECT id FROM ${table} WHERE ${where} LIMIT ${DELETE_BATCH})`, ...params).changes;
+    n += c;
+    if (c < DELETE_BATCH) return n;
+    await turn();
+  }
+}
+
+/** A run's rows, children first (evidence before its tasks); generated reports go with their run. */
+const RUN_TABLES = ['run_artifacts', 'run_task_evidence', 'run_tasks', 'run_logs', 'run_steps', 'reports'];
+
+/** Deletes finished runs that ended before `cutoff`, in small batches (a large cleanup does not block requests). */
+export async function deleteRunsBefore(cutoff: string): Promise<{ runs: number; artifacts: number }> {
   let runs = 0;
   let artifacts = 0;
   const statusList = FINISHED.map(() => '?').join(',');
@@ -91,41 +112,40 @@ export function deleteRunsBefore(cutoff: string): { runs: number; artifacts: num
         `SELECT id FROM runs WHERE status IN (${statusList}) AND finished_at IS NOT NULL AND finished_at < ? ORDER BY finished_at LIMIT ?`,
         ...FINISHED,
         cutoff,
-        BATCH,
+        RUN_BATCH,
       )
       .map((r) => r.id);
     if (!ids.length) break;
-    const files = new Map<string, string[]>();
-    db().tx(() => {
-      for (const id of ids) {
-        const paths = db()
-          .all<{ path: string }>('SELECT path FROM run_artifacts WHERE run_id = ?', id)
-          .map((r) => r.path);
-        files.set(id, paths);
-        artifacts += paths.length;
-        // Generated PDF reports go with their run (files below); the audit log keeps their report.generated entries.
-        for (const t of ['run_artifacts', 'run_task_evidence', 'run_tasks', 'run_logs', 'run_steps', 'reports'])
-          db().run(`DELETE FROM ${t} WHERE run_id = ?`, id);
-        db().run('DELETE FROM runs WHERE id = ?', id);
-      }
-    });
-    runs += ids.length;
-    for (const [id, paths] of files) deleteRunFiles(id, paths);
-    if (ids.length < BATCH) break;
+    for (const id of ids) {
+      const paths = db()
+        .all<{ path: string }>('SELECT path FROM run_artifacts WHERE run_id = ?', id)
+        .map((r) => r.path);
+      // Generated PDF reports go with their run (files below); the audit log keeps their report.generated entries.
+      for (const t of RUN_TABLES) await deleteInBatches(t, 'run_id = ?', [id]);
+      db().run('DELETE FROM runs WHERE id = ?', id);
+      deleteRunFiles(id, paths);
+      artifacts += paths.length;
+      runs++;
+      await turn();
+    }
+    if (ids.length < RUN_BATCH) break;
   }
   return { runs, artifacts };
 }
 
 let running = false;
 
-export function runCleanup(opts: { manual?: boolean } = {}): LastCleanup {
+export async function runCleanup(opts: { manual?: boolean } = {}): Promise<LastCleanup> {
   if (running) throw new Error('A cleanup is already running');
   running = true;
   try {
     const s = getSettings();
     const now = Date.now();
-    const removed = s.retentionRunDays > 0 ? deleteRunsBefore(new Date(now - s.retentionRunDays * DAY_MS).toISOString()) : { runs: 0, artifacts: 0 };
-    const notificationsDeleted = s.retentionNotificationDays > 0 ? deleteReadOlderThan(s.retentionNotificationDays) : 0;
+    const removed = s.retentionRunDays > 0 ? await deleteRunsBefore(new Date(now - s.retentionRunDays * DAY_MS).toISOString()) : { runs: 0, artifacts: 0 };
+    const notificationsDeleted =
+      s.retentionNotificationDays > 0
+        ? await deleteInBatches('notifications', 'read = 1 AND ts < ?', [new Date(now - s.retentionNotificationDays * DAY_MS).toISOString()])
+        : 0;
     const monitorDays = s.retentionMonitorDays ?? 30;
     const monitorData = monitorDays > 0 ? deleteMonitorDataBefore(new Date(now - monitorDays * DAY_MS).toISOString()) : null;
     // Gatus metrics: per source (rawRetentionDays / retentionDays)
@@ -135,7 +155,22 @@ export function runCleanup(opts: { manual?: boolean } = {}): LastCleanup {
     } catch (err) {
       logger.warn({ err }, 'Gatus metrics retention failed');
     }
-    const result: LastCleanup = { at: new Date(now).toISOString(), runsDeleted: removed.runs, artifactsDeleted: removed.artifacts, notificationsDeleted };
+    // the audit log: closed epochs archived, archived entries past the audit retention deleted (off by default)
+    let auditArchive: Awaited<ReturnType<typeof runArchiving>> | null = null;
+    try {
+      auditArchive = await runArchiving({ by: opts.manual ? undefined : 'system' });
+    } catch (err) {
+      logger.warn({ err }, 'audit archiving failed');
+    }
+    const result: LastCleanup = {
+      at: new Date(now).toISOString(),
+      runsDeleted: removed.runs,
+      artifactsDeleted: removed.artifacts,
+      notificationsDeleted,
+      ...(auditArchive && (auditArchive.archived.length || auditArchive.deleted)
+        ? { auditArchived: auditArchive.archived.length, auditEntriesDeleted: auditArchive.deleted }
+        : {}),
+    };
     if (removed.runs) db().compact();
     writeSetting(LAST_KEY, result);
     if (opts.manual || removed.runs || notificationsDeleted) {
@@ -161,23 +196,4 @@ export function runCleanup(opts: { manual?: boolean } = {}): LastCleanup {
   }
 }
 
-let timers: NodeJS.Timeout[] = [];
-
-/** Cleanup one minute after start, then daily. */
-export function startMaintenanceJobs(): void {
-  if (timers.length) return;
-  const safe = () => {
-    try {
-      runCleanup();
-    } catch (err) {
-      logger.warn({ err }, 'maintenance cleanup failed');
-    }
-  };
-  timers = [setTimeout(safe, 60000), setInterval(safe, DAY_MS)];
-  for (const t of timers) t.unref();
-}
-
-export function stopMaintenanceJobs(): void {
-  for (const t of timers) clearTimeout(t);
-  timers = [];
-}
+// Run one minute after the start, then daily, by the job runner (jobs/builtin.ts, job "cleanup").

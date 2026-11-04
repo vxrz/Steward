@@ -18,6 +18,7 @@ import { exportPackage } from './export.js';
 import { applyImport, buildPlan, mappingSchema, readPackage, type OpenedPackage } from './import.js';
 import { verifyImportedHistory } from './history.js';
 import { ACCESS, requireAdmin } from '../auth/access.js';
+import { env } from '../config.js';
 
 /**
  * Settings → Migration (administrators, signed-in sessions only – config.access, see auth/access.ts):
@@ -33,7 +34,7 @@ import { ACCESS, requireAdmin } from '../auth/access.js';
  *   GET    /api/migration/imports/:id/history     the imported audit history, with who each actor is here
  */
 
-export const MIGRATION_MAX_BYTES = Math.max(1, Number(process.env.SM_MIGRATION_MAX_MB) || 2048) * 1024 * 1024;
+export const MIGRATION_MAX_BYTES = env.SM_MIGRATION_MAX_MB * 1024 * 1024;
 const TTL_MS = 30 * 60_000;
 const MAX_STAGED = 2;
 

@@ -30,7 +30,8 @@
     "personReviews": "Person reviews",
     "evidencePacks": "Evidence packs",
     "duties": "Duties",
-    "scorecard": "Scorecard"
+    "scorecard": "Scorecard",
+    "systemStatus": "System status"
   },
   "serverUnreachable": "Cannot reach the {{brand}} server: {{error}}",
   "pageNotFound": "Page not found",
@@ -69,7 +70,12 @@
       "records": "Documents",
       "credentials": "Credentials",
       "tickets": "Ticket references",
-      "settings": "Settings"
+      "settings": "Settings",
+      "recent": "Recently opened",
+      "applications": "Applications",
+      "systems": "Systems",
+      "testConnection": "Test a connection",
+      "personReviews": "New person review"
     },
     "runBy": "Run by {{actor}} · {{when}}",
     "dryRunBy": "Dry run by {{actor}} · {{when}}",
@@ -82,12 +88,16 @@
     "keywords": {
       "page": "page",
       "create": "create",
-      "theme": "theme"
+      "theme": "theme",
+      "checks": "checks",
+      "shortcuts": "shortcuts",
+      "recent": "recent",
+      "test": "test",
+      "review": "review"
     },
     "pages": {
       "monitorWall": "Monitor status wall",
       "recordTypes": "Document types",
-      "systemStatus": "System status",
       "about": "About",
       "linkTypes": "Link types"
     },
@@ -98,14 +108,38 @@
       "service": "New service",
       "schedule": "New schedule",
       "ticket": "New ticket reference"
+    },
+    "failingChecks": "Open failing checks",
+    "failingChecksHint": "Runs of the last 7 days with a failed check",
+    "shortcutsHint": "Every keyboard shortcut of the app",
+    "testConnectionTo": "Test connection to {{name}}",
+    "testOkTitle": "Connection to {{name}} works",
+    "testOk": "{{message}} – answered in {{ms}} ms",
+    "testFailedTitle": "Connection to {{name}} failed",
+    "newPersonReviewFor": "New person review for {{name}}",
+    "kinds": {
+      "run": "Run",
+      "process": "Process",
+      "monitor": "Monitor",
+      "dashboard": "Dashboard",
+      "platform": "Platform",
+      "service": "Service",
+      "application": "Application",
+      "system": "System",
+      "record": "Document",
+      "ticket": "Ticket reference",
+      "duty": "Duty",
+      "personReview": "Person review",
+      "statusPage": "Status page",
+      "credential": "Credential entry"
     }
   },
   "groups": {
     "operate": "Operate",
     "automate": "Automate",
-    "service": "Service management",
-    "admin": "Administration",
-    "compliance": "Compliance"
+    "catalogue": "Catalogue",
+    "compliance": "Compliance",
+    "admin": "Admin"
   },
   "mainNavigation": "Main navigation",
   "skipToContent": "Skip to content",
@@ -170,5 +204,8 @@
         "text": "A read-only MCP server lets AI assistants look at runs, monitors and dashboards with your rights."
       }
     }
-  }
+  },
+  "pinned": "Pinned",
+  "pin": "Pin {{page}} to the top",
+  "unpin": "Unpin {{page}}"
 }

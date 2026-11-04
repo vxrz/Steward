@@ -2332,6 +2332,73 @@
             ],
             "additionalProperties": false,
             "description": "Who is interrupted by the runs, how and when; never what is recorded"
+          },
+          "catchUp": {
+            "type": "string",
+            "enum": [
+              "none",
+              "once"
+            ],
+            "description": "After a start that found missed fires: once = one run right away, none = wait for the next fire"
+          },
+          "missed": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "detectedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "from": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "count": {
+                    "type": "integer"
+                  },
+                  "times": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "The first missed fires (at most 10)"
+                  },
+                  "last": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The last missed fire"
+                  },
+                  "catchUp": {
+                    "type": "boolean",
+                    "description": "One catch-up run was started"
+                  }
+                },
+                "required": [
+                  "detectedAt",
+                  "from",
+                  "count",
+                  "times",
+                  "last",
+                  "catchUp"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fires missed the last time Steward was not running (null: none found)"
           }
         },
         "required": [
@@ -2352,7 +2419,9 @@
           "lastRunId",
           "lastRunStatus",
           "createdAt",
-          "notify"
+          "notify",
+          "catchUp",
+          "missed"
         ],
         "additionalProperties": false
       },
@@ -3161,13 +3230,46 @@
           },
           "message": {
             "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "incremental",
+              "full"
+            ],
+            "description": "incremental: the entries after the newest signed checkpoint; full: every entry in the database (0.4.0)"
+          },
+          "fromSeq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Incremental: the signed checkpoint the check started after"
+          },
+          "deletedThroughSeq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Entries up to this one were archived and deleted from the database (retention)"
           }
         },
         "required": [
           "ok",
           "checked",
           "firstBadSeq",
-          "message"
+          "message",
+          "mode",
+          "fromSeq",
+          "deletedThroughSeq"
         ],
         "additionalProperties": false
       },
@@ -19166,7 +19268,18 @@
         "tags": [
           "Audit"
         ],
-        "description": "Auditors and administrators. The verification itself is recorded in the audit log.",
+        "description": "Auditors and administrators. Incremental by default: the entries after the newest signed checkpoint (each checkpoint is signed only after the entries up to it verified); `full=true` checks every entry in the database. The verification itself is recorded in the audit log.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "full",
+            "required": false,
+            "description": "Check every entry in the database instead of the entries after the newest signed checkpoint (slower)"
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -19191,6 +19304,9 @@
                 "$ref": "#/components/headers/RateLimit-Policy"
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"

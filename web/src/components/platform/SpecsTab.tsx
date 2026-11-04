@@ -27,6 +27,7 @@ import { del, get, notifyError, notifyOk, patch, post, apiUrl } from '../../api'
 import { Hint } from '../common';
 import { fmtDate } from '../../format';
 import { OperationPath } from './OperationPath';
+import { platformKeys } from '../../queryKeys';
 
 export const METHOD_COLORS: Record<string, string> = {
   GET: 'blue',
@@ -78,7 +79,7 @@ function PrefixModal({ platform, spec, onClose }: { platform: Platform; spec: Pl
     try {
       await patch<PlatformSpec>(`/platforms/${platform.id}/specs/${spec.id}`, { pathPrefix: prefix });
       notifyOk(t('specs.prefixSaved'), spec.name);
-      await qc.invalidateQueries({ queryKey: ['platform', platform.id] });
+      await qc.invalidateQueries({ queryKey: platformKeys.detail(platform.id) });
       onClose();
     } catch (e) {
       notifyError(e);
@@ -127,7 +128,7 @@ interface SpecCopyResult {
 function CopyModal({ platform, spec, onClose }: { platform: Platform; spec: PlatformSpec | null; onClose: () => void }) {
   const { t } = useTranslation(['platforms', 'common']);
   const qc = useQueryClient();
-  const all = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms'), enabled: !!spec });
+  const all = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms'), enabled: !!spec });
   const [targets, setTargets] = useState<string[]>([]);
   const [replace, setReplace] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -147,7 +148,7 @@ function CopyModal({ platform, spec, onClose }: { platform: Platform; spec: Plat
     try {
       const r = await post<SpecCopyResult>(`/platforms/${platform.id}/specs/${spec.id}/copy`, { targets, replace });
       setResult(r);
-      for (const c of r.copied) await qc.invalidateQueries({ queryKey: ['platform', c.platformId] });
+      for (const c of r.copied) await qc.invalidateQueries({ queryKey: platformKeys.detail(c.platformId) });
       if (r.copied.length) notifyOk(t('specs.copied', { count: r.copied.length }));
     } catch (e) {
       notifyError(e, t('specs.notCopied'));
@@ -213,8 +214,8 @@ export function SpecsTab({
 }) {
   const { t } = useTranslation(['platforms', 'common']);
   const qc = useQueryClient();
-  const specs = useQuery({ queryKey: ['platform', platform.id, 'specs'], queryFn: () => get<PlatformSpec[]>(`/platforms/${platform.id}/specs`) });
-  const ops = useQuery({ queryKey: ['platform', platform.id, 'operations'], queryFn: () => get<ApiOperation[]>(`/platforms/${platform.id}/operations`) });
+  const specs = useQuery({ queryKey: platformKeys.specs(platform.id), queryFn: () => get<PlatformSpec[]>(`/platforms/${platform.id}/specs`) });
+  const ops = useQuery({ queryKey: platformKeys.operations(platform.id), queryFn: () => get<ApiOperation[]>(`/platforms/${platform.id}/operations`) });
   const [name, setName] = useState('');
   const [content, setContent] = useState('');
   const [url, setUrl] = useState('');
@@ -225,9 +226,9 @@ export function SpecsTab({
   const [editing, setEditing] = useState<PlatformSpec | null>(null);
   const [copying, setCopying] = useState<PlatformSpec | null>(null);
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ['platform', platform.id] });
+  const refresh = () => qc.invalidateQueries({ queryKey: platformKeys.detail(platform.id) });
   // the specification a built-in connector brings (e.g. Prometheus): platforms made before it had one can add it here
-  const presets = useQuery({ queryKey: ['platform-presets'], queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: !readOnly });
+  const presets = useQuery({ queryKey: platformKeys.presets, queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: !readOnly });
   const builtIn = presets.data?.find((p) => p.kind === platform.kind && !p.custom)?.specCount ?? 0;
   const addBuiltIn = async () => {
     setBusy(true);

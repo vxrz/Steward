@@ -703,7 +703,10 @@ async function checkSnowflake(c: CheckOf<'snowflake'>, ctx: ExecContext): Promis
   try {
     return { ...(await snowflakeCheck(platform, secrets, c)), durationMs: Date.now() - t0 };
   } catch (e) {
-    return { status: 'unknown', message: `Snowflake could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
+    // 390144 "JWT token is invalid": what to check (the account identifier, the user, the public key)
+    const { snowflakeJwtHint } = await import('../platforms/jwt.js');
+    const message = snowflakeJwtHint((e as Error).message.slice(0, 500), platform.config.variables);
+    return { status: 'unknown', message: `Snowflake could not be read: ${message}`.slice(0, 1000), durationMs: Date.now() - t0 };
   }
 }
 

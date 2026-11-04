@@ -30,7 +30,8 @@
     "personReviews": "Personenprüfungen",
     "evidencePacks": "Nachweispakete",
     "duties": "Pflichten",
-    "scorecard": "Scorecard"
+    "scorecard": "Scorecard",
+    "systemStatus": "Systemstatus"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",
@@ -69,7 +70,12 @@
       "records": "Dokumente",
       "credentials": "Zugangsdaten",
       "tickets": "Ticket-Referenzen",
-      "settings": "Einstellungen"
+      "settings": "Einstellungen",
+      "recent": "Zuletzt geöffnet",
+      "applications": "Anwendungen",
+      "systems": "Systeme",
+      "testConnection": "Verbindung testen",
+      "personReviews": "Neue Personenprüfung"
     },
     "runBy": "Ausführung von {{actor}} · {{when}}",
     "dryRunBy": "Probelauf von {{actor}} · {{when}}",
@@ -82,12 +88,16 @@
     "keywords": {
       "page": "Seite",
       "create": "anlegen neu",
-      "theme": "Farbschema hell dunkel"
+      "theme": "Farbschema hell dunkel",
+      "checks": "prüfungen",
+      "shortcuts": "tastenkürzel",
+      "recent": "zuletzt",
+      "test": "testen",
+      "review": "prüfung"
     },
     "pages": {
       "monitorWall": "Statuswand der Monitore",
       "recordTypes": "Dokumentarten",
-      "systemStatus": "Systemstatus",
       "about": "Über",
       "linkTypes": "Verweistypen"
     },
@@ -98,14 +108,38 @@
       "service": "Neuer Service",
       "schedule": "Neuer Zeitplan",
       "ticket": "Neue Ticket-Referenz"
+    },
+    "failingChecks": "Fehlgeschlagene Prüfungen öffnen",
+    "failingChecksHint": "Ausführungen der letzten 7 Tage mit einer fehlgeschlagenen Prüfung",
+    "shortcutsHint": "Alle Tastenkürzel der Anwendung",
+    "testConnectionTo": "Verbindung zu {{name}} testen",
+    "testOkTitle": "Verbindung zu {{name}} funktioniert",
+    "testOk": "{{message}} – Antwort nach {{ms}} ms",
+    "testFailedTitle": "Verbindung zu {{name}} fehlgeschlagen",
+    "newPersonReviewFor": "Neue Personenprüfung für {{name}}",
+    "kinds": {
+      "run": "Ausführung",
+      "process": "Prozess",
+      "monitor": "Monitor",
+      "dashboard": "Dashboard",
+      "platform": "Plattform",
+      "service": "Service",
+      "application": "Anwendung",
+      "system": "System",
+      "record": "Dokument",
+      "ticket": "Ticket-Referenz",
+      "duty": "Pflicht",
+      "personReview": "Personenprüfung",
+      "statusPage": "Statusseite",
+      "credential": "Zugangsdaten-Eintrag"
     }
   },
   "groups": {
     "operate": "Betrieb",
     "automate": "Automatisierung",
-    "service": "Service-Management",
-    "admin": "Administration",
-    "compliance": "Compliance"
+    "catalogue": "Katalog",
+    "compliance": "Compliance",
+    "admin": "Administration"
   },
   "mainNavigation": "Hauptnavigation",
   "skipToContent": "Zum Inhalt springen",
@@ -170,5 +204,8 @@
         "text": "Ein lesender MCP-Server lässt KI-Assistenten Ausführungen, Monitore und Dashboards mit Ihren Rechten ansehen."
       }
     }
-  }
+  },
+  "pinned": "Angeheftet",
+  "pin": "{{page}} oben anheften",
+  "unpin": "{{page}} lösen"
 }

@@ -55,8 +55,16 @@
       "overlap": "the previous run {{runId}} is still {{status}}",
       "ownerMissing": "the owner {{owner}} is missing or deactivated",
       "mayNotRun": "{{user}} may not run this process",
-      "mayNotUsePlatform": "{{user}} may not use the platform {{platform}}"
+      "mayNotUsePlatform": "{{user}} may not use the platform {{platform}}",
+      "missed": "it was due {{count}} time(s) while Steward was not running"
     }
+  },
+  "scheduleMissed": {
+    "title": "Missed while Steward was not running: {{name}}",
+    "body": "The schedule was due while Steward was not running (or its vault was locked): {{times}}.",
+    "more": "{{count}} times in all",
+    "catchUp": "One catch-up run was started.",
+    "noCatchUp": "No run was started for it; the schedule runs again at its next time."
   },
   "runStatus": {
     "queued": "queued",
@@ -66,6 +74,10 @@
   "datasetStale": {
     "title": "Dashboard data is stale: {{title}}",
     "body": "“{{title}}” was last updated on {{updatedAt}} by “{{process}}” (freshness limit: {{limit}})."
+  },
+  "platformFailing": {
+    "title": "Platform connection failing: {{name}}",
+    "body": "The periodic connection test of “{{name}}” fails since {{since}}: {{message}}"
   },
   "test": {
     "title": "Test notification",
@@ -152,9 +164,11 @@
       "reports": "Reports for you",
       "reviews": "Document reviews due",
       "duties": "Service duties",
-      "trends": "Trends"
+      "trends": "Trends",
+      "topics": "New Kafka topics"
     },
     "count": "{{section}}: {{count}}",
+    "topicsTitle": "{{application}}: {{count}} new topic(s) under {{prefix}}",
     "runsTotal_one": "{{count}} run, {{failed}} failed",
     "runsTotal_other": "{{count}} runs, {{failed}} failed",
     "runsTotalFindings_one": "{{count}} run, {{failed}} failed, {{findings}} completed with findings",
@@ -387,5 +401,9 @@
   },
   "review": {
     "timelineHeading": "Timeline"
+  },
+  "duplicate": {
+    "copyName": "{{name}} (copy)",
+    "copyNameN": "{{name}} (copy {{n}})"
   }
 }

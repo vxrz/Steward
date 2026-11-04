@@ -39,6 +39,8 @@
     "dryRun": "Dry run (simulate changes)",
     "overlap": "Allow overlapping runs",
     "overlapHint": "Off: a new run is skipped while the previous one is still running or waiting for a decision.",
+    "catchUp": "Catch up after a restart",
+    "catchUpHint": "When Steward was not running at a planned time, start one run right after the next start (however many times were missed). Off: wait for the next planned time; the missed times are reported either way.",
     "notify": {
       "label": "Failed checks notify",
       "mode": {
@@ -99,5 +101,12 @@
     "badgeUntil": "Messages paused until {{until}}",
     "badgeOpen": "Messages paused",
     "noReason": "No reason given"
+  },
+  "missed": {
+    "badge_one": "Missed {{count}} time",
+    "badge_other": "Missed {{count}} times",
+    "tooltip": "Missed while Steward was not running: {{times}} (found {{when}}).",
+    "caughtUp": "One catch-up run was started.",
+    "notCaughtUp": "No catch-up run was started."
   }
 }

@@ -37,7 +37,10 @@ import { useMediaQuery } from '@mantine/hooks';
 import { useShellLayout } from '../layout';
 import { validateProcess, type ProcessDefinition, type ProcessDetail, type ValidationIssue } from '@sm/shared';
 import { ApiError, get, notifyError, notifyOk, put, apiUrl } from '../api';
-import { PageHeader } from '../components/common';
+import {} from '../components/common';
+import { statusLabel } from '../components/common';
+import { useMe } from '../auth';
+import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { RunDialog } from '../components/RunDialog';
 import { AccessEditor } from '../components/AccessEditor';
@@ -50,7 +53,8 @@ import { ExprProvider } from '../components/editor/ExprContext';
 import { useDefHistory, useUndoKeys } from '../components/editor/useDefHistory';
 import { fmtRelative } from '../format';
 import { issueText } from '../i18n/meta';
-import { statusLabel } from '../components/common';
+import { DetailHeader } from '../components/page/DetailPage';
+import { processKeys } from '../queryKeys';
 
 /** Drop undefined values so dirty-checking and saving see the same thing. */
 const normalize = (d: ProcessDefinition): ProcessDefinition => JSON.parse(JSON.stringify(d));
@@ -68,7 +72,7 @@ export function ProcessEditorPage() {
   const { t, i18n } = useTranslation(['editor', 'common']);
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
-  const proc = useQuery({ queryKey: ['process', id], queryFn: () => get<ProcessDetail>(`/processes/${id}`), enabled: !!id });
+  const proc = useQuery({ queryKey: processKeys.detail(id), queryFn: () => get<ProcessDetail>(`/processes/${id}`), enabled: !!id });
   const [def, setDef] = useState<ProcessDefinition | null>(null);
   const [loadedId, setLoadedId] = useState<string | null>(null);
   const [baseline, setBaseline] = useState('');
@@ -83,6 +87,7 @@ export function ProcessEditorPage() {
   const history = useDefHistory(def, setDef);
   // phones show the flow read-only: building it needs a larger screen
   const phone = useMediaQuery('(max-width: 48em)') ?? false;
+  const { caps } = useMe();
   const editable = !!proc.data?.permissions.includes('edit') && !phone;
   useUndoKeys(editable && !!def, history.undo, history.redo);
   // full screen: the app sidebar folds away (wide screens); back to normal when the editor closes
@@ -176,7 +181,8 @@ export function ProcessEditorPage() {
 
   return (
     <Box>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: p.name, kind: 'process' }}
         back="processes"
         title={
           <Group gap="xs" wrap="wrap">
@@ -190,7 +196,12 @@ export function ProcessEditorPage() {
             )}
           </Group>
         }
-        description={<span className="mono">{p.id}</span>}
+        description={
+          <>
+            <span className="mono">{p.id}</span>
+            <CopiedFromNote kind="process" id={p.id} pathOf={(id) => `/processes/${id}`} />
+          </>
+        }
         actions={
           <>
             {problems.length > 0 && (
@@ -219,6 +230,7 @@ export function ProcessEditorPage() {
             >
               {t('page.exportYaml')}
             </Button>
+            {caps.createProcesses && <DuplicateButton kind="process" id={p.id} />}
             {p.permissions.includes('run') && (
               <Button size="xs" variant="light" leftSection={<IconPlayerPlay size={14} />} onClick={onRun}>
                 {t('page.run')}
@@ -352,10 +364,10 @@ export function ProcessEditorPage() {
               onSave={async (acl, owner) => {
                 try {
                   const saved = await put<ProcessDetail>(`/processes/${p.id}/access`, { acl, owner });
-                  qc.setQueryData(['process', id], (old: ProcessDetail | undefined) =>
+                  qc.setQueryData(processKeys.detail(id), (old: ProcessDetail | undefined) =>
                     old ? { ...old, acl: saved.acl, owner: saved.owner, permissions: saved.permissions } : saved,
                   );
-                  qc.invalidateQueries({ queryKey: ['processes'] });
+                  qc.invalidateQueries({ queryKey: processKeys.all });
                   notifyOk(t('page.accessSaved'));
                 } catch (e) {
                   notifyError(e, t('page.accessNotSaved'));
@@ -372,9 +384,9 @@ export function ProcessEditorPage() {
         processId={p.id}
         def={def}
         onSaved={(saved) => {
-          qc.setQueryData(['process', id], saved);
-          qc.invalidateQueries({ queryKey: ['processes'] });
-          qc.invalidateQueries({ queryKey: ['process-versions', p.id] });
+          qc.setQueryData(processKeys.detail(id), saved);
+          qc.invalidateQueries({ queryKey: processKeys.all });
+          qc.invalidateQueries({ queryKey: processKeys.versions(p.id) });
           const d = normalize(structuredClone(saved.definition));
           setDef(d);
           setBaseline(JSON.stringify(d));

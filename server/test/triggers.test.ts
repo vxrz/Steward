@@ -130,7 +130,10 @@ describe('webhook triggers', () => {
     expect((await hook('../processes', { name: 'A' }, bearer(t.secret))).status).toBe(401);
     const d = await create(olivia, { name: 'Disabled', enabled: false, inputMapping: { endpoint: 'body.name' } });
     const disabled = await hook(d.trigger.id, { name: 'A' }, bearer(d.secret));
-    expect(disabled).toMatchObject({ status: 404, body: unknown.body });
+    // the same answer (problem details differ only in the path and the request id)
+    const same = (b: Record<string, unknown>) => ({ ...b, instance: undefined, requestId: undefined });
+    expect(disabled.status).toBe(404);
+    expect(same(disabled.body)).toEqual(same(unknown.body));
   });
 
   it('rejects non-JSON (415), invalid JSON (400) and bodies over 64 KB (413)', async () => {

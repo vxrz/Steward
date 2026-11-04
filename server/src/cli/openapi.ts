@@ -47,7 +47,7 @@ for (let i = 0; i < argv.length; i++) {
 
 // The operational log writes to stdout; keep it quiet so --stdout output stays a clean document.
 process.env.SM_LOG_LEVEL ??= 'silent';
-await import('../bootstrap.js');
+await import('../warnings.js');
 
 try {
   const { buildOpenApiDocument } = await import('../api/index.js');

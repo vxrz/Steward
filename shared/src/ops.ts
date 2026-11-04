@@ -25,6 +25,7 @@ export const NOTIFICATION_EVENTS = [
   'security.emergency',
   'backup.failed',
   'mcp.request',
+  'platform.failing',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -53,6 +54,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'security.emergency': 'Someone signed in with emergency access from the server command line (administrators)',
   'backup.failed': 'A backup or the weekly restore test of the backups failed (administrators)',
   'mcp.request': 'An AI assistant asks to change something on a platform or to start a run, and you decide',
+  'platform.failing': 'The periodic connection test of a platform you manage started failing',
 };
 
 export interface AppNotification {
@@ -211,7 +213,16 @@ export interface MaintenanceStatus {
   runs: number;
   oldestRun?: string | null;
   auditEntries: number;
-  lastCleanup?: { at: string; runsDeleted: number; artifactsDeleted: number; notificationsDeleted: number } | null;
+  lastCleanup?: {
+    at: string;
+    runsDeleted: number;
+    artifactsDeleted: number;
+    notificationsDeleted: number;
+    /** Audit archives written by this cleanup (0.4.0) */
+    auditArchived?: number;
+    /** Archived audit entries deleted (audit retention) */
+    auditEntriesDeleted?: number;
+  } | null;
 }
 
 // ---------- Editor support (expression assistant, inspector) ----------

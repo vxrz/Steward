@@ -896,7 +896,7 @@ async function fetchSbom(url: string): Promise<string> {
     throw new HttpError(502, 'The SBOM could not be fetched (the host is not reachable)', 'SBOM_FETCH_FAILED');
   }
   if (!res.ok) {
-    await res.body?.cancel().catch(() => undefined);
+    await res.body?.cancel().catch(() => undefined); // the body is not read: a failed cancel changes nothing
     throw new HttpError(
       502,
       `The SBOM could not be fetched (HTTP ${res.status}${res.status >= 300 && res.status < 400 ? ', redirects are not followed' : ''})`,
@@ -906,7 +906,7 @@ async function fetchSbom(url: string): Promise<string> {
   }
   const max = COMPONENT_LIMITS.sbomBytes;
   if (Number(res.headers.get('content-length') ?? 0) > max) {
-    await res.body?.cancel().catch(() => undefined);
+    await res.body?.cancel().catch(() => undefined); // the body is not read: a failed cancel changes nothing
     throw new HttpError(502, `The SBOM is larger than ${max / 1024 / 1024} MB`, 'SBOM_TOO_LARGE', { max: max / 1024 / 1024 });
   }
   const chunks: Buffer[] = [];
@@ -918,7 +918,7 @@ async function fetchSbom(url: string): Promise<string> {
       if (done) break;
       total += value.byteLength;
       if (total > max) {
-        await reader.cancel().catch(() => undefined);
+        await reader.cancel().catch(() => undefined); // the rest is not read: a failed cancel changes nothing
         throw new HttpError(502, `The SBOM is larger than ${max / 1024 / 1024} MB`, 'SBOM_TOO_LARGE', { max: max / 1024 / 1024 });
       }
       chunks.push(Buffer.from(value));

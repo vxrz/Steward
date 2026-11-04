@@ -8,7 +8,10 @@ import { SYNC_RETENTION_DAYS, type ProcessDefinition, type SyncKind, type SyncUp
 import { PlatformChoices, chosenPlatforms, platformsComplete } from '../components/monitors/PlatformChoices';
 import { get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
-import { EmptyState, PageHeader, QueryState, TONE } from '../components/common';
+import { EmptyState, QueryState, TONE } from '../components/common';
+import { ListPage } from '../components/page/ListPage';
+import { AutomateTabs } from '../components/page/LinkTabs';
+import { DetailHeader } from '../components/page/DetailPage';
 import { SummaryView, summarize, UnifiedDiff } from '../components/editor/VersionDiff';
 import { fmtDate, fmtRelative } from '../format';
 
@@ -68,10 +71,9 @@ export function GitUpdatesPage() {
     queryFn: () => get<SyncUpdate[]>(`/sync-updates?status=${FILTERS[filter].join(',')}${source ? `&sourceId=${encodeURIComponent(source)}` : ''}`),
     enabled: caps.createProcesses,
   });
-  if (!caps.createProcesses) return <PageHeader title={t('updates.title')} description={t('updates.noAccess')} />;
+  if (!caps.createProcesses) return <ListPage tabs={<AutomateTabs active="/git-updates" />} title={t('updates.title')} description={t('updates.noAccess')} />;
   return (
-    <>
-      <PageHeader title={t('updates.title')} description={t('updates.description')} />
+    <ListPage tabs={<AutomateTabs active="/git-updates" />} title={t('updates.title')} description={t('updates.description')}>
       <Group mb="sm">
         <SegmentedControl
           aria-label={t('updates.filter')}
@@ -128,7 +130,7 @@ export function GitUpdatesPage() {
           </Table>
         </Table.ScrollContainer>
       )}
-    </>
+    </ListPage>
   );
 }
 
@@ -180,7 +182,7 @@ export function GitUpdateDetailPage() {
   const link = itemLink(u.kind, u.entityId);
   return (
     <>
-      <PageHeader
+      <DetailHeader
         back={[{ to: '/git-updates', label: t('updates.title') }]}
         title={
           <Group gap="xs" wrap="wrap">

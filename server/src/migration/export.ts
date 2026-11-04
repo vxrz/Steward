@@ -4,7 +4,7 @@ import path from 'node:path';
 import { BRAND, type Role } from '@sm/shared';
 import { config } from '../config.js';
 import { db } from '../db.js';
-import { audit, toEntry, type AuditRow } from '../audit.js';
+import { audit, prunedBase, toEntry, type AuditRow } from '../audit.js';
 import { createCheckpoint } from '../audit-anchor.js';
 import { publicKeyFingerprint, vault, encryptWith } from '../vault.js';
 import { ENCRYPTED_COLUMNS } from '../vault-rotation.js';
@@ -85,6 +85,14 @@ export async function exportPackage(opts: { out: string; transferPassphrase: str
   if (fs.existsSync(opts.out)) throw new HttpError(409, `${opts.out} exists already`, 'MIGRATION_OUT_EXISTS');
   if (db().get('SELECT 1 FROM instance_imports LIMIT 1')) {
     throw new HttpError(409, 'This instance holds imported history from an earlier move – moving it again is not supported yet', 'MIGRATION_SOURCE_IMPORTED');
+  }
+  // the package carries the audit log from #1 (the target verifies it against the signed checkpoint)
+  if (prunedBase()) {
+    throw new HttpError(
+      409,
+      'Archived audit entries were deleted from the database (audit retention) – moving such an instance is not supported yet; the package needs the whole audit log',
+      'MIGRATION_AUDIT_DELETED',
+    );
   }
   const keys = await newPackageKeys(opts.transferPassphrase);
   const pub = vault().signingPublicKey();

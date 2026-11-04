@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type TestServer } from './helpers.js';
+import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type TestServer, setEnv } from './helpers.js';
 
 /**
  * General request rate limits (server/src/rateLimits.ts). The server trusts X-Forwarded-For from
@@ -42,7 +42,7 @@ const statuses = async (n: number, fn: () => Promise<Res>): Promise<number[]> =>
   for (let i = 0; i < n; i++) out.push((await fn()).status);
   return out;
 };
-const limit = (v: string | undefined) => (v === undefined ? delete process.env.SM_RATE_LIMIT_PER_MINUTE : (process.env.SM_RATE_LIMIT_PER_MINUTE = v));
+const limit = (v: string | undefined) => setEnv({ SM_RATE_LIMIT_PER_MINUTE: v });
 const fakeCookie = () => ({ cookie: `sm_session=${randomBytes(24).toString('base64url')}`, 'x-sm-session': randomBytes(16).toString('hex') });
 
 beforeAll(async () => {
@@ -61,14 +61,14 @@ afterAll(async () => {
   delete process.env.SM_TRUST_PROXY;
   await s?.app.close();
 });
-afterEach(() => {
-  limit(undefined);
+afterEach(async () => {
+  await limit(undefined);
   vi.restoreAllMocks();
 });
 
 describe('general rate limit', () => {
   it('limits anonymous requests per client address, with Retry-After and RateLimit headers', async () => {
-    limit('5');
+    await limit('5');
     const ip = freshIp();
     const first = await call('GET', '/api/auth/status', { ip });
     expect(first.status).toBe(200);
@@ -90,7 +90,7 @@ describe('general rate limit', () => {
   });
 
   it('counts signed-in users per user, not per address', async () => {
-    limit('5');
+    await limit('5');
     const ip = freshIp();
     const vera = await statuses(6, () => call('GET', '/api/auth/me', { ip, headers: authHeaders(cookies.vera) }));
     expect(vera).toEqual([200, 200, 200, 200, 200, 429]);
@@ -102,7 +102,7 @@ describe('general rate limit', () => {
   });
 
   it('gives made-up session cookies and tokens no bucket of their own', async () => {
-    limit('5');
+    await limit('5');
     // public route: an unknown cookie counts as the address
     const ip1 = freshIp();
     expect(await statuses(6, () => call('GET', '/api/auth/status', { ip: ip1, headers: fakeCookie() }))).toEqual([200, 200, 200, 200, 200, 429]);
@@ -119,18 +119,18 @@ describe('general rate limit', () => {
   });
 
   it('turns off with SM_RATE_LIMIT_PER_MINUTE=0', async () => {
-    limit('0');
+    await limit('0');
     const ip = freshIp();
     const r = await call('GET', '/api/auth/status', { ip });
     expect(r.headers.get('ratelimit-limit')).toBeNull();
     expect(await statuses(20, () => call('GET', '/api/auth/status', { ip }))).toEqual(Array(20).fill(200));
     expect(await statuses(12, () => call('GET', '/api/processes', { ip, headers: fakeCookie() }))).toEqual(Array(12).fill(401));
-    limit('off');
+    await limit('off');
     expect((await call('GET', '/api/auth/status', { ip })).status).toBe(200);
   });
 
   it('does not count health and readiness probes', async () => {
-    limit('2');
+    await limit('2');
     const ip = freshIp();
     expect(await statuses(5, () => call('GET', '/api/health', { ip }))).toEqual(Array(5).fill(200));
     const ready = await call('GET', '/api/ready', { ip });
@@ -141,7 +141,7 @@ describe('general rate limit', () => {
   it('logs a limited key once per window, without secrets', async () => {
     const { logger } = await import('../src/log.js');
     const warn = vi.spyOn(logger, 'warn');
-    limit('1');
+    await limit('1');
     const ip = freshIp();
     const headers = fakeCookie();
     expect(await statuses(5, () => call('GET', '/api/auth/status', { ip, headers }))).toEqual([200, 429, 429, 429, 429]);
@@ -167,7 +167,7 @@ describe('per-route limits', () => {
     // the general bucket of the user is separate
     expect((await call('GET', '/api/auth/me', { ip, headers })).status).toBe(200);
     // ... and the per-route limits turn off with the general one
-    limit('0');
+    await limit('0');
     expect((await call('GET', '/api/audit/verify', { ip, headers })).status).toBe(200);
   });
 
@@ -180,7 +180,7 @@ describe('per-route limits', () => {
   });
 
   it('gives the web UI files and start-up reads a bucket per address of ten times the general limit', async () => {
-    limit('1');
+    await limit('1');
     const ip = freshIp();
     let i = 0;
     // the manifest and the theme share the bucket
@@ -195,7 +195,7 @@ describe('per-route limits', () => {
   });
 
   it('gives inbound webhooks a bucket per address of ten times the general limit', async () => {
-    limit('1');
+    await limit('1');
     const ip = freshIp();
     const hook = () => call('POST', '/api/hooks/no-such-trigger', { ip, body: {} });
     const r = await statuses(11, hook);
@@ -207,7 +207,7 @@ describe('per-route limits', () => {
 describe('public API v1', () => {
   it('keeps its own per-token limiter and is not counted twice', async () => {
     const { token } = await s.api('POST', '/me/tokens', { name: 'limits', scope: 'read' });
-    limit('2');
+    await limit('2');
     const ip = freshIp();
     const v1 = await statuses(5, () => call('GET', '/api/v1/me', { ip, headers: { authorization: `Bearer ${token}` } }));
     expect(v1).toEqual(Array(5).fill(200));

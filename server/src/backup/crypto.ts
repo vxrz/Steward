@@ -129,8 +129,8 @@ export async function encryptFile(
       await write(Buffer.concat([frameLen, enc, c.getAuthTag()]));
     }
   } catch (e) {
-    await dst.close().catch(() => undefined);
-    await src.close().catch(() => undefined);
+    await dst.close().catch(() => undefined); // cleanup after a failure: the original error is rethrown
+    await src.close().catch(() => undefined); // cleanup after a failure: the original error is rethrown
     await fs.promises.rm(output, { force: true });
     throw e;
   }
@@ -198,8 +198,8 @@ export async function decryptFile(input: string, output: string, key: Buffer): P
       if (final) break;
     }
   } catch (e) {
-    await dst.close().catch(() => undefined);
-    await src.close().catch(() => undefined);
+    await dst.close().catch(() => undefined); // cleanup after a failure: the original error is rethrown
+    await src.close().catch(() => undefined); // cleanup after a failure: the original error is rethrown
     await fs.promises.rm(output, { force: true });
     throw e;
   }

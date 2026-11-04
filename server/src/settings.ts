@@ -1,6 +1,7 @@
-import { DEFAULT_LOCALE, PASSWORD_LOGIN_MODES, type OutboundPolicy, type PasswordLogin, type Settings } from '@sm/shared';
+import { DEFAULT_LOCALE, PASSWORD_LOGIN_MODES, type PasswordLogin, type Settings } from '@sm/shared';
 import { audit } from './audit.js';
 import { db } from './db.js';
+import { env } from './config.js';
 
 const DEFAULTS = (): Settings => ({
   passwordLogin: 'all',
@@ -12,9 +13,7 @@ const DEFAULTS = (): Settings => ({
   defaultLocale: DEFAULT_LOCALE,
   retentionMonitorDays: 30,
   apiDocs: 'authenticated',
-  outboundPolicy: (['platforms', 'allowList', 'open'] as const).includes(process.env.SM_OUTBOUND_POLICY as OutboundPolicy)
-    ? (process.env.SM_OUTBOUND_POLICY as OutboundPolicy)
-    : 'platforms',
+  outboundPolicy: env.SM_OUTBOUND_POLICY ?? 'platforms',
   outboundAllowList: [],
   findingDismissFourEyes: false,
 });
@@ -40,8 +39,7 @@ const INTERNAL = [
 
 /** SM_PASSWORD_LOGIN (all | adminsOnly | none) for locked-down deployments: wins over the stored setting. */
 export function passwordLoginFromEnv(): PasswordLogin | undefined {
-  const v = process.env.SM_PASSWORD_LOGIN?.trim();
-  return (PASSWORD_LOGIN_MODES as readonly string[]).includes(v ?? '') ? (v as PasswordLogin) : undefined;
+  return env.SM_PASSWORD_LOGIN;
 }
 
 const SSO_ONLY_READY = 'security.ssoOnlyReadyAt';
@@ -106,13 +104,11 @@ export function getSettings(): Settings {
     try {
       s[r.key] = JSON.parse(r.value);
     } catch {
-      /* ignore */
+      /* not JSON: the default applies */
     }
   }
   // An explicit environment override always wins over the stored value.
-  if ((['platforms', 'allowList', 'open'] as const).includes(process.env.SM_OUTBOUND_POLICY as OutboundPolicy)) {
-    s.outboundPolicy = process.env.SM_OUTBOUND_POLICY;
-  }
+  if (env.SM_OUTBOUND_POLICY) s.outboundPolicy = env.SM_OUTBOUND_POLICY;
   if (!(PASSWORD_LOGIN_MODES as readonly unknown[]).includes(s.passwordLogin)) s.passwordLogin = 'all';
   const envLogin = passwordLoginFromEnv();
   if (envLogin) s.passwordLogin = passwordLoginMode();

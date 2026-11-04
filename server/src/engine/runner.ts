@@ -137,6 +137,8 @@ class RunContext {
   resumedBy?: string;
   /** Open waits (user tasks, sub-process runs); the run shows "waiting" while > 0. */
   private waits = 0;
+  /** Marked interrupted at shutdown (interruptBusyRuns): what is left of it must not change the run's status. */
+  interrupted = false;
   redactor = new Redactor();
   abort = new AbortController();
   browser?: BrowserSession;
@@ -181,13 +183,22 @@ class RunContext {
     return s && s.ctx === this ? s.vars : this.rootVars;
   }
 
+  /** Waiting for a person, a sub-process run or a timer: the run does not take a slot (SM_MAX_CONCURRENT_RUNS). */
+  get waiting(): boolean {
+    return this.waits > 0;
+  }
+
   beginWait(): void {
-    if (this.waits++ === 0) store.setRunStatus(this.runId, 'waiting');
+    if (this.waits++ === 0) {
+      store.setRunStatus(this.runId, 'waiting');
+      // its slot is free while it waits
+      queueMicrotask(pumpQueue);
+    }
   }
   endWait(): void {
     if (--this.waits <= 0) {
       this.waits = 0;
-      if (!this.signal.aborted) store.setRunStatus(this.runId, 'running');
+      if (!this.signal.aborted && !this.interrupted) store.setRunStatus(this.runId, 'running');
     }
   }
 
@@ -327,6 +338,138 @@ export function activeRunIds(): string[] {
   return [...active.keys()];
 }
 
+// ---------------------------------------------------------------------------
+// Concurrency limit (SM_MAX_CONCURRENT_RUNS) and shutdown
+// ---------------------------------------------------------------------------
+
+/** Queued runs in order of arrival (status 'queued' in the database; recovery reloads them by started_at). */
+const runQueue: string[] = [];
+/** Queued runs being started (their bindings are resolved): they hold a slot already. */
+let starting = 0;
+let accepting = true;
+
+/** Runs that take a slot: active and not waiting (for a person, a sub-process run or a timer). */
+export function busyRunIds(): string[] {
+  return [...active.entries()].filter(([, a]) => !a.ctx.waiting).map(([id]) => id);
+}
+
+export function queuedRunIds(): string[] {
+  return [...runQueue];
+}
+
+function slotFree(): boolean {
+  const max = config.maxConcurrentRuns;
+  return !max || busyRunIds().length + starting < max;
+}
+
+/** Starts queued runs while slots are free (first come, first served). */
+function pumpQueue(): void {
+  while (accepting && runQueue.length && slotFree()) {
+    const id = runQueue.shift()!;
+    starting++;
+    void startQueued(id).finally(() => {
+      starting--;
+      pumpQueue();
+    });
+  }
+}
+
+async function startQueued(runId: string): Promise<void> {
+  const r = db().get<store.RunRow & { sealed_inputs?: string | null }>('SELECT * FROM runs WHERE id = ?', runId);
+  if (!r || r.status !== 'queued' || active.has(runId)) return;
+  try {
+    const proc = getProcess(r.process_id, r.process_version);
+    const bindingInfo = parseJson<Record<string, { platformId: string }>>(r.bindings, {});
+    // outside any request: the run is not attributed to whoever happened to free the slot
+    const bindings = await runAs(null, () =>
+      resolveBindings(proc.definition, Object.fromEntries(Object.entries(bindingInfo).map(([k, v]) => [k, v.platformId]))),
+    );
+    const startedAt = nowIso();
+    // cancelled while its bindings were resolved?
+    if (!db().run("UPDATE runs SET status = 'running', started_at = ? WHERE id = ? AND status = 'queued'", startedAt, runId).changes) return;
+    const waited = Math.max(0, Math.round((Date.parse(startedAt) - Date.parse(r.started_at)) / 1000));
+    store.addLog(runId, 'info', `Started after waiting ${waited} s for a free slot (at most ${config.maxConcurrentRuns} runs at the same time)`);
+    runAs(null, () =>
+      launch(
+        runId,
+        proc.definition,
+        openInputs(parseJson(r.inputs, {}), r.sealed_inputs),
+        bindings,
+        !!r.dry_run,
+        r.actor,
+        startedAt,
+        store.emptyStats(),
+        undefined,
+        !!r.recorded,
+      ),
+    );
+  } catch (e) {
+    const error = (e as Error).message || String(e);
+    logger.warn({ err: e, runId }, 'queued run could not start');
+    store.setRunStatus(runId, 'failed', { error: `Could not start: ${error}`, finished: true });
+    audit({ actor: r.actor, action: 'run.failed', entityType: 'run', entityId: runId, runId, summary: `Queued run could not start: ${error.slice(0, 200)}` });
+    emit('run.finished', {
+      runId,
+      processId: r.process_id,
+      processName: r.process_name,
+      actor: r.actor,
+      trigger: r.trigger,
+      scheduleId: r.schedule_id ?? null,
+      dryRun: !!r.dry_run,
+      status: 'failed',
+      error,
+      durationMs: 0,
+    });
+  }
+}
+
+/** Shutdown, step 1: no new runs start (requests get 503 SHUTTING_DOWN; sub-process runs are queued and start after the restart). */
+export function stopAcceptingRuns(): void {
+  accepting = false;
+}
+export const acceptingRuns = (): boolean => accepting;
+
+/**
+ * Shutdown, step 2: waits up to `graceMs` until no run takes a slot – runs waiting for a person (or a timer, or a
+ * sub-process run) are persisted and resume after the restart, so they are not waited for. Returns the runs still busy.
+ */
+export async function drainRuns(graceMs: number, pollMs = 100): Promise<string[]> {
+  const until = Date.now() + graceMs;
+  while (busyRunIds().length && Date.now() < until) await new Promise((r) => setTimeout(r, Math.min(pollMs, Math.max(1, until - Date.now()))));
+  return busyRunIds();
+}
+
+/** Shutdown, step 3: what recovery would do at the next start, done now – the runs still busy are marked interrupted. */
+export function interruptBusyRuns(): string[] {
+  const ids = busyRunIds();
+  for (const id of ids) {
+    const a = active.get(id);
+    try {
+      store.setRunStatus(id, 'interrupted');
+      audit({
+        actor: 'system',
+        action: 'run.interrupted',
+        entityType: 'run',
+        entityId: id,
+        runId: id,
+        summary: 'Run was interrupted because Steward was stopped. Review and resume or cancel it.',
+      });
+      store.addLog(id, 'warn', 'Interrupted: Steward was stopped while this run was still running');
+    } catch (err) {
+      logger.warn({ err, runId: id }, 'could not mark the run interrupted');
+    }
+    // its remaining work must not overwrite the status (the process exits right after)
+    if (a) a.ctx.interrupted = true;
+  }
+  return ids;
+}
+
+/** For tests: start accepting runs again after a simulated shutdown. */
+export function resumeAcceptingRuns(): void {
+  accepting = true;
+  pumpQueue();
+}
+
 function coerceInputs(defs: InputDef[], raw: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const d of defs) {
@@ -444,6 +587,7 @@ export async function startRun(
     parent?: { runId: string; stepKey: string };
   } = {},
 ): Promise<string> {
+  if (!accepting && opts.trigger !== 'subprocess') throw new HttpError(503, 'Steward is shutting down: no new runs start now', 'SHUTTING_DOWN');
   const proc = getProcess(req.processId, req.version);
   const def = proc.definition;
   // a test run is a dry run whose platform calls are answered by recorded responses
@@ -459,15 +603,19 @@ export async function startRun(
   const bindingInfo = Object.fromEntries(
     Object.entries(bindings).map(([k, b]) => [k, { platformId: b.platform.id, platformName: b.platform.name, baseUrl: b.baseUrl }]),
   );
+  // all slots taken (or others waiting before it, or shutting down: a sub-process run then starts after the restart)
+  const queued = !accepting || runQueue.length > 0 || !slotFree();
+  const busy = busyRunIds().length;
   db().tx(() => {
     db().run(
       `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, dry_run, recorded, trigger, schedule_id, actor, inputs, bindings, started_at, stats, parent_run_id, parent_step_key, trigger_id, trigger_name, trigger_output, sealed_inputs)
-       VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       runId,
       proc.id,
       proc.name,
       req.version ?? proc.currentVersion,
       proc.definitionHash,
+      queued ? 'queued' : 'running',
       req.dryRun ? 1 : 0,
       recorded ? 1 : 0,
       opts.trigger ?? 'manual',
@@ -490,8 +638,9 @@ export async function startRun(
       entityType: 'process',
       entityId: proc.id,
       runId,
-      summary: `${recorded ? 'Test run' : req.dryRun ? 'Dry run' : 'Run'} of "${proc.name}" v${req.version ?? proc.currentVersion} started (${opts.trigger ?? 'manual'}${opts.parent ? ` by run ${opts.parent.runId}` : ''}${opts.webhook ? ` "${opts.webhook.triggerName}"${opts.webhook.test ? ', test' : ''}` : ''})`,
+      summary: `${recorded ? 'Test run' : req.dryRun ? 'Dry run' : 'Run'} of "${proc.name}" v${req.version ?? proc.currentVersion} started (${opts.trigger ?? 'manual'}${opts.parent ? ` by run ${opts.parent.runId}` : ''}${opts.webhook ? ` "${opts.webhook.triggerName}"${opts.webhook.test ? ', test' : ''}` : ''})${queued ? (accepting ? `; queued: ${busy} of at most ${config.maxConcurrentRuns} runs are running` : '; queued: Steward is shutting down, it starts after the restart') : ''}`,
       details: {
+        ...(queued ? { queued: true } : {}),
         inputs: storedInputs,
         bindings: bindingInfo,
         definitionHash: proc.definitionHash,
@@ -503,6 +652,18 @@ export async function startRun(
       },
     });
   });
+  if (queued) {
+    runQueue.push(runId);
+    store.addLog(
+      runId,
+      'info',
+      accepting
+        ? `Waiting for a free slot: at most ${config.maxConcurrentRuns} runs run at the same time`
+        : 'Waiting: Steward is shutting down, the run starts after the restart',
+    );
+    pumpQueue();
+    return runId;
+  }
   launch(runId, def, inputs, bindings, !!req.dryRun, actor, startedAt, store.emptyStats(), undefined, recorded);
   return runId;
 }
@@ -523,7 +684,10 @@ function launch(
   ctx.recorded = recorded;
   ctx.redactor.add(...secretValuesOf(def.inputs, inputs));
   ctx.resumedBy = resumedBy;
-  const done = execute(ctx).finally(() => active.delete(runId));
+  const done = execute(ctx).finally(() => {
+    active.delete(runId);
+    pumpQueue();
+  });
   active.set(runId, { ctx, done });
 }
 
@@ -561,12 +725,14 @@ export async function cancelRun(runId: string, actor = currentActor()): Promise<
     taskWaiters.delete(t.id);
   }
   if (a) a.ctx.abort.abort();
+  const queuedAt = runQueue.indexOf(runId);
+  if (queuedAt >= 0) runQueue.splice(queuedAt, 1);
   // sub-process runs started by this run are cancelled with it
   for (const child of store.unfinishedChildRuns(runId)) {
     await cancelRun(child, actor).catch((e) => logger.warn({ err: e, runId: child }, 'could not cancel sub-process run'));
   }
   if (a) {
-    await a.done.catch(() => undefined);
+    await a.done.catch(() => undefined); // the earlier run reports its own failure
   } else {
     store.setRunStatus(runId, 'cancelled', { finished: true });
     audit({ actor, action: 'run.cancelled', entityType: 'run', entityId: runId, runId, summary: 'Run cancelled' });
@@ -635,11 +801,16 @@ export async function verifyManualTask(
   return { outcome: input.approved ? 'verified' : settled ? 'failed' : 'returned' };
 }
 
-/** On startup: resume waiting runs, mark in-flight ones as interrupted. */
+/** On startup: resume waiting runs, mark in-flight ones as interrupted; queued runs keep their place and start when a slot is free. */
 export async function recoverRuns(): Promise<void> {
-  const rows = db().all<{ id: string; status: string }>("SELECT id, status FROM runs WHERE status IN ('running', 'queued', 'waiting')");
+  accepting = true;
+  const rows = db().all<{ id: string; status: string }>("SELECT id, status FROM runs WHERE status IN ('running', 'queued', 'waiting') ORDER BY started_at, id");
   for (const r of rows) {
     if (active.has(r.id)) continue; // already re-attached (e.g. by a resumed parent run)
+    if (r.status === 'queued') {
+      if (!runQueue.includes(r.id)) runQueue.push(r.id);
+      continue;
+    }
     if (r.status === 'waiting') {
       try {
         store.setRunStatus(r.id, 'interrupted');
@@ -660,6 +831,7 @@ export async function recoverRuns(): Promise<void> {
       });
     }
   }
+  pumpQueue();
 }
 
 async function execute(ctx: RunContext): Promise<void> {
@@ -700,9 +872,13 @@ async function execute(ctx: RunContext): Promise<void> {
       if (!(e instanceof StepFailure) && isInternalError(e)) reportError(e, { tags: { phase: 'run', run_id: ctx.runId }, secrets: ctx.redactor.list() });
     }
   } finally {
-    if (ctx.browser) await ctx.browser.close().catch(() => undefined);
+    if (ctx.browser) await ctx.browser.close().catch(() => undefined); // best effort at the end of the run: the browser process ends with it
   }
   store.saveStats(ctx.runId, ctx.stats);
+  if (ctx.interrupted) {
+    log.info({ status, durationMs: Date.now() - t0 }, 'run ended after it was marked interrupted at shutdown; its status stays interrupted');
+    return;
+  }
   store.setRunStatus(ctx.runId, status, { error: error ?? null, finished: true });
   log[status === 'failed' ? 'warn' : 'info']({ status, error, durationMs: Date.now() - t0, stats: ctx.stats }, 'run finished');
   emit('run.finished', { ...evBase, scheduleId: run.schedule_id ?? null, status, error, durationMs: Date.now() - t0 });
@@ -882,7 +1058,7 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
       }
       if (attempt < attempts) {
         ctx.log('warn', `Attempt ${attempt} failed: ${(e as Error).message}. Retrying…`, key);
-        await sleep(node.retry?.delayMs ?? 2000, ctx.signal).catch(() => undefined);
+        await sleep(node.retry?.delayMs ?? 2000, ctx.signal).catch(() => undefined); // cancelled while waiting: the loop checks the signal
       }
     }
   }
@@ -1016,7 +1192,7 @@ async function runItemsInParallel(
       if (wait > 0 && !stop()) await sleep(wait, ctx.signal);
       lastStart = Date.now();
     });
-    gate = mine.catch(() => undefined);
+    gate = mine.catch(() => undefined); // only the order matters here: the caller gets the failure
     try {
       await mine;
       return !stop();
@@ -1148,7 +1324,7 @@ async function waitForChild(childId: string, ctx: RunContext, key: string): Prom
           ctx.log('warn', `Sub-process run ${childId} was interrupted – resume or cancel it to continue`, key);
         }
       }
-      await sleep(500, ctx.signal).catch(() => undefined);
+      await sleep(500, ctx.signal).catch(() => undefined); // cancelled while waiting: the loop checks the signal
     }
   } finally {
     if (waiting) {
@@ -1865,7 +2041,7 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
   try {
     if (portal) portalOrigin = new URL(portal).origin;
   } catch {
-    /* ignore */
+    /* not a URL: no portal origin is allowed */
   }
   // The bound platform's own portal is a legitimate destination for its secrets (e.g. a login form).
   const browserBindings = secretBindings(ctx).map((sb) =>
@@ -1994,8 +2170,9 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
           sha256: sha256(buf),
           size: buf.length,
         });
-      } catch {
-        /* ignore */
+      } catch (err) {
+        // the step's own error is what the run reports; a missing screenshot only shows in the log
+        logger.warn({ err, runId: ctx.runId, step: key }, 'could not save the failure screenshot');
       }
       const blocked = blockedNow();
       throw new Error(`Browser action ${label} failed: ${(e as Error).message.split('\n')[0]}${blocked.length ? ` – ${blocked.join('; ')}` : ''}`);
@@ -2038,7 +2215,7 @@ async function refusedRedirects(ctx: RunContext, page: BrowserSession['page'], w
     if (!ctx.browserBlocked.includes(m)) ctx.browserBlocked.push(m);
     ctx.log('warn', `Browser: a redirect was ${m}`);
   }
-  await page.goto('about:blank').catch(() => undefined);
+  await page.goto('about:blank').catch(() => undefined); // leaving the page is best effort: the error below is what counts
   throw new Error(`the page was redirected to ${origins.join(', ')}, which the outbound policy does not allow`);
 }
 

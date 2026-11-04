@@ -29,13 +29,16 @@ import { useTranslation } from 'react-i18next';
 import { CONNECTOR_FORMATS, impliedAuthType, type AuthType, type ConnectorPackage, type Platform, type PlatformPreset } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { useMe } from '../auth';
-import { EmptyState, Hint, KeyValueEditor, PageHeader, QueryState } from '../components/common';
+import { EmptyState, Hint, KeyValueEditor, QueryState } from '../components/common';
 import { authLabel, presetDescription, presetSecretHelp, presetSecretLabel } from '../components/platform/presetText';
 import i18n from '../i18n';
 import { BRAND } from '../../../shared/src/brand';
 import { EnvironmentInput } from '../components/catalogue/environments';
 import { confirmDanger } from '../components/confirm';
 import { fmtDate, fmtRelative } from '../format';
+import { ListPage } from '../components/page/ListPage';
+import { platformKeys } from '../queryKeys';
+import { AddPlatformWizard } from '../components/platform/AddPlatformWizard';
 
 export const KIND_COLORS: Record<string, string> = {
   'insights-hub': 'teal',
@@ -67,11 +70,13 @@ function LastTest({ test }: { test?: Platform['lastTest'] }) {
 }
 
 export function PlatformsPage() {
-  const { t } = useTranslation('platforms');
+  const { t } = useTranslation(['platforms', 'common']);
   const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
+  // the quick form for experts ("Skip the wizard")
+  const [quick, setQuick] = useState(false);
   const [typesOpen, setTypesOpen] = useState(false);
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const { caps } = useMe();
   const [q, setQ] = useState('');
   const [kind, setKind] = useState<string | null>(null);
@@ -89,28 +94,74 @@ export function PlatformsPage() {
   const filtered = !!(needle || kind || env);
 
   return (
-    <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          <>
-            <Button size="xs" variant="default" leftSection={<IconPlug size={14} />} onClick={() => setTypesOpen(true)}>
-              {t('types.button')}
+    <ListPage
+      activeFilters={[needle, kind, env].filter(Boolean).length}
+      title={t('title')}
+      description={t('description')}
+      actions={
+        <>
+          <Button size="xs" variant="default" leftSection={<IconPlug size={14} />} onClick={() => setTypesOpen(true)}>
+            {t('types.button')}
+          </Button>
+          {caps.createPlatforms && (
+            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setAdding(true)}>
+              {t('add')}
             </Button>
-            {caps.createPlatforms && (
-              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setAdding(true)}>
-                {t('add')}
-              </Button>
+          )}
+        </>
+      }
+      filters={
+        all.length > 0 && (
+          <Group gap="sm" align="flex-end" mb="md" wrap="wrap" role="search" aria-label={t('filter.search')}>
+            <TextInput
+              size="xs"
+              label={t('filter.search')}
+              placeholder={t('filter.searchPlaceholder')}
+              leftSection={<IconSearch size={14} />}
+              value={q}
+              onChange={(e) => setQ(e.currentTarget.value)}
+              w={{ base: '100%', xs: 260 }}
+            />
+            {kinds.length > 1 && (
+              <Select
+                size="xs"
+                label={t('filter.kind')}
+                placeholder={t('filter.all')}
+                data={kinds}
+                value={kind}
+                onChange={setKind}
+                clearable
+                searchable
+                w={{ base: '48%', xs: 200 }}
+              />
             )}
-          </>
-        }
-      />
+            {envs.length > 0 && (
+              <Select
+                size="xs"
+                label={t('filter.environment')}
+                placeholder={t('filter.all')}
+                data={envs}
+                value={env}
+                onChange={setEnv}
+                clearable
+                w={{ base: '48%', xs: 160 }}
+              />
+            )}
+            {filtered && (
+              <Text size="xs" c="dimmed" mb={6} aria-live="polite">
+                {t('filter.count', { shown: shown.length, total: all.length })}
+              </Text>
+            )}
+          </Group>
+        )
+      }
+    >
       <QueryState query={platforms} rows={3} />
       {platforms.data && platforms.data.length === 0 && (
         <EmptyState
           icon={IconServer}
           title={t('empty.title')}
+          whoCanAct={t('common:whoCanAct.platforms')}
           action={
             caps.createPlatforms && (
               <Button leftSection={<IconPlus size={16} />} onClick={() => setAdding(true)}>
@@ -122,49 +173,6 @@ export function PlatformsPage() {
           {t('empty.text')}
           {!caps.createPlatforms && <div>{t('empty.adminsOnly')}</div>}
         </EmptyState>
-      )}
-      {all.length > 0 && (
-        <Group gap="sm" align="flex-end" mb="md" wrap="wrap" role="search" aria-label={t('filter.search')}>
-          <TextInput
-            size="xs"
-            label={t('filter.search')}
-            placeholder={t('filter.searchPlaceholder')}
-            leftSection={<IconSearch size={14} />}
-            value={q}
-            onChange={(e) => setQ(e.currentTarget.value)}
-            w={{ base: '100%', xs: 260 }}
-          />
-          {kinds.length > 1 && (
-            <Select
-              size="xs"
-              label={t('filter.kind')}
-              placeholder={t('filter.all')}
-              data={kinds}
-              value={kind}
-              onChange={setKind}
-              clearable
-              searchable
-              w={{ base: '48%', xs: 200 }}
-            />
-          )}
-          {envs.length > 0 && (
-            <Select
-              size="xs"
-              label={t('filter.environment')}
-              placeholder={t('filter.all')}
-              data={envs}
-              value={env}
-              onChange={setEnv}
-              clearable
-              w={{ base: '48%', xs: 160 }}
-            />
-          )}
-          {filtered && (
-            <Text size="xs" c="dimmed" mb={6} aria-live="polite">
-              {t('filter.count', { shown: shown.length, total: all.length })}
-            </Text>
-          )}
-        </Group>
       )}
       {filtered && shown.length === 0 && (
         <EmptyState
@@ -239,9 +247,20 @@ export function PlatformsPage() {
           </Card>
         ))}
       </SimpleGrid>
-      <AddPlatformModal opened={adding} onClose={() => setAdding(false)} onCreated={(id) => navigate(`/platforms/${id}`)} />
+      {/* adding a platform: the setup wizard (v0.4.0), or the quick form */}
+      <AddPlatformWizard
+        opened={adding}
+        onClose={() => setAdding(false)}
+        onSkip={() => {
+          setAdding(false);
+          setQuick(true);
+        }}
+        onDone={(id) => navigate(`/platforms/${id}?tab=start`)}
+        importConnector={importConnector}
+      />
+      <AddPlatformModal opened={quick} onClose={() => setQuick(false)} onCreated={(id) => navigate(`/platforms/${id}`)} />
       <ConnectorTypesModal opened={typesOpen} onClose={() => setTypesOpen(false)} canManage={caps.createPlatforms} />
-    </>
+    </ListPage>
   );
 }
 
@@ -263,9 +282,9 @@ async function importConnector(file: File): Promise<string | null> {
 function ConnectorTypesModal({ opened, onClose, canManage }: { opened: boolean; onClose: () => void; canManage: boolean }) {
   const { t } = useTranslation(['platforms', 'common']);
   const qc = useQueryClient();
-  const presets = useQuery({ queryKey: ['platform-presets'], queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: opened });
+  const presets = useQuery({ queryKey: platformKeys.presets, queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: opened });
   const custom = (presets.data ?? []).filter((p) => p.custom);
-  const refresh = () => qc.invalidateQueries({ queryKey: ['platform-presets'] });
+  const refresh = () => qc.invalidateQueries({ queryKey: platformKeys.presets });
   return (
     <Modal opened={opened} onClose={onClose} title={t('types.title')} size="lg">
       <Stack>
@@ -360,7 +379,7 @@ function ConnectorTypesModal({ opened, onClose, canManage }: { opened: boolean; 
 function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onClose: () => void; onCreated: (id: string) => void }) {
   const { t } = useTranslation(['platforms', 'common']);
   const qc = useQueryClient();
-  const presets = useQuery({ queryKey: ['platform-presets'], queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: opened });
+  const presets = useQuery({ queryKey: platformKeys.presets, queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: opened });
   const [preset, setPreset] = useState<PlatformPreset | null>(null);
   const [name, setName] = useState('');
   const [environment, setEnvironment] = useState('');
@@ -409,7 +428,7 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
         secrets: filtered,
         typeKind: preset.custom ? preset.kind : undefined,
       });
-      await qc.invalidateQueries({ queryKey: ['platforms'] });
+      await qc.invalidateQueries({ queryKey: platformKeys.all });
       notifyOk(t('addModal.created', { name: p.name }));
       onClose();
       onCreated(p.id);

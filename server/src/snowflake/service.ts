@@ -6,6 +6,7 @@ import { logger } from '../log.js';
 import { HttpError, parseJson } from '../util.js';
 import { platformFor } from '../monitors/platforms.js';
 import { ISO, SnowflakeClient, sfName, type Row } from './client.js';
+import { snowflakeJwtHint } from '../platforms/jwt.js';
 
 /**
  * Snowflake (#115). One platform is one Snowflake account, read through the SQL API with a key-pair JWT, from the
@@ -94,14 +95,17 @@ export async function refreshSnowflakeComponent(componentId: string, actor: stri
   const at = new Date(now).toISOString();
   const before = parseJson<SnowflakeReadout | null>(c.snowflake_state, null);
   let readout: SnowflakeReadout;
+  let variables: Record<string, unknown> | undefined;
   try {
     const { platform, secrets } = platformFor(actor, c.platform_id);
+    variables = platform.config.variables;
     readout = { readAt: at, error: null, ...(await readDatabase(snowflakeClient(platform, secrets), c.name)) };
   } catch (e) {
     readout = {
       ...(before ?? { account: null, database: sfName(c.name), tables: [], tableCount: 0, bytes: 0, failedTasks: [], warehouses: [] }),
       readAt: at,
-      error: (e as Error).message.slice(0, 500),
+      // 390144 "JWT token is invalid": what to check (the account identifier, the user, the public key)
+      error: snowflakeJwtHint((e as Error).message.slice(0, 500), variables).slice(0, 1000),
     };
   }
   db().run('UPDATE application_components SET snowflake_state = ? WHERE id = ?', JSON.stringify(readout), componentId);
@@ -189,16 +193,17 @@ function aliasesOf(u: Row): Pick<AccessSubject, 'aliases'> {
 }
 
 /** A hint for reviewers: the last successful login and a password without MFA – read live, never part of a snapshot. */
-function activityOf(u: Row): Pick<AccessSubject, 'activity'> {
+function activityOf(u: Row): Pick<AccessSubject, 'activity' | 'activityInfo'> {
   if (!('LAST_SUCCESS_LOGIN' in u)) return {};
   const at = u.LAST_SUCCESS_LOGIN ? Date.parse(u.LAST_SUCCESS_LOGIN) : NaN;
+  const passwordWithoutMfa = u.HAS_PASSWORD === 'true' && u.HAS_MFA !== 'true' && u.EXT_AUTHN_DUO !== 'true';
   const parts = [
     Number.isNaN(at)
       ? 'never signed in'
       : `last login ${new Date(at).toISOString().slice(0, 10)} (${Math.max(0, Math.floor((Date.now() - at) / 86_400_000))} days ago)`,
   ];
-  if (u.HAS_PASSWORD === 'true' && u.HAS_MFA !== 'true' && u.EXT_AUTHN_DUO !== 'true') parts.push('password without MFA');
-  return { activity: parts.join(', ') };
+  if (passwordWithoutMfa) parts.push('password without MFA');
+  return { activity: parts.join(', '), activityInfo: { lastLoginAt: Number.isNaN(at) ? null : new Date(at).toISOString(), passwordWithoutMfa } };
 }
 
 /**

@@ -19,6 +19,7 @@ import {
 import { get, getOptional, notifyError, notifyOk, post, put } from '../../api';
 import { TONE, useFieldErrors } from '../common';
 import { dateTimeFormat } from '../../format';
+import { processKeys, scheduleKeys } from '../../queryKeys';
 
 /** Colours of period statuses (the label always says the status, too). */
 export const DUTY_STATUS_COLORS: Record<DutyPeriodStatus, string> = {
@@ -127,8 +128,8 @@ export function DutyFormModal({
   onSaved: (d: DutyDetail) => void;
 }) {
   const { t } = useTranslation(['duties', 'common']);
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
-  const schedules = useQuery({ queryKey: ['schedules'], queryFn: () => getOptional<Schedule[]>('/schedules', []) });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
+  const schedules = useQuery({ queryKey: scheduleKeys.all, queryFn: () => getOptional<Schedule[]>('/schedules', []) });
   const [name, setName] = useState(duty?.name ?? '');
   const [description, setDescription] = useState(duty?.description ?? '');
   const [processId, setProcessId] = useState<string | null>(duty?.processId ?? null);

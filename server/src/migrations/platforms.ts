@@ -2,6 +2,7 @@ import type { NamedMigration } from '../db.js';
 
 /**
  * Platforms and their API specifications.
+ * - platforms-003: the periodic connection test of a platform (v0.4.0, platforms/health.ts): off by default.
  * - platforms-002: recorded responses for test runs (#105).
  * - platforms-001: the path prefix of an API specification (the path of its server URL, editable per spec). NULL for
  *   specs imported before: their prefix is derived from server_url when read (platforms/service.ts, specPrefix).
@@ -33,6 +34,22 @@ export const PLATFORM_MIGRATIONS: NamedMigration[] = [
         updated_by TEXT NOT NULL
       );
       CREATE INDEX platform_recordings_platform ON platform_recordings(platform_id, method);
+    `,
+  },
+  {
+    // Platform health (v0.4.0): an optional periodic connection test; failures notify the platform's managers
+    name: 'platforms-003-health',
+    sql: `
+      CREATE TABLE platform_health (
+        platform_id TEXT PRIMARY KEY REFERENCES platforms(id) ON DELETE CASCADE,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        interval_minutes INTEGER NOT NULL DEFAULT 60,
+        last_run_at TEXT,
+        failing_since TEXT,
+        notified_at TEXT,
+        updated_by TEXT,
+        updated_at TEXT
+      );
     `,
   },
 ];

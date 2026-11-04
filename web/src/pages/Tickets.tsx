@@ -7,11 +7,12 @@ import { IconPlus, IconTicket } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ServiceSummary, TicketList, TicketReference } from '@sm/shared';
 import { get } from '../api';
-import { EmptyState, FilterPanel, PageHeader, QueryState, subjectLabel, useCreateParam } from '../components/common';
+import { EmptyState, FilterPanel, QueryState, subjectLabel, useCreateParam } from '../components/common';
 import { ExternalTicketLink, TICKET_STATUS_IDS, TicketStatusBadge, useSourceLabel, useTicketSettings } from '../components/tickets/common';
 import { TicketForm } from '../components/tickets/TicketForm';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { fmtDate, fmtRelative } from '../format';
+import { ListPage } from '../components/page/ListPage';
 
 type State = 'open' | 'closed' | 'all';
 
@@ -154,18 +155,18 @@ export function TicketsPage() {
   ];
 
   return (
-    <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          list.data?.canCreate && (
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
-              {t('new')}
-            </Button>
-          )
-        }
-      />
+    <ListPage
+      view="tickets"
+      title={t('title')}
+      description={t('description')}
+      actions={
+        list.data?.canCreate && (
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
+            {t('new')}
+          </Button>
+        )
+      }
+    >
       {(link || waitingVendor) && (
         <Group gap={6} mb="sm">
           {link && (
@@ -258,6 +259,7 @@ export function TicketsPage() {
           <EmptyState
             icon={IconTicket}
             title={t('emptyState.title')}
+            whoCanAct={t('common:whoCanAct.tickets')}
             action={
               list.data.canCreate && (
                 <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)}>
@@ -313,6 +315,6 @@ export function TicketsPage() {
           }}
         />
       )}
-    </>
+    </ListPage>
   );
 }

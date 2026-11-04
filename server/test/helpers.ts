@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { afterAll } from 'vitest';
 import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
@@ -15,6 +16,19 @@ export const ADMIN = { username: 'admin', password: 'Admin-password-1' };
 /** Set up vault + first admin (signed in on `api`). */
 export async function setup(s: TestServer): Promise<void> {
   await s.api('POST', '/auth/setup', { passphrase: 'correct horse battery', username: ADMIN.username, displayName: 'Admin', password: ADMIN.password });
+}
+
+/**
+ * Sets (or, with undefined, removes) environment variables while the server runs and re-reads them: the server
+ * validates SM_* variables once (config.ts), so a change only counts after reloadConfig(). Before the server
+ * started, set process.env directly – the configuration reads it when it loads.
+ */
+export async function setEnv(vars: Record<string, string | undefined>): Promise<void> {
+  for (const [k, v] of Object.entries(vars)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  (await import('../src/config.js')).reloadConfig();
 }
 
 export interface TestServer {
@@ -36,14 +50,30 @@ export interface TestServer {
  * `dataDir`: start on an existing data folder (e.g. a copy of an upgrade fixture) instead of a new one. `routes`:
  * test-only routes, added before the server listens.
  */
+/**
+ * Data folders this test file created, removed after its last hook (registered at import, so with vitest's stacked
+ * hooks it runs after the file's own afterAll that closes the server; a test may start a second server on a folder).
+ */
+const createdDataDirs: string[] = [];
+afterAll(() => {
+  for (const dir of createdDataDirs.splice(0)) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // a file still open (e.g. on Windows) keeps the folder; the system's temp cleanup takes it later
+    }
+  }
+});
+
 export async function startTestServer(opts: { dataDir?: string; routes?: (app: FastifyInstance) => void } = {}): Promise<TestServer> {
   const dataDir = opts.dataDir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'sm-test-'));
+  if (!opts.dataDir) createdDataDirs.push(dataDir);
   process.env.SM_DATA_DIR = dataDir;
   // Port 0: the system assigns a free port, so parallel test runs (and outgoing connections, whose
   // local ports come from the same range) can never take it between choosing and binding.
   process.env.SM_PORT = '0';
   process.env.SM_DEMO = '1';
-  await import('../src/bootstrap.js');
+  await import('../src/warnings.js');
   const { config, ensureDataDirs } = await import('../src/config.js');
   ensureDataDirs();
   const { buildApp } = await import('../src/app.js');

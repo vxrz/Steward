@@ -4,6 +4,7 @@ Ready-to-use procedures, dashboards and monitors for **Siemens Insights Hub**, *
 
 - **Processes** (`processes/*.yaml`) appear in the app under **Processes → From template**. The gallery shows which platforms a template needs, when to run it and which dashboards it feeds (see [Template metadata](#template-metadata)).
 - **Dashboards** (`dashboards/*.yaml`) appear under **Dashboards → From template**.
+- **Template bundles** (`bundles/*.yaml`) appear under **Processes → From template → Set up together**: processes, a dashboard, schedules and monitors set up in one go (see [Template bundles](#template-bundles)).
 - **Monitors** (`monitors/*.yaml`) appear under **Monitors → Import → From the example library**.
 - **Demo mode** (`npm run demo` → _Load demo data_) imports everything, creates two sample applications whose components point to the simulated platforms, schedules the read-only "feeder" processes and runs them once. The dashboards of the feeders fill within a minute or two. The dashboards and tables fed by reviews with a person in the loop (privileged access review, Snowflake project access review, Git member review) stay empty until you run such a review yourself.
 
@@ -134,7 +135,8 @@ The flows were built against the documented Insights Hub APIs and the simulated 
 
 - **One template:** in the app, go to **Processes → From template**, or to **Dashboards → From template**.
 - **Your own YAML:** use **Processes → Import YAML**, or the YAML/import option on the Dashboards page.
-- **Many at once:** use a bundle (`GET /api/bundle/export` / `POST /api/bundle/import`). A bundle carries processes and dashboards together, e.g. from a test to a production instance.
+- **Templates that belong together:** a [template bundle](#template-bundles) sets up processes, their dashboard, schedules and monitors in one go (**Processes → From template → Set up together**).
+- **Many at once:** use an export package (`GET /api/bundle/export` / `POST /api/bundle/import`, _Processes → … → Export all processes & dashboards_). A package carries processes and dashboards together, e.g. from a test to a production instance. (The API still calls it a bundle; it is not a template bundle.)
 - **Share with the team:** drop files into `examples/processes` or `examples/dashboards` and commit them. They show up as templates after a restart.
 - **Keep them up to date:** turn on the Git sync source **Steward example library** (_Settings → Git sync_; it exists disabled in every installation since 0.2.1). It follows the tag of your Steward version (`v{version}`), so improved examples of that release arrive in **Updates from Git** for review, and after an upgrade those of the new release. Allow `api.github.com` in the outbound policy first. See [docs/GIT-SYNC.md](../docs/GIT-SYNC.md#stewards-example-library).
 
@@ -167,6 +169,51 @@ An example that uses something a release added says so in a comment line at the 
 - `minVersion`: the `# steward-min-version` comment, or null.
 
 `recommendedSchedule` and `connections[].kinds` are hints for the gallery only: the process schema does not keep them, so a process created from the template does not carry them and older versions ignore them.
+
+## Template bundles
+
+`bundles/*.yaml` (0.4.0) are sets of templates that belong together – the processes that feed a dashboard, their recommended schedules and optional monitors. The template gallery lists them as **Set up together**; **Set up** asks for the platform(s) to bind and then
+
+1. creates the processes from their templates (ids as from **Use**: `ih-inventory-snapshot`), bound to the chosen platform,
+2. creates the dashboards, the **schedules – switched off** – with the template's recommended cron (or the bundle's), and the monitors (optional, **switched off**, their platform references set to the chosen platform),
+3. starts **one dry run per process**,
+4. shows the result with links and a **Turn on** step for the schedules and monitors.
+
+Re-running a setup finds what exists: processes and dashboards are kept as they are or updated to the template (_Update to the template_, a new process version), schedules of the process and monitors with the example's key are always kept. The setup and the turn-on are audited (`template_bundle.setup`, `template_bundle.turned_on`) besides the entries of every object made. Setting a bundle up needs the right to create processes (designers, administrators) and _use_ on the platform. API: `GET /api/template-bundles`, `POST /api/template-bundles/:id/setup` (`{ bindings: { <key>: <platformId> }, existing: skip | update, monitors, dryRuns }`), `POST /api/template-bundles/:id/turn-on` (`{ schedules, monitors }`).
+
+| Bundle                                   | Platform                | Processes              | Dashboard            | Monitor (optional)           |
+| ---------------------------------------- | ----------------------- | ---------------------- | -------------------- | ---------------------------- |
+| 10 Access governance (Insights Hub)      | Insights Hub            | 15, 16, 14, 12, 10, 11 | Access governance    | –                            |
+| 20 Tenant usage (Insights Hub)           | Insights Hub            | 32                     | Tenant usage         | –                            |
+| 30 Snowflake                             | Snowflake               | 62, 61                 | Snowflake account    | Snowflake account            |
+| 40 Git repositories (health and members) | GitHub, GitLab, Forgejo | 82, 92                 | Repositories         | Repository pipelines         |
+| 50 AWS (access keys and costs)           | AWS                     | 63, 64                 | Cloud costs and keys | –                            |
+| 60 Service levels (Prometheus)           | Prometheus              | 65                     | Service levels       | Error budget burn rate       |
+| 70 Kubernetes (namespace health)         | Kubernetes              | 79                     | Kubernetes           | Kubernetes namespace         |
+| 80 Vulnerabilities (Dependency-Track)    | Dependency-Track        | 86                     | Vulnerabilities      | New critical vulnerabilities |
+
+The format:
+
+```yaml
+# steward-min-version: 0.4.0
+name: Access governance (Insights Hub)
+description: Who has access to the tenant, and is it still justified? …
+tags: [access-review, governance, insights-hub]
+platforms: # one platform is chosen per entry; required
+  - { key: hub, label: Insights Hub tenant, kinds: [insights-hub] }
+processes:
+  - template: 15-ih-inventory-snapshot # a file in processes/, without .yaml
+    schedule: '7 * * * *' # default: the template's recommendedSchedule; "none": no schedule
+  - template: 11-ih-access-review-2-decide
+    dryRun: false # no dry run after the setup
+    # connections: { hub: hub }   slot → platform key (default: the platform whose kinds fit the slot)
+    # inputs: { … }               inputs of the schedule and the dry run (default: the template's)
+dashboards: [20-access-governance] # files in dashboards/
+monitors:
+  - { file: 50-snowflake-account.yaml, optional: true } # files in monitors/
+```
+
+`npm run validate` checks bundle files too.
 
 ## Monitors
 

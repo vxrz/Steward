@@ -12,46 +12,51 @@ const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Main navig
 test.describe('navigation (admin)', () => {
   test.use({ storageState: authFile('admin') });
 
-  test('the sidebar is grouped into sections that fold and stay folded', async ({ page }) => {
-    await page.goto('/');
+  test('the sidebar has six areas; the current one opens, a choice to fold or open one is kept', async ({ page }) => {
+    await page.goto('/runs');
     await settle(page);
     const nav = sidebar(page);
-    for (const name of ['Operate', 'Automate', 'Service management', 'Administration']) {
-      await expect(nav.getByRole('group', { name })).toBeVisible();
-    }
-    const automate = nav.getByRole('group', { name: 'Automate' });
-    await expect(automate.getByRole('link')).toHaveText(['Processes', 'Schedules', 'Triggers', 'Git sync']);
-    await expect(nav.getByRole('group', { name: 'Service management' }).getByRole('link')).toHaveText([
-      'Services',
-      'Applications',
-      'Systems',
-      'Maintenance',
-      'Status pages',
-      'Duties',
-      'Scorecard',
-      'Platforms',
-      'Credentials',
-      'Ticket references',
-      'Documents',
-      'Reports',
-    ]);
+    for (const name of ['Operate', 'Automate', 'Catalogue', 'Compliance', 'Admin']) await expect(nav.getByRole('group', { name })).toBeVisible();
+    const toggle = (name: string) => sidebar(page).getByRole('button', { name, exact: true });
+    // the area of the current page is open, the others are folded
+    await expect(toggle('Operate')).toHaveAttribute('aria-expanded', 'true');
+    await expect(nav.getByRole('link', { name: 'Runs', exact: true })).toHaveAttribute('aria-current', 'page');
+    for (const name of ['Automate', 'Catalogue', 'Compliance', 'Admin']) await expect(toggle(name)).toHaveAttribute('aria-expanded', 'false');
+    await expect(nav.getByRole('link', { name: 'Services', exact: true })).toBeHidden();
 
-    // fold "Automate": its links disappear, the choice survives a reload
-    const toggle = automate.getByRole('button', { name: 'Automate' });
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    await expect(nav.getByRole('link', { name: 'Schedules' })).toBeHidden();
+    // open Catalogue: it stays open; the current area can be folded for the visit
+    await toggle('Catalogue').click();
+    await expect(nav.getByRole('link', { name: 'Services', exact: true })).toBeVisible();
+    await toggle('Operate').click();
+    await expect(nav.getByRole('link', { name: 'Monitors', exact: true })).toBeHidden();
     await page.reload();
-    await expect(sidebar(page).getByRole('button', { name: 'Automate' })).toHaveAttribute('aria-expanded', 'false');
-    await expect(sidebar(page).getByRole('link', { name: 'Schedules' })).toBeHidden();
+    await settle(page);
+    await expect(toggle('Catalogue')).toHaveAttribute('aria-expanded', 'true');
+    // … but the area of the page opens again when the page is opened
+    await expect(toggle('Operate')).toHaveAttribute('aria-expanded', 'true');
 
-    // a folded section still opens on one of its pages
+    // fold Catalogue again: going into it opens it
+    await toggle('Catalogue').click();
+    await expect(toggle('Catalogue')).toHaveAttribute('aria-expanded', 'false');
+    await page.goto('/services');
+    await settle(page);
+    await expect(toggle('Catalogue')).toHaveAttribute('aria-expanded', 'true');
+    await page.goto('/monitors');
+    await settle(page);
+    await expect(toggle('Operate')).toHaveAttribute('aria-expanded', 'true');
+    await expect(sidebar(page).getByRole('link', { name: 'Monitors', exact: true })).toHaveAttribute('aria-current', 'page');
+
+    // Schedules, Triggers and Git sync are tabs of Processes: the sidebar marks Processes
     await page.goto('/schedules');
     await settle(page);
-    await expect(sidebar(page).getByRole('link', { name: 'Schedules' })).toBeVisible();
-    await sidebar(page).getByRole('button', { name: 'Automate' }).click();
-    await expect(sidebar(page).getByRole('button', { name: 'Automate' })).toHaveAttribute('aria-expanded', 'true');
+    await expect(sidebar(page).getByRole('link', { name: 'Processes', exact: true })).toHaveAttribute('aria-current', 'page');
+    const tabs = page.getByRole('navigation', { name: 'Automate' });
+    await expect(tabs.getByRole('link')).toHaveText(['Processes', 'Schedules', 'Triggers', 'Git sync']);
+    await expect(tabs.getByRole('link', { name: 'Schedules' })).toHaveAttribute('aria-current', 'page');
+    await tabs.getByRole('link', { name: 'Triggers' }).click();
+    await expect(page).toHaveURL(/\/triggers$/);
+    await expect(page.getByRole('heading', { name: 'Triggers', level: 1 })).toBeVisible();
+    await expectAccessible(page, 'automate tabs');
   });
 
   test('the sidebar folds to icons and back', async ({ page }) => {
@@ -164,14 +169,14 @@ test.describe('navigation (admin)', () => {
 test.describe('navigation (viewer)', () => {
   test.use({ storageState: authFile('vera') });
 
-  test('sections only list the pages the user may open', async ({ page }) => {
-    await page.goto('/');
+  test('areas only list the pages the user may open', async ({ page }) => {
+    await page.goto('/processes');
     await settle(page);
-    // nothing a viewer cannot use: no schedules, triggers, credentials or settings – and no empty Administration section
-    await expect(sidebar(page).getByRole('group', { name: 'Administration' })).toHaveCount(0);
-    for (const name of ['Git sync', 'Schedules', 'Triggers', 'Credentials', 'Settings'])
-      await expect(sidebar(page).getByRole('link', { name, exact: true })).toHaveCount(0);
+    // nothing a viewer cannot use: no schedules, triggers, credentials or settings – and no empty Admin area
+    await expect(sidebar(page).getByRole('group', { name: 'Admin' })).toHaveCount(0);
     await expect(sidebar(page).getByRole('group', { name: 'Automate' }).getByRole('link')).toHaveText(['Processes']);
+    // a single tab is no tab bar
+    await expect(page.getByRole('navigation', { name: 'Automate' })).toHaveCount(0);
     // the addresses still work
     await page.goto('/schedules');
     await settle(page);

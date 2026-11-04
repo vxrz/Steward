@@ -145,7 +145,7 @@ async function platformOrigins(
     const stamp = p.updatedAt ?? '';
     let hit = originCache.get(p.id);
     if (!hit || hit.stamp !== stamp) {
-      const base = await resolveOrigin(p).catch(() => undefined);
+      const base = await resolveOrigin(p).catch(() => undefined); // no base URL (e.g. a variable is missing): the platform adds no origin
       hit = { stamp, origin: base ? (originOf(base) ?? undefined) : undefined };
       originCache.set(p.id, hit);
     }
@@ -297,7 +297,7 @@ export function secretEncodings(value: string): string[] {
     out.add(Buffer.from(value, 'utf8').toString('base64'));
     out.add(Buffer.from(value, 'utf8').toString('base64url'));
   } catch {
-    /* ignore */
+    /* not encodable: the other forms still count */
   }
   try {
     const uri = encodeURIComponent(value);

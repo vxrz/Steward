@@ -1,0 +1,16 @@
+# steward-min-version: 0.4.0
+name: Kubernetes (namespace health)
+description: |
+  Deployments, pods and cert-manager certificates of the namespaces you list, every 15 minutes, with the "Kubernetes"
+  dashboard and, optionally, the namespace monitor. Use the read-only service account of docs/KUBERNETES.md.
+tags: [kubernetes]
+platforms:
+  - key: k8s
+    label: Kubernetes cluster
+    kinds: [kubernetes]
+processes:
+  - template: 79-kubernetes-namespace-health
+dashboards: [80-kubernetes]
+monitors:
+  - file: 52-kubernetes-namespace.yaml
+    optional: true

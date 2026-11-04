@@ -123,7 +123,8 @@
       "reports": "Berichte für mich",
       "reviews": "Fällige Überprüfungen meiner Dokumente",
       "duties": "Fällige oder versäumte Service-Pflichten, für die ich verantwortlich bin",
-      "trends": "Trends von Dashboard-Kennzahlen: bald erreichte Limits und starke Veränderungen"
+      "trends": "Trends von Dashboard-Kennzahlen: bald erreichte Limits und starke Veränderungen",
+      "topics": "Neue Kafka-Topics unter aktuell gehaltenen Präfixen meiner Anwendungen"
     },
     "skipEmpty": "An Tagen ohne Neuigkeiten nichts senden",
     "save": "Speichern",

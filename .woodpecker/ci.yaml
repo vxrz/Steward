@@ -62,6 +62,7 @@ steps:
     depends_on: [install]
     commands:
       - npm run openapi -- --check # docs/openapi.json is up to date
+      - npm run config:docs -- --check # README.md / docs/CONFIGURATION.md variable tables match server/src/config-schema.ts
 
   - name: test
     image: *node_image
@@ -77,7 +78,8 @@ steps:
     image: *node_image
     depends_on: [install]
     commands:
-      - npm run build # web UI → web/dist
+      - npm run build # web UI → web/dist, server → server/dist
+      - node scripts/smoke-server.mjs # the compiled server starts and answers /api/health
       - node scripts/build-exe.mjs --bundle-only # the desktop executable's server bundles as CommonJS
 
   - name: audit

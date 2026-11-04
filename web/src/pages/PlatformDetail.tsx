@@ -14,6 +14,7 @@ import {
   IconPlayerRecord,
   IconRefresh,
   IconRobot,
+  IconRocket,
   IconTicket,
   IconSettings,
   IconTerminal2,
@@ -25,7 +26,7 @@ import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { AccessEditor } from '../components/AccessEditor';
 import { OwningTeams } from '../components/OwningTeams';
 import { useMe } from '../auth';
-import { DetailState, JsonView, PageHeader } from '../components/common';
+import { DetailState, JsonView } from '../components/common';
 import { PlatformIntegrityAlert } from '../components/security/PlatformIntegrityAlert';
 import { fmtNumber, fmtRelative } from '../format';
 import { KIND_COLORS } from './Platforms';
@@ -39,6 +40,9 @@ import { RecordingsTab } from '../components/platform/RecordingsTab';
 import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
+import { DetailHeader } from '../components/page/DetailPage';
+import { platformKeys } from '../queryKeys';
+import { GetStartedPanel, PlatformHealthPanel, TestHints } from '../components/platform/onboarding';
 
 interface TokenInfo {
   fetchedAt: string;
@@ -66,10 +70,10 @@ export function PlatformDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const platform = useQuery({ queryKey: ['platform', id], queryFn: () => get<Platform>(`/platforms/${id}`), enabled: !!id });
+  const platform = useQuery({ queryKey: platformKeys.detail(id), queryFn: () => get<Platform>(`/platforms/${id}`), enabled: !!id });
   // the application of the service catalogue the platform belongs to (#84)
   const application = useQuery({
-    queryKey: ['platform', id, 'application'],
+    queryKey: platformKeys.application(id),
     queryFn: () => get<{ application: { id: string; name: string; archived: boolean } | null }>(`/platforms/${id}/application`),
     enabled: !!id,
   });
@@ -99,8 +103,8 @@ export function PlatformDetailPage() {
   const saveAccess = async (acl: AclEntry[]) => {
     try {
       await put(`/platforms/${p.id}/access`, { acl });
-      await qc.invalidateQueries({ queryKey: ['platform', id] });
-      await qc.invalidateQueries({ queryKey: ['platforms'] });
+      await qc.invalidateQueries({ queryKey: platformKeys.detail(id) });
+      await qc.invalidateQueries({ queryKey: platformKeys.all });
       notifyOk(t('detail.accessSaved'));
     } catch (e) {
       notifyError(e, t('detail.accessNotSaved'));
@@ -116,6 +120,9 @@ export function PlatformDetailPage() {
       notifyError(e, t('detail.testFailed'));
     } finally {
       setTesting(false);
+      // the health panel and the list's "last test" show the new result
+      qc.invalidateQueries({ queryKey: ['platform', id, 'health'] });
+      qc.invalidateQueries({ queryKey: ['platforms'] });
     }
   };
 
@@ -133,7 +140,7 @@ export function PlatformDetailPage() {
   const remove = async () => {
     try {
       await del(`/platforms/${p.id}`);
-      await qc.invalidateQueries({ queryKey: ['platforms'] });
+      await qc.invalidateQueries({ queryKey: platformKeys.all });
       notifyOk(t('detail.deleted', { name: p.name }));
       navigate('/platforms');
     } catch (e) {
@@ -143,7 +150,8 @@ export function PlatformDetailPage() {
 
   return (
     <>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: p.name, kind: 'platform' }}
         back="platforms"
         title={p.name}
         description={
@@ -212,6 +220,7 @@ export function PlatformDetailPage() {
           title={test.ok ? t('detail.testOk') : t('detail.testNotOk')}
           mb="md"
           withCloseButton
+          closeButtonLabel={t('common:close')}
           onClose={() => setTest(null)}
         >
           <Text size="sm">
@@ -231,6 +240,7 @@ export function PlatformDetailPage() {
               )}
             </Text>
           )}
+          {!test.ok && <TestHints result={test} />}
           {!!test.checks?.length && (
             <Stack gap={2} mt={4} data-testid="platform-test-checks">
               {test.checks.map((c) => (
@@ -277,6 +287,8 @@ export function PlatformDetailPage() {
           {canUse ? t('detail.useOnly') : t('detail.viewOnly')}
         </Alert>
       )}
+      {/* the last connection test and the periodic test (v0.4.0) */}
+      <PlatformHealthPanel platform={p} canManage={canManage} />
       <div style={{ marginBottom: 'var(--mantine-spacing-md)' }}>
         <MaintenancePanel kind="platform" id={p.id} canPlan={canManage} />
       </div>
@@ -317,6 +329,9 @@ export function PlatformDetailPage() {
           </Tabs.Tab>
           <Tabs.Tab value="tickets" leftSection={<IconTicket size={16} />}>
             {t('tickets:panel.title')}
+          </Tabs.Tab>
+          <Tabs.Tab value="start" leftSection={<IconRocket size={16} />}>
+            {t('start.tab')}
           </Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="settings">
@@ -360,6 +375,9 @@ export function PlatformDetailPage() {
         <Tabs.Panel value="tickets">
           <TicketsPanel kind="platform" id={p.id} label={p.name} />
         </Tabs.Panel>
+        <Tabs.Panel value="start">
+          <GetStartedPanel platform={p} />
+        </Tabs.Panel>
       </Tabs>
 
       {saveType && <SaveTypeModal platform={p} onClose={() => setSaveType(false)} />}
@@ -401,7 +419,7 @@ function SaveTypeModal({ platform, onClose }: { platform: Platform; onClose: () 
     setBusy(true);
     try {
       await post('/platform-types', { fromPlatformId: platform.id, kind, label, description });
-      await qc.invalidateQueries({ queryKey: ['platform-presets'] });
+      await qc.invalidateQueries({ queryKey: platformKeys.presets });
       notifyOk(t('saveType.saved', { name: label }));
       onClose();
     } catch (e) {

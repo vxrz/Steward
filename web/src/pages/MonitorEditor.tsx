@@ -29,6 +29,7 @@ import {
   IconDeviceFloppy,
   IconLayoutDistributeHorizontal,
   IconPlayerPlay,
+  IconTemplate,
   IconTrash,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -57,6 +58,9 @@ import { SecretsModal } from '../components/monitors/dialogs';
 import { MonitorStatusBadge, checkTypeHelp, checkTypeLabel } from '../components/monitors/status';
 import { editorIssues, issuesByCheck, serverIssues, type EditorIssue } from '../components/monitors/validate';
 import { isTextTarget, modKey, useDefHistory, useUndoKeys } from '../components/editor/useDefHistory';
+import { monitorKeys, platformKeys, processKeys } from '../queryKeys';
+import { SaveAsTemplateModal } from '../components/monitors/SaveAsTemplate';
+import { useMe } from '../auth';
 
 const EMPTY: MonitorDefinition = {
   name: '',
@@ -110,10 +114,10 @@ export function MonitorEditorPage() {
   const isNew = !id;
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const existing = useQuery({ queryKey: ['monitor', id], queryFn: () => get<MonitorDetail>(`/monitors/${id}`), enabled: !isNew });
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
-  const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors') });
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
+  const existing = useQuery({ queryKey: monitorKeys.detail(id), queryFn: () => get<MonitorDetail>(`/monitors/${id}`), enabled: !isNew });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
+  const monitors = useQuery({ queryKey: monitorKeys.all, queryFn: () => get<MonitorSummary[]>('/monitors') });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
   const [draft, setDraft] = useState<Draft | null>(isNew ? draftOf(EMPTY) : null);
   const history = useDefHistory<Draft>(draft, setDraft);
   const def = draft?.def ?? null;
@@ -121,6 +125,10 @@ export function MonitorEditorPage() {
   const [key, setKey] = useState('');
   const [isTemplate, setIsTemplate] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  // several cards selected (shift-click or a shift-drag box): duplicated together with the links between them
+  const [multi, setMulti] = useState<string[]>([]);
+  const [asTemplate, setAsTemplate] = useState(false);
+  const { caps } = useMe();
   const [link, setLink] = useState<number | null>(null);
   const [yaml, setYaml] = useState('');
   const [yamlError, setYamlError] = useState<string | null>(null);
@@ -180,6 +188,7 @@ export function MonitorEditorPage() {
       keys: draft.keys.filter((_, j) => j !== i),
     });
     setSelected(null);
+    setMulti([]);
   };
   // Delete removes the selected card or link (outside text fields)
   useEffect(() => {
@@ -240,6 +249,7 @@ export function MonitorEditorPage() {
       keys: [...keys, k],
     });
     setSelected(k);
+    setMulti([]);
     setLink(null);
   };
   const addCheck = (type: CheckType) => {
@@ -269,6 +279,39 @@ export function MonitorEditorPage() {
     const covers = (y: number) => def.checks.some((x) => Math.abs((x.x ?? 0) - copy.x!) < NODE_W && Math.abs((x.y ?? 0) - y) < NODE_H);
     while (covers(copy.y)) copy.y += NODE_H + 40;
     addCard(copy);
+  };
+  /** Copies of the selected cards next to the graph, with the links between them; the copies are selected then. */
+  const duplicateSelection = () => {
+    const picked = multi.map((k) => keys.indexOf(k)).filter((i) => i >= 0);
+    if (picked.length < 2) return;
+    const layout = autoLayout(def);
+    const pos = (c: CheckDef) => (c.x !== undefined && c.y !== undefined ? { x: c.x, y: c.y } : (layout.get(c.id) ?? { x: 0, y: 0 }));
+    const cards = picked.map((i) => def.checks[i]!);
+    const taken = new Set(def.checks.map((c) => c.id));
+    const idOf = new Map<string, string>();
+    for (const c of cards) {
+      if (idOf.has(c.id)) continue;
+      let n = 1;
+      let id = `${c.id}-copy`;
+      while (taken.has(id)) id = `${c.id}-copy-${++n}`;
+      taken.add(id);
+      idOf.set(c.id, id);
+    }
+    // to the right of everything: the copies cover no card
+    const dx = Math.max(...def.checks.map((c) => pos(c).x)) - Math.min(...cards.map((c) => pos(c).x)) + NODE_W + 60;
+    const copies = cards.map((c) => {
+      const copy = { ...structuredClone(c), id: idOf.get(c.id)!, name: t('editor.copyName', { name: c.name }), x: pos(c).x + dx, y: pos(c).y } as CheckDef;
+      // the gateway key and the heartbeat secret belong to the original
+      delete (copy as { key?: string }).key;
+      return copy;
+    });
+    const ids = new Set(cards.map((c) => c.id));
+    const links = def.links.filter((l) => ids.has(l.from) && ids.has(l.to)).map((l) => ({ ...l, from: idOf.get(l.from)!, to: idOf.get(l.to)! }));
+    const added = copies.map(() => newKey());
+    change({ def: { ...def, checks: [...def.checks, ...copies], links: [...def.links, ...links] }, keys: [...keys, ...added] });
+    setSelected(null);
+    setLink(null);
+    setMulti(added);
   };
   const tidy = () => {
     const pos = autoLayout({ ...def, checks: def.checks.map(({ x: _x, y: _y, ...c }) => c as CheckDef) });
@@ -318,6 +361,7 @@ export function MonitorEditorPage() {
     setTab('graph');
     setLink(null);
     setSelected(keys[issue.index] ?? null);
+    setMulti([]);
     if (issue.field) window.setTimeout(() => document.querySelector<HTMLElement>(`[data-testid="check-form"] [data-field="${issue.field}"]`)?.focus(), 80);
   };
   const applyYaml = (): MonitorDefinition | null => {
@@ -345,8 +389,8 @@ export function MonitorEditorPage() {
     try {
       const body = { key: key.trim() || undefined, definition: d, ...(isNew ? { isTemplate } : { version: existing.data!.version }) };
       const r = isNew ? await post<MonitorSaveResult>('/monitors', body) : await put<MonitorSaveResult>(`/monitors/${id}`, body);
-      qc.invalidateQueries({ queryKey: ['monitors'] });
-      qc.invalidateQueries({ queryKey: ['monitor', r.monitor.id] });
+      qc.invalidateQueries({ queryKey: monitorKeys.all });
+      qc.invalidateQueries({ queryKey: monitorKeys.detail(r.monitor.id) });
       if (r.secrets.length) setSecrets(r);
       else navigate(`/monitors/${r.monitor.id}`);
     } catch (e) {
@@ -370,6 +414,11 @@ export function MonitorEditorPage() {
             <Button size="xs" variant="default" onClick={() => navigate(isNew ? '/monitors' : `/monitors/${id}`)}>
               {t('common:cancel')}
             </Button>
+            {!isNew && !isTemplate && caps.createMonitors && existing.data && (
+              <Button size="xs" variant="default" leftSection={<IconTemplate size={14} />} onClick={() => setAsTemplate(true)}>
+                {t('editor.createTemplate')}
+              </Button>
+            )}
             <Button size="xs" leftSection={<IconDeviceFloppy size={14} />} loading={saving} onClick={save} disabled={!def.name.trim()}>
               {t('common:save')}
             </Button>
@@ -439,8 +488,10 @@ export function MonitorEditorPage() {
                 problems={problemKeys}
                 selected={selected}
                 onSelect={(c) => (setSelected(c), setLink(null))}
+                multiSelected={multi}
+                onMultiSelect={(ks) => setMulti((cur) => (cur.join('|') === ks.join('|') ? cur : ks))}
                 onChange={(d) => setDef(d)}
-                onLinkClick={(i) => (setLink(i), setSelected(null))}
+                onLinkClick={(i) => (setLink(i), setSelected(null), setMulti([]))}
                 height={560}
               />
               {def.checks.length > 1 && def.links.length === 0 && (
@@ -451,7 +502,18 @@ export function MonitorEditorPage() {
             </Grid.Col>
             <Grid.Col span={{ base: 12, md: 4 }}>
               <Paper withBorder p="sm">
-                {sel && selected && (
+                {multi.length > 1 && (
+                  <Stack gap="xs" data-testid="selection-panel">
+                    <Title order={4}>{t('editor.selection', { count: multi.length })}</Title>
+                    <Text size="sm" c="dimmed">
+                      {t('editor.selectionHint')}
+                    </Text>
+                    <Button size="xs" variant="light" leftSection={<IconCopy size={14} />} onClick={duplicateSelection}>
+                      {t('editor.duplicateSelection')}
+                    </Button>
+                  </Stack>
+                )}
+                {multi.length <= 1 && sel && selected && (
                   <Stack gap="xs" data-testid="check-form">
                     <Group justify="space-between" gap={4}>
                       <Title order={4}>{t('detail.check')}</Title>
@@ -509,7 +571,7 @@ export function MonitorEditorPage() {
                     />
                   </Stack>
                 )}
-                {l && (
+                {multi.length <= 1 && l && (
                   <Stack gap="xs">
                     <Title order={4}>{t('editor.link')}</Title>
                     <Text size="sm">
@@ -537,9 +599,9 @@ export function MonitorEditorPage() {
                     </Button>
                   </Stack>
                 )}
-                {!sel && !l && (
+                {!sel && !l && multi.length <= 1 && (
                   <Text size="sm" c="dimmed">
-                    {t('editor.selectHint')} {def.checks.length === 0 && t('editor.startHint')}
+                    {t('editor.selectHint')} {def.checks.length === 0 && t('editor.startHint')} {def.checks.length > 1 && t('editor.multiSelectHint')}
                   </Text>
                 )}
               </Paper>
@@ -665,6 +727,7 @@ export function MonitorEditorPage() {
           </Stack>
         </Tabs.Panel>
       </Tabs>
+      {asTemplate && existing.data && <SaveAsTemplateModal monitor={existing.data} unsaved={history.canUndo} onClose={() => setAsTemplate(false)} />}
       {secrets && <SecretsModal result={secrets} onClose={() => (setSecrets(null), navigate(`/monitors/${secrets.monitor.id}`))} />}
     </>
   );

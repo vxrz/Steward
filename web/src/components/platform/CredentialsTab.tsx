@@ -7,6 +7,7 @@ import type { Platform } from '@sm/shared';
 import { notifyError, notifyOk, put } from '../../api';
 import { Hint } from '../common';
 import { requiredSecrets } from './SettingsTab';
+import { platformKeys } from '../../queryKeys';
 
 const COMMON_KEYS = ['clientId', 'clientSecret', 'username', 'password', 'token', 'apiKey'];
 
@@ -20,7 +21,8 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
   const needed = requiredSecrets(platform.config.auth);
   const missing = needed.filter((k) => !platform.secretKeys.includes(k));
 
-  const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['platform', platform.id] }), qc.invalidateQueries({ queryKey: ['platforms'] })]);
+  const refresh = () =>
+    Promise.all([qc.invalidateQueries({ queryKey: platformKeys.detail(platform.id) }), qc.invalidateQueries({ queryKey: platformKeys.all })]);
 
   const save = async () => {
     setBusy(true);

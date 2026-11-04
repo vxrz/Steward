@@ -14,6 +14,7 @@ import { SECURITY_MIGRATIONS } from './migrations/security.js';
 import { TEAM_MIGRATIONS } from './migrations/teams.js';
 import { MCP_OAUTH_MIGRATIONS } from './migrations/mcp-oauth.js';
 import { PROPOSAL_MIGRATIONS } from './migrations/proposals.js';
+import { RUNTIME_MIGRATIONS } from './migrations/runtime.js';
 import { CREDENTIAL_MIGRATIONS } from './migrations/credentials.js';
 import { GATUS_MIGRATIONS } from './migrations/gatus.js';
 import { REPORT_SCHEDULE_MIGRATIONS } from './migrations/report-schedules.js';
@@ -29,6 +30,8 @@ import { CATALOGUE_MIGRATIONS } from './migrations/catalogue.js';
 import { DUTY_MIGRATIONS } from './migrations/duties.js';
 import { SCORECARD_MIGRATIONS } from './migrations/scorecard.js';
 import { PLATFORM_MIGRATIONS } from './migrations/platforms.js';
+import { AUDIT_MIGRATIONS } from './migrations/audit.js';
+import { DUPLICATE_MIGRATIONS } from './migrations/duplicates.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -104,6 +107,9 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...TEAM_MIGRATIONS,
   ...MCP_OAUTH_MIGRATIONS,
   ...PROPOSAL_MIGRATIONS,
+  ...AUDIT_MIGRATIONS,
+  ...RUNTIME_MIGRATIONS,
+  ...DUPLICATE_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [
@@ -600,7 +606,7 @@ export class Db {
         try {
           pendingList = list ? (JSON.parse(list.value) as UpgradeInfo[]) : [];
         } catch {
-          /* replaced */
+          /* unreadable list: replaced by the new one */
         }
         put(PENDING_UPGRADES_KEY, [...pendingList.slice(-9), this.upgrade]);
       }

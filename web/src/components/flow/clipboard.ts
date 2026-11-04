@@ -34,7 +34,7 @@ export function writeClipboard(clip: FlowClipboard): void {
     /* storage blocked – memory copy still works in this tab */
   }
   try {
-    void navigator.clipboard?.writeText(text).catch(() => undefined);
+    void navigator.clipboard?.writeText(text).catch(() => undefined); // no clipboard permission: the copy in memory still works
   } catch {
     /* clipboard API not available */
   }

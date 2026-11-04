@@ -23,14 +23,14 @@ This page describes which personal data Steward stores, for how long, and how re
 
 ## The audit log is immutable – how erasure works
 
-Every audit entry is part of an HMAC chain and of signed checkpoints kept outside the database. Changing or deleting an entry is, by design, detected as tampering – that is what makes the log usable as evidence. Steward therefore never deletes or edits audit entries, and has no function to do so.
+Every audit entry is part of an HMAC chain and of signed checkpoints kept outside the database. Changing or deleting an entry is, by design, detected as tampering – that is what makes the log usable as evidence. Steward therefore never edits audit entries. It deletes them only with the audit retention (0.4.0, off by default): entries that were archived into signed archive files and are older than the retention period leave the database, while the archives keep them and the chain still verifies ([SECURITY-HARDENING.md](SECURITY-HARDENING.md#audit-log-as-evidence)). That is about the size of the database, not erasure: the archives still hold every entry.
 
 Position for erasure requests:
 
 1. **Legal basis and retention**: the audit log is kept to meet legal and contractual obligations and for the establishment, exercise or defence of legal claims (GDPR Art. 6(1)(c)/(f), Art. 17(3)(b) and (e)). Define its retention period in your records of processing (for example the retention period of your change-management evidence, often 6–10 years).
 2. **Delete what is not evidence**: deleting a user account removes the profile (name, e-mail, roles, team memberships, sessions); configure run retention so that protocols with personal data from platforms are deleted when no longer needed.
 3. **Pseudonymise instead of deleting**, where your policy allows: use neutral, non-speaking user names (e.g. personnel numbers or IdP object ids via the SSO user name claim) so that the audit log identifies a person only together with the mapping kept in your HR/IdP system. Deleting that mapping there effectively anonymises the log without breaking the chain.
-4. **When the log itself must go** (end of the retention period): archive an export (_Audit log → Export → JSON with signed checkpoint_) as long as required, then set up a new installation (new database and vault). Partial deletion is not supported.
+4. **When the log itself must go** (end of the retention period): with archiving on (_Audit log → Epochs, archives and retention_), the monthly archive files are the evidence – keep them as long as required and delete them (and their copies) afterwards; with the audit retention set, their entries leave the database too. Without archives: archive an export (_Audit log → Export → JSON with signed checkpoint_), then set up a new installation (new database and vault). Deleting single entries is not supported.
 
 ## Access to personal data
 

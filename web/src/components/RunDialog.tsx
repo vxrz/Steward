@@ -8,6 +8,7 @@ import type { Platform, ProcessDetail } from '@sm/shared';
 import { get, notifyError, post } from '../api';
 import { InputsForm, defaultInputs } from './InputsForm';
 import { RunModeField, runModeFlags, type RunMode } from './RunModeField';
+import { platformKeys, processKeys } from '../queryKeys';
 
 export function bindingsKey(processId: string) {
   return `sm.bindings.${processId}`;
@@ -32,7 +33,7 @@ export function BindingsForm({
   onChange: (v: Record<string, string>) => void;
 }) {
   const { t } = useTranslation('runs');
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   if (!process.definition.connections.length) return null;
   return (
     <Stack gap="sm">
@@ -73,7 +74,7 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
   const { t } = useTranslation(['runs', 'common']);
   const navigate = useNavigate();
   const proc = useQuery({
-    queryKey: ['process', processId],
+    queryKey: processKeys.detail(processId),
     queryFn: () => get<ProcessDetail>(`/processes/${processId}`),
     enabled: !!processId && opened,
   });

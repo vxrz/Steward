@@ -30,7 +30,7 @@ The _Compliance_ section of the sidebar has five pages:
 
 ## How it maps to the standards
 
-The table shows which Steward evidence is typically relevant to which requirement. Map your own processes, record types, monitors, report schedules and checks under _Controls_.
+The table shows which Steward evidence is typically relevant to which requirement. Map your own processes, document types, monitors, report schedules and checks under _Controls_.
 
 | Requirement                                                                        | Steward evidence                                                                                                                                                        |
 | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -42,20 +42,20 @@ The table shows which Steward evidence is typically relevant to which requiremen
 | NIS2 Art. 21(2)(i) (access control policies, asset management)                     | As above                                                                                                                                                                |
 | ISO/IEC 27001 A.5.37 (documented operating procedures), A.8.32 (change management) | Manual procedures: checklists, fields and evidence files per step, second-person verification (maker–checker), sealed PDF protocol ([MANUAL-STEPS.md](MANUAL-STEPS.md)) |
 
-By default, the access change record type and the demo reconciliation check are mapped to ISO/IEC 27001 5.15, 5.16, 5.18 and 8.2, IEC 62443-2-1 4.3.3.5 and 4.3.3.7 and NIS2 21(2)(i).
+By default, the access change document type and the demo reconciliation check are mapped to ISO/IEC 27001 5.15, 5.16, 5.18 and 8.2, IEC 62443-2-1 4.3.3.5 and 4.3.3.7 and NIS2 21(2)(i).
 
 ## Access change entries
 
-An access change entry is a record of the built-in type **Access change** (key `AC`, numbers like `AC-2026-0001`). Like all records it has versions, a content hash when it is frozen, a PDF, links and attachments (see [RECORDS.md](RECORDS.md)).
+An access change entry is a document of the built-in type **Access change** (key `AC`, numbers like `AC-2026-0001`). Like all documents it has versions, a content hash when it is frozen, a PDF, links and attachments (see [RECORDS.md](RECORDS.md)).
 
 Fields: platform, subject (user name, user id or technical user id, and a display name), change (grant, revoke, change, onboarding, offboarding), rights before and after (one role, group or scope per line), reason, requested by, request reference (e.g. a ServiceNow ticket), approved by, performed by, performed at, origin (manual, run, after the fact). Steward computes the granted and removed rights from _before_ and _after_.
 
 Only Steward sets the origin (other than _manual_), the run and the finding of an entry: entries a person writes – on the _Access changes_ page or through the records API – are manual entries, and these fields never change afterwards. Every entry also shows who documented it (_documented by_, `system` for automatic entries) and who wrote its newest version (_last edited by_).
 
-**Who may write and read entries.** Entries name people and their rights, so they are not open to everyone like other records:
+**Who may write and read entries.** Entries name people and their rights, so they are not open to everyone like other documents:
 
 - Write, change and document an entry: operators, designers and administrators who may **use the platform** of the entry.
-- Read an entry (lists, record page, search, links, backlinks, coverage, packs, public API): administrators, auditors, approvers (they verify entries), the owner of the entry and everyone with a right on its platform. Others do not see that the entry exists.
+- Read an entry (lists, document page, search, links, backlinks, coverage, packs, public API): administrators, auditors, approvers (they verify entries), the owner of the entry and everyone with a right on its platform. Others do not see that the entry exists.
 
 Workflow:
 
@@ -103,6 +103,7 @@ A **check** takes a snapshot of who has which access on a platform, on a schedul
 - **Any platform** (source _Dataset_): a process publishes a dataset in the access snapshot shape. The owner of the check must be allowed to view that process – checked when the check is set up and on every run (the check runs as its owner). Once a check has snapshots, its platform, source and dataset key cannot change. Recommended: one row per assignment with the columns `subjectId`, `subjectName`, `subjectType` and `right` (a row without `right` is a subject without rights). One row per subject with `rights` (a list or comma-separated text) works too. Example 16 publishes `ih.access-snapshot` this way. Data from dry runs is not used.
 - **GitHub, GitLab, Forgejo/Gitea** (source _Git_, #107): the members of an organisation or group with their role, or the collaborators of a repository (outside collaborators marked), read with the platform's token as the check's owner. The **scope** – `acme` or `acme/shop-web` (GitLab `group/project`) – cannot change once the check has snapshots ([GIT-PLATFORMS.md](GIT-PLATFORMS.md#access-reviews)).
 - **AWS IAM** (source _AWS IAM_, #118): every IAM user of the account with `group:NAME`, `policy:NAME` (attached managed policies) and `inline:NAME`; a user who never signed in to the console but has access keys is marked technical. Needs `iam:ListUsers`, `iam:ListGroupsForUser`, `iam:ListAttachedUserPolicies`, `iam:ListUserPolicies` and `iam:ListAccessKeys` ([AWS.md](AWS.md)).
+- **Confluent Cloud** (source _Confluent Cloud role bindings and ACLs_, v0.4.0): the role bindings under a CRN (organisation, environment, cluster or topic) with users by e-mail address and service accounts by id, and optionally the Kafka ACLs of a cluster ([CONFLUENT.md](CONFLUENT.md)).
 - **Snowflake** (source _Snowflake_, #115): with an empty scope every user with their roles; with `SHOP`, `SHOP.SALES` or `SHOP.SALES.ORDERS` every user who reaches objects there through their roles and the roles granted to those, with the privilege; technical users (`TYPE = SERVICE`) marked ([SNOWFLAKE.md](SNOWFLAKE.md#access-reviews)).
 
 Each snapshot is compared with the previous one. Every granted or removed right needs a documented (or verified) access change entry that counts – intact, and not documented by the subject of the change themselves (for an entry of a run: not started by the subject) – for the same platform and subject (matched by subject id or name, case-insensitive) with a _performed at_ time between the two snapshots (with one hour of tolerance on each side):
@@ -130,7 +131,7 @@ _Ignored rights_ leaves rights out of the snapshots, for example the marker grou
 A **person review** (#118) answers "what may this one person do, and should they?" across platforms – for a leaver, a mover, or a periodic review of a privileged person. _Compliance → Person reviews → New person review_ (designers, administrators):
 
 - **Person**: a name, and the names the person goes by on the platforms – user names and e-mail addresses, compared without regard to case. _Fill in_ takes the user name and e-mail address of a Steward user; naming the Steward user also keeps them from reviewing themselves.
-- **Access checks**: the [reconciliation checks](#access-reconciliation) to read – any source: Insights Hub, datasets, Git platforms, Snowflake, AWS IAM. Each is read **live** when the review starts, with the rights of the person starting it; if that fails, the check's latest snapshot is used and the review says so per source.
+- **Access checks**: the [reconciliation checks](#access-reconciliation) to read – any source: Insights Hub, datasets, Git platforms, Snowflake, AWS IAM, Confluent Cloud. Each is read **live** when the review starts, with the rights of the person starting it; if that fails, the check's latest snapshot is used and the review says so per source.
 - **Four-eyes approval** (on by default).
 
 An account matches when its id, its name or one of its other names equals one of the person's names. Snowflake adds the user's e-mail address as another name (users named by employee id are found by it) and the last login as a hint next to each right (`subjectActivity`; "password without MFA" too) – read when the review starts, never part of a snapshot.
@@ -160,14 +161,14 @@ The Controls page, the read API (`GET /api/v1/control-coverage`, fields `status`
 
 Evidence per kind of mapped item:
 
-| Mapped item           | Evidence in the period                                          |
-| --------------------- | --------------------------------------------------------------- |
-| Process               | Runs (not dry runs) and whether they have a PDF protocol        |
-| Record type           | Records with activity (created, changed, transitions, comments) |
-| Record                | The record, when it had activity                                |
-| Monitor               | Results and status changes (with the availability)              |
-| Report schedule       | Scheduled reports generated                                     |
-| Access reconciliation | Snapshots and findings                                          |
+| Mapped item           | Evidence in the period                                            |
+| --------------------- | ----------------------------------------------------------------- |
+| Process               | Runs (not dry runs) and whether they have a PDF protocol          |
+| Document type         | Documents with activity (created, changed, transitions, comments) |
+| Document              | The document, when it had activity                                |
+| Monitor               | Results and status changes (with the availability)                |
+| Report schedule       | Scheduled reports generated                                       |
+| Access reconciliation | Snapshots and findings                                            |
 
 Designers and administrators map items to controls in the control's panel; they see (and can remove) only items they may see – a mapped item someone may not see is shown as _not visible_, without its id. Administrators edit control texts and import catalogues.
 
@@ -220,7 +221,7 @@ The pack is built in the background and kept for download for 7 days (`SM_EVIDEN
 | `reconciliation/<check>/`                         | Check, snapshots (list and data), findings and the verification of the snapshot chain                                                                                                          |
 | `reports/`                                        | Scheduled report PDFs of mapped report schedules                                                                                                                                               |
 | `monitors/monitors.json`                          | Monitor evidence                                                                                                                                                                               |
-| `audit/`                                          | Audit log excerpt from the start of the period up to a signed checkpoint created for the pack, the checkpoint and the result of the full chain verification (auditors and administrators only) |
+| `audit/`                                          | Audit log excerpt from the start of the period up to a signed checkpoint created for the pack, the checkpoint and the result of the last chain verification (auditors and administrators only) |
 | `manifest.json`, `manifest.sig`, `public-key.pem` | SHA-256 and size of every file, signed with the installation's Ed25519 key (the key of the audit checkpoints)                                                                                  |
 
 The pack contains only what the requester may see: auditors and administrators get everything, others only items they may read (and no audit log). A pack of someone who cannot see everything says so: `index.json` has `filtered.complete: false`, the manifest `pack.filtered: true`, and the summary PDF a note. Each control lists how many evidence items were left out (`hidden`); a control with evidence the creator may not see is _not visible_ instead of a gap. For an audit, have an auditor or administrator create the pack. Requesting, building and downloading a pack are audited. Limits: 512 MB per pack (`SM_EVIDENCE_MAX_MB`), 5000 files, 1000 records, one pack in progress per user, 20 stored packs per user. Files are written to `data/evidence-packs/` as they are added, never held in memory as a whole.
@@ -234,6 +235,8 @@ npm run evidence:verify -- pack.zip --public-key steward-audit-public-key.pem --
 ```
 
 The check fails when the manifest signature is wrong, a file was changed, added or removed, the ZIP file holds bytes outside its listed entries (or its headers disagree), or the audit log excerpt does not reach its signed checkpoint.
+
+**Archived periods** (0.4.0). The audit chain is verified incrementally for a pack (from the newest signed checkpoint), and the excerpt's start digest is continued from the newest signed checkpoint before it. When the period reaches back into audit entries that were archived and deleted from the database (audit retention, [SECURITY-HARDENING.md](SECURITY-HARDENING.md#audit-log-as-evidence)), the excerpt starts at the first entry still in the database – its start digest is the one the signed end checkpoint of the newest deleted archive holds – and the archives of the period (up to that one) go into the pack as `audit/archives/<file>.zip`, listed in the excerpt with their SHA-256 and end checkpoint. The offline check verifies each of them like `steward audit verify-archive` (signature, files, chain, checkpoints) and that they link up: each starts where the one before ends, and the last ends where the excerpt starts. An archive file no longer in the data folder is listed but not included (`path: null`); verify it separately.
 
 **Which key to trust.** Anyone can build a pack, sign it with a key of their own and put that key into `public-key.pem`. So the check needs to know your installation's key:
 

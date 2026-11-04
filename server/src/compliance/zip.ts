@@ -163,7 +163,7 @@ export class ZipWriter {
   }
 
   async abort(): Promise<void> {
-    await this.fh.close().catch(() => undefined);
+    await this.fh.close().catch(() => undefined); // aborting after a failure: the file is removed by the caller
   }
 }
 

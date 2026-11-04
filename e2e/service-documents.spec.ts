@@ -12,7 +12,7 @@ test('a document created from the service page shows in its documentation sectio
   const svc = await json<{ id: string }>(await api.post('/api/services', { data: { name, owners: [] } }));
   const title = uniq('E2E service manual');
 
-  await page.goto(`/services/${svc.id}`);
+  await page.goto(`/services/${svc.id}/documents`);
   const section = page.getByTestId('service-documents');
   await expect(section).toContainText('No documents for this service yet.');
   await section.getByRole('button', { name: 'New document' }).click();
@@ -37,7 +37,7 @@ test('a document created from the service page shows in its documentation sectio
   await expect(services.getByRole('link', { name })).toHaveAttribute('href', appHref(`/services/${svc.id}`));
 
   // still a draft: listed without an edition
-  await page.goto(`/services/${svc.id}`);
+  await page.goto(`/services/${svc.id}/documents`);
   const table = section.getByRole('table', { name: 'Documentation' });
   const row = table.getByRole('row').filter({ hasText: title });
   await expect(row).toContainText('Draft');
@@ -59,7 +59,7 @@ test('a document created from the service page shows in its documentation sectio
   await expect(adam.getByRole('heading', { level: 1 })).toContainText('Edition 1.0');
 
   // the service page: edition 1.0, published, review current with the next review date
-  await adam.goto(`/services/${svc.id}`);
+  await adam.goto(`/services/${svc.id}/documents`);
   const adamRow = adam.getByTestId('service-documents').getByRole('row').filter({ hasText: title });
   await expect(adamRow).toContainText('Edition 1.0');
   await expect(adamRow).toContainText('Published');
@@ -67,7 +67,7 @@ test('a document created from the service page shows in its documentation sectio
   await expect(adamRow.getByRole('cell').last()).not.toHaveText('–');
   await adamRow.getByRole('link', { name: title }).click();
   await expect(adam).toHaveURL((url) => url.pathname.endsWith(`/records/${id}`));
-  await adam.goto(`/services/${svc.id}`);
+  await adam.goto(`/services/${svc.id}/documents`);
   await settle(adam);
   await expectAccessible(adam, 'service documentation');
 
@@ -77,7 +77,7 @@ test('a document created from the service page shows in its documentation sectio
 
   // phone width: the section fits
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/services/${svc.id}`);
+  await page.goto(`/services/${svc.id}/documents`);
   await expect(page.getByTestId('service-documents')).toContainText(title);
   await expectNoHorizontalScroll(page);
 });

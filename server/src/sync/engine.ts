@@ -6,10 +6,8 @@ import { fetchSource, isFetching } from './fetch.js';
 /**
  * Scheduled fetches: once a minute, every enabled source whose interval has passed since its
  * last fetch is fetched (one at a time per source). Off by default – a source has no schedule
- * until an administrator sets an interval.
+ * until an administrator sets an interval. Run by the job runner (jobs/builtin.ts, job "git-sync").
  */
-
-let timer: NodeJS.Timeout | undefined;
 
 export function dueSources(now = Date.now()): string[] {
   return db()
@@ -26,15 +24,4 @@ export async function tick(): Promise<void> {
     if (isFetching(id)) continue;
     await fetchSource(id, 'schedule').catch((e) => logger.warn({ sourceId: id, err: (e as Error).message }, 'scheduled git sync failed'));
   }
-}
-
-export function startGitSync(): void {
-  if (timer) return;
-  timer = setInterval(() => void tick().catch(() => undefined), 60_000);
-  timer.unref();
-}
-
-export function stopGitSync(): void {
-  if (timer) clearInterval(timer);
-  timer = undefined;
 }

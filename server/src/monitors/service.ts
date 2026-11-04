@@ -1129,11 +1129,14 @@ function parseMonitorFile(text: string): { kind: unknown; key: unknown; enabled:
 }
 
 /** `platforms`: the platform chosen for each platform reference in the file (reference → platform id). */
-export async function importMonitor(text: string, opts: { key?: string; platforms?: Record<string, string> } = {}): Promise<MonitorSaveResult> {
+export async function importMonitor(
+  text: string,
+  opts: { key?: string; platforms?: Record<string, string>; enabled?: boolean } = {},
+): Promise<MonitorSaveResult> {
   const { kind, key, enabled, definition } = parseMonitorFile(text);
   return createMonitor({
     key: opts.key ?? (key as string | undefined),
-    enabled: enabled as boolean | undefined,
+    enabled: opts.enabled ?? (enabled as boolean | undefined),
     isTemplate: kind === 'monitorTemplate',
     definition: applyPlatformMap(definition, opts.platforms ?? {}),
   });
@@ -1145,7 +1148,7 @@ export function importReferences(text: string): PlatformReference[] {
   return platformReferences(parseMonitorFile(text).definition);
 }
 
-const examplesDir = () => path.join(process.env.SM_EXAMPLES_DIR ?? path.join(config.templatesDir, '..'), 'monitors');
+const examplesDir = () => path.join(config.examplesDir, 'monitors');
 
 export function listExamples(): { file: string; kind: string; key: string | null; name: string; description: string }[] {
   const dir = examplesDir();
@@ -1189,12 +1192,20 @@ function exampleText(file: string): string {
   return fs.readFileSync(p, 'utf8');
 }
 
-export async function importExample(file: string, opts: { platforms?: Record<string, string> } = {}): Promise<MonitorSaveResult> {
-  return importMonitor(exampleText(file), { platforms: opts.platforms });
+/** `enabled`: false creates the monitor switched off (template bundles, v0.4.0), whatever the file says. */
+export async function importExample(file: string, opts: { platforms?: Record<string, string>; enabled?: boolean } = {}): Promise<MonitorSaveResult> {
+  return importMonitor(exampleText(file), { platforms: opts.platforms, enabled: opts.enabled });
 }
 
 export function exampleReferences(file: string): PlatformReference[] {
   return importReferences(exampleText(file));
+}
+
+/** The check types of an example (no rights needed: the library is public to signed-in users) – "Get started", v0.4.0. */
+export function exampleCheckTypes(file: string): string[] {
+  const { definition } = parseMonitorFile(exampleText(file));
+  const checks = Array.isArray(definition.checks) ? (definition.checks as unknown[]) : [];
+  return [...new Set(checks.map((c) => (c && typeof c === 'object' ? String((c as Record<string, unknown>).type ?? '') : '')).filter(Boolean))];
 }
 
 export const isMonitorId = (s: string) => MONITOR_ID_RE.test(s);

@@ -29,7 +29,7 @@ import {
   type MonitorSaveResult,
 } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
-import { DetailState, JsonView, PageHeader } from '../components/common';
+import { DetailState, JsonView } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { AccessEditor } from '../components/AccessEditor';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
@@ -41,6 +41,10 @@ import { confirmDanger, confirmDialog } from '../components/confirm';
 import { appUrl } from '../basePath';
 import { MonitorReviewModal, useCanStartReview } from '../components/records/IncidentReview';
 import { OwningTeams } from '../components/OwningTeams';
+import { DetailHeader } from '../components/page/DetailPage';
+import { monitorKeys } from '../queryKeys';
+import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
+import { useMe } from '../auth';
 
 export function MonitorDetailPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -50,21 +54,23 @@ export function MonitorDetailPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const isMobile = useMediaQuery('(max-width: 62em)') ?? false;
-  const q = useQuery({ queryKey: ['monitor', id], queryFn: () => get<MonitorDetail>(`/monitors/${id}`), refetchInterval: 5000 });
+  const q = useQuery({ queryKey: monitorKeys.detail(id), queryFn: () => get<MonitorDetail>(`/monitors/${id}`), refetchInterval: 5000 });
   const [busy, setBusy] = useState(false);
   const [maint, setMaint] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const canStartReview = useCanStartReview();
+  const { caps } = useMe();
   const [ack, setAck] = useState(false);
   const [instances, setInstances] = useState(false);
   const [secrets, setSecrets] = useState<(Pick<MonitorSaveResult, 'secrets'> & { monitor?: MonitorDetail }) | null>(null);
   const selected = search.get('check');
   const select = (c: string | null) => setSearch(c ? { check: c } : {}, { replace: true });
-  const refresh = () => qc.invalidateQueries({ queryKey: ['monitor', id] });
+  const refresh = () => qc.invalidateQueries({ queryKey: monitorKeys.detail(id) });
 
   const m = q.data;
   if (!m) return <DetailState query={q} back="monitors" />;
   const can = (p: string) => m.permissions.includes(p as never);
+  const canCreate = caps.createMonitors;
   const sel = m.checks.find((c) => c.checkId === selected) ?? null;
   const rootIds = m.rootCauses.filter((r) => r.monitorId === m.id).map((r) => r.checkId);
 
@@ -104,7 +110,8 @@ export function MonitorDetailPage() {
 
   return (
     <>
-      <PageHeader
+      <DetailHeader
+        recent={{ label: m.name, kind: 'monitor' }}
         back="monitors"
         title={
           <Group gap="sm" wrap="wrap">
@@ -122,6 +129,7 @@ export function MonitorDetailPage() {
           <>
             <span className="mono">{m.key}</span> · {t('detail.owner', { owner: m.owner })}
             {!m.isTemplate && m.since && ` · ${t('detail.since', { date: fmtDate(m.since) })}`}
+            <CopiedFromNote kind="monitor" id={m.id} pathOf={(id) => `/monitors/${id}`} />
           </>
         }
         actions={
@@ -149,6 +157,7 @@ export function MonitorDetailPage() {
                 {t('detail.newFromTemplate')}
               </Button>
             )}
+            {canCreate && <DuplicateButton kind="monitor" id={m.id} />}
             {can('edit') && (
               <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => navigate(`/monitors/${m.id}/edit`)}>
                 {t('detail.edit')}
@@ -187,7 +196,7 @@ export function MonitorDetailPage() {
                       if (!(await confirmDanger({ action: 'delete', message: t('detail.deleteConfirm', { name: m.name }) }))) return;
                       try {
                         await del(`/monitors/${m.id}`);
-                        qc.invalidateQueries({ queryKey: ['monitors'] });
+                        qc.invalidateQueries({ queryKey: monitorKeys.all });
                         navigate('/monitors');
                       } catch (e) {
                         notifyError(e);
@@ -459,11 +468,11 @@ function CheckPanel({
   hideTitle?: boolean;
 }) {
   const results = useQuery({
-    queryKey: ['monitor-results', monitor.id, c.checkId, c.last?.ts],
+    queryKey: monitorKeys.results(monitor.id, c.checkId, c.last?.ts),
     queryFn: () => get<CheckResultInfo[]>(`/monitors/${monitor.id}/checks/${encodeURIComponent(c.checkId)}/results?limit=20`),
   });
   const history = useQuery({
-    queryKey: ['monitor-history', monitor.id, c.checkId, c.since],
+    queryKey: monitorKeys.history(monitor.id, c.checkId, c.since),
     queryFn: () => get<MonitorHistoryEntry[]>(`/monitors/${monitor.id}/history?check=${encodeURIComponent(c.checkId)}&limit=20`),
   });
   const def = monitor.definition.checks.find((x) => x.id === c.checkId);
@@ -676,7 +685,7 @@ function HeartbeatSetup({ monitor, onSecret }: { monitor: MonitorDetail; onSecre
 
 function HistoryList({ monitor }: { monitor: MonitorDetail }) {
   const h = useQuery({
-    queryKey: ['monitor-history', monitor.id, 'all', monitor.lastEvaluatedAt],
+    queryKey: monitorKeys.history(monitor.id, 'all', monitor.lastEvaluatedAt),
     queryFn: () => get<MonitorHistoryEntry[]>(`/monitors/${monitor.id}/history?limit=200`),
   });
   const name = new Map(monitor.checks.map((c) => [c.checkId, c.name]));
@@ -726,7 +735,7 @@ function HistoryList({ monitor }: { monitor: MonitorDetail }) {
 function MaintenanceList({ monitor, onPlan }: { monitor: MonitorDetail; onPlan: () => void }) {
   const { t } = useTranslation('monitors');
   const w = useQuery({
-    queryKey: ['monitor-maintenance', monitor.id, monitor.maintenance?.id],
+    queryKey: monitorKeys.maintenance(monitor.id, monitor.maintenance?.id),
     queryFn: () => get<MaintenanceWindow[]>(`/monitors/${monitor.id}/maintenance`),
   });
   return (

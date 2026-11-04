@@ -387,6 +387,18 @@ export const Schedule = z.object({
   lastRunStatus: z.enum(RUN_STATUSES).nullable(),
   createdAt: ts(),
   notify: NotifyPolicy,
+  catchUp: z.enum(['none', 'once']).describe('After a start that found missed fires: once = one run right away, none = wait for the next fire'),
+  missed: z
+    .object({
+      detectedAt: ts(),
+      from: ts(),
+      count: z.number().int(),
+      times: z.array(z.string()).describe('The first missed fires (at most 10)'),
+      last: nullableTs('The last missed fire'),
+      catchUp: z.boolean().describe('One catch-up run was started'),
+    })
+    .nullable()
+    .describe('Fires missed the last time Steward was not running (null: none found)'),
 });
 
 export const Trigger = z
@@ -546,6 +558,9 @@ export const AuditVerifyResult = z.object({
   checked: z.number().int(),
   firstBadSeq: z.number().int().nullable(),
   message: z.string(),
+  mode: z.enum(['incremental', 'full']).describe('incremental: the entries after the newest signed checkpoint; full: every entry in the database (0.4.0)'),
+  fromSeq: z.number().int().nullable().describe('Incremental: the signed checkpoint the check started after'),
+  deletedThroughSeq: z.number().int().nullable().describe('Entries up to this one were archived and deleted from the database (retention)'),
 });
 
 export const User = z.object({
@@ -765,6 +780,10 @@ export const AuditListQuery = z.object({
 });
 
 export const UserListQuery = z.object({ ...page, active: z.boolean().optional() });
+
+export const AuditVerifyQuery = z.object({
+  full: z.boolean().optional().describe('Check every entry in the database instead of the entries after the newest signed checkpoint (slower)'),
+});
 
 // ---------- conversion ----------
 

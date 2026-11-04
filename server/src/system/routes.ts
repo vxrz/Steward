@@ -1,7 +1,8 @@
 import os from 'node:os';
 import { pdfWorkerStatus } from '../reports/pdf/pool.js';
 import type { FastifyInstance } from 'fastify';
-import type { AboutInfo, SystemStatus, UpdateNotice } from '@sm/shared';
+import type { AboutInfo, BackgroundJob, SystemStatus, UpdateNotice } from '@sm/shared';
+import { jobsStarted, listJobs, requestJobRun } from '../jobs/registry.js';
 import { config } from '../config.js';
 import { db, databaseLabel } from '../db.js';
 import { vault } from '../vault.js';
@@ -20,10 +21,13 @@ import { readinessChecks } from './readiness.js';
 import { dismissUpdateNotice, updateNoticeFor } from './update-notice.js';
 import { z } from 'zod';
 import { ACCESS } from '../auth/access.js';
+import { env } from '../config.js';
 
 /**
  *   GET /api/about          signed-in users: version and build of the server
  *   GET /api/system/status  administrators (full) and auditors (limited: no paths, hosts or connection details)
+ *   GET /api/system/jobs, POST /api/system/jobs/:name/run
+ *                           administrators: the background jobs and "Run now" (audited as job.run_requested)
  *   GET /api/system/update-notice, POST /api/system/update-notice/dismiss
  *                           administrators: the notice after an update (it names the backup copy's path)
  */
@@ -64,10 +68,7 @@ export function systemStatus(full: boolean): SystemStatus {
   const er = errorReportingSettings();
   const api = publicApiStatus();
   const mem = process.memoryUsage();
-  const extraHosts = (process.env.SM_ALLOWED_HOSTS ?? '')
-    .split(',')
-    .map((h) => h.trim())
-    .filter(Boolean);
+  const extraHosts = env.SM_ALLOWED_HOSTS;
   const proxy = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].some((k) => !!process.env[k]);
   return {
     generatedAt: nowIso(),
@@ -99,7 +100,7 @@ export function systemStatus(full: boolean): SystemStatus {
     errorReporting: { server: errorReportingEnabled(), browser: !!er.webDsn, ...(full ? { environment: er.environment } : {}) },
     tracing: { enabled: tracingEnabled() },
     pdf: (({ reason, ...p }) => ({ ...p, ...(full && reason ? { reason } : {}) }))(pdfWorkerStatus()),
-    metrics: { access: process.env.SM_METRICS_PUBLIC === '1' ? 'public' : 'adminsAndAuditors' },
+    metrics: { access: env.SM_METRICS_PUBLIC ? 'public' : 'adminsAndAuditors' },
     publicApi: { enabled: api.enabled, basePath: api.basePath, docs: api.docs, rateLimitPerMinute: api.rateLimitPerMinute, apiVersion: api.apiVersion },
     retention: {
       runDays: settings.retentionRunDays ?? 0,
@@ -158,6 +159,12 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
     return systemStatus(full);
   });
 
+  const requireAdminFor = (message: string) => {
+    const u = currentUser();
+    if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
+    if (!isAdmin(u)) throw new HttpError(403, message, 'FORBIDDEN');
+    return u;
+  };
   const requireAdmin = () => {
     const u = currentUser();
     if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
@@ -169,6 +176,18 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
     const u = requireAdmin();
     reply.header('cache-control', 'no-store');
     return { notice: updateNoticeFor(u.id) };
+  });
+
+  // background jobs (jobs/registry.ts): last run, duration, result, next run – and "Run now" (audited)
+  app.get('/api/system/jobs', { config: { access: ACCESS.admin } }, async (_req, reply): Promise<{ jobs: BackgroundJob[]; running: boolean }> => {
+    requireAdminFor('The background jobs are available to administrators');
+    reply.header('cache-control', 'no-store');
+    return { jobs: listJobs(), running: jobsStarted() };
+  });
+  app.post('/api/system/jobs/:name/run', { config: { access: ACCESS.admin } }, async (req, reply) => {
+    requireAdminFor('Only administrators can start background jobs');
+    const { name } = z.object({ name: z.string().min(1).max(64) }).parse(req.params);
+    return reply.code(202).send(requestJobRun(name));
   });
 
   const dismissBody = z.object({ id: z.string().min(1).max(64) }).strict();

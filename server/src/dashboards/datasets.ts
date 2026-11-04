@@ -23,6 +23,7 @@ import { currentUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
 import { platformDataVisible } from '../auth/policy.js';
 import { permissionsFor } from '../processes/service.js';
+import { env } from '../config.js';
 
 /**
  * Datasets are written by "Publish to dashboard" nodes: the latest snapshot of rows plus a compact metric history used
@@ -31,8 +32,9 @@ import { permissionsFor } from '../processes/service.js';
  * Partitions (#142): a dataset is split into one partition per source – the platform the rows were read from (a
  * process with one connection: its platform; several: the publish step's `source` connection, else all bound
  * platforms; none: "instance"). A run replaces only its own partition, so the same process run against several
- * tenants keeps every tenant's rows, and metrics are kept per source. `datasets` holds the dataset (owner, title) and
- * all rows together for internal readers; `dataset_parts` holds each source's rows.
+ * tenants keeps every tenant's rows, and metrics are kept per source. `datasets` holds the dataset (owner, title,
+ * totals); `dataset_parts` holds each source's rows – the only copy (0.4.0: the combined rows are no longer stored
+ * in `datasets.rows`, which stays '[]'; readers put them together from the partitions, see partRows).
  *
  * Visibility: whoever may see the dataset sees a partition, unless one of its platforms has an access list without
  * them (administrators and auditors see all). Hidden partitions are left out of rows, counts and metrics, without a
@@ -46,7 +48,7 @@ import { permissionsFor } from '../processes/service.js';
  */
 
 /** Metric history retention */
-const KEEP_DAYS = Number(process.env.SM_METRIC_RETENTION_DAYS ?? 400);
+const KEEP_DAYS = env.SM_METRIC_RETENTION_DAYS;
 const MAX_POINTS_PER_SERIES = 20000;
 /** Without a setting and without a schedule a partition counts as stale after a day */
 const DEFAULT_STALE_MINUTES = 24 * 60;
@@ -258,7 +260,48 @@ function ensureParts(key: string): void {
       scheduleId ? (loadSchedules([scheduleId]).get(scheduleId)?.minutes ?? null) : null,
     );
     db().run('UPDATE dataset_metrics SET source = ? WHERE dataset_key = ? AND source IS NULL', src.id, key);
+    // the rows now live in the partition only
+    db().run("UPDATE datasets SET rows = '[]' WHERE key = ?", key);
   });
+}
+
+// ---------- rows of a partition (parsed once, while unchanged) ----------
+
+/**
+ * Parsed rows of recently read partitions, keyed by dataset, source and the run and time that wrote them – a new
+ * publish changes the key, so an entry is never stale. Bounded by the number of rows held; dashboards that several
+ * people open, and readers that ask twice in one request (MCP, reconciliation), parse a partition once.
+ */
+const ROW_CACHE_MAX_ROWS = env.SM_DATASET_CACHE_ROWS;
+const rowCache = new Map<string, DatasetRow[]>();
+let rowCacheSize = 0;
+
+function partRows(p: Pick<PartDb, 'dataset_key' | 'source' | 'run_id' | 'updated_at'> & { rows?: string }): DatasetRow[] {
+  const k = `${p.dataset_key}\u0000${p.source}\u0000${p.run_id}\u0000${p.updated_at}`;
+  const hit = rowCache.get(k);
+  if (hit) {
+    rowCache.delete(k); // most recently used last
+    rowCache.set(k, hit);
+    return hit;
+  }
+  const text = p.rows ?? db().get<{ rows: string }>('SELECT rows FROM dataset_parts WHERE dataset_key = ? AND source = ?', p.dataset_key, p.source)?.rows;
+  const rows = parseJson<DatasetRow[]>(text, []);
+  if (rows.length <= ROW_CACHE_MAX_ROWS) {
+    rowCache.set(k, rows);
+    rowCacheSize += rows.length;
+    for (const [old, v] of rowCache) {
+      if (rowCacheSize <= ROW_CACHE_MAX_ROWS) break;
+      rowCache.delete(old);
+      rowCacheSize -= v.length;
+    }
+  }
+  return rows;
+}
+
+/** Tests: forget the parsed rows. */
+export function clearDatasetRowCache(): void {
+  rowCache.clear();
+  rowCacheSize = 0;
 }
 
 const PART_META =
@@ -388,15 +431,27 @@ export function getDatasetMeta(key: string, view?: View): DatasetMeta {
 export function getDataset(key: string, view?: View): Dataset {
   const d = db().get<DatasetRowDb>(`SELECT ${HEADER} FROM datasets WHERE key = ?`, key);
   if (!d) throw notFound(key);
-  const { parts, ctx } = visibleParts(key, view, true);
+  const { parts, ctx } = visibleParts(key, view, false);
   if (!parts.length && currentUser() && !view?.sources?.length) throw notFound(key);
   const meta = metaOf(d, parts, ctx);
   const rows: DatasetRow[] = [];
   parts.forEach((p, i) => {
     const src = rowSource(p, meta.sources[i]!);
-    for (const r of parseJson<DatasetRow[]>(p.rows, [])) rows.push({ ...r, _source: src });
+    for (const r of partRows(p)) rows.push({ ...r, _source: src });
   });
   return { ...meta, rows };
+}
+
+/**
+ * All rows of a dataset (every partition; internal readers such as access reconciliation), each with the source it
+ * came from, put together from the partitions. Undefined when the dataset has no data.
+ */
+export function datasetRows(key: string): { rows: DatasetRow[]; runId: string; dryRun: boolean; processId: string } | undefined {
+  const d = db().get<DatasetRowDb>(`SELECT ${HEADER} FROM datasets WHERE key = ?`, key);
+  if (!d) return undefined;
+  const parts = partsOf(key, false);
+  const rows = parts.flatMap((p) => partRows(p).map((r) => ({ ...r, _source: { platformId: p.source, platform: '', environment: '', run: p.run_id } })));
+  return { rows, runId: d.run_id, dryRun: !!d.dry_run, processId: d.process_id };
 }
 
 /** The process that owns a dataset key (first publisher), or undefined if it has no data yet. */
@@ -478,13 +533,14 @@ export function publishDataset(input: {
       // the fallback for when the schedule is deleted; readers use the schedule's current interval
       scheduleId ? (schedules.get(scheduleId)?.minutes ?? null) : null,
     );
-    // the dataset: all partitions together (internal readers), with each row's source
-    const parts = db().all<PartDb>('SELECT * FROM dataset_parts WHERE dataset_key = ?', input.key);
-    const all: DatasetRow[] = parts.flatMap((p) =>
-      parseJson<DatasetRow[]>(p.rows, []).map((r) => ({ ...r, _source: { platformId: p.source, platform: '', environment: '', run: p.run_id } })),
-    );
+    // the dataset's totals from the partitions' metadata – their rows are not read again (0.4.0: the combined rows
+    // are put together when read, datasets.rows stays '[]')
+    const parts = db().all<PartDb>(`SELECT ${PART_META} FROM dataset_parts WHERE dataset_key = ?`, input.key);
     const allCounts: Partial<Record<DatasetStatus, number>> = {};
-    for (const r of all) if (r._status) allCounts[r._status] = (allCounts[r._status] ?? 0) + 1;
+    for (const p of parts)
+      for (const [k, n] of Object.entries(parseJson<Partial<Record<DatasetStatus, number>>>(p.status_counts, {})))
+        allCounts[k as DatasetStatus] = (allCounts[k as DatasetStatus] ?? 0) + (n ?? 0);
+    const total = parts.reduce((n, p) => n + Number(p.row_count), 0);
     const columns = [...new Set(parts.flatMap((p) => parseJson<string[]>(p.columns, [])))];
     db().run(
       `INSERT INTO datasets (key, title, process_id, process_name, run_id, dry_run, updated_at, row_count, columns, rows, status_counts, metrics, stale_after_minutes)
@@ -500,9 +556,9 @@ export function publishDataset(input: {
       input.runId,
       input.dryRun ? 1 : 0,
       ts,
-      all.length,
+      total,
       JSON.stringify(columns),
-      JSON.stringify(all),
+      '[]',
       JSON.stringify(allCounts),
       JSON.stringify(input.metrics),
       input.staleAfterMinutes ?? null,

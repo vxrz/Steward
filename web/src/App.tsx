@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
-import { Link, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AppShell, Badge, Burger, Button, Center, Group, Loader, Text, ActionIcon, Tooltip, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure, useLocalStorage, useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,7 +17,7 @@ import { EmergencyAccessPage, ForcedPasswordChangePage, LoginPage, SetupPage, Va
 import { EmergencyBanner } from './components/security/EmergencyBanner';
 import { UserMenu, signOut } from './components/UserMenu';
 import { CommandPalette, CommandPaletteButton } from './components/CommandPalette';
-import { AppNav, useNavGroups } from './components/AppNav';
+import { AppNav, useAutomateTabs, useNavGroups } from './components/AppNav';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import { HelpMenu } from './components/HelpMenu';
 import { UpdateNotice } from './components/UpdateNotice';
@@ -25,6 +25,7 @@ import { currentLanguage, setLanguage } from './i18n';
 import { useAppName } from './theme';
 import { withBase } from './basePath';
 import { ShellLayoutContext } from './layout';
+import { setRecentUser } from './components/page/recent';
 
 // Pages are loaded on demand to keep the first download small.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -94,6 +95,16 @@ const TicketsPage = page(() => import('./pages/Tickets'), 'TicketsPage');
 const TicketDetailPage = page(() => import('./pages/TicketDetail'), 'TicketDetailPage');
 
 const MAIN_ID = 'main-content';
+
+/** The sidebar's areas (v0.4.0) as addresses, e.g. /catalogue: they lead to the area's first page. */
+const AREA_HOME: Record<string, string> = {
+  '/home': '/',
+  '/dashboard': '/',
+  '/operate': '/runs',
+  '/automate': '/processes',
+  '/catalogue': '/services',
+  '/compliance': '/compliance/controls',
+};
 
 /** "Skip to content": the first focusable element, visible only while it has focus (WCAG 2.4.1). */
 function SkipLink() {
@@ -179,11 +190,18 @@ function Shell({ status }: { status: AuthStatus }) {
   const navigate = useNavigate();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const caps = status.me!.capabilities;
+  // recent items (command palette) are kept per user
+  setRecentUser(status.me!.user.id);
   const tasks = useQuery({ queryKey: ['tasks', 'mine-count'], queryFn: () => get<TaskRecord[]>('/tasks?status=open&mine=1'), refetchInterval: 5000 });
   const openTasks = tasks.data?.length ?? 0;
 
   const navGroups = useNavGroups(caps);
-  const navItems = useMemo(() => navGroups.flatMap((g) => g.items), [navGroups]);
+  const automateTabs = useAutomateTabs(caps);
+  // the palette finds the tab pages of an entry, too (Schedules, Triggers, Git sync)
+  const navItems = useMemo(() => {
+    const items = navGroups.flatMap((g) => g.items);
+    return [...items, ...automateTabs.filter((tab) => !items.some((i) => i.to === tab.to))];
+  }, [navGroups, automateTabs]);
   // Narrow icon-only sidebar on wide screens (remembered per browser)
   const [rail, setRail] = useLocalStorage({ key: 'sm.nav.rail', defaultValue: false, getInitialValueInEffect: false });
   // The burger drawer on phones always shows the full sidebar.
@@ -239,6 +257,7 @@ function Shell({ status }: { status: AuthStatus }) {
         <AppShell.Navbar p="xs" aria-label={t('mainNavigation')}>
           <AppNav
             caps={caps}
+            userId={status.me!.user.id}
             pathname={location.pathname}
             openTasks={openTasks}
             rail={railActive}
@@ -281,6 +300,7 @@ function Shell({ status }: { status: AuthStatus }) {
                   <Route path="/records/:id/edit" element={<RecordEditorPage />} />
                   <Route path="/services" element={<ServicesPage />} />
                   <Route path="/services/:id" element={<ServiceDetailPage />} />
+                  <Route path="/services/:id/:tab" element={<ServiceDetailPage />} />
                   <Route path="/applications" element={<ApplicationsPage />} />
                   <Route path="/applications/cia-scale" element={<CiaScalePage />} />
                   <Route path="/applications/:id" element={<ApplicationDetailPage />} />
@@ -313,6 +333,11 @@ function Shell({ status }: { status: AuthStatus }) {
                   <Route path="/about" element={<AboutPage />} />
                   {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}
                   <Route path="/settings/:area" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
+                  {/* the areas of the sidebar as addresses: their first page */}
+                  {Object.entries(AREA_HOME).map(([from, to]) => (
+                    <Route key={from} path={from} element={<Navigate to={to} replace />} />
+                  ))}
+                  <Route path="/admin" element={<Navigate to={caps.manageUsers ? '/users' : caps.viewAudit ? '/audit' : '/profile'} replace />} />
                   <Route
                     path="*"
                     element={

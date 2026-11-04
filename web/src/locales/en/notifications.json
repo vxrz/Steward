@@ -147,6 +147,12 @@
         "label": "Request from an AI assistant",
         "info": "An AI assistant asks to change something on a platform or to start a run, and you decide"
       }
+    },
+    "platform": {
+      "failing": {
+        "label": "Platform connection failing",
+        "info": "The periodic connection test of a platform you manage started failing"
+      }
     }
   }
 }

@@ -8,28 +8,29 @@ Steward notifies people in the app (the bell in the header) and – depending on
 
 ## Events
 
-| Event                           | Who gets it                                                                                                                                                   |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Decision                        | People who may decide a task that waits                                                                                                                       |
-| Run failed                      | Who started the run, the owner of the schedule                                                                                                                |
-| Check failed                    | Who started the run, the schedule owner, the process owner                                                                                                    |
-| Check passes again              | The same, when a schedule asks for it (below)                                                                                                                 |
-| Stale data                      | The process owner and administrators: after 2.5 × the interval of the schedule that fed it, else the publish step's `staleAfterMinutes`                       |
-| Schedule skipped                | The schedule owner and administrators                                                                                                                         |
-| Monitor status                  | Owners and subscribers of the monitor (root causes only)                                                                                                      |
-| Credential due                  | The owners of the entry ([CREDENTIALS.md](CREDENTIALS.md))                                                                                                    |
-| Report ready                    | The recipients of the report schedule ([REPORTS.md](REPORTS.md))                                                                                              |
-| Ticket not checked              | The responsible people of a ticket reference ([TICKETS.md](TICKETS.md#reminders))                                                                             |
-| Document review due             | The review owner of a living document ([RECORDS.md](RECORDS.md#periodic-reviews))                                                                             |
-| Tech stack end of life          | The owners of the application (else administrators), once when a release cycle ends soon and once at its end ([APPLICATIONS.md](APPLICATIONS.md#end-of-life)) |
-| Duty due                        | The owners of a service duty, else the service owners ([DUTIES.md](DUTIES.md))                                                                                |
-| Duty missed                     | The same, when a mandatory or recommended duty's period ended without a run that counts                                                                       |
-| Duty period ended without a run | The duty's and the service's owners (else administrators), not who archived or changed the duty                                                               |
-| Duty exception asked for        | The duty's and the service's owners as of the request (else administrators), not the requester                                                                |
-| Objective breached              | The service owners (else administrators), once per breach of an availability objective with _Send a message_ on ([SCORECARD.md](SCORECARD.md))                |
-| Maintenance                     | The responsible people and owners of what a maintenance window reaches ([APPLICATIONS.md](APPLICATIONS.md#maintenance-windows))                               |
-| Incident review measure         | The owners of a measure from an incident review: before its due date, on it, weekly while overdue ([RECORDS.md](RECORDS.md#incident-reviews))                 |
-| Daily summary                   | People who turned it on (below) – in-app and e-mail only, never Teams or webhooks                                                                             |
+| Event                           | Who gets it                                                                                                                                                                                               |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Decision                        | People who may decide a task that waits                                                                                                                                                                   |
+| Run failed                      | Who started the run, the owner of the schedule                                                                                                                                                            |
+| Check failed                    | Who started the run, the schedule owner, the process owner                                                                                                                                                |
+| Check passes again              | The same, when a schedule asks for it (below)                                                                                                                                                             |
+| Stale data                      | The process owner and administrators: after 2.5 × the interval of the schedule that fed it, else the publish step's `staleAfterMinutes`                                                                   |
+| Schedule skipped                | The schedule owner and administrators                                                                                                                                                                     |
+| Monitor status                  | Owners and subscribers of the monitor (root causes only)                                                                                                                                                  |
+| Credential due                  | The owners of the entry ([CREDENTIALS.md](CREDENTIALS.md))                                                                                                                                                |
+| Report ready                    | The recipients of the report schedule ([REPORTS.md](REPORTS.md))                                                                                                                                          |
+| Ticket not checked              | The responsible people of a ticket reference ([TICKETS.md](TICKETS.md#reminders))                                                                                                                         |
+| Document review due             | The review owner of a living document ([RECORDS.md](RECORDS.md#periodic-reviews))                                                                                                                         |
+| Tech stack end of life          | The owners of the application (else administrators), once when a release cycle ends soon and once at its end ([APPLICATIONS.md](APPLICATIONS.md#end-of-life))                                             |
+| Duty due                        | The owners of a service duty, else the service owners ([DUTIES.md](DUTIES.md))                                                                                                                            |
+| Duty missed                     | The same, when a mandatory or recommended duty's period ended without a run that counts                                                                                                                   |
+| Duty period ended without a run | The duty's and the service's owners (else administrators), not who archived or changed the duty                                                                                                           |
+| Duty exception asked for        | The duty's and the service's owners as of the request (else administrators), not the requester                                                                                                            |
+| Objective breached              | The service owners (else administrators), once per breach of an availability objective with _Send a message_ on ([SCORECARD.md](SCORECARD.md))                                                            |
+| Maintenance                     | The responsible people and owners of what a maintenance window reaches ([APPLICATIONS.md](APPLICATIONS.md#maintenance-windows))                                                                           |
+| Incident review measure         | The owners of a measure from an incident review: before its due date, on it, weekly while overdue ([RECORDS.md](RECORDS.md#incident-reviews))                                                             |
+| Platform connection failing     | The platform's managers (else administrators), once when its periodic connection test starts failing – again only after it passed in between ([PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md#platform-health)) |
+| Daily summary                   | People who turned it on (below) – in-app and e-mail only, never Teams or webhooks                                                                                                                         |
 
 ## Notification policy of automated runs
 
@@ -148,11 +149,12 @@ Once a day, a short summary of what concerns you. It is **off by default**; turn
 - status changes of monitors you may view (root causes in monitors you may not view are shown as "a monitor you cannot view");
 - credentials due soon, overdue or expired that you may see;
 - open ticket references you are responsible for (directly or through a team);
-- records waiting for your approval, and records you own that changed their status;
+- documents waiting for your approval, and documents you own that changed their status;
 - reviews of living documents you review that are due soon or overdue;
 - service duties you are responsible for that are due soon, and periods missed or failed since the last summary ([DUTIES.md](DUTIES.md));
 - scheduled reports you receive that were generated since the last summary;
-- **trends** of dataset metrics you may see: limits and floors the trend reaches within 30 days (soonest first), then metrics that changed by 10 % or more in 7 days with a stable trend ([README: Trends and forecasts](../README.md#dashboards)). People who had every section selected get the new section; a chosen subset stays as it was.
+- **trends** of dataset metrics you may see: limits and floors the trend reaches within 30 days (soonest first), then metrics that changed by 10 % or more in 7 days with a stable trend ([README: Trends and forecasts](../README.md#dashboards)). People who had every section selected get a new section; a chosen subset stays as it was (since 0.4.0 also a section you left out after it was added).
+- **new Kafka topics** under prefixes kept in sync of applications you may change ([KAFKA.md](KAFKA.md#add-topics-by-prefix)).
 
 **Team default.** A team can set a daily summary for its members (_Users → Teams_ → settings → _Daily summary_). Members who have not saved their own settings get it – the profile card says _Default of team …_; with several teams, the first by name that sets one applies. Saving in the profile makes the settings your own (they always win), and _Back to the default_ removes them again.
 

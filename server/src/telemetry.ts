@@ -2,7 +2,7 @@ import { context, propagation, SpanKind, SpanStatusCode, trace, type Span } from
 import { NodeTracerProvider, BatchSpanProcessor, type SpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { config } from './config.js';
+import { config, env } from './config.js';
 import { BRAND, scrubString } from '@sm/shared';
 
 /**
@@ -21,12 +21,12 @@ export function tracingEnabled(): boolean {
 
 export function initTelemetry(opts: { exporter?: SpanExporter; simple?: boolean } = {}): boolean {
   if (provider) return true;
-  const endpoint = process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+  const endpoint = env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || env.OTEL_EXPORTER_OTLP_ENDPOINT;
   if (!opts.exporter && !endpoint) return false;
   const exporter = opts.exporter ?? new OTLPTraceExporter();
   provider = new NodeTracerProvider({
     resource: resourceFromAttributes({
-      'service.name': process.env.OTEL_SERVICE_NAME ?? BRAND.slug,
+      'service.name': env.OTEL_SERVICE_NAME,
       'service.version': config.version,
     }),
     spanProcessors: [opts.simple ? new SimpleSpanProcessor(exporter) : new BatchSpanProcessor(exporter)],
@@ -36,7 +36,7 @@ export function initTelemetry(opts: { exporter?: SpanExporter; simple?: boolean 
 }
 
 export async function shutdownTelemetry(): Promise<void> {
-  await provider?.shutdown().catch(() => undefined);
+  await provider?.shutdown().catch(() => undefined); // shutting down: spans that cannot be sent are lost either way
 }
 
 export const tracer = () => trace.getTracer(BRAND.slug, config.version);
@@ -68,7 +68,7 @@ export async function withSpan<T>(
 
 /** Adds W3C trace context headers (traceparent) to outgoing platform calls when tracing is on. */
 export function injectTraceHeaders(headers: Record<string, string>): void {
-  if (!provider || process.env.SM_OTEL_PROPAGATE === '0') return;
+  if (!provider || !env.SM_OTEL_PROPAGATE) return;
   propagation.inject(context.active(), headers);
 }
 

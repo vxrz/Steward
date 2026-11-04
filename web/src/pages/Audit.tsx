@@ -11,6 +11,7 @@ import { JsonView, PageHeader } from '../components/common';
 import { fmtDate } from '../format';
 import { VerifyReportButton } from '../components/reports/VerifyReportButton';
 import { AuditAnchoringPanel } from '../components/security/AuditAnchoringPanel';
+import { AuditArchivePanel } from '../components/security/AuditArchivePanel';
 import { useMe } from '../auth';
 
 const CATEGORIES = ['run', 'api', 'task', 'check', 'platform', 'process', 'schedule', 'vault', 'report'] as const;
@@ -95,7 +96,13 @@ export function AuditPage() {
       {verify && (
         <Alert color={verify.ok ? 'green' : 'red'} mb="md" withCloseButton onClose={() => setVerify(null)} title={verify.ok ? t('intact') : t('broken')}>
           {verify.ok
-            ? t('intactText', { count: verify.checked })
+            ? verify.mode === 'incremental' && verify.fromSeq !== undefined
+              ? verify.checked
+                ? t('intactIncremental', { from: verify.fromSeq + 1, to: verify.fromSeq + verify.checked })
+                : t('intactNothingNew', { from: verify.fromSeq })
+              : verify.deletedThroughSeq
+                ? t('intactDeleted', { count: verify.checked, seq: verify.deletedThroughSeq })
+                : t('intactText', { count: verify.checked })
             : verify.firstBadSeq
               ? t('brokenText', { seq: verify.firstBadSeq, message: verify.message })
               : verify.message}
@@ -133,6 +140,7 @@ export function AuditPage() {
         </Stack>
       </Modal>
       <AuditAnchoringPanel canManage={caps.manageSettings} />
+      <AuditArchivePanel canManage={caps.manageSettings} />
       <Group mb="md" gap="xs">
         <TextInput
           size="xs"

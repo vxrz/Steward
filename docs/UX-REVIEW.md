@@ -199,3 +199,9 @@ Nothing left from this review. Ideas for later:
 1. Remember the sort order of a list per browser.
 2. Server-side sorting and totals ("200 of 1,240") for the run list; today the count is only known for lists that are loaded completely.
 3. Inline validation for the remaining dialogs listed above.
+
+## v0.4.0: areas and page templates
+
+- The sidebar has six areas (Home, Operate, Automate, Catalogue, Compliance, Admin, `NAV_GROUPS` in `web/src/components/AppNav.tsx`). The area of the current page opens; the user's opened and folded areas and pinned entries are kept per user in the browser (`sm.nav.groups.<user>`, `sm.nav.pins.<user>`). Schedules, Triggers and Git sync are tabs of Processes (`AUTOMATE_TABS`, `AutomateTabs`).
+- `ListPage` and `DetailPage`/`DetailHeader` in `web/src/components/page/` are the templates of list and detail pages; `LinkTabs` are tabs that are addresses (Automate, the service hub `/services/<id>/<tab>`).
+- The command palette's _Recently opened_ comes from `DetailHeader`'s `recent` and from entries opened in the palette (`sm.recent.<user>`, the last ten).

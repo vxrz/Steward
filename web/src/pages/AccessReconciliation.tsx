@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Anchor,
@@ -27,6 +27,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { IconArrowsDiff, IconEdit, IconFlask, IconPlayerPlay, IconPlus, IconShieldCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
+  CONFLUENT_KIND,
   GIT_PLATFORM_KINDS,
   type AccessCheck,
   type AccessFinding,
@@ -43,6 +44,8 @@ import { FindingStatusBadge, KindBadge, RightsDiff } from '../components/complia
 import { fmtDate, fmtRelative } from '../format';
 import { localNow } from './AccessChanges';
 import { useMe } from '../auth';
+import { platformKeys } from '../queryKeys';
+import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 
 /** Compliance → Access reconciliation: who has which access (snapshots) compared with the documented access changes. */
 export function AccessReconciliationPage() {
@@ -52,6 +55,16 @@ export function AccessReconciliationPage() {
   const meta = useQuery({ queryKey: ['reconciliation-meta'], queryFn: () => get<AccessReconciliationMeta>('/compliance/reconciliation/meta') });
   const checks = useQuery({ queryKey: ['access-checks'], queryFn: () => get<AccessCheck[]>('/compliance/access-checks') });
   useCreateParam(meta.data?.canCreate, () => setEditing('new'));
+  // ?check=<id>&edit=1: a copy opens in edit mode (Duplicate)
+  useEffect(() => {
+    const id = params.get('check');
+    const found = params.get('edit') === '1' && id && checks.data?.find((c) => c.id === id);
+    if (!found) return;
+    if (found.canEdit) setEditing(found);
+    const next = new URLSearchParams(params);
+    next.delete('edit');
+    setParams(next, { replace: true });
+  }, [params, checks.data, setParams]);
   const all = checks.data ?? [];
   // ?findings=open (the start page's "Undocumented access changes" tile): only checks with open findings
   const onlyOpen = params.get('findings') === 'open';
@@ -155,7 +168,9 @@ export function AccessReconciliationPage() {
           ))}
         </SimpleGrid>
       )}
-      {selected && <CheckDetail key={selected.id} check={selected} demo={!!meta.data?.demo} onEdit={() => setEditing(selected)} />}
+      {selected && (
+        <CheckDetail key={selected.id} check={selected} demo={!!meta.data?.demo} canCreate={!!meta.data?.canCreate} onEdit={() => setEditing(selected)} />
+      )}
       {editing && <CheckModal check={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={(c) => select(c.id)} />}
     </>
   );
@@ -188,7 +203,7 @@ function CheckStatusBadge({ c }: { c: AccessCheck }) {
   );
 }
 
-function CheckDetail({ check, demo, onEdit }: { check: AccessCheck; demo: boolean; onEdit: () => void }) {
+function CheckDetail({ check, demo, canCreate, onEdit }: { check: AccessCheck; demo: boolean; canCreate: boolean; onEdit: () => void }) {
   const { t } = useTranslation(['compliance', 'common']);
   const qc = useQueryClient();
   const [tab, setTab] = useState<string | null>('open');
@@ -242,6 +257,7 @@ function CheckDetail({ check, demo, onEdit }: { check: AccessCheck; demo: boolea
           <Text size="xs" c="dimmed" mt={2}>
             {t('reconciliation.schedule')}: <Code>{check.cron}</Code> ({check.timezone}) · {t('reconciliation.owner')}: {check.owner}
           </Text>
+          <CopiedFromNote kind="access-check" id={check.id} pathOf={(x) => `/compliance/reconciliation?check=${x}`} />
           {check.lastError && (
             <Text size="xs" c="red" mt={2}>
               {check.lastError}
@@ -259,6 +275,7 @@ function CheckDetail({ check, demo, onEdit }: { check: AccessCheck; demo: boolea
               {t('reconciliation.simulate')}
             </Button>
           )}
+          {canCreate && <DuplicateButton kind="access-check" id={check.id} />}
           {check.canEdit && (
             <Button size="xs" variant="default" leftSection={<IconEdit size={14} />} onClick={onEdit}>
               {t('common:edit')}
@@ -599,8 +616,11 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
   const { t } = useTranslation(['compliance', 'common']);
   const { isAdmin } = useMe();
   const qc = useQueryClient();
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => getOptional<Subject[]>('/subjects', []) });
+  // ?new=1&platform=<id> (a platform's "Get started", v0.4.0): the new check starts on that platform
+  const [params] = useSearchParams();
+  const fromPlatform = !check ? (platforms.data ?? []).find((p) => p.id === params.get('platform')) : undefined;
   const [f, setF] = useState({
     name: check?.name ?? '',
     description: check?.description ?? '',
@@ -617,13 +637,25 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
   const [busy, setBusy] = useState(false);
   const up = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   const usable = (platforms.data ?? []).filter((p) => p.permissions.includes('use'));
+  // the source that reads a platform directly, else a dataset (Insights Hub keeps the one chosen)
+  const pickPlatform = (v: string | null) => {
+    const p = usable.find((x) => x.id === v);
+    const git = !!p && (GIT_PLATFORM_KINDS as readonly string[]).includes(p.kind);
+    const direct = p?.kind === 'snowflake' || p?.kind === 'aws' ? (p.kind as 'snowflake' | 'aws') : p?.kind === CONFLUENT_KIND ? 'confluent' : null;
+    setF((x) => ({ ...x, platformId: v ?? '', source: git ? 'git' : direct ? direct : p && p.kind !== 'insights-hub' ? 'dataset' : x.source }));
+  };
+  const preset = fromPlatform?.id;
+  useEffect(() => {
+    if (preset && !f.platformId) pickPlatform(preset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the platforms are loaded
+  }, [preset]);
   const submit = async () => {
     setBusy(true);
     try {
       const body = {
         ...f,
         datasetKey: f.source === 'dataset' ? f.datasetKey : null,
-        scope: f.source === 'git' || f.source === 'snowflake' ? f.scope.trim() : null,
+        scope: f.source === 'git' || f.source === 'snowflake' || f.source === 'confluent' ? f.scope.trim() : null,
       };
       const saved = check ? await put<AccessCheck>(`/compliance/access-checks/${check.id}`, body) : await post<AccessCheck>('/compliance/access-checks', body);
       await qc.invalidateQueries({ queryKey: ['access-checks'] });
@@ -653,12 +685,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
           disabled={!!check && check.snapshotCount > 0}
           data={usable.map((p) => ({ value: p.id, label: p.name }))}
           value={f.platformId || null}
-          onChange={(v) => {
-            const p = usable.find((x) => x.id === v);
-            const git = !!p && (GIT_PLATFORM_KINDS as readonly string[]).includes(p.kind);
-            const direct = p?.kind === 'snowflake' || p?.kind === 'aws' ? (p.kind as 'snowflake' | 'aws') : null;
-            setF((x) => ({ ...x, platformId: v ?? '', source: git ? 'git' : direct ? direct : p && p.kind !== 'insights-hub' ? 'dataset' : x.source }));
-          }}
+          onChange={pickPlatform}
         />
         <Select
           label={t('reconciliation.source')}
@@ -671,6 +698,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
             { value: 'git', label: t('sources.git') },
             { value: 'snowflake', label: t('sources.snowflake') },
             { value: 'aws', label: t('sources.aws') },
+            { value: 'confluent', label: t('sources.confluent') },
           ]}
           value={f.source}
           onChange={(v) => up('source', (v as AccessCheck['source']) ?? 'insights-hub')}
@@ -693,6 +721,19 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
             value={f.scope}
             onChange={(e) => up('scope', e.currentTarget.value)}
             maxLength={800}
+            classNames={{ input: 'mono' }}
+          />
+        )}
+        {f.source === 'confluent' && (
+          <TextInput
+            label={t('reconciliation.confluentScope')}
+            description={t('reconciliation.confluentScopeHelp')}
+            required
+            // i18n-ignore: an example resource name, the same in every language
+            placeholder="crn://confluent.cloud/organization=…/environment=env-…"
+            value={f.scope}
+            onChange={(e) => up('scope', e.currentTarget.value)}
+            maxLength={500}
             classNames={{ input: 'mono' }}
           />
         )}

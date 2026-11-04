@@ -71,7 +71,7 @@ test('an application with a platform and a CIA rating gives its service a protec
     await expect(page.getByTestId('platform-application').getByRole('link', { name })).toHaveAttribute('href', appHref(`/applications/${appId}`));
 
     // add it to the service: the service derives its protection need from it
-    await page.goto(`/services/${svc.id}`);
+    await page.goto(`/services/${svc.id}/applications`);
     const apps = page.getByTestId('service-applications');
     await expect(apps).toContainText('No applications yet');
     await apps.getByRole('button', { name: 'Add application' }).click();
@@ -82,6 +82,8 @@ test('an application with a platform and a CIA rating gives its service a protec
     await expect(add).toBeHidden();
     await expect(apps.getByRole('listitem').filter({ hasText: name })).toContainText('Primary');
     await expect(apps.getByRole('listitem').filter({ hasText: name }).getByRole('link', { name: platformName })).toBeVisible();
+    // the protection need is on the service's overview
+    await page.getByTestId('service-tab-overview').click();
     const need = page.getByTestId('protection-need');
     await expect(need.getByRole('row', { name: /Confidentiality/ })).toContainText('High');
     await expect(need.getByRole('row', { name: /Confidentiality/ })).toContainText(`from ${name}`);
@@ -108,7 +110,7 @@ test('an application with a platform and a CIA rating gives its service a protec
     await expect(scope.getByRole('link', { name })).toHaveAttribute('href', appHref(`/applications/${appId}`));
 
     // the service groups its documents by application, the application lists it
-    await page.goto(`/services/${svc.id}`);
+    await page.goto(`/services/${svc.id}/documents`);
     await expect(page.getByTestId(`service-documents-${appId}`)).toContainText(title);
     await settle(page);
     await expectAccessible(page, 'service with applications and protection need');

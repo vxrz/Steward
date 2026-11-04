@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { env, type Env } from '../config.js';
 
 /**
  * Thin wrapper around Playwright. Playwright is an optional dependency –
@@ -49,7 +50,7 @@ interface PwRoute {
   abort(reason?: string): Promise<void>;
 }
 
-const EXECUTABLE_CANDIDATES = [process.env.SM_CHROMIUM_PATH].filter(Boolean) as string[];
+const EXECUTABLE_CANDIDATES = [env.SM_CHROMIUM_PATH].filter(Boolean) as string[];
 
 let available: boolean | undefined;
 export async function browserAvailable(): Promise<boolean> {
@@ -104,7 +105,7 @@ export async function openBrowser(opts: {
       } catch {
         ok = false;
       }
-      await (ok ? route.continue() : route.abort('blockedbyclient')).catch(() => undefined);
+      await (ok ? route.continue() : route.abort('blockedbyclient')).catch(() => undefined); // the page or browser closed meanwhile
     });
     context.on('request', (req) => {
       if (!req.redirectedFrom()) return;
@@ -139,10 +140,8 @@ export function browserEnv(env: NodeJS.ProcessEnv = process.env): Record<string,
  * launch fails (e.g. no user namespaces in a container), the browser starts without it once and a
  * warning is logged – set SM_CHROMIUM_SANDBOX=0 to silence it, or give the container what Chromium needs.
  */
-export function sandboxWanted(env: NodeJS.ProcessEnv = process.env): { sandbox: boolean; forced: boolean } {
-  const v = env.SM_CHROMIUM_SANDBOX?.trim();
-  if (v === '1' || v === 'true') return { sandbox: true, forced: true };
-  if (v === '0' || v === 'false') return { sandbox: false, forced: true };
+export function sandboxWanted(e: Pick<Env, 'SM_CHROMIUM_SANDBOX'> = env): { sandbox: boolean; forced: boolean } {
+  if (e.SM_CHROMIUM_SANDBOX !== undefined) return { sandbox: e.SM_CHROMIUM_SANDBOX, forced: true };
   const root = typeof process.getuid === 'function' && process.getuid() === 0;
   return { sandbox: !root, forced: false };
 }

@@ -3,13 +3,20 @@ import { ActionIcon, Group, Kbd, Text, Tooltip, UnstyledButton, useMantineColorS
 import { useMediaQuery } from '@mantine/hooks';
 import { Spotlight, spotlight, type SpotlightActionData, type SpotlightActionGroupData, type SpotlightFilterFunction } from '@mantine/spotlight';
 import '@mantine/spotlight/styles.css';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  IconActivity,
+  IconAlertTriangle,
+  IconApps,
+  IconHistory,
+  IconKeyboard,
+  IconPlugConnected,
+  IconServer2,
+  IconUserSearch,
   IconSettings,
   IconArrowRight,
+  IconCalendarCheck,
   IconCalendarPlus,
   IconChartBar,
   IconFileCertificate,
@@ -32,6 +39,7 @@ import {
   type Icon,
 } from '@tabler/icons-react';
 import type {
+  ApplicationSummary,
   Credential,
   Dashboard,
   MonitorSummary,
@@ -41,13 +49,42 @@ import type {
   RecordSummary,
   RunSummary,
   ServiceSummary,
+  Subject,
+  SystemSummary,
   TicketList,
 } from '@sm/shared';
-import { get, notifyError, post } from '../api';
+import { get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
 import { fmtRelative } from '../format';
 import { StatusBadge } from './common';
-import { isMac } from './HelpMenu';
+import { isMac, openShortcutSheet } from './HelpMenu';
+import { dashboardKeys, monitorKeys, platformKeys, processKeys, runKeys } from '../queryKeys';
+import { readRecent, rememberRecent, type RecentItem, type RecentKind } from './page/recent';
+
+/** Icons of the recent entries by kind. */
+const RECENT_ICONS: Record<RecentKind, Icon> = {
+  run: IconPlayerPlay,
+  process: IconSitemap,
+  monitor: IconHeartRateMonitor,
+  dashboard: IconChartBar,
+  platform: IconServer,
+  service: IconStack2,
+  application: IconApps,
+  system: IconServer2,
+  record: IconFileCertificate,
+  ticket: IconTicket,
+  duty: IconCalendarCheck,
+  personReview: IconUserSearch,
+  statusPage: IconLayoutGrid,
+  credential: IconKey,
+};
+
+interface TestResult {
+  ok: boolean;
+  status: number;
+  durationMs: number;
+  message: string;
+}
 
 /** Settings the palette finds (#136): [area, translation key of its title]. */
 const SETTING_ENTRIES: [string, string][] = [
@@ -117,14 +154,20 @@ const makeFilter =
   };
 
 /**
- * Ctrl/Cmd+K command palette: pages (with their sidebar section), quick "create" actions, recent runs and –
- * when searching – processes, dashboards, platforms, monitors, services, records and credentials.
+ * Ctrl/Cmd+K command palette: pages (with their sidebar section), quick actions, the entries opened last, recent
+ * runs and – when searching – processes, dashboards, platforms (and their connection test), monitors, services,
+ * applications, systems, records, credentials, ticket references and "new person review for …". Every list
+ * holds only what the user may see; actions only show to those who may take them.
  */
 export function CommandPalette({ pages }: { pages: PalettePage[] }) {
   const { t } = useTranslation(['nav', 'common', 'settings']);
   const navigate = useNavigate();
   const { caps, isAdmin, hasRole } = useMe();
   const canEditServices = isAdmin || hasRole('designer');
+  // person reviews are started by designers and administrators (as on the page)
+  const canReview = isAdmin || hasRole('designer');
+  const qc = useQueryClient();
+  const [recent, setRecent] = useState<RecentItem[]>([]);
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const isMobile = useMediaQuery('(max-width: 48em)');
   const [active, setActive] = useState(false);
@@ -132,11 +175,11 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
 
   // Loaded the first time the palette opens, then kept fresh while it is open.
   const opts = { enabled: active, staleTime: 30_000 };
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes'), ...opts });
-  const dashboards = useQuery({ queryKey: ['dashboards'], queryFn: () => get<Dashboard[]>('/dashboards'), ...opts });
-  const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms'), ...opts });
-  const runs = useQuery({ queryKey: ['runs', 'palette'], queryFn: () => get<RunSummary[]>('/runs?limit=10'), ...opts });
-  const monitors = useQuery({ queryKey: ['monitors', 'palette'], queryFn: () => get<MonitorSummary[]>('/monitors'), ...opts });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes'), ...opts });
+  const dashboards = useQuery({ queryKey: dashboardKeys.all, queryFn: () => get<Dashboard[]>('/dashboards'), ...opts });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms'), ...opts });
+  const runs = useQuery({ queryKey: runKeys.palette, queryFn: () => get<RunSummary[]>('/runs?limit=10'), ...opts });
+  const monitors = useQuery({ queryKey: monitorKeys.palette, queryFn: () => get<MonitorSummary[]>('/monitors'), ...opts });
   const services = useQuery({ queryKey: ['services', 'palette'], queryFn: () => get<ServiceSummary[]>('/services'), ...opts });
   const records = useQuery({ queryKey: ['records', 'palette'], queryFn: () => get<RecordSummary[]>('/records'), ...opts });
   const credentials = useQuery({
@@ -145,15 +188,34 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     ...opts,
   });
   const tickets = useQuery({ queryKey: ['ticket-references', 'palette'], queryFn: () => get<TicketList>('/ticket-references?state=open'), ...opts });
+  const applications = useQuery({ queryKey: ['applications', 'palette'], queryFn: () => get<ApplicationSummary[]>('/applications'), ...opts });
+  const systems = useQuery({ queryKey: ['systems', 'palette'], queryFn: () => get<SystemSummary[]>('/systems'), ...opts });
+  const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => get<Subject[]>('/subjects'), ...opts, enabled: active && canReview });
 
   const actions = useMemo<SpotlightActionGroupData[]>(() => {
     const icon = (I: Icon) => <I size={18} stroke={1.6} />;
     const go = (to: string) => () => navigate(to);
+    // an entry opened from the palette counts as opened (the "Recent" group)
+    const open = (to: string, label: string, kind: RecentKind) => () => {
+      rememberRecent({ to, label, kind });
+      navigate(to);
+    };
+    const testConnection = async (p: Platform) => {
+      try {
+        const r = await post<TestResult>(`/platforms/${p.id}/test`);
+        if (r.ok) notifyOk(t('palette.testOk', { message: r.message, ms: r.durationMs }), t('palette.testOkTitle', { name: p.name }));
+        else notifyError(new Error(r.message), t('palette.testFailedTitle', { name: p.name }));
+      } catch (e) {
+        notifyError(e, t('palette.testFailedTitle', { name: p.name }));
+      } finally {
+        void qc.invalidateQueries({ queryKey: platformKeys.all });
+        void qc.invalidateQueries({ queryKey: ['platform', p.id] });
+      }
+    };
     const extraPages: PalettePage[] = [
       { to: '/monitors/wall', label: t('palette.pages.monitorWall'), icon: IconLayoutGrid, group: t('groups.operate') },
-      { to: '/records/types', label: t('palette.pages.recordTypes'), icon: IconListDetails, group: t('groups.service') },
-      { to: '/records/link-types', label: t('palette.pages.linkTypes'), icon: IconLink, group: t('groups.service') },
-      ...(caps.viewAudit ? [{ to: '/settings/status', label: t('palette.pages.systemStatus'), icon: IconActivity, group: t('groups.admin') }] : []),
+      { to: '/records/types', label: t('palette.pages.recordTypes'), icon: IconListDetails, group: t('groups.catalogue') },
+      { to: '/records/link-types', label: t('palette.pages.linkTypes'), icon: IconLink, group: t('groups.catalogue') },
       { to: '/profile', label: t('items.profile'), icon: IconUser },
       { to: '/about', label: t('palette.pages.about'), icon: IconInfoCircle },
     ];
@@ -215,6 +277,23 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     if (canEditServices) create('new-service', t('palette.create.service'), '/services?new=1', IconStack2);
     create('new-schedule', t('palette.create.schedule'), '/schedules?new=1', IconCalendarPlus);
     quick.push({
+      id: 'failing-checks',
+      label: t('palette.failingChecks'),
+      description: t('palette.failingChecksHint'),
+      leftSection: icon(IconAlertTriangle),
+      keywords: ['failed', 'failing', 'checks', 'findings', t('palette.keywords.checks')],
+      onClick: go('/runs?checks=failed&within=7d'),
+    });
+    quick.push({
+      id: 'shortcuts',
+      label: t('help.shortcuts'),
+      description: t('palette.shortcutsHint'),
+      leftSection: icon(IconKeyboard),
+      rightSection: <Kbd size="xs">?</Kbd>,
+      keywords: ['keyboard', 'shortcuts', 'keys', 'help', '?', t('palette.keywords.shortcuts')],
+      onClick: () => openShortcutSheet(),
+    });
+    quick.push({
       id: 'toggle-theme',
       label: colorScheme === 'dark' ? t('palette.lightMode') : t('palette.darkMode'),
       description: t('palette.colorSchemeHint'),
@@ -224,6 +303,20 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     });
     const procs = processes.data ?? [];
     return [
+      {
+        group: t('palette.groups.recent'),
+        actions: recent.map((r) => {
+          const I = RECENT_ICONS[r.kind] ?? IconHistory;
+          return {
+            id: `recent:${r.to}`,
+            label: r.label,
+            description: t(`palette.kinds.${r.kind}`),
+            leftSection: icon(I),
+            keywords: ['recent', 'last', t('palette.keywords.recent')],
+            onClick: open(r.to, r.label, r.kind),
+          };
+        }),
+      },
       { group: t('palette.groups.actions'), actions: quick },
       { group: t('palette.groups.pages'), actions: pageActions },
       { group: t('palette.groups.settings'), actions: settingActions },
@@ -236,7 +329,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
           leftSection: icon(IconPlayerPlay),
           rightSection: <StatusBadge status={r.status} size="xs" />,
           keywords: ['run', r.status, r.id],
-          onClick: go(`/runs/${r.id}`),
+          onClick: open(`/runs/${r.id}`, r.processName, 'run'),
         })),
       },
       {
@@ -247,7 +340,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
           description: short(p.description),
           leftSection: icon(IconSitemap),
           keywords: ['process', ...p.tags],
-          onClick: go(`/processes/${p.id}`),
+          onClick: open(`/processes/${p.id}`, p.name, 'process'),
         })),
       },
       {
@@ -270,7 +363,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
           description: short(d.description),
           leftSection: icon(IconChartBar),
           keywords: ['dashboard'],
-          onClick: go(`/dashboards/${d.id}`),
+          onClick: open(`/dashboards/${d.id}`, d.name, 'dashboard'),
         })),
       },
       {
@@ -283,7 +376,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
             description: short(m.description) ?? m.key,
             leftSection: icon(IconHeartRateMonitor),
             keywords: ['monitor', m.key, ...m.tags],
-            onClick: go(`/monitors/${m.id}`),
+            onClick: open(`/monitors/${m.id}`, m.name, 'monitor'),
           })),
       },
       {
@@ -293,7 +386,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
           label: sv.name,
           leftSection: icon(IconStack2),
           keywords: ['service', ...sv.tags],
-          onClick: go(`/services/${sv.id}`),
+          onClick: open(`/services/${sv.id}`, sv.name, 'service'),
         })),
       },
       {
@@ -304,7 +397,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
           description: r.typeName,
           leftSection: icon(IconFileCertificate),
           keywords: ['record', r.number, r.typeKey, r.status, ...r.tags],
-          onClick: go(`/records/${r.id}`),
+          onClick: open(`/records/${r.id}`, `${r.number} ${r.title}`, 'record'),
         })),
       },
       {
@@ -315,7 +408,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
           description: c.platformName ?? undefined,
           leftSection: icon(IconKey),
           keywords: ['credential', c.type],
-          onClick: go(`/credentials?open=${encodeURIComponent(c.id)}`),
+          onClick: open(`/credentials?open=${encodeURIComponent(c.id)}`, c.name, 'credential'),
         })),
       },
       {
@@ -326,7 +419,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
           description: x.vendor || undefined,
           leftSection: icon(IconTicket),
           keywords: ['ticket', 'incident', x.externalNumber, x.vendor, x.source],
-          onClick: go(`/tickets/${x.id}`),
+          onClick: open(`/tickets/${x.id}`, `${x.externalNumber} ${x.title}`, 'ticket'),
         })),
       },
       {
@@ -337,8 +430,60 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
           description: [p.kind, p.environment].filter(Boolean).join(' · '),
           leftSection: icon(IconServer),
           keywords: ['platform', p.kind, p.environment, p.baseUrl],
-          onClick: go(`/platforms/${p.id}`),
+          onClick: open(`/platforms/${p.id}`, p.name, 'platform'),
         })),
+      },
+      {
+        group: t('palette.groups.applications'),
+        actions: (applications.data ?? []).map((a) => ({
+          id: `application:${a.id}`,
+          label: a.name,
+          description: a.vendor || undefined,
+          leftSection: icon(IconApps),
+          keywords: ['application', 'app', a.vendor, ...a.tags],
+          onClick: open(`/applications/${a.id}`, a.name, 'application'),
+        })),
+      },
+      {
+        group: t('palette.groups.systems'),
+        actions: (systems.data ?? []).map((x) => ({
+          id: `system:${x.id}`,
+          label: x.name,
+          description: x.vendor || undefined,
+          leftSection: icon(IconServer2),
+          keywords: ['system', x.kind, x.vendor, ...x.environments],
+          onClick: open(`/systems/${x.id}`, x.name, 'system'),
+        })),
+      },
+      {
+        group: t('palette.groups.testConnection'),
+        actions: (platforms.data ?? [])
+          .filter((p) => p.permissions.includes('use'))
+          .map((p) => ({
+            id: `test-platform:${p.id}`,
+            label: t('palette.testConnectionTo', { name: p.name }),
+            description: [p.kind, p.environment].filter(Boolean).join(' · '),
+            leftSection: icon(IconPlugConnected),
+            keywords: ['test', 'connection', 'check', 'platform', p.kind, p.environment, t('palette.keywords.test')],
+            onClick: () => void testConnection(p),
+          })),
+      },
+      {
+        group: t('palette.groups.personReviews'),
+        actions: canReview
+          ? (subjects.data ?? [])
+              .filter((x) => x.kind === 'user')
+              .map((x) => {
+                const username = x.value.slice('user:'.length);
+                return {
+                  id: `person-review:${username}`,
+                  label: t('palette.newPersonReviewFor', { name: x.label }),
+                  leftSection: icon(IconUserSearch),
+                  keywords: ['person', 'review', 'access', 'new', username, t('palette.keywords.review')],
+                  onClick: go(`/compliance/person-reviews?new=1&user=${encodeURIComponent(username)}`),
+                };
+              })
+          : [],
       },
     ];
   }, [
@@ -347,7 +492,6 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     caps.manageSettings,
     caps.createProcesses,
     caps.createMonitors,
-    caps.viewAudit,
     canEditServices,
     colorScheme,
     setColorScheme,
@@ -361,20 +505,40 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     records.data,
     credentials.data,
     tickets.data,
+    applications.data,
+    systems.data,
+    subjects.data,
+    canReview,
+    recent,
+    qc,
   ]);
   const filter = useMemo(
     () =>
       makeFilter(
         new Set(
-          (['processes', 'startRun', 'dashboards', 'platforms', 'monitors', 'services', 'records', 'credentials', 'tickets'] as const).map((g) =>
-            t(`palette.groups.${g}`),
-          ),
+          (
+            [
+              'processes',
+              'startRun',
+              'dashboards',
+              'platforms',
+              'monitors',
+              'services',
+              'applications',
+              'systems',
+              'records',
+              'credentials',
+              'tickets',
+              'testConnection',
+              'personReviews',
+            ] as const
+          ).map((g) => t(`palette.groups.${g}`)),
         ),
       ),
     [t],
   );
 
-  const loading = [processes, dashboards, platforms, runs, monitors, services, records, credentials].some((q) => q.isFetching);
+  const loading = [processes, dashboards, platforms, runs, monitors, services, records, credentials, applications, systems].some((q) => q.isFetching);
 
   return (
     <>
@@ -382,7 +546,10 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
         actions={actions}
         filter={filter}
         shortcut={['mod + K']}
-        onSpotlightOpen={() => setActive(true)}
+        onSpotlightOpen={() => {
+          setActive(true);
+          setRecent(readRecent());
+        }}
         nothingFound={loading ? t('common:loading') : t('palette.nothingFound')}
         highlightQuery
         scrollable

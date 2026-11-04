@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 import { HttpError } from '../util.js';
+import { env } from '../config.js';
 
 const N = 2 ** 15;
 const R = 8;
@@ -20,7 +21,7 @@ export function hashPassword(password: string): string {
  * thread pool, not on the event loop); further sign-ins wait in a short queue and are refused
  * with 503 when it is full – a flood of sign-ins cannot starve the server.
  */
-export const HASH_CONCURRENCY = Math.max(1, Number(process.env.SM_PASSWORD_HASH_CONCURRENCY) || 2);
+export const HASH_CONCURRENCY = env.SM_PASSWORD_HASH_CONCURRENCY;
 const QUEUE_MAX = 64;
 let active = 0;
 const queue: (() => void)[] = [];

@@ -13,6 +13,11 @@ test.describe('phone @mobile', () => {
     // the collapsed navbar is moved off-screen
     await expect(link).not.toBeInViewport();
     await page.getByRole('button', { name: 'Toggle navigation' }).tap();
+    // the drawer has the same areas as the sidebar: My tasks is in Operate, folded on the start page
+    const operate = page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Operate', exact: true });
+    await expect(operate).toBeInViewport();
+    await expect(operate).toHaveAttribute('aria-expanded', 'false');
+    await operate.tap();
     await expect(link).toBeInViewport();
     await link.tap();
     await expect(page).toHaveURL(/\/tasks$/);

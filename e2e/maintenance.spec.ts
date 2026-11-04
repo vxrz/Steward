@@ -94,7 +94,7 @@ test.describe('as a viewer', () => {
       await expect(detail.getByRole('button', { name: 'Cancel maintenance' })).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'Plan maintenance' })).toHaveCount(0);
       await detail.getByRole('button', { name: 'Close' }).click();
-      await page.goto(`/services/${svc.id}`);
+      await page.goto(`/services/${svc.id}/maintenance`);
       await expect(page.getByTestId('maintenance-panel')).toContainText(`Next: ${title}`);
     } finally {
       await api.post(`/api/maintenance-windows/${w.id}/cancel`, { data: {} });

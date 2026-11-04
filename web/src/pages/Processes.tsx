@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActionIcon,
   Alert,
@@ -16,17 +16,15 @@ import {
   Stack,
   Text,
   Textarea,
-  TextInput,
   Tooltip,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   IconPlayerPlay,
   IconPlus,
-  IconSearch,
   IconTemplate,
   IconUpload,
   IconDots,
@@ -41,7 +39,8 @@ import {
 import { BUNDLE_FORMATS, tagLabel, tagsMatch, type ExportBundle, type ProcessDetail, type ProcessSummary } from '@sm/shared';
 import { TagBadges, TagFilterChip, useTagFilter } from '../components/tags';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
-import { EmptyState, PageHeader, QueryState, StatusBadge } from '../components/common';
+import { QueryState, StatusBadge } from '../components/common';
+import { AutomateTabs } from '../components/page/LinkTabs';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { RunDialog } from '../components/RunDialog';
 import { DescriptionText, descriptionPlain } from '../components/DescriptionText';
@@ -51,18 +50,30 @@ import { errorText } from '../i18n/errors';
 import { BRAND } from '../../../shared/src/brand';
 import { useMe } from '../auth';
 import { confirmDanger } from '../components/confirm';
+import { ListPage } from '../components/page/ListPage';
+import { dashboardKeys, processKeys } from '../queryKeys';
+import { DuplicateMenuItem, useDuplicate } from '../components/duplicate/DuplicateButton';
 
 export function ProcessesPage() {
   const { t } = useTranslation(['processes', 'common']);
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
+  const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
   const [filter, setFilter] = useState('');
   const [runId, setRunId] = useState<string | null>(null);
   const [templatesOpen, templates] = useDisclosure();
   const [importOpen, importModal] = useDisclosure();
   const [bundleOpen, bundleModal] = useDisclosure();
   const { caps } = useMe();
+  // ?templates=<kind> or ?bundle=<id> (a platform's "Get started", v0.4.0): the gallery opens filtered, or on the bundle
+  const [params] = useSearchParams();
+  const galleryKind = params.get('templates');
+  const galleryBundle = params.get('bundle');
+  useEffect(() => {
+    if (galleryKind !== null || galleryBundle) templates.open();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per link
+  }, [galleryKind, galleryBundle]);
+  const duplicate = useDuplicate();
 
   const createBlank = async () => {
     try {
@@ -140,86 +151,80 @@ export function ProcessesPage() {
   );
 
   return (
-    <>
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          <>
-            {/* the secondary actions in one menu: a manual procedure, YAML import, bundles (several processes and dashboards in one file) */}
-            <Menu position="bottom-end" width={300}>
-              <Menu.Target>
-                <Button size="xs" variant="default" rightSection={<IconChevronDown size={14} />} data-testid="processes-more">
-                  {t('more')}
-                </Button>
-              </Menu.Target>
-              <Menu.Dropdown>
-                {caps.createProcesses && (
-                  <>
-                    <Menu.Item leftSection={<IconChecklist size={14} />} onClick={createManual}>
-                      {t('newManualProcedure')}
-                      <Text size="xs" c="dimmed">
-                        {t('newManualProcedureHint')}
-                      </Text>
-                    </Menu.Item>
-                    <Menu.Item leftSection={<IconUpload size={14} />} onClick={importModal.open}>
-                      {t('importYaml')}
-                    </Menu.Item>
-                    <Menu.Divider />
-                  </>
-                )}
-                <Menu.Label>{t('bundle.label')}</Menu.Label>
-                <Menu.Item leftSection={<IconPackageExport size={14} />} component="a" href={apiUrl('/bundle/export')}>
-                  {t('bundle.exportAll')}
-                </Menu.Item>
-                {caps.createProcesses && (
-                  <Menu.Item leftSection={<IconPackageImport size={14} />} onClick={bundleModal.open}>
-                    {t('bundle.importMenu')}
+    <ListPage
+      tabs={<AutomateTabs active="/processes" />}
+      title={t('title')}
+      description={t('description')}
+      actions={
+        <>
+          {/* the secondary actions in one menu: a manual procedure, YAML import, bundles (several processes and dashboards in one file) */}
+          <Menu position="bottom-end" width={300}>
+            <Menu.Target>
+              <Button size="xs" variant="default" rightSection={<IconChevronDown size={14} />} data-testid="processes-more">
+                {t('more')}
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              {caps.createProcesses && (
+                <>
+                  <Menu.Item leftSection={<IconChecklist size={14} />} onClick={createManual}>
+                    {t('newManualProcedure')}
+                    <Text size="xs" c="dimmed">
+                      {t('newManualProcedureHint')}
+                    </Text>
                   </Menu.Item>
-                )}
-              </Menu.Dropdown>
-            </Menu>
-            {caps.createProcesses && (
-              <>
-                <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />} onClick={templates.open}>
-                  {t('fromTemplate')}
-                </Button>
-                <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createBlank}>
-                  {t('newProcess')}
-                </Button>
-              </>
-            )}
+                  <Menu.Item leftSection={<IconUpload size={14} />} onClick={importModal.open}>
+                    {t('importYaml')}
+                  </Menu.Item>
+                  <Menu.Divider />
+                </>
+              )}
+              <Menu.Label>{t('bundle.label')}</Menu.Label>
+              <Menu.Item leftSection={<IconPackageExport size={14} />} component="a" href={apiUrl('/bundle/export')}>
+                {t('bundle.exportAll')}
+              </Menu.Item>
+              {caps.createProcesses && (
+                <Menu.Item leftSection={<IconPackageImport size={14} />} onClick={bundleModal.open}>
+                  {t('bundle.importMenu')}
+                </Menu.Item>
+              )}
+            </Menu.Dropdown>
+          </Menu>
+          {caps.createProcesses && (
+            <>
+              <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />} onClick={templates.open}>
+                {t('fromTemplate')}
+              </Button>
+              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createBlank}>
+                {t('newProcess')}
+              </Button>
+            </>
+          )}
+        </>
+      }
+      search={{ value: filter, onChange: setFilter, placeholder: t('search') }}
+      empty={{
+        show: processes.data?.length === 0,
+        icon: IconSitemap,
+        title: t('empty.title'),
+        text: (
+          <>
+            {t('empty.text')}
+            {!caps.createProcesses && <div>{t('empty.askForAccess')}</div>}
           </>
-        }
-      />
-      <TextInput
-        mb="md"
-        placeholder={t('search')}
-        leftSection={<IconSearch size={14} />}
-        value={filter}
-        onChange={(e) => setFilter(e.currentTarget.value)}
-        maw={360}
-      />
+        ),
+        whoCanAct: t('common:whoCanAct.processes'),
+        action: caps.createProcesses && (
+          <Button onClick={templates.open} leftSection={<IconTemplate size={16} />}>
+            {t('empty.browse')}
+          </Button>
+        ),
+      }}
+    >
       <Box mb="md">
         <TagFilterChip tag={tag} onChange={setTag} />
       </Box>
       <QueryState query={processes} />
-      {processes.data?.length === 0 && (
-        <EmptyState
-          icon={IconSitemap}
-          title={t('empty.title')}
-          action={
-            caps.createProcesses && (
-              <Button onClick={templates.open} leftSection={<IconTemplate size={16} />}>
-                {t('empty.browse')}
-              </Button>
-            )
-          }
-        >
-          {t('empty.text')}
-          {!caps.createProcesses && <div>{t('empty.askForAccess')}</div>}
-        </EmptyState>
-      )}
       <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }}>
         {list.map((p) => (
           <Card key={p.id} withBorder padding="md" className="clickable" onClick={() => navigate(`/processes/${p.id}`)}>
@@ -253,6 +258,7 @@ export function ProcessesPage() {
                     <Menu.Item leftSection={<IconFileExport size={14} />} component="a" href={apiUrl(`/processes/${p.id}/export`)}>
                       {t('card.exportYaml')}
                     </Menu.Item>
+                    {caps.createProcesses && <DuplicateMenuItem onClick={() => duplicate.open('process', p.id)} />}
                     {p.permissions.includes('manage') && (
                       <Menu.Item
                         color="red"
@@ -260,7 +266,7 @@ export function ProcessesPage() {
                         onClick={async () => {
                           if (!(await confirmDanger({ action: 'archive', message: t('card.archiveConfirm', { name: p.name }) }))) return;
                           await del(`/processes/${p.id}`).catch(notifyError);
-                          qc.invalidateQueries({ queryKey: ['processes'] });
+                          qc.invalidateQueries({ queryKey: processKeys.all });
                         }}
                       >
                         {t('card.archive')}
@@ -300,10 +306,11 @@ export function ProcessesPage() {
         ))}
       </SimpleGrid>
       <RunDialog processId={runId} opened={!!runId} onClose={() => setRunId(null)} />
-      <TemplateGallery opened={templatesOpen} onClose={templates.close} />
+      <TemplateGallery opened={templatesOpen} onClose={templates.close} initialKind={galleryKind || null} initialBundle={galleryBundle} />
       <ImportModal opened={importOpen} onClose={importModal.close} />
       <BundleImportModal opened={bundleOpen} onClose={bundleModal.close} />
-    </>
+      {duplicate.dialog}
+    </ListPage>
   );
 }
 
@@ -332,7 +339,7 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
     }
     setResults(out);
     setBusy(false);
-    qc.invalidateQueries({ queryKey: ['processes'] });
+    qc.invalidateQueries({ queryKey: processKeys.all });
     const okCount = out.filter((r) => r.ok).length;
     if (okCount) notifyOk(t('import.imported', { count: okCount, total: out.length }));
   };
@@ -505,8 +512,8 @@ function BundleImportModal({ opened, onClose }: { opened: boolean; onClose: () =
                   onConflict,
                 });
                 setResult(r);
-                qc.invalidateQueries({ queryKey: ['processes'] });
-                qc.invalidateQueries({ queryKey: ['dashboards'] });
+                qc.invalidateQueries({ queryKey: processKeys.all });
+                qc.invalidateQueries({ queryKey: dashboardKeys.all });
               } catch (e) {
                 notifyError(e, t('import.failed'));
               } finally {

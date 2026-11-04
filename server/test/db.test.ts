@@ -1,4 +1,4 @@
-import '../src/bootstrap.js';
+import '../src/warnings.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

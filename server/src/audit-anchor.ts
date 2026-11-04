@@ -1,13 +1,23 @@
 import fs from 'node:fs';
 import { assertEmailsAllowed } from './notifications/domains.js';
 import path from 'node:path';
-import { BRAND, type AuditAnchoring, type AuditCheckpoint, type AuditVerifyResult, isEmailAddress } from '@sm/shared';
+import {
+  BRAND,
+  type AuditAnchoring,
+  type AuditCheckpoint,
+  type AuditVerificationRecord,
+  type AuditVerifyMode,
+  type AuditVerifyResult,
+  isEmailAddress,
+} from '@sm/shared';
 import { config } from './config.js';
 import { audit, checkpointPayload, latestCheckpoint, publicResult, verifyAuditAsync, type Anchor, type VerifyOutcome } from './audit.js';
 import { publicKeyFingerprint, publicKeyPem, vault, verifySignature } from './vault.js';
 import { logger } from './log.js';
+import { currentActor } from './auth/context.js';
 import { readSetting, writeSetting } from './settings.js';
 import { HttpError, nowIso } from './util.js';
+import { env } from './config.js';
 
 /**
  * Anchoring of the audit log outside the database.
@@ -24,7 +34,7 @@ import { HttpError, nowIso } from './util.js';
  * or rewriting the log, no longer goes unnoticed once a checkpoint has left the system.
  */
 
-export const CHECKPOINT_INTERVAL_MINUTES = Math.max(5, Number(process.env.SM_AUDIT_CHECKPOINT_MINUTES) || 60);
+export const CHECKPOINT_INTERVAL_MINUTES = env.SM_AUDIT_CHECKPOINT_MINUTES;
 const EMAIL_KEY = 'audit.checkpointEmail';
 const EMAIL_LAST_KEY = 'audit.checkpointEmailLast';
 
@@ -93,9 +103,9 @@ export function configuredAnchors(): { anchors: Anchor[]; errors: { source: stri
     }
   };
   add('local anchor file', () => (fs.existsSync(anchorFile()) ? fs.readFileSync(anchorFile(), 'utf8') : null));
-  add('anchor in SM_AUDIT_ANCHOR', () => process.env.SM_AUDIT_ANCHOR?.trim() || null);
+  add('anchor in SM_AUDIT_ANCHOR', () => env.SM_AUDIT_ANCHOR ?? null);
   add('anchor file SM_AUDIT_ANCHOR_FILE', () => {
-    const f = process.env.SM_AUDIT_ANCHOR_FILE?.trim();
+    const f = env.SM_AUDIT_ANCHOR_FILE;
     if (!f) return null;
     if (!fs.existsSync(f)) throw new Error(`SM_AUDIT_ANCHOR_FILE ${f} does not exist`);
     return fs.readFileSync(f, 'utf8');
@@ -103,19 +113,93 @@ export function configuredAnchors(): { anchors: Anchor[]; errors: { source: stri
   return { anchors, errors, names };
 }
 
-/** Full verification against all anchors (configured + `extra`). */
-export async function verifyWithAnchors(extra: Anchor[] = []): Promise<VerifyOutcome> {
+// ---------- the verified head ----------
+
+const VERIFICATION_KEY = 'audit.verification';
+type StoredVerification = AuditVerificationRecord & { firstBadSeq?: number };
+interface Verifications {
+  incremental: StoredVerification | null;
+  full: StoredVerification | null;
+}
+
+/** The last verification of each mode (what GET /api/audit/archive shows). */
+export function lastVerifications(): Verifications {
+  return { incremental: null, full: null, ...readSetting<Partial<Verifications>>(VERIFICATION_KEY, {}) };
+}
+
+function recordVerification(mode: AuditVerifyMode, r: VerifyOutcome, by: string): void {
+  const rec: StoredVerification = {
+    at: nowIso(),
+    by,
+    mode,
+    ok: r.ok,
+    checked: r.checked,
+    // the first entry checked: after the checkpoint (incremental), after the deleted entries, or #1
+    fromSeq: (r.fromSeq ?? r.deletedThroughSeq ?? 0) + 1,
+    toSeq: r.head?.seq ?? null,
+    message: r.message,
+    ...(r.firstBadSeq ? { firstBadSeq: r.firstBadSeq } : {}),
+  };
+  writeSetting(VERIFICATION_KEY, { ...lastVerifications(), [mode]: rec });
+}
+
+/**
+ * A full verification that failed: until a full verification passes again, every verification is a full one (the
+ * incremental check only looks at the entries after the newest checkpoint) and no checkpoint is signed without one.
+ */
+export function failedFullVerification(): StoredVerification | null {
+  const f = lastVerifications().full;
+  return f && !f.ok ? f : null;
+}
+
+/** Where an incremental verification starts: the newest valid signed checkpoint (undefined: from the start). */
+export function incrementalStart(): AuditCheckpoint | undefined {
+  const key = ownKey();
+  return vault().unlocked && key ? latestCheckpoint((c) => validCheckpoint(c, key.pub))?.checkpoint : undefined;
+}
+
+/**
+ * Verification against all anchors (configured + `extra`). Incremental by default: from the newest signed checkpoint
+ * (each one is signed only after the entries up to it verified) to the end; `full`: every entry in the database.
+ */
+export async function verifyWithAnchors(
+  extra: Anchor[] = [],
+  o: {
+    mode?: AuditVerifyMode;
+    /** Who verifies (recorded; default: the signed-in user) */
+    by?: string;
+    onProgress?: (checked: number, total: number) => void;
+    /** After a chain that verified: further checks (the archive files); a problem fails the verification */
+    extraCheck?: () => Promise<{ problem: string | null; note: string | null }>;
+  } = {},
+): Promise<VerifyOutcome> {
+  // after a full verification failed, every verification is a full one until one passes again: the incremental check
+  // would only look at the entries after the newest checkpoint
+  const mode: AuditVerifyMode = o.mode === 'full' || failedFullVerification() ? 'full' : 'incremental';
   const conf = configuredAnchors();
   if (conf.errors.length) {
     const e = conf.errors[0]!;
     return {
       ok: false,
       checked: 0,
+      mode,
       message: `The ${e.source} cannot be used: ${e.message}`,
       anchors: conf.errors.map((x) => ({ source: x.source, seq: 0, ok: false, message: x.message })),
     };
   }
-  return verifyAuditAsync({ anchors: [...conf.anchors, ...extra] });
+  const start = mode === 'incremental' ? incrementalStart() : undefined;
+  let r = await verifyAuditAsync({
+    anchors: [...conf.anchors, ...extra],
+    from: start ? { seq: start.seq, hash: start.hash, digest: start.digest } : undefined,
+    onProgress: o.onProgress,
+  });
+  if (r.ok && o.extraCheck) {
+    const x = await o.extraCheck();
+    if (x.problem) r = { ...r, ok: false, message: x.problem };
+    else if (x.note) r = { ...r, message: `${r.message}; ${x.note}` };
+  }
+  recordVerification(mode, r, o.by ?? currentActor());
+  return r;
 }
 
 let running: Promise<AuditCheckpoint | null> | null = null;
@@ -127,7 +211,7 @@ let running: Promise<AuditCheckpoint | null> | null = null;
  * or the chain is broken (then it is logged as an error, never signed).
  */
 export function createCheckpoint(reason: 'interval' | 'verify' | 'export' | 'manual', verified?: VerifyOutcome): Promise<AuditCheckpoint | null> {
-  const next = (running ?? Promise.resolve(null)).catch(() => null).then(() => doCheckpoint(reason, verified));
+  const next = (running ?? Promise.resolve(null)).catch(() => null).then(() => doCheckpoint(reason, verified)); // the previous checkpoint's failure was reported to its caller
   running = next;
   void next.finally(() => {
     if (running === next) running = null;
@@ -141,6 +225,14 @@ async function doCheckpoint(reason: string, verified?: VerifyOutcome): Promise<A
   if (!key) return null;
   const prev = latestCheckpoint((c) => validCheckpoint(c, key.pub));
   let r = verified;
+  // after a failed full verification only a full one that passes again lets a checkpoint be signed
+  if (failedFullVerification() && r?.mode !== 'full') {
+    r = await verifyWithAnchors([], { mode: 'full', by: 'system' });
+    if (!r.ok) {
+      logger.error({ audit: publicResult(r) }, 'audit chain verification failed – no checkpoint signed');
+      return null;
+    }
+  }
   if (!r?.ok || !r.head) {
     const conf = configuredAnchors();
     r = await verifyAuditAsync({
@@ -264,15 +356,4 @@ export function verificationResult(r: VerifyOutcome, checkpoint: AuditCheckpoint
   return publicResult(r, checkpoint ? { checkpoint } : {});
 }
 
-let timer: NodeJS.Timeout | undefined;
-export function startAuditJobs(): void {
-  if (timer) return;
-  timer = setInterval(() => {
-    void createCheckpoint('interval').catch((err) => logger.warn({ err }, 'audit checkpoint failed'));
-  }, CHECKPOINT_INTERVAL_MINUTES * 60_000);
-  timer.unref();
-}
-export function stopAuditJobs(): void {
-  if (timer) clearInterval(timer);
-  timer = undefined;
-}
+// Interval checkpoints are a background job (jobs/builtin.ts, job "audit-checkpoint").

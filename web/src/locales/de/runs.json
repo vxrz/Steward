@@ -111,6 +111,8 @@
     "startedByStep": "Gestartet vom Unterprozess-Schritt <step>{{step}}</step> der Ausführung <run>{{run}}</run>",
     "startedBySubprocess": "Gestartet von einem Unterprozess-Schritt der Ausführung <run>{{run}}</run>",
     "failed": "Ausführung fehlgeschlagen",
+    "queued": "Wartet auf einen freien Platz",
+    "queuedText": "Es laufen so viele Ausführungen, wie der Server gleichzeitig zulässt (SM_MAX_CONCURRENT_RUNS). Diese Ausführung startet, sobald eine davon endet oder auf eine Entscheidung wartet – in der Reihenfolge, in der die Ausführungen eingegangen sind.",
     "interrupted": "Ausführung unterbrochen",
     "interruptedText": "Die Anwendung wurde beendet, während diese Ausführung aktiv war. Fortsetzen, um an der unterbrochenen Stelle weiterzumachen, oder abbrechen.",
     "stats": {

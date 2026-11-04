@@ -1,14 +1,50 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { parseDatabaseTarget, type DatabaseTarget } from './database/sql.js';
 import { resolveBasePath } from './basePath.js';
+import { ConfigError, parseEnv, withoutName, type Env } from './config-schema.js';
 
-// In the single-file executable import.meta is not available; paths then come from SM_* variables.
-const here = typeof import.meta.url === 'string' ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd();
-export const ROOT_DIR = path.resolve(here, '..', '..');
+export { ConfigError, parseEnv, parseTrustProxy, type Env } from './config-schema.js';
 
-const dataDir = path.resolve(process.env.SM_DATA_DIR ?? path.join(ROOT_DIR, 'data'));
+import { ROOT_DIR } from './root-dir.js';
+
+export { ROOT_DIR };
+
+/**
+ * The environment, as the build sees it: the desktop executable has SM_BUILD_COMMIT / SM_BUILD_DATE compiled in
+ * (esbuild replaces these two expressions, see scripts/build-exe.mjs), everything else comes from process.env.
+ */
+function environment(): Record<string, string | undefined> {
+  return { ...process.env, SM_BUILD_COMMIT: process.env.SM_BUILD_COMMIT, SM_BUILD_DATE: process.env.SM_BUILD_DATE };
+}
+
+/**
+ * Every environment variable, validated once at start-up (config-schema.ts): an invalid value refuses to start
+ * with one line per bad variable. The rest of the server reads `env.SM_…` instead of process.env.
+ *
+ * Tests that change process.env after the server started call reloadConfig() (or overrideConfig() for single
+ * values); the object keeps its identity, so modules that read `env.X` at use time see the new values.
+ */
+export const env: Env = parseEnv(environment());
+
+/**
+ * Re-reads process.env into `env` (tests that change variables at runtime; also after a CLI set SM_DATA_DIR before
+ * starting anything). Throws a ConfigError like the start does. Values derived once at start-up (`config.port`,
+ * `config.dataDir`, `config.database`, the base path, the session lifetimes) keep their values.
+ */
+export function reloadConfig(): Env {
+  const next = parseEnv(environment());
+  for (const k of Object.keys(env)) delete (env as Record<string, unknown>)[k];
+  Object.assign(env, next);
+  return env;
+}
+
+/** Sets single validated values (tests): `overrideConfig({ SM_API_RATE_LIMIT: 0 })`; reloadConfig() undoes it. */
+export function overrideConfig(patch: Partial<Env>): void {
+  Object.assign(env, patch);
+}
+
+const dataDir = path.resolve(env.SM_DATA_DIR ?? path.join(ROOT_DIR, 'data'));
 
 /**
  * The master passphrase for unattended start: SM_MASTER_PASSPHRASE_FILE (preferred: a Docker/Kubernetes
@@ -31,7 +67,7 @@ function readMasterPassphrase(): string | undefined {
     try {
       return readPassphraseFile(resolved);
     } catch (e) {
-      throw new Error(`SM_MASTER_PASSPHRASE_FILE: cannot read ${resolved}: ${(e as Error).message}`);
+      throw new ConfigError([{ name: 'SM_MASTER_PASSPHRASE_FILE', message: `cannot read ${resolved}: ${(e as Error).message}` }]);
     }
   }
   return direct || undefined;
@@ -48,78 +84,57 @@ export function readPassphraseFile(file: string): string {
   return text;
 }
 
-/**
- * SM_TRUST_PROXY: behind a reverse proxy, which X-Forwarded-For / -Proto / -Host to believe.
- * Off by default. A comma-separated list of proxy addresses/CIDRs ("10.0.0.5, 10.1.0.0/16", also
- * "loopback", "linklocal", "uniquelocal") – preferred – or a hop count ("1"); a hop count is only
- * honoured when the direct peer has a loopback or private address (see app.ts), so a client that
- * reaches Steward directly from outside cannot fake its address. "true" (trust everyone) is refused.
- */
-export function parseTrustProxy(v: string | undefined): number | string[] | undefined {
-  const s = v?.trim();
-  if (!s || /^(0|false|off|no)$/i.test(s)) return undefined;
-  if (/^\d+$/.test(s)) return Number(s);
-  if (/^(true|on|yes|\*)$/i.test(s))
-    throw new Error('SM_TRUST_PROXY=true would trust any client to set its own address – use the number of proxies (e.g. 1) or their addresses');
-  const list = s
-    .split(',')
-    .map((x) => x.trim())
-    .filter(Boolean);
-  for (const x of list)
-    if (!/^[0-9a-fA-F.:]+(\/\d{1,3})?$/.test(x) && !['loopback', 'linklocal', 'uniquelocal'].includes(x))
-      throw new Error(`SM_TRUST_PROXY: "${x}" is not an IP address or CIDR`);
-  return list;
+/** A start-up check across variables, reported like a bad single variable. */
+function check<T>(name: string, fn: () => T): T {
+  try {
+    return fn();
+  } catch (e) {
+    if (e instanceof ConfigError) throw e;
+    throw new ConfigError([{ name, message: withoutName((e as Error).message, name) }]);
+  }
 }
 
-function parsePdfWorker(raw: string | undefined): 'auto' | 'off' {
-  const v = (raw ?? '').trim().toLowerCase();
-  if (!v || v === 'auto' || v === 'on') return 'auto';
-  if (v === 'off' || v === '0' || v === 'false') return 'off';
-  throw new Error(`SM_PDF_WORKER: "${raw}" is not auto or off`);
-}
+/** SM_PUBLIC_URL (normalised: origin + base path) and SM_BASE_PATH; a mismatch refuses to start (see basePath.ts). */
+const { basePath, publicUrl } = check('SM_BASE_PATH', () => resolveBasePath(process.env));
 
-/** A whole number from the environment within [min, max]; the default when unset, an error when invalid. */
-function envInt(name: string, fallback: number, min: number, max: number): number {
-  const raw = process.env[name]?.trim();
-  if (!raw) return fallback;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < min || n > max) throw new Error(`${name}: "${raw}" is not a whole number from ${min} to ${max}`);
-  return n;
-}
-
-/** SM_PUBLIC_URL (normalised: origin + base path) and SM_BASE_PATH; a mismatch or an invalid value refuses to start (see basePath.ts). */
-const { basePath, publicUrl } = resolveBasePath(process.env);
+const examplesDir = env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples');
 
 export const config = {
   version: '0.3.1',
-  host: process.env.SM_HOST ?? '127.0.0.1',
-  port: Number(process.env.SM_PORT ?? 4310),
+  host: env.SM_HOST,
+  port: env.SM_PORT,
   dataDir,
   /**
    * SQLite file in the data directory (default) or PostgreSQL (SM_DATABASE_URL=postgres://…,
    * optional SM_DATABASE_SCHEMA and SM_DATABASE_CA). The data directory is needed either way
    * (vault file, artifacts, reports, uploaded docs).
    */
-  database: (process.env.SM_DATABASE_URL
-    ? parseDatabaseTarget(process.env.SM_DATABASE_URL, { schema: process.env.SM_DATABASE_SCHEMA, ca: process.env.SM_DATABASE_CA })
+  database: (env.SM_DATABASE_URL
+    ? check('SM_DATABASE_URL', () => parseDatabaseTarget(env.SM_DATABASE_URL!, { schema: env.SM_DATABASE_SCHEMA, ca: env.SM_DATABASE_CA }))
     : { kind: 'sqlite', file: path.join(dataDir, 'service-manager.db') }) as DatabaseTarget,
-  demo: process.env.SM_DEMO === '1' || process.env.SM_DEMO === 'true',
+  demo: env.SM_DEMO,
   /** SQLite: automatic copies of the database made before migrations, kept in <data dir>/backups (0 = none). */
-  upgradeBackups: envInt('SM_UPGRADE_BACKUPS', 3, 0, 100),
-  webDist: process.env.SM_WEB_DIST ?? path.join(ROOT_DIR, 'web', 'dist'),
-  templatesDir: path.join(process.env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples'), 'processes'),
-  dashboardsDir: path.join(process.env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples'), 'dashboards'),
+  upgradeBackups: env.SM_UPGRADE_BACKUPS,
+  /** Runs at the same time (SM_MAX_CONCURRENT_RUNS, 0 = no limit): further runs wait in status queued, first come first served (engine/runner.ts). */
+  maxConcurrentRuns: env.SM_MAX_CONCURRENT_RUNS,
+  /** On SIGTERM/SIGINT: how long running steps may still finish before their runs are marked interrupted (bootstrap.ts). */
+  shutdownGraceMs: env.SM_SHUTDOWN_GRACE_SECONDS * 1000,
+  webDist: env.SM_WEB_DIST ?? path.join(ROOT_DIR, 'web', 'dist'),
+  /** The example library (processes, dashboards, monitors) */
+  examplesDir,
+  templatesDir: path.join(examplesDir, 'processes'),
+  dashboardsDir: path.join(examplesDir, 'dashboards'),
   /** Fonts, default logo and colour profile for PDF reports (server/assets; unpacked by the desktop executable) */
-  assetsDir: process.env.SM_ASSETS_DIR ?? path.join(ROOT_DIR, 'server', 'assets'),
+  assetsDir: env.SM_ASSETS_DIR ?? path.join(ROOT_DIR, 'server', 'assets'),
   /**
    * PDFs are drawn in a worker thread (#13): "auto" (default) uses it and falls back to drawing in the main thread
    * when the worker cannot start; "off" always draws in the main thread (no time limit then).
    */
-  pdfWorker: parsePdfWorker(process.env.SM_PDF_WORKER),
+  pdfWorker: env.SM_PDF_WORKER,
   /** Optional passphrase for unattended start (scheduled runs after reboot); see readMasterPassphrase. */
   masterPassphrase: readMasterPassphrase(),
   /** Serve HTTPS (recommended when other people access the tool over the network). */
-  tls: process.env.SM_TLS_CERT && process.env.SM_TLS_KEY ? { cert: process.env.SM_TLS_CERT, key: process.env.SM_TLS_KEY } : undefined,
+  tls: env.SM_TLS_CERT && env.SM_TLS_KEY ? { cert: env.SM_TLS_CERT, key: env.SM_TLS_KEY } : undefined,
   /** The address users open (behind a reverse proxy: its https:// URL), including the base path. */
   publicUrl,
   /**
@@ -128,19 +143,19 @@ export const config = {
    */
   basePath,
   /** Reverse proxy addresses / hop count whose X-Forwarded-* headers are believed (SM_TRUST_PROXY). */
-  trustProxy: parseTrustProxy(process.env.SM_TRUST_PROXY),
+  trustProxy: env.SM_TRUST_PROXY,
   /**
    * Session lifetime (OWASP ASVS 4.0.3 V3.3.2, level 2): a session ends after SM_SESSION_IDLE_MINUTES without a
    * request (default 30; an open Steward tab keeps it alive) and SM_SESSION_MAX_HOURS after sign-in (default 12).
    */
   session: {
-    idleMs: envInt('SM_SESSION_IDLE_MINUTES', 30, 5, 7 * 24 * 60) * 60_000,
-    maxMs: envInt('SM_SESSION_MAX_HOURS', 12, 1, 30 * 24) * 3_600_000,
+    idleMs: env.SM_SESSION_IDLE_MINUTES * 60_000,
+    maxMs: env.SM_SESSION_MAX_HOURS * 3_600_000,
     /**
      * Step-up re-authentication (OWASP ASVS 3.7.1): how long a confirmation – the password again or a fresh single
      * sign-on – lets a session do sensitive actions, and how old a sign-in at the identity provider (auth_time) may be.
      */
-    stepUpMs: envInt('SM_STEP_UP_MINUTES', 5, 1, 15) * 60_000,
+    stepUpMs: env.SM_STEP_UP_MINUTES * 60_000,
   },
   /** Session cookie with Secure and HSTS: built-in TLS, or an https public URL (TLS terminated by a proxy). */
   get secureCookies(): boolean {
@@ -155,18 +170,15 @@ const LOOPBACK = ['127.0.0.1', 'localhost', '::1', '[::1]'];
 
 /**
  * Settings that are fine on a laptop but weaken a shared server: logged as warnings at startup
- * (OWASP ASVS V14.1). `env` and `c` are parameters for tests.
+ * (OWASP ASVS V14.1). `e` and `c` are parameters for tests.
  */
 export function securityWarnings(
-  env: NodeJS.ProcessEnv = process.env,
+  e: Pick<Env, 'SM_ALLOWED_HOSTS' | 'SM_METRICS_PUBLIC'> = env,
   c: { host: string; demo: boolean; secureCookies: boolean } = config,
   passphraseFromEnvironment = passphraseInEnvironment,
 ): string[] {
   const out: string[] = [];
-  const hosts = (env.SM_ALLOWED_HOSTS ?? '')
-    .split(',')
-    .map((h) => h.trim())
-    .filter((h) => h && !LOOPBACK.includes(h));
+  const hosts = e.SM_ALLOWED_HOSTS.filter((h) => !LOOPBACK.includes(h));
   const remote = hosts.length > 0;
   if (remote && !c.secureCookies) {
     out.push(
@@ -181,11 +193,7 @@ export function securityWarnings(
   if (passphraseFromEnvironment) {
     out.push('The master passphrase comes from SM_MASTER_PASSPHRASE – prefer SM_MASTER_PASSPHRASE_FILE (a secret file only the service account can read)');
   }
-  const login = env.SM_PASSWORD_LOGIN?.trim();
-  if (login && !['all', 'adminsOnly', 'none'].includes(login)) {
-    out.push(`SM_PASSWORD_LOGIN="${login.slice(0, 40)}" is not one of all, adminsOnly, none – it is ignored and the setting in the UI applies`);
-  }
-  if (env.SM_METRICS_PUBLIC === '1') out.push('SM_METRICS_PUBLIC=1: /api/metrics answers without signing in (counts of runs, checks and platforms)');
+  if (e.SM_METRICS_PUBLIC) out.push('SM_METRICS_PUBLIC=1: /api/metrics answers without signing in (counts of runs, checks and platforms)');
   if (config.session.maxMs > 12 * 3_600_000 || config.session.idleMs > 30 * 60_000) {
     out.push('Sessions last longer than OWASP ASVS level 2 allows (12 h after sign-in, 30 min idle) – see SM_SESSION_MAX_HOURS / SM_SESSION_IDLE_MINUTES');
   }

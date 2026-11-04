@@ -21,6 +21,10 @@ const GO_LABELS: Record<GoKey, 'dashboard' | 'tasks' | 'runs' | 'monitors' | 'pr
 };
 const SEQUENCE_MS = 1500;
 
+/** Who shows the shortcut sheet (the Help menu): the command palette opens it, too. */
+const sheetOpeners = new Set<() => void>();
+export const openShortcutSheet = () => sheetOpeners.forEach((open) => open());
+
 /** Typing, a dialog, a menu or the process canvas keep their own keys: no shortcut there. */
 function ignoreTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -167,6 +171,10 @@ export function HelpMenu() {
   const [dialog, setDialog] = useState<'shortcuts' | 'news' | null>(null);
   const openShortcuts = useRef(() => setDialog('shortcuts')).current;
   useGlobalShortcuts(openShortcuts);
+  useEffect(() => {
+    sheetOpeners.add(openShortcuts);
+    return () => void sheetOpeners.delete(openShortcuts);
+  }, [openShortcuts]);
   return (
     <>
       <Menu position="bottom-end" width={260} withinPortal>

@@ -5,6 +5,7 @@ import { nowIso } from '../util.js';
 import { runAs } from '../auth/context.js';
 import * as scheduler from '../scheduler.js';
 import { logger } from '../log.js';
+import { shuttingDown } from '../lifecycle.js';
 
 /** A failure is logged once until the check passes again (probes ask every few seconds). */
 const logged = new Map<string, string>();
@@ -38,6 +39,11 @@ export function readinessChecks(detail = false): { ready: boolean; checks: Readi
     logged.delete('database');
   } catch (e) {
     checks.database = failed('database', e, 'Database not available', detail);
+  }
+  if (shuttingDown()) {
+    // SIGTERM: draining (bootstrap.ts) – load balancers stop sending people here
+    checks.scheduler = { ok: false, message: 'Shutting down' };
+    return { ready: false, checks };
   }
   try {
     // schedules are armed once the vault is unlocked
