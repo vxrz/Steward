@@ -13,6 +13,13 @@ import {
   RECORD_FIELD_KINDS,
   RECORD_TYPE_KEY_RE,
   RECORD_WORKFLOW_KEYS,
+  TABLE_COLUMN_KINDS,
+  TABLE_LIMITS,
+  FIREWALL_RECORD_TYPE,
+  FIREWALL_RULES_RECORD_TYPE,
+  FIREWALL_RULES_TYPE_ID,
+  FIREWALL_TYPE_ID,
+  type RecordTypeDefinition,
   type RecordFieldDef,
   type RecordType,
   type RecordWorkflowKey,
@@ -46,6 +53,17 @@ export interface TypeRow {
   updated_by: string;
 }
 
+/** A column of a table field (#208). */
+export const tableColumnDef = z
+  .object({
+    key: z.string().regex(RECORD_FIELD_KEY_RE, 'Column keys are camelCase letters and digits, e.g. destination'),
+    label: z.string().trim().min(1).max(80),
+    kind: z.enum(TABLE_COLUMN_KINDS),
+    required: z.boolean().optional(),
+    options: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
+  })
+  .strict();
+
 export const fieldDef = z
   .object({
     key: z.string().regex(RECORD_FIELD_KEY_RE, 'Field keys are camelCase letters and digits, e.g. rollbackPlan'),
@@ -53,6 +71,7 @@ export const fieldDef = z
     kind: z.enum(RECORD_FIELD_KINDS),
     required: z.boolean().optional(),
     options: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
+    columns: z.array(tableColumnDef).max(TABLE_LIMITS.columns).optional(),
     help: z.string().trim().max(300).optional(),
   })
   .strict();
@@ -80,6 +99,16 @@ export const typeInput = z
       if (keys.has(f.key)) ctx.addIssue({ code: 'custom', path: ['fields', i, 'key'], message: `Duplicate field key ${f.key}` });
       keys.add(f.key);
       if (f.kind === 'select' && !f.options?.length) ctx.addIssue({ code: 'custom', path: ['fields', i, 'options'], message: 'A select field needs options' });
+      if (f.kind === 'table') {
+        if (!f.columns?.length) ctx.addIssue({ code: 'custom', path: ['fields', i, 'columns'], message: 'A table field needs columns' });
+        const cols = new Set<string>();
+        (f.columns ?? []).forEach((c, j) => {
+          if (cols.has(c.key)) ctx.addIssue({ code: 'custom', path: ['fields', i, 'columns', j, 'key'], message: `Duplicate column key ${c.key}` });
+          cols.add(c.key);
+          if (c.kind === 'select' && !c.options?.length)
+            ctx.addIssue({ code: 'custom', path: ['fields', i, 'columns', j, 'options'], message: 'A select column needs options' });
+        });
+      } else if (f.columns?.length) ctx.addIssue({ code: 'custom', path: ['fields', i, 'columns'], message: 'Only table fields have columns' });
     });
   });
 export type TypeInput = z.infer<typeof typeInput>;
@@ -91,6 +120,9 @@ export function ensureDefaultTypes(): void {
   ensureAccessType();
   ensureDocumentType();
   ensureIncidentType();
+  // #208: firewall changes and approved firewall rules, also in installations seeded before they existed
+  ensureBuiltinType(FIREWALL_TYPE_ID, FIREWALL_RECORD_TYPE, ['FWC', 'FWCH', 'FIREWALL', 'FWCR']);
+  ensureBuiltinType(FIREWALL_RULES_TYPE_ID, FIREWALL_RULES_RECORD_TYPE, ['FWR', 'FWRS', 'FWRULES', 'FWAR']);
   if (db().get("SELECT 1 FROM settings WHERE key = 'records.defaultTypesSeeded'")) {
     seeded = true;
     return;
@@ -194,6 +226,34 @@ function ensureIncidentType(): void {
       t.workflow,
       t.template,
       JSON.stringify(t.fields),
+      now,
+      now,
+    );
+  });
+}
+
+/**
+ * A built-in type with a fixed id (#208), also in installations created before it existed: created once with the
+ * first free key of the list; an administrator's own type with that key stays as it is. Archiving it keeps it out
+ * of new records.
+ */
+function ensureBuiltinType(id: string, t: RecordTypeDefinition, keys: string[]): void {
+  if (db().get('SELECT 1 FROM record_types WHERE id = ?', id)) return;
+  db().tx(() => {
+    if (db().get('SELECT 1 FROM record_types WHERE id = ?', id)) return;
+    const key = keys.find((k) => !db().get('SELECT 1 FROM record_types WHERE key = ?', k)) ?? `${keys[0]}X`;
+    const now = nowIso();
+    db().run(
+      `INSERT INTO record_types (id, key, name, description, workflow, template, fields, review_interval_months, builtin, archived, created_at, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, 'system') ON CONFLICT (id) DO NOTHING`,
+      id,
+      key,
+      t.name,
+      t.description,
+      t.workflow,
+      t.template,
+      JSON.stringify(t.fields),
+      t.workflow === 'document' ? (t.reviewIntervalMonths ?? DEFAULT_REVIEW_INTERVAL_MONTHS) : null,
       now,
       now,
     );

@@ -194,6 +194,59 @@ export function addAttachment(recordId: string, filename: string, data: Buffer):
   }
 }
 
+/**
+ * Adds evidence to a record after its approval (#208), e.g. the provider's confirmation of a firewall change or a rule
+ * export: allowed in the statuses its workflow names (change: approved, implemented) for those who may change it. It is
+ * not content – the approved content and its hash stay as they are – and is never removed; its SHA-256 is in the audit log.
+ */
+export function addEvidence(recordId: string, filename: string, data: Buffer): RecordAttachment {
+  const { r, wf } = requireEditable(recordId, 'add evidence to this record');
+  if (!(wf.evidence ?? []).includes(r.status))
+    throw new HttpError(409, `Evidence is added to ${r.number} after the approval and before it is closed`, 'EVIDENCE_NOT_NOW', {
+      number: r.number,
+    });
+  if (data.length > MAX_ATTACHMENT_BYTES)
+    throw new HttpError(413, `The file is too large (at most ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB)`, 'FILE_TOO_LARGE', {
+      maxMb: MAX_ATTACHMENT_BYTES / 1024 / 1024,
+    });
+  const name = safeFilename(filename);
+  const { mime } = sniff(name, data);
+  if (attachmentRows(r.id, 'evidence').length >= MAX_ATTACHMENTS)
+    throw new HttpError(400, `At most ${MAX_ATTACHMENTS} attachments per record`, 'ATTACHMENT_LIMIT', { max: MAX_ATTACHMENTS });
+  const id = newId('rat_');
+  const hash = sha256(data);
+  const rel = writeAttachmentFile(r.id, id, name, data);
+  try {
+    let row!: AttachmentRow;
+    db().tx(() => {
+      row = insertAttachment({
+        id,
+        record_id: r.id,
+        kind: 'evidence',
+        filename: name,
+        mime,
+        size: data.length,
+        sha256: hash,
+        path: rel,
+        revision: Number(r.revision),
+        details: JSON.stringify({ status: r.status }),
+      });
+      touch(r.id);
+      audit({
+        action: 'record.evidence_added',
+        entityType: 'record',
+        entityId: r.id,
+        summary: `Evidence ${name} added to ${r.number} (${r.status}, ${data.length} bytes, sha256 ${hash.slice(0, 16)}…)`,
+        details: { number: r.number, attachmentId: id, filename: name, size: data.length, sha256: hash, mime, status: r.status },
+      });
+    });
+    return toAttachment(row);
+  } catch (e) {
+    removeFile(rel);
+    throw e;
+  }
+}
+
 function removeFile(rel: string): void {
   const file = path.join(recordsDir(), ...rel.split('/'));
   try {

@@ -179,3 +179,17 @@ export const DEFAULT_ACCESS_CONTROLS: { catalogue: string; ref: string }[] = [
   { catalogue: 'IEC62443-2-1', ref: '4.3.3.7' },
   { catalogue: 'NIS2', ref: '21(2)(i)' },
 ];
+
+/**
+ * Default mapping of the firewall change types (#208), for new installations (an existing one maps them itself under
+ * Compliance → Controls, docs/FIREWALL-CHANGES.md): firewall changes are change management of the network, the
+ * approved rules document network security and segregation.
+ */
+export const DEFAULT_FIREWALL_CONTROLS: { catalogue: string; ref: string; recordType: 'change' | 'rules' }[] = [
+  { catalogue: 'ISO27001', ref: '8.20', recordType: 'change' },
+  { catalogue: 'ISO27001', ref: '8.22', recordType: 'change' },
+  { catalogue: 'ISO27001', ref: '8.32', recordType: 'change' },
+  { catalogue: 'ISO27001', ref: '8.20', recordType: 'rules' },
+  { catalogue: 'ISO27001', ref: '8.21', recordType: 'rules' },
+  { catalogue: 'ISO27001', ref: '8.22', recordType: 'rules' },
+];

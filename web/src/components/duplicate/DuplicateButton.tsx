@@ -32,6 +32,7 @@ const ENDPOINT: Record<DuplicateKind, (id: string) => string> = {
   'maintenance-window': (id) => `/maintenance-windows/${id}/duplicate`,
   'access-check': (id) => `/compliance/access-checks/${id}/duplicate`,
   'status-page': (id) => `/status-pages/${id}/duplicate`,
+  system: (id) => `/systems/${id}/duplicate`,
 };
 
 /** The list queries a copy shows up in. */
@@ -47,6 +48,7 @@ const LIST_KEYS: Record<DuplicateKind, string[]> = {
   'maintenance-window': ['maintenance-windows'],
   'access-check': ['access-checks'],
   'status-page': ['status-pages'],
+  system: ['systems'],
 };
 
 /** Errors shown at a field of the dialog. */
@@ -54,6 +56,7 @@ const FIELD_OF: Record<string, 'name' | 'key'> = {
   DUPLICATE_NAME_TAKEN: 'name',
   APPLICATION_EXISTS: 'name',
   SERVICE_EXISTS: 'name',
+  SYSTEM_EXISTS: 'name',
   DUPLICATE_KEY_TAKEN: 'key',
   MONITOR_KEY_INVALID: 'key',
   MONITOR_KEY_RESERVED: 'key',
@@ -173,9 +176,14 @@ function DuplicateDialog({ kind, id, onClose, onDone }: DialogProps) {
               )}
             </Stack>
           )}
+          {kind === 'system' && (
+            <Text size="xs" c="dimmed">
+              {t('duplicate.systemNote')}
+            </Text>
+          )}
           {s.canCopyAccess && (
             <Checkbox
-              label={t(kind === 'application' || kind === 'service' ? 'duplicate.copyOwners' : 'duplicate.copyAccess')}
+              label={t(kind === 'application' || kind === 'service' || kind === 'system' ? 'duplicate.copyOwners' : 'duplicate.copyAccess')}
               description={t('duplicate.copyAccessHint')}
               checked={copyAccess}
               onChange={(e) => setCopyAccess(e.currentTarget.checked)}

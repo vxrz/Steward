@@ -144,6 +144,7 @@ export const HISTORY_COLUMNS: string[] = [
   'systems.sbom_imported_by',
   'system_stack.set_by',
   'application_systems.created_by',
+  'system_segments.created_by',
   'access_findings.resolved_by',
   'access_findings.dismiss_requested_by',
   'access_snapshots.taken_by',

@@ -336,4 +336,23 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
     );
     CREATE UNIQUE INDEX application_topic_prefixes_key ON application_topic_prefixes(application_id, platform_id, prefix, environment);`,
   },
+  {
+    // #208: attributes of a system by its kind (a network segment's VLAN, subnets, zone, site, firewall manager), and
+    // the segments a system is in, with its address there (opt-in network context, not a CMDB)
+    name: 'catalogue-012-network-segments',
+    sql: `
+      ALTER TABLE systems ADD COLUMN attributes TEXT NOT NULL DEFAULT '{}';
+      CREATE TABLE system_segments (
+        id TEXT PRIMARY KEY,
+        system_id TEXT NOT NULL REFERENCES systems(id) ON DELETE CASCADE,
+        segment_id TEXT NOT NULL REFERENCES systems(id) ON DELETE CASCADE,
+        address TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX system_segments_pair ON system_segments(system_id, segment_id);
+      CREATE INDEX system_segments_segment ON system_segments(segment_id);
+    `,
+  },
 ];

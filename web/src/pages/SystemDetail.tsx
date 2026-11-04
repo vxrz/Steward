@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Anchor, Badge, Button, Grid, Group, Paper, Stack, Table, Text } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconEdit, IconExternalLink, IconFileImport, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { SbomPreview, SystemDetail } from '@sm/shared';
@@ -17,6 +17,9 @@ import { CatalogueCredentials } from '../components/catalogue/CatalogueCredentia
 import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { OwningTeams } from '../components/OwningTeams';
 import { DetailHeader } from '../components/page/DetailPage';
+import { FirewallNetworkPanel, NetworkAttributesView } from '../components/catalogue/network';
+import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
+import { useMe } from '../auth';
 
 /** A system (#129): what it is, its tech stack, the platform it is, and the applications that run on it per environment. */
 export function SystemDetailPage() {
@@ -27,7 +30,17 @@ export function SystemDetailPage() {
   const q = useQuery({ queryKey: ['system', id], queryFn: () => get<SystemDetail>(`/systems/${id}`) });
   const [editing, setEditing] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [search, setSearch] = useSearchParams();
+  const { hasRole } = useMe();
+  const canCreate = hasRole('admin') || hasRole('designer');
   const s = q.data;
+  // ?edit=1 (e.g. after Duplicate): open the form once the system is loaded
+  useEffect(() => {
+    if (s?.canEdit && search.get('edit') === '1') {
+      setEditing(true);
+      setSearch({}, { replace: true });
+    }
+  }, [s?.canEdit, search, setSearch]);
   if (!s) return <DetailState query={q} back="systems" />;
   const saved = (x: SystemDetail) => {
     qc.setQueryData(['system', id], x);
@@ -57,26 +70,35 @@ export function SystemDetailPage() {
         }
         description={t('detailLine', { user: s.updatedBy, date: fmtDate(s.updatedAt) })}
         actions={
-          s.canEdit && (
+          (s.canEdit || canCreate) && (
             <>
-              <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}>
-                {t('common:edit')}
-              </Button>
-              <Button size="xs" variant="default" leftSection={<IconFileImport size={14} />} onClick={() => setImporting(true)}>
-                {t('systems.importSbom')}
-              </Button>
-              <Button size="xs" variant="default" color="red" leftSection={<IconTrash size={14} />} onClick={() => void remove()}>
-                {t('common:delete')}
-              </Button>
+              {s.canEdit && (
+                <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}>
+                  {t('common:edit')}
+                </Button>
+              )}
+              {canCreate && <DuplicateButton kind="system" id={s.id} />}
+              {s.canEdit && (
+                <>
+                  <Button size="xs" variant="default" leftSection={<IconFileImport size={14} />} onClick={() => setImporting(true)}>
+                    {t('systems.importSbom')}
+                  </Button>
+                  <Button size="xs" variant="default" color="red" leftSection={<IconTrash size={14} />} onClick={() => void remove()}>
+                    {t('common:delete')}
+                  </Button>
+                </>
+              )}
             </>
           )
         }
       />
+      <CopiedFromNote kind="system" id={s.id} />
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
             {s.note && <Text size="sm">{s.note}</Text>}
             <MaintenancePanel kind="system" id={s.id} canPlan={s.canEdit} />
+            <FirewallNetworkPanel system={s} />
             <Stack gap="xs" data-testid="system-stack">
               <Text fw={600}>{t('components.stack')}</Text>
               <StackBadges stack={s.stack} />
@@ -136,6 +158,7 @@ export function SystemDetailPage() {
           <Paper withBorder p="md">
             <Stack gap="sm">
               <Field label={t('systems.vendor')}>{s.vendor || '–'}</Field>
+              {s.kind === 'network' && <NetworkAttributesView attributes={s.attributes} />}
               <Field label={t('owners')}>{s.owners.length ? s.owners.map(subjectLabel).join(', ') : '–'}</Field>
               <Field label={t('systems.platform')}>
                 {s.platform ? (
@@ -172,6 +195,21 @@ export function SystemDetailPage() {
             </Stack>
           </Paper>
           <OwningTeams kind="system" id={s.id} mt="md" />
+          {s.backlinks.length > 0 && (
+            <Paper withBorder p="md" mt="md" data-testid="system-backlinks">
+              <Stack gap={4}>
+                <Text fw={600} size="sm">
+                  {t('firewall.linkedFrom')}
+                </Text>
+                {s.backlinks.map((b) => (
+                  <Anchor key={b.linkId} component={Link} to={b.path} size="sm">
+                    {b.label}
+                    {b.note ? ` (${b.note})` : ''}
+                  </Anchor>
+                ))}
+              </Stack>
+            </Paper>
+          )}
         </Grid.Col>
       </Grid>
       {editing && <SystemFormModal system={s} onClose={() => setEditing(false)} onSaved={saved} />}

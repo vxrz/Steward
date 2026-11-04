@@ -10,7 +10,9 @@
     "SDR": "Security decision record",
     "AC": "Access change",
     "DOC": "Service documentation",
-    "PIR": "Incident review"
+    "PIR": "Incident review",
+    "FWC": "Firewall change",
+    "FWR": "Approved firewall rules"
   },
   "builtin": {
     "types": {
@@ -41,6 +43,14 @@
       "PIR": {
         "description": "A post-incident review: what happened and when, the impact, the cause, what was learned and the measures that keep it from happening again (with owners and due dates). Accepted by someone other than the author.",
         "template": "## Summary\n\n\n## Timeline\n\n\n## What went well\n\n- \n\n## What could be better\n\n- \n\n## Learnings\n\n- \n"
+      },
+      "FWC": {
+        "description": "A change of firewall rules for a network segment or a system: who asked for it and why, the rule lines, who implements it (the own team or a provider) and the evidence. Approved and verified by people other than the requester and the implementer; closing it updates the approved rules.",
+        "template": "## Affected segments and systems\n\nLink them under Links (note: affected).\n\n## Description\n\n\n## Implementation\n\n1. \n\n## Verification\n\n"
+      },
+      "FWR": {
+        "description": "The approved firewall rules of a network segment or system. Each closed firewall change drafts the next edition, which an approver confirms; the rules are recertified once a year.",
+        "template": "## Scope\n\n\n## Notes\n\n"
       }
     },
     "fields": {
@@ -141,6 +151,23 @@
       "cause": {
         "label": "Cause",
         "help": "The root cause and what contributed"
+      },
+      "implementer": {
+        "label": "Implemented by"
+      },
+      "provider": {
+        "label": "Provider",
+        "help": "The provider who implements the change, if any"
+      },
+      "providerTicket": {
+        "label": "Provider ticket",
+        "help": "The provider's ticket number; add the ticket as a ticket reference that names this change too"
+      },
+      "rules": {
+        "label": "Rules"
+      },
+      "approvedRules": {
+        "label": "Approved rules"
       }
     },
     "options": {
@@ -169,6 +196,36 @@
         "minor": "minor",
         "major": "major",
         "critical": "critical"
+      },
+      "implementer": {
+        "internal": "internal",
+        "provider": "provider"
+      }
+    },
+    "columns": {
+      "change": "Change",
+      "source": "Source",
+      "destination": "Destination",
+      "service": "Protocol/port",
+      "action": "Action",
+      "enforcedAt": "Enforced at",
+      "purpose": "Purpose",
+      "expiry": "Expiry",
+      "approvedBy": "Approved by change"
+    },
+    "columnOptions": {
+      "change": {
+        "add": "add",
+        "remove": "remove"
+      },
+      "action": {
+        "allow": "allow",
+        "deny": "deny"
+      },
+      "enforcedAt": {
+        "perimeter": "perimeter firewall",
+        "host": "host firewall",
+        "cloud": "cloud security group"
       }
     }
   },
@@ -297,7 +354,8 @@
       "service": "Service",
       "credential": "Credential",
       "application": "Application",
-      "external": "External link"
+      "external": "External link",
+      "system": "System"
     },
     "target": "Target",
     "search": "Type to search",
@@ -348,7 +406,13 @@
     "added": "Added",
     "actions": "Actions",
     "removeNamed": "Remove {{name}}",
-    "removeConfirm": "Remove {{name}} from the document?"
+    "removeConfirm": "Remove {{name}} from the document?",
+    "evidence": {
+      "title": "Evidence",
+      "upload": "Add evidence",
+      "help": "Added after the approval, e.g. the provider's confirmation or a rule export. Evidence is not part of the approved content: it is kept with its SHA-256 in the audit log and cannot be removed.",
+      "empty": "No evidence yet."
+    }
   },
   "discussion": {
     "comment": "Comment",
@@ -518,7 +582,8 @@
       "textarea": "Text (several lines)",
       "date": "Date",
       "datetime": "Date and time",
-      "select": "Choice"
+      "select": "Choice",
+      "table": "Table"
     },
     "builtinHint": "Built-in types are shown in each person's language as long as their texts are unchanged. Texts you change here are shown to everyone as entered.",
     "reviewInterval": "Review interval (months)",
@@ -703,5 +768,38 @@
     "started": "Incident review started",
     "openMeasures": "Open measures from incident reviews",
     "openMeasuresHelp": "Measures of incident reviews linked to this service that are not done yet."
+  },
+  "table": {
+    "empty": "No rows.",
+    "actions": "Actions",
+    "cell": "{{column}}, row {{row}}",
+    "removeRow": "Remove row {{n}}",
+    "addRow": "Add row",
+    "columns": "Columns",
+    "columnKey": "Column key",
+    "columnLabel": "Column label",
+    "columnKind": "Column kind",
+    "kinds": {
+      "text": "Text",
+      "select": "Choice",
+      "date": "Date"
+    },
+    "removeColumn": "Remove column {{n}}",
+    "addColumn": "Add column"
+  },
+  "firewall": {
+    "title": "Against the approved rules",
+    "help": "Per affected segment or system: its approved firewall rules and what each rule line changes. Closing the change drafts the next edition of each, which an approver confirms.",
+    "noSystems": "Link the affected network segments or systems under Links first.",
+    "noDocument": "No approved rules yet – closing the change creates them",
+    "against": "Rule lines against the approved rules of {{name}}",
+    "row": "Row {{n}}",
+    "comparison": {
+      "new": "new rule",
+      "changed": "changes a rule",
+      "same": "already approved",
+      "removes": "removes a rule",
+      "notFound": "nothing to remove"
+    }
   }
 }

@@ -60,6 +60,7 @@ import {
   type RecordsMeta,
   type SignedPdfDetails,
   INCIDENT_TYPE_ID,
+  FIREWALL_TYPE_ID,
   isEmailAddress,
 } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, patch, post, put } from '../api';
@@ -77,6 +78,8 @@ import { DocumentChangelog, EditionBadge, EditionFields, ReviewStatusBadge } fro
 import { MeasuresPanel, TimelineButton } from '../components/records/IncidentReview';
 import { OwningTeams } from '../components/OwningTeams';
 import { DetailHeader } from '../components/page/DetailPage';
+import { TableFieldView, tableText } from '../components/records/TableField';
+import { FirewallContextPanel } from '../components/records/FirewallContext';
 
 const TABS = ['content', 'changelog', 'versions', 'links', 'attachments', 'discussion', 'pdfs', 'access'] as const;
 type Tab = (typeof TABS)[number];
@@ -260,9 +263,11 @@ export function RecordDetailPage() {
           {doc && <Tabs.Tab value="changelog">{t('tabs.changelog', { count: doc.editions.length + doc.reviews.length })}</Tabs.Tab>}
           <Tabs.Tab value="versions">{t('tabs.versions', { count: rec.version })}</Tabs.Tab>
           <Tabs.Tab value="links">{t('tabs.links', { count: rec.links.length + rec.backlinks.length })}</Tabs.Tab>
-          <Tabs.Tab value="attachments">{t('tabs.attachments', { count: rec.attachments.filter((a) => a.kind === 'file').length })}</Tabs.Tab>
+          <Tabs.Tab value="attachments">
+            {t('tabs.attachments', { count: rec.attachments.filter((a) => a.kind === 'file' || a.kind === 'evidence').length })}
+          </Tabs.Tab>
           <Tabs.Tab value="discussion">{t('tabs.discussion', { count: rec.events.length })}</Tabs.Tab>
-          <Tabs.Tab value="pdfs">{t('tabs.pdfs', { count: rec.attachments.filter((a) => a.kind !== 'file').length })}</Tabs.Tab>
+          <Tabs.Tab value="pdfs">{t('tabs.pdfs', { count: rec.attachments.filter((a) => a.kind === 'generated' || a.kind === 'signed').length })}</Tabs.Tab>
           <Tabs.Tab value="access">{t('tabs.access')}</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="content">
@@ -347,13 +352,16 @@ function fieldValue(typeKey: string, f: RecordFieldDef, v: string | undefined): 
 
 function ContentTab({ rec }: { rec: RecordDetail }) {
   const { t } = useTranslation('records');
+  // table fields (#208) take the width of the text, below it
+  const simple = rec.fieldDefs.filter((f) => f.kind !== 'table');
+  const tables = rec.fieldDefs.filter((f) => f.kind === 'table');
   return (
     <Grid gap="lg">
-      {rec.fieldDefs.length > 0 && (
+      {simple.length > 0 && (
         <Grid.Col span={{ base: 12, md: 4 }} order={{ base: 1, md: 2 }}>
           <Paper withBorder p="sm">
             <Stack gap="sm">
-              {rec.fieldDefs.map((f) => (
+              {simple.map((f) => (
                 <Field key={f.key} label={fieldLabel(rec.typeKey, f)}>
                   <Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                     {fieldValue(rec.typeKey, f, rec.fields[f.key])}
@@ -369,7 +377,7 @@ function ContentTab({ rec }: { rec: RecordDetail }) {
           </Paper>
         </Grid.Col>
       )}
-      <Grid.Col span={{ base: 12, md: rec.fieldDefs.length ? 8 : 12 }} order={{ base: 2, md: 1 }}>
+      <Grid.Col span={{ base: 12, md: simple.length ? 8 : 12 }} order={{ base: 2, md: 1 }}>
         {rec.body.trim() ? (
           <MarkdownView text={rec.body} />
         ) : (
@@ -377,6 +385,15 @@ function ContentTab({ rec }: { rec: RecordDetail }) {
             {t('detail.noBody')}
           </Text>
         )}
+        {tables.map((f) => (
+          <Stack key={f.key} gap={6} mt="md" data-testid={`record-table-${f.key}`}>
+            <Text fw={600} size="sm">
+              {fieldLabel(rec.typeKey, f)}
+            </Text>
+            <TableFieldView typeKey={rec.typeKey} def={f} value={rec.fields[f.key]} />
+          </Stack>
+        ))}
+        {rec.typeId === FIREWALL_TYPE_ID && <FirewallContextPanel rec={rec} />}
         <Text size="xs" c="dimmed" mt="md" className="mono" style={{ overflowWrap: 'anywhere' }}>
           {t('detail.contentHash', { hash: rec.contentHash })}
         </Text>
@@ -386,8 +403,18 @@ function ContentTab({ rec }: { rec: RecordDetail }) {
   );
 }
 
-const asText = (v: RecordVersion, labels: Map<string, string>) =>
-  [`# ${v.title}`, '', ...Object.entries(v.fields).map(([k, x]) => `${labels.get(k) ?? k}: ${x}`), '', v.body].join('\n');
+/** A version as text for the comparison: title, fields (a table field: one line per row), body. */
+const asText = (v: RecordVersion, labels: Map<string, string>, typeKey: string, defs: RecordFieldDef[]) =>
+  [
+    `# ${v.title}`,
+    '',
+    ...Object.entries(v.fields).map(([k, x]) => {
+      const def = (v.fieldDefs ?? defs).find((d) => d.key === k);
+      return def?.kind === 'table' ? `${labels.get(k) ?? k}:\n${tableText(typeKey, def, x)}` : `${labels.get(k) ?? k}: ${x}`;
+    }),
+    '',
+    v.body,
+  ].join('\n');
 
 function VersionsTab({ rec }: { rec: RecordDetail }) {
   const { t } = useTranslation('records');
@@ -443,12 +470,12 @@ function VersionsTab({ rec }: { rec: RecordDetail }) {
           <Switch size="xs" label={t('versions.contextOnly')} checked={context} onChange={(e) => setContext(e.currentTarget.checked)} />
           {a &&
             b &&
-            (asText(a, labels) === asText(b, labels) ? (
+            (asText(a, labels, rec.typeKey, rec.fieldDefs) === asText(b, labels, rec.typeKey, rec.fieldDefs) ? (
               <Text size="sm">{t('versions.same')}</Text>
             ) : (
               <UnifiedDiff
-                oldText={asText(a, labels)}
-                newText={asText(b, labels)}
+                oldText={asText(a, labels, rec.typeKey, rec.fieldDefs)}
+                newText={asText(b, labels, rec.typeKey, rec.fieldDefs)}
                 oldName={`v${a.version}`}
                 newName={`v${b.version}`}
                 context={context ? 3 : 100000}
@@ -471,10 +498,11 @@ function AttachmentsTab({ rec, onChange }: { rec: RecordDetail; onChange: () => 
   const { t } = useTranslation('records');
   const [busy, setBusy] = useState(false);
   const files = rec.attachments.filter((a) => a.kind === 'file');
-  const upload = async (list: File[]) => {
+  const evidence = rec.attachments.filter((a) => a.kind === 'evidence');
+  const upload = async (list: File[], to: 'attachments' | 'evidence' = 'attachments') => {
     setBusy(true);
     try {
-      for (const f of list) await uploadFile(`/records/${rec.id}/attachments`, f);
+      for (const f of list) await uploadFile(`/records/${rec.id}/${to}`, f);
       onChange();
     } catch (e) {
       notifyError(e);
@@ -505,6 +533,36 @@ function AttachmentsTab({ rec, onChange }: { rec: RecordDetail; onChange: () => 
         </Text>
       ) : (
         <AttachmentTable rec={rec} items={files} canRemove={rec.permissions.attach} onChange={onChange} />
+      )}
+      {(evidence.length > 0 || rec.permissions.attachEvidence) && (
+        <Stack gap="sm" mt="md" data-testid="record-evidence">
+          <Group justify="space-between">
+            <div>
+              <Text fw={600} size="sm">
+                {t('attachments.evidence.title')}
+              </Text>
+              <Text size="sm" c="dimmed">
+                {t('attachments.evidence.help')}
+              </Text>
+            </div>
+            {rec.permissions.attachEvidence && (
+              <FileButton onChange={(f) => void upload(f, 'evidence')} multiple>
+                {(props) => (
+                  <Button size="xs" variant="default" leftSection={<IconUpload size={14} />} loading={busy} {...props}>
+                    {t('attachments.evidence.upload')}
+                  </Button>
+                )}
+              </FileButton>
+            )}
+          </Group>
+          {evidence.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              {t('attachments.evidence.empty')}
+            </Text>
+          ) : (
+            <AttachmentTable rec={rec} items={evidence} onChange={onChange} />
+          )}
+        </Stack>
       )}
     </Stack>
   );

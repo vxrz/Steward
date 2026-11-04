@@ -5,6 +5,7 @@ import type { AwsReadout } from './aws.js';
 import type { SnowflakeReadout } from './snowflake.js';
 import type { DtrackLink, DtrackReadout } from './dtrack.js';
 import type { Backlink, ItemLink, ReviewStatus, ServiceCriticality } from './records.js';
+import type { SegmentMember, SystemAttributes, SystemFirewall, SystemSegmentLink } from './network.js';
 
 /**
  * Applications in the service catalogue (#84): what people call a platform ("Insights Hub", "Industrial Edge")
@@ -449,8 +450,8 @@ export const isProductionEnvironment = (list: readonly CatalogueEnvironment[], n
 
 // ---------- systems (#129) ----------
 
-/** What a system is: a short fixed list, anything else is "other". */
-export const SYSTEM_KINDS = ['server', 'vm', 'cluster', 'appliance', 'cloud-service', 'other'] as const;
+/** What a system is: a short fixed list, anything else is "other". "network": a network segment (#208). */
+export const SYSTEM_KINDS = ['server', 'vm', 'cluster', 'appliance', 'cloud-service', 'other', 'network'] as const;
 export type SystemKind = (typeof SYSTEM_KINDS)[number];
 
 export const SYSTEM_LIMITS = { name: 160, vendor: 120, note: 2000, linkNote: 500, perApplication: 200 } as const;
@@ -464,6 +465,8 @@ export interface SystemSummary {
   cmdbUrl: string;
   owners: string[];
   note: string;
+  /** Attributes of its kind (#208): a network segment's VLAN, subnets, zone, site, firewall; empty for other kinds */
+  attributes: SystemAttributes;
   /** The Steward platform this system is (null: none, or one the reader may not see – then platformHidden) */
   platform: { id: string; name: string; environment: string } | null;
   platformHidden: boolean;
@@ -492,6 +495,14 @@ export interface SystemDetail extends SystemSummary {
   applications: SystemApplicationRef[];
   /** Credentials register entries that belong to the system and that the reader may see (#143) */
   credentials: ApplicationCredential[];
+  /** The network segments it is in, with its address there (#208); segments the reader may not see are left out */
+  segments: SystemSegmentLink[];
+  /** A network segment: the systems in it that the reader may see (#208) */
+  members: SegmentMember[];
+  /** Records that link to it (firewall changes, documents) and that the reader may read */
+  backlinks: Backlink[];
+  /** Firewall changes, approved rules and tickets that name it (#208) */
+  firewall: SystemFirewall;
   createdAt: string;
   createdBy: string;
   updatedBy: string;

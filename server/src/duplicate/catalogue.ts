@@ -1,8 +1,10 @@
 /**
  * Duplicating applications and services (0.4.0), with options what to copy along. Platform mappings are never copied
- * (a platform belongs to one application); owners and owning teams are the access settings.
+ * (a platform belongs to one application); owners and owning teams are the access settings. Systems (#208), e.g. a
+ * network segment: with their attributes and their own stack, in the same segments – without addresses, which are
+ * the original's; the systems in a segment stay where they are.
  */
-import type { ApplicationDetail, DuplicateOption, ItemLink, ServiceDetail } from '@sm/shared';
+import { SYSTEM_LIMITS, type ApplicationDetail, type DuplicateOption, type ItemLink, type ServiceDetail, type SystemDetail } from '@sm/shared';
 import { db } from '../db.js';
 import { HttpError } from '../util.js';
 import { me } from '../auth/access.js';
@@ -10,7 +12,8 @@ import { canCreateServices } from '../records/access.js';
 import * as apps from '../catalogue/applications.js';
 import * as services from '../catalogue/service.js';
 import { addComponent } from '../catalogue/components.js';
-import { linkSystem } from '../catalogue/systems.js';
+import { createSystem, getSystem, linkSystem, systemInput } from '../catalogue/systems.js';
+import { addToSegment } from '../catalogue/network.js';
 import { scopeOf } from '../catalogue/scope.js';
 import type { LinkInput } from '../records/links.js';
 import { copyOwningTeams, type Duplicator } from './common.js';
@@ -185,4 +188,45 @@ export const serviceDuplicator: Duplicator<ServiceDetail> = {
     return { id: made.id, name: made.name, key: null, skipped };
   },
   paths: (id) => ({ path: `/services/${id}`, editPath: `/services/${id}?edit=1` }),
+};
+
+export const systemDuplicator: Duplicator<SystemDetail> = {
+  kind: 'system',
+  entityType: 'system',
+  label: 'System',
+  accessApplies: true,
+  view(id) {
+    const s = getSystem(id);
+    return { id: s.id, name: s.name, key: null, mayManage: s.canEdit, data: s };
+  },
+  mayCreate: () => canCreateServices(me()),
+  nameTaken: (n) => !!db().get('SELECT 1 FROM systems WHERE lower(name) = lower(?)', n),
+  copy(src, input) {
+    const s = src.data;
+    const made = createSystem(
+      systemInput.parse({
+        name: input.name.slice(0, SYSTEM_LIMITS.name),
+        kind: s.kind,
+        vendor: s.vendor,
+        // the CMDB entry and the platform are the original's (a copy is a different configuration item)
+        cmdbUrl: '',
+        owners: input.copyAccess ? s.owners : [],
+        note: s.note,
+        // the stack entered by hand; what an SBOM brought is the original's
+        stack: s.stack.filter((x) => x.source === 'manual').map((x) => ({ product: x.product, version: x.version })),
+        attributes: s.attributes,
+      }),
+    );
+    if (input.copyAccess) copyOwningTeams('system', s.id, made.id);
+    // in the same segments, without the original's addresses
+    const skipped = tryEach(s.segments, (g) => void addToSegment(made.id, { segmentId: g.segmentId, address: '', note: g.note }));
+    return {
+      id: made.id,
+      name: made.name,
+      key: null,
+      skipped: skip('segments', skipped),
+      details: { attributes: s.kind === 'network', segments: s.segments.length - skipped, addresses: 'not copied', members: 'not copied' },
+    };
+  },
+  paths: (id) => ({ path: `/systems/${id}`, editPath: `/systems/${id}?edit=1` }),
 };

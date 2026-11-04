@@ -429,6 +429,9 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/records/:id/links/:linkId': RUN,
   'POST /api/records/:id/attachments': RUN,
   'DELETE /api/records/:id/attachments/:attId': RUN,
+  // evidence after the approval and the approved firewall rules of what a firewall change affects (#208)
+  'POST /api/records/:id/evidence': RUN,
+  'GET /api/records/:id/firewall': ALL,
   'GET /api/records/:id/attachments/:attId/download': ALL,
   'POST /api/records/:id/pdf': ACTIVE,
   'POST /api/records/:id/signed': ACTIVE,
@@ -552,6 +555,10 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/systems/:id': DESIGN,
   'POST /api/systems/:id/sbom/preview': DESIGN,
   'POST /api/systems/:id/sbom': DESIGN,
+  // network context (#208): who may change the system
+  'POST /api/systems/:id/segments': DESIGN,
+  'PUT /api/systems/:id/segments/:segmentLinkId': DESIGN,
+  'DELETE /api/systems/:id/segments/:segmentLinkId': DESIGN,
   'POST /api/applications/:id/systems': DESIGN,
   'PUT /api/applications/:id/systems/:systemLinkId': DESIGN,
   'DELETE /api/applications/:id/systems/:systemLinkId': DESIGN,
@@ -791,6 +798,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/maintenance-windows/:id/duplicate': DESIGN,
   'POST /api/compliance/access-checks/:accessCheckId/duplicate': DESIGN,
   'POST /api/status-pages/:pageId/duplicate': DESIGN,
+  'POST /api/systems/:id/duplicate': DESIGN,
   // the suggestion for the dialog (fixture: the demo process) and where a copy came from (everyone who sees it)
   'GET /api/duplicates/:kind/:id': DESIGN,
   'GET /api/duplicates/:kind/:id/source': ALL,
@@ -861,6 +869,7 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
       'POST /api/applications/:id/duplicate',
       'POST /api/services/:id/duplicate',
       'POST /api/report-schedules/:id/duplicate',
+      'POST /api/systems/:id/duplicate',
     ].map((k) => [k, { sensitive: { copyAccess: true }, harmless: { copyAccess: false, key: '!' } }]),
   ),
   // allowing an MCP client gives it lasting access as the person (#12); denying needs no confirmation
@@ -1002,6 +1011,7 @@ function fill(url: string): string {
     .replace(/:applicationId/g, fx.application!)
     .replace(/:componentId/g, fx.component!)
     .replace(/:systemLinkId/g, fx.systemLink!)
+    .replace(/:segmentLinkId/g, 'ssg_none')
     .replace(/:systemId/g, fx.system!)
     .replace(/:dutyId/g, fx.duty!)
     .replace(/:skipId/g, fx.dutySkip!)
