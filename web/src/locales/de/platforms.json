@@ -254,6 +254,7 @@
     "inQuery": "Query",
     "clientAuthBasic": "Basic-Auth-Header",
     "clientAuthBody": "Formular-Body (client_id / client_secret)",
+    "clientAuthAssertion": "Client-Assertion, mit einem Zertifikat signiert (privateKey, certificate)",
     "extraParams": "Zusätzliche Token-Parameter",
     "tokenRequestHint": "Zuerst wird eine Anmeldeanfrage gesendet; das Token wird aus der Antwort gelesen und jedem API-Aufruf hinzugefügt. In URL, Headern und Body {{secrets}} und {{vars}} verwenden.",
     "loginHeaders": "Anmelde-Header",

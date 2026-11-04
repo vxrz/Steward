@@ -435,8 +435,12 @@ export interface AuthConfig {
   /** oauth2: token endpoint (template, scope: vars, secrets) */
   tokenUrl?: string;
   scope?: string;
-  /** oauth2: send client credentials as Basic header or in the form body */
-  clientAuth?: 'basic' | 'body';
+  /**
+   * oauth2: send client credentials as Basic header or in the form body; assertion (v0.5.0): a client assertion JWT
+   * signed with the private key (secrets privateKey, certificate – Entra ID certificate credentials). basic/body
+   * without a client secret but with a private key use the assertion too.
+   */
+  clientAuth?: 'basic' | 'body' | 'assertion';
   extraParams?: Record<string, string>;
   /** apiKey */
   apiKeyIn?: 'header' | 'query';
