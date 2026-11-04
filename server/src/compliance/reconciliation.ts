@@ -6,6 +6,8 @@ import {
   SNOWFLAKE_SCOPE_RE,
   CONFLUENT_KIND,
   confluentCrnProblem,
+  PVAULT_KIND,
+  pvFolderProblem,
   isGitPlatformKind,
   type AccessChange,
   type AccessChangeKind,
@@ -201,8 +203,8 @@ const subjectRef = z
   .toLowerCase()
   .regex(/^(user|team):.{1,128}$/, 'Use user:<name> or team:<name>');
 
-/** Sources with a scope (kept in the dataset_key column): Git, Snowflake, Confluent (v0.4.0). */
-const scoped = (source: string) => source === 'git' || source === 'snowflake' || source === 'confluent';
+/** Sources with a scope (kept in the dataset_key column): Git, Snowflake, Confluent (v0.4.0), the vault's folder (v0.5.0). */
+const scoped = (source: string) => source === 'git' || source === 'snowflake' || source === 'confluent' || source === 'privilege-vault';
 const SCOPE_RE = /^([A-Za-z0-9_.$-]+(\/[A-Za-z0-9_.-]+){0,10})?$/;
 
 export const checkInput = z
@@ -229,7 +231,7 @@ export const checkInput = z
   .strict()
   .superRefine((c, ctx) => {
     if (c.source === 'dataset' && !c.datasetKey) ctx.addIssue({ code: 'custom', path: ['datasetKey'], message: 'A dataset check needs the dataset key' });
-    if (c.scope && c.source !== 'confluent' && !SCOPE_RE.test(c.scope))
+    if (c.scope && c.source !== 'confluent' && c.source !== 'privilege-vault' && !SCOPE_RE.test(c.scope))
       ctx.addIssue({
         code: 'custom',
         path: ['scope'],
@@ -238,6 +240,10 @@ export const checkInput = z
     if (c.source === 'git' && !c.scope) ctx.addIssue({ code: 'custom', path: ['scope'], message: 'A Git check needs the organisation, group or repository' });
     if (c.source === 'confluent') {
       const problem = c.scope ? confluentCrnProblem(c.scope) : 'A Confluent check needs the CRN of the organization, environment or cluster';
+      if (problem) ctx.addIssue({ code: 'custom', path: ['scope'], message: problem });
+    }
+    if (c.source === 'privilege-vault' && c.scope) {
+      const problem = pvFolderProblem(c.scope);
       if (problem) ctx.addIssue({ code: 'custom', path: ['scope'], message: problem });
     }
     if (c.source === 'snowflake' && c.scope && !SNOWFLAKE_SCOPE_RE.test(c.scope))
@@ -314,6 +320,8 @@ function validatePlatform(u: AuthUser, input: CheckInput): void {
   if (input.source === 'aws' && p.kind !== 'aws') throw new HttpError(400, 'The AWS source needs an AWS account platform', 'ACCESS_CHECK_AWS_SOURCE');
   if (input.source === 'confluent' && p.kind !== CONFLUENT_KIND)
     throw new HttpError(400, 'The Confluent source needs a Confluent Cloud API platform', 'ACCESS_CHECK_CONFLUENT_SOURCE');
+  if (input.source === 'privilege-vault' && p.kind !== PVAULT_KIND)
+    throw new HttpError(400, 'The vault source needs an IBM Verify Privilege Vault platform', 'ACCESS_CHECK_PVAULT_SOURCE');
 }
 
 export function listChecks(): AccessCheck[] {
@@ -712,6 +720,47 @@ async function collectConfluent(c: CheckRow): Promise<{ subjects: AccessSubject[
   };
 }
 
+/** IBM Verify Privilege Vault (v0.5.0, #205): who reaches which secret and folder, and who holds which role – read as the check's owner. */
+async function collectPrivilegeVault(c: CheckRow): Promise<{ subjects: AccessSubject[]; sourceRunId: null }> {
+  const owner = ownerUser(c);
+  const platform = runAs(owner, () => getPlatform(c.platform_id));
+  if (!platform.permissions.includes('use'))
+    throw new HttpError(403, `The owner ${c.owner} may not use the platform "${platform.name}"`, 'ACCESS_CHECK_OWNER', {
+      owner: c.owner,
+      context: 'platform',
+      name: platform.name,
+    });
+  if (platform.kind !== PVAULT_KIND) throw new HttpError(400, 'The vault source needs an IBM Verify Privilege Vault platform', 'ACCESS_CHECK_PVAULT_SOURCE');
+  const secrets = getSecrets(c.platform_id);
+  await assertOutboundAllowed(await buildUrl(platform, secrets, '/', {}), outboundContext());
+  const { privilegeVaultAccess } = await import('../pvault/access.js');
+  let subjects: AccessSubject[];
+  try {
+    subjects = await privilegeVaultAccess(platform, secrets, String(c.dataset_key ?? ''));
+  } catch (e) {
+    if (e instanceof HttpError && e.statusCode < 500) throw e;
+    throw new HttpError(502, `The vault could not be read: ${(e as Error).message}`.slice(0, 500), 'ACCESS_CHECK_PVAULT_READ', {
+      detail: (e as Error).message.slice(0, 300),
+    });
+  }
+  if (subjects.length > LIMITS.subjects)
+    throw new HttpError(400, `The vault has more than ${LIMITS.subjects} users with access`, 'SNAPSHOT_TOO_LARGE', { max: LIMITS.subjects });
+  return {
+    subjects: normalizeSubjects(
+      subjects.map((x) => ({
+        id: clip(x.id),
+        name: clip(x.name),
+        type: x.type,
+        rights: x.rights.map(clip),
+        aliases: x.aliases,
+        activity: x.activity,
+        activityInfo: x.activityInfo,
+      })),
+    ),
+    sourceRunId: null,
+  };
+}
+
 /** A dataset in the access snapshot shape, published by a process (never a dry run). */
 function collectDataset(c: CheckRow): { subjects: AccessSubject[]; sourceRunId: string } {
   // the rows of every partition (dashboards/datasets.ts keeps them there only)
@@ -819,7 +868,9 @@ export async function readCheckSource(
               ? await collectAws(c)
               : c.source === 'confluent'
                 ? await collectConfluent(c)
-                : collectDataset(c);
+                : c.source === 'privilege-vault'
+                  ? await collectPrivilegeVault(c)
+                  : collectDataset(c);
     return { subjects: got.subjects, origin: 'live', takenAt: nowIso(), error: null };
   } catch (e) {
     const last = db().get<SnapshotRow>('SELECT * FROM access_snapshots WHERE check_id = ? ORDER BY seq DESC LIMIT 1', checkId);
@@ -856,7 +907,9 @@ export async function runCheck(id: string, o: { actor: string; trigger: 'schedul
                 ? await collectAws(c)
                 : c.source === 'confluent'
                   ? await collectConfluent(c)
-                  : collectDataset(c);
+                  : c.source === 'privilege-vault'
+                    ? await collectPrivilegeVault(c)
+                    : collectDataset(c);
     } catch (e) {
       const msg = (e as Error).message.slice(0, 500);
       db().tx(() => {

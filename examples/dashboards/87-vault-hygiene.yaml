@@ -1,0 +1,33 @@
+name: Vault hygiene
+description: Secrets of IBM Verify Privilege Vault that need attention, and who used the privileged ones – fed by "IBM Verify Privilege Vault – Secret hygiene" (daily) and "… – Privileged use" (weekly). Metadata only, never a secret value.
+refreshSeconds: 300
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **Vault hygiene** – read by the processes *IBM Verify Privilege Vault – Secret hygiene* and *– Privileged use*. Opening this page never calls the vault, and Steward never reads a secret's value (docs/IBM-PAM.md).
+      Privileged secrets (the folders and templates set in the hygiene process) need checkout and approval; every secret needs an owner, a working heartbeat and a password changed within the set number of days.
+  - { id: secrets, type: kpi, title: Secrets, dataset: pv.hygiene, metric: secrets, width: 3 }
+  - { id: privileged, type: kpi, title: Privileged secrets, dataset: pv.hygiene, metric: privileged, width: 3 }
+  - { id: findings, type: kpi, title: Findings, dataset: pv.hygiene, metric: findings, goodWhen: down, width: 3 }
+  - { id: heartbeat, type: kpi, title: Failed heartbeats, dataset: pv.hygiene, metric: heartbeat, goodWhen: down, width: 3 }
+  - { id: rotated, type: kpi, title: Not rotated, dataset: pv.hygiene, metric: notRotated, goodWhen: down, width: 3 }
+  - { id: expired, type: kpi, title: Expired passwords, dataset: pv.hygiene, metric: expired, goodWhen: down, width: 3 }
+  - { id: owner, type: kpi, title: Without owner, dataset: pv.hygiene, metric: noOwner, goodWhen: down, width: 3 }
+  - { id: checkout, type: kpi, title: Privileged without checkout, dataset: pv.hygiene, metric: noCheckout, goodWhen: down, width: 3 }
+  - { id: status, type: status, title: By state, dataset: pv.hygiene, width: 4 }
+  - id: trend
+    type: trend
+    title: Findings, failed heartbeats and passwords not rotated
+    dataset: pv.hygiene
+    metrics: [findings, heartbeat, notRotated]
+    days: 30
+    width: 8
+  - { id: problems, type: table, title: Needing attention, dataset: pv.hygiene, problemsOnly: true, width: 12 }
+  - { id: uses, type: kpi, title: Privileged uses (last run), dataset: pv.privileged-use, metric: uses, width: 4 }
+  - { id: checkouts, type: kpi, title: Checkouts, dataset: pv.privileged-use, metric: checkouts, width: 4 }
+  - { id: requests, type: kpi, title: Access requests, dataset: pv.privileged-use, metric: requests, width: 4 }
+  - { id: use, type: table, title: Privileged use, dataset: pv.privileged-use, width: 12 }
+  - { id: checks, type: checks, title: Latest read-out, process: privilege-vault-hygiene, width: 6 }
+  - { id: fresh, type: freshness, title: Data freshness, width: 6 }

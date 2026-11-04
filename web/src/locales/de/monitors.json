@@ -260,7 +260,17 @@
     "dtrackPolicyFail": "Ein fehlgeschlagener Richtlinienverstoß zählt wie ein kritischer Befund",
     "lastReport": "Zuletzt empfangene Meldung",
     "lastReportHint": "{{when}} – Bedingung und Status-Ausdruck sehen genau diese Felder",
-    "lastReportNone": "Noch keine Meldung empfangen (oder die Prüfung ist noch nicht gespeichert). Sobald das Gateway meldet, steht hier seine letzte Meldung."
+    "lastReportNone": "Noch keine Meldung empfangen (oder die Prüfung ist noch nicht gespeichert). Sobald das Gateway meldet, steht hier seine letzte Meldung.",
+    "vaultFolder": "Ordner (optional)",
+    "vaultFolderHint": "Nur Secrets dieses Ordners und der Ordner darunter, z. B. \\IT\\Server; leer: alle Secrets, die das Dienstkonto auflisten darf",
+    "vaultPrivilegedFolders": "Privilegierte Ordner",
+    "vaultPrivilegedFoldersHint": "Secrets in diesen Ordnern (und darunter) gelten als privilegiert: Sie brauchen Check-out und Genehmigung, und jeder Befund an ihnen lässt die Prüfung scheitern. Geben Sie einen Pfad ein und drücken Sie die Eingabetaste.",
+    "vaultPrivilegedTemplates": "Privilegierte Vorlagen",
+    "vaultPrivilegedTemplatesHint": "Secrets dieser Vorlagen gelten ebenfalls als privilegiert, z. B. Windows Account",
+    "vaultMaxAgeDays": "Rotiert innerhalb von (Tagen)",
+    "vaultMaxFindings": "Erlaubte Befunde",
+    "vaultMaxFindingsHint": "An nicht privilegierten Secrets",
+    "vaultFailAs": "Bei Befunden"
   },
   "detail": {
     "template": "Vorlage",
@@ -611,6 +621,10 @@
     "dependency-track": {
       "label": "Schwachstellen (Dependency-Track)",
       "help": "Ein Dependency-Track-Projekt hat nicht mehr offene kritische (oder hohe) Befunde als erlaubt und keinen fehlgeschlagenen Richtlinienverstoß"
+    },
+    "privilege-vault": {
+      "label": "Tresor-Hygiene (IBM Verify Privilege Vault)",
+      "help": "Secrets in IBM Verify Privilege Vault: fehlgeschlagene Heartbeats, nicht rotierte oder abgelaufene Passwörter, automatischer Wechsel aus, kein Besitzer, privilegierte Secrets ohne Check-out oder Genehmigung"
     }
   },
   "newCheck": {
@@ -629,7 +643,8 @@
     "mqtt": "MQTT-Topics",
     "monitor": "Untermonitor",
     "snowflake": "Snowflake-Tabelle aktuell",
-    "dependency-track": "Keine kritischen Schwachstellen"
+    "dependency-track": "Keine kritischen Schwachstellen",
+    "privilege-vault": "Tresor-Hygiene"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"

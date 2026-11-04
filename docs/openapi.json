@@ -3953,6 +3953,7 @@
               "mqtt",
               "snowflake",
               "dependency-track",
+              "privilege-vault",
               "monitor"
             ]
           },
@@ -4373,6 +4374,7 @@
                     "mqtt",
                     "snowflake",
                     "dependency-track",
+                    "privilege-vault",
                     "monitor"
                   ]
                 },

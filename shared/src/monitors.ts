@@ -1,3 +1,4 @@
+import { PV_FINDING_KINDS } from './pvault.js';
 /**
  * Monitors: composable, dependency-aware health checks.
  *
@@ -54,6 +55,7 @@ export const CHECK_TYPES = [
   'mqtt',
   'snowflake',
   'dependency-track',
+  'privilege-vault',
   'monitor',
 ] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
@@ -76,6 +78,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   'dependency-track': {
     label: 'Vulnerabilities (Dependency-Track)',
     help: 'A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation',
+  },
+  'privilege-vault': {
+    label: 'Vault hygiene (IBM Verify Privilege Vault)',
+    help: 'Secrets of IBM Verify Privilege Vault: failed heartbeats, passwords not rotated or expired, automatic changing off, no owner, privileged secrets without checkout or approval',
   },
   snowflake: {
     label: 'Snowflake',
@@ -296,6 +302,24 @@ export const checkSchema = z.discriminatedUnion('type', [
     /** A failing policy violation counts like a critical finding (default true) */
     policyFail: z.boolean().default(true),
     failAs: z.enum(['down', 'degraded']).default('down'),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('privilege-vault'),
+    platform: platformRef,
+    /** Only secrets of this folder and below (\IT\Servers); empty: all the service account may list (#205) */
+    folder: z.string().trim().max(500).optional(),
+    /** A password changed longer ago (or never) counts as not rotated */
+    maxAgeDays: z.number().int().min(1).max(3650).default(90),
+    /** Folders (and below) and templates whose secrets count as privileged: they need checkout and approval */
+    privilegedFolders: z.array(z.string().trim().min(1).max(500)).max(50).default([]),
+    privilegedTemplates: z.array(z.string().trim().min(1).max(200)).max(50).default([]),
+    /** The findings looked for (default all) */
+    kinds: z.array(z.enum(PV_FINDING_KINDS)).max(PV_FINDING_KINDS.length).optional(),
+    /** Findings allowed before the check fails (default 0) */
+    maxFindings: z.number().int().min(0).max(100000).default(0),
+    /** Status with more findings: degraded (default) or down; a finding on a privileged secret always counts */
+    failAs: z.enum(['down', 'degraded']).default('degraded'),
   }),
   z.object({
     ...checkBase,

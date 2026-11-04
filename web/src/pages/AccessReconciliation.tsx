@@ -28,6 +28,7 @@ import { IconArrowsDiff, IconEdit, IconFlask, IconPlayerPlay, IconPlus, IconShie
 import { useTranslation } from 'react-i18next';
 import {
   CONFLUENT_KIND,
+  PVAULT_KIND,
   GIT_PLATFORM_KINDS,
   type AccessCheck,
   type AccessFinding,
@@ -641,7 +642,14 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
   const pickPlatform = (v: string | null) => {
     const p = usable.find((x) => x.id === v);
     const git = !!p && (GIT_PLATFORM_KINDS as readonly string[]).includes(p.kind);
-    const direct = p?.kind === 'snowflake' || p?.kind === 'aws' ? (p.kind as 'snowflake' | 'aws') : p?.kind === CONFLUENT_KIND ? 'confluent' : null;
+    const direct =
+      p?.kind === 'snowflake' || p?.kind === 'aws'
+        ? (p.kind as 'snowflake' | 'aws')
+        : p?.kind === CONFLUENT_KIND
+          ? 'confluent'
+          : p?.kind === PVAULT_KIND
+            ? 'privilege-vault'
+            : null;
     setF((x) => ({ ...x, platformId: v ?? '', source: git ? 'git' : direct ? direct : p && p.kind !== 'insights-hub' ? 'dataset' : x.source }));
   };
   const preset = fromPlatform?.id;
@@ -655,7 +663,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
       const body = {
         ...f,
         datasetKey: f.source === 'dataset' ? f.datasetKey : null,
-        scope: f.source === 'git' || f.source === 'snowflake' || f.source === 'confluent' ? f.scope.trim() : null,
+        scope: f.source === 'git' || f.source === 'snowflake' || f.source === 'confluent' || f.source === 'privilege-vault' ? f.scope.trim() : null,
       };
       const saved = check ? await put<AccessCheck>(`/compliance/access-checks/${check.id}`, body) : await post<AccessCheck>('/compliance/access-checks', body);
       await qc.invalidateQueries({ queryKey: ['access-checks'] });
@@ -699,6 +707,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
             { value: 'snowflake', label: t('sources.snowflake') },
             { value: 'aws', label: t('sources.aws') },
             { value: 'confluent', label: t('sources.confluent') },
+            { value: 'privilege-vault', label: t('sources.privilege-vault') },
           ]}
           value={f.source}
           onChange={(v) => up('source', (v as AccessCheck['source']) ?? 'insights-hub')}
@@ -731,6 +740,18 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
             required
             // i18n-ignore: an example resource name, the same in every language
             placeholder="crn://confluent.cloud/organization=…/environment=env-…"
+            value={f.scope}
+            onChange={(e) => up('scope', e.currentTarget.value)}
+            maxLength={500}
+            classNames={{ input: 'mono' }}
+          />
+        )}
+        {f.source === 'privilege-vault' && (
+          <TextInput
+            label={t('reconciliation.vaultScope')}
+            description={t('reconciliation.vaultScopeHelp')}
+            // i18n-ignore: an example folder path, the same in every language
+            placeholder={'\\IT\\Servers'}
             value={f.scope}
             onChange={(e) => up('scope', e.currentTarget.value)}
             maxLength={500}

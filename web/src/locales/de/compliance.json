@@ -44,7 +44,8 @@
     "git": "Mitglieder auf der Git-Plattform (GitHub, GitLab, Forgejo)",
     "snowflake": "Snowflake-Rollen und -Berechtigungen",
     "aws": "AWS-IAM-Benutzer, -Gruppen und -Richtlinien",
-    "confluent": "Confluent-Cloud-Rollenbindungen und ACLs"
+    "confluent": "Confluent-Cloud-Rollenbindungen und ACLs",
+    "privilege-vault": "Berechtigungen und Rollen in IBM Verify Privilege Vault"
   },
   "rights": {
     "granted": "Erteilt",
@@ -282,7 +283,9 @@
     "snowflakeScope": "Datenbank, Schema oder Tabelle (optional)",
     "snowflakeScopeHelp": "Leer: jeder Benutzer mit den ihm erteilten Rollen. SHOP, SHOP.SALES oder SHOP.SALES.ORDERS: jeder Benutzer, der über seine Rollen (und die diesen erteilten Rollen) Objekte dort erreicht, mit der Berechtigung. Technische Benutzer (Typ SERVICE) sind markiert.",
     "confluentScope": "Confluent-Ressource (CRN)",
-    "confluentScopeHelp": "Die Organisation, eine Umgebung oder ein Cluster, deren Rollenbindungen gelesen werden, z. B. crn://confluent.cloud/organization=…/environment=env-abc12 (Confluent Cloud: Administration → Accounts & access). Mit kafkaRestUrl, clusterId und dem Cluster-API-Schlüssel an der Plattform auch die Kafka-ACLs des Clusters. Benutzer erscheinen mit ihrer E-Mail-Adresse."
+    "confluentScopeHelp": "Die Organisation, eine Umgebung oder ein Cluster, deren Rollenbindungen gelesen werden, z. B. crn://confluent.cloud/organization=…/environment=env-abc12 (Confluent Cloud: Administration → Accounts & access). Mit kafkaRestUrl, clusterId und dem Cluster-API-Schlüssel an der Plattform auch die Kafka-ACLs des Clusters. Benutzer erscheinen mit ihrer E-Mail-Adresse.",
+    "vaultScope": "Ordner (optional)",
+    "vaultScopeHelp": "Ein Ordnerpfad wie \\IT\\Server: nur dessen Secrets und Ordner und die darunter. Leer: alle Secrets, die das Dienstkonto auflisten darf. Benutzer erscheinen mit ihrem Benutzernamen (Domäne\\Name) und ihrer E-Mail-Adresse; Rechte über Gruppen nennen die Gruppe, Rollen werden mit aufgeführt."
   },
   "personReviews": {
     "title": "Personenprüfungen",

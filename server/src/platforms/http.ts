@@ -13,6 +13,7 @@ import { guardedLookup } from './outbound.js';
 import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
 import { JWT_ALGS, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
 import { where as originAndPath } from './answers.js';
+import { assertPathAllowed, stripValues } from './deniedPaths.js';
 
 export interface HttpRequest {
   method: string;
@@ -756,6 +757,8 @@ async function followRedirects(
   let sawHttps = /^https:/i.test(url);
   const leakValues = secretValues(secrets);
   for (let hop = 0; ; hop++) {
+    // paths the kind never calls (v0.5.0): a redirect cannot lead there either
+    assertPathAllowed(p.kind, url);
     const hopTrusted = await credentialsAllowed(p, secrets, url);
     // AWS SigV4: only requests to the platform's own origins are signed
     let sign: HttpRequest['sign'];
@@ -834,6 +837,8 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
     query[p.config.auth.apiKeyName || 'api_key'] = secrets.apiKey ?? '';
   }
   const url = await buildUrl(p, secrets, req.url, query);
+  // paths the kind never calls, e.g. a vault's secret values (v0.5.0, deniedPaths.ts)
+  assertPathAllowed(p.kind, url);
   if (!trusted) {
     let host = '';
     try {
@@ -872,7 +877,9 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
     const retryable = error ? !!error.retryable : RETRYABLE_STATUS.has(res!.status);
     if (!retryable || !mayRetry || attempt > policy.maxRetries || signal?.aborted) {
       if (error) throw error;
-      return attempt > 1 ? { ...res!, attempts: attempt } : res!;
+      // value keys of a vault's answers never leave this function (deniedPaths.ts)
+      const out = { ...res!, body: stripValues(p.kind, res!.body) };
+      return attempt > 1 ? { ...out, attempts: attempt } : out;
     }
     const delay = retryDelay(policy, attempt, res?.headers['retry-after']);
     const info = {

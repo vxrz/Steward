@@ -1,0 +1,20 @@
+# steward-min-version: 0.5.0
+name: Privileged access governance
+description: |
+  IBM Verify Privilege Vault as a source of evidence: the daily secret hygiene (failed heartbeats, passwords not rotated
+  or expired, automatic changing off, secrets without an owner, privileged secrets without checkout or approval), the
+  weekly privileged use (views, checkouts, access requests) with the "Vault hygiene" dashboard and, optionally, the
+  vault hygiene monitor. Access reviews of the vault are access checks of source "IBM Verify Privilege Vault"
+  (Compliance → Access reconciliation). Steward never reads a secret value (docs/IBM-PAM.md).
+tags: [privileged-access, governance, privilege-vault]
+platforms:
+  - key: vault
+    label: IBM Verify Privilege Vault
+    kinds: [privilege-vault]
+processes:
+  - template: 87-privilege-vault-hygiene
+  - template: 88-privilege-vault-privileged-use
+dashboards: [87-vault-hygiene]
+monitors:
+  - file: 58-vault-hygiene.yaml
+    optional: true
