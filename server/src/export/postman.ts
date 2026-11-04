@@ -988,7 +988,10 @@ class ProcessExport {
       const [a, b] = rest.slice(1);
       if (s && first.index === undefined && a?.index === undefined) {
         if (a?.key === 'baseUrl' && rest.length === 2) return v(`${first.key}.baseUrl`);
-        if (a?.key === 'vars' && b && b.index === undefined && rest.length === 3) return v(`${first.key}.${b.key}`);
+        if (a?.key === 'vars' && b && b.index === undefined && rest.length === 3) {
+          const key = `${first.key}.${b.key}`;
+          return this.vars.env.has(key) ? v(key) : isSensitiveName(b.key) ? this.vars.secret(key) : this.vars.envValue(key, '');
+        }
         if (s.platform && (a?.key === 'name' || a?.key === 'kind') && rest.length === 2) return s.platform[a.key];
       }
       return hand(expression);
