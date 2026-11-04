@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-04
+
+Steward 0.5.0 makes changes audit-proof and reads more platforms. **Firewall changes** (opt-in, no CMDB): network segments as a system kind, systems in segments with their addresses, the document types _Firewall change_ (`FWC`, four-eyes, evidence, verified by a second person) and _Approved firewall rules_ (`FWR`, a living document per segment or system), table fields for document types, and an optional _Verify_ step on the change workflow. The **assurance policy** (_Settings → Assurance policy_) sets per control point which actions need a second person and which a fresh confirmation, optionally with MFA; baselines cannot be lowered, loosening waits for a second administrator, every confirmed event carries its proof in the audit chain, and the assurance report (PDF/A, JSON, in evidence packs) shows it for a period. Two accounts of one single sign-on identity count as one person. **Microsoft Graph / Entra ID** (read-only, client secret or certificate): access check source, monitor check, credentials import and the bundle _Entra ID access governance_. **IBM Security Verify Privilege Vault 12.0**: permissions and roles for access reviews, secret hygiene, privileged-use evidence and a credentials register link – Steward never reads a secret value. **Export for Postman**: processes and platforms as a collection and an environment, without secrets. Three database migrations, all additive: `catalogue-012-network-segments`, `assurance-001-policy`, `credentials-004-vault-link`. **Check before updating:** nothing changes with the default assurance policy; change requests gain an optional _Verify_ step (closing from _Implemented_ still works); existing installations get the document types `FWC` and `FWR` (an own `FWC` key is kept); the sign-in template variable `baseUrl` no longer ends with a slash; the field names of the vault integration are taken from Delinea's public SDKs – check them against your installation with the checklist in docs/IBM-PAM.md.
+
 ### Added
 
 - **Audit-proof firewall changes for network segments and systems** (opt-in, no CMDB, [docs/FIREWALL-CHANGES.md](docs/FIREWALL-CHANGES.md)). Only what needs it is documented – a shopfloor IoT VLAN, a server whose firewall a provider manages; systems in a cloud need nothing.
@@ -36,10 +40,6 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 - **Audit proof per event**: the audit entries of each confirmed or four-eyes event carry the control point, the policy version and rule, requester and approver, the method (password, single sign-on with the provider's `auth_time`, `amr` and `acr`, emergency) and a session reference – inside the HMAC chain. Step-up entries name the session reference too.
 - **Assurance report** (PDF/A and JSON, `GET /api/assurance/report`) for a period: the policy in force and its changes, per control point the events and how they were confirmed, and the exceptions (emergency sign-ins, missing MFA, loosening with its second administrator). Download it from the policy page, or include it in an evidence pack (_Include the assurance report_; listed in the signed manifest). Example control mappings: ISO/IEC 27001 A.5.3, A.8.5, A.8.32.
 - Migration `assurance-001-policy` (additive): table `assurance_policy_changes`, column `sessions.step_up_detail`.
-
-### Changed
-
-- **Requester ≠ approver by identity**: four-eyes checks treat two accounts linked to the same single sign-on identity (issuer and `sub`, e.g. through two providers of one identity provider) as one person, like the former names of a moved account. Person reviews and MCP requests now use the same identity check (they compared user names only).
 - **IBM Security Verify Privilege Vault** (12.0, Delinea Secret Server under the IBM name; #205) as a source of evidence – who may use which privileged account, whether rotation works, who used a secret. Steward never reads a secret value ([docs/IBM-PAM.md](docs/IBM-PAM.md)).
   - **Platform preset** _IBM Verify Privilege Vault_: on premises (`https://HOST/SecretServer`) or in the cloud, sign-in with a service account through `POST /oauth2/token` (password grant, optional `domain`, the token renewed with its refresh token), a private CA under the HTTP settings, the built-in API description of the metadata endpoints, and a **connection test** that tries every read Steward makes and names a missing permission in plain words (_the service account may not list roles – the role permission "View Roles"_).
   - **Secret values are refused** for this kind, whatever asks – process steps, the MCP gateway, monitors, Steward's own readers, also after a redirect: `/secrets/{id}` (its answer holds the field values), its fields and files, restricted reads, exports, one-time codes, the internals and SOAP APIs, and searching by a field. Value keys (`itemValue`, `extendedFields` …) are removed from every answer before it is used, stored or logged.
@@ -50,6 +50,11 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
   - The template bundle **Privileged access governance**, a simulated vault for the demo and the tests, and the demo platform _IBM Verify Privilege Vault (demo)_.
 - **Token request sign-in with a refresh token**: a platform with a custom login (`token_request`) can name a refresh call (`auth.refresh`); an expired token is renewed with it before Steward signs in again ([docs/PLATFORM-SIGN-IN.md](docs/PLATFORM-SIGN-IN.md)).
 - **Paging that follows `hasNext`**: offset and page pagination of HTTP steps take `morePath`, an expression that says whether another page follows – for APIs that return fewer items than asked for before the end.
+
+### Changed
+
+- **Requester ≠ approver by identity**: four-eyes checks treat two accounts linked to the same single sign-on identity (issuer and `sub`, e.g. through two providers of one identity provider) as one person, like the former names of a moved account. Person reviews and MCP requests now use the same identity check (they compared user names only).
+- **The template variable `baseUrl` in sign-in settings no longer ends with a slash**, so `{{ baseUrl }}/.default` (the Microsoft Graph scope) stays one URL. No built-in template used it; a platform's own sign-in settings that add a slash after `{{ baseUrl }}` get one slash fewer.
 
 ### Fixed
 
@@ -767,7 +772,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/vxrz/steward/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/vxrz/steward/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/vxrz/steward/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/vxrz/steward/compare/v0.2.10...v0.3.0
