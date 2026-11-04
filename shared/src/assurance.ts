@@ -1,0 +1,502 @@
+import { z } from 'zod';
+import type { StepUpAction } from './api.js';
+
+/**
+ * Assurance policy (#210, docs/ASSURANCE.md): one catalogue of the control points where Steward can require a second
+ * person (four-eyes) and/or a fresh confirmation of the signed-in person (step-up), the rules an administrator sets
+ * for them, and the baseline nobody can lower.
+ *
+ * The effective rule of a point is the strictest of three: the baseline (fixed in code), the instance policy
+ * (Settings → Assurance policy) and – where the point has them – the overrides of single items (a process step, a
+ * platform's MCP mode, a person review, a setting). Overrides only ever add to the rule (max), never take away.
+ */
+
+export const CONTROL_POINT_GROUPS = ['identity', 'audit', 'records', 'processes', 'mcp', 'catalogue', 'system'] as const;
+export type ControlPointGroup = (typeof CONTROL_POINT_GROUPS)[number];
+
+/** Four-eyes: off (only where an item asks for it) · optional (each item decides: its own switch) · required (always). */
+export const FOUR_EYES_LEVELS = ['off', 'optional', 'required'] as const;
+export type FourEyesLevel = (typeof FOUR_EYES_LEVELS)[number];
+export const FOUR_EYES_RANK: Record<FourEyesLevel, number> = { off: 0, optional: 1, required: 2 };
+
+/** Where the overrides of single items live (listed on the policy page with a link). */
+export const ASSURANCE_OVERRIDE_KINDS = ['recordType', 'processStep', 'manualStep', 'platformMcp', 'personReview', 'setting'] as const;
+export type AssuranceOverrideKind = (typeof ASSURANCE_OVERRIDE_KINDS)[number];
+
+export interface ControlPoint {
+  /** Stable key (audit entries and the policy name it) */
+  key: string;
+  group: ControlPointGroup;
+  /** The step-up actions of the routes this point governs (route config `stepUp.action`) */
+  actions: readonly StepUpAction[];
+  supports: { fourEyes: boolean; stepUp: boolean };
+  /** The floor: what is always enforced (the policy page shows it locked) */
+  baseline: { fourEyes?: 'required'; stepUp?: true };
+  /** The rule of a new installation – exactly what 0.4.0 enforced */
+  defaults: { fourEyes?: FourEyesLevel; stepUp: boolean };
+  /** The four-eyes levels an administrator can choose (points that support four-eyes) */
+  fourEyesLevels?: readonly FourEyesLevel[];
+  /** Where single items add to the rule */
+  overrides?: AssuranceOverrideKind;
+  /** The point exists in the catalogue but nothing reaches it yet (e.g. a record type that is not installed) */
+  inert?: boolean;
+}
+
+const BOTH: readonly FourEyesLevel[] = ['optional', 'required'];
+const ONOFF: readonly FourEyesLevel[] = ['off', 'required'];
+const LOCKED: readonly FourEyesLevel[] = ['required'];
+
+const sp = (key: string, group: ControlPointGroup, actions: StepUpAction[], baseline = false): ControlPoint => ({
+  key,
+  group,
+  actions,
+  supports: { fourEyes: false, stepUp: true },
+  baseline: baseline ? { stepUp: true } : {},
+  defaults: { stepUp: true },
+});
+
+/**
+ * Every control point (docs/ASSURANCE.md lists them; server/test/assurance.test.ts keeps the table in sync). Label and
+ * description: `assurance:points.<key>.label` / `.description` in the web app.
+ */
+export const CONTROL_POINTS: readonly ControlPoint[] = [
+  // ---- identity and access ----
+  sp('apiToken.create', 'identity', ['createToken'], true),
+  sp('user.create', 'identity', ['createUser'], true),
+  sp('user.change', 'identity', ['changeAccount'], true),
+  sp('user.resetPassword', 'identity', ['resetPassword'], true),
+  sp('team.members', 'identity', ['changeTeamMembers'], true),
+  sp('access.grant', 'identity', ['grantAccess'], true),
+  sp('sso.providers', 'identity', ['addSsoProvider', 'changeSsoProvider', 'deleteSsoProvider'], true),
+  sp('signIn.settings', 'identity', ['changeSignInSettings'], true),
+  sp('vault.passphrase', 'identity', ['changeVaultPassphrase'], true),
+  {
+    key: 'assurance.policy',
+    group: 'identity',
+    actions: ['changeAssurancePolicy'],
+    supports: { fourEyes: true, stepUp: true },
+    // loosening the policy needs a second administrator; every change a step-up
+    baseline: { fourEyes: 'required', stepUp: true },
+    defaults: { fourEyes: 'required', stepUp: true },
+    fourEyesLevels: LOCKED,
+  },
+  {
+    key: 'accessCheck.decide',
+    group: 'identity',
+    actions: ['decideAccessCheck'],
+    supports: { fourEyes: true, stepUp: true },
+    baseline: {},
+    // four-eyes dismissals of findings: the setting under Settings → Catalogue (findingDismissFourEyes)
+    defaults: { fourEyes: 'off', stepUp: false },
+    fourEyesLevels: ONOFF,
+    overrides: 'setting',
+  },
+  {
+    key: 'personReview.decide',
+    group: 'identity',
+    actions: ['decidePersonReview'],
+    supports: { fourEyes: true, stepUp: true },
+    baseline: {},
+    defaults: { fourEyes: 'optional', stepUp: false },
+    fourEyesLevels: BOTH,
+    overrides: 'personReview',
+  },
+  // ---- audit and evidence ----
+  sp('audit.anchoring', 'audit', ['changeAuditAnchoring'], true),
+  sp('audit.export', 'audit', ['exportAuditLog']),
+  sp('evidencePack.export', 'audit', ['exportEvidencePack']),
+  sp('credentials.export', 'audit', ['exportCredentials']),
+  // ---- changes and records ----
+  {
+    key: 'record.approve',
+    group: 'records',
+    actions: ['approveRecord'],
+    supports: { fourEyes: true, stepUp: true },
+    // the owner, author, submitter and content authors never approve their own record
+    baseline: { fourEyes: 'required' },
+    defaults: { fourEyes: 'required', stepUp: false },
+    fourEyesLevels: LOCKED,
+    overrides: 'recordType',
+  },
+  {
+    key: 'document.reviewOwner',
+    group: 'records',
+    actions: [],
+    supports: { fourEyes: true, stepUp: false },
+    baseline: { fourEyes: 'required' },
+    defaults: { fourEyes: 'required', stepUp: false },
+    fourEyesLevels: LOCKED,
+  },
+  {
+    key: 'firewallChange.close',
+    group: 'records',
+    actions: ['closeFirewallChange'],
+    supports: { fourEyes: false, stepUp: true },
+    baseline: {},
+    defaults: { stepUp: false },
+    overrides: 'recordType',
+  },
+  // ---- processes and runs ----
+  {
+    key: 'run.decide',
+    group: 'processes',
+    actions: [],
+    supports: { fourEyes: true, stepUp: false },
+    baseline: {},
+    defaults: { fourEyes: 'optional', stepUp: false },
+    fourEyesLevels: BOTH,
+    overrides: 'processStep',
+  },
+  {
+    key: 'manualStep.verify',
+    group: 'processes',
+    actions: ['verifyManualStep'],
+    supports: { fourEyes: true, stepUp: true },
+    // whoever completed a manual step (or added its evidence) never verifies it
+    baseline: { fourEyes: 'required' },
+    defaults: { fourEyes: 'required', stepUp: false },
+    fourEyesLevels: LOCKED,
+    overrides: 'manualStep',
+  },
+  {
+    key: 'duty.skip',
+    group: 'processes',
+    actions: [],
+    supports: { fourEyes: true, stepUp: false },
+    baseline: { fourEyes: 'required' },
+    defaults: { fourEyes: 'required', stepUp: false },
+    fourEyesLevels: LOCKED,
+  },
+  // ---- MCP and AI ----
+  {
+    key: 'mcp.write',
+    group: 'mcp',
+    actions: [],
+    supports: { fourEyes: true, stepUp: false },
+    baseline: {},
+    // per platform: off / confirm (the token owner) / fourEyes (a second person); required: confirm becomes fourEyes
+    defaults: { fourEyes: 'optional', stepUp: false },
+    fourEyesLevels: BOTH,
+    overrides: 'platformMcp',
+  },
+  sp('mcp.allowWrites', 'mcp', ['allowMcpWrites']),
+  sp('mcp.allowClient', 'mcp', ['allowMcpClient']),
+  // ---- catalogue ----
+  sp('catalogue.ciaScale', 'catalogue', ['changeCiaScale']),
+  // ---- system and data ----
+  sp('notifications.delivery', 'system', ['changeNotificationDelivery']),
+  sp('backup.settings', 'system', ['changeBackups']),
+  sp('migration.export', 'system', ['exportMigration']),
+  sp('migration.apply', 'system', ['applyMigration']),
+];
+
+export type ControlPointKey = string;
+
+const BY_KEY = new Map(CONTROL_POINTS.map((p) => [p.key, p]));
+const BY_ACTION = new Map<StepUpAction, ControlPoint>(CONTROL_POINTS.flatMap((p) => p.actions.map((a) => [a, p] as const)));
+
+export const controlPoint = (key: string): ControlPoint | undefined => BY_KEY.get(key);
+/** The control point of a route's step-up action. */
+export const controlPointOfAction = (action: StepUpAction): ControlPoint | undefined => BY_ACTION.get(action);
+
+// ---------- the policy ----------
+
+/** The rule of one point. maxAgeMinutes: how old the confirmation may be (null: SM_STEP_UP_MINUTES, the longest). */
+export interface PointRule {
+  fourEyes: FourEyesLevel | null;
+  stepUp: boolean;
+  maxAgeMinutes: number | null;
+  mfa: boolean;
+}
+
+/** What counts as multi-factor in an ID token (RFC 8176 amr values, acr values of the provider). */
+export interface AssuranceMfaSettings {
+  amrValues: string[];
+  acrValues: string[];
+}
+
+/** The stored instance policy: only what differs from the defaults is kept per point. */
+export interface AssurancePolicy {
+  /** Counts every change (0: never changed, the defaults) */
+  version: number;
+  points: Record<string, Partial<PointRule>>;
+  mfa: AssuranceMfaSettings;
+}
+
+export const DEFAULT_MFA_AMR = ['mfa', 'mca', 'otp', 'hwk', 'swk', 'sc', 'fido', 'ngcmfa'] as const;
+export const ASSURANCE_LIMITS = { maxAgeMinutes: 24 * 60, values: 20, valueChars: 200, pendingDays: 7, comment: 1000 };
+
+export const defaultAssurancePolicy = (): AssurancePolicy => ({ version: 0, points: {}, mfa: { amrValues: [...DEFAULT_MFA_AMR], acrValues: [] } });
+
+const pointRuleInput = z
+  .object({
+    fourEyes: z.enum(FOUR_EYES_LEVELS).optional(),
+    stepUp: z.boolean().optional(),
+    maxAgeMinutes: z.number().int().min(1).max(ASSURANCE_LIMITS.maxAgeMinutes).nullable().optional(),
+    mfa: z.boolean().optional(),
+  })
+  .strict();
+
+const valueList = z
+  .array(z.string().trim().min(1).max(ASSURANCE_LIMITS.valueChars))
+  .max(ASSURANCE_LIMITS.values)
+  .transform((v) => [...new Set(v)]);
+
+/** PUT /api/assurance/policy: the whole policy (points left out get their defaults). */
+export const assurancePolicyInput = z
+  .object({
+    points: z.record(z.string().max(100), pointRuleInput).default({}),
+    mfa: z.object({ amrValues: valueList, acrValues: valueList }).strict().optional(),
+    /** Why (kept with the change, shown to the second administrator) */
+    comment: z.string().trim().max(ASSURANCE_LIMITS.comment).optional(),
+  })
+  .strict()
+  .superRefine((v, ctx) => {
+    for (const [key, r] of Object.entries(v.points)) {
+      const p = controlPoint(key);
+      if (!p) {
+        ctx.addIssue({ code: 'custom', path: ['points', key], message: `Unknown control point "${key}"` });
+        continue;
+      }
+      if (r.fourEyes !== undefined && (!p.supports.fourEyes || !(p.fourEyesLevels ?? []).includes(r.fourEyes)))
+        ctx.addIssue({ code: 'custom', path: ['points', key, 'fourEyes'], message: `"${key}" does not take four-eyes "${r.fourEyes}"` });
+      if (!p.supports.stepUp && (r.stepUp || r.mfa || (r.maxAgeMinutes ?? null) !== null))
+        ctx.addIssue({ code: 'custom', path: ['points', key, 'stepUp'], message: `"${key}" has no step-up` });
+    }
+  });
+export type AssurancePolicyInput = z.input<typeof assurancePolicyInput>;
+
+/** The instance rule of a point: the stored setting or the default, never below the baseline. */
+export function instanceRule(p: ControlPoint, policy: Pick<AssurancePolicy, 'points'>): PointRule {
+  const s = policy.points[p.key] ?? {};
+  let fourEyes: FourEyesLevel | null = p.supports.fourEyes ? (s.fourEyes ?? p.defaults.fourEyes ?? 'off') : null;
+  if (fourEyes && p.baseline.fourEyes && FOUR_EYES_RANK[fourEyes] < FOUR_EYES_RANK[p.baseline.fourEyes]) fourEyes = p.baseline.fourEyes;
+  if (fourEyes && p.fourEyesLevels && !p.fourEyesLevels.includes(fourEyes)) fourEyes = p.defaults.fourEyes ?? p.fourEyesLevels[0]!;
+  const stepUp = p.supports.stepUp && (!!p.baseline.stepUp || (s.stepUp ?? p.defaults.stepUp));
+  return {
+    fourEyes,
+    stepUp,
+    maxAgeMinutes: stepUp ? (s.maxAgeMinutes ?? null) : null,
+    mfa: stepUp && !!s.mfa,
+  };
+}
+
+/** The baseline of a point as a rule (what the policy page shows locked). */
+export function baselineRule(p: ControlPoint): PointRule {
+  return {
+    fourEyes: p.supports.fourEyes ? (p.baseline.fourEyes ?? (p.fourEyesLevels?.[0] as FourEyesLevel | undefined) ?? 'off') : null,
+    stepUp: !!p.baseline.stepUp,
+    maxAgeMinutes: null,
+    mfa: false,
+  };
+}
+
+/** What an item adds to a point (its own four-eyes switch). */
+export interface ItemOverride {
+  fourEyes?: boolean;
+}
+
+/** The effective rule for one item: max(baseline, instance policy, the item's override). fourEyes: required or not. */
+export function effectiveRule(
+  p: ControlPoint,
+  policy: Pick<AssurancePolicy, 'points'>,
+  item: ItemOverride = {},
+): Omit<PointRule, 'fourEyes'> & { fourEyes: boolean } {
+  const r = instanceRule(p, policy);
+  return { ...r, fourEyes: r.fourEyes === 'required' || (p.supports.fourEyes && !!item.fourEyes) };
+}
+
+/** The strictest rule of several points (a request that reaches more than one). */
+export function strictestRule(rules: Omit<PointRule, 'fourEyes'>[]): Omit<PointRule, 'fourEyes'> {
+  const on = rules.filter((r) => r.stepUp);
+  const ages = on.map((r) => r.maxAgeMinutes).filter((x): x is number => x !== null);
+  return { stepUp: on.length > 0, maxAgeMinutes: ages.length ? Math.min(...ages) : null, mfa: on.some((r) => r.mfa) };
+}
+
+// ---------- tightening and loosening ----------
+
+export type RuleField = 'fourEyes' | 'stepUp' | 'maxAgeMinutes' | 'mfa';
+export interface PolicyChange {
+  /** A control point key, or "mfa.amrValues" / "mfa.acrValues" */
+  point: string;
+  field: RuleField | 'values';
+  from: unknown;
+  to: unknown;
+  direction: 'tighten' | 'loosen';
+}
+
+/** null (the longest age, SM_STEP_UP_MINUTES) is looser than every number. */
+const ageLooser = (a: number | null, b: number | null) => (a === null ? b !== null : b !== null && a > b);
+
+/** Every difference between two policies and whether it makes the rules stricter or looser. */
+export function policyChanges(before: Pick<AssurancePolicy, 'points' | 'mfa'>, after: Pick<AssurancePolicy, 'points' | 'mfa'>): PolicyChange[] {
+  const out: PolicyChange[] = [];
+  for (const p of CONTROL_POINTS) {
+    const a = instanceRule(p, before);
+    const b = instanceRule(p, after);
+    if (a.fourEyes !== b.fourEyes && a.fourEyes && b.fourEyes)
+      out.push({
+        point: p.key,
+        field: 'fourEyes',
+        from: a.fourEyes,
+        to: b.fourEyes,
+        direction: FOUR_EYES_RANK[b.fourEyes] > FOUR_EYES_RANK[a.fourEyes] ? 'tighten' : 'loosen',
+      });
+    if (a.stepUp !== b.stepUp) out.push({ point: p.key, field: 'stepUp', from: a.stepUp, to: b.stepUp, direction: b.stepUp ? 'tighten' : 'loosen' });
+    // a step-up turned on brings its age and MFA along (compared with an unset step-up); turned off, they go with it
+    const age = a.stepUp ? a.maxAgeMinutes : null;
+    const mfa = a.stepUp && a.mfa;
+    if (b.stepUp && age !== b.maxAgeMinutes)
+      out.push({ point: p.key, field: 'maxAgeMinutes', from: age, to: b.maxAgeMinutes, direction: ageLooser(b.maxAgeMinutes, age) ? 'loosen' : 'tighten' });
+    if (b.stepUp && mfa !== b.mfa) out.push({ point: p.key, field: 'mfa', from: mfa, to: b.mfa, direction: b.mfa ? 'tighten' : 'loosen' });
+  }
+  for (const k of ['amrValues', 'acrValues'] as const) {
+    const a = before.mfa[k].map((x) => x.toLowerCase());
+    const b = after.mfa[k].map((x) => x.toLowerCase());
+    if (a.length === b.length && a.every((x) => b.includes(x))) continue;
+    // a value that counts as multi-factor now and did not before is looser; only removing values is stricter
+    out.push({ point: `mfa.${k}`, field: 'values', from: before.mfa[k], to: after.mfa[k], direction: b.some((x) => !a.includes(x)) ? 'loosen' : 'tighten' });
+  }
+  return out;
+}
+
+/** A stored point setting without what equals the default (the policy keeps only differences). */
+function compact(p: ControlPoint, r: PointRule): Partial<PointRule> {
+  const d = instanceRule(p, { points: {} });
+  const out: Partial<PointRule> = {};
+  if (r.fourEyes && r.fourEyes !== d.fourEyes) out.fourEyes = r.fourEyes;
+  if (r.stepUp !== d.stepUp) out.stepUp = r.stepUp;
+  if (r.stepUp && r.maxAgeMinutes !== null) out.maxAgeMinutes = r.maxAgeMinutes;
+  if (r.stepUp && r.mfa) out.mfa = true;
+  return out;
+}
+
+/** The policy in normal form: every point's setting compacted, unknown points dropped. */
+export function normalizePolicy(p: Pick<AssurancePolicy, 'points' | 'mfa'> & { version?: number }): AssurancePolicy {
+  const points: Record<string, Partial<PointRule>> = {};
+  for (const c of CONTROL_POINTS) {
+    const x = compact(c, instanceRule(c, p));
+    if (Object.keys(x).length) points[c.key] = x;
+  }
+  return { version: p.version ?? 0, points, mfa: { amrValues: [...p.mfa.amrValues], acrValues: [...p.mfa.acrValues] } };
+}
+
+/**
+ * Splits a requested policy into what applies at once (every change that tightens) and what waits for a second
+ * administrator (the loosening changes): `now` is the current policy with the tightening applied; `loosened` is the
+ * requested policy as a whole, or null when nothing loosens.
+ */
+export function splitPolicyChange(
+  current: AssurancePolicy,
+  next: Pick<AssurancePolicy, 'points' | 'mfa'>,
+): { now: AssurancePolicy; tightened: PolicyChange[]; loosened: PolicyChange[] } {
+  const changes = policyChanges(current, next);
+  const tightened = changes.filter((c) => c.direction === 'tighten');
+  const loosened = changes.filter((c) => c.direction === 'loosen');
+  const now = applyChanges(current, tightened);
+  return { now, tightened, loosened };
+}
+
+/** Applies a list of changes (from policyChanges) to a policy. */
+export function applyChanges(base: AssurancePolicy, changes: PolicyChange[]): AssurancePolicy {
+  const points: Record<string, PointRule> = {};
+  for (const c of CONTROL_POINTS) points[c.key] = instanceRule(c, base);
+  const mfa = { amrValues: [...base.mfa.amrValues], acrValues: [...base.mfa.acrValues] };
+  for (const ch of changes) {
+    if (ch.point === 'mfa.amrValues' || ch.point === 'mfa.acrValues') {
+      mfa[ch.point === 'mfa.amrValues' ? 'amrValues' : 'acrValues'] = [...(ch.to as string[])];
+      continue;
+    }
+    const r = points[ch.point];
+    if (!r) continue;
+    if (ch.field === 'fourEyes') r.fourEyes = ch.to as FourEyesLevel;
+    else if (ch.field === 'stepUp') {
+      r.stepUp = ch.to as boolean;
+      if (!r.stepUp) {
+        r.maxAgeMinutes = null;
+        r.mfa = false;
+      }
+    } else if (ch.field === 'maxAgeMinutes') r.maxAgeMinutes = ch.to as number | null;
+    else if (ch.field === 'mfa') r.mfa = ch.to as boolean;
+  }
+  return normalizePolicy({ version: base.version, points, mfa });
+}
+
+/** Whether an amr / acr of an ID token shows multi-factor authentication under the policy's lists. */
+export function claimsShowMfa(m: AssuranceMfaSettings, claims: { amr?: readonly string[] | null; acr?: string | null }): boolean {
+  const amr = (claims.amr ?? []).map((x) => x.toLowerCase());
+  const values = m.amrValues.map((x) => x.toLowerCase());
+  if (amr.some((x) => values.includes(x))) return true;
+  return !!claims.acr && m.acrValues.includes(claims.acr);
+}
+
+// ---------- what the API returns ----------
+
+/** How a control-point event was confirmed (the audit proof's method). */
+export const ASSURANCE_METHODS = ['password', 'sso', 'sso+mfa', 'emergency', 'notRequired'] as const;
+export type AssuranceMethod = (typeof ASSURANCE_METHODS)[number];
+
+export interface AssurancePendingChange {
+  id: string;
+  status: 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'expired';
+  requestedBy: string;
+  requestedAt: string;
+  expiresAt: string;
+  comment: string;
+  /** The loosening changes that wait */
+  changes: PolicyChange[];
+  /** The policy version the request was made on */
+  baseVersion: number;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  /** The signed-in administrator may approve it (another administrator than the requester) */
+  canApprove: boolean;
+  /** …or reject / withdraw it */
+  canReject: boolean;
+  /** Why the signed-in administrator may not approve */
+  approveBlocked: string | null;
+}
+
+export interface AssuranceOverride {
+  point: string;
+  kind: AssuranceOverrideKind;
+  /** What the item is (a process, a platform, a record type, a setting) */
+  label: string;
+  /** The item's own setting, e.g. "fourEyes", "confirm", "verification required" */
+  value: string;
+  /** Where it is changed (web route) */
+  link: string;
+  /** The rule that applies to the item */
+  effective: { fourEyes: boolean; stepUp: boolean };
+}
+
+export interface AssurancePolicyView {
+  policy: AssurancePolicy;
+  /** Per point: the baseline, the instance rule and the rule without item overrides */
+  rules: Record<string, { baseline: PointRule; instance: PointRule; defaults: PointRule }>;
+  /** SM_STEP_UP_MINUTES (the longest age of a confirmation) */
+  windowMinutes: number;
+  pending: AssurancePendingChange | null;
+  overrides: AssuranceOverride[];
+  /** When the current version took effect (null: never changed) */
+  since: string | null;
+  canChange: boolean;
+}
+
+/** PUT /api/assurance/policy: what happened. */
+export interface AssurancePolicySaved {
+  view: AssurancePolicyView;
+  applied: PolicyChange[];
+  /** The loosening changes, waiting for a second administrator */
+  pending: AssurancePendingChange | null;
+}
+
+export interface AssurancePolicyVersion {
+  version: number;
+  at: string;
+  /** Who made the change (and who approved a loosening) */
+  by: string;
+  approvedBy: string | null;
+  changes: PolicyChange[];
+  seq: number;
+}
