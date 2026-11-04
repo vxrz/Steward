@@ -25,6 +25,7 @@ export const JSON_API_KINDS: ReadonlySet<string> = new Set([
   'insights-hub',
   'industrial-edge-management',
   'confluent-cloud',
+  'microsoft-graph',
 ]);
 
 /** The API base URL a kind expects, for the hints. */

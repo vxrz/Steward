@@ -2,6 +2,7 @@ import type { PlatformPreset } from '@sm/shared';
 import { gatusOpenApiSpec } from './gatusSpec.js';
 import { forgejoSpec, githubSpec, gitlabSpec } from './gitSpecs.js';
 import { prometheusSpec } from './prometheusSpec.js';
+import { graphSpec } from './graphSpec.js';
 import { readAsset } from '../reports/pdf/assets.js';
 
 /**
@@ -379,6 +380,57 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'microsoft-graph',
+    label: 'Microsoft Graph (Entra ID, read-only)',
+    description:
+      'One Entra ID tenant through Microsoft Graph, read-only: an access check of source "Entra ID" snapshots users (by user principal name, e-mail addresses as other names, so person reviews include Entra ID), guests, disabled accounts, group memberships (also nested) and owners, directory roles (active and, with Entra ID P2, eligible through PIM) and app role assignments; templates review guests, privileged roles, stale accounts and groups and list app secrets and certificates that expire; monitors check expiring app credentials and Microsoft 365 service health. Register an app in Entra ID with the application permissions User.Read.All, Group.Read.All, Directory.Read.All, AuditLog.Read.All, RoleManagement.Read.Directory and Application.Read.All (optionally ServiceHealth.Read.All) and grant admin consent. Variable tenantId: the directory (tenant) id; credential clientId and either clientSecret or – recommended – certificate and privateKey (sign-in with a client assertion). National clouds: change the base URL (e.g. https://graph.microsoft.us) and the variable loginUrl (https://login.microsoftonline.us). See docs/ENTRA.md.',
+    baseUrl: 'https://graph.microsoft.com',
+    config: {
+      auth: {
+        type: 'oauth2_client_credentials',
+        tokenUrl: '{{ vars.loginUrl }}/{{ vars.tenantId }}/oauth2/v2.0/token',
+        scope: '{{ baseUrl }}/.default',
+        clientAuth: 'body',
+      },
+      variables: { tenantId: '00000000-0000-0000-0000-000000000000', loginUrl: 'https://login.microsoftonline.com' },
+      // Graph throttles with 429 and Retry-After: a few more retries, waiting as long as it asks (up to a minute)
+      http: { retry: { maxRetries: 4, baseDelayMs: 1000, maxDelayMs: 60000 } },
+      testPath: '/v1.0/organization?$select=id,displayName',
+    },
+    secretFields: [
+      { key: 'clientId', label: 'Application (client) ID', help: 'Entra admin center → App registrations → the app → Overview' },
+      {
+        key: 'clientSecret',
+        label: 'Client secret (or use a certificate)',
+        help: 'The secret’s value (not its secret id); leave empty when signing in with a certificate',
+      },
+      {
+        key: 'certificate',
+        label: 'Certificate (PEM, public part)',
+        help: 'The certificate uploaded to the app registration (Certificates & secrets) – Steward sends its thumbprint',
+      },
+      { key: 'privateKey', label: 'Private key of the certificate (PEM, PKCS#8)', help: 'Signs the client assertion; it never leaves Steward' },
+      { key: 'privateKeyPassphrase', label: 'Passphrase of the private key (optional)' },
+    ],
+    docs: [
+      {
+        title: 'Register an application',
+        url: 'https://learn.microsoft.com/entra/identity-platform/quickstart-register-app',
+      },
+      {
+        title: 'Client credentials flow',
+        url: 'https://learn.microsoft.com/entra/identity-platform/v2-oauth2-client-creds-grant-flow',
+      },
+      {
+        title: 'Certificate credentials (client assertion)',
+        url: 'https://learn.microsoft.com/entra/identity-platform/certificate-credentials',
+      },
+      { title: 'Microsoft Graph permissions reference', url: 'https://learn.microsoft.com/graph/permissions-reference' },
+      { title: 'Graph throttling', url: 'https://learn.microsoft.com/graph/throttling' },
+      { title: 'National cloud deployments', url: 'https://learn.microsoft.com/graph/deployments' },
+    ],
+  },
+  {
     kind: 'mqtt',
     label: 'MQTT broker (monitor checks)',
     description:
@@ -480,4 +532,6 @@ export const PRESET_SPECS: Record<string, () => { name: string; content: string 
   forgejo: () => [{ name: 'Forgejo / Gitea API (subset)', content: JSON.stringify(forgejoSpec(), null, 2) }],
   // PromQL through the MCP gateway and in process steps (v0.3.1)
   prometheus: () => [{ name: 'Prometheus HTTP API (read endpoints)', content: JSON.stringify(prometheusSpec(), null, 2) }],
+  // Entra ID read endpoints (v0.5.0)
+  'microsoft-graph': () => [{ name: 'Microsoft Graph (Entra ID read endpoints)', content: JSON.stringify(graphSpec(), null, 2) }],
 };
