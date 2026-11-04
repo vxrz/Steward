@@ -765,7 +765,16 @@
     "DUPLICATE_NO_SERVICES": "Sie dürfen keinen der Services dieser Statusseite veröffentlichen.",
     "FORBIDDEN_duplicate": "Sie dürfen hiervon keine Kopie anlegen.",
     "FORBIDDEN_duplicateAccess": "Nur wer das Original verwalten darf, kann dessen Zugriffseinstellungen kopieren.",
-    "SCHEDULE_NOT_FOUND": "Zeitplan {{id}} nicht gefunden."
+    "SCHEDULE_NOT_FOUND": "Zeitplan {{id}} nicht gefunden.",
+    "ACCESS_CHECK_PVAULT_SOURCE": "Die Quelle Tresor braucht eine Plattform IBM Verify Privilege Vault.",
+    "ACCESS_CHECK_PVAULT_READ": "Der Tresor konnte nicht gelesen werden: {{detail}}",
+    "CREDENTIAL_VAULT_PLATFORM": "Eine Tresor-Verknüpfung braucht eine Plattform IBM Verify Privilege Vault, die Sie nutzen dürfen.",
+    "CREDENTIAL_VAULT_REQUIRED": "Verknüpfen Sie den Eintrag zuerst mit seinem Secret im Tresor.",
+    "PLATFORM_PATH_DENIED": "Steward ruft diesen Pfad auf einer Plattform vom Typ {{kind}} nie auf: {{reason}}",
+    "PVAULT_FOLDER": "Den Ordner {{folder}} gibt es nicht, oder das Dienstkonto darf ihn nicht sehen.",
+    "PVAULT_PERIOD": "Der Zeitraum ist ungültig: Er endet vor seinem Beginn oder ist zu lang.",
+    "PVAULT_PLATFORM": "Diese Plattform ist kein IBM Verify Privilege Vault.",
+    "PVAULT_TOO_MANY": "Der Tresor hat mehr Einträge, als Steward auf einmal liest (höchstens {{max}}) – grenzen Sie den Ordner ein oder nennen Sie die privilegierten Ordner."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

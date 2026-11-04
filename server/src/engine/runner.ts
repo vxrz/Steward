@@ -29,6 +29,7 @@ import { HttpError, newId, nowIso, parseJson, pathInside, sha256, sleep } from '
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { openInputs, sealInputs, secretValuesOf } from './secret-inputs.js';
 import { platformRequest, resolveBaseUrl, secretValues, buildUrl, credentialsAllowed, type HttpResult } from '../platforms/http.js';
+import { assertPathAllowed } from '../platforms/deniedPaths.js';
 import { findRecording, missingRecording } from '../platforms/recordings.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import {
@@ -1539,6 +1540,8 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
     return hit.result;
   };
   const doRequest = async (url: string, q: Record<string, unknown>) => {
+    // paths the kind never calls (a vault's values): refused in a test run too, before a recorded answer is looked up
+    if (ctx.recorded) assertPathAllowed(b.platform.kind, await buildUrl(b.platform, b.secrets, url, q));
     if (ctx.recorded) return replay(url, q);
     const target = await buildUrl(b.platform, b.secrets, url, q);
     // the AWS endpoint the step names is the platform's own origin for this call – only then, not every amazonaws.com host
