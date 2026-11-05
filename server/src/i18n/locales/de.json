@@ -343,7 +343,8 @@
     "check": "Prüfung",
     "severity": "Schweregrad",
     "since": "Schlägt fehl seit",
-    "value": "Wert"
+    "value": "Wert",
+    "aiGenerated": "KI-generiert"
   },
   "source": {
     "schedule": "Zeitplan „{{name}}“",
@@ -407,5 +408,17 @@
   "duplicate": {
     "copyName": "{{name}} (Kopie)",
     "copyNameN": "{{name}} (Kopie {{n}})"
+  },
+  "aiGenerated": "Mit {{models}} erstellt – prüfen Sie es, bevor Sie sich darauf verlassen",
+  "aiBudget": {
+    "title80": "KI-Budget zu 80 % verbraucht: {{name}}",
+    "title100": "KI-Budget aufgebraucht: {{name}}",
+    "body80": "{{name}} hat {{used}} von {{limit}} Tokens {{period}} verbraucht. Aufrufe werden abgelehnt, sobald ein Aufruf nicht mehr hineinpasst; ein Administrator kann das Budget erhöhen.",
+    "body100": "{{name}} hat {{used}} von {{limit}} Tokens {{period}} verbraucht: KI-Aufrufe werden abgelehnt (AI_BUDGET_EXHAUSTED), bis der Zeitraum endet oder ein Administrator das Budget erhöht.",
+    "installation": "Die Installation",
+    "platform": "Gateway „{{name}}“",
+    "process": "Prozess „{{name}}“",
+    "day": "heute",
+    "month": "in diesem Monat"
   }
 }

@@ -12,7 +12,7 @@ import * as dashboards from '../dashboards/service.js';
 import { startRun } from '../engine/runner.js';
 import { getPlatform } from '../platforms/service.js';
 import { parseJson } from '../util.js';
-import { monitorDatasetVisible } from '../monitors/datasets.js';
+import { builtinDatasetVisible } from '../dashboards/builtin.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
@@ -20,7 +20,7 @@ import { LARGE_BODIES } from '../bodyLimits.js';
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
 /** A dataset is visible to whoever may view the process (or monitor) that publishes it. */
-const canSee = (d: Pick<DatasetMeta, 'processId'>) => monitorDatasetVisible(d.processId) ?? processes.permissionsFor(d.processId).includes('view');
+const canSee = (d: Pick<DatasetMeta, 'processId'>) => builtinDatasetVisible(d.processId) ?? processes.permissionsFor(d.processId).includes('view');
 
 /** ?source=a,b – only these sources (the dashboard's or a widget's source filter, #142) */
 const viewOf = (req: FastifyRequest): datasets.View => {

@@ -1,3 +1,4 @@
+import type { AiGatewaySettings } from './ai.js';
 import type { ErrorParams } from './errors.js';
 import type { ControlTagKind } from './compliance.js';
 import type { ScheduleNotify } from './notifyPolicy.js';
@@ -391,6 +392,8 @@ export const STEP_UP_ACTIONS = [
   'decidePersonReview',
   'verifyManualStep',
   'closeFirewallChange',
+  // 0.6.0 (#216): raising an AI token budget (or removing its limit)
+  'changeAiBudget',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 
@@ -558,6 +561,8 @@ export interface PlatformConfig {
    * platforms or connector types.
    */
   mcpGateway?: McpGatewayConfig;
+  /** LLM gateways (0.6.0, docs/AI.md): models and allowed data – changed with PUT /api/platforms/:id/ai only */
+  ai?: AiGatewaySettings;
 }
 
 /**

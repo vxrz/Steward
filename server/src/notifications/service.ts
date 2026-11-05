@@ -1,4 +1,5 @@
 import {
+  type AiBudgetUse,
   pauseActive,
   type AclEntry,
   type Locale,
@@ -16,7 +17,8 @@ import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
-import { matches, processPermissions, verificationCheck } from '../auth/permissions.js';
+import { matches, platformPermissions, processPermissions, verificationCheck } from '../auth/permissions.js';
+import { onBudgetNotice } from '../ai/usage.js';
 import { getTask } from '../engine/store.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
 import { addInApp, claimSend } from './store.js';
@@ -462,6 +464,8 @@ export function onCheckFailed(e: DomainEvents['check.failed']): void {
           { label: t(l, 'facts.severity'), value: severityLabel(l, e.severity) },
           ...(e.value !== undefined ? [{ label: t(l, 'facts.value'), value: fmtValue(l, e.value) }] : []),
           ...(e.since ? [{ label: t(l, 'facts.since'), value: formatDateTime(l, e.since) }] : []),
+          // text an AI model wrote is marked as such (0.6.0, docs/AI.md)
+          ...(e.aiGenerated?.length ? [{ label: t(l, 'facts.aiGenerated'), value: t(l, 'aiGenerated', { models: e.aiGenerated.join(', ') }) }] : []),
         ],
         ...(e.items?.length ? { items: { list: e.items.slice(0, ITEMS_SHOWN), more: Math.max(0, e.items.length - ITEMS_SHOWN) } } : {}),
         ...(runbook ? { actions: [{ label: t(l, 'actions.runbook'), href: runbook }] } : {}),
@@ -489,6 +493,7 @@ export function onCheckFailed(e: DomainEvents['check.failed']): void {
       items: e.items ?? [],
       runbook,
       source: source ? { kind: source.kind, id: source.id, name: source.name, ...(source.output ? { output: source.output } : {}) } : null,
+      ...(e.aiGenerated?.length ? { aiGenerated: e.aiGenerated } : {}),
     },
   });
 }
@@ -592,6 +597,49 @@ export function notifyPlatformFailing(e: { platformId: string; name: string; mes
 }
 
 /**
+ * An AI budget reached 80 % or is used up (0.6.0, ai/usage.ts): once per budget, period and level – to the
+ * administrators, for a gateway's budget also its managers, for a process's budget its owner.
+ */
+export function notifyAiBudget(n: { use: AiBudgetUse; level: 80 | 100; period: 'day' | 'month' }): void {
+  const all = activeUsers();
+  const { use, level, period } = n;
+  const extra: (UserInfo | undefined)[] = [];
+  if (use.scope === 'platform') {
+    const r = db().get<{ acl: string }>('SELECT acl FROM platforms WHERE id = ?', use.scopeId);
+    const acl = parseJson(r?.acl, []);
+    extra.push(...all.filter((u) => platformPermissions(toAuthUser(u), { id: use.scopeId, acl }).includes('manage')));
+  }
+  if (use.scope === 'process') extra.push(userNamed(processAccess(use.scopeId).owner, all));
+  const limit = (period === 'day' ? use.tokensPerDay : use.tokensPerMonth) ?? 0;
+  const spent = period === 'day' ? use.usedToday : use.usedThisMonth;
+  const name = (l: Locale) => (use.scope === 'installation' ? t(l, 'aiBudget.installation') : t(l, `aiBudget.${use.scope}`, { name: use.name }));
+  const stamp = period === 'day' ? nowIso().slice(0, 10) : nowIso().slice(0, 7);
+  notify({
+    event: 'ai.budget',
+    text: (l) => ({
+      title: t(l, level === 100 ? 'aiBudget.title100' : 'aiBudget.title80', { name: titleName(name(l)) }),
+      body: t(l, level === 100 ? 'aiBudget.body100' : 'aiBudget.body80', {
+        name: name(l),
+        used: spent.toLocaleString(l),
+        limit: limit.toLocaleString(l),
+        period: t(l, `aiBudget.${period}`),
+      }),
+    }),
+    link:
+      use.scope === 'platform'
+        ? `/platforms/${encodeURIComponent(use.scopeId)}?tab=ai-usage`
+        : use.scope === 'process'
+          ? `/processes/${encodeURIComponent(use.scopeId)}`
+          : '/settings',
+    recipients: uniqueUsers([...admins(all), ...extra]),
+    inAppKey: `ai:${use.scope}:${use.scopeId}:${stamp}:${level}`,
+    externalKey: `ai:${use.scope}:${use.scopeId}:${stamp}:${level}`,
+    data: { scope: use.scope, scopeId: use.scopeId, name: use.name, level, period, used: spent, limit },
+    ...(use.scope === 'platform' ? { about: { kind: 'platform' as const, id: use.scopeId } } : {}),
+  });
+}
+
+/**
  * Reports each stale partition of a dataset once per stale period (a new publish starts a new period, #142): when the
  * publish step sets `staleAfterMinutes`, or a schedule feeds the partition (2.5 × its interval). Returns how many.
  */
@@ -667,6 +715,7 @@ export function initNotifications(): void {
   on('check.failed', deferred('check.failed', onCheckFailed));
   on('check.resolved', deferred('check.resolved', onCheckResolved));
   on('schedule.skipped', deferred('schedule.skipped', onScheduleSkipped));
+  onBudgetNotice(notifyAiBudget);
   on('dataset.published', (e) => {
     // a partition's new publish starts its own period (its updated_at changes); others keep theirs
     db().run('DELETE FROM notification_stale WHERE dataset_key = ?', e.key);

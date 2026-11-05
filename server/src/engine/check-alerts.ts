@@ -68,6 +68,7 @@ const content = (o: CheckOutcome): CheckContent => ({
   ...(o.headline ? { headline: o.headline } : {}),
   ...(o.value !== undefined ? { value: o.value } : {}),
   ...(o.items?.length ? { items: o.items } : {}),
+  ...(o.aiGenerated?.length ? { aiGenerated: o.aiGenerated } : {}),
   runbook: o.runbook ?? null,
 });
 

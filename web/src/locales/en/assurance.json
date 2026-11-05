@@ -281,6 +281,12 @@
         "label": "Import an instance",
         "description": "A whole instance comes in."
       }
+    },
+    "ai": {
+      "budget": {
+        "label": "Raise an AI token budget",
+        "description": "More tokens a day or a month for the installation, an LLM gateway or a process – or no limit any more. Lowering a budget needs no confirmation."
+      }
     }
   }
 }

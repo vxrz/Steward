@@ -34,15 +34,16 @@ The tables are generated from `server/src/config-schema.ts` by `npm run config:d
 
 ## Database and data
 
-| Variable                   | Default                          | Purpose                                                                                                                                                             |
-| -------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SM_DATASET_CACHE_ROWS`    | `100000`                         | Parsed dataset rows kept in memory between reads (dashboards, API pages); `0` turns the cache off                                                                   |
-| `SM_DATA_DIR`              | `./data`                         | Data directory                                                                                                                                                      |
-| `SM_DATABASE_URL`          | – (SQLite in the data directory) | Use PostgreSQL: `postgres://user:password@host:5432/database`. Not available in the desktop executable. See [Database](INSTALL.md#5-database-sqlite-or-postgresql). |
-| `SM_DATABASE_SCHEMA`       | `public`                         | PostgreSQL schema (created if missing)                                                                                                                              |
-| `SM_DATABASE_CA`           | –                                | CA certificate (PEM file) for verifying the PostgreSQL server's TLS certificate                                                                                     |
-| `SM_UPGRADE_BACKUPS`       | `3`                              | SQLite: automatic copies of the database made before an update migrates it, kept in `<data dir>/backups` (`0` = none). See [Updating](INSTALL.md#6-updating)        |
-| `SM_METRIC_RETENTION_DAYS` | `400`                            | How long dashboard metric history is kept                                                                                                                           |
+| Variable                     | Default                          | Purpose                                                                                                                                                             |
+| ---------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SM_DATASET_CACHE_ROWS`      | `100000`                         | Parsed dataset rows kept in memory between reads (dashboards, API pages); `0` turns the cache off                                                                   |
+| `SM_DATA_DIR`                | `./data`                         | Data directory                                                                                                                                                      |
+| `SM_DATABASE_URL`            | – (SQLite in the data directory) | Use PostgreSQL: `postgres://user:password@host:5432/database`. Not available in the desktop executable. See [Database](INSTALL.md#5-database-sqlite-or-postgresql). |
+| `SM_DATABASE_SCHEMA`         | `public`                         | PostgreSQL schema (created if missing)                                                                                                                              |
+| `SM_DATABASE_CA`             | –                                | CA certificate (PEM file) for verifying the PostgreSQL server's TLS certificate                                                                                     |
+| `SM_UPGRADE_BACKUPS`         | `3`                              | SQLite: automatic copies of the database made before an update migrates it, kept in `<data dir>/backups` (`0` = none). See [Updating](INSTALL.md#6-updating)        |
+| `SM_METRIC_RETENTION_DAYS`   | `400`                            | How long dashboard metric history is kept                                                                                                                           |
+| `SM_AI_USAGE_RETENTION_DAYS` | `400`                            | How long the usage log of AI model calls is kept (days; budgets need the current month). See [AI models](AI.md#reporting)                                           |
 
 ## Unlocking
 

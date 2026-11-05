@@ -182,6 +182,8 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   },
   sp('mcp.allowWrites', 'mcp', ['allowMcpWrites']),
   sp('mcp.allowClient', 'mcp', ['allowMcpClient']),
+  // raising an AI token budget or removing its limit (0.6.0, #216); lowering one needs no confirmation
+  sp('ai.budget', 'mcp', ['changeAiBudget']),
   // ---- catalogue ----
   sp('catalogue.ciaScale', 'catalogue', ['changeCiaScale']),
   // ---- system and data ----

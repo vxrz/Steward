@@ -47,8 +47,8 @@ import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
 import { openBrowser, type BrowserSession } from './browser.js';
 import * as store from './store.js';
 import { completeManual, manualSpec, verifyManual, type ManualCompletionInput, type Settled } from './manual.js';
-import { publishDataset, datasetOwner, metricForRun } from '../dashboards/datasets.js';
-import { monitorDatasetVisible } from '../monitors/datasets.js';
+import { publishDataset, datasetOwner, getDataset, metricForRun } from '../dashboards/datasets.js';
+import { builtinDatasetVisible } from '../dashboards/builtin.js';
 import { recordStepAccessChanges, type AccessChangeInput } from '../compliance/run-entries.js';
 import { logger } from '../log.js';
 import { withSpan } from '../telemetry.js';
@@ -58,6 +58,7 @@ import { isInternalError, isUnexpected, reportError } from '../errorReporting.js
 import { applicationInputValue, applicationsInputValue } from '../catalogue/components.js';
 import { systemsForProcess } from '../catalogue/systems.js';
 import { checkOutcome } from './check-alerts.js';
+import { runAiStep } from '../ai/step.js';
 
 // ---------------------------------------------------------------------------
 // Run context
@@ -151,6 +152,8 @@ class RunContext {
   nodes: Map<string, FlowNode>;
   activations = new Map<string, number>();
   totalActivations = 0;
+  /** Answers of "Ask an AI model" steps (text → model): reports and check messages that carry one are marked */
+  private aiTexts = new Map<string, string>();
 
   constructor(
     public runId: string,
@@ -167,6 +170,28 @@ class RunContext {
     this.nodes = new Map(def.nodes.map((n) => [n.id, n]));
     this.stats = stats;
     for (const b of Object.values(bindings)) this.redactor.add(...Object.values(b.secrets));
+  }
+
+  /** Remembers an AI answer (strings of 12 characters or more: shorter ones are too common to mean anything). */
+  rememberAiText(text: unknown, model: string): void {
+    if (typeof text !== 'string') return;
+    const t = text.trim();
+    if (t.length >= 12 && this.aiTexts.size < 5000) this.aiTexts.set(t, model);
+  }
+
+  /** The models whose answers appear in these values, or undefined: they carry AI-generated text. */
+  aiModelsIn(...values: unknown[]): string[] | undefined {
+    if (!this.aiTexts.size) return undefined;
+    const models = new Set<string>();
+    const visit = (v: unknown, depth: number): void => {
+      if (depth > 20) return;
+      if (typeof v === 'string') {
+        for (const [t, m] of this.aiTexts) if (v.includes(t)) models.add(m);
+      } else if (Array.isArray(v)) v.forEach((x) => visit(x, depth + 1));
+      else if (v && typeof v === 'object') Object.values(v).forEach((x) => visit(x, depth + 1));
+    };
+    values.forEach((v) => visit(v, 0));
+    return models.size ? [...models].sort() : undefined;
   }
 
   /** Status of a step as recorded in the run journal (for traces). */
@@ -262,9 +287,9 @@ class RunContext {
       runId: this.runId,
       processId: this.processId,
       mayRead: (pid) => {
-        if (pid.startsWith('monitor:')) {
+        if (pid.startsWith('monitor:') || pid.startsWith('ai:')) {
           const u = findUserByName(this.actor);
-          return !!u && u.active && runAs(toAuthUser(u), () => monitorDatasetVisible(pid) === true);
+          return !!u && u.active && runAs(toAuthUser(u), () => builtinDatasetVisible(pid) === true);
         }
         return actorPermissions(this.actor, pid).includes('view');
       },
@@ -1082,6 +1107,12 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
 }
 
 function applyOutput(node: FlowNode, ctx: RunContext, output: unknown, status: StepStatus): void {
+  // an AI answer, also of a step replayed after a resume
+  if (node.type === 'ai' && output && typeof output === 'object' && (output as { aiGenerated?: unknown }).aiGenerated) {
+    const o = output as { text?: unknown; answer?: unknown; modelLabel?: string };
+    ctx.rememberAiText(o.text, o.modelLabel ?? node.model);
+    if (o.answer && typeof o.answer === 'object') for (const t of stringLeaves(o.answer)) ctx.rememberAiText(t, o.modelLabel ?? node.model);
+  }
   if (node.type === 'set' && output && typeof output === 'object') {
     Object.assign(ctx.vars, output as Record<string, unknown>);
     return;
@@ -1425,7 +1456,12 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
           rows = list.map((it) => (keys.size ? columns!.map((k) => stringify((it as Record<string, unknown>)?.[k])) : [stringify(it)]));
         }
       }
-      return { output: { title, text, columns, rows }, summary: rows ? `${title}: ${rows.length} row(s)` : title };
+      // a report that carries an AI answer says so (and names the model) wherever it is shown
+      const ai = ctx.aiModelsIn(title, text, rows);
+      return {
+        output: { title, text, columns, rows, ...(ai ? { aiGenerated: { models: ai } } : {}) },
+        summary: (rows ? `${title}: ${rows.length} row(s)` : title) + (ai ? ` · AI-generated (${ai.join(', ')})` : ''),
+      };
     }
     case 'wait':
       await sleep(step.seconds * 1000, ctx.signal).catch(() => {
@@ -1440,6 +1476,8 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
       return execPublish(step, ctx, key);
     case 'accessChange':
       return execAccessChange(step, ctx, key);
+    case 'ai':
+      return execAi(step, ctx, key);
     case 'browser':
       return execBrowser(step, ctx, key);
     case 'subprocess':
@@ -1718,6 +1756,57 @@ function cell(v: unknown): unknown {
   if (typeof v === 'number' || typeof v === 'boolean') return v;
   if (Array.isArray(v) && v.every((x) => x === null || typeof x !== 'object')) return v.join(', ');
   return stringify(v).slice(0, 500);
+}
+
+/**
+ * Ask an AI model (0.6.0, ai/step.ts): the step reads its context from the run (results of earlier steps, datasets the
+ * actor may read, inputs), and its call goes through the same outbound policy and secret-leak check as an http step.
+ * The answer's text is remembered, so reports and check messages that carry it are marked as AI-generated.
+ */
+async function execAi(step: NodeOf<'ai'>, ctx: RunContext, key: string): Promise<LeafResult> {
+  const b = ctx.bindings[step.connection];
+  if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
+  const res = await runAiStep(step, {
+    runId: ctx.runId,
+    processId: ctx.processId,
+    processName: ctx.def.name,
+    processVersion: store.runRow(ctx.runId).process_version ?? null,
+    stepKey: key,
+    actor: ctx.actor,
+    dryRun: ctx.dryRun,
+    recorded: ctx.recorded,
+    def: ctx.def,
+    gateway: { platform: b.platform, secrets: b.secrets },
+    slotPlatforms: Object.fromEntries(Object.entries(ctx.bindings).map(([slot, x]) => [slot, x.platform.id])),
+    vars: ctx.vars,
+    inputs: ctx.inputs,
+    evalOn: (expr, value) => ctx.data(expr, value),
+    datasetRows: (dsKey) => {
+      const owner = datasetOwner(dsKey);
+      if (!owner) throw new Error(`Dataset "${dsKey}" has no data yet`);
+      const user = findUserByName(ctx.actor);
+      const visible =
+        owner === ctx.processId ||
+        (!!user && user.active && runAs(toAuthUser(user), () => builtinDatasetVisible(owner) ?? permissionsFor(owner).includes('view')));
+      if (!visible) throw new Error(`Dataset "${dsKey}" is not visible to ${ctx.actor}`);
+      return (user ? runAs(toAuthUser(user), () => getDataset(dsKey)) : getDataset(dsKey)).rows as Record<string, unknown>[];
+    },
+    secrets: () => [...ctx.redactor.list(), ...Object.values(ctx.bindings).flatMap((x) => secretValues(x.secrets))],
+    log: (level, message) => ctx.log(level, message, key),
+    setInput: (input) => store.updateStepInput(ctx.runId, key, ctx.redactor.apply(input)),
+    enforceOutbound: async (p, headers, body) => enforceOutbound(ctx, await buildUrl(b.platform, b.secrets, p), headers, body),
+    signal: ctx.signal,
+  });
+  return { output: res.output, status: res.output.dryRun ? 'dryrun' : 'succeeded', summary: res.summary };
+}
+
+/** Strings inside a JSON answer (long enough to be recognised in a message). */
+function stringLeaves(v: unknown, out: string[] = [], depth = 0): string[] {
+  if (depth > 20 || out.length > 500) return out;
+  if (typeof v === 'string') out.push(v);
+  else if (Array.isArray(v)) for (const x of v) stringLeaves(x, out, depth + 1);
+  else if (v && typeof v === 'object') for (const x of Object.values(v)) stringLeaves(x, out, depth + 1);
+  return out;
 }
 
 async function execPublish(step: NodeOf<'publish'>, ctx: RunContext, key: string): Promise<LeafResult> {
@@ -2246,8 +2335,8 @@ async function checkContent(
   step: NodeOf<'check'>,
   passed: boolean,
   key: string,
-): Promise<{ headline?: string; value?: number; items?: string[] }> {
-  const out: { headline?: string; value?: number; items?: string[] } = {};
+): Promise<{ headline?: string; value?: number; items?: string[]; aiGenerated?: string[] }> {
+  const out: { headline?: string; value?: number; items?: string[]; aiGenerated?: string[] } = {};
   const attempt = async (what: string, fn: () => Promise<void>) => {
     try {
       await fn();
@@ -2273,5 +2362,7 @@ async function checkContent(
         .filter(Boolean);
       if (list.length) out.items = list.slice(0, CHECK_ITEMS_MAX);
     });
+  const ai = passed ? undefined : ctx.aiModelsIn(out.headline, out.items, step.message ? await ctx.str(step.message).catch(() => '') : '');
+  if (ai) out.aiGenerated = ai;
   return out;
 }

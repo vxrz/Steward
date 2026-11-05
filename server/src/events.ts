@@ -113,6 +113,8 @@ export interface DomainEvents {
   'mcp.tool': { tool: string; outcome: string };
   /** MCP platform gateway call (outcome ok, http_error, failed or a refusal reason) */
   'mcp.gateway': { platformId: string; outcome: string };
+  /** An AI call was logged or refused, or a budget changed (0.6.0): the "AI usage" dataset is published again soon */
+  'ai.usage': { platformId: string | null };
 }
 
 /** What the process author added for the messages of a check (#144), all optional. */
@@ -126,6 +128,8 @@ export interface CheckContent {
   items?: string[];
   /** A living document (rec_…) or an http(s) URL */
   runbook?: string | null;
+  /** The message carries text written by these AI models (0.6.0): it says so */
+  aiGenerated?: string[];
 }
 
 type Name = keyof DomainEvents;

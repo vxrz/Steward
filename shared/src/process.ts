@@ -11,6 +11,7 @@ import { REPORT_LANGS } from './reports.js';
 import { boundedRecord } from './zodLimits.js';
 import { tagInput } from './tags.js';
 import { AWS_REGION_RE } from './aws.js';
+import { AI_ANSWER_FORMATS, AI_CONTEXT_FROM, AI_LIMITS, promptVariables, type AiAnswerFormat, type AiContextFrom } from './ai.js';
 
 /**
  * Process definition model.
@@ -42,6 +43,7 @@ export const NODE_TYPES = [
   'browser',
   'publish',
   'accessChange',
+  'ai',
   'subprocess',
   'wait',
   'fail',
@@ -63,6 +65,7 @@ export const STEP_TYPES = [
   'browser',
   'publish',
   'accessChange',
+  'ai',
   'subprocess',
   'wait',
   'fail',
@@ -367,6 +370,54 @@ export interface AccessChangeConfig {
   approvedBy?: string;
 }
 /**
+ * Ask an AI model (0.6.0, #216, docs/AI.md): a predefined prompt, filled in only with the context sources the step
+ * names, sent to a model of an LLM gateway. The answer (text, or JSON checked against `schema`) is the step's result.
+ * Limits, budgets and the gateway's allowed data are checked before anything is sent; dry runs and test runs never
+ * call the model.
+ */
+export interface AiContextSource {
+  /** The placeholder in the prompt: {{ name }} */
+  name: string;
+  /** step: the result of an earlier step; dataset: the rows of a dataset; input: an input of the run */
+  from: AiContextFrom;
+  /** from step: the step id (it needs "Save result as", or is a "Set variables" step) */
+  step?: string;
+  /** from dataset: the dataset key */
+  dataset?: string;
+  /** from input: the input name */
+  input?: string;
+  /** Optional expression on the value, e.g. rows[status != 'good'] */
+  path?: string;
+  /** from dataset: only these columns */
+  columns?: string[];
+  /** The most characters this source sends (default AI_LIMITS.contextChars.default); more is cut off */
+  maxChars?: number;
+}
+export interface AiConfig {
+  type: 'ai';
+  /** Connection slot of an LLM gateway platform */
+  connection: string;
+  /** Model id, as configured on the gateway */
+  model: string;
+  /** Prompt template: instructions (system part) */
+  system?: string;
+  /** Prompt template: the question (user part), with {{ name }} placeholders of the context sources */
+  prompt: string;
+  context?: AiContextSource[];
+  /** text (default) or json: the answer must be JSON matching `schema` */
+  answer?: AiAnswerFormat;
+  /** JSON Schema of a JSON answer */
+  schema?: Record<string, unknown>;
+  temperature?: number;
+  /** At most this many output tokens (default and ceiling: the model's) */
+  maxOutputTokens?: number;
+  /** Refuse the call without sending it when the estimated input is larger (default and ceiling: the model's) */
+  maxInputTokens?: number;
+  /** Used instead of the model in dry runs, and in test runs without a recorded response */
+  sampleAnswer?: string;
+}
+
+/**
  * Run another process as a step (sub-flow). The child run is a normal run
  * (own protocol, linked to the parent); its `outputs` become this node's result.
  */
@@ -422,6 +473,19 @@ const manualVerificationSchema = z
     notRunStarter: z.boolean().optional(),
     verifiers: z.array(z.string().max(200)).max(100).optional(),
     onReject: z.enum(['return', 'fail']).optional(),
+  })
+  .strict();
+
+const aiContextSchema = z
+  .object({
+    name: identifier,
+    from: z.enum(AI_CONTEXT_FROM),
+    step: identifier.optional(),
+    dataset: z.string().trim().max(64).optional(),
+    input: identifier.optional(),
+    path: z.string().max(4000).optional(),
+    columns: z.array(z.string().max(200)).max(100).optional(),
+    maxChars: z.number().int().min(100).max(AI_LIMITS.contextChars.max).optional(),
   })
   .strict();
 
@@ -546,6 +610,20 @@ const shapes = {
     requestRef: z.string().max(500).optional(),
     approvedBy: z.string().max(500).optional(),
   },
+  ai: {
+    type: z.literal('ai'),
+    connection: z.string().min(1),
+    model: z.string().trim().min(1).max(AI_LIMITS.modelIdChars),
+    system: z.string().max(AI_LIMITS.promptChars).optional(),
+    prompt: z.string().min(1).max(AI_LIMITS.promptChars),
+    context: z.array(aiContextSchema).max(AI_LIMITS.contextSources).optional(),
+    answer: z.enum(AI_ANSWER_FORMATS).optional(),
+    schema: boundedRecord(z.unknown(), 200).optional(),
+    temperature: z.number().min(0).max(2).optional(),
+    maxOutputTokens: z.number().int().min(1).max(AI_LIMITS.outputTokens).optional(),
+    maxInputTokens: z.number().int().min(1).max(AI_LIMITS.contextTokens).optional(),
+    sampleAnswer: z.string().max(AI_LIMITS.sampleChars).optional(),
+  },
   subprocess: {
     type: z.literal('subprocess'),
     process: z.string().min(1),
@@ -575,6 +653,7 @@ export type ReportStep = Base & ReportConfig;
 export type BrowserStep = Base & BrowserConfig;
 export type PublishStep = Base & PublishConfig;
 export type AccessChangeStep = Base & AccessChangeConfig;
+export type AiStep = Base & AiConfig;
 export type SubprocessStep = Base & SubprocessConfig;
 export type WaitStep = Base & WaitConfig;
 export type FailStep = Base & FailConfig;
@@ -591,6 +670,7 @@ export type Step =
   | BrowserStep
   | PublishStep
   | AccessChangeStep
+  | AiStep
   | SubprocessStep
   | WaitStep
   | FailStep;
@@ -609,6 +689,7 @@ export const stepSchema: z.ZodType<Step> = z.lazy(() =>
     z.object({ ...baseFields, ...shapes.browser }),
     z.object({ ...baseFields, ...shapes.publish }),
     z.object({ ...baseFields, ...shapes.accessChange }),
+    z.object({ ...baseFields, ...shapes.ai }),
     z.object({ ...baseFields, ...shapes.subprocess }),
     z.object({ ...baseFields, ...shapes.wait }),
     z.object({ ...baseFields, ...shapes.fail }),
@@ -632,6 +713,7 @@ export type NodeConfig =
   | BrowserConfig
   | PublishConfig
   | AccessChangeConfig
+  | AiConfig
   | SubprocessConfig
   | WaitConfig
   | FailConfig
@@ -654,6 +736,7 @@ export const nodeSchema = z.discriminatedUnion('type', [
   z.object({ ...baseFields, ...pos, ...shapes.browser }),
   z.object({ ...baseFields, ...pos, ...shapes.publish }),
   z.object({ ...baseFields, ...pos, ...shapes.accessChange }),
+  z.object({ ...baseFields, ...pos, ...shapes.ai }),
   z.object({ ...baseFields, ...pos, ...shapes.subprocess }),
   z.object({ ...baseFields, ...pos, ...shapes.wait }),
   z.object({ ...baseFields, ...pos, ...shapes.fail }),
@@ -694,6 +777,7 @@ export function nodePorts(n: Pick<FlowNode, 'type'> & { mode?: string }): PortDe
         : [{ id: 'out', label: '' }];
     case 'http':
     case 'browser':
+    case 'ai':
     case 'subprocess':
       return [
         { id: 'out', label: '' },
@@ -858,11 +942,12 @@ function checkGraph(d: ProcessDefinition): { issues: ValidationIssue[]; warnings
   const warnings: ValidationIssue[] = [];
   const byId = new Map<string, FlowNode>();
   const slots = new Set(d.connections.map((c) => c.slot));
+  const aiNodes: [NodeOf<'ai'>, number][] = [];
   d.nodes.forEach((n, i) => {
     if (byId.has(n.id))
       issues.push({ path: `nodes[${i}]`, nodeId: n.id, code: 'duplicateNodeId', params: { id: n.id }, message: `Duplicate node id "${n.id}"` });
     byId.set(n.id, n);
-    if ((n.type === 'http' || n.type === 'accessChange' || (n.type === 'browser' && n.connection)) && !slots.has(n.connection!)) {
+    if ((n.type === 'http' || n.type === 'accessChange' || n.type === 'ai' || (n.type === 'browser' && n.connection)) && !slots.has(n.connection!)) {
       issues.push({
         path: `nodes[${i}]`,
         nodeId: n.id,
@@ -875,6 +960,7 @@ function checkGraph(d: ProcessDefinition): { issues: ValidationIssue[]; warnings
       issues.push({ path: `nodes[${i}]`, nodeId: n.id, code: 'selectNeedsItems', message: 'Select tasks need an "items" expression' });
     }
     if (n.type === 'userTask') checkManual(n, i, issues, warnings);
+    if (n.type === 'ai') aiNodes.push([n, i]);
     if (n.type === 'subprocess') {
       for (const [childSlot, parentSlot] of Object.entries(n.connections ?? {})) {
         if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(childSlot))
@@ -908,6 +994,7 @@ function checkGraph(d: ProcessDefinition): { issues: ValidationIssue[]; warnings
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k))
       issues.push({ path: `outputs.${k}`, code: 'invalidOutputName', params: { name: k }, message: `Invalid output name "${k}" (letters, digits and _ only)` });
   }
+  for (const [n, i] of aiNodes) checkAi(n, i, d, byId, issues, warnings);
   const starts = d.nodes.filter((n) => n.type === 'start');
   if (starts.length !== 1)
     issues.push({
@@ -1023,6 +1110,80 @@ function checkManual(n: NodeOf<'userTask'>, i: number, issues: ValidationIssue[]
   }
   if (n.checklistAllRequired && !n.checklist?.length)
     warnings.push({ path: `nodes[${i}]`, nodeId: n.id, code: 'checklistEmpty', message: '"All items required" has no effect without checklist items' });
+}
+
+/** Rules of "Ask an AI model" steps: placeholders, context sources and the answer's schema. */
+function checkAi(n: NodeOf<'ai'>, i: number, d: ProcessDefinition, byId: Map<string, FlowNode>, issues: ValidationIssue[], warnings: ValidationIssue[]): void {
+  const at = { path: `nodes[${i}]`, nodeId: n.id };
+  const names = new Set<string>();
+  const inputs = new Set(d.inputs.map((x) => x.name));
+  for (const c of n.context ?? []) {
+    if (names.has(c.name)) issues.push({ ...at, code: 'aiDuplicateContext', params: { name: c.name }, message: `Context "${c.name}" is named twice` });
+    names.add(c.name);
+    if (c.from === 'step') {
+      const src = c.step ? byId.get(c.step) : undefined;
+      if (!src || src.id === n.id)
+        issues.push({ ...at, code: 'aiUnknownStep', params: { name: c.name, step: c.step ?? '' }, message: `Context "${c.name}": no step "${c.step ?? ''}"` });
+      else if (src.type !== 'set' && !src.saveAs)
+        issues.push({
+          ...at,
+          code: 'aiStepNeedsSaveAs',
+          params: { name: c.name, step: src.id },
+          message: `Context "${c.name}": step "${src.id}" needs "Save result as" so its result can be sent`,
+        });
+    } else if (c.from === 'dataset' && !c.dataset?.trim())
+      issues.push({ ...at, code: 'aiNoDataset', params: { name: c.name }, message: `Context "${c.name}": name the dataset` });
+    else if (c.from === 'input' && (!c.input || !inputs.has(c.input)))
+      issues.push({
+        ...at,
+        code: 'aiUnknownInput',
+        params: { name: c.name, input: c.input ?? '' },
+        message: `Context "${c.name}": no input "${c.input ?? ''}"`,
+      });
+  }
+  const used = new Set<string>();
+  for (const part of [n.system, n.prompt]) {
+    const v = promptVariables(part);
+    for (const bad of v.invalid)
+      issues.push({
+        ...at,
+        code: 'aiPlaceholder',
+        params: { placeholder: bad, example: '{{ hosts }}' },
+        message: `${bad}: a prompt placeholder is the name of a context source, e.g. {{ hosts }}`,
+      });
+    for (const name of v.names) {
+      used.add(name);
+      if (!names.has(name)) issues.push({ ...at, code: 'aiUnknownVariable', params: { name }, message: `{{ ${name} }} is not a context source of this step` });
+    }
+  }
+  for (const name of names)
+    if (!used.has(name))
+      warnings.push({
+        ...at,
+        code: 'aiUnusedContext',
+        params: { name },
+        message: `Context "${name}" is not used in the prompt and is not sent`,
+        severity: 'warning',
+      });
+  if (n.answer === 'json') {
+    if (!n.schema) issues.push({ ...at, code: 'aiSchemaMissing', message: 'A JSON answer needs a JSON Schema' });
+    else {
+      const problem = jsonSchemaProblem(n.schema);
+      if (problem) issues.push({ ...at, code: 'aiSchemaInvalid', params: { problem }, message: `The answer's JSON Schema cannot be used: ${problem}` });
+    }
+  }
+}
+
+/** Why a JSON Schema cannot check answers (size, unsupported keywords, external references), or null. */
+export function jsonSchemaProblem(schema: unknown): string | null {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return 'it must be an object';
+  if (JSON.stringify(schema).length > AI_LIMITS.schemaChars) return `it is larger than ${AI_LIMITS.schemaChars} characters`;
+  try {
+    z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]);
+    return null;
+  } catch (e) {
+    return (e as Error).message.slice(0, 300);
+  }
 }
 
 /** Methods treated as write operations (skipped in dry runs). */

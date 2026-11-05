@@ -811,7 +811,8 @@
     "PVAULT_FOLDER": "The folder {{folder}} does not exist or the service account may not see it.",
     "PVAULT_PERIOD": "The period is not valid: it ends before it starts or is too long.",
     "PVAULT_PLATFORM": "This platform is not IBM Verify Privilege Vault.",
-    "PVAULT_TOO_MANY": "The vault has more entries than Steward reads at once (at most {{max}}) – narrow the folder or name the privileged folders."
+    "PVAULT_TOO_MANY": "The vault has more entries than Steward reads at once (at most {{max}}) – narrow the folder or name the privileged folders.",
+    "FORBIDDEN_aiBudget": "Only administrators may change AI budgets."
   },
   "boundary": {
     "title": "Something went wrong on this page",

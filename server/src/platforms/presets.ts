@@ -549,6 +549,30 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'llm-gateway',
+    label: 'LLM gateway (AI models)',
+    description:
+      'An LLM gateway – or any OpenAI-compatible API – for the process step "Ask an AI model": a predefined question with the context the step chooses, answered as text or as JSON checked against a schema. One base URL can serve several request formats; the format belongs to each model: OpenAI Chat Completions (POST /v1/chat/completions, also OpenAI-compatible APIs and other providers behind the gateway), OpenAI Responses (/v1/responses), Anthropic Messages (/v1/messages, with anthropic-version) and Bedrock Converse (/v1/bedrock/model/{modelId}/invoke). Sign-in: an API key in a header – x-api-key by default; change the header name (api-key, Authorization) under the sign-in settings, or use a bearer token. A second region is another platform with its own base URL. After the connection test, add the models under AI models (read from GET /v1/models or by hand), with their context size, maximum output and optional prices, and say which data the gateway may be sent. Budgets per day and month, the usage and the limits: docs/AI.md.',
+    baseUrl: 'https://llm-gateway.example.com',
+    config: {
+      auth: { type: 'apiKey', apiKeyIn: 'header', apiKeyName: 'x-api-key' },
+      variables: {},
+      // a model can take minutes for a long answer (Steward never streams)
+      http: { timeoutMs: 300_000 },
+      testPath: '/v1/models',
+    },
+    secretFields: [
+      { key: 'apiKey', label: 'API key', help: 'Sent in the header named under the sign-in settings (x-api-key by default)', auth: 'apiKey' },
+      { key: 'token', label: 'Bearer token (instead of an API key)', help: 'Sent as Authorization: Bearer <token>', auth: 'bearer' },
+    ],
+    docs: [
+      { title: 'OpenAI Chat Completions API', url: 'https://platform.openai.com/docs/api-reference/chat/create' },
+      { title: 'OpenAI Responses API', url: 'https://platform.openai.com/docs/api-reference/responses/create' },
+      { title: 'Anthropic Messages API', url: 'https://docs.anthropic.com/en/api/messages' },
+      { title: 'Amazon Bedrock Converse API', url: 'https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html' },
+    ],
+  },
+  {
     kind: 'generic',
     label: 'Generic REST API',
     description: 'Any HTTP API. Pick the auth type and add an OpenAPI specification for operation lookup.',

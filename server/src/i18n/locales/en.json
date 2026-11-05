@@ -343,7 +343,8 @@
     "check": "Check",
     "severity": "Severity",
     "since": "Failing since",
-    "value": "Value"
+    "value": "Value",
+    "aiGenerated": "AI-generated"
   },
   "source": {
     "schedule": "Schedule “{{name}}”",
@@ -407,5 +408,17 @@
   "duplicate": {
     "copyName": "{{name}} (copy)",
     "copyNameN": "{{name}} (copy {{n}})"
+  },
+  "aiGenerated": "Written with {{models}} – check it before you rely on it",
+  "aiBudget": {
+    "title80": "AI budget at 80 %: {{name}}",
+    "title100": "AI budget used up: {{name}}",
+    "body80": "{{name}} used {{used}} of {{limit}} tokens {{period}}. Calls are refused once a call no longer fits; an administrator can raise the budget.",
+    "body100": "{{name}} used {{used}} of {{limit}} tokens {{period}}: AI calls are refused (AI_BUDGET_EXHAUSTED) until the period ends or an administrator raises the budget.",
+    "installation": "The installation",
+    "platform": "Gateway “{{name}}”",
+    "process": "Process “{{name}}”",
+    "day": "today",
+    "month": "this month"
   }
 }

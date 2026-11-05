@@ -301,6 +301,7 @@ const WARN_EVENTS = new Set([
   'duty.exception',
   'duty.ended',
   'measure.due',
+  'ai.budget',
 ]);
 
 /** How a message reads at a glance: red for failures, orange for something to do, green when a monitor is up again. */

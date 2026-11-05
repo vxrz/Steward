@@ -1,6 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ApiOperation, McpGatewayConfig, Platform, PlatformConfig, PlatformDoc, PlatformSpec } from '@sm/shared';
+import {
+  aiGatewaySettingsSchema,
+  type ApiOperation,
+  type McpGatewayConfig,
+  type Platform,
+  type PlatformConfig,
+  type PlatformDoc,
+  type PlatformSpec,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { vault } from '../vault.js';
 import { audit } from '../audit.js';
@@ -117,6 +125,20 @@ function withoutGateway(cfg: PlatformConfig): PlatformConfig {
   return rest as PlatformConfig;
 }
 
+/** The AI settings change only through ai/gateway.ts (PUT /platforms/:id/ai). */
+function withoutAi(cfg: PlatformConfig): PlatformConfig {
+  const { ai: _ai, ...rest } = cfg;
+  return rest as PlatformConfig;
+}
+
+/** AI settings given when a platform is created (the setup wizard, a copy) must be valid ones. */
+function checkedAi(cfg: PlatformConfig): PlatformConfig {
+  if (cfg.ai === undefined) return cfg;
+  const r = aiGatewaySettingsSchema.safeParse(cfg.ai);
+  if (!r.success) throw new HttpError(400, `AI settings: ${r.error.issues[0]?.message ?? 'invalid'}`, 'AI_SETTINGS_INVALID');
+  return { ...cfg, ai: r.data };
+}
+
 export function createPlatform(input: PlatformInput): Platform {
   if (!input.name?.trim()) throw new HttpError(400, 'Name is required', 'NAME_REQUIRED');
   const id = newId('pf_');
@@ -132,7 +154,7 @@ export function createPlatform(input: PlatformInput): Platform {
       input.description ?? '',
       input.baseUrl ?? '',
       input.environment ?? '',
-      JSON.stringify(withoutGateway(input.config ?? defaultConfig())),
+      JSON.stringify(checkedAi(withoutGateway(input.config ?? defaultConfig()))),
       Object.keys(secrets).length ? vault().encrypt(secrets) : null,
       ts,
       ts,
@@ -165,8 +187,15 @@ export function updatePlatform(id: string, patch: Partial<PlatformInput>): Platf
     description: patch.description ?? before.description,
     baseUrl: patch.baseUrl ?? before.baseUrl,
     environment: patch.environment ?? before.environment,
-    // the MCP gateway setting only changes through setMcpGateway (own right check and audit entry)
-    config: patch.config ? { ...withoutGateway(patch.config), ...(before.config.mcpGateway ? { mcpGateway: before.config.mcpGateway } : {}) } : before.config,
+    // the MCP gateway setting only changes through setMcpGateway, the AI settings of an LLM gateway only through
+    // ai/gateway.ts setGatewaySettings (own right check and audit entry)
+    config: patch.config
+      ? {
+          ...withoutAi(withoutGateway(patch.config)),
+          ...(before.config.mcpGateway ? { mcpGateway: before.config.mcpGateway } : {}),
+          ...(before.config.ai ? { ai: before.config.ai } : {}),
+        }
+      : before.config,
   };
   db().tx(() => {
     db().run(

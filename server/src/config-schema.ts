@@ -311,6 +311,11 @@ export const VARS = {
     description: 'How long dashboard metric history is kept',
     readme: true,
   }),
+  SM_AI_USAGE_RETENTION_DAYS: v(int(400, 1), {
+    group: 'Database and data',
+    default: '400',
+    description: 'How long the usage log of AI model calls is kept (days; budgets need the current month). See [AI models](docs/AI.md#reporting)',
+  }),
 
   // Unlocking (read by config.ts and removed from the environment at once – never part of `env`)
   SM_MASTER_PASSPHRASE_FILE: v(text(), {
