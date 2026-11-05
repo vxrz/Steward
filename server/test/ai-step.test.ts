@@ -80,7 +80,8 @@ const stepOf = async (runId: string, stepId: string) => {
   const full = await s.api('GET', `/runs/${runId}/steps/${st.id}`);
   return { ...st, ...full };
 };
-const usage = async (where = '1 = 1', ...p: unknown[]) => (await db()).all<any>(`SELECT * FROM ai_usage WHERE ${where} ORDER BY ts, rowid`, ...p);
+// (calls in the same millisecond keep no order: the tests compare such rows as a set)
+const usage = async (where = '1 = 1', ...p: unknown[]) => (await db()).all<any>(`SELECT * FROM ai_usage WHERE ${where} ORDER BY ts, id`, ...p);
 const auditOf = async (action: string) => (await s.api('GET', `/audit?action=${action}&limit=50`)) as any[];
 
 beforeAll(async () => {
