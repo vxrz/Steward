@@ -49,6 +49,7 @@ import * as store from './store.js';
 import { completeManual, manualSpec, verifyManual, type ManualCompletionInput, type Settled } from './manual.js';
 import { publishDataset, datasetOwner, getDataset, metricForRun } from '../dashboards/datasets.js';
 import { builtinDatasetVisible } from '../dashboards/builtin.js';
+import { ANY, INPUT, datasetSource, inputSources, resultVars, runSources } from '../ai/provenance.js';
 import { recordStepAccessChanges, type AccessChangeInput } from '../compliance/run-entries.js';
 import { logger } from '../log.js';
 import { withSpan } from '../telemetry.js';
@@ -154,6 +155,10 @@ class RunContext {
   totalActivations = 0;
   /** Answers of "Ask an AI model" steps (text → model): reports and check messages that carry one are marked */
   private aiTexts = new Map<string, string>();
+  /** Where each variable's value may come from (ai/provenance.ts): every source ever written to the name in this run */
+  private provenance = new Map<string, Set<string>>();
+  private anySources?: Set<string>;
+  private inputSourceSet?: Set<string>;
 
   constructor(
     public runId: string,
@@ -192,6 +197,31 @@ class RunContext {
     };
     values.forEach((v) => visit(v, 0));
     return models.size ? [...models].sort() : undefined;
+  }
+
+  /** Records where a value written to a variable comes from (also when a resumed run replays the step). */
+  taint(name: string, sources: Iterable<string>): void {
+    let set = this.provenance.get(name);
+    if (!set) this.provenance.set(name, (set = new Set()));
+    for (const x of sources) set.add(x);
+  }
+
+  /** The recorded sources of variables (ANY for one without a record). */
+  sourcesOf(names: readonly string[]): Set<string> {
+    const out = new Set<string>();
+    for (const n of names) for (const x of this.provenance.get(n) ?? [ANY]) out.add(x);
+    return out;
+  }
+
+  /** Sources with ANY and INPUT expanded to what they stand for in this run: platform ids, INPUT, dataset:<key>. */
+  expandSources(sources: Iterable<string>): Set<string> {
+    const out = new Set<string>();
+    for (const x of sources) {
+      if (x === ANY) for (const y of (this.anySources ??= runSources(this.runId))) out.add(y);
+      else if (x === INPUT) for (const y of (this.inputSourceSet ??= inputSources(this.runId))) out.add(y);
+      else out.add(x);
+    }
+    return out;
   }
 
   /** Status of a step as recorded in the run journal (for traces). */
@@ -1099,7 +1129,10 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
   const ports = failurePorts(node, ctx);
   if (ports) {
     ctx.log('warn', `"${name}" failed, continuing${ports.includes('error') ? ' on its error output' : ''}: ${message}`, key);
-    if (node.saveAs) ctx.vars[node.saveAs] = { error: message };
+    if (node.saveAs) {
+      ctx.vars[node.saveAs] = { error: message };
+      ctx.taint(node.saveAs, outputSources(node, ctx));
+    }
     return ports;
   }
   logger.warn({ runId: ctx.runId, stepKey: key, nodeType: node.type, error: message }, 'step failed');
@@ -1115,9 +1148,39 @@ function applyOutput(node: FlowNode, ctx: RunContext, output: unknown, status: S
   }
   if (node.type === 'set' && output && typeof output === 'object') {
     Object.assign(ctx.vars, output as Record<string, unknown>);
+    for (const k of Object.keys(output)) ctx.taint(k, [ANY]);
     return;
   }
-  if (node.saveAs) ctx.vars[node.saveAs] = status === 'failed' && node.type !== 'check' ? { error: (output as { error?: string })?.error } : output;
+  if (node.saveAs) {
+    ctx.vars[node.saveAs] = status === 'failed' && node.type !== 'check' ? { error: (output as { error?: string })?.error } : output;
+    ctx.taint(node.saveAs, outputSources(node, ctx));
+  }
+}
+
+/**
+ * Where a step's result comes from (ai/provenance.ts): the platform of an API call or a browser step; for an AI step
+ * the gateway and everything its context may carry; ANY for every other step – its result is computed from the run.
+ */
+function outputSources(node: FlowNode, ctx: RunContext): string[] {
+  if (node.type === 'http' || node.type === 'browser') {
+    const id = node.connection ? ctx.bindings[node.connection]?.platform.id : undefined;
+    return id ? [id] : [ANY];
+  }
+  if (node.type === 'ai') {
+    const out = new Set<string>();
+    const gw = ctx.bindings[node.connection]?.platform.id;
+    if (gw) out.add(gw);
+    for (const c of node.context ?? []) {
+      const src = c.from === 'step' ? ctx.nodes.get(c.step ?? '') : undefined;
+      if (c.from === 'dataset') out.add(datasetSource(c.dataset ?? '*'));
+      else if (c.from === 'input') out.add(INPUT);
+      else for (const x of src ? ctx.sourcesOf(resultVars(src)) : [ANY]) out.add(x);
+    }
+    return [...out];
+  }
+  // what a person entered counts as an input of the run
+  if (node.type === 'userTask') return [ANY, INPUT];
+  return [ANY];
 }
 
 function journalHasPrefix(ctx: RunContext, prefix: string): boolean {
@@ -1165,6 +1228,8 @@ async function execControl(
         if (ctx.signal.aborted) throw new Cancelled();
         ctx.vars[node.as] = items[i];
         ctx.vars[`${node.as}Index`] = i;
+        ctx.taint(node.as, [ANY]);
+        ctx.taint(`${node.as}Index`, [ANY]);
         for (const b of body) await runNode(b, ctx, `${key}[${i}]`);
         if (node.delayMs && i < items.length - 1 && !journalHasPrefix(ctx, `${key}[${i + 1}]/`)) await sleep(node.delayMs, ctx.signal);
       }
@@ -1176,7 +1241,10 @@ async function execControl(
       startedMs: started,
       output,
     });
-    if (node.saveAs) ctx.vars[node.saveAs] = output;
+    if (node.saveAs) {
+      ctx.vars[node.saveAs] = output;
+      ctx.taint(node.saveAs, [ANY]);
+    }
     return ['done'];
   } catch (e) {
     const cancelled = e instanceof Cancelled || ctx.signal.aborted;
@@ -1208,6 +1276,7 @@ async function runItemsInParallel(
   const outer = ctx.vars;
   const results: Record<string, unknown>[] = items.map(() => ({}));
   const local = new Set([node.as, `${node.as}Index`]);
+  for (const v of local) ctx.taint(v, [ANY]);
   let next = 0;
   let failure: { error: unknown } | undefined;
   let gate: Promise<void> = Promise.resolve();
@@ -1380,6 +1449,7 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
         const val = await ctx.render(v);
         out[k] = val === undefined ? null : val;
         ctx.vars[k] = out[k];
+        ctx.taint(k, [ANY]);
       }
       return {
         output: out,
@@ -1777,9 +1847,10 @@ async function execAi(step: NodeOf<'ai'>, ctx: RunContext, key: string): Promise
     recorded: ctx.recorded,
     def: ctx.def,
     gateway: { platform: b.platform, secrets: b.secrets },
-    slotPlatforms: Object.fromEntries(Object.entries(ctx.bindings).map(([slot, x]) => [slot, x.platform.id])),
     vars: ctx.vars,
     inputs: ctx.inputs,
+    sourcesOf: (names) => ctx.expandSources(ctx.sourcesOf(names)),
+    inputSources: () => ctx.expandSources([INPUT]),
     evalOn: (expr, value) => ctx.data(expr, value),
     datasetRows: (dsKey) => {
       const owner = datasetOwner(dsKey);

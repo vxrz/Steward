@@ -848,6 +848,7 @@
     "aiDuplicateContext": "Context \"{{name}}\" is named twice",
     "aiUnknownStep": "Context \"{{name}}\": no step \"{{step}}\"",
     "aiStepNeedsSaveAs": "Context \"{{name}}\": step \"{{step}}\" needs \"Save result as\" so its result can be sent",
+    "aiContextOverwritten": "Context \"{{name}}\": the variable \"{{variable}}\" is also written by step \"{{step}}\" – give the result its own name",
     "aiNoDataset": "Context \"{{name}}\": name the dataset",
     "aiUnknownInput": "Context \"{{name}}\": no input \"{{input}}\"",
     "aiPlaceholder": "{{placeholder}}: a prompt placeholder is the name of a context source, e.g. {{example}}",

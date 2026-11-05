@@ -8,7 +8,6 @@ import {
   promptVariables,
   type AiContextSource,
   type AiGatewaySettings,
-  type FlowNode,
   type NodeOf,
   type Platform,
   type ProcessDefinition,
@@ -21,6 +20,7 @@ import { estimateTokens, fingerprint } from './estimate.js';
 import { scrubForModel } from './scrub.js';
 import { finishCall, refusalText, refuseCall, reserveCall, type CallFacts } from './usage.js';
 import { gatewaySettings, modelCost } from './gateway.js';
+import { DATASET, INPUT, resultVars } from './provenance.js';
 
 /**
  * "Ask an AI model" (docs/AI.md): assemble the context the step names, check it against the gateway's allowed data,
@@ -42,10 +42,12 @@ export interface AiStepIo {
   recorded: boolean;
   def: ProcessDefinition;
   gateway: { platform: Platform; secrets: Record<string, string> };
-  /** Platform id per connection slot of the run */
-  slotPlatforms: Record<string, string>;
   vars: Record<string, unknown>;
   inputs: Record<string, unknown>;
+  /** Where the values of these variables may come from (ai/provenance.ts): platform ids, "input", "dataset:<key>" */
+  sourcesOf: (names: string[]) => Set<string>;
+  /** What the run's inputs may carry: "input" – and for a sub-process run everything of its parent run */
+  inputSources: () => Set<string>;
   /** Evaluates an expression on a value (the run's guard rails) */
   evalOn: (expr: string, value: unknown) => Promise<unknown>;
   /** The rows of a dataset the run's actor may read (throws otherwise) */
@@ -102,13 +104,29 @@ interface Part {
   removed: number;
 }
 
-const CONNECTION_TYPES = new Set(['http', 'browser', 'accessChange']);
-
-/** Where a step's result comes from: its platform, or – for every step that calls none – every platform of the run. */
-function provenance(node: FlowNode | undefined, io: AiStepIo): string[] {
-  const conn = node && CONNECTION_TYPES.has(node.type) ? (node as { connection?: string }).connection : undefined;
-  if (conn && io.slotPlatforms[conn]) return [io.slotPlatforms[conn]];
-  return [...new Set(Object.values(io.slotPlatforms))].filter((id) => id !== io.gateway.platform.id);
+/**
+ * Checks what a context source may carry against the allowed data: the platforms (but the gateway itself – its own
+ * answers), the inputs and the datasets. The sources are those of the values actually read (ai/provenance.ts).
+ */
+function checkSources(c: AiContextSource, sources: Set<string>, io: AiStepIo, allowed: AiGatewaySettings['allowedData']): void {
+  const name = io.gateway.platform.name;
+  const where = `an administrator allows it under Platforms → ${name} → AI models → Allowed data`;
+  const platforms = [...sources].filter((x) => x !== INPUT && !x.startsWith(DATASET) && x !== io.gateway.platform.id);
+  const denied = allowed.platforms.includes('*') ? [] : platforms.filter((id) => !allowed.platforms.includes(id));
+  if (denied.length)
+    throw new AiStepError(
+      'AI_DATA_NOT_ALLOWED',
+      `context "${c.name}" comes from ${denied.length > 1 ? 'the platforms' : 'the platform'} ${denied.map((d) => `"${platformName(d)}"`).join(', ')}, which "${name}" may not be sent – ${where}`,
+    );
+  if (sources.has(INPUT) && !allowed.inputs)
+    throw new AiStepError('AI_DATA_NOT_ALLOWED', `context "${c.name}" may carry inputs of the run, which may not be sent to "${name}" – ${where}`);
+  const datasets = [...sources].filter((x) => x.startsWith(DATASET)).map((x) => x.slice(DATASET.length));
+  const deniedSets = datasets.filter((k) => !datasetAllowed(k, allowed.datasets));
+  if (deniedSets.length)
+    throw new AiStepError(
+      'AI_DATA_NOT_ALLOWED',
+      `context "${c.name}" may carry data of ${deniedSets.map((k) => (k === '*' ? 'every dataset ($systems(), $trend() or $daysUntil() of an unnamed dataset)' : `the dataset "${k}"`)).join(', ')}, which may not be sent to "${name}" – ${where}`,
+    );
 }
 
 const serialize = (v: unknown): string => (typeof v === 'string' ? v : v === undefined ? '' : (JSON.stringify(v) ?? ''));
@@ -120,19 +138,10 @@ async function contextPart(c: AiContextSource, io: AiStepIo, settings: AiGateway
   if (c.from === 'step') {
     const node = io.def.nodes.find((n) => n.id === c.step);
     if (!node) throw new AiStepError('AI_DATA_NOT_ALLOWED', `context "${c.name}": there is no step "${c.step}"`);
-    const from = provenance(node, io);
-    const denied = allowed.platforms.includes('*') ? [] : from.filter((id) => !allowed.platforms.includes(id));
-    if (denied.length)
-      throw new AiStepError(
-        'AI_DATA_NOT_ALLOWED',
-        `context "${c.name}" comes from ${from.length > 1 ? 'the platforms' : 'the platform'} ${denied.map((d) => `"${platformName(d)}"`).join(', ')}, which "${name}" may not be sent – an administrator allows it under Platforms → ${name} → AI models → Allowed data`,
-      );
-    value =
-      node.type === 'set'
-        ? Object.fromEntries(Object.keys((node as NodeOf<'set'>).values ?? {}).map((k) => [k, io.vars[k] ?? null]))
-        : node.saveAs
-          ? io.vars[node.saveAs]
-          : undefined;
+    // the variables read are checked – any step may have written them, so their recorded sources count, not the step's
+    const names = resultVars(node);
+    value = node.type === 'set' ? Object.fromEntries(names.map((k) => [k, io.vars[k] ?? null])) : node.saveAs ? io.vars[node.saveAs] : undefined;
+    if (value !== undefined) checkSources(c, io.sourcesOf(names), io, allowed);
     if (value === undefined)
       throw new AiStepError('AI_DATA_NOT_ALLOWED', `context "${c.name}": step "${c.step}" has no result yet (did it run before this step?)`);
   } else if (c.from === 'dataset') {
@@ -153,6 +162,8 @@ async function contextPart(c: AiContextSource, io: AiStepIo, settings: AiGateway
         'AI_DATA_NOT_ALLOWED',
         `context "${c.name}": inputs of a run may not be sent to "${name}" – an administrator allows it under Platforms → ${name} → AI models → Allowed data`,
       );
+    // a sub-process run's inputs come from its parent run
+    checkSources(c, io.inputSources(), io, allowed);
     value = io.inputs[c.input ?? ''];
   }
   if (c.path?.trim()) value = await io.evalOn(c.path, value);

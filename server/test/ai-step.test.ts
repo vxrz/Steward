@@ -363,6 +363,157 @@ describe('refused before anything is sent', () => {
   });
 });
 
+describe('allowed data follows the values sent, not the step named', () => {
+  let other: string;
+  const read = (id: string, slot: string, saveAs: string) =>
+    n(id, 'http', { connection: slot, method: 'GET', path: `/mock/test/delay?ms=1&value=from-${slot}`, saveAs });
+  const ask = (context: unknown[], extra: Record<string, unknown> = {}) =>
+    n('ask', 'ai', { connection: 'llm', model: 'demo-chat-small', prompt: 'Look: {{ data }}', context, saveAs: 'answer', ...extra });
+  /** A process with the slots llm, src and other (or only llm) */
+  const makeDef = (name: string, nodes: unknown[], wires: unknown[], extra: Record<string, unknown> = {}) =>
+    s.api('POST', '/processes', {
+      definition: {
+        name,
+        connections: [
+          { slot: 'llm', kind: LLM_GATEWAY_KIND },
+          { slot: 'src', kind: 'generic' },
+          { slot: 'other', kind: 'generic' },
+        ],
+        inputs: [],
+        nodes: [n('start', 'start'), ...nodes],
+        wires,
+        ...extra,
+      },
+    });
+  const runAll = async (processId: string, opts: Record<string, unknown> = {}) => {
+    const { id } = await s.api('POST', '/runs', { processId, bindings: { llm: gateway, src: source, other }, ...opts });
+    return s.waitRun(id, DONE);
+  };
+
+  beforeAll(async () => {
+    const p = await s.api('POST', '/platforms', {
+      name: 'Archive',
+      kind: 'generic',
+      baseUrl: s.base,
+      config: { auth: { type: 'bearer' }, variables: {}, http: { proxy: 'none' } },
+      secrets: { token: 'archive-token-0123456789' },
+    });
+    other = p.id;
+  });
+  afterAll(async () => {
+    await setAllowed({ platforms: [source], datasets: ['checkmk.*'], inputs: false });
+  });
+
+  it('a variable another step also writes: refused when saved; at run time the data of every writer counts', async () => {
+    const nodes = (second: string) => [
+      read('read', 'src', 'data'),
+      read('read2', 'other', second),
+      ask([{ name: 'data', from: 'step', step: 'read', path: 'body' }]),
+    ];
+    const wires = [w('start', 'read'), w('read', 'read2'), w('read2', 'ask')];
+    await expect(makeDef('Overwritten', nodes('data'), wires)).rejects.toMatchObject({
+      status: 400,
+      body: {
+        issues: [
+          { code: 'aiContextOverwritten', message: 'Context "data": the variable "data" is also written by step "read2" – give the result its own name' },
+        ],
+      },
+    });
+    // saved with its own name, then changed behind the validation (a definition saved before the rule)
+    const proc = await makeDef('Overwritten later', nodes('data2'), wires);
+    const d = await db();
+    const row = d.get<{ definition: string }>('SELECT definition FROM process_versions WHERE process_id = ?', proc.id)!;
+    const def = JSON.parse(row.definition);
+    def.nodes.find((x: any) => x.id === 'read2').saveAs = 'data';
+    d.run('UPDATE process_versions SET definition = ? WHERE process_id = ?', JSON.stringify(def), proc.id);
+    const r = await runAll(proc.id);
+    expect(r.error).toContain('AI_DATA_NOT_ALLOWED: context "data" comes from the platform "Archive", which "Gateway" may not be sent');
+    expect(await calls()).toEqual([]);
+    await setAllowed({ platforms: [source, other], datasets: [], inputs: false });
+    const ok = await runAll(proc.id);
+    expect(ok.status).toBe('succeeded');
+    expect((await stepOf(ok.id, 'ask')).input.user).toContain('from-other');
+    await setAllowed({ platforms: [source], datasets: ['checkmk.*'], inputs: false });
+  });
+
+  it('a set step computed from the inputs or from datasets carries them: inputs and dataset rules apply', async () => {
+    const viaSet = (name: string, value: string) =>
+      s.api('POST', '/processes', {
+        definition: {
+          name,
+          connections: [{ slot: 'llm', kind: LLM_GATEWAY_KIND }],
+          inputs: [{ name: 'customerList', type: 'list' }],
+          nodes: [n('start', 'start'), n('shape', 'set', { values: { x: value } }), ask([{ name: 'data', from: 'step', step: 'shape' }])],
+          wires: [w('start', 'shape'), w('shape', 'ask')],
+        },
+      });
+    const go = async (id: string) => {
+      const { id: runId } = await s.api('POST', '/runs', { processId: id, bindings: { llm: gateway }, inputs: { customerList: ['ACME Corp'] } });
+      return s.waitRun(runId, DONE);
+    };
+    const proc = await viaSet('Inputs via set', '{{ inputs.customerList }}');
+    expect((await go(proc.id)).error).toContain('AI_DATA_NOT_ALLOWED: context "data" may carry inputs of the run, which may not be sent to "Gateway"');
+    const trend = await viaSet('Dataset via set', "{{ $trend('entra.guests/count', '7d') }}");
+    await setAllowed({ platforms: [], datasets: ['checkmk.*'], inputs: true });
+    expect((await go(trend.id)).error).toContain('AI_DATA_NOT_ALLOWED: context "data" may carry data of the dataset "entra.guests"');
+    const systems = await viaSet('Systems via set', '{{ $count($systems()) }}');
+    expect((await go(systems.id)).error).toContain('AI_DATA_NOT_ALLOWED: context "data" may carry data of every dataset');
+    expect(await calls()).toEqual([]);
+    // allowed: the inputs, and the datasets
+    const ok = await go(proc.id);
+    expect(ok.status).toBe('succeeded');
+    expect((await stepOf(ok.id, 'ask')).input.user).toContain('ACME Corp');
+    await setAllowed({ platforms: [], datasets: ['entra.*'], inputs: true });
+    expect((await go(trend.id)).status).toBe('succeeded');
+    await setAllowed({ platforms: [source], datasets: ['checkmk.*'], inputs: false });
+  });
+
+  it('the inputs of a sub-process run carry the data of its parent run', async () => {
+    const child = await s.api('POST', '/processes', {
+      definition: {
+        name: 'AI child',
+        connections: [{ slot: 'llm', kind: LLM_GATEWAY_KIND }],
+        inputs: [{ name: 'rows', type: 'json' }],
+        nodes: [n('start', 'start'), ask([{ name: 'data', from: 'input', input: 'rows' }])],
+        wires: [w('start', 'ask')],
+      },
+    });
+    const parent = await makeDef(
+      'AI parent',
+      [read('read2', 'other', 'archived'), n('sub', 'subprocess', { process: child.id, inputs: { rows: '{{ vars.archived.body }}' } })],
+      [w('start', 'read2'), w('read2', 'sub')],
+    );
+    await setAllowed({ platforms: [source], datasets: [], inputs: true });
+    const r = await runAll(parent.id);
+    expect(r.status).toBe('failed');
+    expect(r.error).toContain('AI_DATA_NOT_ALLOWED: context "data" comes from the platform "Archive"');
+    await setAllowed({ platforms: [source, other], datasets: [], inputs: true });
+    expect((await runAll(parent.id)).status).toBe('succeeded');
+    await setAllowed({ platforms: [source], datasets: ['checkmk.*'], inputs: false });
+  });
+
+  it('a resumed run replays its finished steps and knows again where their values come from', async () => {
+    // "other" is bound but not read: the value of "data" comes from "Monitoring" alone
+    const proc = await makeDef(
+      'Resumed',
+      [read('read', 'src', 'data'), ask([{ name: 'data', from: 'step', step: 'read', path: 'body' }])],
+      [w('start', 'read'), w('read', 'ask')],
+    );
+    await setAllowed({ platforms: [], datasets: [], inputs: false });
+    const first = await runAll(proc.id);
+    expect(first.error).toContain('comes from the platform "Monitoring"');
+    const readBefore = await stepOf(first.id, 'read');
+    // as after a restart: the run resumes from its journal, the read is not repeated
+    await setAllowed({ platforms: [source], datasets: [], inputs: false });
+    (await db()).run("UPDATE runs SET status = 'interrupted', finished_at = NULL, error = NULL WHERE id = ?", first.id);
+    await s.api('POST', `/runs/${first.id}/resume`);
+    const resumed = await s.waitRun(first.id, DONE);
+    expect([resumed.status, resumed.error]).toEqual(['succeeded', null]);
+    expect((await stepOf(first.id, 'read')).startedAt).toBe(readBefore.startedAt);
+    await setAllowed({ platforms: [source], datasets: ['checkmk.*'], inputs: false });
+  });
+});
+
 describe('secrets never leave', () => {
   it('platform credentials and secret-looking values are removed from the context before sending', async () => {
     const proc = await makeProcess(

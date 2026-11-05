@@ -1112,6 +1112,14 @@ function checkManual(n: NodeOf<'userTask'>, i: number, issues: ValidationIssue[]
     warnings.push({ path: `nodes[${i}]`, nodeId: n.id, code: 'checklistEmpty', message: '"All items required" has no effect without checklist items' });
 }
 
+/** The variables a node writes: its "Save result as", the values of a set step, the item and index of a for-each. */
+function writtenVars(n: FlowNode): string[] {
+  const out = n.saveAs ? [n.saveAs] : [];
+  if (n.type === 'set') out.push(...Object.keys(n.values ?? {}));
+  if (n.type === 'forEach') out.push(n.as, `${n.as}Index`);
+  return out;
+}
+
 /** Rules of "Ask an AI model" steps: placeholders, context sources and the answer's schema. */
 function checkAi(n: NodeOf<'ai'>, i: number, d: ProcessDefinition, byId: Map<string, FlowNode>, issues: ValidationIssue[], warnings: ValidationIssue[]): void {
   const at = { path: `nodes[${i}]`, nodeId: n.id };
@@ -1131,6 +1139,18 @@ function checkAi(n: NodeOf<'ai'>, i: number, d: ProcessDefinition, byId: Map<str
           params: { name: c.name, step: src.id },
           message: `Context "${c.name}": step "${src.id}" needs "Save result as" so its result can be sent`,
         });
+      else
+        // the variable is what is sent: another step writing it could send data the gateway may not get
+        for (const v of src.type === 'set' ? Object.keys(src.values ?? {}) : [src.saveAs!]) {
+          const other = d.nodes.find((x) => x.id !== src.id && writtenVars(x).includes(v));
+          if (other)
+            issues.push({
+              ...at,
+              code: 'aiContextOverwritten',
+              params: { name: c.name, variable: v, step: other.id },
+              message: `Context "${c.name}": the variable "${v}" is also written by step "${other.id}" – give the result its own name`,
+            });
+        }
     } else if (c.from === 'dataset' && !c.dataset?.trim())
       issues.push({ ...at, code: 'aiNoDataset', params: { name: c.name }, message: `Context "${c.name}": name the dataset` });
     else if (c.from === 'input' && (!c.input || !inputs.has(c.input)))

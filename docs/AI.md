@@ -61,9 +61,17 @@ One gateway can expose several request formats on one base URL, so **the format 
 
 _AI models → Allowed data_ says what processes may send to this gateway. **Nothing is allowed until an administrator (or whoever manages the platform) allows it**:
 
-- **Data of platforms** – the platforms whose answers may be sent, or _data of every platform_. A step that calls a platform (API call, browser) sends that platform's data. **Every other step** (set variables, for each, sub-processes, an earlier AI answer) counts as sending the data of **every platform bound to its run** – Steward cannot know what a computed value contains, so it assumes the most.
+- **Data of platforms** – the platforms whose answers may be sent, or _data of every platform_.
 - **Datasets** – keys or patterns (`checkmk.*`; `*` for every dataset the run may read). A dataset is read with the rights of the person (or schedule owner) the run runs as.
 - **Inputs of a run** – values people or triggers give when a run starts.
+
+**What is checked is the value sent, not the step named.** Variables are one namespace that any later step can write, so the run records, for every variable, where what was written to it comes from (`server/src/ai/provenance.ts`):
+
+- a value an **API call or a browser step** wrote comes from that step's platform;
+- an **earlier AI answer** comes from its gateway and from everything its context could carry;
+- a value **any other step** wrote – set variables, the item of a for each, a sub-process's outputs, a user task – is computed from the run, and Steward cannot know what it contains, so it assumes the most: the data of **every platform bound to the run**, the run's **inputs** (when it has any; a person's entries in a user task always count as inputs) and **every dataset the process may read** – those of its AI steps, those named in `$trend()` and `$daysUntil()`, and those of its sub-processes; `$systems()` (the system inventory) and a `$trend()` whose dataset is not written out count as every dataset (`*`).
+- A variable keeps every source ever written to it in the run, so a later step or a parallel loop item writing the same name only adds to it. The inputs of a **sub-process run** are computed in its parent run: they carry everything of the parent run too. When a run resumes after a restart, the finished steps are replayed from its journal in their order, and the sources with them.
+- A process is **refused when saved** if a context step's variable (its _Save result as_, or a key of a _Set variables_ step) is also written by another step (`aiContextOverwritten`) – give the result its own name.
 
 A step that would send something else fails before anything is sent: `AI_DATA_NOT_ALLOWED`, naming the source and where to allow it.
 
