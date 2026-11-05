@@ -1,8 +1,8 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it } from 'vitest';
 import { DB_CATALOGS, effectiveDbLimits, readOnlyStatementProblem, sqlProblemParam, validateProcess, type DbDialect } from '@sm/shared';
-import { pgRun, type PgQueryable } from '../src/dbms/postgres.js';
-import { mysqlRun, timeLimitStatement, type MyQueryable } from '../src/dbms/mysql.js';
+import { PG_SESSION_RESET, pgRun, type PgQueryable } from '../src/dbms/postgres.js';
+import { killQuery, mysqlRun, timeLimitStatement, type MyKillConnection, type MyQueryable } from '../src/dbms/mysql.js';
 import { mssqlRun, msType, type MsLib, type MsQueryable, type MsRequest } from '../src/dbms/sqlserver.js';
 import { CATALOG, catalogSql, mapCatalogRows, myAccount, msIdent, pgIdent } from '../src/dbms/catalog.js';
 import { mapDriverError } from '../src/dbms/errors.js';
@@ -258,6 +258,7 @@ describe('PostgreSQL session (postgres.ts)', () => {
       'DECLARE steward_q NO',
       'FETCH 500 FROM',
       'ROLLBACK',
+      'SELECT pg_advisory_unlock_all()',
     ]);
     // the statement time limit is a bound value, the parameters are bound – never in the text
     expect(calls[1]!.values).toEqual(['5000']);
@@ -268,7 +269,7 @@ describe('PostgreSQL session (postgres.ts)', () => {
   it('rolls back after an error', async () => {
     const { client, calls } = fakePg([], { failOn: 'DECLARE' });
     await expect(pgRun(client, stmt, LIMITS, never)).rejects.toThrow(/permission denied/);
-    expect(calls.at(-1)!.text).toBe('ROLLBACK');
+    expect(calls.slice(-2).map((c) => c.text)).toEqual(['ROLLBACK', PG_SESSION_RESET]);
   });
 
   it('reads in batches and enforces the row limit (fail or truncate)', async () => {
@@ -281,7 +282,7 @@ describe('PostgreSQL session (postgres.ts)', () => {
     expect(r).toMatchObject({ rowCount: 700, truncated: true });
     // it stopped fetching once enough rows were there
     expect(cut.calls.filter((c) => c.text.startsWith('FETCH'))).toHaveLength(2);
-    expect(cut.calls.at(-1)!.text).toBe('ROLLBACK');
+    expect(cut.calls.slice(-2).map((c) => c.text)).toEqual(['ROLLBACK', PG_SESSION_RESET]);
   });
 
   it('enforces the size limit', async () => {
@@ -293,18 +294,44 @@ describe('PostgreSQL session (postgres.ts)', () => {
   });
 });
 
+describe('PostgreSQL session reset (postgres.ts)', () => {
+  const stmt = { sql: 'SELECT 1', params: [], trusted: false };
+  it('releases session advisory locks after every statement, also after an error', async () => {
+    const ok = fakePg([[1, 'a']]);
+    await pgRun(ok.client, stmt, LIMITS, never);
+    expect(ok.calls.at(-1)!.text).toBe('SELECT pg_advisory_unlock_all()');
+    const failed = fakePg([], { failOn: 'DECLARE' });
+    await pgRun(failed.client, stmt, LIMITS, never).catch(() => undefined);
+    expect(failed.calls.at(-1)!.text).toBe(PG_SESSION_RESET);
+  });
+
+  it('marks the connection unclean when the reset fails', async () => {
+    const f = fakePg([[1, 'a']], { failOn: 'pg_advisory_unlock_all' });
+    let unclean = false;
+    const r = await pgRun(f.client, stmt, LIMITS, never, () => (unclean = true));
+    expect(r.rowCount).toBe(1);
+    expect(unclean).toBe(true);
+  });
+});
+
 // ---------- MariaDB / MySQL ----------
 
-function fakeMy(rows: unknown[][], opts: { sets?: number; error?: { errno: number; message: string } } = {}) {
+function fakeMy(rows: unknown[][], opts: { sets?: number; error?: { errno: number; message: string }; hang?: boolean } = {}) {
   const log: string[] = [];
   const executed: { kind: string; sql: string; values?: unknown[] }[] = [];
   let destroyed = false;
+  let hung: (() => void) | undefined;
   const emitter = (kind: string, sql: string, values?: unknown[]) => {
     executed.push({ kind, sql, values });
     const e = new EventEmitter();
     setImmediate(() => {
       if (opts.error) return void e.emit('error', Object.assign(new Error(opts.error.message), { errno: opts.error.errno }));
       for (let s = 0; s < (opts.sets ?? 1); s++) e.emit('fields', [{ name: 'id' }, { name: 'name' }]);
+      if (opts.hang) {
+        // a statement the server keeps running: KILL QUERY ends it with an error, rows come no more
+        hung = () => e.emit('error', Object.assign(new Error('Query execution was interrupted'), { errno: 1317 }));
+        return;
+      }
       for (const r of rows) {
         if (destroyed) return;
         e.emit('result', r);
@@ -330,7 +357,12 @@ function fakeMy(rows: unknown[][], opts: { sets?: number; error?: { errno: numbe
       log.push('<destroyed>');
     },
   } as unknown as MyQueryable;
-  return { conn, log, executed };
+  /** KILL QUERY, as the server would answer it */
+  const kill = async () => {
+    log.push('<kill>');
+    hung?.();
+  };
+  return { conn, log, executed, kill };
 }
 
 describe('MariaDB / MySQL session (mysql.ts)', () => {
@@ -386,6 +418,61 @@ describe('MariaDB / MySQL session (mysql.ts)', () => {
     const e = await mysqlRun(f.conn, mysql, { sql: 'SELECT 1', params: [], trusted: false }, LIMITS, never).catch((x) => x);
     expect(mapDriverError('mysql', e, 'query').code).toBe('DB_READ_ONLY_VIOLATION');
     expect(f.log.at(-1)).toBe('ROLLBACK');
+  });
+
+  it('kills the statement on the server before it closes the connection at the time limit', async () => {
+    const f = fakeMy([], { hang: true });
+    const ctl = new AbortController();
+    const done = mysqlRun(f.conn, mysql, { sql: 'SELECT SLEEP(60)', params: [], trusted: false }, LIMITS, ctl.signal, f.kill).catch((x) => x);
+    await new Promise((r) => setTimeout(r, 20));
+    ctl.abort(new DbError('DB_TIMEOUT', 'The statement ran longer than 5 s (the limit)'));
+    const e = await done;
+    expect(e).toMatchObject({ code: 'DB_TIMEOUT' });
+    // KILL QUERY first, then the connection is dropped (not rolled back and reused)
+    expect(f.log.slice(-2)).toEqual(['<kill>', '<destroyed>']);
+    expect(f.log).not.toContain('ROLLBACK');
+  });
+
+  it('sends KILL QUERY over a second connection and closes it, best effort', async () => {
+    const fake = (opts: { fail?: boolean; slow?: boolean } = {}) => {
+      const log: string[] = [];
+      const conn: MyKillConnection = {
+        query(sql, cb) {
+          log.push(sql);
+          if (!opts.slow) setImmediate(() => cb(opts.fail ? new Error('Unknown thread id: 42') : null));
+          return undefined;
+        },
+        end(cb) {
+          log.push('<end>');
+          cb();
+        },
+        destroy() {
+          log.push('<destroyed>');
+        },
+      };
+      return { log, open: async () => conn };
+    };
+    const a = fake();
+    expect(await killQuery(a.open, 42)).toBe(true);
+    expect(a.log).toEqual(['KILL QUERY 42', '<end>']);
+    // no thread id: nothing to kill, no connection
+    let opened = false;
+    expect(
+      await killQuery(async () => {
+        opened = true;
+        return a.open();
+      }, undefined),
+    ).toBe(false);
+    expect(opened).toBe(false);
+    // the server refuses or the second connection fails: the caller closes its socket anyway
+    const b = fake({ fail: true });
+    expect(await killQuery(b.open, 42)).toBe(false);
+    expect(b.log).toContain('<end>');
+    expect(await killQuery(() => Promise.reject(new Error('ECONNREFUSED')), 42)).toBe(false);
+    // no answer within the time: given up, the connection closed
+    const c = fake({ slow: true });
+    expect(await killQuery(c.open, 42, 30)).toBe(false);
+    expect(c.log).toContain('<end>');
   });
 });
 
