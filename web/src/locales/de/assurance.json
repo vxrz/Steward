@@ -281,6 +281,12 @@
         "label": "Eine Instanz importieren",
         "description": "Eine ganze Instanz kommt herein."
       }
+    },
+    "ai": {
+      "budget": {
+        "label": "Ein KI-Token-Budget erhöhen",
+        "description": "Mehr Tokens pro Tag oder Monat für die Installation, ein LLM-Gateway oder einen Prozess – oder keine Grenze mehr. Ein Budget zu senken braucht keine Bestätigung."
+      }
     }
   }
 }

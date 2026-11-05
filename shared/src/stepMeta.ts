@@ -19,7 +19,10 @@ export type FieldKind =
   | 'statusList'
   | 'identifier'
   | 'subjects'
-  | 'process';
+  | 'process'
+  | 'aiModel'
+  | 'prompt'
+  | 'aiContext';
 
 export interface FieldMeta {
   key: string;
@@ -334,6 +337,50 @@ export const STEP_META: Record<NodeType, StepMeta> = {
       { key: 'approvedBy', label: 'Approved by', kind: 'template', placeholder: '{{ vars.approval.decidedBy }}' },
     ],
     defaults: () => ({ connection: '', kind: 'grant', subjectId: 'vars.user.userName', rights: '[vars.groupName]', reason: 'Access granted by this process' }),
+  },
+  ai: {
+    type: 'ai',
+    label: 'Ask an AI model',
+    category: 'API',
+    color: 'pink',
+    description:
+      'Sends a predefined question to a model of an LLM gateway, with the context you choose (results of earlier steps, datasets), and uses the answer in later steps. Limits and budgets are checked before anything is sent, secret-looking values are removed. Dry runs and test runs never call the model. Connect "error" to handle a refused or failed call.',
+    fields: [
+      { key: 'connection', label: 'LLM gateway connection', kind: 'connection', required: true },
+      { key: 'model', label: 'Model', kind: 'aiModel', required: true, help: 'A model configured on the gateway (platform → AI models)' },
+      {
+        key: 'system',
+        label: 'Instructions (system part)',
+        kind: 'prompt',
+        placeholder: 'You summarise monitoring data for the service team. Answer in short sentences.',
+      },
+      {
+        key: 'prompt',
+        label: 'Question (user part)',
+        kind: 'prompt',
+        required: true,
+        placeholder: 'Which of these series need attention this week?\n\n{{ trends }}',
+        help: 'The name of a context source in double braces inserts it; nothing else is filled in at run time',
+      },
+      { key: 'context', label: 'Context', kind: 'aiContext', required: true },
+      { key: 'answer', label: 'Answer', kind: 'select', options: ['text', 'json'], help: 'json: the answer must match the JSON Schema below' },
+      { key: 'schema', label: 'JSON Schema of the answer', kind: 'json', help: 'For a JSON answer: later steps and checks can rely on its shape' },
+      { key: 'temperature', label: 'Temperature', kind: 'number', help: '0 (default of the model if empty) to 2; lower is more predictable' },
+      { key: 'maxOutputTokens', label: 'Most output tokens', kind: 'number', help: "Default and ceiling: the model's maximum output" },
+      {
+        key: 'maxInputTokens',
+        label: 'Most input tokens',
+        kind: 'number',
+        help: "Estimated before sending: a larger input fails the step without a call. Default and ceiling: the model's",
+      },
+      {
+        key: 'sampleAnswer',
+        label: 'Sample answer (dry runs and test runs)',
+        kind: 'prompt',
+        help: 'Used instead of the model in dry runs, and in test runs without a recorded response',
+      },
+    ],
+    defaults: () => ({ connection: '', model: '', prompt: 'Summarise the following in three sentences:\n\n{{ data }}', context: [], answer: 'text' }),
   },
   subprocess: {
     type: 'subprocess',

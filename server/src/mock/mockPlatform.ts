@@ -20,6 +20,7 @@ import { mockSnowflake } from './mockSnowflake.js';
 import { mockConfluent } from './mockConfluent.js';
 import { mockGraph } from './mockGraph.js';
 import { mockPrivilegeVault } from './mockPrivilegeVault.js';
+import { mockLlmGateway } from './mockLlmGateway.js';
 import { mockDtrack } from './mockDtrack.js';
 import { mockEndoflife } from './mockEndoflife.js';
 import { mockUsageRoutes } from './mockUsage.js';
@@ -226,6 +227,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   await mockConfluent(app);
   await mockGraph(app);
   await mockPrivilegeVault(app);
+  await mockLlmGateway(app);
   await mockDtrack(app);
   await mockEndoflife(app);
 

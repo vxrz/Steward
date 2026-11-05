@@ -55,6 +55,7 @@ export const NOT_MOVED: Record<string, string> = {
   identity_aliases: 'history of earlier moves',
   assurance_policy_changes:
     "pending changes of this instance's assurance policy (7 days at most; the target keeps its own policy, set it there – a second administrator approves loosening it)",
+  ai_budget_notices: 'send bookkeeping of the source (an AI budget notice of the current period may be sent again on the target)',
   schema_version: 'maintained by the migrations',
   schema_migrations: 'maintained by the migrations',
   sqlite_sequence: 'SQLite internal',
@@ -121,6 +122,8 @@ export const USER_REFS: UserRef[] = [
  * Listed so that the classification test notices new person columns.
  */
 export const HISTORY_COLUMNS: string[] = [
+  'ai_usage.actor',
+  'ai_budgets.updated_by',
   'access_checks.updated_by',
   'application_components.created_by',
   'platform_recordings.created_by',

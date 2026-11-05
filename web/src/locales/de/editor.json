@@ -358,6 +358,53 @@
           "label": "Freigegeben von"
         }
       }
+    },
+    "ai": {
+      "label": "Ein KI-Modell fragen",
+      "description": "Sendet eine vorab festgelegte Frage an ein Modell eines LLM-Gateways, mit dem Kontext, den Sie wählen (Ergebnisse früherer Schritte, Datensätze), und verwendet die Antwort in späteren Schritten. Grenzen und Budgets werden geprüft, bevor etwas gesendet wird; Werte, die nach Geheimnissen aussehen, werden entfernt. Probeläufe und Testläufe rufen das Modell nie auf. Verbinden Sie „Fehler“, um einen abgelehnten oder fehlgeschlagenen Aufruf zu behandeln.",
+      "fields": {
+        "connection": {
+          "label": "Verbindung zum LLM-Gateway"
+        },
+        "model": {
+          "label": "Modell",
+          "help": "Ein auf dem Gateway eingerichtetes Modell (Plattform → KI-Modelle)"
+        },
+        "system": {
+          "label": "Anweisungen (System-Teil)"
+        },
+        "prompt": {
+          "label": "Frage (Benutzer-Teil)",
+          "help": "Der Name einer Kontextquelle in doppelten geschweiften Klammern fügt sie ein; sonst wird zur Laufzeit nichts eingesetzt"
+        },
+        "context": {
+          "label": "Kontext"
+        },
+        "answer": {
+          "label": "Antwort",
+          "help": "json: Die Antwort muss dem JSON-Schema unten entsprechen"
+        },
+        "schema": {
+          "label": "JSON-Schema der Antwort",
+          "help": "Für eine JSON-Antwort: Spätere Schritte und Prüfungen können sich auf ihre Form verlassen"
+        },
+        "temperature": {
+          "label": "Temperatur",
+          "help": "0 (leer: Standard des Modells) bis 2; niedriger ist vorhersehbarer"
+        },
+        "maxOutputTokens": {
+          "label": "Höchstens Ausgabe-Tokens",
+          "help": "Standard und Obergrenze: die höchste Ausgabe des Modells"
+        },
+        "maxInputTokens": {
+          "label": "Höchstens Eingabe-Tokens",
+          "help": "Vor dem Senden geschätzt: Eine größere Eingabe lässt den Schritt ohne Aufruf fehlschlagen. Standard und Obergrenze: die des Modells"
+        },
+        "sampleAnswer": {
+          "label": "Beispielantwort (Probe- und Testläufe)",
+          "help": "Wird in Probeläufen statt des Modells verwendet und in Testläufen ohne aufgezeichnete Antwort"
+        }
+      }
     }
   },
   "commonFields": {
@@ -421,7 +468,10 @@
     "actions_other": "{{count}} Aktionen",
     "subprocess": "führt {{process}} aus",
     "subprocessVersion": "führt {{process}} v{{version}} aus",
-    "noProcess": "kein Prozess gewählt"
+    "noProcess": "kein Prozess gewählt",
+    "ai": "{{model}}",
+    "aiJson": "{{model}} → JSON",
+    "noModel": "kein Modell gewählt"
   },
   "options": {
     "select": "Auswahl",
@@ -794,7 +844,17 @@
     "unreachable": "„{{name}}“ ist nicht mit dem Start-Knoten verbunden und wird nie ausgeführt",
     "manualSettingsIgnored": "{{settings}} gelten nur für manuelle Schritte (Modus „manuell“) und werden ignoriert",
     "duplicateFieldId": "Doppelte Feld-Id „{{id}}“",
-    "checklistEmpty": "„Alle Punkte erforderlich“ wirkt nur mit Punkten in der Checkliste"
+    "checklistEmpty": "„Alle Punkte erforderlich“ wirkt nur mit Punkten in der Checkliste",
+    "aiDuplicateContext": "Kontext „{{name}}“ ist doppelt benannt",
+    "aiUnknownStep": "Kontext „{{name}}“: kein Schritt „{{step}}“",
+    "aiStepNeedsSaveAs": "Kontext „{{name}}“: Schritt „{{step}}“ braucht „Ergebnis speichern als“, damit sein Ergebnis gesendet werden kann",
+    "aiNoDataset": "Kontext „{{name}}“: Nennen Sie den Datensatz",
+    "aiUnknownInput": "Kontext „{{name}}“: keine Eingabe „{{input}}“",
+    "aiPlaceholder": "{{placeholder}}: Ein Platzhalter im Prompt ist der Name einer Kontextquelle, z. B. {{example}}",
+    "aiUnknownVariable": "{{name}} ist keine Kontextquelle dieses Schritts",
+    "aiUnusedContext": "Kontext „{{name}}“ wird im Prompt nicht verwendet und nicht gesendet",
+    "aiSchemaMissing": "Eine JSON-Antwort braucht ein JSON-Schema",
+    "aiSchemaInvalid": "Das JSON-Schema der Antwort ist nicht verwendbar: {{problem}}"
   },
   "diff": {
     "none": "Keine Unterschiede.",
@@ -991,5 +1051,37 @@
     "late": "Nachträgliche Einträge",
     "backdateDays": "„Erledigt am“ bis zu so vielen Tagen vor dem Start der Ausführung erlauben",
     "backdateHint": "0 = nicht vor dem Start der Ausführung. Höchstens {{max}} Tage. Eine Zeit „Erledigt am“ liegt nie in der Zukunft."
+  },
+  "ai": {
+    "modelPlaceholder": "Modell-ID, z. B. ein Modell Ihres Gateways",
+    "modelOn": "{{gateway}}: {{kind}} · {{window}} Tokens Kontext · höchstens {{output}} Ausgabe",
+    "modelUnknown": "Kein LLM-Gateway, das Sie sehen, hat dieses Modell eingerichtet – Ausführungen schlagen fehl, wenn das gebundene Gateway es nicht hat.",
+    "placeholders": "Platzhalter: {{names}}",
+    "noPlaceholders": "Fügen Sie unten eine Kontextquelle hinzu, um Daten mit {{example}} einzufügen",
+    "unknownPlaceholders": "Keine Kontextquelle: {{names}}.",
+    "invalidPlaceholders": "Zwischen doppelte geschweifte Klammern gehören nur Namen von Kontextquellen, keine Ausdrücke: {{list}}",
+    "from": {
+      "step": "Früherer Schritt",
+      "dataset": "Datensatz",
+      "input": "Eingabe"
+    },
+    "fromLabel": "Stammt aus",
+    "contextHint": "Nur was Sie hier aufführen, kann gesendet werden, und nur die Quellen, die der Prompt verwendet, werden gelesen. Werte, die nach Geheimnissen aussehen, werden entfernt; die erlaubten Daten des Gateways entscheiden, was hinausgehen darf.",
+    "name": "Name (der Platzhalter)",
+    "nameInvalid": "Nur Buchstaben, Ziffern und _",
+    "nameUsed": "Eine andere Quelle hat diesen Namen",
+    "remove": "Entfernen",
+    "removeNamed": "Kontextquelle {{name}} entfernen",
+    "step": "Schritt",
+    "needsSaveAs": "Dieser Schritt braucht „Ergebnis speichern als“, damit sein Ergebnis gesendet werden kann",
+    "dataset": "Datensatz-Schlüssel",
+    "columns": "Nur diese Spalten (optional)",
+    "columnsHint": "Leer lassen, um alle Spalten zu senden; der Status jeder Zeile bleibt immer erhalten",
+    "input": "Eingabe der Ausführung",
+    "path": "Nur ein Teil davon (Ausdruck, optional)",
+    "pathHint": "JSONata auf den Wert, z. B. ein Filter",
+    "maxChars": "Höchstens (Zeichen)",
+    "maxCharsHint": "Standard {{value}}; mehr wird abgeschnitten",
+    "addContext": "Kontextquelle hinzufügen"
   }
 }

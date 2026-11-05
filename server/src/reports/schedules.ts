@@ -30,6 +30,7 @@ import '../records/report-section.js';
 import '../tickets/report-section.js';
 import '../duties/report-section.js';
 import '../scorecard/report-section.js';
+import '../ai/report-section.js';
 import { me } from '../auth/access.js';
 import { memberships } from '../auth/policy.js';
 

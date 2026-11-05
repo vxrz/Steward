@@ -153,6 +153,12 @@
         "label": "Platform connection failing",
         "info": "The periodic connection test of a platform you manage started failing"
       }
+    },
+    "ai": {
+      "budget": {
+        "label": "AI budget",
+        "info": "An AI token budget reached 80 % or is used up (administrators; the gateway’s managers, the process owner)"
+      }
     }
   }
 }

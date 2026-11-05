@@ -18,11 +18,13 @@ import {
   IconRocket,
   IconTicket,
   IconSettings,
+  IconSparkles,
   IconTerminal2,
   IconTrash,
+  IconGauge,
 } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import type { AclEntry, Platform } from '@sm/shared';
+import { LLM_GATEWAY_KIND, type AclEntry, type Platform } from '@sm/shared';
 import { apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
 import { AccessEditor } from '../components/AccessEditor';
 import { OwningTeams } from '../components/OwningTeams';
@@ -38,6 +40,8 @@ import { DocsTab } from '../components/platform/DocsTab';
 import { ExplorerTab, type ExplorerPreset } from '../components/platform/ExplorerTab';
 import { GatusMetricsTab } from '../components/platform/GatusMetricsTab';
 import { RecordingsTab } from '../components/platform/RecordingsTab';
+import { AiModelsTab } from '../components/platform/AiModelsTab';
+import { AiUsageTab } from '../components/platform/AiUsageTab';
 import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
@@ -335,6 +339,16 @@ export function PlatformDetailPage() {
               {t('detail.tabs.metrics')}
             </Tabs.Tab>
           )}
+          {p.kind === LLM_GATEWAY_KIND && (
+            <Tabs.Tab value="ai" leftSection={<IconSparkles size={16} />}>
+              {t('detail.tabs.ai')}
+            </Tabs.Tab>
+          )}
+          {p.kind === LLM_GATEWAY_KIND && canUse && (
+            <Tabs.Tab value="ai-usage" leftSection={<IconGauge size={16} />}>
+              {t('detail.tabs.aiUsage')}
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="access" leftSection={<IconLock size={16} />}>
             {t('detail.tabs.access')}
           </Tabs.Tab>
@@ -377,6 +391,16 @@ export function PlatformDetailPage() {
         {p.kind === 'gatus' && (
           <Tabs.Panel value="metrics">
             <GatusMetricsTab platform={p} />
+          </Tabs.Panel>
+        )}
+        {p.kind === LLM_GATEWAY_KIND && (
+          <Tabs.Panel value="ai">
+            <AiModelsTab platform={p} readOnly={!canManage} />
+          </Tabs.Panel>
+        )}
+        {p.kind === LLM_GATEWAY_KIND && canUse && (
+          <Tabs.Panel value="ai-usage">
+            <AiUsageTab platform={p} />
           </Tabs.Panel>
         )}
         <Tabs.Panel value="access">

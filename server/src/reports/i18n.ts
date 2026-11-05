@@ -107,6 +107,7 @@ const en = {
   selected: 'Selected',
   item: 'Item',
   itemsTruncated: '{n} further items are not listed.',
+  aiGenerated: 'AI-generated with {models} – check it before you rely on it.',
 
   manualSteps: 'Manual steps',
   manualStepsIntro: 'Work done by people, documented in the run: checklist, fields, evidence files and, where required, the verification by a second person.',
@@ -373,6 +374,7 @@ const de: Record<MsgKey, string> = {
   selected: 'Ausgewählt',
   item: 'Eintrag',
   itemsTruncated: '{n} weitere Einträge sind nicht aufgeführt.',
+  aiGenerated: 'Mit {models} KI-generiert – prüfen Sie es, bevor Sie sich darauf verlassen.',
 
   manualSteps: 'Manuelle Schritte',
   manualStepsIntro:

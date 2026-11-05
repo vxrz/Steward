@@ -147,7 +147,14 @@
       "Cloud",
       "Code",
       "Claim",
-      "Userinfo ({{count}})"
+      "Userinfo ({{count}})",
+      "Chat Completions",
+      "Responses",
+      "Messages (Anthropic)",
+      "Converse (Bedrock)",
+      "Filter",
+      "Budgets",
+      "Budget: {{name}}"
     ]
   }
 }

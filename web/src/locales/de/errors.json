@@ -811,7 +811,11 @@
     "PVAULT_FOLDER": "Den Ordner {{folder}} gibt es nicht, oder das Dienstkonto darf ihn nicht sehen.",
     "PVAULT_PERIOD": "Der Zeitraum ist ungültig: Er endet vor seinem Beginn oder ist zu lang.",
     "PVAULT_PLATFORM": "Diese Plattform ist kein IBM Verify Privilege Vault.",
-    "PVAULT_TOO_MANY": "Der Tresor hat mehr Einträge, als Steward auf einmal liest (höchstens {{max}}) – grenzen Sie den Ordner ein oder nennen Sie die privilegierten Ordner."
+    "PVAULT_TOO_MANY": "Der Tresor hat mehr Einträge, als Steward auf einmal liest (höchstens {{max}}) – grenzen Sie den Ordner ein oder nennen Sie die privilegierten Ordner.",
+    "FORBIDDEN_aiBudget": "Nur Administratoren dürfen KI-Budgets ändern.",
+    "AI_MODEL_LIST_FAILED": "Das LLM-Gateway hat seine Modelle nicht aufgeführt: {{path}} antwortete mit HTTP {{status}}.",
+    "AI_NOT_A_GATEWAY": "„{{name}}“ ist kein LLM-Gateway.",
+    "AI_SETTINGS_INVALID": "Die KI-Einstellungen der Plattform sind ungültig."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

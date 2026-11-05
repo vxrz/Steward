@@ -54,6 +54,11 @@ export function registerBuiltInJobs(): void {
   // periodic connection tests of the platforms that turned them on (platforms/health.ts); Kafka topic prefixes kept in sync (kafka/prefixes.ts)
   every5('platform-health', 5 * MINUTE, () => import('../platforms/health.js').then((m) => m.runPlatformHealthJob()));
   every5('kafka-topic-prefixes', 10 * MINUTE, () => import('../kafka/prefixes.js').then((m) => m.runTopicPrefixJob()));
+  // AI models (0.6.0): reservations of calls that never got an answer, retention of the usage log, the "AI usage" dataset
+  every5('ai-usage', 2 * MINUTE, async () => {
+    const { env } = await import('../config.js');
+    return import('../ai/dataset.js').then((m) => m.runAiUsageJob(env.SM_AI_USAGE_RETENTION_DAYS));
+  });
   // assurance policy: requests to loosen it that no second administrator approved within 7 days expire (auth/assurance.ts)
   every5('assurance-policy-changes', MINUTE, () => import('../auth/assurance.js').then((m) => m.expirePolicyChanges()));
 

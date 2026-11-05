@@ -153,6 +153,12 @@
         "label": "Plattform-Verbindung fehlgeschlagen",
         "info": "Der regelmäßige Verbindungstest einer Plattform, die Sie verwalten, schlägt fehl"
       }
+    },
+    "ai": {
+      "budget": {
+        "label": "KI-Budget",
+        "info": "Ein Token-Budget für KI-Modelle hat 80 % erreicht oder ist aufgebraucht (Administratoren; die Verwalter des Gateways, der Eigentümer des Prozesses)"
+      }
     }
   }
 }

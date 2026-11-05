@@ -1,0 +1,104 @@
+# steward-min-version: 0.6.0
+name: "CheckMk – AI summary of the trends"
+description: |
+  Asks an AI model, through an LLM gateway, which of the CheckMk trends need
+  attention this week and why – with nothing but the rows of the dataset
+  `checkmk.trends` (published by "CheckMk – Trend summary") as context. The
+  question is fixed in this process; the answer is JSON checked against a
+  schema, so the steps after it can rely on its shape. A second person
+  approves the summary (four-eyes) before it becomes the run's report and
+  the message of its check; both say that an AI model wrote it.
+
+  Before anything is sent Steward checks the gateway's allowed data (the
+  dataset must be allowed: Platforms → the gateway → AI models), estimates
+  the input against the model's limit and the token budgets, and removes
+  secret-looking values. Dry runs use the sample answer and never call the
+  model. Recommended schedule: weekly on Monday at 07:30 (`30 7 * * 1`),
+  after the trend summary. Needs a platform of kind `llm-gateway` with the
+  model `demo-chat-small` – change the model to one of your gateway
+  (docs/AI.md).
+tags: [checkmk, ai, trends, report]
+connections:
+  - slot: llm
+    kind: llm-gateway
+    description: LLM gateway (a model in any of its formats)
+inputs:
+  - name: approval
+    label: A second person approves the summary before it is reported
+    type: boolean
+    default: true
+steps:
+  - id: summary
+    type: ai
+    name: Ask which trends need attention
+    connection: llm
+    model: demo-chat-small
+    system: |
+      You help a service team read monitoring trends. Be factual and brief,
+      name hosts and services exactly as given, and do not invent numbers.
+    prompt: |
+      These are the CheckMk trends of the last 30 days, one row per series
+      (latest value, peak, share of time above WARN and CRIT, week-on-week
+      change in percent, days until CRIT at this rate):
+
+      {{ trends }}
+
+      Which series need attention this week, and what should the team check
+      first? Leave out series that are fine.
+    context:
+      - name: trends
+        from: dataset
+        dataset: checkmk.trends
+        columns: [series, latest, unit, peak, warnPct, critPct, weekChangePct, daysToCrit, crossed]
+        maxChars: 20000
+    answer: json
+    schema:
+      type: object
+      properties:
+        headline: { type: string, maxLength: 200 }
+        attention:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            properties:
+              series: { type: string }
+              why: { type: string, maxLength: 300 }
+              firstCheck: { type: string, maxLength: 300 }
+            required: [series, why, firstCheck]
+      required: [headline, attention]
+    temperature: 0.2
+    maxOutputTokens: 800
+    sampleAnswer: '{"headline":"Sample: one series needs attention","attention":[{"series":"db01 / Filesystem /var","why":"Sample: above WARN and growing","firstCheck":"Sample: log rotation on db01"}]}'
+    saveAs: summary
+  - id: approve
+    type: userTask
+    name: Approve the AI summary
+    mode: approve
+    when: "inputs.approval"
+    title: "Approve the AI summary before it is reported: {{ vars.summary.answer.headline }}"
+    instructions: |
+      Written by an AI model ({{ vars.summary.modelLabel }}) from the dataset
+      checkmk.trends. Check it against the CheckMk trends dashboard before you
+      approve: rejecting stops the run, nothing is reported.
+    fourEyes: true
+    onReject: fail
+  - id: report
+    type: report
+    name: Weekly AI summary
+    title: "CheckMk trends – AI summary"
+    text: "{{ vars.summary.answer.headline }}\n\n{{ vars.summary.marking }}"
+    rows: "vars.summary.answer.attention"
+    columns:
+      - { label: Series, value: series }
+      - { label: Why, value: why }
+      - { label: Check first, value: firstCheck }
+  - id: noneNeedAttention
+    type: check
+    name: No trend needs attention
+    severity: warning
+    condition: "$count(vars.summary.answer.attention) = 0"
+    message: "{{ $count(vars.summary.answer.attention) = 0 ? 'No trend needs attention' : vars.summary.answer.headline }}"
+    headline: "{{ vars.summary.answer.headline }}"
+    value: "$count(vars.summary.answer.attention)"
+    items: "vars.summary.answer.attention.(series & ': ' & why & ' – check first: ' & firstCheck)"

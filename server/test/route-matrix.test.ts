@@ -235,6 +235,13 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/platforms/:id': ADMIN,
   'PUT /api/platforms/:id/access': ADMIN,
   'PUT /api/platforms/:id/mcp-gateway': ADMIN,
+  // LLM gateways (#216): AI settings like the platform, its usage like the platform itself; budgets for administrators
+  'PUT /api/platforms/:id/ai': ADMIN,
+  'POST /api/platforms/:id/ai/discover': ADMIN,
+  'GET /api/platforms/:id/ai/usage': USE,
+  'GET /api/ai/budgets': ADMIN_AUDITOR,
+  'PUT /api/ai/budgets': ADMIN,
+  'GET /api/ai/usage': ADMIN_AUDITOR,
   'POST /api/platforms/:id/confirm-config': ADMIN,
   'POST /api/platforms/:id/contract-check': ADMIN,
   'PUT /api/platforms/:id/secrets': ADMIN,
@@ -958,6 +965,11 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'PUT /api/catalogue/cia-scale': 'always',
   'PUT /api/backups/settings': 'always',
   'PUT /api/platforms/:id/mcp-gateway': { sensitive: { enabled: true, writes: 'confirm' }, harmless: { enabled: true } },
+  // raising an AI budget (the fixtures set 1,000 tokens a day for the installation); lowering it needs no confirmation
+  'PUT /api/ai/budgets': {
+    sensitive: { scope: 'installation', scopeId: '', tokensPerDay: 2000, tokensPerMonth: null },
+    harmless: { scope: 'installation', scopeId: '', tokensPerDay: 500, tokensPerMonth: null },
+  },
   'PUT /api/backups/passphrase': 'always',
 };
 
@@ -1264,6 +1276,8 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/record-types': { key: 'XX', name: 'x', workflow: 'decision' },
   'PUT /api/mcp-server': { enabled: true },
   'PUT /api/platforms/:id/mcp-gateway': { enabled: true },
+  'PUT /api/platforms/:id/ai': { models: [] },
+  'PUT /api/ai/budgets': { scope: 'installation', scopeId: '', tokensPerDay: 100, tokensPerMonth: null },
   'POST /api/settings/notifications/test': { channel: 'email', to: 'it@example.com' },
   'PUT /api/settings/notifications/look': { name: 'Matrix' },
   'POST /api/settings/notifications/look/preview': { name: 'Matrix' },
@@ -1358,6 +1372,8 @@ beforeAll(async () => {
   await s.api('POST', '/demo/setup', {});
   await allowEmailDomains(s, ['example.com']);
   const a = s.api;
+  // an AI budget, so raising it is a sensitive change (STEP_UP)
+  await a('PUT', '/ai/budgets', { scope: 'installation', scopeId: '', tokensPerDay: 1000, tokensPerMonth: null });
   const procs = await a('GET', '/processes');
   const proc = procs.find((p: { id: string }) => p.id === 'ih-health-check') ?? procs[0];
   const run = await s.waitRun((await a('GET', `/runs?processId=${proc.id}`))[0].id, ['succeeded', 'failed']);

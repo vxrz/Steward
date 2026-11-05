@@ -4,7 +4,7 @@ import { db } from '../db.js';
 import { parseJson, preview } from '../util.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
 import { metricForRun } from '../dashboards/datasets.js';
-import { monitorDatasetVisible } from '../monitors/datasets.js';
+import { builtinDatasetVisible } from '../dashboards/builtin.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { secretValues } from '../platforms/http.js';
 import { CUSTOM_FUNCTIONS, stringify, type Bindings } from './expr.js';
@@ -207,7 +207,7 @@ export function expressionContext(processId: string, opts: { runId?: string; nod
     return metricForRun(String(ref), String(window), {
       runId: run?.id ?? '',
       processId,
-      mayRead: (pid) => (pid.startsWith('monitor:') ? monitorDatasetVisible(pid) === true : permissionsFor(pid).includes('view')),
+      mayRead: (pid) => builtinDatasetVisible(pid) ?? permissionsFor(pid).includes('view'),
     });
   }
   return { runId: run?.id ?? null, definition, scope, bindings, redactor, vars, connections };

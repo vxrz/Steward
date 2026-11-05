@@ -9,6 +9,7 @@ import '../../records/report-section.js';
 import '../../tickets/report-section.js';
 import '../../duties/report-section.js';
 import '../../scorecard/report-section.js';
+import '../../ai/report-section.js';
 
 /**
  * Every kind of PDF Steward draws (#13). Each takes only collected data – no database – so it can run in the

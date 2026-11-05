@@ -26,6 +26,7 @@ export const NOTIFICATION_EVENTS = [
   'backup.failed',
   'mcp.request',
   'platform.failing',
+  'ai.budget',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -55,6 +56,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'backup.failed': 'A backup or the weekly restore test of the backups failed (administrators)',
   'mcp.request': 'An AI assistant asks to change something on a platform or to start a run, and you decide',
   'platform.failing': 'The periodic connection test of a platform you manage started failing',
+  'ai.budget': 'An AI token budget reached 80 % or is used up (administrators; the gateway’s managers, the process owner)',
 };
 
 export interface AppNotification {
