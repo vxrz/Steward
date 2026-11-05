@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import type { EventEmitter } from 'node:events';
 import net from 'node:net';
 import type { DbQueryResult } from '@sm/shared';
@@ -105,11 +104,11 @@ export async function mssqlRun(
   return { result: rows.result(Date.now() - t0), cancelled };
 }
 
-const require = createRequire(import.meta.url);
-
 export const sqlserverDriver: DbDriver = {
   async connect(t: ConnectTarget, signal: AbortSignal): Promise<DriverConnection> {
-    const tedious = require('tedious') as typeof import('tedious');
+    // a dynamic import: bundled into the desktop executable, loaded only when a SQL Server platform is used
+    const mod = await import('tedious');
+    const tedious = ((mod as unknown as { default?: unknown }).default ?? mod) as typeof import('tedious');
     const serverName = t.tls.serverName || (net.isIP(t.host) ? undefined : t.host);
     const conn = new tedious.Connection({
       server: t.host,

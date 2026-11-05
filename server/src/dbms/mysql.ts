@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import type { EventEmitter } from 'node:events';
 import type { DbQueryResult } from '@sm/shared';
 import {
@@ -110,8 +109,6 @@ export async function mysqlRun(
   return { result: rows.result(Date.now() - t0), destroyed };
 }
 
-const require = createRequire(import.meta.url);
-
 export function mysqlSsl(t: ConnectTarget): undefined | Record<string, unknown> {
   if (t.tls.mode === 'off') return undefined;
   if (t.tls.mode === 'require') return { rejectUnauthorized: false };
@@ -120,7 +117,9 @@ export function mysqlSsl(t: ConnectTarget): undefined | Record<string, unknown> 
 
 export const mysqlDriver: DbDriver = {
   async connect(t: ConnectTarget, signal: AbortSignal): Promise<DriverConnection> {
-    const mysql = require('mysql2') as typeof import('mysql2');
+    // a dynamic import: bundled into the desktop executable, loaded only when a MariaDB/MySQL platform is used
+    const mod = await import('mysql2');
+    const mysql = ((mod as unknown as { default?: unknown }).default ?? mod) as typeof import('mysql2');
     // TLS checks the server name against `host`: the name (or the configured server name), never the pinned address
     const name = t.tls.serverName || t.host;
     const conn = mysql.createConnection({

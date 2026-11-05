@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import net from 'node:net';
 import type { DbQueryResult } from '@sm/shared';
 import {
@@ -56,8 +55,6 @@ export async function pgRun(client: PgQueryable, stmt: Statement, limits: RunLim
   return rows.result(Date.now() - t0);
 }
 
-const require = createRequire(import.meta.url);
-
 /** TLS options of the pg client. */
 export function pgSsl(t: ConnectTarget): false | Record<string, unknown> {
   if (t.tls.mode === 'off') return false;
@@ -68,7 +65,9 @@ export function pgSsl(t: ConnectTarget): false | Record<string, unknown> {
 
 export const postgresDriver: DbDriver = {
   async connect(t: ConnectTarget, signal: AbortSignal): Promise<DriverConnection> {
-    const pg = require('pg') as typeof import('pg');
+    // a dynamic import: bundled into the desktop executable, loaded only when a PostgreSQL platform is used
+    const mod = await import('pg');
+    const pg = ((mod as unknown as { default?: unknown }).default ?? mod) as typeof import('pg');
     const client = new pg.Client({
       host: t.host,
       port: t.port,
