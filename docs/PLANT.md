@@ -323,6 +323,45 @@ The public, read-only API ([API.md](API.md), tag _Plant_):
 - `GET /api/v1/plant/assets/{assetId}/assignment` – its device profile, firmware, interfaces with endpoints, differences, publications, KPI instances, checks and the KPIs it can have;
 - `GET /api/v1/plant/profiles`, `GET /api/v1/plant/profiles/{profileId}` – device profiles with their interfaces, data points, assets and the KPI definitions that read them;
 - `GET /api/v1/plant/kpis`, `GET /api/v1/plant/kpis/{kpiId}` – KPI definitions with inputs, parameters, columns, computation, checks, instances and candidates;
-- `GET /api/v1/plant/assets?profile=&dataPoint=` – the assets that have a profile (and deliver one of its data points).
+- `GET /api/v1/plant/assets?profile=&dataPoint=` – the assets that have a profile (and deliver one of its data points);
+- `GET /api/v1/plant/checks?site=&asset=&kpi=&kind=` – the problems of [Checks](#checks) (paginated);
+- `GET /api/v1/plant/export?site=|part=catalogue|profile=|kpi=&format=yaml|json` – the registry in the import format.
 
 They answer `404` while the module is off.
+
+### Fetching the registry from other tools
+
+Create an API token with the scope _Read only_ (_Profile → API tokens_). The token sees what its owner sees: sites they may not see, and their assets, are never in an answer; device profiles and KPI definitions belong to the installation and are always there. A Plant viewer's token works, too.
+
+```sh
+TOKEN=smt_…   # better: read it from your secret store
+BASE=https://steward.example.com/api/v1
+
+# the assets of a site, 200 at a time
+curl -sS -H "Authorization: Bearer $TOKEN" "$BASE/plant/assets?site=riverside&limit=200"
+
+# the problems Steward finds, of one KPI definition and its instances
+curl -sS -H "Authorization: Bearer $TOKEN" "$BASE/plant/checks?kpi=machine-state-time"
+```
+
+Lists are paginated: an answer has `items` and `nextCursor`; while `nextCursor` is not `null`, send it back unchanged as `cursor` (with the same filters) for the next page – the `Link` header (`rel="next"`) has that URL, too ([API.md](API.md#pagination)). `limit` is 1–200 (default 50).
+
+```sh
+cursor=""
+while :; do
+  page=$(curl -sS -H "Authorization: Bearer $TOKEN" "$BASE/plant/checks?limit=200${cursor:+&cursor=$cursor}")
+  echo "$page" | jq -c '.items[] | {kind, asset: .asset.id, job, message}'
+  cursor=$(echo "$page" | jq -r '.nextCursor // empty')
+  [ -z "$cursor" ] && break
+done
+```
+
+**Backups in Git.** `GET /api/v1/plant/export` gives the same file as _Export YAML_ in the web app (format 1, [Export](#export)): it imports back unchanged, so a nightly job can keep the registry in a repository and show each change as a diff. A YAML export starts with two comment lines, the second with the time of the export; leave them out (`tail -n +3`), or use `format=json` (no comments):
+
+```sh
+curl -sS -f -H "Authorization: Bearer $TOKEN" "$BASE/plant/export" | tail -n +3 > plant/registry.plant.yaml
+curl -sS -f -H "Authorization: Bearer $TOKEN" "$BASE/plant/export?part=catalogue&format=json" > plant/catalogue.plant.json
+git -C plant add -A && git -C plant commit -qm "plant registry $(date -u +%F)" || true   # nothing changed: no commit
+```
+
+Each export is recorded in the audit log (`plant.exported`, with `via: "api"` and the token's id). Errors are problem details (`application/problem+json`): `404` for a site, profile or KPI definition that does not exist or that the token's owner may not see, `400` for a wrong parameter or cursor.
