@@ -28,7 +28,7 @@ The platform's limits are **ceilings**: a step can lower them, never raise them.
 
 **The connection test** signs in with a new connection and reports: the server version, whether the session is read-only, **whether the account can write** (a writing account is shown as a finding – use a read-only one), and which catalog queries the account may read (with what is missing). It is audited like every connection test (`platform.tested`); the periodic test of the platform page works the same way.
 
-**Outbound policy.** A database connection is a host:port connection (like Kafka and MQTT): with the policy _platforms_ (the default) the platform's own host and port are allowed; with _allow-list_ the host (or its IP or CIDR) must be on the allow-list (_Settings → Outbound access_). Cloud-metadata and link-local addresses are never reachable, and the checked address is the one connected to.
+**Outbound policy.** A database connection is a host:port connection (like Kafka and MQTT): with the policy _platforms_ (the default) the platform's own host and port are allowed; with _allow-list_ the host (or its IP or CIDR) must be on the allow-list (_Settings → Outbound access_). Cloud-metadata and link-local addresses are never reachable, and the checked address is the one connected to. **Steward's own database server** (`SM_DATABASE_URL` on PostgreSQL) is refused under every policy (`DB_OWN_DATABASE`): the same host and port, compared by address – any loopback or local address counts as this machine when Steward's database runs on it. Give the databases Steward reads their own server or port.
 
 ## The step "Query a database"
 
@@ -71,12 +71,21 @@ The result is `{ columns, rows, rowCount, truncated, durationMs }` – stored li
 Three layers, none trusted alone:
 
 1. **The account** is read-only ([below](#a-read-only-account-per-dbms)).
-2. **The session**: PostgreSQL and MariaDB/MySQL run every statement in a read-only transaction, so even a function or view that writes is refused by the server (`DB_READ_ONLY_VIOLATION`); PostgreSQL reads through a cursor (`DECLARE … NO SCROLL CURSOR FOR`), which accepts queries only. Every transaction is rolled back. **SQL Server has no read-only transaction**: a statement that writes would run and then be rolled back – there the read-only login is the protection that counts.
-3. **The statement check** (in the editor and on the server, the same code), conservative and without a parser. It refuses: anything but one `SELECT` / `WITH … SELECT`; a `;` before the end; the words that start or change something (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `CREATE`, `DROP`, `ALTER`, `GRANT`, `EXEC`, `CALL`, `DO`, `SET`, `INTO`, `LOCK`, `COPY`, `OPENROWSET`, `OPENQUERY`, `WAITFOR` …) – T-SQL needs no semicolon between statements, so they are refused anywhere outside literals and quoted names; functions with effects outside the transaction (`pg_terminate_backend`, `pg_advisory_lock`, `set_config`, `lo_export`, `dblink…`, `GET_LOCK`, `LOAD_FILE`, `xp_…`, `sp_…`); MariaDB/MySQL executable comments `/*! … */` and `--` without a space; backslashes in literals (their meaning depends on server settings – pass such values as parameters); unterminated literals or comments; placeholders that do not match the parameters.
+2. **The session**: PostgreSQL and MariaDB/MySQL run every statement in a read-only transaction, so even a function or view that writes is refused by the server (`DB_READ_ONLY_VIOLATION`); PostgreSQL reads through a cursor (`DECLARE … NO SCROLL CURSOR FOR`), which accepts queries only. Every transaction is rolled back. Some effects outlive a rollback – a PostgreSQL session-level advisory lock taken inside a function the check cannot see, for example – so Steward runs its own `SELECT pg_advisory_unlock_all()` after every statement and does not pool a connection whose reset failed; nothing else of the session can be changed by a statement the check accepts. A MariaDB/MySQL statement that Steward's own time limit or a cancel stops is ended on the server with `KILL QUERY` over a second, short-lived connection (same account, same outbound rules) before the connection is dropped – closing the socket alone would leave the server running it. **SQL Server has no read-only transaction**: a statement that writes would run and then be rolled back – there the read-only login is the protection that counts.
+3. **The statement check** (in the editor and on the server, the same code), conservative and without a parser – a **best-effort extra layer**: its lists of words and functions cannot be complete, the read-only account is the real protection. It refuses:
+   - anything but one `SELECT` / `WITH … SELECT`, and a `;` before the end;
+   - the words that start or change something (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `CREATE`, `DROP`, `ALTER`, `GRANT`, `EXEC`, `CALL`, `DO`, `SET`, `INTO`, `LOCK`, `COPY`, `OPENROWSET`, `OPENQUERY`, `WAITFOR` …), and `NEXT VALUE FOR` (a sequence moves on even when the transaction is rolled back);
+   - **SQL Server**: T-SQL needs no semicolon between statements, so these words are refused anywhere outside literals and quoted names, together with the words that start control flow, messages, Service Broker or cursor statements (`IF`, `WHILE`, `RETURN`, `GOTO`, `THROW`, `RAISERROR`, `PRINT`, `ENABLE`, `DISABLE`, `RECEIVE`, `SEND`, `OPEN`, `CLOSE` …), and a second `SELECT` outside parentheses unless `UNION`, `EXCEPT` or `INTERSECT` joins it (or it is the query of a `WITH … AS (…)`);
+   - row locks: `FOR SHARE`, `FOR KEY SHARE`, `FOR NO KEY UPDATE` (with `NOWAIT` / `SKIP LOCKED` too; `FOR UPDATE` and `LOCK IN SHARE MODE` contain refused words) and the SQL Server lock hints `UPDLOCK`, `XLOCK`, `HOLDLOCK`, `TABLOCK`, `TABLOCKX`;
+   - functions with effects outside the transaction (`pg_terminate_backend`, `pg_advisory_lock`, `set_config`, `lo_export`, `dblink…`, `GET_LOCK`, `LOAD_FILE`, `xp_…`, `sp_…`) and functions that run SQL given as text, which the check cannot look into (`query_to_xml` and the other `…_to_xml` / `…_to_xmlschema` functions, `ts_stat`, `crosstab…`) – also when the name is quoted (`"name"`, `[name]`, `` `name` ``), compared without regard to case;
+   - MariaDB/MySQL executable comments `/*! … */`, optimizer hints `/*+ … */` (they can lift the time limit) and `--` without a space; PostgreSQL `UESCAPE`;
+   - backslashes in literals (their meaning depends on server settings – pass such values as parameters); unterminated literals or comments; placeholders that do not match the parameters.
+
+   The editor shows the reason at once, in the UI language; the server answers `DB_STATEMENT_REFUSED` with the same reason.
 
 The credentials of the run's **other** platforms are refused in a statement or its parameters, as for an API call to a foreign origin.
 
-Its limits, honestly: it refuses some harmless statements (a column named `update` has to be quoted: `"update"`, `` `update` ``, `[update]`), and it cannot see what a view or a function called by the statement does. Results with more than one result set are refused by the driver.
+Its limits, honestly: it refuses some harmless statements (a column named `update`, `open` or `print` has to be quoted: `"update"`, `` `update` ``, `[update]`), and it cannot see what a view or a function called by the statement does. Results with more than one result set are refused by the driver.
 
 ## Templates, dashboard and monitor
 
@@ -179,6 +188,7 @@ Give the login nothing else: no `db_datawriter`, `db_owner`, `db_ddladmin` or `s
 | `DB_AUTH_FAILED`, `DB_TLS_FAILED`, `DB_CONNECT_FAILED` | Sign-in, TLS or the connection failed (with the driver's message)                    |
 | `DB_DIALECT_MISMATCH`                                  | The step is written for another DBMS                                                 |
 | `DB_PARAM_INVALID`                                     | A parameter is not a text, number or boolean (lists only on PostgreSQL: `= ANY($1)`) |
+| `DB_OWN_DATABASE`                                      | The platform points at Steward's own database server                                 |
 
 ## Demo
 
