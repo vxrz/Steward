@@ -13,6 +13,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
   - `GET /api/v1/plant/export` gives the registry in the import format, as the export in the web app: everything the token owner may see, one site, the catalogues (`part=catalogue`), one profile or KPI definition; YAML (default) or JSON (`format=json`). Sites the owner may not see and their assets are never in it; it imports back unchanged and is audited (`plant.exported`, with the token id).
   - While the module is off, the plant endpoints of the public API now say so in their `404` (before: "Plant registry not found").
 
+### Fixed
+
+- **Plant registry: deleting a device profile or KPI definition in use** no longer hints at assets the person may not see: when an asset of a hidden site has it, the answer is only that it is in use (`PLANT_PROFILE_IN_USE_HIDDEN`, `PLANT_KPI_IN_USE_HIDDEN`, without a count); who sees every asset that has it gets the count.
+
 ## [0.6.0] - 2026-11-05
 
 Steward 0.6.0 brings **AI models through LLM gateways** and part 1 of the **plant registry**. The process step _Ask an AI model_ sends a saved question with context from earlier steps, datasets or run inputs to an LLM gateway (OpenAI Chat Completions and every OpenAI-compatible API, OpenAI Responses, Anthropic Messages, Bedrock Converse), with allowed data per gateway, input limits per call, token budgets per day and month, a usage log and the _AI usage_ dataset; answers are marked as AI-generated. The plant registry (opt-in, preview) keeps the factories of an enterprise in one place: sites with their ISA-95 hierarchy and buildings, assets, links to Steward's systems and applications, and YAML import and export with a published JSON Schema, including replacing an earlier import. Status viewers are now also refused by the public API and the MCP endpoint. The database migrations (`ai-001`, `ai-002`, `plant-001`) only add tables and a column.

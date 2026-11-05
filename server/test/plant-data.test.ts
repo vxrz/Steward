@@ -363,15 +363,13 @@ describe('hidden sites stay hidden', () => {
     expect((await dana('GET', '/plant/profiles/example-plastics-mc6')).assets).toEqual([]);
     expect((await dana('GET', '/plant/explore/points?q=cycle_counter'))[0].deliveredBy).toBe(0);
     expect((await dana('GET', '/plant/profiles/example-plastics-mc6/points/cycle_counter')).assets).toEqual([]);
-    // a profile that only a hidden asset has is "still in use" – without a count or a name
+    // a profile that only a hidden asset has is "in use" – without a count or a name
     const res = await status(dana('DELETE', '/plant/profiles/example-plastics-mc6'));
-    expect(res).toEqual({ status: 409, code: 'PLANT_PROFILE_IN_USE' });
-    try {
-      await dana('DELETE', '/plant/profiles/example-plastics-mc6');
-    } catch (e) {
-      expect((e as { body: { error: string; params?: { count: number } } }).body).toMatchObject({ params: { count: 0 } });
-      expect(JSON.stringify((e as { body: unknown }).body)).not.toContain('hlc');
-    }
+    expect(res).toEqual({ status: 409, code: 'PLANT_PROFILE_IN_USE_HIDDEN' });
+    const body = await dana('DELETE', '/plant/profiles/example-plastics-mc6').catch((e: { body: { error: string; params?: unknown } }) => e.body);
+    expect(body).toMatchObject({ error: 'The profile is in use – it cannot be deleted' });
+    expect(body.params).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain('hlc');
     // an import into it reads like one the designer may not change, without naming the site
     const p = await dana('POST', '/plant/import/preview', {
       files: [file('a.yaml', { version: 1, assignment: { asset: 'hlc-im-01', profile: 'example-plastics-mc6' } })],
@@ -878,6 +876,35 @@ describe('public API', () => {
         expect(JSON.parse(off.text).detail).toContain('module is off');
       }
       await enable(true);
+    });
+
+    it('deleting a profile or KPI definition that a hidden asset uses says only that it is in use', async () => {
+      const del = (c: Client, url: string) =>
+        c('DELETE', url).catch((e: { status: number; body: { code: string; error: string; params?: unknown } }) => ({ status: e.status, ...e.body }));
+      for (const [url, code, error] of [
+        ['/plant/profiles/example-drives-x1', 'PLANT_PROFILE_IN_USE_HIDDEN', 'The profile is in use – it cannot be deleted'],
+        ['/plant/kpis/drive-uptime', 'PLANT_KPI_IN_USE_HIDDEN', 'The KPI definition is in use – it cannot be deleted'],
+      ] as const) {
+        const r = await del(users.dana!, url);
+        expect(r).toMatchObject({ status: 409, code, error });
+        expect((r as { params?: unknown }).params).toBeUndefined();
+        expect(JSON.stringify(r)).not.toMatch(/hlc|chiller|hillcrest/);
+      }
+      // also when a visible asset has it, too: no count that leaves the hidden ones out
+      await s.api('PUT', '/plant/assets/rvs-press-01/assignment', {
+        profileId: 'example-drives-x1',
+        kpis: [{ kpi: 'drive-uptime', job: 'press-uptime', params: { calendar: 'x' } }],
+      });
+      expect(await del(users.dana!, '/plant/profiles/example-drives-x1')).toMatchObject({ code: 'PLANT_PROFILE_IN_USE_HIDDEN' });
+      // who sees every asset that has it gets the count
+      expect(await del(s.api, '/plant/profiles/example-drives-x1')).toMatchObject({
+        status: 409,
+        code: 'PLANT_PROFILE_IN_USE',
+        error: 'The profile is assigned to 2 assets – remove those assignments first',
+        params: { count: 2 },
+      });
+      expect(await del(s.api, '/plant/kpis/drive-uptime')).toMatchObject({ code: 'PLANT_KPI_IN_USE', params: { count: 2 } });
+      await s.api('DELETE', '/plant/assets/rvs-press-01/assignment');
     });
   });
 });
