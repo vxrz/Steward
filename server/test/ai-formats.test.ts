@@ -249,6 +249,15 @@ describe('prompts and answers', () => {
     expect(datasetAllowed('entra.guests', ['checkmk.*'])).toBe(false);
     expect(datasetAllowed('anything', ['*'])).toBe(true);
     expect(datasetAllowed('a.b', [])).toBe(false);
+    expect(datasetAllowed('CheckMk.Trends', ['checkmk.*'])).toBe(true);
+    expect(datasetAllowed('checkmk.trends.daily', ['*.trends.*'])).toBe(true);
+    expect(datasetAllowed('checkmkxtrends', ['checkmk.trends'])).toBe(false);
+    expect(datasetAllowed('a.b.c', ['a*c', 'x'])).toBe(true);
+    expect(datasetAllowed('ab', ['a*b*c'])).toBe(false);
+    // many stars and a long key that does not match end quickly
+    const t = Date.now();
+    expect(datasetAllowed('a'.repeat(5000), ['*a*a*a*a*a*a*a*a*b'])).toBe(false);
+    expect(Date.now() - t).toBeLessThan(1000);
   });
 
   it('gateway settings: unique model ids, output below the context window, paths without a query', () => {

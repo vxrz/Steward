@@ -162,13 +162,34 @@ export type AiGatewaySettingsInput = z.input<typeof aiGatewaySettingsSchema>;
 
 export const emptyAiSettings = (): AiGatewaySettings => ({ models: [], allowedData: { platforms: [], datasets: [], inputs: false } });
 
-/** Whether a dataset key matches a pattern of the allowed data ("*" matches any characters). */
+/** Whether a dataset key matches a pattern of the allowed data ("*" matches any characters, case does not matter). */
 export function datasetAllowed(key: string, patterns: readonly string[]): boolean {
-  return patterns.some((p) => {
-    if (p === '*') return true;
-    const re = new RegExp(`^${p.replace(/[.+?^${}()|[\]\\-]/g, '\\$&').replace(/\*/g, '.*')}$`, 'i');
-    return re.test(key);
-  });
+  return patterns.some((p) => p === '*' || wildcardMatch(key.toLowerCase(), p.toLowerCase()));
+}
+
+/**
+ * "*" matches any run of characters, everything else itself. No regular expression: the greedy two-pointer walk
+ * backs up to the last "*" only, so it takes at most key × pattern steps, whatever the pattern.
+ */
+function wildcardMatch(key: string, pattern: string): boolean {
+  let k = 0;
+  let p = 0;
+  let star = -1;
+  let mark = 0;
+  while (k < key.length) {
+    if (p < pattern.length && pattern[p] !== '*' && pattern[p] === key[k]) {
+      k++;
+      p++;
+    } else if (p < pattern.length && pattern[p] === '*') {
+      star = p++;
+      mark = k;
+    } else if (star >= 0) {
+      p = star + 1;
+      k = ++mark;
+    } else return false;
+  }
+  while (p < pattern.length && pattern[p] === '*') p++;
+  return p === pattern.length;
 }
 
 /** The input ceiling of one call to a model: its own, else the context window minus the output. */
