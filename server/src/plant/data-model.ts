@@ -328,7 +328,8 @@ export const kpiInput = z
         z
           .object({
             kind: z.enum(KPI_INPUT_KINDS).default('data_point'),
-            profile: z.string().trim().max(PLANT_LIMITS.id).default(''),
+            // a profile id, or empty: whatever profile the asset has
+            profile: z.union([z.literal(''), plantId]).default(''),
             dataPoints: z.array(pointName).max(L.inputPoints).default([]),
             notes: text(L.longText),
           })

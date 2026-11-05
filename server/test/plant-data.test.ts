@@ -220,6 +220,7 @@ describe('KPI definitions', () => {
     expect(await bad({ parameters: [{ name: 'a' }, { name: 'b', aliases: ['a'] }] })).toEqual({ status: 400, code: 'PLANT_KPI_INVALID' });
     expect(await bad({ columns: [{ name: 'a' }, { name: 'a' }] })).toEqual({ status: 400, code: 'PLANT_KPI_INVALID' });
     expect(await bad({ rangeMin: 10, rangeMax: 1 })).toEqual({ status: 400, code: 'PLANT_KPI_INVALID' });
+    expect(await bad({ inputs: [{ profile: '__proto__', dataPoints: [] }] })).toMatchObject({ status: 400 });
     expect(await status(users.vera!('POST', '/plant/kpis', { ...KPI, id: 'kpi-vera' }))).toEqual({ status: 403, code: 'FORBIDDEN' });
   });
 });
