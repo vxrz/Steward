@@ -14,7 +14,7 @@ const ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const SELECT_ONLY = new Set(['items', 'itemKey', 'columns', 'preselect']);
 const NONE = new Set<string>();
 /** Settings that carry a section of their own (sub-process inputs, manual step, API operation): always under Basic */
-const ALWAYS_BASIC = new Set(['subprocess.inputs', 'userTask.mode', 'userTask.fourEyes', 'http.connection']);
+const ALWAYS_BASIC = new Set(['subprocess.inputs', 'userTask.mode', 'userTask.fourEyes', 'http.connection', 'ai.system', 'ai.answer']);
 
 export function ExpressionHelp() {
   const { t } = useTranslation('editor');

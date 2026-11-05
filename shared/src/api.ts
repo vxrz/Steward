@@ -864,6 +864,8 @@ export interface RunReportSection {
   text?: string;
   columns?: string[];
   rows?: unknown[][];
+  /** The section carries text written by these AI models (0.6.0, docs/AI.md) */
+  aiGenerated?: { models: string[] };
 }
 
 export interface RunDetail extends RunSummary {

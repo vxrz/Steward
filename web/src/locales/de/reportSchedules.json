@@ -58,6 +58,10 @@
     "scorecard": {
       "title": "Service-Scorecard",
       "hint": "Je Service Pflichten, Verfügbarkeit, Dokumentation und Schutzbedarf mit Handlungsbedarf; der Verlauf der gespeicherten Tage; Verfügbarkeitsziele mit ihren Unterschreitungen"
+    },
+    "ai": {
+      "title": "Nutzung von KI-Modellen",
+      "hint": "Aufrufe und Tokens pro Gateway, Modell und Prozess, abgelehnte und fehlgeschlagene Aufrufe, die Budgets – ein monatlicher Zeitplan ist der monatliche KI-Bericht"
     }
   },
   "runNow": "Jetzt erstellen",
@@ -118,7 +122,9 @@
     "allLevels": "Alle Stufen",
     "team": "Berichts-Branding des Teams",
     "teamHint": "Das PDF verwendet das Berichts-Branding des Teams (Benutzer → Teams → Einstellungen). Wählen Sie eines der Teams des Eigentümers.",
-    "teamNone": "Das Branding der Instanz"
+    "teamNone": "Das Branding der Instanz",
+    "gateways": "LLM-Gateways",
+    "allGateways": "Alle Gateways"
   },
   "emptyState": {
     "title": "Noch keine Berichtszeitpläne",

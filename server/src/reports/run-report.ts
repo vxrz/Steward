@@ -276,6 +276,8 @@ export async function renderRunReport(
     section(t('processReports'));
     for (const r of m.sections) {
       w.subheading(r.title);
+      // text an AI model wrote says so (0.6.0, docs/AI.md)
+      if (r.aiModels?.length) w.paragraph(t('aiGenerated', { models: r.aiModels.join(', ') }), { tone: 'warning', size: 8, bold: true });
       if (r.text) w.markdown(r.text);
       if (r.columns.length || r.rows.length) {
         const cols = r.columns.length ? r.columns : (r.rows[0] ?? []).map((_, i) => `#${i + 1}`);

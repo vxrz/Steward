@@ -44,6 +44,13 @@ export const platformKeys = {
   application: (id: string | null | undefined) => ['platform', id, 'application'] as const,
   presets: ['platform-presets'] as const,
   recordings: (id: string | null | undefined) => ['platform-recordings', id] as const,
+  /** LLM gateways (0.6.0): budgets, use and the latest calls; refreshed with the platform (prefix ['platform', id]) */
+  aiUsage: (id: string | null | undefined) => ['platform', id, 'ai-usage'] as const,
+};
+
+/** AI models (0.6.0): every budget (administrators and auditors) */
+export const aiKeys = {
+  budgets: ['ai-budgets'] as const,
 };
 
 export const monitorKeys = {

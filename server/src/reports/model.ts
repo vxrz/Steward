@@ -90,7 +90,7 @@ export interface RunReportModel extends ReportContext {
   /** Manual steps (user tasks in mode "manual"): what was done, by whom, with which evidence and verification */
   manualSteps: ManualStepModel[];
   checks: { name: string; passed: boolean; severity: string; message: string }[];
-  sections: { title: string; text: string | null; columns: string[]; rows: string[][]; rowsOmitted: number }[];
+  sections: { title: string; text: string | null; columns: string[]; rows: string[][]; rowsOmitted: number; aiModels?: string[] }[];
   evidence: { id: string; name: string; stepKey: string; kind: string; mime: string; sha256: string; size: number; createdAt: string }[];
   errors: { at: string | null; where: string; message: string }[];
   integrity: {
@@ -273,6 +273,7 @@ export function buildRunModel(runId: string, ctx: ReportContext): RunReportModel
     columns: r.columns ?? [],
     rows: (r.rows ?? []).slice(0, LIMITS.rows).map((row) => row.map((c) => short(c, 300))),
     rowsOmitted: Math.max(0, (r.rows?.length ?? 0) - LIMITS.rows),
+    ...(r.aiGenerated?.models.length ? { aiModels: r.aiGenerated.models } : {}),
   }));
 
   const evidence = run.artifacts.map((a) => ({

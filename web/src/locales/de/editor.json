@@ -1054,7 +1054,7 @@
   },
   "ai": {
     "modelPlaceholder": "Modell-ID, z. B. ein Modell Ihres Gateways",
-    "modelOn": "{{gateway}}: {{kind}}, {{window}} Tokens Kontext, höchstens {{output}} Ausgabe",
+    "modelOn": "{{gateway}}: {{kind}} · {{window}} Tokens Kontext · höchstens {{output}} Ausgabe",
     "modelUnknown": "Kein LLM-Gateway, das Sie sehen, hat dieses Modell eingerichtet – Ausführungen schlagen fehl, wenn das gebundene Gateway es nicht hat.",
     "placeholders": "Platzhalter: {{names}}",
     "noPlaceholders": "Fügen Sie unten eine Kontextquelle hinzu, um Daten mit {{example}} einzufügen",

@@ -1054,7 +1054,7 @@
   },
   "ai": {
     "modelPlaceholder": "Model id, e.g. a model of your gateway",
-    "modelOn": "{{gateway}}: {{kind}}, {{window}} tokens context, at most {{output}} output",
+    "modelOn": "{{gateway}}: {{kind}} · {{window}} tokens context · at most {{output}} output",
     "modelUnknown": "No LLM gateway you can see has this model set up – runs fail unless the bound gateway has it.",
     "placeholders": "Placeholders: {{names}}",
     "noPlaceholders": "Add a context source below to insert data with {{example}}",
