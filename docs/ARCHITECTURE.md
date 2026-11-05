@@ -122,6 +122,7 @@ Packaging: the same server runs as a desktop executable (a Node.js single execut
 | `log.ts`, `telemetry.ts`, `metrics.ts`, `errorReporting.ts`     | Logs (pino), OpenTelemetry traces, Prometheus metrics, optional Sentry-compatible error reporting.                                                                                                                  |
 | `cli/`, `desktop/`                                              | Command-line tools (admin, migrate, backup, db-copy, …) and the desktop launcher.                                                                                                                                   |
 | `mock/`                                                         | Mock platforms and identity provider for the demo and the tests (`SM_DEMO=1`).                                                                                                                                      |
+| `plant/`                                                        | The plant registry, an opt-in module (off by default): sites, ISA-95 hierarchy, buildings, assets, YAML import and export ([ADR 0007](adr/0007-plant-registry.md), [PLANT.md](PLANT.md)).                           |
 
 Rules that hold across modules:
 
