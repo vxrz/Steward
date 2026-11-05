@@ -4,7 +4,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { IconBuilding, IconDots, IconDownload, IconEdit, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { ASSET_STATUSES, LEVEL_RECORD_TYPE, type PlantBuilding, type PlantLevel, type PlantNode, type PlantSiteDetail } from '@sm/shared';
+import {
+  ASSET_STATUSES,
+  LEVEL_RECORD_TYPE,
+  type PlantBuilding,
+  type PlantLevel,
+  type PlantImportSummary,
+  type PlantNode,
+  type PlantSiteDetail,
+} from '@sm/shared';
 import { apiUrl, del, get, notifyError, patch, post, put } from '../api';
 import { DetailState, EmptyState } from '../components/common';
 import { DetailHeader } from '../components/page/DetailPage';
@@ -373,14 +381,20 @@ export function PlantSitePage() {
   );
 }
 
-/** Where a record came from (an import), shown in the side panel. */
+/** Where a record came from (an import: its files and date), shown in the side panel. */
 export function SourceLine({ importId }: { importId: string | null }) {
   const { t } = useTranslation('plant');
+  const imports = useQuery({
+    queryKey: plantKeys.imports,
+    queryFn: () => get<PlantImportSummary[]>('/plant/imports'),
+    enabled: !!importId,
+  });
+  const imp = importId ? imports.data?.find((i) => i.id === importId) : undefined;
   return (
     <Field label={t('source.title')}>
       {importId ? (
         <Anchor component={Link} to="/plant/import" size="sm">
-          {t('source.import', { id: importId })}
+          {imp ? t('source.importOf', { files: imp.files.map((f) => f.name).join(', '), when: fmtDate(imp.createdAt) }) : t('source.import', { id: importId })}
         </Anchor>
       ) : (
         t('source.manual')

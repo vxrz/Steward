@@ -67,7 +67,7 @@ export function publishUsageDataset(force = false, now = Date.now()): boolean {
       'Input tokens': input,
       'Output tokens': output,
       Tokens: input + output,
-      Cost: Number(r.priced) > 0 ? Math.round(Number(r.cost ?? 0) * 10000) / 10000 : null,
+      Cost: Number(r.priced) > 0 ? Math.round(Number(r.cost ?? 0) * 1_000_000) / 1_000_000 : null,
       _key: `${r.platform_name}/${r.model}/${r.process_name ?? ''}`,
       _status: status,
       _reason: refused ? `${refused} call(s) refused this month` : failed ? `${failed} call(s) failed this month` : '',

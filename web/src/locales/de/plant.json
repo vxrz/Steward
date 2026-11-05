@@ -247,6 +247,7 @@
   "source": {
     "title": "Quelle",
     "import": "Importlauf {{id}}",
+    "importOf": "{{files}}, importiert am {{when}}",
     "manual": "In Steward erfasst"
   },
   "export": {

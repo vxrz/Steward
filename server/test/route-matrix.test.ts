@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { allowEmailDomains, authHeaders, loginCookie, setup, startTestServer, type TestServer } from './helpers.js';
+import { allowEmailDomains, authHeaders, loginCookie, setEnv, setup, startTestServer, type TestServer } from './helpers.js';
 import { tinyPng } from './png.js';
 
 /**
@@ -1446,7 +1446,10 @@ const target = (r: { method: string; url: string }) => fill(r.url) + (QUERY[key(
 const ok = (status: number) => status >= 200 && status < 300;
 
 beforeAll(async () => {
+  // the matrix calls every route without credentials within a minute; each refusal counts against the address,
+  // and there are more routes than the default limit (600 a minute) allows
   s = await startTestServer();
+  await setEnv({ SM_RATE_LIMIT_PER_MINUTE: '10000' });
   await setup(s);
   // the plant registry module on (#218): in demo mode it loads its example enterprise with the demo data
   await s.api('PUT', '/settings/plant', { enabled: true, enterprise: '', labels: {}, fields: {} });
@@ -1649,6 +1652,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await s?.app.close();
+  await setEnv({ SM_RATE_LIMIT_PER_MINUTE: undefined });
   if (s) fs.rmSync(s.dataDir, { recursive: true, force: true });
 });
 

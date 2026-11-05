@@ -247,6 +247,7 @@
   "source": {
     "title": "Source",
     "import": "Import {{id}}",
+    "importOf": "{{files}}, imported {{when}}",
     "manual": "Entered in Steward"
   },
   "export": {

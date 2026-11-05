@@ -441,7 +441,8 @@ function processVisibility(): (id: string) => boolean {
   };
 }
 
-const roundCost = (n: number | null): number | null => (n === null ? null : Math.round(n * 10000) / 10000);
+/** Six decimals: a single call through a cheap model costs fractions of a cent. */
+const roundCost = (n: number | null): number | null => (n === null ? null : Math.round(n * 1_000_000) / 1_000_000);
 
 function totals(where: string, params: unknown[]): AiUsageTotals {
   const r = db().get<{ calls: number; refused: number; failed: number; i: number | null; o: number | null; cost: number | null; priced: number }>(
