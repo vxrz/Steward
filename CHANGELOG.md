@@ -6,6 +6,14 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-05
+
+Steward 0.5.1 publishes the container images of 0.5.0. Their build stopped at the vulnerability scan: Debian published a fix for CVE-2026-109518 in `apt` (high) after 0.5.0 was merged, and the pinned base image still had the old version. The application is the same as in 0.5.0; the executables of 0.5.0 are not affected (they contain no Debian packages). No database migrations; update from 0.4.x straight to 0.5.1 (the notes of 0.5.0 apply).
+
+### Fixed
+
+- **Container image**: the image installs Debian's security updates when it is built (`apt-get upgrade`), so a fix published after the pinned base image – here `apt` 3.0.4 for CVE-2026-109518 – no longer waits for a new base image digest. The Trivy and Grype scans check the result as before.
+
 ## [0.5.0] - 2026-11-04
 
 Steward 0.5.0 makes changes audit-proof and reads more platforms. **Firewall changes** (opt-in, no CMDB): network segments as a system kind, systems in segments with their addresses, the document types _Firewall change_ (`FWC`, four-eyes, evidence, verified by a second person) and _Approved firewall rules_ (`FWR`, a living document per segment or system), table fields for document types, and an optional _Verify_ step on the change workflow. The **assurance policy** (_Settings → Assurance policy_) sets per control point which actions need a second person and which a fresh confirmation, optionally with MFA; baselines cannot be lowered, loosening waits for a second administrator, every confirmed event carries its proof in the audit chain, and the assurance report (PDF/A, JSON, in evidence packs) shows it for a period. Two accounts of one single sign-on identity count as one person. **Microsoft Graph / Entra ID** (read-only, client secret or certificate): access check source, monitor check, credentials import and the bundle _Entra ID access governance_. **IBM Security Verify Privilege Vault 12.0**: permissions and roles for access reviews, secret hygiene, privileged-use evidence and a credentials register link – Steward never reads a secret value. **Export for Postman**: processes and platforms as a collection and an environment, without secrets. Three database migrations, all additive: `catalogue-012-network-segments`, `assurance-001-policy`, `credentials-004-vault-link`. **Check before updating:** nothing changes with the default assurance policy; change requests gain an optional _Verify_ step (closing from _Implemented_ still works); existing installations get the document types `FWC` and `FWR` (an own `FWC` key is kept); the sign-in template variable `baseUrl` no longer ends with a slash; the field names of the vault integration are taken from Delinea's public SDKs – check them against your installation with the checklist in docs/IBM-PAM.md.
@@ -772,7 +780,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/vxrz/steward/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/vxrz/steward/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/vxrz/steward/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/vxrz/steward/compare/v0.3.0...v0.3.1
