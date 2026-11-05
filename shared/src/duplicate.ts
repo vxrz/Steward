@@ -24,6 +24,7 @@ export const DUPLICATE_KINDS = [
   'access-check',
   'status-page',
   'system',
+  'asset',
 ] as const;
 export type DuplicateKind = (typeof DUPLICATE_KINDS)[number];
 

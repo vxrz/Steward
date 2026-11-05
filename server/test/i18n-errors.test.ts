@@ -25,6 +25,7 @@ const CODED_AREAS = [
   'mcp/',
   'monitors/',
   'duplicate/',
+  'plant/',
   'routes/reports.ts',
   'routes/report-schedules.ts',
 ];

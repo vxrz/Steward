@@ -93,6 +93,11 @@ const GitUpdatesPage = page(() => import('./pages/GitUpdates'), 'GitUpdatesPage'
 const GitUpdateDetailPage = page(() => import('./pages/GitUpdates'), 'GitUpdateDetailPage');
 const TicketsPage = page(() => import('./pages/Tickets'), 'TicketsPage');
 const TicketDetailPage = page(() => import('./pages/TicketDetail'), 'TicketDetailPage');
+const PlantSitesPage = page(() => import('./pages/PlantSites'), 'PlantSitesPage');
+const PlantSitePage = page(() => import('./pages/PlantSite'), 'PlantSitePage');
+const PlantAssetsPage = page(() => import('./pages/PlantAssets'), 'PlantAssetsPage');
+const PlantAssetPage = page(() => import('./pages/PlantAsset'), 'PlantAssetPage');
+const PlantImportPage = page(() => import('./pages/PlantImport'), 'PlantImportPage');
 
 const MAIN_ID = 'main-content';
 
@@ -104,6 +109,7 @@ const AREA_HOME: Record<string, string> = {
   '/automate': '/processes',
   '/catalogue': '/services',
   '/compliance': '/compliance/controls',
+  '/plant': '/plant/sites',
 };
 
 /** "Skip to content": the first focusable element, visible only while it has focus (WCAG 2.4.1). */
@@ -322,6 +328,12 @@ function Shell({ status }: { status: AuthStatus }) {
                   <Route path="/compliance/person-reviews/:id" element={<PersonReviewDetailPage />} />
                   <Route path="/compliance/evidence-packs" element={<EvidencePacksPage />} />
                   <Route path="/reports" element={<ReportsPage />} />
+                  {/* the plant registry (#218): only while its module is on – otherwise "page not found" */}
+                  {caps.plant && <Route path="/plant/sites" element={<PlantSitesPage />} />}
+                  {caps.plant && <Route path="/plant/sites/:siteId" element={<PlantSitePage />} />}
+                  {caps.plant && <Route path="/plant/assets" element={<PlantAssetsPage />} />}
+                  {caps.plant && <Route path="/plant/assets/:assetId" element={<PlantAssetPage />} />}
+                  {caps.plant && <Route path="/plant/import" element={<PlantImportPage />} />}
                   {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
                   {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
                   <Route path="/settings" element={<SettingsIndex />} />

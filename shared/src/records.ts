@@ -443,7 +443,22 @@ export interface DocumentChangelogRow {
  * generically as { kind, id }: a new kind needs a resolver on the server and
  * an entry here.
  */
-export const LINK_KINDS = ['process', 'run', 'monitor', 'platform', 'dashboard', 'record', 'service', 'credential', 'application', 'system'] as const;
+export const LINK_KINDS = [
+  'process',
+  'run',
+  'monitor',
+  'platform',
+  'dashboard',
+  'record',
+  'service',
+  'credential',
+  'application',
+  'system',
+  'site',
+  'asset',
+] as const;
+/** Link kinds of the plant registry module: offered only while the module is on. */
+export const PLANT_LINK_KINDS = ['site', 'asset'] as const satisfies readonly (typeof LINK_KINDS)[number][];
 export type LinkKind = (typeof LINK_KINDS)[number];
 
 /**
@@ -534,7 +549,7 @@ export interface ItemLink {
  */
 export interface Backlink {
   linkId: string;
-  kind: 'record' | 'service' | 'credential' | 'application';
+  kind: 'record' | 'service' | 'credential' | 'application' | 'site' | 'asset';
   id: string;
   label: string;
   note: string;

@@ -3,7 +3,7 @@ import { ActionIcon, Alert, Autocomplete, Badge, Button, Checkbox, Group, Paper,
 import { useQuery } from '@tanstack/react-query';
 import { IconDeviceFloppy, IconPlus, IconTrash } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { MONITOR_PERMISSIONS, PLATFORM_PERMISSIONS, PROCESS_PERMISSIONS, type AclEntry, type Subject } from '@sm/shared';
+import { MONITOR_PERMISSIONS, PLANT_PERMISSIONS, PLATFORM_PERMISSIONS, PROCESS_PERMISSIONS, type AclEntry, type Subject } from '@sm/shared';
 import { get } from '../api';
 import i18n from '../i18n';
 
@@ -20,7 +20,8 @@ export function subjectOptionLabel(s: Subject): string {
 }
 
 export interface AccessEditorProps {
-  kind: 'process' | 'platform' | 'monitor';
+  /** site: a site of the plant registry (#218) – view and manage, no owner */
+  kind: 'process' | 'platform' | 'monitor' | 'site';
   acl: AclEntry[];
   /** Process owner (user name) – the owner always has all rights. */
   owner?: string | null;
@@ -32,8 +33,11 @@ export interface AccessEditorProps {
 export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEditorProps) {
   const { t } = useTranslation(['access', 'common']);
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => get<Subject[]>('/subjects') });
-  const perms: readonly string[] = kind === 'process' ? PROCESS_PERMISSIONS : kind === 'monitor' ? MONITOR_PERMISSIONS : PLATFORM_PERMISSIONS;
-  const owned = kind !== 'platform';
+  const perms: readonly string[] =
+    kind === 'process' ? PROCESS_PERMISSIONS : kind === 'monitor' ? MONITOR_PERMISSIONS : kind === 'site' ? PLANT_PERMISSIONS : PLATFORM_PERMISSIONS;
+  const owned = kind !== 'platform' && kind !== 'site';
+  // the rights explained for the kind (a site's view and manage cover its hierarchy and assets)
+  const help = (p: string) => (kind === 'site' ? t(`helpSite.${p as 'view' | 'manage'}`) : t(`help.${p as Perm}`));
   const [rows, setRows] = useState<AclEntry[]>(acl);
   const [own, setOwn] = useState<string | null>(owner ?? null);
   const [draft, setDraft] = useState('');
@@ -77,13 +81,15 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
           {rows.length ? (
             <Trans
               t={t}
-              i18nKey={kind === 'process' ? 'restrictedProcess' : kind === 'monitor' ? 'restrictedMonitor' : 'restrictedPlatform'}
+              i18nKey={
+                kind === 'process' ? 'restrictedProcess' : kind === 'monitor' ? 'restrictedMonitor' : kind === 'site' ? 'restrictedSite' : 'restrictedPlatform'
+              }
               components={{ b: <b /> }}
             />
           ) : (
             <Trans
               t={t}
-              i18nKey={kind === 'process' ? 'defaultsProcess' : kind === 'monitor' ? 'defaultsMonitor' : 'defaultsPlatform'}
+              i18nKey={kind === 'process' ? 'defaultsProcess' : kind === 'monitor' ? 'defaultsMonitor' : kind === 'site' ? 'defaultsSite' : 'defaultsPlatform'}
               components={{ b: <b /> }}
             />
           )}
@@ -112,7 +118,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
                 <Table.Th>{t('who')}</Table.Th>
                 {perms.map((p) => (
                   <Table.Th key={p} ta="center">
-                    <Tooltip label={t(`help.${p as Perm}`)} multiline w={240} withArrow>
+                    <Tooltip label={help(p)} multiline w={240} withArrow>
                       <span style={{ cursor: 'help', borderBottom: '1px dotted' }}>{t(`common:permissions.${p as Perm}`)}</span>
                     </Tooltip>
                   </Table.Th>
@@ -186,7 +192,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
       <Stack gap={2}>
         {perms.map((p) => (
           <Text key={p} size="xs" c="dimmed">
-            <b>{t(`common:permissions.${p as Perm}`)}</b> – {t(`help.${p as Perm}`)}
+            <b>{t(`common:permissions.${p as Perm}`)}</b> – {help(p)}
           </Text>
         ))}
       </Stack>

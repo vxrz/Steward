@@ -12,6 +12,8 @@ e2e/.auth/
 
 # Generated: npm run openapi writes it with JSON.stringify and "npm run openapi -- --check" compares it byte for byte
 docs/openapi.json
+# Generated the same way by npm run plant:schema (checked by server/test/plant-import.test.ts)
+docs/plant/plant-registry-1.schema.json
 package-lock.json
 
 # Binary or third-party assets (fonts, licences, logo)

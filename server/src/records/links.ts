@@ -25,8 +25,11 @@ import { dashboardVisible } from '../dashboards/service.js';
  * other way round too (their "used by" links): those show up as backlinks.
  */
 
-/** Items that hold links: records, services, applications and ticket references (tickets/service.ts: the items a ticket affects). */
-export type LinkSource = 'record' | 'service' | 'application' | 'ticket';
+/**
+ * Items that hold links: records, services, applications and ticket references (tickets/service.ts: the items a ticket
+ * affects); sites and assets of the plant registry module (plant/links.ts registers their kinds).
+ */
+export type LinkSource = 'record' | 'service' | 'application' | 'ticket' | 'site' | 'asset';
 
 export interface LinkResolver {
   /** Name and UI path of a visible target, or null (missing or not visible) */

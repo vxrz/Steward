@@ -49,6 +49,7 @@ const ROLE_COLORS: Record<Role, string> = {
   auditor: 'orange',
   viewer: 'gray',
   status: 'cyan',
+  plant: 'lime',
 };
 
 /** Role name and description in the UI language (descriptions default to the English text in shared/). */

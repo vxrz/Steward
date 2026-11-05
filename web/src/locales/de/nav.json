@@ -31,7 +31,10 @@
     "evidencePacks": "Nachweispakete",
     "duties": "Pflichten",
     "scorecard": "Scorecard",
-    "systemStatus": "Systemstatus"
+    "systemStatus": "Systemstatus",
+    "plantSites": "Standorte",
+    "plantAssets": "Anlagen",
+    "plantImport": "Importieren"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",
@@ -131,7 +134,9 @@
       "duty": "Pflicht",
       "personReview": "Personenprüfung",
       "statusPage": "Statusseite",
-      "credential": "Zugangsdaten-Eintrag"
+      "credential": "Zugangsdaten-Eintrag",
+      "site": "Standort",
+      "asset": "Anlage"
     }
   },
   "groups": {
@@ -139,7 +144,8 @@
     "automate": "Automatisierung",
     "catalogue": "Katalog",
     "compliance": "Compliance",
-    "admin": "Administration"
+    "admin": "Administration",
+    "plant": "Werk"
   },
   "mainNavigation": "Hauptnavigation",
   "skipToContent": "Zum Inhalt springen",

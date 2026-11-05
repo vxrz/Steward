@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { allowEmailDomains, authHeaders, loginCookie, setup, startTestServer, type TestServer } from './helpers.js';
+import { tinyPng } from './png.js';
 
 /**
  * Route permission matrix: every route the server registers, called by every role.
@@ -719,6 +720,11 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/applications/:applicationId': ALL,
   'GET /api/v1/systems': ALL,
   'GET /api/v1/systems/:systemId': ALL,
+  // the plant registry (#218): who may see the site (every role that works in Steward, without an access list)
+  'GET /api/v1/plant/sites': ALL,
+  'GET /api/v1/plant/sites/:siteId': ALL,
+  'GET /api/v1/plant/assets': ALL,
+  'GET /api/v1/plant/assets/:assetId': ALL,
   'GET /api/v1/environments': ALL,
   'GET /api/v1/maintenance-windows': ALL,
   'GET /api/v1/measures': ALL,
@@ -826,6 +832,46 @@ const EXPECT: Record<string, Access> = {
   // the suggestion for the dialog (fixture: the demo process) and where a copy came from (everyone who sees it)
   'GET /api/duplicates/:kind/:id': DESIGN,
   'GET /api/duplicates/:kind/:id/source': ALL,
+  // whoever manages the asset's site
+  'POST /api/plant/assets/:assetId/duplicate': DESIGN,
+
+  // ---- the plant registry (#218, on in these fixtures): its switch is the administrators'; rights per site ----
+  'GET /api/settings/plant': ADMIN,
+  'PUT /api/settings/plant': ADMIN,
+  'GET /api/plant/config': ALL,
+  'GET /api/plant/schema': ALL,
+  'GET /api/plant/hierarchy': ALL,
+  'GET /api/plant/sites': ALL,
+  'POST /api/plant/sites': DESIGN,
+  'GET /api/plant/sites/:siteId': ALL,
+  'PUT /api/plant/sites/:siteId': DESIGN,
+  'DELETE /api/plant/sites/:siteId': DESIGN,
+  'PUT /api/plant/sites/:siteId/access': DESIGN,
+  'POST /api/plant/sites/:siteId/nodes': DESIGN,
+  'PUT /api/plant/sites/:siteId/nodes/:nodeId': DESIGN,
+  'DELETE /api/plant/sites/:siteId/nodes/:nodeId': DESIGN,
+  'POST /api/plant/sites/:siteId/buildings': DESIGN,
+  'PUT /api/plant/sites/:siteId/buildings/:buildingId': DESIGN,
+  'DELETE /api/plant/sites/:siteId/buildings/:buildingId': DESIGN,
+  'POST /api/plant/sites/:siteId/links': DESIGN,
+  'PATCH /api/plant/sites/:siteId/links/:linkId': DESIGN,
+  'DELETE /api/plant/sites/:siteId/links/:linkId': DESIGN,
+  'GET /api/plant/assets': ALL,
+  'POST /api/plant/assets': DESIGN,
+  'GET /api/plant/assets/:assetId': ALL,
+  'PUT /api/plant/assets/:assetId': DESIGN,
+  'DELETE /api/plant/assets/:assetId': DESIGN,
+  'PUT /api/plant/assets/:assetId/image': DESIGN,
+  'DELETE /api/plant/assets/:assetId/image': DESIGN,
+  'GET /api/plant/assets/:assetId/image': ALL,
+  'POST /api/plant/assets/:assetId/links': DESIGN,
+  'PATCH /api/plant/assets/:assetId/links/:linkId': DESIGN,
+  'DELETE /api/plant/assets/:assetId/links/:linkId': DESIGN,
+  // a preview changes nothing (it lists what the caller may not change); applying needs the right to change a site
+  'POST /api/plant/import/preview': ALL,
+  'POST /api/plant/import': DESIGN,
+  'GET /api/plant/imports': ALL,
+  'GET /api/plant/export': ALL,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
@@ -939,6 +985,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     harmless: { newResources: 'auto' },
   },
   // (harmless: no list, so nobody gains a right – refused by the route's validation, the fixture stays)
+  // an access list of a plant registry site gives rights to others (#218)
+  'PUT /api/plant/sites/:siteId/access': 'always',
   'PUT /api/platforms/:id/access': {
     sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] },
     harmless: { acl: 'not a list' },
@@ -1081,7 +1129,22 @@ function fill(url: string): string {
     .replace(/:file/g, fx.monitorExample!)
     .replace(/:attId/g, 'att_none')
     .replace(/:evidenceId/g, 'tev_none')
-    .replace(/:linkId/g, url.startsWith('/api/services') ? fx.serviceLink! : url.startsWith('/api/applications') ? fx.applicationLink! : fx.recordLink!)
+    .replace(/:siteId/g, fx.site!)
+    .replace(/:assetId/g, fx.asset!)
+    .replace(/:nodeId/g, fx.plantNode!)
+    .replace(/:buildingId/g, fx.building!)
+    .replace(
+      /:linkId/g,
+      url.startsWith('/api/services')
+        ? fx.serviceLink!
+        : url.startsWith('/api/applications')
+          ? fx.applicationLink!
+          : url.startsWith('/api/plant/sites')
+            ? fx.siteLink!
+            : url.startsWith('/api/plant/assets')
+              ? fx.assetLink!
+              : fx.recordLink!,
+    )
     .replace(/:measureId/g, fx.measure!)
     .replace(/^\/api\/records\/:id\/(measures|timeline)/, (_m, rest: string) => `/api/records/${fx.review}/${rest}`)
     .replace(/:id/g, () => {
@@ -1199,6 +1262,22 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/applications/:id/components/:componentId/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/systems': { name: 'Matrix system x', kind: 'server' },
+  'PUT /api/settings/plant': { enabled: true, enterprise: '', labels: {}, fields: {} },
+  'POST /api/plant/sites': { id: 'matrix-new', name: 'Matrix new site' },
+  'PUT /api/plant/sites/:siteId': { name: 'Matrix site' },
+  'PUT /api/plant/sites/:siteId/access': { acl: [] },
+  'POST /api/plant/sites/:siteId/nodes': { id: 'matrix-new-node', level: 'area', name: 'New area' },
+  'PUT /api/plant/sites/:siteId/nodes/:nodeId': { name: 'Matrix area' },
+  'POST /api/plant/sites/:siteId/buildings': { id: 'matrix-new-building', name: 'New building' },
+  'PUT /api/plant/sites/:siteId/buildings/:buildingId': { name: 'Matrix building' },
+  'POST /api/plant/sites/:siteId/links': { url: 'https://cmdb.example.com/9', label: 'x' },
+  'PATCH /api/plant/sites/:siteId/links/:linkId': { note: 'x' },
+  'POST /api/plant/assets': { id: 'matrix-new-asset', siteId: 'matrix-site', name: 'New asset' },
+  'PUT /api/plant/assets/:assetId': { siteId: 'matrix-site', name: 'Matrix asset', areaId: 'matrix-area' },
+  'POST /api/plant/assets/:assetId/links': { url: 'https://cmdb.example.com/9', label: 'x' },
+  'PATCH /api/plant/assets/:assetId/links/:linkId': { note: 'x' },
+  'POST /api/plant/import/preview': { files: [{ name: 'm.yaml', content: 'version: 1\nsites: []\n' }], mode: 'add' },
+  'POST /api/plant/import': { files: [{ name: 'm.yaml', content: 'version: 1\nsite:\n  id: matrix-site\n  name: Matrix site\n' }], mode: 'update' },
   'PUT /api/systems/:id': { name: 'Matrix system', kind: 'server' },
   'POST /api/systems/:id/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/systems/:id/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
@@ -1369,11 +1448,20 @@ const ok = (status: number) => status >= 200 && status < 300;
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
+  // the plant registry module on (#218): in demo mode it loads its example enterprise with the demo data
+  await s.api('PUT', '/settings/plant', { enabled: true, enterprise: '', labels: {}, fields: {} });
   await s.api('POST', '/demo/setup', {});
   await allowEmailDomains(s, ['example.com']);
   const a = s.api;
   // an AI budget, so raising it is a sensitive change (STEP_UP)
   await a('PUT', '/ai/budgets', { scope: 'installation', scopeId: '', tokensPerDay: 1000, tokensPerMonth: null });
+  await a('POST', '/plant/sites', { id: 'matrix-site', name: 'Matrix site' });
+  await a('POST', '/plant/sites/matrix-site/buildings', { id: 'matrix-building', name: 'Matrix building' });
+  await a('POST', '/plant/sites/matrix-site/nodes', { id: 'matrix-area', level: 'area', name: 'Matrix area' });
+  await a('POST', '/plant/assets', { id: 'matrix-asset', siteId: 'matrix-site', name: 'Matrix asset', areaId: 'matrix-area' });
+  await a('PUT', '/plant/assets/matrix-asset/image', { contentBase64: tinyPng().toString('base64') });
+  const siteLink = (await a('POST', '/plant/sites/matrix-site/links', { url: 'https://cmdb.example.com/4', label: 'x' })).id;
+  const assetLink = (await a('POST', '/plant/assets/matrix-asset/links', { url: 'https://cmdb.example.com/5', label: 'x' })).id;
   const procs = await a('GET', '/processes');
   const proc = procs.find((p: { id: string }) => p.id === 'ih-health-check') ?? procs[0];
   const run = await s.waitRun((await a('GET', `/runs?processId=${proc.id}`))[0].id, ['succeeded', 'failed']);
@@ -1467,6 +1555,12 @@ beforeAll(async () => {
     task: 'tsk_none',
     syncSource,
     syncUpdate,
+    site: 'matrix-site',
+    asset: 'matrix-asset',
+    plantNode: 'matrix-area',
+    building: 'matrix-building',
+    siteLink,
+    assetLink,
   };
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;

@@ -38,7 +38,8 @@
     "approver": "Freigeber",
     "auditor": "Prüfer",
     "viewer": "Betrachter",
-    "status": "Statusbetrachter"
+    "status": "Statusbetrachter",
+    "plant": "Werksbetrachter"
   },
   "roleInfo": {
     "admin": "Alles: Benutzer, Teams, Plattformen und Zugangsdaten, Einstellungen, alle Prozesse",
@@ -47,7 +48,8 @@
     "approver": "Über Freigaben und Benutzeraufgaben entscheiden",
     "auditor": "Lesezugriff auf alle Prozesse, Ausführungen, Protokolle und das Audit-Log",
     "viewer": "Lesezugriff auf Prozesse und ihre Ausführungen (sofern nicht eingeschränkt)",
-    "status": "Nur die Statusseiten der Services – keine anderen Seiten, Prozesse, Plattformen oder Daten"
+    "status": "Nur die Statusseiten der Services – keine anderen Seiten, Prozesse, Plattformen oder Daten",
+    "plant": "Lesezugriff auf das Werksregister (Standorte und Anlagen, sofern ein Standort nicht eingeschränkt ist) – keine Prozesse, Plattformen oder Monitore"
   },
   "loading": "Wird geladen…",
   "severity": {
@@ -205,7 +207,9 @@
     "tickets": "Operatoren, Designer und Administratoren fügen Ticket-Referenzen hinzu.",
     "personReviews": "Designer und Administratoren starten Personenprüfungen.",
     "evidencePacks": "Alle außer Betrachtern exportieren Nachweispakete.",
-    "users": "Administratoren laden Benutzer ein und legen Teams an."
+    "users": "Administratoren laden Benutzer ein und legen Teams an.",
+    "plantSites": "Designer und Administratoren legen Standorte an.",
+    "plantAssets": "Wer einen Standort verwaltet, legt seine Anlagen an: Designer und Administratoren oder die Personen in seiner Zugriffsliste."
   },
   "duplicate": {
     "action": "Duplizieren",

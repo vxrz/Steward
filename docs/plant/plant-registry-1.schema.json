@@ -1,0 +1,1043 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vxrz/Steward/blob/main/docs/plant/plant-registry-1.schema.json",
+  "title": "Steward plant registry, format 1",
+  "description": "Sites of an enterprise with their ISA-95 (IEC 62264) hierarchy – area, work center, work unit –, the buildings (IEC 81346 location aspect) and the assets in them. See docs/PLANT.md.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "version": {
+      "type": "number",
+      "const": 1,
+      "description": "Version of this format"
+    },
+    "enterprise": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "site": {
+      "description": "One site (a file per site)",
+      "$ref": "#/$defs/Site"
+    },
+    "sites": {
+      "description": "Several sites (a whole tree)",
+      "maxItems": 500,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Site"
+      }
+    },
+    "assets": {
+      "description": "Assets that name their site in location.site",
+      "maxItems": 50000,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Asset"
+      }
+    }
+  },
+  "required": [
+    "version"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Site": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "code": {
+          "description": "Short code, unique in the installation",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 20
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Name in the installation’s default language"
+        },
+        "names": {
+          "maxProperties": 10,
+          "description": "Translations of the name, keyed by language code: { de: Halle 1 }",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "geo": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "lat": {
+                  "type": "number",
+                  "minimum": -90,
+                  "maximum": 90
+                },
+                "lon": {
+                  "type": "number",
+                  "minimum": -180,
+                  "maximum": 180
+                },
+                "zoom": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 19
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "lat",
+                "lon"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contacts": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "role": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "email": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 320
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "phone": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "url": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "external_refs": {
+          "description": "External references: the ids of this record in other tools",
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60,
+                "description": "The other tool, e.g. erp, cmms, inventory"
+              },
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "description": "The record’s id in that tool"
+              },
+              "url": {
+                "description": "Its page there (http or https)",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "system",
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "fields": {
+          "maxProperties": 40,
+          "description": "Own fields of the record type, as defined in Settings → Modules → Plant registry",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "buildings": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Building"
+          }
+        },
+        "areas": {
+          "maxItems": 5000,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Area"
+          }
+        },
+        "assets": {
+          "maxItems": 50000,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Asset"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "A site (factory) of the enterprise"
+    },
+    "Building": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Name in the installation’s default language"
+        },
+        "names": {
+          "maxProperties": 10,
+          "description": "Translations of the name, keyed by language code: { de: Halle 1 }",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "kind": {
+          "description": "building (default), hall, floor, room, outdoor or other",
+          "type": "string",
+          "enum": [
+            "building",
+            "hall",
+            "floor",
+            "room",
+            "outdoor",
+            "other"
+          ]
+        },
+        "parent": {
+          "description": "A building part (floor, room) names the building it is in",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+              "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fields": {
+          "maxProperties": 40,
+          "description": "Own fields of the record type, as defined in Settings → Modules → Plant registry",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "A place on the spatial axis (IEC 81346 location aspect)"
+    },
+    "Area": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Name in the installation’s default language"
+        },
+        "names": {
+          "maxProperties": 10,
+          "description": "Translations of the name, keyed by language code: { de: Halle 1 }",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "domain": {
+          "description": "The manufacturing domain the area belongs to (optional)",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 60
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "building": {
+          "description": "The building this node stands in; the innermost one wins (work unit, work center, area)",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+              "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fields": {
+          "maxProperties": 40,
+          "description": "Own fields of the record type, as defined in Settings → Modules → Plant registry",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "work_centers": {
+          "maxItems": 5000,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkCenter"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "ISA-95 area: what happens there (function), not where (put the hall in building)"
+    },
+    "WorkCenter": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Name in the installation’s default language"
+        },
+        "names": {
+          "maxProperties": 10,
+          "description": "Translations of the name, keyed by language code: { de: Halle 1 }",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "type": {
+          "description": "ISA-95 kind",
+          "type": "string",
+          "enum": [
+            "production_line",
+            "production_unit",
+            "process_cell",
+            "storage_zone"
+          ]
+        },
+        "building": {
+          "description": "The building this node stands in; the innermost one wins (work unit, work center, area)",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+              "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fields": {
+          "maxProperties": 40,
+          "description": "Own fields of the record type, as defined in Settings → Modules → Plant registry",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "work_units": {
+          "maxItems": 5000,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkUnit"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "ISA-95 work center: a line, unit, cell or storage zone"
+    },
+    "WorkUnit": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Name in the installation’s default language"
+        },
+        "names": {
+          "maxProperties": 10,
+          "description": "Translations of the name, keyed by language code: { de: Halle 1 }",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "type": {
+          "description": "ISA-95 kind",
+          "type": "string",
+          "enum": [
+            "unit",
+            "work_cell",
+            "storage_unit"
+          ]
+        },
+        "building": {
+          "description": "The building this node stands in; the innermost one wins (work unit, work center, area)",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+              "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fields": {
+          "maxProperties": 40,
+          "description": "Own fields of the record type, as defined in Settings → Modules → Plant registry",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "ISA-95 work unit"
+    },
+    "Asset": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Name in the installation’s default language"
+        },
+        "manufacturer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "description": "operational (default), planned, commissioning, maintenance, out_of_service or decommissioned",
+          "type": "string",
+          "enum": [
+            "planned",
+            "commissioning",
+            "operational",
+            "maintenance",
+            "out_of_service",
+            "decommissioned"
+          ]
+        },
+        "location": {
+          "type": "object",
+          "properties": {
+            "site": {
+              "description": "Needed when the asset is not listed below its site",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$"
+            },
+            "area": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                  "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "work_center": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                  "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "work_unit": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                  "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "building": {
+              "description": "Overrides the building of the location",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                  "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "parent": {
+          "description": "The asset this one is part of (equipment hierarchy; same site)",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+              "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "children": {
+          "description": "Accepted on import as the other way to say parent; the export writes parent only",
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+            "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+          }
+        },
+        "taxonomy": {
+          "type": "object",
+          "properties": {
+            "domain": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "process_area": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "tags": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          }
+        },
+        "lifecycle": {
+          "type": "object",
+          "properties": {
+            "commissioned": {
+              "description": "A date: YYYY-MM-DD",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "end_of_support": {
+              "description": "A date: YYYY-MM-DD",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "capabilities": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "image": {
+          "description": "File name of the image in the source; the image itself is uploaded in Steward",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "external_refs": {
+          "description": "External references: the ids of this record in other tools",
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60,
+                "description": "The other tool, e.g. erp, cmms, inventory"
+              },
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "description": "The record’s id in that tool"
+              },
+              "url": {
+                "description": "Its page there (http or https)",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "system",
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "fields": {
+          "maxProperties": 40,
+          "description": "Own fields of the record type, as defined in Settings → Modules → Plant registry",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "A piece of equipment"
+    }
+  }
+}

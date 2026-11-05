@@ -84,6 +84,8 @@ beforeAll(async () => {
   process.env.SM_API_RATE_LIMIT = 'off';
   s = await startTestServer();
   await setup(s);
+  // the plant registry module on (#218): the demo loads its example enterprise
+  await s.api('PUT', '/settings/plant', { enabled: true, enterprise: 'Brightwater Components', labels: {}, fields: {} });
   await s.api('POST', '/demo/setup', {});
   await allowEmailDomains(s, ['example.com']);
   [vera, audrey, dana] = await Promise.all(['vera', 'audrey', 'dana'].map((u) => s.as(u, PW)));
@@ -492,6 +494,9 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   await get('/control-catalogues', '/control-catalogues');
   await listAll('/controls', '/controls');
   await listAll('/control-coverage', `/control-coverage?catalogue=ISO27001&from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`);
+  // the plant registry (#218)
+  for (const x of await listAll('/plant/sites', '/plant/sites')) await get('/plant/sites/{siteId}', `/plant/sites/${x.id}`);
+  for (const x of (await listAll('/plant/assets', '/plant/assets')).slice(0, 5)) await get('/plant/assets/{assetId}', `/plant/assets/${x.id}`);
   return out;
 }
 

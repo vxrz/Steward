@@ -33,6 +33,7 @@ import { duplicateRoutes } from '../duplicate/routes.js';
 import { postmanExportRoutes } from '../export/routes.js';
 import { assuranceRoutes } from './assurance.js';
 import { aiRoutes } from '../ai/routes.js';
+import { plantRoutes } from '../plant/routes.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await authRoutes(app);
@@ -69,6 +70,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await onboardingRoutes(app);
   await duplicateRoutes(app);
   await postmanExportRoutes(app);
+  // the plant registry module (#218): its routes answer 404 while it is off
+  await plantRoutes(app);
 
   await demoSetupRoutes(app);
 }

@@ -36,6 +36,7 @@ import { DEMO_AWS } from '../mock/mockAws.js';
 import { DEMO_DTRACK } from '../mock/mockDtrack.js';
 import { DEMO_SNOWFLAKE, setSnowflakePublicKey } from '../mock/mockSnowflake.js';
 import { DEMO_GRAPH } from '../mock/mockGraph.js';
+import { seedPlantDemo } from '../plant/demo.js';
 import { DEMO_PVAULT } from '../mock/mockPrivilegeVault.js';
 import { DEMO_LLM } from '../mock/mockLlmGateway.js';
 
@@ -628,6 +629,12 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
   await setupComplianceDemo(platformByKind.get('insights-hub'));
   // ---- access checks of Snowflake, AWS and GitHub, so person reviews span several platforms ----
   await setupAccessSourcesDemo(platformByKind);
+  // ---- the plant registry's invented enterprise, when the module is on (plant/demo.ts) ----
+  try {
+    seedPlantDemo();
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'plant registry demo data not loaded');
+  }
 
   audit({
     action: 'demo.setup',

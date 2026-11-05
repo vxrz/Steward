@@ -24,6 +24,7 @@ Everyone else does not see a team-owned resource. It answers like one that does 
 | Credential                            | readers by role; editors and owners change it                         | members with a reading or editing role                            |
 | Dashboard                             | everybody sees it; its owner changes it                               | members see it                                                    |
 | Ticket reference                      | everybody sees it; editors and responsibles change it                 | editors change it                                                 |
+| Plant registry site (with its assets) | everybody sees it; designers manage it; an access list restricts it   | designers among the members manage it; the access list adds more  |
 
 **Child objects follow their parent.** Components, duties, objectives and CIA ratings follow their service or application; editions, reviews, attachments and links follow their record; schedules and runs follow their process.
 

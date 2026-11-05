@@ -9,6 +9,8 @@ import { credentialAccess } from '../credentials/service.js';
 import { monitorAccess } from '../monitors/model.js';
 import { dashboardAccess } from '../dashboards/service.js';
 import { ticketAccess } from '../tickets/service.js';
+import { siteAccess } from '../plant/access.js';
+import { plantEnabled } from '../plant/settings.js';
 import { ACCESS, me } from './access.js';
 import { capabilities, isAdmin } from './permissions.js';
 import {
@@ -66,6 +68,8 @@ export function ownedResource(kind: OwnedKind, id: string): ResourceRow | undefi
   if (kind === 'monitor') return db().get<ResourceRow>('SELECT id, name, owner, acl FROM monitors WHERE id = ?', id);
   if (kind === 'dashboard') return db().get<ResourceRow>('SELECT id, name, owner FROM dashboards WHERE id = ?', id);
   if (kind === 'ticket') return db().get<ResourceRow>("SELECT id, external_number || ' ' || title AS name, responsible FROM ticket_refs WHERE id = ?", id);
+  // plant registry sites (#218): only while the module is on
+  if (kind === 'site') return plantEnabled() ? db().get<ResourceRow>('SELECT id, name, acl FROM plant_sites WHERE id = ?', id) : undefined;
   return db().get<ResourceRow>(`SELECT id, name, owners FROM ${CATALOGUE_TABLES[kind]} WHERE id = ?`, id);
 }
 const resource = ownedResource;
@@ -83,6 +87,7 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
   if (kind === 'monitor') return monitorAccess(u, { id: r.id, owner: r.owner ?? '', acl: parseJson(r.acl, []) });
   if (kind === 'dashboard') return dashboardAccess(u, { id: r.id, owner: r.owner ?? null });
   if (kind === 'ticket') return ticketAccess(u, { id: r.id, responsible: r.responsible ?? '[]' });
+  if (kind === 'site') return siteAccess(u, { id: r.id, acl: r.acl ?? '[]' });
   if (!isCatalogue(kind)) return { permissions: [], reasons: [] };
   const d = catalogueAccess(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
   return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : [])], reasons: d.reasons };
@@ -99,6 +104,7 @@ const NOT_FOUND: Record<OwnedKind, [string, string]> = {
   monitor: ['Monitor not found', 'MONITOR_NOT_FOUND'],
   dashboard: ['Dashboard not found', 'DASHBOARD_NOT_FOUND'],
   ticket: ['Ticket reference not found', 'TICKET_NOT_FOUND'],
+  site: ['Site not found', 'PLANT_SITE_NOT_FOUND'],
 };
 const notFound = (kind: OwnedKind, id: string) => new HttpError(404, NOT_FOUND[kind][0], NOT_FOUND[kind][1], { id });
 
