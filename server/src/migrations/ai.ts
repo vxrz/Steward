@@ -58,4 +58,10 @@ export const AI_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // parent_process_ids: the processes of the runs above a sub-process run (",p1,p2,"), so a process's budget also
+    // covers the calls of its sub-processes
+    name: 'ai-002-usage-parent-processes',
+    sql: `ALTER TABLE ai_usage ADD COLUMN parent_process_ids TEXT NOT NULL DEFAULT '';`,
+  },
 ];

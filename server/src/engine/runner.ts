@@ -1839,6 +1839,10 @@ async function execAi(step: NodeOf<'ai'>, ctx: RunContext, key: string): Promise
   const res = await runAiStep(step, {
     runId: ctx.runId,
     processId: ctx.processId,
+    parentProcessIds: store
+      .ancestorChain(ctx.runId)
+      .slice(1)
+      .map((a) => a.processId),
     processName: ctx.def.name,
     processVersion: store.runRow(ctx.runId).process_version ?? null,
     stepKey: key,

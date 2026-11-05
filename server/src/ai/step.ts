@@ -34,6 +34,8 @@ import { DATASET, INPUT, resultVars } from './provenance.js';
 export interface AiStepIo {
   runId: string;
   processId: string;
+  /** The processes of the runs above this one (a sub-process run): the call counts against their budgets too */
+  parentProcessIds: string[];
   processName: string;
   processVersion: number | null;
   stepKey: string;
@@ -221,6 +223,7 @@ export async function runAiStep(step: NodeOf<'ai'>, io: AiStepIo): Promise<{ out
   const answerFormat = step.answer ?? 'text';
   const facts: CallFacts = {
     processId: io.processId,
+    parentProcessIds: io.parentProcessIds,
     processName: io.processName,
     processVersion: io.processVersion,
     runId: io.runId,

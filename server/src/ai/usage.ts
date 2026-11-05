@@ -10,6 +10,7 @@ import {
   type AiUsageTotals,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { likeEscape } from '../database/sql.js';
 import { audit } from '../audit.js';
 import { currentActor, currentUser } from '../auth/context.js';
 import { capabilities } from '../auth/permissions.js';
@@ -75,9 +76,12 @@ const scopeColumn: Record<AiBudgetScope, string | null> = { installation: null, 
 /** Tokens counted in a period for a scope. */
 function used(scope: AiBudgetScope, scopeId: string, period: 'day' | 'month', key: string): number {
   const col = scopeColumn[scope];
+  // a process's calls and those of its sub-process runs (ids that differ only in case would count for each other: never less)
+  const where = !col ? '' : scope === 'process' ? ` AND (${col} = ? OR lower(parent_process_ids) LIKE ? ESCAPE '\\')` : ` AND ${col} = ?`;
   const r = db().get<{ n: number | null }>(
-    `SELECT SUM(input_tokens + output_tokens) AS n FROM ai_usage WHERE ${period} = ? AND ${COUNTED_SQL}${col ? ` AND ${col} = ?` : ''}`,
-    ...(col ? [key, scopeId] : [key]),
+    `SELECT SUM(input_tokens + output_tokens) AS n FROM ai_usage WHERE ${period} = ? AND ${COUNTED_SQL}${where}`,
+    key,
+    ...(!col ? [] : scope === 'process' ? [scopeId, `%,${likeEscape(scopeId.toLowerCase())},%`] : [scopeId]),
   );
   return Number(r?.n ?? 0);
 }
@@ -198,6 +202,8 @@ export function setBudget(input: {
 
 export interface CallFacts {
   processId: string | null;
+  /** The processes of the runs above a sub-process run: the call counts against their budgets too */
+  parentProcessIds?: string[];
   processName: string | null;
   processVersion: number | null;
   runId: string | null;
@@ -230,15 +236,17 @@ const refusalText = (r: Refusal): string =>
   `(estimated input plus the most output) – it is refused until the ${r.period === 'day' ? 'day' : 'month'} ends (UTC) or an administrator raises the budget`;
 export { refusalText };
 
-/** The scopes a call is counted in. */
-const scopesOf = (f: Pick<CallFacts, 'platformId' | 'processId'>): [AiBudgetScope, string][] => [
+type ScopeFacts = Pick<CallFacts, 'platformId' | 'processId' | 'parentProcessIds'>;
+
+/** The scopes a call is counted in: a process's budget covers its sub-processes (the call of a child run counts for every process above it). */
+const scopesOf = (f: ScopeFacts): [AiBudgetScope, string][] => [
   ['installation', ''],
   ['platform', f.platformId],
-  ...(f.processId ? ([['process', f.processId]] as [AiBudgetScope, string][]) : []),
+  ...[...new Set([f.processId, ...(f.parentProcessIds ?? [])])].filter((id): id is string => !!id).map((id): [AiBudgetScope, string] => ['process', id]),
 ];
 
 /** The budget a call of this worst case would go past, if any (without reserving). */
-export function budgetRefusal(f: Pick<CallFacts, 'platformId' | 'processId'>, needed: number, now = nowIso()): Refusal | null {
+export function budgetRefusal(f: ScopeFacts, needed: number, now = nowIso()): Refusal | null {
   for (const [scope, id] of scopesOf(f)) {
     const b = budgetRow(scope, id);
     if (!b) continue;
@@ -256,8 +264,8 @@ function insertRow(f: CallFacts, result: AiCallResult, input: number, output: nu
   const id = newId('aiu_');
   db().run(
     `INSERT INTO ai_usage (id, ts, day, month, process_id, process_name, process_version, run_id, step_key, platform_id, platform_name, model, format,
-       input_tokens, output_tokens, estimated_input_tokens, duration_ms, result, reason, cost, prompt_fingerprint, input_fingerprint, actor)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NULL, ?, ?, ?)`,
+       input_tokens, output_tokens, estimated_input_tokens, duration_ms, result, reason, cost, prompt_fingerprint, input_fingerprint, actor, parent_process_ids)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NULL, ?, ?, ?, ?)`,
     id,
     ts,
     dayOf(ts),
@@ -279,6 +287,7 @@ function insertRow(f: CallFacts, result: AiCallResult, input: number, output: nu
     f.promptFingerprint,
     f.inputFingerprint,
     f.actor,
+    f.parentProcessIds?.length ? `,${f.parentProcessIds.join(',')},` : '',
   );
   return id;
 }
@@ -377,7 +386,7 @@ export function onBudgetNotice(fn: NoticeHook): void {
 }
 
 /** Sends the 80 % and the 100 % notice of each budget of a call once per period. */
-export function checkNotices(f: Pick<CallFacts, 'platformId' | 'processId'>, now = nowIso()): void {
+export function checkNotices(f: ScopeFacts, now = nowIso()): void {
   for (const [scope, id] of scopesOf(f)) {
     const u = budgetUse(scope, id, now);
     for (const period of ['day', 'month'] as const) {

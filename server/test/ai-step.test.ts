@@ -633,6 +633,44 @@ describe('budgets', () => {
     await budget({ scope: 'process', scopeId: proc.id, tokensPerDay: null, tokensPerMonth: null });
   });
 
+  it("a process's budget covers its sub-processes: a child run's calls count against the parent too", async () => {
+    const child = await s.api('POST', '/processes', {
+      definition: {
+        name: 'Budget child',
+        connections: [{ slot: 'llm', kind: LLM_GATEWAY_KIND }],
+        nodes: [
+          n('start', 'start'),
+          n('ask', 'ai', { connection: 'llm', model: 'demo-chat-small', prompt: 'Say hello', maxOutputTokens: 30, saveAs: 'answer' }),
+        ],
+        wires: [w('start', 'ask')],
+      },
+    });
+    const parent = await s.api('POST', '/processes', {
+      definition: {
+        name: 'Budget parent',
+        connections: [{ slot: 'llm', kind: LLM_GATEWAY_KIND }],
+        nodes: [n('start', 'start'), n('sub', 'subprocess', { process: child.id })],
+        wires: [w('start', 'sub')],
+      },
+    });
+    const go = async () => {
+      const { id } = await s.api('POST', '/runs', { processId: parent.id, bindings: { llm: gateway } });
+      return s.waitRun(id, DONE);
+    };
+    expect((await go()).status).toBe('succeeded');
+    const rows = await usage('process_id = ?', child.id);
+    expect(rows[0].parent_process_ids).toBe(`,${parent.id},`);
+    const spent = rows[0].input_tokens + rows[0].output_tokens;
+    // what the child used is used up of the parent's budget
+    await budget({ scope: 'process', scopeId: parent.id, tokensPerDay: spent + 10, tokensPerMonth: null });
+    const refused = await go();
+    expect(refused.status).toBe('failed');
+    expect(refused.error).toMatch(/AI_BUDGET_EXHAUSTED: the daily AI budget of process "Budget parent" \(.+ tokens\) has .+ left/);
+    // the budget page counts the child's calls for the parent
+    expect((await s.api('GET', '/ai/budgets')).budgets.find((b: any) => b.scope === 'process' && b.scopeId === parent.id)).toMatchObject({ usedToday: spent });
+    await budget({ scope: 'process', scopeId: parent.id, tokensPerDay: null, tokensPerMonth: null });
+  });
+
   it('the installation and the gateway have budgets too; a used-up one is shown as exhausted', async () => {
     const used = (await s.api('GET', `/platforms/${gateway}/ai/usage`)).budgets[1].usedToday;
     await budget({ scope: 'platform', scopeId: gateway, tokensPerDay: used, tokensPerMonth: null });
