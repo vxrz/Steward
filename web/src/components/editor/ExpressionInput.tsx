@@ -168,6 +168,8 @@ export function ExpressionInput({
         zIndex={1000}
         middlewares={{ flip: true, shift: true }}
         shadow="md"
+        // the textarea announces the list itself (below); Popover's roles would add aria-expanded to it
+        withRoles={false}
       >
         <Popover.Target>
           <Textarea
@@ -186,8 +188,9 @@ export function ExpressionInput({
             classNames={{ input: 'mono' }}
             value={value}
             aria-label={rest['aria-label']}
+            // a textarea keeps its textbox role: aria-expanded is not allowed on it (axe aria-allowed-attr), the list is
+            // announced through aria-controls and the active option through aria-activedescendant
             aria-autocomplete="list"
-            aria-expanded={open}
             aria-controls={open ? listId : undefined}
             aria-activedescendant={open ? `${listId}-${active}` : undefined}
             onChange={(e) => {
