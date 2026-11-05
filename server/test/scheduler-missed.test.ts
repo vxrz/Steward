@@ -149,14 +149,23 @@ describe('missed schedule fires', () => {
     await s.waitRun(blocker.id, ['succeeded']);
     db().run("UPDATE runs SET status = 'running' WHERE id = ?", blocker.id);
     db().run('UPDATE schedules SET enabled = 1, last_run_id = ? WHERE id = ?', blocker.id, ids.off);
+    const lastFired = () => db().get<{ last_fired_at: string | null }>('SELECT last_fired_at FROM schedules WHERE id = ?', ids.off)!.last_fired_at;
     sch.startScheduler();
-    await new Promise((r) => setTimeout(r, 2300));
-    sch.stopScheduler();
-    db().run("UPDATE runs SET status = 'succeeded' WHERE id = ?", blocker.id);
-    db().run('UPDATE schedules SET enabled = 0 WHERE id = ?', ids.off);
-    const r = db().get<{ last_fired_at: string | null }>('SELECT last_fired_at FROM schedules WHERE id = ?', ids.off)!;
-    expect(Date.now() - Date.parse(r.last_fired_at!)).toBeLessThan(3000);
-    expect(audits('schedule.skipped').some((a) => a.entity_id === ids.off)).toBe(true);
+    // wait for the first fire instead of a fixed time: on a busy CI runner the timer of the next second can come late
+    try {
+      await vi.waitFor(
+        () => {
+          expect(lastFired()).not.toBeNull();
+          expect(audits('schedule.skipped').some((a) => a.entity_id === ids.off)).toBe(true);
+        },
+        { timeout: 10_000, interval: 50 },
+      );
+    } finally {
+      sch.stopScheduler();
+      db().run("UPDATE runs SET status = 'succeeded' WHERE id = ?", blocker.id);
+      db().run('UPDATE schedules SET enabled = 0 WHERE id = ?', ids.off);
+    }
+    expect(Date.now() - Date.parse(lastFired()!)).toBeLessThan(3000);
   });
 
   it('keeps catchUp when an older client saves without it, and changes it when sent (audited)', async () => {
