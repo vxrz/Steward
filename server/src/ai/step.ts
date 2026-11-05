@@ -4,6 +4,7 @@ import {
   LLM_GATEWAY_KIND,
   datasetAllowed,
   fillPrompt,
+  jsonSchemaProblem,
   modelInputCeiling,
   promptVariables,
   type AiContextSource,
@@ -197,6 +198,9 @@ export function parseJsonAnswer(text: string, schema: Record<string, unknown>): 
     }
   }
   if (!parsed) return { ok: false, problem: 'the answer is not JSON' };
+  // checked when the process is saved; again here, so no saved schema can run a regular expression on an answer
+  const unusable = jsonSchemaProblem(schema);
+  if (unusable) return { ok: false, problem: `the JSON Schema cannot be used: ${unusable}` };
   const check = z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]).safeParse(value);
   if (check.success) return { ok: true, value: check.data };
   const issues = check.error.issues.slice(0, 5).map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);

@@ -1198,12 +1198,43 @@ function checkAi(n: NodeOf<'ai'>, i: number, d: ProcessDefinition, byId: Map<str
 export function jsonSchemaProblem(schema: unknown): string | null {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return 'it must be an object';
   if (JSON.stringify(schema).length > AI_LIMITS.schemaChars) return `it is larger than ${AI_LIMITS.schemaChars} characters`;
+  const regex = regexKeyword(schema, 0);
+  if (regex) return `the keyword "${regex}" is not supported – regular expressions are not run on a model's answer (check the text in a later step instead)`;
   try {
     z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]);
     return null;
   } catch (e) {
     return (e as Error).message.slice(0, 300);
   }
+}
+
+/** Keywords whose values are maps of names to schemas (the names are no keywords) */
+const SCHEMA_MAPS = new Set(['properties', '$defs', 'definitions', 'dependentSchemas']);
+/** Keywords whose values are data, not schemas */
+const SCHEMA_DATA = new Set(['const', 'enum', 'default', 'examples']);
+
+/** "pattern" or "patternProperties" anywhere in a schema (a regular expression made from them could run for long: ReDoS). */
+function regexKeyword(schema: unknown, depth: number): string | null {
+  if (depth > 64) return null;
+  if (Array.isArray(schema)) {
+    for (const x of schema) {
+      const r = regexKeyword(x, depth + 1);
+      if (r) return r;
+    }
+    return null;
+  }
+  if (!schema || typeof schema !== 'object') return null;
+  const o = schema as Record<string, unknown>;
+  for (const k of ['pattern', 'patternProperties']) if (k in o) return k;
+  for (const [k, v] of Object.entries(o)) {
+    if (SCHEMA_DATA.has(k)) continue;
+    const children = SCHEMA_MAPS.has(k) && v && typeof v === 'object' && !Array.isArray(v) ? Object.values(v) : [v];
+    for (const c of children) {
+      const r = regexKeyword(c, depth + 1);
+      if (r) return r;
+    }
+  }
+  return null;
 }
 
 /** Methods treated as write operations (skipped in dry runs). */
