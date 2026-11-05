@@ -11,6 +11,7 @@ import {
   DOCUMENT_RECORD_TYPE,
   DEFAULT_RECORD_TYPES,
   LINK_KINDS,
+  PLANT_LINK_KINDS,
   RECORD_STATUS_COLORS,
   type Backlink,
   type ItemLink,
@@ -20,6 +21,7 @@ import {
   INCIDENT_RECORD_TYPE,
 } from '@sm/shared';
 import { get, notifyError } from '../../api';
+import { useMe } from '../../auth';
 import { confirmDanger } from '../confirm';
 import { LinkTypeIconView, linkTypeOf, useLinkTypeName, useLinkTypes } from './linkTypes';
 
@@ -281,6 +283,9 @@ function LinkModal({
   const [note, setNote] = useState(link?.note ?? '');
   const [busy, setBusy] = useState(false);
   const types = useLinkTypes();
+  // sites and assets only while the plant registry module is on (#218)
+  const { caps } = useMe();
+  const linkKinds = LINK_KINDS.filter((k) => caps.plant || !(PLANT_LINK_KINDS as readonly string[]).includes(k));
   const typeName = useLinkTypeName();
   const targets = useQuery({
     queryKey: ['link-targets', kind, debounced],
@@ -315,7 +320,7 @@ function LinkModal({
       <Stack gap="sm">
         <Select
           label={t('links.kind')}
-          data={[...LINK_KINDS, 'external' as const].map((k) => ({ value: k, label: t(`links.kinds.${k}`) }))}
+          data={[...linkKinds, 'external' as const].map((k) => ({ value: k, label: t(`links.kinds.${k}`) }))}
           value={kind}
           onChange={(v) => v && setKind(v as LinkKind | 'external')}
           allowDeselect={false}

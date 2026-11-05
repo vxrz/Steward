@@ -355,7 +355,9 @@
       "credential": "Credential",
       "application": "Application",
       "external": "External link",
-      "system": "System"
+      "system": "System",
+      "site": "Site",
+      "asset": "Asset"
     },
     "target": "Target",
     "search": "Type to search",

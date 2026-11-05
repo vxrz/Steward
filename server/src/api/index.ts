@@ -64,6 +64,10 @@ const TAGS = [
     name: 'Compliance',
     description: 'Access governance evidence: access change entries, access reconciliation findings, control catalogues and evidence coverage',
   },
+  {
+    name: 'Plant',
+    description: 'The plant registry (opt-in module): sites with their ISA-95 hierarchy (area, work center, work unit) and buildings, and the assets in them',
+  },
 ];
 
 const problemContent = { 'application/problem+json': { schema: { $ref: '#/components/schemas/Problem' } } };

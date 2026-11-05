@@ -1,0 +1,387 @@
+import type { AclEntry, AccessReason } from './api.js';
+import type { Backlink, ItemLink } from './records.js';
+
+/**
+ * Plant registry (#217, #218): an opt-in module, off by default (Settings → Modules). The sites of the enterprise
+ * (the installation), their role-based equipment hierarchy after ISA-95 / IEC 62264 (area → work center → work unit),
+ * a second, spatial axis of buildings (IEC 81346: function and location stay apart; the innermost building wins), and
+ * the assets in them. See docs/PLANT.md and docs/adr/0007-plant-registry.md.
+ *
+ * Ids are stable: chosen by people or by the import file, never changed afterwards (links and imports rely on them).
+ */
+
+/** The record types of the module (own fields and display names are per type). */
+export const PLANT_RECORD_TYPES = ['site', 'area', 'workCenter', 'workUnit', 'building', 'asset'] as const;
+export type PlantRecordType = (typeof PLANT_RECORD_TYPES)[number];
+
+/** The ISA-95 levels below a site. */
+export const PLANT_LEVELS = ['area', 'work_center', 'work_unit'] as const;
+export type PlantLevel = (typeof PLANT_LEVELS)[number];
+export const LEVEL_RECORD_TYPE: Record<PlantLevel, PlantRecordType> = { area: 'area', work_center: 'workCenter', work_unit: 'workUnit' };
+
+/** ISA-95 (IEC 62264-1) kinds of work centers and work units; optional. */
+export const WORK_CENTER_TYPES = ['production_line', 'production_unit', 'process_cell', 'storage_zone'] as const;
+export const WORK_UNIT_TYPES = ['unit', 'work_cell', 'storage_unit'] as const;
+export type WorkCenterType = (typeof WORK_CENTER_TYPES)[number];
+export type WorkUnitType = (typeof WORK_UNIT_TYPES)[number];
+
+/** Kinds of a place on the spatial axis. */
+export const BUILDING_KINDS = ['building', 'hall', 'floor', 'room', 'outdoor', 'other'] as const;
+export type BuildingKind = (typeof BUILDING_KINDS)[number];
+
+/** Where an asset stands in its life. */
+export const ASSET_STATUSES = ['planned', 'commissioning', 'operational', 'maintenance', 'out_of_service', 'decommissioned'] as const;
+export type AssetStatus = (typeof ASSET_STATUSES)[number];
+
+/** Rights on a site (and everything in it): see it, change it. */
+export const PLANT_PERMISSIONS = ['view', 'manage'] as const;
+export type PlantPermission = (typeof PLANT_PERMISSIONS)[number];
+
+/** Stable ids: lower case letters, digits and . _ - (the import file's ids, so they read well in YAML and URLs). */
+export const PLANT_ID_RE = /^[a-z0-9][a-z0-9._-]{0,79}$/;
+/** Keys of own fields (snake_case, as in the import file). */
+export const PLANT_FIELD_KEY_RE = /^[a-z][a-z0-9_]{0,39}$/;
+/** Language codes of translated names (en, de, pt-BR …). */
+export const PLANT_LANG_RE = /^[a-z]{2}(-[A-Z]{2})?$/;
+
+export const PLANT_LIMITS = {
+  id: 80,
+  code: 20,
+  name: 200,
+  description: 4000,
+  translations: 10,
+  contacts: 20,
+  refs: 30,
+  tags: 50,
+  tag: 60,
+  capabilities: 50,
+  capability: 200,
+  text: 200,
+  fieldDefs: 40,
+  fieldOptions: 50,
+  fieldText: 2000,
+  sites: 500,
+  nodesPerSite: 5000,
+  buildingsPerSite: 1000,
+  assets: 50_000,
+  imageBytes: 512 * 1024,
+  imagePixels: 4096,
+  /** Import: files, bytes of all files together, nesting depth of a document */
+  importFiles: 500,
+  importBytes: 8 * 1024 * 1024,
+  importDepth: 12,
+} as const;
+
+/** Version of the import and export format (docs/plant/plant-registry-1.schema.json). */
+export const PLANT_FORMAT_VERSION = 1;
+
+export type Translations = Record<string, string>;
+
+export interface ExternalRef {
+  /** The other tool, e.g. erp, cmms, inventory (free text, lower case recommended) */
+  system: string;
+  /** The record's id there */
+  id: string;
+  /** Its page there (http/https), or empty */
+  url: string;
+  /** Optional label */
+  label: string;
+}
+
+export interface SiteContact {
+  name: string;
+  role: string;
+  email: string;
+  phone: string;
+  url: string;
+}
+
+export interface GeoPosition {
+  lat: number;
+  lon: number;
+  /** Map zoom level (OpenStreetMap: 0–19) */
+  zoom: number | null;
+}
+
+/** Where a record came from: the last import that wrote it, and whether that import's file still contains it. */
+export interface PlantSource {
+  importId: string | null;
+  /** Kept although the import that replaced its earlier one did not contain it any more */
+  notInSource: boolean;
+}
+
+export interface PlantStamp {
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export type FieldValues = Record<string, string | number | boolean | null>;
+
+export interface PlantNode extends PlantSource {
+  id: string;
+  level: PlantLevel;
+  /** The area of a work center, the work center of a work unit (null for areas) */
+  parentId: string | null;
+  name: string;
+  names: Translations;
+  /** ISA-95 kind (work centers and work units), or empty */
+  type: string;
+  /** Manufacturing domain (areas; optional) */
+  domain: string;
+  /** The building the node names (or null: it inherits its parent's) */
+  buildingId: string | null;
+  /** The innermost building of the node and its parents (null: none) */
+  effectiveBuildingId: string | null;
+  description: string;
+  fields: FieldValues;
+  /** Assets placed exactly here */
+  assetCount: number;
+  children: PlantNode[];
+}
+
+export interface PlantBuilding extends PlantSource {
+  id: string;
+  name: string;
+  names: Translations;
+  kind: BuildingKind;
+  /** A building part (floor, room) names the building it is in */
+  parentId: string | null;
+  description: string;
+  fields: FieldValues;
+  /** Nodes that name this building */
+  nodeCount: number;
+  /** Assets whose effective building this is */
+  assetCount: number;
+}
+
+export interface PlantSiteSummary extends PlantSource {
+  id: string;
+  code: string;
+  name: string;
+  names: Translations;
+  description: string;
+  geo: GeoPosition | null;
+  areaCount: number;
+  buildingCount: number;
+  assetCount: number;
+  /** Assets by status */
+  statusCounts: Partial<Record<AssetStatus, number>>;
+  canManage: boolean;
+  updatedAt: string;
+}
+
+export interface PlantSiteDetail extends PlantSiteSummary, PlantStamp {
+  contacts: SiteContact[];
+  refs: ExternalRef[];
+  fields: FieldValues;
+  /** The areas with their work centers and work units */
+  areas: PlantNode[];
+  buildings: PlantBuilding[];
+  /** Only for who may manage the site */
+  acl: AclEntry<PlantPermission>[] | null;
+  permissions: PlantPermission[];
+  links: ItemLink[];
+  backlinks: Backlink[];
+}
+
+/** A node of the hierarchy as an asset's location shows it. */
+export interface PlantPlace {
+  id: string;
+  name: string;
+  names: Translations;
+}
+
+export interface AssetLocation {
+  site: PlantPlace & { code: string };
+  area: PlantPlace | null;
+  workCenter: PlantPlace | null;
+  workUnit: PlantPlace | null;
+  /** The asset's own building (override), or null */
+  buildingId: string | null;
+  /** The building that applies: the asset's own, else the innermost one of its work unit, work center, area */
+  building: (PlantPlace & { kind: BuildingKind }) | null;
+  /** Where the building comes from */
+  buildingFrom: 'asset' | 'work_unit' | 'work_center' | 'area' | null;
+}
+
+export interface AssetRef {
+  id: string;
+  name: string;
+  status: AssetStatus;
+  /** False: the asset is in a site the reader may not see (then name is empty) */
+  visible: boolean;
+}
+
+export interface PlantAssetSummary extends PlantSource {
+  id: string;
+  name: string;
+  manufacturer: string;
+  model: string;
+  status: AssetStatus;
+  siteId: string;
+  location: AssetLocation;
+  domain: string;
+  processArea: string;
+  role: string;
+  tags: string[];
+  parentId: string | null;
+  childCount: number;
+  hasImage: boolean;
+  updatedAt: string;
+}
+
+export interface PlantAssetDetail extends PlantAssetSummary, PlantStamp {
+  description: string;
+  capabilities: string[];
+  commissioned: string | null;
+  endOfSupport: string | null;
+  /** The name of the image file in the source (import), kept for the export */
+  imageName: string;
+  image: { mime: string; size: number; width: number; height: number; sha256: string; updatedAt: string } | null;
+  refs: ExternalRef[];
+  fields: FieldValues;
+  parent: AssetRef | null;
+  children: AssetRef[];
+  canManage: boolean;
+  links: ItemLink[];
+  backlinks: Backlink[];
+}
+
+// ---------- settings ----------
+
+export const PLANT_FIELD_KINDS = ['text', 'number', 'date', 'boolean', 'select', 'url'] as const;
+export type PlantFieldKind = (typeof PLANT_FIELD_KINDS)[number];
+
+export interface PlantFieldDef {
+  key: string;
+  label: string;
+  /** Translated labels */
+  labels: Translations;
+  kind: PlantFieldKind;
+  required: boolean;
+  options: string[];
+  help: string;
+}
+
+/** A display name of a record type in one language (singular and plural). */
+export interface PlantLabel {
+  one: string;
+  other: string;
+}
+
+export interface PlantSettings {
+  enabled: boolean;
+  /** The enterprise this installation documents (the root of the export) */
+  enterprise: string;
+  /** Own names of the record types per language: { asset: { en: { one: 'Machine', other: 'Machines' } } } */
+  labels: Partial<Record<PlantRecordType, Record<string, PlantLabel>>>;
+  /** Own fields per record type */
+  fields: Partial<Record<PlantRecordType, PlantFieldDef[]>>;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+/** GET /api/plant/config: what every page of the module needs. */
+export interface PlantConfig {
+  enterprise: string;
+  labels: PlantSettings['labels'];
+  fields: PlantSettings['fields'];
+  /** The signed-in person may create sites */
+  canCreateSites: boolean;
+  /** The signed-in person may manage at least one site (import, new asset) */
+  canManageSome: boolean;
+}
+
+/** GET /api/plant/hierarchy: the sites with their trees and buildings (pickers and filters). */
+export interface PlantHierarchySite {
+  id: string;
+  code: string;
+  name: string;
+  names: Translations;
+  canManage: boolean;
+  areas: PlantNode[];
+  buildings: PlantBuilding[];
+}
+
+// ---------- import ----------
+
+export const PLANT_IMPORT_MODES = ['add', 'update', 'replace'] as const;
+export type PlantImportMode = (typeof PLANT_IMPORT_MODES)[number];
+/** Replace: what happens to records of the earlier import that the file does not contain any more */
+export const PLANT_MISSING = ['remove', 'mark'] as const;
+export type PlantMissing = (typeof PLANT_MISSING)[number];
+
+export type PlantChangeKind = 'site' | 'area' | 'work_center' | 'work_unit' | 'building' | 'asset';
+export type PlantChangeAction = 'add' | 'change' | 'remove' | 'mark' | 'unchanged' | 'skip';
+
+export interface PlantChange {
+  kind: PlantChangeKind;
+  action: PlantChangeAction;
+  /** The site of the record (sites: their own id) */
+  siteId: string;
+  id: string;
+  name: string;
+  /** Fields that differ (changes) */
+  fields?: string[];
+  /** A note: why it is skipped, what else changes */
+  note?: string;
+}
+
+export interface PlantImportProblem {
+  /** The file, and where in it (sites[0].areas[2].id) */
+  file: string;
+  path: string;
+  message: string;
+}
+
+export type PlantCounts = Record<'add' | 'change' | 'remove' | 'mark' | 'unchanged' | 'skip', number>;
+
+export interface PlantImportPreview {
+  ok: boolean;
+  mode: PlantImportMode;
+  missing: PlantMissing;
+  /** Replace: the earlier import */
+  replaces: { id: string; createdAt: string; createdBy: string; files: string[] } | null;
+  files: { name: string; sha256: string; bytes: number }[];
+  /** SHA-256 of all files together (in the order given) */
+  sha256: string;
+  problems: PlantImportProblem[];
+  warnings: PlantImportProblem[];
+  changes: PlantChange[];
+  counts: PlantCounts;
+  /** Counts per kind */
+  byKind: Partial<Record<PlantChangeKind, PlantCounts>>;
+}
+
+export interface PlantImportSummary {
+  id: string;
+  createdAt: string;
+  createdBy: string;
+  mode: PlantImportMode;
+  missing: PlantMissing;
+  replaces: string | null;
+  files: { name: string; sha256: string; bytes: number }[];
+  sha256: string;
+  counts: PlantCounts;
+  sites: string[];
+  /** Records this import wrote that are still there */
+  records: number;
+}
+
+export interface PlantImportResult extends PlantImportPreview {
+  import: PlantImportSummary;
+}
+
+/** Why someone has a right on a site (for the access panel). */
+export interface PlantAccessInfo {
+  permissions: PlantPermission[];
+  reasons: AccessReason[];
+}
+
+/** The name of a plant record in a language: the translation, or the name. */
+export function plantName(x: { name: string; names?: Translations | null }, lang?: string | null): string {
+  if (!lang || !x.names) return x.name;
+  return x.names[lang] ?? x.names[lang.split('-')[0]!] ?? x.name;
+}

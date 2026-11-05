@@ -52,3 +52,4 @@ export * from './network.js';
 export * from './entra.js';
 export * from './assurance.js';
 export * from './pvault.js';
+export * from './plant.js';

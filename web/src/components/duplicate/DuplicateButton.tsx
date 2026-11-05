@@ -33,6 +33,7 @@ const ENDPOINT: Record<DuplicateKind, (id: string) => string> = {
   'access-check': (id) => `/compliance/access-checks/${id}/duplicate`,
   'status-page': (id) => `/status-pages/${id}/duplicate`,
   system: (id) => `/systems/${id}/duplicate`,
+  asset: (id) => `/plant/assets/${encodeURIComponent(id)}/duplicate`,
 };
 
 /** The list queries a copy shows up in. */
@@ -49,6 +50,7 @@ const LIST_KEYS: Record<DuplicateKind, string[]> = {
   'access-check': ['access-checks'],
   'status-page': ['status-pages'],
   system: ['systems'],
+  asset: ['plant'],
 };
 
 /** Errors shown at a field of the dialog. */
@@ -58,6 +60,7 @@ const FIELD_OF: Record<string, 'name' | 'key'> = {
   SERVICE_EXISTS: 'name',
   SYSTEM_EXISTS: 'name',
   DUPLICATE_KEY_TAKEN: 'key',
+  PLANT_ID_TAKEN: 'key',
   MONITOR_KEY_INVALID: 'key',
   MONITOR_KEY_RESERVED: 'key',
 };

@@ -17,7 +17,7 @@ import type {
 
 // ---------- Users, roles, permissions ----------
 
-export const ROLES = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer', 'status'] as const;
+export const ROLES = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer', 'status', 'plant'] as const;
 export type Role = (typeof ROLES)[number];
 
 export const ROLE_INFO: Record<Role, string> = {
@@ -28,6 +28,7 @@ export const ROLE_INFO: Record<Role, string> = {
   auditor: 'Read-only access to all processes, runs, protocols and the audit log',
   viewer: 'Read-only access to processes and their runs (unless restricted)',
   status: 'Only the service status pages – none of the other pages, processes, platforms or data',
+  plant: 'Read-only access to the plant registry (sites and assets, unless a site is restricted) – no processes, platforms or monitors',
 };
 
 export const PROCESS_PERMISSIONS = ['view', 'run', 'edit', 'approve', 'manage'] as const;
@@ -281,7 +282,19 @@ export const TEAM_ROLES = ['designer', 'operator', 'approver', 'auditor', 'viewe
 export type TeamRole = (typeof TEAM_ROLES)[number];
 
 /** Kinds of resources that can have owning teams (#131). */
-export const OWNED_KINDS = ['process', 'platform', 'service', 'application', 'system', 'record', 'credential', 'monitor', 'dashboard', 'ticket'] as const;
+export const OWNED_KINDS = [
+  'process',
+  'platform',
+  'service',
+  'application',
+  'system',
+  'record',
+  'credential',
+  'monitor',
+  'dashboard',
+  'ticket',
+  'site',
+] as const;
 export type OwnedKind = (typeof OWNED_KINDS)[number];
 
 /** Why someone has a right on a resource (#131): shown in the UI and used in access reviews. */
@@ -321,6 +334,10 @@ export interface Capabilities {
   viewAutomation?: boolean;
   /** The sidebar shows Credentials (a role that may read the register, or an entry the user owns). Missing means true. */
   viewCredentials?: boolean;
+  /** The plant registry module is on and the user may use it (the sidebar's Plant area, link kinds site and asset). Missing means false. */
+  plant?: boolean;
+  /** With the module on: the user may manage a site or add one (the sidebar's Import). Missing means false. */
+  plantManage?: boolean;
 }
 
 export interface Me {

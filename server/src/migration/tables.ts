@@ -114,6 +114,8 @@ export const USER_REFS: UserRef[] = [
   // the owners a service had on the day of the snapshot: mapped, so the trend per owner names the target's users and teams
   { table: 'scorecard_snapshots', column: 'owners', kind: 'subjects' },
   { table: 'ticket_refs', column: 'responsible', kind: 'subjects' },
+  // the access list of a plant registry site (#218)
+  { table: 'plant_sites', column: 'acl', kind: 'acl' },
 ];
 
 /**
@@ -121,6 +123,17 @@ export const USER_REFS: UserRef[] = [
  * Listed so that the classification test notices new person columns.
  */
 export const HISTORY_COLUMNS: string[] = [
+  // the plant registry (#218)
+  'plant_sites.created_by',
+  'plant_sites.updated_by',
+  'plant_nodes.created_by',
+  'plant_nodes.updated_by',
+  'plant_buildings.created_by',
+  'plant_buildings.updated_by',
+  'plant_assets.created_by',
+  'plant_assets.updated_by',
+  'plant_asset_images.updated_by',
+  'plant_imports.created_by',
   'access_checks.updated_by',
   'application_components.created_by',
   'platform_recordings.created_by',
@@ -253,6 +266,7 @@ export const SETTINGS_MOVED = [
   'notifications.look',
   'catalogue.lifecycle',
   'catalogue.environments',
+  'plant.settings',
 ];
 
 /** Folders of the data directory with stored files (attachments, artifacts, reports, evidence packs, logos). */

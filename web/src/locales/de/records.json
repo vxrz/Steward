@@ -355,7 +355,9 @@
       "credential": "Zugangsdaten",
       "application": "Anwendung",
       "external": "Externer Link",
-      "system": "System"
+      "system": "System",
+      "site": "Standort",
+      "asset": "Anlage"
     },
     "target": "Ziel",
     "search": "Zum Suchen tippen",

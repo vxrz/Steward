@@ -15,7 +15,7 @@
  * The route permission matrix test checks that only the routes named in LARGE_BODIES accept more than
  * the default, so a new route stays at 1 MB unless it is added here.
  */
-import { COMPONENT_LIMITS, RECORDING_LIMITS, REPORT_LOGO_MAX_BYTES } from '@sm/shared';
+import { COMPONENT_LIMITS, PLANT_LIMITS, RECORDING_LIMITS, REPORT_LOGO_MAX_BYTES } from '@sm/shared';
 import { LIMITS as CATALOGUE_LIMITS } from './compliance/controls.js';
 import { MONITOR_IMPORT_LIMITS } from './monitors/model.js';
 import { IMPORT_LIMITS as RECORD_IMPORT_LIMITS } from './records/markdown-io.js';
@@ -50,6 +50,8 @@ export const LARGE_BODIES = {
   recordsImport: { routes: ['POST /api/records/import'], bytes: jsonText(RECORD_IMPORT_LIMITS.totalBytes) },
   /** A control catalogue (JSON, CSV or YAML): CATALOGUE_LIMITS.importBytes (1 MB) */
   catalogueImport: { routes: ['POST /api/compliance/catalogues/import'], bytes: jsonText(CATALOGUE_LIMITS.importBytes, 16 * KIB) },
+  /** Plant registry files (YAML or JSON, #218): PLANT_LIMITS.importBytes (8 MB) together */
+  plantImport: { routes: ['POST /api/plant/import', 'POST /api/plant/import/preview'], bytes: jsonText(PLANT_LIMITS.importBytes) },
   /** A monitor file (YAML): MONITOR_IMPORT_LIMITS.yamlChars (512 KB) – line breaks are escaped in JSON */
   monitorImport: { routes: ['POST /api/monitors/import', 'POST /api/monitors/import/preview'], bytes: jsonText(MONITOR_IMPORT_LIMITS.yamlChars) },
   /** Instances of a monitor template from a CSV file: MONITOR_IMPORT_LIMITS.csvChars (1 MB) */
