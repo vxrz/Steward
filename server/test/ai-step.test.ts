@@ -138,6 +138,13 @@ describe('the platform', () => {
     expect(changed[0].summary).toMatch(/AI settings of "Gateway" changed: 4 model\(s\), added demo-chat-small/);
   });
 
+  it('a connector type made from the gateway keeps its models, not what this installation allows it', async () => {
+    const type = await s.api('POST', '/platform-types', { fromPlatformId: gateway, kind: 'my-llm-gateway', label: 'My gateway' });
+    expect(type.config.ai.models.map((m: any) => m.id)).toEqual(MODELS.map((m) => m.id));
+    expect(type.config.ai.allowedData).toEqual({ platforms: [], datasets: [], inputs: false });
+    await s.api('DELETE', '/platform-types/my-llm-gateway');
+  });
+
   it('refuses invalid AI settings and settings on a platform that is no gateway', async () => {
     await expect(s.api('PUT', `/platforms/${gateway}/ai`, { models: [{ ...MODELS[0], format: 'other' }] })).rejects.toMatchObject({ status: 400 });
     await expect(s.api('PUT', `/platforms/${gateway}/ai`, { models: [MODELS[0], MODELS[0]] })).rejects.toMatchObject({ status: 400 });

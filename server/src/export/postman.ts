@@ -820,6 +820,8 @@ function leftOut(n: FlowNode): string {
       return `${name}: publishes the dataset ${code(n.dataset)} for dashboards.`;
     case 'accessChange':
       return `${name}: records an access change (${n.kind}) for compliance.`;
+    case 'ai':
+      return `${name}: asks the AI model ${code(n.model)} through ${code(n.connection)} (Steward checks limits, budgets and the allowed data first).`;
     case 'subprocess':
       return `${name}: runs the sub-process ${code(n.process)} – export that process separately.`;
     case 'wait':

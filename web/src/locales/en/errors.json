@@ -812,7 +812,10 @@
     "PVAULT_PERIOD": "The period is not valid: it ends before it starts or is too long.",
     "PVAULT_PLATFORM": "This platform is not IBM Verify Privilege Vault.",
     "PVAULT_TOO_MANY": "The vault has more entries than Steward reads at once (at most {{max}}) – narrow the folder or name the privileged folders.",
-    "FORBIDDEN_aiBudget": "Only administrators may change AI budgets."
+    "FORBIDDEN_aiBudget": "Only administrators may change AI budgets.",
+    "AI_MODEL_LIST_FAILED": "The LLM gateway did not list its models: {{path}} answered HTTP {{status}}.",
+    "AI_NOT_A_GATEWAY": "“{{name}}” is not an LLM gateway.",
+    "AI_SETTINGS_INVALID": "The AI settings of the platform are not valid."
   },
   "boundary": {
     "title": "Something went wrong on this page",
