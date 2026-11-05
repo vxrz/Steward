@@ -17,7 +17,9 @@ export type RecentKind =
   | 'statusPage'
   | 'credential'
   | 'site'
-  | 'asset';
+  | 'asset'
+  | 'profile'
+  | 'kpi';
 
 export interface RecentItem {
   to: string;

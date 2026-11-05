@@ -154,7 +154,16 @@
       "Converse (Bedrock)",
       "Filter",
       "Budgets",
-      "Budget: {{name}}"
+      "Budget: {{name}}",
+      "Modbus/TCP",
+      "Web (HTTP)",
+      "WebDAV",
+      "Coils",
+      "Trend",
+      "Management",
+      "Batch",
+      "Job",
+      "Dashboard: {{name}}"
     ]
   }
 }

@@ -22,6 +22,7 @@ import { confirmDanger } from '../components/confirm';
 import { fmtBytes, fmtDate } from '../format';
 import { plantKeys } from '../queryKeys';
 import { PreviewBadge, usePlantConfig, usePlantLabel } from '../components/plant/common';
+import { ChecksList } from '../components/plant/data';
 
 const KIND_TYPE: Partial<Record<PlantChangeKind, PlantRecordType>> = {
   site: 'site',
@@ -297,6 +298,14 @@ export function PlantImportPage() {
                         </Text>
                       ))}
                     </Stack>
+                  </Alert>
+                )}
+                {preview.checks.length > 0 && (
+                  <Alert color="orange" variant="light" icon={<IconAlertTriangle size={18} />} title={t('import.checks', { count: preview.checks.length })}>
+                    <Text size="xs" mb="xs">
+                      {t('import.checksHelp')}
+                    </Text>
+                    <ChecksList checks={preview.checks} subjects testId="import-checks" />
                   </Alert>
                 )}
                 {preview.ok && (

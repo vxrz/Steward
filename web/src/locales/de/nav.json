@@ -34,6 +34,10 @@
     "systemStatus": "Systemstatus",
     "plantSites": "Standorte",
     "plantAssets": "Anlagen",
+    "plantProfiles": "Geräteprofile",
+    "plantKpis": "KPI-Definitionen",
+    "plantExplore": "Daten erkunden",
+    "plantChecks": "Prüfungen",
     "plantImport": "Importieren"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
@@ -136,7 +140,9 @@
       "statusPage": "Statusseite",
       "credential": "Zugangsdaten-Eintrag",
       "site": "Standort",
-      "asset": "Anlage"
+      "asset": "Anlage",
+      "profile": "Geräteprofil",
+      "kpi": "KPI-Definition"
     }
   },
   "groups": {

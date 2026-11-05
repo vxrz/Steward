@@ -98,6 +98,13 @@ const PlantSitePage = page(() => import('./pages/PlantSite'), 'PlantSitePage');
 const PlantAssetsPage = page(() => import('./pages/PlantAssets'), 'PlantAssetsPage');
 const PlantAssetPage = page(() => import('./pages/PlantAsset'), 'PlantAssetPage');
 const PlantImportPage = page(() => import('./pages/PlantImport'), 'PlantImportPage');
+const PlantProfilesPage = page(() => import('./pages/PlantProfiles'), 'PlantProfilesPage');
+const PlantProfilePage = page(() => import('./pages/PlantProfile'), 'PlantProfilePage');
+const PlantDataPointPage = page(() => import('./pages/PlantDataPoint'), 'PlantDataPointPage');
+const PlantKpisPage = page(() => import('./pages/PlantKpis'), 'PlantKpisPage');
+const PlantKpiPage = page(() => import('./pages/PlantKpi'), 'PlantKpiPage');
+const PlantExplorePage = page(() => import('./pages/PlantExplore'), 'PlantExplorePage');
+const PlantChecksPage = page(() => import('./pages/PlantChecks'), 'PlantChecksPage');
 
 const MAIN_ID = 'main-content';
 
@@ -303,6 +310,13 @@ function Shell({ status }: { status: AuthStatus }) {
                     {caps.plant && <Route path="/plant/assets" element={<PlantAssetsPage />} />}
                     {caps.plant && <Route path="/plant/assets/:assetId" element={<PlantAssetPage />} />}
                     {caps.plant && <Route path="/plant/import" element={<PlantImportPage />} />}
+                    {caps.plant && <Route path="/plant/profiles" element={<PlantProfilesPage />} />}
+                    {caps.plant && <Route path="/plant/profiles/:profileId" element={<PlantProfilePage />} />}
+                    {caps.plant && <Route path="/plant/profiles/:profileId/points/:pointId" element={<PlantDataPointPage />} />}
+                    {caps.plant && <Route path="/plant/kpis" element={<PlantKpisPage />} />}
+                    {caps.plant && <Route path="/plant/kpis/:kpiId" element={<PlantKpiPage />} />}
+                    {caps.plant && <Route path="/plant/explore" element={<PlantExplorePage />} />}
+                    {caps.plant && <Route path="/plant/checks" element={<PlantChecksPage />} />}
                     <Route path="/plant" element={<Navigate to="/plant/sites" replace />} />
                     <Route path="/profile" element={<ProfilePage />} />
                     <Route path="/about" element={<AboutPage />} />
@@ -366,6 +380,13 @@ function Shell({ status }: { status: AuthStatus }) {
                     {caps.plant && <Route path="/plant/assets" element={<PlantAssetsPage />} />}
                     {caps.plant && <Route path="/plant/assets/:assetId" element={<PlantAssetPage />} />}
                     {caps.plant && <Route path="/plant/import" element={<PlantImportPage />} />}
+                    {caps.plant && <Route path="/plant/profiles" element={<PlantProfilesPage />} />}
+                    {caps.plant && <Route path="/plant/profiles/:profileId" element={<PlantProfilePage />} />}
+                    {caps.plant && <Route path="/plant/profiles/:profileId/points/:pointId" element={<PlantDataPointPage />} />}
+                    {caps.plant && <Route path="/plant/kpis" element={<PlantKpisPage />} />}
+                    {caps.plant && <Route path="/plant/kpis/:kpiId" element={<PlantKpiPage />} />}
+                    {caps.plant && <Route path="/plant/explore" element={<PlantExplorePage />} />}
+                    {caps.plant && <Route path="/plant/checks" element={<PlantChecksPage />} />}
                     {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
                     {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
                     <Route path="/settings" element={<SettingsIndex />} />

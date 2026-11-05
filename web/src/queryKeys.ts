@@ -106,4 +106,13 @@ export const plantKeys = {
   assets: (filter: string) => ['plant', 'assets', filter] as const,
   asset: (id: string | null | undefined) => ['plant', 'asset', id] as const,
   imports: ['plant', 'imports'] as const,
+  // part 2 (#219): catalogues, assignments, checks, search
+  profiles: ['plant', 'profiles'] as const,
+  profile: (id: string | null | undefined) => ['plant', 'profile', id] as const,
+  point: (profileId: string | null | undefined, pointId: string | null | undefined) => ['plant', 'point', profileId, pointId] as const,
+  kpis: ['plant', 'kpis'] as const,
+  kpi: (id: string | null | undefined) => ['plant', 'kpi', id] as const,
+  assignment: (assetId: string | null | undefined) => ['plant', 'assignment', assetId] as const,
+  checks: ['plant', 'checks'] as const,
+  explore: (q: string) => ['plant', 'explore', q] as const,
 };

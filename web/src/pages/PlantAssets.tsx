@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Anchor, Badge, Button, Group, Paper, Select, SimpleGrid, Stack, Table, Text } from '@mantine/core';
+import { Anchor, Badge, Button, CloseButton, Group, Paper, Select, SimpleGrid, Stack, Table, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconBuilding, IconPlus, IconEngine } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { ASSET_STATUSES, type AssetLocation, type PlantAssetSummary } from '@sm/shared';
+import { ASSET_STATUSES, type AssetLocation, type PlantAssetSummary, type PlantProfileSummary } from '@sm/shared';
 import { get } from '../api';
 import { QueryState, useCreateParam } from '../components/common';
 import { ListPage, useStoredListView } from '../components/page/ListPage';
@@ -13,7 +13,8 @@ import { plantKeys } from '../queryKeys';
 import { AssetStatusBadge, NotInSourceBadge, PreviewBadge, useNameOf, usePlantConfig, usePlantLabel } from '../components/plant/common';
 import { AssetFormModal, flatNodes, nodePath, useHierarchy } from '../components/plant/forms';
 
-const FILTERS = ['site', 'node', 'domain', 'status', 'tag'] as const;
+// profile and data point (#219): "which assets deliver data point X" lands here from a data point or the search
+const FILTERS = ['site', 'node', 'domain', 'status', 'tag', 'profile', 'dataPoint'] as const;
 type Filter = (typeof FILTERS)[number];
 
 /** Where an asset is, as one line: site › area › work center › work unit. */
@@ -45,14 +46,16 @@ export function PlantAssetsPage() {
   const assets = useQuery({ queryKey: plantKeys.assets(qs), queryFn: () => get<PlantAssetSummary[]>(`/plant/assets${qs ? `?${qs}` : ''}`) });
   // every asset (unfiltered) for the choices of domain and tag
   const all = useQuery({ queryKey: plantKeys.assets(''), queryFn: () => get<PlantAssetSummary[]>('/plant/assets') });
+  const profiles = useQuery({ queryKey: plantKeys.profiles, queryFn: () => get<PlantProfileSummary[]>('/plant/profiles') });
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const view = useStoredListView('plant-assets', narrow);
   const set = (f: Filter, v: string | null) => {
     const next = new URLSearchParams(params);
     if (v) next.set(f, v);
     else next.delete(f);
-    // a place belongs to a site: choosing another site clears it
+    // a place belongs to a site: choosing another site clears it; a data point belongs to its profile
     if (f === 'site') next.delete('node');
+    if (f === 'profile') next.delete('dataPoint');
     setParams(next, { replace: true });
   };
   const sites = useMemo(() => tree.data ?? [], [tree.data]);
@@ -155,6 +158,29 @@ export function PlantAssetsPage() {
               searchable
               w={{ base: '100%', xs: 150 }}
             />
+            {(profiles.data?.length ?? 0) > 0 && (
+              <Select
+                size="xs"
+                label={t('assignment.profile')}
+                data={(profiles.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+                value={filter.profile}
+                onChange={(v) => set('profile', v)}
+                clearable
+                searchable
+                w={{ base: '100%', xs: 220 }}
+              />
+            )}
+            {filter.profile && filter.dataPoint && (
+              <Badge
+                size="lg"
+                variant="light"
+                tt="none"
+                rightSection={<CloseButton size="xs" aria-label={t('assets.clearDataPoint')} onClick={() => set('dataPoint', null)} />}
+                data-testid="filter-data-point"
+              >
+                {t('assets.deliversPoint', { point: filter.dataPoint })}
+              </Badge>
+            )}
           </Group>
         )
       }

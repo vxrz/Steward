@@ -17,6 +17,9 @@ import type { AssetStatus, PlantPlace, PlantSource, PlantStamp, Translations } f
  * See docs/PLANT.md ("Data points and KPIs").
  */
 
+/** Ids of data points, interfaces, parameters and columns: devices name them, so capitals are allowed (`voltage_L1`). */
+export const PLANT_NAME_RE = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$/;
+
 // ---------- interfaces ----------
 
 /** Protocols of an interface. File transfer: smb, webdav, sftp, ftp. */

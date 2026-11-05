@@ -14,6 +14,7 @@ import {
   PLANT_DATA_LIMITS as L,
   PLANT_DIRECTIONS,
   PLANT_LIMITS,
+  PLANT_NAME_RE,
   PLANT_PROTOCOLS,
   unitCode,
   type KpiComputation,
@@ -42,7 +43,7 @@ import { plantId, translations } from './model.js';
 // ---------- names ----------
 
 /** Ids of data points, interfaces, parameters and columns: devices name them, so capitals are allowed (`voltage_L1`). */
-export const NAME_RE = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$/;
+export const NAME_RE = PLANT_NAME_RE;
 export const NAME_HINT = 'Use letters, digits, ".", "_" and "-", starting with a letter, digit or "_" (at most 120)';
 const POISON = new Set(['__proto__', 'constructor', 'prototype']);
 export const pointName = z
