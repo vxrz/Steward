@@ -19,7 +19,7 @@ flowchart TB
 
   subgraph platforms [Managed platforms]
     ih["Siemens Insights Hub,<br/>Industrial Edge (IEM)"]
-    rest["Any REST API, Kubernetes, AWS,<br/>Snowflake, Kafka, MQTT, Git hosts,<br/>Prometheus, CheckMk, Dependency-Track, Gatus,<br/>IBM Verify Privilege Vault"]
+    rest["Any REST API, Kubernetes, AWS,<br/>Snowflake, Kafka, MQTT, Git hosts,<br/>Prometheus, CheckMk, Dependency-Track, Gatus,<br/>IBM Verify Privilege Vault, LLM gateways"]
   end
 
   idp["Identity provider<br/>(OIDC, Entra ID)"]
@@ -118,6 +118,7 @@ Packaging: the same server runs as a desktop executable (a Node.js single execut
 | `aws/`, `kafka/`, `mqtt/`, `snowflake/`, `dtrack/`, `semantic/` | Clients for the platform kinds that are not plain REST.                                                                                                                                                             |
 | `entra/`                                                        | Microsoft Graph for Entra ID: paging and throttling, access, app credentials, connection test, register import.                                                                                                     |
 | `pvault/`                                                       | IBM Verify Privilege Vault: access source, hygiene, privileged use – metadata only ([IBM-PAM.md](IBM-PAM.md)).                                                                                                      |
+| `ai/`                                                           | AI models through LLM gateways: one adapter per request format, the step _Ask an AI model_, limits, budgets, the usage log, its dataset and report section ([AI.md](AI.md)).                                        |
 | `system/`, `theme/`, `teams/`, `i18n/`                          | Readiness, system status and update notice; branding; team settings; server-side translations.                                                                                                                      |
 | `log.ts`, `telemetry.ts`, `metrics.ts`, `errorReporting.ts`     | Logs (pino), OpenTelemetry traces, Prometheus metrics, optional Sentry-compatible error reporting.                                                                                                                  |
 | `cli/`, `desktop/`                                              | Command-line tools (admin, migrate, backup, db-copy, …) and the desktop launcher.                                                                                                                                   |
