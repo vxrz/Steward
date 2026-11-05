@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-05
+
+Steward 0.6.0 brings **AI models through LLM gateways** and part 1 of the **plant registry**. The process step _Ask an AI model_ sends a saved question with context from earlier steps, datasets or run inputs to an LLM gateway (OpenAI Chat Completions and every OpenAI-compatible API, OpenAI Responses, Anthropic Messages, Bedrock Converse), with allowed data per gateway, input limits per call, token budgets per day and month, a usage log and the _AI usage_ dataset; answers are marked as AI-generated. The plant registry (opt-in, preview) keeps the factories of an enterprise in one place: sites with their ISA-95 hierarchy and buildings, assets, links to Steward's systems and applications, and YAML import and export with a published JSON Schema, including replacing an earlier import. Status viewers are now also refused by the public API and the MCP endpoint. The database migrations (`ai-001`, `ai-002`, `plant-001`) only add tables and a column.
+
 ### Added
 
 - **AI models through an LLM gateway** ([docs/AI.md](docs/AI.md), #216): a process asks an AI model a predefined question with context from earlier steps, CheckMk and other platforms or datasets, and uses the answer in later steps – a report, a check message, an e-mail or Teams notification. The AI does not act on its own; there are no tool calls and no chat.
@@ -807,7 +811,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/vxrz/steward/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/vxrz/steward/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/vxrz/steward/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/vxrz/steward/compare/v0.3.1...v0.4.0
