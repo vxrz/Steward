@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it } from 'vitest';
-import { DB_CATALOGS, effectiveDbLimits, readOnlyStatementProblem, validateProcess, type DbDialect } from '@sm/shared';
+import { DB_CATALOGS, effectiveDbLimits, readOnlyStatementProblem, sqlProblemParam, validateProcess, type DbDialect } from '@sm/shared';
 import { pgRun, type PgQueryable } from '../src/dbms/postgres.js';
 import { mysqlRun, timeLimitStatement, type MyQueryable } from '../src/dbms/mysql.js';
 import { mssqlRun, msType, type MsLib, type MsQueryable, type MsRequest } from '../src/dbms/sqlserver.js';
@@ -103,6 +103,97 @@ describe('statement check (sqlcheck.ts)', () => {
     refused('SELECT $1, $3', 'placeholders', ['postgresql'], 3);
     refused('SELECT ?', 'placeholders', ['mysql'], 2);
     refused('SELECT @p1', 'placeholders', ['sqlserver'], 0);
+  });
+
+  it('checks quoted function names, refusing them without regard to case', () => {
+    refused('SELECT "pg_advisory_lock"(1)', 'refusedFunction', ['postgresql']);
+    refused('SELECT "PG_Terminate_Backend"(42)', 'refusedFunction', ['postgresql']);
+    refused('SELECT "pg_catalog"."pg_advisory_lock" (1)', 'refusedFunction', ['postgresql']);
+    refused('SELECT [xp_dirtree](1)', 'refusedFunction', ['sqlserver']);
+    refused('SELECT "sp_who"(1)', 'refusedFunction', ['sqlserver']);
+    refused("SELECT `GET_LOCK`('x', 1)", 'refusedFunction', ['mysql']);
+    refused('SELECT "get_lock"(\'x\', 1)', 'refusedFunction', ['mysql']);
+    // a quoted name that is not called stays a name
+    ok('SELECT "pg_advisory_lock", "sp_name" FROM t', ['postgresql', 'sqlserver']);
+    ok('SELECT [lo_value] FROM t', ['sqlserver']);
+    ok('SELECT `lo_value` FROM t', ['mysql']);
+    // escapes the check would not see
+    refused('SELECT U&"x" UESCAPE \'!\'', 'refusedWord', ['postgresql']);
+  });
+
+  it('refuses functions that run SQL given as text, and dblink', () => {
+    for (const f of [
+      'query_to_xml',
+      'query_to_xml_and_xmlschema',
+      'query_to_xmlschema',
+      'cursor_to_xml',
+      'table_to_xml',
+      'schema_to_xml',
+      'database_to_xml',
+      'ts_stat',
+      'crosstab',
+      'crosstab3',
+    ])
+      refused(`SELECT ${f}('x', true, true, '')`, 'refusedFunction', ['postgresql']);
+    refused('SELECT dblink(1)', 'refusedFunction', ['postgresql']);
+    refused('SELECT dblink_exec(1)', 'refusedFunction', ['postgresql']);
+    refused('SELECT dblinkx(1)', 'refusedFunction', ['postgresql']);
+    refused('SELECT * FROM "dblink"(1) AS t(a int)', 'refusedFunction', ['postgresql']);
+    refused('SELECT NEXTVAL(s)', 'refusedFunction', ['mysql']);
+  });
+
+  it('refuses optimizer hints in MariaDB/MySQL', () => {
+    refused('SELECT /*+ MAX_EXECUTION_TIME(1) */ 1', 'optimizerHint', ['mysql']);
+    refused('SELECT /*+ SET_VAR(x = 1) */ 1', 'optimizerHint', ['mysql']);
+    // an ordinary comment elsewhere
+    ok('SELECT /*+ x */ 1', ['postgresql', 'sqlserver']);
+    ok('SELECT /* + */ 1', ['mysql']);
+  });
+
+  it('refuses row locks: FOR SHARE and its variants, SQL Server lock hints', () => {
+    for (const lock of ['FOR SHARE', 'FOR SHARE NOWAIT', 'FOR SHARE SKIP LOCKED', 'FOR SHARE OF t'])
+      refused(`SELECT * FROM t ${lock}`, 'rowLock', ['mysql', 'postgresql']);
+    refused('SELECT * FROM t FOR KEY SHARE', 'rowLock', ['postgresql']);
+    refused('SELECT * FROM t FOR NO KEY UPDATE', 'rowLock', ['postgresql']);
+    refused('SELECT * FROM t FOR UPDATE SKIP LOCKED', 'refusedWord', ['mysql', 'postgresql']);
+    for (const hint of ['UPDLOCK', 'XLOCK', 'HOLDLOCK', 'TABLOCK', 'TABLOCKX']) refused(`SELECT * FROM t WITH (${hint})`, 'rowLock', ['sqlserver']);
+    ok('SELECT * FROM t WITH (NOLOCK)', ['sqlserver']);
+    ok('SELECT * FROM t FOR XML PATH', ['sqlserver']);
+  });
+
+  it('refuses what starts another T-SQL statement without a semicolon', () => {
+    for (const w of [
+      'IF 1 = 1 SELECT 2',
+      "RAISERROR('x', 16, 1) WITH LOG",
+      'ENABLE TRIGGER t ON x',
+      'DISABLE TRIGGER t ON x',
+      'RECEIVE * FROM q',
+      "THROW 50000, 'x', 1",
+      "PRINT 'x'",
+      'GOTO x',
+      'CLOSE c',
+      'WHILE 1 = 1 BREAK',
+    ])
+      refused(`SELECT 1 ${w}`, 'refusedWord', ['sqlserver']);
+    refused('SELECT NEXT VALUE FOR seq', 'refusedWord', ['sqlserver', 'mysql']);
+    // a second SELECT outside parentheses is a second statement
+    refused('SELECT 1 SELECT 2', 'multipleStatements', ['sqlserver']);
+    refused('SELECT a FROM t SELECT b FROM u', 'multipleStatements', ['sqlserver']);
+    refused('(SELECT 1) SELECT 2', 'multipleStatements', ['sqlserver']);
+    refused('WITH a AS (SELECT 1 AS x) SELECT x FROM a SELECT 2', 'multipleStatements', ['sqlserver']);
+    // … unless UNION, EXCEPT or INTERSECT joins it, or it is the query of a WITH
+    ok('SELECT 1 UNION ALL SELECT 2 EXCEPT SELECT 3 INTERSECT SELECT 4', ['sqlserver']);
+    ok('WITH a AS (SELECT 1 AS x), b (y) AS (SELECT 2) SELECT x FROM a UNION SELECT y FROM b', ['sqlserver']);
+    ok('SELECT x FROM (SELECT 1 AS x) d WHERE x IN (SELECT 1) ORDER BY x OFFSET 0 ROWS FETCH NEXT 5 ROWS ONLY', ['sqlserver']);
+    ok('SELECT CASE WHEN 1 = 1 THEN 1 ELSE 2 END', ['sqlserver']);
+    ok('SELECT [if], [print] FROM t', ['sqlserver']);
+  });
+
+  it('describes a refusal for the translated text', () => {
+    const p = readOnlyStatementProblem('SELECT 1 FROM t FOR SHARE', 'mysql')!;
+    expect(sqlProblemParam(p)).toEqual({ code: 'DB_SQL_ROW_LOCK', message: p.message, params: { word: 'FOR SHARE', at: 17 } });
+    const c = readOnlyStatementProblem('SELECT ?', 'mysql', 2)!;
+    expect(sqlProblemParam(c)).toMatchObject({ code: 'DB_SQL_PLACEHOLDERS', params: { context: 'count', need: 1, given: 2 } });
   });
 
   it('is part of process validation', () => {

@@ -13,7 +13,7 @@ import { tagInput } from './tags.js';
 import { AWS_REGION_RE } from './aws.js';
 import { AI_ANSWER_FORMATS, AI_CONTEXT_FROM, AI_LIMITS, promptVariables, type AiAnswerFormat, type AiContextFrom } from './ai.js';
 import { DB_CATALOGS, DB_DIALECTS, DB_LIMITS, type DbCatalog, type DbDialect } from './database.js';
-import { readOnlyStatementProblem } from './sqlcheck.js';
+import { readOnlyStatementProblem, sqlProblemValues } from './sqlcheck.js';
 
 /**
  * Process definition model.
@@ -1189,7 +1189,13 @@ function checkQuery(n: NodeOf<'query'>, i: number, issues: ValidationIssue[]): v
   const problems = dialects.map((d) => readOnlyStatementProblem(sql, d, n.params?.length ?? 0));
   const first = problems[0];
   if (first && problems.every(Boolean))
-    issues.push({ ...at, code: 'queryRefused', params: { problem: first.message, reason: first.code }, message: `The statement is refused: ${first.message}` });
+    issues.push({
+      ...at,
+      code: 'queryRefused',
+      // the values of the problem's own translated text (sqlProblemValues) come along for the editor
+      params: { ...sqlProblemValues(first), problem: first.message, reason: first.code },
+      message: `The statement is refused: ${first.message}`,
+    });
 }
 
 /** Rules of "Ask an AI model" steps: placeholders, context sources and the answer's schema. */

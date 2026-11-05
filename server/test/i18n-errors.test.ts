@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+import { SQL_PROBLEM_CODES, sqlProblemTextCode } from '@sm/shared';
 
 // Server errors reach the web UI as { error, code, params }. The UI shows errors:codes.<code>
 // (translated, with the params filled in) and the English message only for unknown codes.
@@ -91,6 +92,8 @@ function scan(): { throws: Throw[]; otherCodes: { file: string; code: string }[]
 
 describe('server error codes', () => {
   const { throws, otherCodes } = scan();
+  // the reasons of the statement check (shared/src/sqlcheck.ts), nested in DB_STATEMENT_REFUSED
+  for (const c of SQL_PROBLEM_CODES) otherCodes.push({ file: '../../shared/src/sqlcheck.ts', code: sqlProblemTextCode(c) });
   const en = errorsJson('en');
   const de = errorsJson('de');
   /** Codes the UI translates itself (record status, field labels of built-in types). */
