@@ -28,9 +28,11 @@ const MODELS = [
   { id: 'demo.converse-small-v1:0', format: 'bedrock-converse', ...WINDOW },
 ];
 
+// the simulated gateway's test helpers need its API key, like every request to it
+const mockKey = () => ({ 'x-api-key': mock.DEMO_LLM.apiKey });
 const calls = async (): Promise<{ format: string; model: string; path: string; body: any; headers: Record<string, string> }[]> =>
-  (await (await fetch(`${s.base}/mock/llm/_mock/calls`)).json()).calls;
-const resetMock = () => fetch(`${s.base}/mock/llm/_mock/reset`, { method: 'POST' });
+  (await (await fetch(`${s.base}/mock/llm/_mock/calls`, { headers: mockKey() })).json()).calls;
+const resetMock = () => fetch(`${s.base}/mock/llm/_mock/reset`, { method: 'POST', headers: mockKey() });
 const n = (id: string, type: string, extra: Record<string, unknown> = {}) => ({ id, type, x: 0, y: 0, ...extra });
 const w = (from: string, to: string, port = 'out') => ({ from, to, port });
 const db = async () => (await import('../src/db.js')).db();
@@ -183,6 +185,24 @@ describe('the platform', () => {
     } finally {
       await s.api('PUT', `/platforms/${gateway}/secrets`, { apiKey: mock.DEMO_LLM.apiKey });
     }
+  });
+});
+
+describe('the simulated gateway', () => {
+  it('keeps only the latest 100 requests and shows them only with its API key', async () => {
+    expect((await fetch(`${s.base}/mock/llm/_mock/calls`)).status).toBe(401);
+    expect((await fetch(`${s.base}/mock/llm/_mock/reset`, { method: 'POST' })).status).toBe(401);
+    for (let i = 0; i < 105; i++) {
+      const res = await fetch(`${s.base}/mock/llm/v1/chat/completions`, {
+        method: 'POST',
+        headers: { ...mockKey(), 'content-type': 'application/json' },
+        body: JSON.stringify({ model: 'demo-chat-small', messages: [{ role: 'user', content: `question ${i}` }] }),
+      });
+      expect(res.status).toBe(200);
+    }
+    const kept = await calls();
+    expect(kept).toHaveLength(100);
+    expect(kept[99]!.body.messages[0].content).toBe('question 104');
   });
 });
 

@@ -18,7 +18,8 @@ import type { AiFormat } from '@sm/shared';
  * characters a token. Markers in the question steer the tests: [mock:error] (HTTP 500), [mock:bad-json] (not JSON),
  * [mock:no-usage] (no token counts), [mock:length] (stopped at the output limit).
  *
- * Test helpers (no sign-in): GET /llm/_mock/calls (every request: format, model, path, body), POST /llm/_mock/reset.
+ * Test helpers, with the API key like every request: GET /llm/_mock/calls (the latest MAX_CALLS requests: format, model,
+ * path, body), POST /llm/_mock/reset.
  */
 
 export const DEMO_LLM = {
@@ -41,7 +42,11 @@ interface Call {
   headers: Record<string, string>;
 }
 
+/** The requests kept for the tests: only the latest (a demo server runs for long) */
+const MAX_CALLS = 100;
 const calls: Call[] = [];
+/** Requests answered so far (answer ids) */
+let seq = 0;
 
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Obj) : {});
@@ -131,7 +136,8 @@ export async function mockLlmGateway(app: FastifyInstance): Promise<void> {
     if (obj(req.body).stream === true) return refuse(reply, format, 400, 'Streaming is not supported by this endpoint');
     return undefined;
   };
-  const record = (req: FastifyRequest, format: AiFormat, model: string) =>
+  const record = (req: FastifyRequest, format: AiFormat, model: string) => {
+    seq++;
     calls.push({
       format,
       model,
@@ -139,6 +145,8 @@ export async function mockLlmGateway(app: FastifyInstance): Promise<void> {
       body: req.body,
       headers: Object.fromEntries(Object.entries(req.headers).filter(([k]) => k === 'anthropic-version' || k === 'content-type')) as Record<string, string>,
     });
+    if (calls.length > MAX_CALLS) calls.splice(0, calls.length - MAX_CALLS);
+  };
 
   app.get(`${R}/v1/models`, async (req, reply) => {
     if (!authorized(req)) return refuse(reply, 'chat-completions', 401, 'Missing or invalid API key');
@@ -163,7 +171,7 @@ export async function mockLlmGateway(app: FastifyInstance): Promise<void> {
     const a = answer(model, system, user);
     if (a.status !== 200) return refuse(reply, 'chat-completions', a.status, a.text);
     return {
-      id: `chatcmpl-${calls.length}`,
+      id: `chatcmpl-${seq}`,
       object: 'chat.completion',
       created: Math.floor(Date.now() / 1000),
       model,
@@ -186,7 +194,7 @@ export async function mockLlmGateway(app: FastifyInstance): Promise<void> {
     const a = answer(model, system, user);
     if (a.status !== 200) return refuse(reply, 'responses', a.status, a.text);
     return {
-      id: `resp_${calls.length}`,
+      id: `resp_${seq}`,
       object: 'response',
       created_at: Math.floor(Date.now() / 1000),
       status: a.finish === 'length' ? 'incomplete' : 'completed',
@@ -195,7 +203,7 @@ export async function mockLlmGateway(app: FastifyInstance): Promise<void> {
       output: [
         {
           type: 'message',
-          id: `msg_${calls.length}`,
+          id: `msg_${seq}`,
           status: 'completed',
           role: 'assistant',
           content: [{ type: 'output_text', text: a.text, annotations: [] }],
@@ -223,7 +231,7 @@ export async function mockLlmGateway(app: FastifyInstance): Promise<void> {
     const a = answer(model, system, user);
     if (a.status !== 200) return refuse(reply, 'anthropic-messages', a.status, a.text);
     return {
-      id: `msg_${calls.length}`,
+      id: `msg_${seq}`,
       type: 'message',
       role: 'assistant',
       model,
@@ -256,8 +264,10 @@ export async function mockLlmGateway(app: FastifyInstance): Promise<void> {
     };
   });
 
-  app.get(`${R}/_mock/calls`, async () => ({ calls }));
-  app.post(`${R}/_mock/reset`, async () => {
+  // the prompts of every request: only with the API key
+  app.get(`${R}/_mock/calls`, async (req, reply) => (authorized(req) ? { calls } : refuse(reply, 'chat-completions', 401, 'Missing or invalid API key')));
+  app.post(`${R}/_mock/reset`, async (req, reply) => {
+    if (!authorized(req)) return refuse(reply, 'chat-completions', 401, 'Missing or invalid API key');
     calls.length = 0;
     return { ok: true };
   });
