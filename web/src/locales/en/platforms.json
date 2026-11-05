@@ -582,7 +582,7 @@
     "setUpNamed": "Set up {{model}}",
     "allowed": {
       "title": "Allowed data",
-      "intro": "What processes may send to this gateway. A step that reads a platform sends that platform’s data; every other step (set variables, for each, sub-processes) counts as sending the data of every platform of its run. Nothing is allowed until you allow it.",
+      "intro": "What processes may send to this gateway. What is checked is the value sent, whichever step wrote it: a value read from a platform carries that platform’s data; a computed one (set variables, for each, sub-processes) counts as carrying everything of its run – the data of every platform, its inputs and the datasets it reads. Nothing is allowed until you allow it.",
       "nothing": "Nothing may be sent yet: steps that ask a model through this gateway fail with AI_DATA_NOT_ALLOWED.",
       "every": "Data of every platform",
       "everyHint": "Also platforms added later",

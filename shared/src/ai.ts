@@ -112,8 +112,10 @@ const datasetPattern = z
   .regex(/^[A-Za-z0-9._*-]+$/, 'A dataset key or pattern such as checkmk.*');
 
 /**
- * What a gateway may be sent (default: nothing). Outputs of a step that calls a platform come from that platform;
- * outputs of every other step (set, for-each, sub-process …) count as coming from every platform bound to the run.
+ * What a gateway may be sent (default: nothing). The sources of the variables an AI step sends are checked
+ * (server/src/ai/provenance.ts): a value an API call or a browser step wrote comes from its platform; a value any
+ * other step wrote (set, for-each, sub-process …) counts as everything of the run – every platform bound to it, its
+ * inputs and the datasets it may read.
  */
 export const aiAllowedDataSchema = z
   .object({

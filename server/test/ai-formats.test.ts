@@ -299,6 +299,39 @@ describe('the step in a process definition', () => {
     expect(def({ answer: 'json', schema: { type: 'object', properties: { a: { type: 'string' } } } }).ok).toBe(true);
   });
 
+  it('refuses regular expressions in the schema (pattern, patternProperties) anywhere; a property named "pattern" is fine', () => {
+    const nested = { type: 'object', properties: { items: { type: 'array', items: { type: 'string', pattern: '^(a+)+$' } } } };
+    for (const schema of [{ type: 'string', pattern: '^(a+)+$' }, nested, { type: 'object', patternProperties: { '^x': { type: 'string' } } }]) {
+      const r = def({ answer: 'json', schema });
+      expect(codes(r)).toContain('aiSchemaInvalid');
+      expect(r.issues.find((i) => i.code === 'aiSchemaInvalid')!.message).toMatch(/the keyword "pattern(Properties)?" is not supported/);
+    }
+    expect(def({ answer: 'json', schema: { type: 'object', properties: { pattern: { type: 'string' } }, examples: [{ pattern: 'x' }] } }).ok).toBe(true);
+    // a schema saved before the rule is refused when the answer is read, before any regular expression is made
+    expect(parseJsonAnswer('"aaaa"', { type: 'string', pattern: '^(a+)+$' })).toMatchObject({
+      ok: false,
+      problem: expect.stringContaining('"pattern" is not supported'),
+    });
+  });
+
+  it('refuses a context step whose variable another step also writes (its data could be sent instead)', () => {
+    const extra = (node: Record<string, unknown>) => {
+      const r = validateProcess({
+        name: 'AI',
+        connections: [{ slot: 'llm', kind: 'llm-gateway' }],
+        steps: [
+          { id: 'read', type: 'set', values: { rows: '{{ [1, 2] }}' } },
+          node,
+          { id: 'ask', type: 'ai', connection: 'llm', model: 'm', prompt: 'Look: {{ rows }}', context: [{ name: 'rows', from: 'step', step: 'read' }] },
+        ],
+      });
+      return r.issues.filter((i) => i.code === 'aiContextOverwritten');
+    };
+    expect(extra({ id: 'again', type: 'set', values: { rows: 'x' } })).toMatchObject([{ params: { name: 'rows', variable: 'rows', step: 'again' } }]);
+    expect(extra({ id: 'saved', type: 'log', message: 'x', saveAs: 'rows' })).toHaveLength(1);
+    expect(extra({ id: 'other', type: 'set', values: { other: 'x' } })).toEqual([]);
+  });
+
   it('has an error output like other calls', () => {
     const r = def({});
     const ask = r.definition!.nodes.find((n) => n.id === 'ask')!;

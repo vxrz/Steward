@@ -582,7 +582,7 @@
     "setUpNamed": "{{model}} einrichten",
     "allowed": {
       "title": "Erlaubte Daten",
-      "intro": "Was Prozesse an dieses Gateway senden dürfen. Ein Schritt, der eine Plattform liest, sendet die Daten dieser Plattform; jeder andere Schritt (Variablen setzen, Für jedes, Unterprozesse) gilt als Senden der Daten aller Plattformen seiner Ausführung. Nichts ist erlaubt, bis Sie es erlauben.",
+      "intro": "Was Prozesse an dieses Gateway senden dürfen. Geprüft wird der gesendete Wert, gleich welcher Schritt ihn geschrieben hat: Ein von einer Plattform gelesener Wert trägt die Daten dieser Plattform; ein berechneter (Variablen setzen, Für jedes, Unterprozesse) gilt als Träger von allem aus seiner Ausführung – den Daten aller Plattformen, ihren Eingaben und den Datensätzen, die sie liest. Nichts ist erlaubt, bis Sie es erlauben.",
       "nothing": "Noch darf nichts gesendet werden: Schritte, die über dieses Gateway ein Modell fragen, schlagen mit AI_DATA_NOT_ALLOWED fehl.",
       "every": "Daten aller Plattformen",
       "everyHint": "Auch später hinzugefügter Plattformen",

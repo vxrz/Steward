@@ -848,6 +848,7 @@
     "aiDuplicateContext": "Kontext „{{name}}“ ist doppelt benannt",
     "aiUnknownStep": "Kontext „{{name}}“: kein Schritt „{{step}}“",
     "aiStepNeedsSaveAs": "Kontext „{{name}}“: Schritt „{{step}}“ braucht „Ergebnis speichern als“, damit sein Ergebnis gesendet werden kann",
+    "aiContextOverwritten": "Kontext „{{name}}“: Die Variable „{{variable}}“ schreibt auch der Schritt „{{step}}“ – geben Sie dem Ergebnis einen eigenen Namen",
     "aiNoDataset": "Kontext „{{name}}“: Nennen Sie den Datensatz",
     "aiUnknownInput": "Kontext „{{name}}“: keine Eingabe „{{input}}“",
     "aiPlaceholder": "{{placeholder}}: Ein Platzhalter im Prompt ist der Name einer Kontextquelle, z. B. {{example}}",

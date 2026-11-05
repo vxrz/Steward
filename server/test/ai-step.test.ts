@@ -28,9 +28,11 @@ const MODELS = [
   { id: 'demo.converse-small-v1:0', format: 'bedrock-converse', ...WINDOW },
 ];
 
+// the simulated gateway's test helpers need its API key, like every request to it
+const mockKey = () => ({ 'x-api-key': mock.DEMO_LLM.apiKey });
 const calls = async (): Promise<{ format: string; model: string; path: string; body: any; headers: Record<string, string> }[]> =>
-  (await (await fetch(`${s.base}/mock/llm/_mock/calls`)).json()).calls;
-const resetMock = () => fetch(`${s.base}/mock/llm/_mock/reset`, { method: 'POST' });
+  (await (await fetch(`${s.base}/mock/llm/_mock/calls`, { headers: mockKey() })).json()).calls;
+const resetMock = () => fetch(`${s.base}/mock/llm/_mock/reset`, { method: 'POST', headers: mockKey() });
 const n = (id: string, type: string, extra: Record<string, unknown> = {}) => ({ id, type, x: 0, y: 0, ...extra });
 const w = (from: string, to: string, port = 'out') => ({ from, to, port });
 const db = async () => (await import('../src/db.js')).db();
@@ -78,7 +80,8 @@ const stepOf = async (runId: string, stepId: string) => {
   const full = await s.api('GET', `/runs/${runId}/steps/${st.id}`);
   return { ...st, ...full };
 };
-const usage = async (where = '1 = 1', ...p: unknown[]) => (await db()).all<any>(`SELECT * FROM ai_usage WHERE ${where} ORDER BY ts, rowid`, ...p);
+// (calls in the same millisecond keep no order: the tests compare such rows as a set)
+const usage = async (where = '1 = 1', ...p: unknown[]) => (await db()).all<any>(`SELECT * FROM ai_usage WHERE ${where} ORDER BY ts, id`, ...p);
 const auditOf = async (action: string) => (await s.api('GET', `/audit?action=${action}&limit=50`)) as any[];
 
 beforeAll(async () => {
@@ -183,6 +186,24 @@ describe('the platform', () => {
     } finally {
       await s.api('PUT', `/platforms/${gateway}/secrets`, { apiKey: mock.DEMO_LLM.apiKey });
     }
+  });
+});
+
+describe('the simulated gateway', () => {
+  it('keeps only the latest 100 requests and shows them only with its API key', async () => {
+    expect((await fetch(`${s.base}/mock/llm/_mock/calls`)).status).toBe(401);
+    expect((await fetch(`${s.base}/mock/llm/_mock/reset`, { method: 'POST' })).status).toBe(401);
+    for (let i = 0; i < 105; i++) {
+      const res = await fetch(`${s.base}/mock/llm/v1/chat/completions`, {
+        method: 'POST',
+        headers: { ...mockKey(), 'content-type': 'application/json' },
+        body: JSON.stringify({ model: 'demo-chat-small', messages: [{ role: 'user', content: `question ${i}` }] }),
+      });
+      expect(res.status).toBe(200);
+    }
+    const kept = await calls();
+    expect(kept).toHaveLength(100);
+    expect(kept[99]!.body.messages[0].content).toBe('question 104');
   });
 });
 
@@ -363,6 +384,157 @@ describe('refused before anything is sent', () => {
   });
 });
 
+describe('allowed data follows the values sent, not the step named', () => {
+  let other: string;
+  const read = (id: string, slot: string, saveAs: string) =>
+    n(id, 'http', { connection: slot, method: 'GET', path: `/mock/test/delay?ms=1&value=from-${slot}`, saveAs });
+  const ask = (context: unknown[], extra: Record<string, unknown> = {}) =>
+    n('ask', 'ai', { connection: 'llm', model: 'demo-chat-small', prompt: 'Look: {{ data }}', context, saveAs: 'answer', ...extra });
+  /** A process with the slots llm, src and other (or only llm) */
+  const makeDef = (name: string, nodes: unknown[], wires: unknown[], extra: Record<string, unknown> = {}) =>
+    s.api('POST', '/processes', {
+      definition: {
+        name,
+        connections: [
+          { slot: 'llm', kind: LLM_GATEWAY_KIND },
+          { slot: 'src', kind: 'generic' },
+          { slot: 'other', kind: 'generic' },
+        ],
+        inputs: [],
+        nodes: [n('start', 'start'), ...nodes],
+        wires,
+        ...extra,
+      },
+    });
+  const runAll = async (processId: string, opts: Record<string, unknown> = {}) => {
+    const { id } = await s.api('POST', '/runs', { processId, bindings: { llm: gateway, src: source, other }, ...opts });
+    return s.waitRun(id, DONE);
+  };
+
+  beforeAll(async () => {
+    const p = await s.api('POST', '/platforms', {
+      name: 'Archive',
+      kind: 'generic',
+      baseUrl: s.base,
+      config: { auth: { type: 'bearer' }, variables: {}, http: { proxy: 'none' } },
+      secrets: { token: 'archive-token-0123456789' },
+    });
+    other = p.id;
+  });
+  afterAll(async () => {
+    await setAllowed({ platforms: [source], datasets: ['checkmk.*'], inputs: false });
+  });
+
+  it('a variable another step also writes: refused when saved; at run time the data of every writer counts', async () => {
+    const nodes = (second: string) => [
+      read('read', 'src', 'data'),
+      read('read2', 'other', second),
+      ask([{ name: 'data', from: 'step', step: 'read', path: 'body' }]),
+    ];
+    const wires = [w('start', 'read'), w('read', 'read2'), w('read2', 'ask')];
+    await expect(makeDef('Overwritten', nodes('data'), wires)).rejects.toMatchObject({
+      status: 400,
+      body: {
+        issues: [
+          { code: 'aiContextOverwritten', message: 'Context "data": the variable "data" is also written by step "read2" – give the result its own name' },
+        ],
+      },
+    });
+    // saved with its own name, then changed behind the validation (a definition saved before the rule)
+    const proc = await makeDef('Overwritten later', nodes('data2'), wires);
+    const d = await db();
+    const row = d.get<{ definition: string }>('SELECT definition FROM process_versions WHERE process_id = ?', proc.id)!;
+    const def = JSON.parse(row.definition);
+    def.nodes.find((x: any) => x.id === 'read2').saveAs = 'data';
+    d.run('UPDATE process_versions SET definition = ? WHERE process_id = ?', JSON.stringify(def), proc.id);
+    const r = await runAll(proc.id);
+    expect(r.error).toContain('AI_DATA_NOT_ALLOWED: context "data" comes from the platform "Archive", which "Gateway" may not be sent');
+    expect(await calls()).toEqual([]);
+    await setAllowed({ platforms: [source, other], datasets: [], inputs: false });
+    const ok = await runAll(proc.id);
+    expect(ok.status).toBe('succeeded');
+    expect((await stepOf(ok.id, 'ask')).input.user).toContain('from-other');
+    await setAllowed({ platforms: [source], datasets: ['checkmk.*'], inputs: false });
+  });
+
+  it('a set step computed from the inputs or from datasets carries them: inputs and dataset rules apply', async () => {
+    const viaSet = (name: string, value: string) =>
+      s.api('POST', '/processes', {
+        definition: {
+          name,
+          connections: [{ slot: 'llm', kind: LLM_GATEWAY_KIND }],
+          inputs: [{ name: 'customerList', type: 'list' }],
+          nodes: [n('start', 'start'), n('shape', 'set', { values: { x: value } }), ask([{ name: 'data', from: 'step', step: 'shape' }])],
+          wires: [w('start', 'shape'), w('shape', 'ask')],
+        },
+      });
+    const go = async (id: string) => {
+      const { id: runId } = await s.api('POST', '/runs', { processId: id, bindings: { llm: gateway }, inputs: { customerList: ['ACME Corp'] } });
+      return s.waitRun(runId, DONE);
+    };
+    const proc = await viaSet('Inputs via set', '{{ inputs.customerList }}');
+    expect((await go(proc.id)).error).toContain('AI_DATA_NOT_ALLOWED: context "data" may carry inputs of the run, which may not be sent to "Gateway"');
+    const trend = await viaSet('Dataset via set', "{{ $trend('entra.guests/count', '7d') }}");
+    await setAllowed({ platforms: [], datasets: ['checkmk.*'], inputs: true });
+    expect((await go(trend.id)).error).toContain('AI_DATA_NOT_ALLOWED: context "data" may carry data of the dataset "entra.guests"');
+    const systems = await viaSet('Systems via set', '{{ $count($systems()) }}');
+    expect((await go(systems.id)).error).toContain('AI_DATA_NOT_ALLOWED: context "data" may carry data of every dataset');
+    expect(await calls()).toEqual([]);
+    // allowed: the inputs, and the datasets
+    const ok = await go(proc.id);
+    expect(ok.status).toBe('succeeded');
+    expect((await stepOf(ok.id, 'ask')).input.user).toContain('ACME Corp');
+    await setAllowed({ platforms: [], datasets: ['entra.*'], inputs: true });
+    expect((await go(trend.id)).status).toBe('succeeded');
+    await setAllowed({ platforms: [source], datasets: ['checkmk.*'], inputs: false });
+  });
+
+  it('the inputs of a sub-process run carry the data of its parent run', async () => {
+    const child = await s.api('POST', '/processes', {
+      definition: {
+        name: 'AI child',
+        connections: [{ slot: 'llm', kind: LLM_GATEWAY_KIND }],
+        inputs: [{ name: 'rows', type: 'json' }],
+        nodes: [n('start', 'start'), ask([{ name: 'data', from: 'input', input: 'rows' }])],
+        wires: [w('start', 'ask')],
+      },
+    });
+    const parent = await makeDef(
+      'AI parent',
+      [read('read2', 'other', 'archived'), n('sub', 'subprocess', { process: child.id, inputs: { rows: '{{ vars.archived.body }}' } })],
+      [w('start', 'read2'), w('read2', 'sub')],
+    );
+    await setAllowed({ platforms: [source], datasets: [], inputs: true });
+    const r = await runAll(parent.id);
+    expect(r.status).toBe('failed');
+    expect(r.error).toContain('AI_DATA_NOT_ALLOWED: context "data" comes from the platform "Archive"');
+    await setAllowed({ platforms: [source, other], datasets: [], inputs: true });
+    expect((await runAll(parent.id)).status).toBe('succeeded');
+    await setAllowed({ platforms: [source], datasets: ['checkmk.*'], inputs: false });
+  });
+
+  it('a resumed run replays its finished steps and knows again where their values come from', async () => {
+    // "other" is bound but not read: the value of "data" comes from "Monitoring" alone
+    const proc = await makeDef(
+      'Resumed',
+      [read('read', 'src', 'data'), ask([{ name: 'data', from: 'step', step: 'read', path: 'body' }])],
+      [w('start', 'read'), w('read', 'ask')],
+    );
+    await setAllowed({ platforms: [], datasets: [], inputs: false });
+    const first = await runAll(proc.id);
+    expect(first.error).toContain('comes from the platform "Monitoring"');
+    const readBefore = await stepOf(first.id, 'read');
+    // as after a restart: the run resumes from its journal, the read is not repeated
+    await setAllowed({ platforms: [source], datasets: [], inputs: false });
+    (await db()).run("UPDATE runs SET status = 'interrupted', finished_at = NULL, error = NULL WHERE id = ?", first.id);
+    await s.api('POST', `/runs/${first.id}/resume`);
+    const resumed = await s.waitRun(first.id, DONE);
+    expect([resumed.status, resumed.error]).toEqual(['succeeded', null]);
+    expect((await stepOf(first.id, 'read')).startedAt).toBe(readBefore.startedAt);
+    await setAllowed({ platforms: [source], datasets: ['checkmk.*'], inputs: false });
+  });
+});
+
 describe('secrets never leave', () => {
   it('platform credentials and secret-looking values are removed from the context before sending', async () => {
     const proc = await makeProcess(
@@ -480,6 +652,44 @@ describe('budgets', () => {
     const inApp = await s.api('GET', '/notifications');
     expect(inApp.items.some((x: any) => x.event === 'ai.budget' && x.title === 'AI budget at 80 %: Process “Budgeted”')).toBe(true);
     await budget({ scope: 'process', scopeId: proc.id, tokensPerDay: null, tokensPerMonth: null });
+  });
+
+  it("a process's budget covers its sub-processes: a child run's calls count against the parent too", async () => {
+    const child = await s.api('POST', '/processes', {
+      definition: {
+        name: 'Budget child',
+        connections: [{ slot: 'llm', kind: LLM_GATEWAY_KIND }],
+        nodes: [
+          n('start', 'start'),
+          n('ask', 'ai', { connection: 'llm', model: 'demo-chat-small', prompt: 'Say hello', maxOutputTokens: 30, saveAs: 'answer' }),
+        ],
+        wires: [w('start', 'ask')],
+      },
+    });
+    const parent = await s.api('POST', '/processes', {
+      definition: {
+        name: 'Budget parent',
+        connections: [{ slot: 'llm', kind: LLM_GATEWAY_KIND }],
+        nodes: [n('start', 'start'), n('sub', 'subprocess', { process: child.id })],
+        wires: [w('start', 'sub')],
+      },
+    });
+    const go = async () => {
+      const { id } = await s.api('POST', '/runs', { processId: parent.id, bindings: { llm: gateway } });
+      return s.waitRun(id, DONE);
+    };
+    expect((await go()).status).toBe('succeeded');
+    const rows = await usage('process_id = ?', child.id);
+    expect(rows[0].parent_process_ids).toBe(`,${parent.id},`);
+    const spent = rows[0].input_tokens + rows[0].output_tokens;
+    // what the child used is used up of the parent's budget
+    await budget({ scope: 'process', scopeId: parent.id, tokensPerDay: spent + 10, tokensPerMonth: null });
+    const refused = await go();
+    expect(refused.status).toBe('failed');
+    expect(refused.error).toMatch(/AI_BUDGET_EXHAUSTED: the daily AI budget of process "Budget parent" \(.+ tokens\) has .+ left/);
+    // the budget page counts the child's calls for the parent
+    expect((await s.api('GET', '/ai/budgets')).budgets.find((b: any) => b.scope === 'process' && b.scopeId === parent.id)).toMatchObject({ usedToday: spent });
+    await budget({ scope: 'process', scopeId: parent.id, tokensPerDay: null, tokensPerMonth: null });
   });
 
   it('the installation and the gateway have budgets too; a used-up one is shown as exhausted', async () => {
