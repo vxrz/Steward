@@ -191,8 +191,9 @@ export async function apiAuthHook(req: FastifyRequest, reply: FastifyReply): Pro
     return void sendProblem(req, reply, 403, { type: 'forbidden', title: 'Forbidden', detail: 'Status viewers only see the status pages' });
   }
   // a plant viewer (#218): the plant registry and their own account, nothing else
-  const path = (req.routeOptions.url ?? req.url).split('?')[0]!;
-  if (path !== `${API_BASE}/me` && !path.startsWith(`${API_BASE}/plant/`) && plantOnly(toAuthUser(r.user))) {
+  // the matched route's pattern, not the requested URL: what a client sends cannot widen what a plant viewer reaches
+  const route = req.routeOptions.url ?? '';
+  if (route !== `${API_BASE}/me` && !route.startsWith(`${API_BASE}/plant/`) && plantOnly(toAuthUser(r.user))) {
     return void sendProblem(req, reply, 403, { type: 'forbidden', title: 'Forbidden', detail: 'Plant viewers only see the plant registry' });
   }
   const p: ApiPrincipal = {

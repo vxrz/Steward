@@ -54,7 +54,8 @@ const tokens = (s: string) => Math.ceil(s.length / 4);
 
 function authorized(req: FastifyRequest): boolean {
   const h = req.headers;
-  const bearer = /^Bearer\s+(.+)$/i.exec(String(h.authorization ?? ''))?.[1];
+  const auth = String(h.authorization ?? '');
+  const bearer = auth.slice(0, 7).toLowerCase() === 'bearer ' ? auth.slice(7).trim() : undefined;
   return [h['x-api-key'], h['api-key'], bearer].includes(DEMO_LLM.apiKey);
 }
 
@@ -68,9 +69,12 @@ function sample(schema: unknown, hint: string, depth = 0): unknown {
   const alt = (Array.isArray(s.anyOf) ? s.anyOf : Array.isArray(s.oneOf) ? s.oneOf : null) as unknown[] | null;
   if (alt?.length) return sample(alt.find((x) => obj(x).type !== 'null') ?? alt[0], hint, depth + 1);
   if (type === 'object' || s.properties) {
-    const out: Obj = {};
-    for (const [k, v] of Object.entries(obj(s.properties))) out[k] = sample(v, k, depth + 1);
-    return out;
+    // property names come from the request: built as entries, never as assignments (no __proto__ and the like)
+    return Object.fromEntries(
+      Object.entries(obj(s.properties))
+        .filter(([k]) => k !== '__proto__' && k !== 'constructor' && k !== 'prototype')
+        .map(([k, v]) => [k, sample(v, k, depth + 1)]),
+    );
   }
   if (type === 'array') return [sample(s.items, hint, depth + 1)];
   if (type === 'number' || type === 'integer') return typeof s.minimum === 'number' ? s.minimum : 1;
