@@ -56,10 +56,11 @@ function missingFields(defs: PlantFieldDef[] | undefined, values: FieldValues): 
 }
 
 /** Empty own field values are not sent (the server keeps only what is set). */
-const cleanFieldValues = (v: FieldValues): FieldValues => Object.fromEntries(Object.entries(v).filter(([, x]) => x !== '' && x !== null && x !== undefined));
+export const cleanFieldValues = (v: FieldValues): FieldValues =>
+  Object.fromEntries(Object.entries(v).filter(([, x]) => x !== '' && x !== null && x !== undefined));
 
 /** The id of a new record: suggested from the name until the person types their own. */
-function useIdField(initial: string | undefined) {
+export function useIdField(initial: string | undefined) {
   const [id, setId] = useState(initial ?? '');
   const [own, setOwn] = useState(!!initial);
   return {
@@ -72,7 +73,7 @@ function useIdField(initial: string | undefined) {
   };
 }
 
-function IdInput({ value, onChange, disabled, error }: { value: string; onChange: (v: string) => void; disabled: boolean; error?: string }) {
+export function IdInput({ value, onChange, disabled, error }: { value: string; onChange: (v: string) => void; disabled: boolean; error?: string }) {
   const { t } = useTranslation('plant');
   return (
     <TextInput
@@ -89,7 +90,7 @@ function IdInput({ value, onChange, disabled, error }: { value: string; onChange
   );
 }
 
-function FormButtons({ busy, onClose }: { busy: boolean; onClose: () => void }) {
+export function FormButtons({ busy, onClose }: { busy: boolean; onClose: () => void }) {
   const { t } = useTranslation('common');
   return (
     <Group justify="flex-end" mt="xs">

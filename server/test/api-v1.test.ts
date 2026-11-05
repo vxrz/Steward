@@ -497,6 +497,10 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   // the plant registry (#218)
   for (const x of await listAll('/plant/sites', '/plant/sites')) await get('/plant/sites/{siteId}', `/plant/sites/${x.id}`);
   for (const x of (await listAll('/plant/assets', '/plant/assets')).slice(0, 5)) await get('/plant/assets/{assetId}', `/plant/assets/${x.id}`);
+  // part 2 (#219): device profiles, KPI definitions, assignments (the demo's milling centres have one, with a check)
+  for (const x of await listAll('/plant/profiles', '/plant/profiles')) await get('/plant/profiles/{profileId}', `/plant/profiles/${x.id}`);
+  for (const x of await listAll('/plant/kpis', '/plant/kpis')) await get('/plant/kpis/{kpiId}', `/plant/kpis/${x.id}`);
+  for (const id of ['rvs-mill-01', 'rvs-mill-02', 'rvs-press-01']) await get('/plant/assets/{assetId}/assignment', `/plant/assets/${id}/assignment`);
   return out;
 }
 

@@ -851,7 +851,16 @@
     "PLANT_IMAGE_DIMENSIONS": "Das Bild muss zwischen 1 und {{max}} Pixel breit und hoch sein.",
     "PLANT_IMAGE_NONE": "Die Anlage hat kein Bild.",
     "PLANT_IMPORT_INVALID": "Die Dateien haben {{count}} Probleme – siehe Vorschau.",
-    "PLANT_IMPORT_TOO_LARGE": "Die Dateien sind zusammen zu groß (höchstens {{mb}} MB)."
+    "PLANT_IMPORT_TOO_LARGE": "Die Dateien sind zusammen zu groß (höchstens {{mb}} MB).",
+    "FORBIDDEN_managePlantCatalogue": "Nur Designer und Administratoren legen Geräteprofile und KPI-Definitionen an und ändern sie.",
+    "PLANT_PROFILE_NOT_FOUND": "Dieses Geräteprofil gibt es nicht (mehr).",
+    "PLANT_KPI_NOT_FOUND": "Diese KPI-Definition gibt es nicht (mehr).",
+    "PLANT_POINT_NOT_FOUND": "Diesen Datenpunkt gibt es nicht (mehr).",
+    "PLANT_PROFILE_INVALID": "Das Geräteprofil kann nicht gespeichert werden – {{path}}: {{message}}",
+    "PLANT_KPI_INVALID": "Die KPI-Definition kann nicht gespeichert werden – {{path}}: {{message}}",
+    "PLANT_ASSIGNMENT_INVALID": "Die Zuordnung kann nicht gespeichert werden – {{path}}: {{message}}",
+    "PLANT_PROFILE_IN_USE": "Das Geräteprofil ist noch Assets zugeordnet – entfernen Sie diese Zuordnungen zuerst.",
+    "PLANT_KPI_IN_USE": "Assets haben noch KPI-Instanzen dieser Definition – entfernen Sie diese zuerst."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

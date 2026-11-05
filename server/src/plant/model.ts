@@ -758,10 +758,12 @@ export function upsertAsset(v: AssetValues, m: Meta, opts: { keepSource?: boolea
   writeRefs('asset', v.id, v.refs);
 }
 
-/** Removes an asset row and what belongs to it alone (image, references, its own links); its children lose their parent. */
+/** Removes an asset row and what belongs to it alone (image, references, assignment, its own links); its children lose their parent. */
 export function removeAssetRow(id: string): void {
   db().run('UPDATE plant_assets SET parent_id = NULL WHERE parent_id = ?', id);
   db().run('DELETE FROM plant_asset_images WHERE asset_id = ?', id);
+  // its profile assignment and KPI instances (#219)
+  db().run('DELETE FROM plant_assignments WHERE asset_id = ?', id);
   db().run("DELETE FROM plant_refs WHERE kind = 'asset' AND item_id = ?", id);
   db().run("DELETE FROM item_links WHERE from_kind = 'asset' AND from_id = ?", id);
   db().run("DELETE FROM copied_from WHERE kind = 'asset' AND id = ?", id);

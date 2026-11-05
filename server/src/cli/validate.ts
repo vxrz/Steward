@@ -82,13 +82,22 @@ export async function validateFile(file: string): Promise<FileResult> {
         }
       : { file: rel, kind: 'template bundle', ok: false, errors: r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`), warnings: [] };
   }
-  // a plant registry file (#218, examples/plant): version 1 with sites, a site or assets – checked against its format
-  if (obj && typeof obj === 'object' && 'version' in obj && ('sites' in obj || 'site' in obj || 'assets' in obj)) {
+  // a plant registry file (#218, examples/plant): version 1 with sites, a site or assets – checked against its format;
+  // since part 2 (#219) also device profiles, KPI definitions and assignments
+  const PLANT_KEYS = ['sites', 'site', 'assets', 'device_profiles', 'device_profile', 'kpi_definitions', 'kpi_definition', 'assignments', 'assignment'];
+  if (obj && typeof obj === 'object' && 'version' in obj && PLANT_KEYS.some((k) => k in obj)) {
     const r = plantFileSchema.safeParse(raw);
     if (!r.success)
       return { file: rel, kind: 'plant registry', ok: false, errors: r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`), warnings: [] };
     const sites = r.data.sites ?? (r.data.site ? [r.data.site] : []);
-    const count = sites.length + sites.reduce((n, x) => n + (x.assets?.length ?? 0), 0) + (r.data.assets?.length ?? 0);
+    const one = <T>(many: T[] | undefined, single: T | undefined) => many?.length ?? (single ? 1 : 0);
+    const count =
+      sites.length +
+      sites.reduce((n, x) => n + (x.assets?.length ?? 0), 0) +
+      (r.data.assets?.length ?? 0) +
+      one(r.data.device_profiles, r.data.device_profile) +
+      one(r.data.kpi_definitions, r.data.kpi_definition) +
+      one(r.data.assignments, r.data.assignment);
     return { file: rel, kind: 'plant registry', ok: true, count, errors: [], warnings: [] };
   }
   if (obj && (obj.kind === 'monitor' || obj.kind === 'monitorTemplate')) {
@@ -161,7 +170,7 @@ export async function main(argv: string[]): Promise<number> {
       if (r.kind === 'bundle') out.push(`${c.dim('•')} ${r.file}: bundle (skipped)`);
       else
         out.push(
-          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : r.kind === 'plant registry' ? 'sites and assets' : 'nodes'}`,
+          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : r.kind === 'plant registry' ? 'records' : 'nodes'}`,
         );
     }
     if (!values.quiet || !r.ok) for (const w of r.warnings) out.push(`  ${c.yellow('⚠')} ${w}`);

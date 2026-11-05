@@ -34,6 +34,8 @@ const ENDPOINT: Record<DuplicateKind, (id: string) => string> = {
   'status-page': (id) => `/status-pages/${id}/duplicate`,
   system: (id) => `/systems/${id}/duplicate`,
   asset: (id) => `/plant/assets/${encodeURIComponent(id)}/duplicate`,
+  'device-profile': (id) => `/plant/profiles/${encodeURIComponent(id)}/duplicate`,
+  'kpi-definition': (id) => `/plant/kpis/${encodeURIComponent(id)}/duplicate`,
 };
 
 /** The list queries a copy shows up in. */
@@ -51,6 +53,8 @@ const LIST_KEYS: Record<DuplicateKind, string[]> = {
   'status-page': ['status-pages'],
   system: ['systems'],
   asset: ['plant'],
+  'device-profile': ['plant'],
+  'kpi-definition': ['plant'],
 };
 
 /** Errors shown at a field of the dialog. */

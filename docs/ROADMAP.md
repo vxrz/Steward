@@ -29,7 +29,7 @@ Guiding principles:
 | Data and dashboards | Datasets published by procedures, metric history with trends and forecasts, dashboards with KPI, trend, status, table and Vega-Lite widgets, the public REST API `/api/v1` for BI tools.                                                                               |
 | AI assistants       | An MCP server with a platform gateway, approved write requests (0.2.10) and OAuth 2.1 sign-in for MCP clients (0.3.0).                                                                                                                                                 |
 | AI models           | **LLM gateways** (0.6.0) in four request formats, the process step _Ask an AI model_ with per-call limits, token budgets per day and month, a usage log and the _AI usage_ dataset; answers are marked as AI-generated.                                                |
-| Plant registry      | Opt-in module (0.6.0, preview): sites with their ISA-95 hierarchy and buildings, assets, links to systems and applications, YAML import and export with a JSON Schema.                                                                                                 |
+| Plant registry      | Opt-in module (0.6.0, preview): sites with their ISA-95 hierarchy and buildings, assets, links to systems and applications, YAML import and export with a JSON Schema; since 0.7.0 device profiles with data points, KPI definitions, KPI instances and their checks.  |
 | Running it          | Desktop executable, installable PWA, signed container image, SQLite or PostgreSQL, backups (local and S3), moving an instance with a migration package, upgrade tests from every release, OpenTelemetry traces, Prometheus metrics, optional Sentry-compatible errors. |
 
 ## Non-goals

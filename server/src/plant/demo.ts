@@ -7,6 +7,8 @@ import { plantEnabled } from './settings.js';
 
 /** The demo's invented enterprise (examples/plant): two sites, their hierarchy and buildings, about ten assets. */
 export const PLANT_DEMO_FILE = 'brightwater.plant.yaml';
+/** Part 2 (#219): invented device profiles, KPI definitions and the assignments of some assets (one with a check problem). */
+export const PLANT_DEMO_DATA_FILE = 'brightwater-data-points.plant.yaml';
 
 /**
  * Loads the demo enterprise when the module is on and the registry is still empty (demo mode only: on "Load demo
@@ -15,7 +17,10 @@ export const PLANT_DEMO_FILE = 'brightwater.plant.yaml';
 export function seedPlantDemo(): number {
   if (!config.demo || !plantEnabled()) return 0;
   if (db().get('SELECT 1 FROM plant_sites LIMIT 1')) return 0;
-  const file = path.join(config.examplesDir, 'plant', PLANT_DEMO_FILE);
-  const r = applyImport({ files: [{ name: PLANT_DEMO_FILE, content: fs.readFileSync(file, 'utf8') }], mode: 'add', missing: 'mark', replaces: null });
+  const files = [PLANT_DEMO_FILE, PLANT_DEMO_DATA_FILE].map((name) => ({
+    name,
+    content: fs.readFileSync(path.join(config.examplesDir, 'plant', name), 'utf8'),
+  }));
+  const r = applyImport({ files, mode: 'add', missing: 'mark', replaces: null });
   return r.counts.add;
 }

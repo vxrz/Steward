@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/vxrz/Steward/blob/main/docs/plant/plant-registry-1.schema.json",
   "title": "Steward plant registry, format 1",
-  "description": "Sites of an enterprise with their ISA-95 (IEC 62264) hierarchy – area, work center, work unit –, the buildings (IEC 81346 location aspect) and the assets in them. See docs/PLANT.md.",
+  "description": "Sites of an enterprise with their ISA-95 (IEC 62264) hierarchy – area, work center, work unit –, the buildings (IEC 81346 location aspect) and the assets in them; device profiles with their interfaces and data points (OPC UA IEC 62541, Modbus, IEC 61131-3, UCUM), KPI definitions (ISO 22400-2) and the assignments of assets. See docs/PLANT.md.",
   "type": "object",
   "properties": {
     "$schema": {
@@ -45,6 +45,42 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/Asset"
+      }
+    },
+    "device_profile": {
+      "description": "One device profile (a file per profile)",
+      "$ref": "#/$defs/DeviceProfile"
+    },
+    "device_profiles": {
+      "description": "Device profiles (a catalogue of the installation)",
+      "maxItems": 2000,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DeviceProfile"
+      }
+    },
+    "kpi_definition": {
+      "description": "One KPI definition",
+      "$ref": "#/$defs/KpiDefinition"
+    },
+    "kpi_definitions": {
+      "description": "KPI definitions (a catalogue of the installation)",
+      "maxItems": 1000,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/KpiDefinition"
+      }
+    },
+    "assignment": {
+      "description": "The assignment of one asset",
+      "$ref": "#/$defs/Assignment"
+    },
+    "assignments": {
+      "description": "Assignments of assets",
+      "maxItems": 50000,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Assignment"
       }
     }
   },
@@ -1038,6 +1074,1500 @@
       ],
       "additionalProperties": false,
       "description": "A piece of equipment"
+    },
+    "DeviceProfile": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Name in the installation’s default language"
+        },
+        "manufacturer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "description": "Firmware or product version the profile describes",
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "interfaces": {
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Interface"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "A kind of controller or device with its interfaces and data points (a catalogue of the installation)"
+    },
+    "Interface": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+          "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "protocol": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "Protocol: opc_ua, modbus_tcp, mqtt, http, smb, webdav, sftp, ftp, other (usual spellings such as OPC-UA or Modbus/TCP are accepted)"
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 60,
+              "description": "Direction, seen from whoever reads the device: read, write, read_write (usual spellings such as OPC-UA or Modbus/TCP are accepted)"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "default_port": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "authentication": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 60,
+              "description": "How a client signs in: none, username_password, certificate, token, other (usual spellings such as OPC-UA or Modbus/TCP are accepted)"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "client": {
+          "description": "The client it needs (a gateway, a driver, manual)",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "groups": {
+          "description": "Data point groups",
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 8000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "data_points": {
+                "maxItems": 5000,
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/DataPoint"
+                }
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "data_points": {
+          "description": "Data points without a group",
+          "maxItems": 5000,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DataPoint"
+          }
+        },
+        "file_sets": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FileSet"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "protocol"
+      ],
+      "additionalProperties": false,
+      "description": "An interface of a device: OPC UA, Modbus/TCP, MQTT, file transfer, web UI …"
+    },
+    "DataPoint": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+          "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+        },
+        "name": {
+          "description": "Name (default: the id)",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data_type": {
+          "description": "OPC UA built-in type (IEC 62541), IEC 61131-3 elementary type, or int, float, bool, string; [] for an array",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 40
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit": {
+          "description": "Unit as a UCUM code (kW.h, Cel, /min, %); usual spellings such as kWh or °C are read as their code",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 40
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "address": {
+          "description": "OPC UA NodeId (ns=2;s=Spindle.Speed), Modbus <table>:<address>[,<count>] (holding:100, input:7,2), a topic, a file path or column",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "node_id": {
+          "description": "Another spelling of address (an OPC UA NodeId)",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "modbus_address": {
+          "description": "Another spelling of address (a Modbus address)",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "access": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 60,
+              "description": "Direction, seen from whoever reads the device: read, write, read_write (usual spellings such as OPC-UA or Modbus/TCP are accepted)"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "update_rate_ms": {
+          "description": "Typical update rate in milliseconds",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2678400000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enum_values": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "number"
+              }
+            ]
+          }
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "publications": {
+          "description": "Where it is usually published",
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "description": "The system it is published to (an IoT platform, a historian)",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "path": {
+                "description": "Where there: a path, an aspect, a topic",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "description": "Its name there: a variable, a tag",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "A value an interface delivers"
+    },
+    "FileSet": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+          "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "format": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 60,
+              "description": "Direction, seen from whoever reads the device: read, write, read_write (usual spellings such as OPC-UA or Modbus/TCP are accepted)"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "path_pattern": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "produced_per": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retention": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "encoding": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "Files a file-transfer interface exchanges"
+    },
+    "KpiDefinition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Name in the installation’s default language"
+        },
+        "names": {
+          "maxProperties": 10,
+          "description": "Translations of the name, keyed by language code: { de: Halle 1 }",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "category": {
+          "description": "Availability, performance, quality, energy …",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "formula": {
+          "description": "ISO 22400-2: the formula",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit": {
+          "description": "Unit as a UCUM code (kW.h, Cel, /min, %); usual spellings such as kWh or °C are read as their code",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 40
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "range": {
+          "description": "ISO 22400-2: the range of the value",
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "trend": {
+          "description": "ISO 22400-2: whether higher or lower is better",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "higher_is_better",
+                "lower_is_better",
+                "none"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timing": {
+          "description": "ISO 22400-2: real_time, periodic or on_demand",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "real_time",
+                "periodic",
+                "on_demand"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "audience": {
+          "description": "ISO 22400-2: who reads it",
+          "maxItems": 3,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "operator",
+              "supervisor",
+              "management"
+            ]
+          }
+        },
+        "methodology": {
+          "description": "ISO 22400-2: production methodology",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "discrete",
+                "batch",
+                "continuous"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "strategy": {
+          "description": "The computing system’s name of the method",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "implementation": {
+          "description": "Where its code lives",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dynamic_columns": {
+          "description": "The columns vary from run to run",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "inputs": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "description": "data_point (default) or other",
+                "type": "string",
+                "maxLength": 40
+              },
+              "profile": {
+                "description": "The device profile the data points belong to",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                    "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "data_points": {
+                "maxItems": 500,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+                  "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+                }
+              },
+              "notes": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 8000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "parameters": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+                "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+              },
+              "aliases": {
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+                  "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+                }
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 8000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": {
+                "description": "number (default), integer, string or boolean",
+                "type": "string",
+                "enum": [
+                  "number",
+                  "integer",
+                  "string",
+                  "boolean"
+                ]
+              },
+              "default": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "required": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "min": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "max": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "unit": {
+                "description": "Unit as a UCUM code (kW.h, Cel, /min, %); usual spellings such as kWh or °C are read as their code",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "columns": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+                "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+              },
+              "kind": {
+                "description": "sum (default), ratio or ignore",
+                "type": "string",
+                "enum": [
+                  "sum",
+                  "ratio",
+                  "ignore"
+                ]
+              },
+              "scope": {
+                "description": "Which windows the column is written for",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "unit": {
+                "description": "Unit as a UCUM code (kW.h, Cel, /min, %); usual spellings such as kWh or °C are read as their code",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "numerator": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "denominator": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "scale": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 8000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "computation": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 8000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "diagram": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 8000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "steps": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "does": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 8000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "why": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 8000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "identities": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "relation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "note": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 8000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "relation"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "limits": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "A KPI: its inputs, parameters, result columns and computation (ISO 22400-2 attributes)"
+    },
+    "Assignment": {
+      "type": "object",
+      "properties": {
+        "asset": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "The asset"
+        },
+        "site": {
+          "description": "The asset’s site (optional; checked when given)",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$"
+        },
+        "profile": {
+          "description": "Its device profile",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+              "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "firmware": {
+          "description": "Controller firmware",
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "interfaces": {
+          "description": "Per interface of the profile: set up (active) and where (endpoint)",
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "interface": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+                "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+              },
+              "active": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "endpoint": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "notes": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 8000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "interface"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "overrides": {
+          "description": "Data points that differ on this asset",
+          "maxItems": 5000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "data_point": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+                "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+              },
+              "available": {
+                "description": "false: this asset does not deliver it",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "address": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "unit": {
+                "description": "Unit as a UCUM code (kW.h, Cel, /min, %); usual spellings such as kWh or °C are read as their code",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "data_type": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "update_rate_ms": {
+                "description": "Typical update rate in milliseconds",
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2678400000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "notes": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 8000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "data_point"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "publications": {
+          "description": "Where data points of this asset are published",
+          "maxItems": 5000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "data_point": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+                "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "path": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "published_by": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "notes": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 8000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "data_point"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "kpis": {
+          "description": "KPI instances",
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kpi": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                "description": "The KPI definition"
+              },
+              "job": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "The computation job, unique per asset"
+              },
+              "active": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "params": {
+                "maxProperties": 100,
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "dashboard": {
+                "description": "The Steward dashboard (id) that shows the result",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "dataset": {
+                "description": "The Steward dataset (key) the result is published to",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "notes": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 8000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kpi",
+              "job"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "asset"
+      ],
+      "additionalProperties": false,
+      "description": "What an asset’s interfaces deliver: its device profile, endpoints, overrides, publications and KPI instances"
     }
   }
 }

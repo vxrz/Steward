@@ -31,11 +31,12 @@ import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { canCreateSites, plantManagesSome, siteRights } from './access.js';
 import { fieldDefs, fieldProblems, isDate, isHttpUrl, plantSettings, requirePlant } from './settings.js';
 import { issueMessages, plantFileSchema, SCHEMA_ID, type AreaFile, type AssetFile, type PlantFile, type SiteFile } from './format.js';
+import { assignmentOut, computeData, dataPlanEmpty, emptyDataPlan, kpiOut, profileOut, planData, pushWrite, type DataPlan, type Write } from './import-data.js';
+import { allAssignments, allKpis, allProfiles } from './data-model.js';
 import {
   assetValuesOf,
   buildingProblem,
   buildingValuesOf,
-  changedKeys,
   cleanRefs,
   cleanTags,
   equipmentCycle,
@@ -188,6 +189,8 @@ interface Plan {
   nodes: Map<string, PlannedNode>; // key site/id
   buildings: Map<string, PlannedBuilding>;
   assets: Map<string, PlannedAsset>;
+  /** Device profiles, KPI definitions and assignments (#219, import-data.ts) */
+  data: DataPlan;
 }
 
 const key = (siteId: string, id: string) => `${siteId}/${id}`;
@@ -241,7 +244,7 @@ function assetFromFile(a: AssetFile): PlannedAsset['values'] {
 }
 
 function plan(parsed: Parsed[], problems: PlantImportProblem[]): Plan {
-  const p: Plan = { enterprise: null, sites: new Map(), nodes: new Map(), buildings: new Map(), assets: new Map() };
+  const p: Plan = { enterprise: null, sites: new Map(), nodes: new Map(), buildings: new Map(), assets: new Map(), data: emptyDataPlan() };
   const twice = (o: Origin, what: string, first: Origin) =>
     problems.push({ ...o, message: `${what} is defined twice (also in ${first.file} at ${first.path})` });
   const addAsset = (a: AssetFile, siteId: string | null, o: Origin) => {
@@ -315,6 +318,7 @@ function plan(parsed: Parsed[], problems: PlantImportProblem[]): Plan {
       (s.assets ?? []).forEach((a, i) => addAsset(a, s.id, { file: f.name, path: `${path}.assets[${i}]` }));
     }
     (f.file.assets ?? []).forEach((a, i) => addAsset(a, null, { file: f.name, path: `assets[${i}]` }));
+    planData(p.data, f.file, f.name, problems);
   }
   return p;
 }
@@ -386,18 +390,6 @@ function stored(): Stored {
     ),
     rights: siteRights(sites),
   };
-}
-
-interface Write {
-  kind: PlantChangeKind;
-  action: PlantChangeAction;
-  siteId: string;
-  id: string;
-  name: string;
-  fields?: string[];
-  note?: string;
-  /** What to write (add, change, unchanged: adopt; mark: flag) */
-  apply: () => void;
 }
 
 const emptyCounts = (): PlantCounts => ({ add: 0, change: 0, remove: 0, mark: 0, unchanged: 0, skip: 0 });
@@ -912,6 +904,27 @@ function compute(input: ImportInput, importId: string): Computed {
     }
   }
 
+  // ---- device profiles, KPI definitions and assignments (#219)
+  const checks = computeData({
+    plan: p.data,
+    mode,
+    missing,
+    prevId,
+    importId,
+    meta,
+    user: u,
+    writes,
+    problems,
+    warnings,
+    rights: s.rights,
+    sites: s.sites,
+    storedAssets: s.assets,
+    postSite,
+    removedAssets: removing.assets,
+    fileSites: new Set(p.sites.keys()),
+    needManage,
+  });
+
   // what the file would change in sites the caller may not see is not shown (it cannot be imported anyway)
   const changes: PlantChange[] = writes.filter((w) => !hiddenSite(w.siteId)).map(({ apply: _a, ...c }) => c);
   const counts = emptyCounts();
@@ -920,9 +933,13 @@ function compute(input: ImportInput, importId: string): Computed {
     counts[c.action]++;
     (byKind[c.kind] ??= emptyCounts())[c.action]++;
   }
-  const empty = !p.sites.size && !p.nodes.size && !p.buildings.size && !p.assets.size;
+  const empty = !p.sites.size && !p.nodes.size && !p.buildings.size && !p.assets.size && dataPlanEmpty(p.data);
   if (empty && mode !== 'replace' && !problems.length)
-    problems.push({ file: '(files)', path: '(document)', message: 'The files hold no records (sites, hierarchy, buildings or assets)' });
+    problems.push({
+      file: '(files)',
+      path: '(document)',
+      message: 'The files hold no records (sites, hierarchy, buildings, assets, device profiles, KPI definitions or assignments)',
+    });
   const preview: PlantImportPreview = {
     ok: problems.length === 0,
     mode,
@@ -935,29 +952,9 @@ function compute(input: ImportInput, importId: string): Computed {
     changes,
     counts,
     byKind,
+    checks,
   };
   return { preview, writes, plan: p };
-}
-
-function pushWrite<V extends object>(
-  writes: Write[],
-  mode: PlantImportMode,
-  kind: PlantChangeKind,
-  siteId: string,
-  id: string,
-  name: string,
-  before: V | null,
-  after: V,
-  cur: { not_in_source: number } | undefined,
-  write: () => void,
-  adopt: () => void,
-): void {
-  if (!before) return void writes.push({ kind, action: 'add', siteId, id, name, apply: write });
-  if (mode === 'add') return void writes.push({ kind, action: 'skip', siteId, id, name, note: 'exists (add only)', apply: () => undefined });
-  const fields = changedKeys(before, after);
-  if (cur?.not_in_source) fields.push('notInSource');
-  if (fields.length) writes.push({ kind, action: 'change', siteId, id, name, fields, apply: write });
-  else writes.push({ kind, action: 'unchanged', siteId, id, name, apply: adopt });
 }
 
 // ---------- the API ----------
@@ -979,11 +976,12 @@ export function applyImport(input: ImportInput): PlantImportResult {
     throw new HttpError(400, `The files have ${preview.problems.length} problems – see the preview`, 'PLANT_IMPORT_INVALID', {
       count: preview.problems.length,
     });
-  const sites = [...new Set(writes.map((w) => w.siteId))].sort();
+  // profiles and KPI definitions belong to no site
+  const sites = [...new Set(writes.map((w) => w.siteId).filter(Boolean))].sort();
   db().tx(() => {
     // removals last: what stays may still name them while it is written
     for (const w of writes) if (w.action !== 'remove') w.apply();
-    const order: PlantChangeKind[] = ['asset', 'work_unit', 'work_center', 'area', 'building', 'site'];
+    const order: PlantChangeKind[] = ['assignment', 'asset', 'work_unit', 'work_center', 'area', 'building', 'site', 'kpi', 'profile'];
     for (const kind of order) for (const w of writes) if (w.action === 'remove' && w.kind === kind) w.apply();
     db().run(
       'INSERT INTO plant_imports (id, created_at, created_by, mode, missing, replaces, files, sha256, counts, sites) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -1003,7 +1001,7 @@ export function applyImport(input: ImportInput): PlantImportResult {
       writes
         .filter((w) => w.action === action)
         .slice(0, 200)
-        .map((w) => `${w.kind}:${w.siteId === w.id ? w.id : `${w.siteId}/${w.id}`}`);
+        .map((w) => `${w.kind}:${w.siteId === w.id || !w.siteId || w.kind === 'assignment' ? w.id : `${w.siteId}/${w.id}`}`);
     audit({
       action: 'plant.imported',
       entityType: 'plant_import',
@@ -1061,7 +1059,7 @@ function toSummary(r: ImportRow, records: number): PlantImportSummary {
 
 function recordCounts(): Map<string, number> {
   const out = new Map<string, number>();
-  for (const t of ['plant_sites', 'plant_nodes', 'plant_buildings', 'plant_assets'])
+  for (const t of ['plant_sites', 'plant_nodes', 'plant_buildings', 'plant_assets', 'plant_profiles', 'plant_kpis', 'plant_assignments'])
     for (const r of db().all<{ import_id: string; n: number }>(`SELECT import_id, COUNT(*) AS n FROM ${t} WHERE import_id IS NOT NULL GROUP BY import_id`))
       out.set(r.import_id, (out.get(r.import_id) ?? 0) + Number(r.n));
   return out;
@@ -1104,10 +1102,64 @@ const clean = <T extends Record<string, unknown>>(o: T): Partial<T> =>
 
 const refsToFile = (refs: ExternalRef[]) => refs.map((r) => clean({ system: r.system, id: r.id, url: r.url, label: r.label }));
 
-/** The registry as a YAML document of format 1: every site the caller may see, or one site (`site:`). */
-export function exportYaml(siteId?: string): { filename: string; content: string; sites: number; assets: number } {
+export interface ExportQuery {
+  /** One site (`site:`) with the assignments of its assets */
+  site?: string;
+  /** One device profile (`device_profile:`) */
+  profile?: string;
+  /** One KPI definition (`kpi_definition:`) */
+  kpi?: string;
+  /** `catalogue`: the device profiles and KPI definitions only */
+  part?: 'all' | 'catalogue';
+}
+
+/**
+ * The registry as a YAML document of format 1: every site the caller may see with the catalogues and the assignments
+ * of their assets, one site (`site:` and its assignments), the catalogues only, one device profile or one KPI definition.
+ */
+export function exportYaml(q: ExportQuery = {}): { filename: string; content: string; sites: number; assets: number } {
   requirePlant();
   const u = me();
+  const header = `# yaml-language-server: $schema=${SCHEMA_ID}\n# Steward plant registry, format ${PLANT_FORMAT_VERSION} (docs/PLANT.md) – exported ${nowIso()} by ${u.username}\n`;
+  // one catalogue record, or the catalogues
+  if (q.profile || q.kpi || q.part === 'catalogue') {
+    const profiles = allProfiles();
+    const kpis = allKpis();
+    let doc: Record<string, unknown>;
+    let filename: string;
+    if (q.profile) {
+      const pr = profiles.get(q.profile);
+      if (!pr) throw new HttpError(404, `Device profile ${q.profile} not found`, 'PLANT_PROFILE_NOT_FOUND', { id: q.profile });
+      doc = { version: PLANT_FORMAT_VERSION, device_profile: profileOut(pr) };
+      filename = `${pr.id}.profile.plant.yaml`;
+    } else if (q.kpi) {
+      const k = kpis.get(q.kpi);
+      if (!k) throw new HttpError(404, `KPI definition ${q.kpi} not found`, 'PLANT_KPI_NOT_FOUND', { id: q.kpi });
+      doc = { version: PLANT_FORMAT_VERSION, kpi_definition: kpiOut(k) };
+      filename = `${k.id}.kpi.plant.yaml`;
+    } else {
+      doc = {
+        version: PLANT_FORMAT_VERSION,
+        ...(profiles.size ? { device_profiles: [...profiles.values()].map(profileOut) } : {}),
+        ...(kpis.size ? { kpi_definitions: [...kpis.values()].map(kpiOut) } : {}),
+      };
+      filename = 'plant-catalogue.plant.yaml';
+    }
+    const content = header + YAML.stringify(doc, { lineWidth: 0 });
+    audit({
+      action: 'plant.exported',
+      entityType: q.profile ? 'device_profile' : q.kpi ? 'kpi_definition' : 'plant_import',
+      entityId: q.profile ?? q.kpi ?? null,
+      summary: q.profile
+        ? `Device profile ${q.profile} exported`
+        : q.kpi
+          ? `KPI definition ${q.kpi} exported`
+          : `Plant registry catalogues exported (${profiles.size} device profiles, ${kpis.size} KPI definitions)`,
+      details: { profiles: q.profile ? 1 : q.kpi ? 0 : profiles.size, kpis: q.kpi ? 1 : q.profile ? 0 : kpis.size, sha256: sha256(content) },
+    });
+    return { filename, content, sites: 0, assets: 0 };
+  }
+  const siteId = q.site;
   const sites = db().all<SiteRow>('SELECT * FROM plant_sites ORDER BY name, id');
   const rights = siteRights(sites);
   const chosen = sites.filter((s) => rights.get(s.id)!.includes('view') && (!siteId || s.id === siteId));
@@ -1200,15 +1252,26 @@ export function exportYaml(siteId?: string): { filename: string; content: string
     });
   });
   const enterprise = plantSettings().enterprise;
-  const doc = { version: PLANT_FORMAT_VERSION, ...(enterprise ? { enterprise: { name: enterprise } } : {}), ...(siteId ? { site: out[0] } : { sites: out }) };
-  const header = `# yaml-language-server: $schema=${SCHEMA_ID}\n# Steward plant registry, format ${PLANT_FORMAT_VERSION} (docs/PLANT.md) – exported ${nowIso()} by ${u.username}\n`;
+  // part 2 (#219): the whole registry carries the catalogues; a site and the whole registry the assignments of their assets
+  const assignments = allAssignments();
+  const assigned = assets.filter((a) => assignments.has(a.id)).map((a) => assignmentOut(a.id, assignments.get(a.id)!));
+  const profiles = siteId ? [] : [...allProfiles().values()];
+  const kpis = siteId ? [] : [...allKpis().values()];
+  const doc = {
+    version: PLANT_FORMAT_VERSION,
+    ...(enterprise ? { enterprise: { name: enterprise } } : {}),
+    ...(siteId ? { site: out[0] } : { sites: out }),
+    ...(profiles.length ? { device_profiles: profiles.map(profileOut) } : {}),
+    ...(kpis.length ? { kpi_definitions: kpis.map(kpiOut) } : {}),
+    ...(assigned.length ? { assignments: assigned } : {}),
+  };
   const content = header + YAML.stringify(doc, { lineWidth: 0 });
   audit({
     action: 'plant.exported',
     entityType: siteId ? 'site' : 'plant_import',
     entityId: siteId ?? null,
-    summary: `Plant registry exported (${out.length} sites, ${assetCount} assets)`,
-    details: { sites: out.length, assets: assetCount, sha256: sha256(content) },
+    summary: `Plant registry exported (${out.length} sites, ${assetCount} assets${siteId ? '' : `, ${profiles.length} device profiles, ${kpis.length} KPI definitions`})`,
+    details: { sites: out.length, assets: assetCount, profiles: profiles.length, kpis: kpis.length, assignments: assigned.length, sha256: sha256(content) },
   });
   return { filename: `${siteId ?? 'plant-registry'}.plant.yaml`, content, sites: out.length, assets: assetCount };
 }

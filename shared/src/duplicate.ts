@@ -25,6 +25,8 @@ export const DUPLICATE_KINDS = [
   'status-page',
   'system',
   'asset',
+  'device-profile',
+  'kpi-definition',
 ] as const;
 export type DuplicateKind = (typeof DUPLICATE_KINDS)[number];
 
