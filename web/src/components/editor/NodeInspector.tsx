@@ -11,6 +11,7 @@ import { inspectNode, isNotFound, useLatestRun, useRunDetail } from './editorApi
 import { errorText } from '../../i18n/errors';
 import { withBase } from '../../basePath';
 import { runKeys } from '../../queryKeys';
+import { QueryResultTable, isQueryResult } from './QueryStepFields';
 
 type Activation = NodeInspection['activations'][number];
 
@@ -74,8 +75,9 @@ function ActivationView({ a, first }: { a: Activation; first: boolean }) {
             <JsonView value={a.input} maxHeight={240} />
           </Section>
         )}
+        {isQueryResult(a.output) && <QueryResultTable value={a.output} />}
         {present(a.output) && (
-          <Section title={t('inspector.output')} defaultOpen={first}>
+          <Section title={t('inspector.output')} defaultOpen={first && !isQueryResult(a.output)}>
             <JsonView value={a.output} maxHeight={300} />
           </Section>
         )}

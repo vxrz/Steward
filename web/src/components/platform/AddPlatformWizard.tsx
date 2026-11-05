@@ -9,6 +9,8 @@ import {
   Group,
   Loader,
   Modal,
+  NumberInput,
+  SimpleGrid,
   Paper,
   PasswordInput,
   Select,
@@ -22,7 +24,16 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { IconArrowRight, IconPlugConnected, IconRefresh, IconSearch, IconUpload } from '@tabler/icons-react';
-import { impliedAuthType, type AuthType, type Platform, type PlatformPreset } from '@sm/shared';
+import {
+  DB_DIALECT_INFO,
+  DB_TLS_MODES,
+  impliedAuthType,
+  type AuthType,
+  type DatabaseSettings,
+  type DbTlsMode,
+  type Platform,
+  type PlatformPreset,
+} from '@sm/shared';
 import { get, notifyError, post, put } from '../../api';
 import { Hint, KeyValueEditor } from '../common';
 import { EnvironmentInput } from '../catalogue/environments';
@@ -31,11 +42,12 @@ import { authLabel, presetDescription, presetSecretHelp, presetSecretLabel } fro
 import { GetStartedPanel, TestHints } from './onboarding';
 
 /** Groups of the connector list (kinds not named here: "Other"). */
-type GroupKey = 'industrial' | 'monitoring' | 'cloud' | 'development' | 'ai' | 'messaging' | 'custom' | 'other';
+type GroupKey = 'industrial' | 'monitoring' | 'cloud' | 'databases' | 'development' | 'ai' | 'messaging' | 'custom' | 'other';
 const GROUPS: { key: GroupKey; kinds: string[] }[] = [
   { key: 'industrial', kinds: ['insights-hub', 'industrial-edge-management', 'mqtt'] },
   { key: 'monitoring', kinds: ['gatus', 'checkmk', 'prometheus', 'zabbix'] },
   { key: 'cloud', kinds: ['aws', 'kubernetes', 'snowflake', 'kafka', 'confluent-cloud', 'microsoft-graph'] },
+  { key: 'databases', kinds: ['database'] },
   { key: 'development', kinds: ['github', 'gitlab', 'forgejo', 'dependency-track', 'endoflife-date'] },
   { key: 'ai', kinds: ['llm-gateway'] },
   { key: 'messaging', kinds: ['teams'] },
@@ -82,6 +94,8 @@ export function AddPlatformWizard({
   const [variables, setVariables] = useState<Record<string, unknown>>({});
   const [secrets, setSecrets] = useState<Record<string, string>>({});
   const [authChoice, setAuthChoice] = useState<AuthType | null>(null);
+  /** Database platforms (0.7.0): the connection, filled in here and saved as config.database */
+  const [dbConn, setDbConn] = useState<DatabaseSettings | null>(null);
   const [created, setCreated] = useState<Platform | null>(null);
   const [busy, setBusy] = useState(false);
   const [test, setTest] = useState<TestResult | null>(null);
@@ -103,6 +117,7 @@ export function AddPlatformWizard({
     setPreset(p);
     setBaseUrl(p.baseUrl);
     setVariables({ ...p.config.variables });
+    setDbConn(p.config.database ? { ...p.config.database, host: '', tls: { ...p.config.database.tls } } : null);
     setSecrets({});
     setAuthChoice(null);
     setStep(1);
@@ -129,7 +144,7 @@ export function AddPlatformWizard({
     try {
       const vars = Object.fromEntries(Object.entries(variables).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)]));
       const filled = Object.fromEntries(Object.entries(secrets).filter(([, v]) => v));
-      const config = { ...preset.config, auth: { ...preset.config.auth, type: authType }, variables: vars };
+      const config = { ...preset.config, auth: { ...preset.config.auth, type: authType }, variables: vars, ...(dbConn ? { database: dbConn } : {}) };
       let p: Platform;
       if (!created) {
         p = await post<Platform>('/platforms', {
@@ -144,6 +159,8 @@ export function AddPlatformWizard({
         });
       } else {
         p = await put<Platform>(`/platforms/${created.id}`, { name, environment, baseUrl, config: { ...created.config, ...config } });
+        // the database connection changes only through its own route
+        if (dbConn) p = await put<Platform>(`/platforms/${created.id}/database`, dbConn);
         if (Object.keys(filled).length) await put(`/platforms/${created.id}/secrets`, filled);
       }
       setCreated(p);
@@ -262,6 +279,48 @@ export function AddPlatformWizard({
               description={t('form.baseUrlHint', { example: '{{ vars.region }}' })}
             />
           )}
+          {dbConn && (
+            <Stack gap="xs" data-testid="wizard-database">
+              <Divider label={t('wizard.databaseConnection', { dbms: DB_DIALECT_INFO[dbConn.dialect].label })} labelPosition="left" />
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <TextInput
+                  label={t('database.host')}
+                  description={t('database.hostHint')}
+                  required
+                  classNames={{ input: 'mono' }}
+                  placeholder="db.example.internal"
+                  value={dbConn.host}
+                  onChange={(e) => setDbConn({ ...dbConn, host: e.currentTarget.value.trim() })}
+                  data-testid="wizard-db-host"
+                />
+                <NumberInput
+                  label={t('database.port')}
+                  placeholder={String(DB_DIALECT_INFO[dbConn.dialect].port)}
+                  min={1}
+                  max={65535}
+                  value={dbConn.port ?? ''}
+                  onChange={(v) => setDbConn({ ...dbConn, port: typeof v === 'number' ? v : undefined })}
+                />
+                <TextInput
+                  label={t('database.database')}
+                  description={t(`database.databaseHint.${dbConn.dialect}`)}
+                  required
+                  classNames={{ input: 'mono' }}
+                  value={dbConn.database}
+                  onChange={(e) => setDbConn({ ...dbConn, database: e.currentTarget.value })}
+                  data-testid="wizard-db-name"
+                />
+                <Select
+                  label={t('database.tlsMode')}
+                  data={DB_TLS_MODES.map((m) => ({ value: m, label: t(`database.tlsModes.${m}`) }))}
+                  value={dbConn.tls.mode}
+                  allowDeselect={false}
+                  onChange={(v) => v && setDbConn({ ...dbConn, tls: { ...dbConn.tls, mode: v as DbTlsMode } })}
+                />
+              </SimpleGrid>
+              <Hint>{t('wizard.databaseHint')}</Hint>
+            </Stack>
+          )}
           {Object.keys(preset.config.variables ?? {}).length > 0 && (
             <div>
               <Text size="sm" fw={500} mb={4}>
@@ -314,7 +373,13 @@ export function AddPlatformWizard({
                 </Button>
               )}
             </Group>
-            <Button onClick={saveAndTest} loading={busy} disabled={!name.trim()} leftSection={<IconPlugConnected size={16} />} data-testid="wizard-create">
+            <Button
+              onClick={saveAndTest}
+              loading={busy}
+              disabled={!name.trim() || (!!dbConn && (!dbConn.host || !dbConn.database.trim()))}
+              leftSection={<IconPlugConnected size={16} />}
+              data-testid="wizard-create"
+            >
               {created ? t('wizard.saveAndTest') : t('wizard.createAndTest')}
             </Button>
           </Group>

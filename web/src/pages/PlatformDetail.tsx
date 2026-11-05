@@ -22,9 +22,10 @@ import {
   IconTerminal2,
   IconTrash,
   IconGauge,
+  IconDatabase,
 } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { LLM_GATEWAY_KIND, type AclEntry, type Platform } from '@sm/shared';
+import { DATABASE_KIND, LLM_GATEWAY_KIND, type AclEntry, type Platform } from '@sm/shared';
 import { apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
 import { AccessEditor } from '../components/AccessEditor';
 import { OwningTeams } from '../components/OwningTeams';
@@ -42,6 +43,7 @@ import { GatusMetricsTab } from '../components/platform/GatusMetricsTab';
 import { RecordingsTab } from '../components/platform/RecordingsTab';
 import { AiModelsTab } from '../components/platform/AiModelsTab';
 import { AiUsageTab } from '../components/platform/AiUsageTab';
+import { DatabaseTab } from '../components/platform/DatabaseTab';
 import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
@@ -84,7 +86,7 @@ export function PlatformDetailPage() {
   });
   // ?tab=recordings etc. opens a tab directly (links from the run dialog)
   const [params] = useSearchParams();
-  const [tab, setTab] = useState<string | null>(params.get('tab') ?? 'settings');
+  const [tab, setTab] = useState<string | null>(params.get('tab'));
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<TestResult | null>(null);
   const [showBody, setShowBody] = useState(false);
@@ -97,6 +99,9 @@ export function PlatformDetailPage() {
   if (platform.isLoading || platform.error) return <DetailState query={platform} back="platforms" />;
   if (!platform.data) return <Alert color="red">{t('detail.notFound')}</Alert>;
   const p = platform.data;
+  // a database platform (0.7.0) opens on its connection; it has no API specification, explorer or HTTP sign-in
+  const isDatabase = p.kind === DATABASE_KIND;
+  const activeTab = tab ?? (isDatabase ? 'database' : 'settings');
   const canManage = p.permissions.includes('manage');
   const canUse = p.permissions.includes('use');
   // who sees the platform may export it for Postman (#204): its settings without the secrets
@@ -310,21 +315,28 @@ export function PlatformDetailPage() {
       <div style={{ marginBottom: 'var(--mantine-spacing-md)' }}>
         <MaintenancePanel kind="platform" id={p.id} canPlan={canManage} />
       </div>
-      <Tabs value={tab} onChange={setTab} keepMounted={false}>
+      <Tabs value={activeTab} onChange={setTab} keepMounted={false}>
         <Tabs.List mb="md" style={{ flexWrap: 'wrap' }}>
+          {isDatabase && (
+            <Tabs.Tab value="database" leftSection={<IconDatabase size={16} />}>
+              {t('detail.tabs.database')}
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="settings" leftSection={<IconSettings size={16} />}>
             {t('detail.tabs.settings')}
           </Tabs.Tab>
           <Tabs.Tab value="credentials" leftSection={<IconKey size={16} />}>
             {t('detail.tabs.credentials')}
           </Tabs.Tab>
-          <Tabs.Tab value="specs" leftSection={<IconApi size={16} />}>
-            {t('detail.tabs.specs')}
-          </Tabs.Tab>
+          {!isDatabase && (
+            <Tabs.Tab value="specs" leftSection={<IconApi size={16} />}>
+              {t('detail.tabs.specs')}
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="docs" leftSection={<IconBook size={16} />}>
             {t('detail.tabs.docs')}
           </Tabs.Tab>
-          {canUse && (
+          {canUse && !isDatabase && (
             <Tabs.Tab value="explorer" leftSection={<IconTerminal2 size={16} />}>
               {t('detail.tabs.explorer')}
             </Tabs.Tab>
@@ -362,6 +374,11 @@ export function PlatformDetailPage() {
             {t('start.tab')}
           </Tabs.Tab>
         </Tabs.List>
+        {isDatabase && (
+          <Tabs.Panel value="database">
+            <DatabaseTab platform={p} readOnly={!canManage} />
+          </Tabs.Panel>
+        )}
         <Tabs.Panel value="settings">
           <SettingsTab platform={p} readOnly={!canManage} />
         </Tabs.Panel>

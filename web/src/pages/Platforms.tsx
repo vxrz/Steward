@@ -26,7 +26,16 @@ import {
 } from '@mantine/core';
 import { IconAlertTriangle, IconPlus, IconSearch, IconServer, IconKey, IconPlug, IconUpload, IconDownload, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { CONNECTOR_FORMATS, impliedAuthType, type AuthType, type ConnectorPackage, type Platform, type PlatformPreset } from '@sm/shared';
+import {
+  CONNECTOR_FORMATS,
+  DB_DIALECT_INFO,
+  dbPort,
+  impliedAuthType,
+  type AuthType,
+  type ConnectorPackage,
+  type Platform,
+  type PlatformPreset,
+} from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, Hint, KeyValueEditor, QueryState } from '../components/common';
@@ -221,12 +230,13 @@ export function PlatformsPage() {
               </Badge>
               {/* the kind of sign-in in normal case ("Bearer token", "OAuth2 client credentials") */}
               <Badge color="gray" variant="light" size="sm" tt="none">
-                {authLabel(p.config.auth?.type)}
+                {p.config.database ? DB_DIALECT_INFO[p.config.database.dialect].label : authLabel(p.config.auth?.type)}
               </Badge>
             </Group>
             <LastTest test={p.lastTest} />
             <Text size="xs" c="dimmed" className="mono" mt="sm" style={{ wordBreak: 'break-all' }}>
-              {p.baseUrl || t('card.noBaseUrl')}
+              {/* a database platform (0.7.0) has no base URL: its host, port and database */}
+              {p.config.database ? `${p.config.database.host}:${dbPort(p.config.database)}/${p.config.database.database}` : p.baseUrl || t('card.noBaseUrl')}
             </Text>
             <Group gap={4} mt="xs">
               <IconKey size={14} />
