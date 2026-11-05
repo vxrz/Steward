@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DATABASE_KIND } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -236,6 +236,55 @@ describe('monitor check, MCP gateway and templates', () => {
     expect(q).toMatchObject({ status: 'up' });
     expect(q.message).toContain('connections');
     expect((await preview({ mode: 'query', sql: 'SELECT count(*) AS connections FROM pg_stat_activity', crit: 1 })).status).toBe('down');
+  });
+
+  it('masks the password in driver errors of monitor checks, query steps and refusals', async () => {
+    const { demoDriver } = await import('../src/dbms/demo.js');
+    const { closePool } = await import('../src/dbms/pool.js');
+    const { DbError } = await import('../src/dbms/types.js');
+    const real = demoDriver.connect.bind(demoDriver);
+    // a driver whose server echoes the password in its error (as a syntax error near a value can)
+    const spy = vi.spyOn(demoDriver, 'connect').mockImplementation(async (t, signal) => {
+      const c = await real(t, signal);
+      return {
+        server: c.server,
+        usable: true,
+        close: () => c.close(),
+        run: async () => {
+          throw new DbError('DB_QUERY_FAILED', `The database answered with an error: syntax error at "${t.password}"`, { detail: `at "${t.password}"` }, 422);
+        },
+      };
+    });
+    closePool(db.id);
+    try {
+      const preview = (check: Record<string, unknown>) =>
+        s.api('POST', '/monitors/check-preview', { check: { id: 'c', name: 'c', platform: db.id, type: 'database', ...check } });
+      for (const mode of [{ mode: 'connection' }, { mode: 'query', sql: 'SELECT 1 AS one' }]) {
+        const r = await preview(mode);
+        expect(r.message).toContain('syntax error at "***"');
+        expect(JSON.stringify(r)).not.toContain('demo-reader-password');
+      }
+      const p = await processWith('DB leak', [n('q', 'query', { connection: 'db', sql: 'SELECT 1 AS one' })]);
+      const r = await run(p.id);
+      expect(r.status).toBe('failed');
+      expect((await stepOf(r.id, 'q')).error).toContain('***');
+      expect(
+        JSON.stringify(await s.api('GET', `/runs/${r.id}/steps/${(await s.api('GET', `/runs/${r.id}`)).steps.find((x: any) => x.stepId === 'q').id}`)),
+      ).not.toContain('demo-reader-password');
+    } finally {
+      spy.mockRestore();
+      closePool(db.id);
+    }
+  });
+
+  it('answers a refused statement with the reason as a translatable text', async () => {
+    const { runQuery } = await import('../src/dbms/service.js');
+    const { getPlatform, getSecrets } = await import('../src/platforms/service.js');
+    const e = await runQuery(getPlatform(db.id), getSecrets(db.id), { sql: 'SELECT * FROM t FOR SHARE' }, AbortSignal.timeout(10_000)).catch((x) => x);
+    expect(e).toMatchObject({
+      code: 'DB_STATEMENT_REFUSED',
+      params: { reason: 'rowLock', problem: { code: 'DB_SQL_ROW_LOCK', params: { word: 'FOR SHARE', at: 17 } } },
+    });
   });
 
   it('answers database_query read-only through MCP, checks the statement and audits', async () => {

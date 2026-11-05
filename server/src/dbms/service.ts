@@ -8,6 +8,7 @@ import {
   dbPort,
   effectiveDbLimits,
   readOnlyStatementProblem,
+  sqlProblemParam,
   type CheckOf,
   type DatabaseSettings,
   type DatabaseSettingsInput,
@@ -26,12 +27,14 @@ import { nowIso } from '../util.js';
 import { getPlatform } from '../platforms/service.js';
 import { requireIntact, sealPlatform } from '../platforms/integrity.js';
 import { invalidatePlatformCaches, onPlatformInvalidated } from '../platforms/http.js';
-import { assertAddressSafe, assertNetAllowed, guardedLookup } from '../platforms/outbound.js';
+import { assertAddressSafe, assertNetAllowed } from '../platforms/outbound.js';
+import { redactSecrets } from '../platforms/testConnection.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { DbError, type ConnectTarget, type DbDriver, type DriverConnection, type RunLimits, type ServerInfo } from './types.js';
 import { catalogColumns, catalogSql, mapCatalogRows } from './catalog.js';
 import { closePool, poolFor } from './pool.js';
 import { DEMO_DB_HOST, demoDriver } from './demo.js';
+import { assertNotOwnDatabase, databaseLookup } from './own.js';
 
 /**
  * Database platforms (0.7.0, #203, ADR 0008, docs/DATABASES.md): the connection settings, the outbound policy for
@@ -101,11 +104,13 @@ const isDemoHost = (h: string) => h.toLowerCase().endsWith('.demo.invalid');
 
 /**
  * The outbound policy for host:port (like Kafka and MQTT): with the policy "platforms" the platform's own host and port
- * are allowed (address safety still applies); otherwise the host must be on the allow-list.
+ * are allowed (address safety still applies); otherwise the host must be on the allow-list. Steward's own database
+ * server is refused under every policy (own.ts).
  */
 export async function assertDatabaseAllowed(s: DatabaseSettings): Promise<void> {
   const host = bare(s.host);
   const port = dbPort(s);
+  await assertNotOwnDatabase(host, port);
   if ((getSettings().outboundPolicy ?? 'platforms') === 'platforms') await assertAddressSafe(`http://${net.isIP(host) === 6 ? `[${host}]` : host}:${port}`);
   else await assertNetAllowed(host, port, outboundContext());
 }
@@ -134,8 +139,9 @@ function targetOf(p: Platform, s: DatabaseSettings, secrets: Record<string, stri
     password: secrets.password,
     tls: { mode: s.tls.mode, ca: s.tls.ca, serverName: s.tls.serverName },
     connectTimeoutMs: DB_LIMITS.connectTimeoutMs,
-    // Steward opens the socket: the guarded lookup refuses metadata/link-local addresses and pins the checked address
-    socket: () => net.connect({ host, port, lookup: guardedLookup }),
+    // Steward opens the socket: the guarded lookup refuses metadata/link-local addresses and Steward's own database
+    // server, and pins the checked address
+    socket: () => net.connect({ host, port, lookup: databaseLookup(port) }),
   };
 }
 
@@ -156,12 +162,26 @@ async function withConnection<T>(
   fn: (c: DriverConnection) => Promise<T>,
 ): Promise<T> {
   const pool = poolFor(p.id, `${p.updatedAt}|${JSON.stringify(s)}`, s.poolSize ?? DB_LIMITS.poolSize.default, (sig) => openConnection(p, s, secrets, sig));
-  const conn = await pool.acquire(signal);
+  const conn = await pool.acquire(signal).catch((e: unknown) => {
+    throw redactDbError(e, secrets);
+  });
   try {
     return await fn(conn);
   } finally {
     pool.release(conn);
   }
+}
+
+/**
+ * A driver error with the platform's secrets masked (the same redactor as the connection test): the message and its
+ * details are stored in run steps, monitor results and the audit log, and answered to MCP clients.
+ */
+export function redactDbError(e: unknown, secrets: Record<string, string>): unknown {
+  if (!(e instanceof Error)) return typeof e === 'string' ? redactSecrets(e, secrets) : e;
+  e.message = redactSecrets(e.message, secrets);
+  const withParams = e as Error & { params?: unknown };
+  if (withParams.params) withParams.params = redactSecrets(withParams.params, secrets);
+  return e;
 }
 
 // ---------- statements ----------
@@ -231,13 +251,20 @@ export async function runQuery(p: Platform, secrets: Record<string, string>, q: 
   if (!q.catalog) {
     const problem = readOnlyStatementProblem(q.sql ?? '', s.dialect, params.length);
     if (problem)
-      throw new DbError('DB_STATEMENT_REFUSED', `The statement is refused: ${problem.message}`, { problem: problem.message, reason: problem.code }, 400);
+      throw new DbError(
+        'DB_STATEMENT_REFUSED',
+        `The statement is refused: ${problem.message}`,
+        { problem: sqlProblemParam(problem), reason: problem.code },
+        400,
+      );
   } else if (params.length) throw new DbError('DB_PARAM_INVALID', 'Catalog queries take no parameters', undefined, 400);
   const limits = effectiveDbLimits(s.limits, q.limits ?? {});
   const run: RunLimits = { maxRows: limits.maxRows, maxBytes: limits.maxMb * 1024 * 1024, timeoutMs: limits.timeoutSeconds * 1000, truncate: limits.truncate };
   return withConnection(p, s, secrets, signal, async (conn) => {
     const sql = q.catalog ? catalogSql(q.catalog, conn.server) : stripTrailing(q.sql!);
-    const result = await conn.run({ sql, params, trusted: !!q.catalog }, run, signal);
+    const result = await conn.run({ sql, params, trusted: !!q.catalog }, run, signal).catch((e: unknown) => {
+      throw redactDbError(e, secrets);
+    });
     if (q.catalog) {
       result.rows = mapCatalogRows(q.catalog, conn.server, result.rows, { database: s.database });
       result.columns = catalogColumns(q.catalog);
@@ -269,7 +296,9 @@ export async function testDatabase(p: Platform, secrets: Record<string, string>)
   const checks: DatabaseTestResult['checks'] = [];
   const signal = AbortSignal.timeout(60_000);
   const t0 = Date.now();
-  const conn = await openConnection(p, s, secrets, signal);
+  const conn = await openConnection(p, s, secrets, signal).catch((e: unknown) => {
+    throw redactDbError(e, secrets);
+  });
   const where = `${s.host}:${dbPort(s)}/${s.database}`;
   try {
     checks.push({
@@ -302,7 +331,7 @@ export async function testDatabase(p: Platform, secrets: Record<string, string>)
         const r = await conn.run({ sql: catalogSql(name, conn.server), params: [], trusted: true }, { ...limits, maxRows: 1 }, signal);
         checks.push({ name: `Catalog: ${name}`, ok: true, message: r.rowCount ? 'readable' : 'readable (no rows)' });
       } catch (e) {
-        checks.push({ name: `Catalog: ${name}`, ok: false, message: (e as Error).message.slice(0, 300) });
+        checks.push({ name: `Catalog: ${name}`, ok: false, message: redactSecrets((e as Error).message, secrets).slice(0, 300) });
       }
     }
   } finally {
@@ -340,6 +369,8 @@ export async function databaseCheck(
   };
   const levels = [c.warn !== undefined ? `WARN ${fmt(c.warn)}` : '', c.crit !== undefined ? `CRIT ${fmt(c.crit)}` : ''].filter(Boolean).join(', ');
   const unit = c.unit ?? '';
+  // messages are stored with the result: the platform's secrets masked before they are cut
+  const clip = (m: string, n = 500) => redactSecrets(m, secrets).slice(0, n);
   if (c.mode === 'connection') {
     let out;
     try {
@@ -348,7 +379,7 @@ export async function databaseCheck(
       // not reachable or the sign-in refused: that is what this check is for
       const code = (e as { code?: string }).code;
       const down = code === 'DB_CONNECT_FAILED' || code === 'DB_AUTH_FAILED' || code === 'DB_TLS_FAILED' || code === 'DB_TIMEOUT';
-      return { status: down ? 'down' : 'unknown', message: `${label}: ${(e as Error).message}`.slice(0, 500) };
+      return { status: down ? 'down' : 'unknown', message: clip(`${label}: ${(e as Error).message}`) };
     }
     const st = out.result.rows[0] ?? {};
     if (st.canWrite === true)
@@ -371,17 +402,14 @@ export async function databaseCheck(
     if (!known.length)
       return {
         status: 'unknown',
-        message: `${label}: ${rows.length} replica(s), lag not known (${rows.map((r) => `${r.name}: ${r.state}`).join(', ')})`.slice(0, 500),
+        message: clip(`${label}: ${rows.length} replica(s), lag not known (${rows.map((r) => `${r.name}: ${r.state}`).join(', ')})`),
       };
     const worst = known.reduce((a, b) => ((b.lagSeconds as number) > (a.lagSeconds as number) ? b : a));
     const lag = worst.lagSeconds as number;
     const status = judge(lag);
     return {
       status,
-      message: `${label}: replication lag ${fmt(lag)} s${rows.length > 1 ? ` (worst of ${rows.length}: ${worst.name})` : ` (${worst.name})`} (${levels})`.slice(
-        0,
-        500,
-      ),
+      message: clip(`${label}: replication lag ${fmt(lag)} s${rows.length > 1 ? ` (worst of ${rows.length}: ${worst.name})` : ` (${worst.name})`} (${levels})`),
       value: { lagSeconds: lag, replicas: rows.length },
     };
   }
@@ -390,6 +418,6 @@ export async function databaseCheck(
   if (!first) return { status: c.noData, message: `${label}: the query returned no row`, value: { rows: 0 } };
   const col = out.result.columns[0] ?? '';
   const v = Number(first[col]);
-  if (!Number.isFinite(v)) return { status: 'unknown', message: `${label}: ${col} is not a number (${String(first[col]).slice(0, 60)})` };
-  return { status: judge(v), message: `${label}: ${col} ${fmt(v)}${unit} (${levels})`.slice(0, 500), value: { column: col, value: v } };
+  if (!Number.isFinite(v)) return { status: 'unknown', message: `${label}: ${col} is not a number (${clip(String(first[col]), 60)})` };
+  return { status: judge(v), message: clip(`${label}: ${col} ${fmt(v)}${unit} (${levels})`), value: { column: col, value: v } };
 }

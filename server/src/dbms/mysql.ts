@@ -18,7 +18,9 @@ import { mapDriverError } from './errors.js';
  * MariaDB and MySQL (ADR 0008): the session is SET SESSION TRANSACTION READ ONLY; every statement runs in
  * START TRANSACTION READ ONLY with the session's time limit (MAX_EXECUTION_TIME on MySQL, max_statement_time on
  * MariaDB), as a server-side prepared statement (one statement; multipleStatements stays off), then ROLLBACK. Rows are
- * read as they arrive; a limit reached closes the connection (the server rolls back), it is not reused.
+ * read as they arrive; a limit reached closes the connection (the server rolls back), it is not reused. When the
+ * client-side time limit or a cancel stops a statement, Steward first sends KILL QUERY over a second, short-lived
+ * connection (the same account and socket factory) – closing the socket alone would leave the server running it.
  */
 
 /** The part of a mysql2 connection the session uses (a fake one in the unit tests). */
@@ -31,6 +33,58 @@ export interface MyQueryable {
 }
 
 const exec = (c: MyQueryable, sql: string) => new Promise<void>((resolve, reject) => void c.query(sql, (err) => (err ? reject(err) : resolve())));
+
+/** How long Steward waits for KILL QUERY (the second connection included) before it closes the socket anyway. */
+export const KILL_TIMEOUT_MS = 5000;
+
+/** The part of the second connection KILL QUERY uses (a fake one in the unit tests). */
+export interface MyKillConnection {
+  query(sql: string, cb: (err: Error | null) => void): unknown;
+  end(cb: () => void): void;
+  destroy(): void;
+}
+
+/**
+ * Stops the statement of connection `threadId` on the server: KILL QUERY over a connection `open` makes, closed
+ * afterwards. Best effort within KILL_TIMEOUT_MS; never throws. Exported for the unit tests.
+ */
+export async function killQuery(open: () => Promise<MyKillConnection>, threadId: number | undefined, timeoutMs = KILL_TIMEOUT_MS): Promise<boolean> {
+  if (!Number.isSafeInteger(threadId) || (threadId as number) <= 0) return false;
+  let conn: MyKillConnection | undefined;
+  let timer: NodeJS.Timeout | undefined;
+  const work = (async () => {
+    conn = await open();
+    // KILL QUERY ends the statement, not the connection; a thread id is a number Steward read from the server
+    await exec(conn as unknown as MyQueryable, `KILL QUERY ${Number(threadId)}`);
+    return true;
+  })();
+  const late = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
+    timer.unref?.();
+  });
+  try {
+    return await Promise.race([work, late]);
+  } catch {
+    return false; // the server may have ended the statement already (or refuses the second connection): the socket closes either way
+  } finally {
+    clearTimeout(timer);
+    work.catch(() => undefined); // a late failure of the abandoned attempt changes nothing
+    const c = conn;
+    if (c)
+      await new Promise<void>((resolve) => {
+        try {
+          c.end(() => resolve());
+        } catch {
+          c.destroy();
+          resolve();
+        }
+        setTimeout(() => {
+          c.destroy();
+          resolve();
+        }, 1000).unref?.();
+      });
+  }
+}
 
 /** The session time limit: MySQL counts milliseconds (SELECT only), MariaDB seconds (every statement). */
 export function timeLimitStatement(server: ServerInfo, timeoutMs: number): string {
@@ -48,6 +102,8 @@ export async function mysqlRun(
   stmt: Statement,
   limits: RunLimits,
   signal: AbortSignal,
+  /** Stops the running statement on the server (KILL QUERY) before the connection is closed on a timeout or cancel */
+  kill: () => Promise<unknown> = async () => undefined,
 ): Promise<{ result: DbQueryResult; destroyed: boolean }> {
   const t0 = Date.now();
   const rows = new RowCollector(limits);
@@ -62,6 +118,8 @@ export async function mysqlRun(
           ? conn.query({ sql: stmt.sql, rowsAsArray: true })
           : conn.execute({ sql: stmt.sql, values: stmt.params, rowsAsArray: true });
       let settled = false;
+      /** Stopped by the time limit or a cancel: what the statement still sends is ignored until KILL QUERY is done */
+      let aborting = false;
       let sets = 0;
       const stop = (err?: unknown) => {
         if (settled) return;
@@ -74,15 +132,22 @@ export async function mysqlRun(
         if (err) reject(err);
         else resolve();
       };
-      const onAbort = () => stop(abortError(signal));
+      // the time limit or a cancel: the server stops the statement first, then the connection goes
+      const onAbort = () => {
+        if (settled || aborting) return;
+        aborting = true;
+        void kill()
+          .catch(() => undefined) // killQuery never throws; a fake or a later change might – the socket closes anyway
+          .then(() => stop(abortError(signal)));
+      };
       signal.addEventListener('abort', onAbort, { once: true });
       cmd.on('fields', (fields: { name: string }[] | undefined) => {
-        if (!fields) return;
+        if (!fields || aborting) return;
         if (++sets > 1) return stop(new DbError('DB_MULTIPLE_RESULTS', 'The statement returned more than one result set', undefined, 422));
         rows.setColumns(fields.map((f) => f.name));
       });
       cmd.on('result', (row: unknown) => {
-        if (settled) return;
+        if (settled || aborting) return;
         if (!Array.isArray(row)) return; // an OK packet (no rows)
         try {
           if (!rows.add(row)) {
@@ -95,13 +160,16 @@ export async function mysqlRun(
         }
       });
       cmd.on('error', (e: unknown) => {
-        if (!settled) {
+        // aborting: the error is KILL QUERY's own ("execution was interrupted") – the abort answers instead
+        if (!settled && !aborting) {
           settled = true;
           signal.removeEventListener('abort', onAbort);
           reject(e);
         }
       });
-      cmd.on('end', () => stop());
+      cmd.on('end', () => {
+        if (!aborting) stop();
+      });
     });
   } finally {
     if (!destroyed) await exec(conn, 'ROLLBACK').catch(() => undefined); // a broken connection is destroyed by the caller
@@ -122,7 +190,7 @@ export const mysqlDriver: DbDriver = {
     const mysql = ((mod as unknown as { default?: unknown }).default ?? mod) as typeof import('mysql2');
     // TLS checks the server name against `host`: the name (or the configured server name), never the pinned address
     const name = t.tls.serverName || t.host;
-    const conn = mysql.createConnection({
+    const options = {
       host: name,
       port: t.port,
       user: t.user,
@@ -137,7 +205,9 @@ export const mysqlDriver: DbDriver = {
       timezone: 'Z',
       maxPreparedStatements: 64,
       connectAttributes: { program_name: 'steward' },
-    } as never) as unknown as MyQueryable & EventEmitter & { connect(cb: (e: Error | null) => void): void; end(cb: () => void): void };
+    };
+    const conn = mysql.createConnection(options as never) as unknown as MyQueryable &
+      EventEmitter & { connect(cb: (e: Error | null) => void): void; end(cb: () => void): void };
     let usable = true;
     conn.on('error', () => {
       usable = false; // the socket broke between statements: the pool drops the connection
@@ -153,7 +223,7 @@ export const mysqlDriver: DbDriver = {
     } catch (e) {
       usable = false;
       conn.destroy();
-      throw mapDriverError('mysql', e, 'connect');
+      throw mapDriverError('mysql', e, 'connect', [t.password]);
     } finally {
       signal.removeEventListener('abort', onAbort);
     }
@@ -168,6 +238,21 @@ export const mysqlDriver: DbDriver = {
       /* the version tells MariaDB from MySQL; without it MySQL is assumed */
     }
     const server: ServerInfo = { flavour: /mariadb/i.test(version) ? 'mariadb' : 'mysql', version };
+    // KILL QUERY over a second connection: the same account, TLS and socket factory (the guarded lookup applies)
+    const threadId = (conn as unknown as { threadId?: number }).threadId;
+    const kill = () =>
+      killQuery(async () => {
+        const k = mysql.createConnection({
+          ...options,
+          connectTimeout: Math.min(t.connectTimeoutMs, KILL_TIMEOUT_MS),
+        } as never) as unknown as MyKillConnection & {
+          connect(cb: (e: Error | null) => void): void;
+          on(ev: 'error', fn: () => void): void;
+        };
+        k.on('error', () => undefined); // a broken second connection only means the kill did not happen
+        await new Promise<void>((resolve, reject) => k.connect((e) => (e ? reject(e) : resolve())));
+        return k;
+      }, threadId);
     return {
       server,
       get usable() {
@@ -176,7 +261,7 @@ export const mysqlDriver: DbDriver = {
       async run(stmt: Statement, limits: RunLimits, outer: AbortSignal) {
         const d = deadline(limits.timeoutMs, outer);
         try {
-          const r = await mysqlRun(conn, server, stmt, limits, d.signal);
+          const r = await mysqlRun(conn, server, stmt, limits, d.signal, kill);
           if (r.destroyed) usable = false;
           return r.result;
         } catch (e) {
@@ -189,7 +274,7 @@ export const mysqlDriver: DbDriver = {
             throw e;
           }
           if (!(e as { errno?: number }).errno) usable = false; // not an answer of the server: the protocol state is unknown
-          throw mapDriverError('mysql', e, 'query');
+          throw mapDriverError('mysql', e, 'query', [t.password]);
         } finally {
           d.done();
         }

@@ -18,7 +18,9 @@ import { mapDriverError } from './errors.js';
  * PostgreSQL (ADR 0008): the session starts with default_transaction_read_only=on; every statement runs in
  * BEGIN TRANSACTION READ ONLY with a local statement_timeout, through a cursor (DECLARE … NO SCROLL CURSOR FOR, which
  * PostgreSQL accepts for queries only and refuses for data-modifying WITH), in the extended protocol (one statement per
- * message, enforced by the server), read in batches within the limits, and always rolled back.
+ * message, enforced by the server), read in batches within the limits, and always rolled back. Before the connection
+ * goes back to the pool, session-level advisory locks (which survive ROLLBACK) are released – a permitted statement
+ * should not be able to take one, but the pool does not rely on that.
  */
 
 /** The part of a pg client the session uses (a fake one in the unit tests). */
@@ -28,9 +30,20 @@ export interface PgQueryable {
 
 const FETCH = 500;
 const CURSOR = 'steward_q';
+/** Steward's own statement after every ROLLBACK: what a session keeps beyond the transaction (advisory locks) goes */
+export const PG_SESSION_RESET = 'SELECT pg_advisory_unlock_all()';
 
-/** Runs one statement on a connected client. Exported for the unit tests. */
-export async function pgRun(client: PgQueryable, stmt: Statement, limits: RunLimits, signal: AbortSignal): Promise<DbQueryResult> {
+/**
+ * Runs one statement on a connected client. `unclean` is called when the session could not be reset (the connection
+ * must not be reused then). Exported for the unit tests.
+ */
+export async function pgRun(
+  client: PgQueryable,
+  stmt: Statement,
+  limits: RunLimits,
+  signal: AbortSignal,
+  unclean: () => void = () => undefined,
+): Promise<DbQueryResult> {
   const t0 = Date.now();
   const q = (text: string, values: unknown[] = []) => client.query({ text, values, queryMode: 'extended', rowMode: 'array' });
   const rows = new RowCollector(limits);
@@ -51,6 +64,7 @@ export async function pgRun(client: PgQueryable, stmt: Statement, limits: RunLim
   } finally {
     // a transaction that failed is aborted already; ROLLBACK ends it either way
     await q('ROLLBACK').catch(() => undefined); // the connection is broken then: the caller destroys it
+    await q(PG_SESSION_RESET).catch(() => unclean()); // a session that may still hold a lock is not pooled again
   }
   return rows.result(Date.now() - t0);
 }
@@ -100,7 +114,7 @@ export const postgresDriver: DbDriver = {
       await client.connect();
     } catch (e) {
       destroy();
-      throw mapDriverError('postgresql', e, 'connect');
+      throw mapDriverError('postgresql', e, 'connect', [t.password]);
     } finally {
       signal.removeEventListener('abort', onAbort);
     }
@@ -121,11 +135,13 @@ export const postgresDriver: DbDriver = {
         const kill = () => destroy();
         d.signal.addEventListener('abort', kill, { once: true });
         try {
-          return await pgRun(client as unknown as PgQueryable, stmt, limits, d.signal);
+          return await pgRun(client as unknown as PgQueryable, stmt, limits, d.signal, () => {
+            usable = false;
+          });
         } catch (e) {
           if (d.signal.aborted) throw abortError(d.signal);
           if (e instanceof DbError) throw e;
-          const err = mapDriverError('postgresql', e, 'query');
+          const err = mapDriverError('postgresql', e, 'query', [t.password]);
           // an error inside the transaction leaves the connection usable (ROLLBACK ran); a protocol error does not
           if (!(e as { code?: string }).code || String((e as { code?: string }).code).length !== 5) usable = false;
           throw err;

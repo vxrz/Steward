@@ -56,10 +56,13 @@ const TEXT: { code: DbErrorCode; message: string }[] = [
   { code: 'DB_QUERY_FAILED', message: 'The database answered with an error' },
 ];
 
-export function mapDriverError(dialect: DbDialect, e: unknown, phase: 'connect' | 'query'): DbError {
+/** `secrets`: values masked in the DBMS's message before it is cut (the password of the connection). */
+export function mapDriverError(dialect: DbDialect, e: unknown, phase: 'connect' | 'query', secrets: string[] = []): DbError {
   if (e instanceof DbError) return e;
   const err = (e ?? {}) as { message?: unknown; code?: unknown; errno?: unknown; number?: unknown };
-  const raw = oneLine(String(err.message ?? e ?? 'unknown error'));
+  let said = String(err.message ?? e ?? 'unknown error');
+  for (const sec of secrets) if (sec && sec.length >= 4) said = said.split(sec).join('***');
+  const raw = oneLine(said);
   let code = codeFor(dialect, err);
   if (!code && phase === 'connect' && TLS_RE.test(raw)) code = 'DB_TLS_FAILED';
   if (!code) code = phase === 'connect' ? 'DB_CONNECT_FAILED' : 'DB_QUERY_FAILED';

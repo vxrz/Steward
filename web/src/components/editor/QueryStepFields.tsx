@@ -4,7 +4,7 @@ import { IconAlertTriangle, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { DB_DIALECTS, DB_DIALECT_INFO, readOnlyStatementProblem, type DbDialect, type FlowNode } from '@sm/shared';
 import { ExpressionInput } from './ExpressionInput';
-import type { LocalizedField } from '../../i18n/meta';
+import { sqlProblemText, type LocalizedField } from '../../i18n/meta';
 
 /**
  * Fields of "Query a database" (0.7.0, docs/DATABASES.md): catalog query or SQL, the statement with the read-only check
@@ -94,13 +94,13 @@ export function SqlField({
         classNames={{ input: 'mono' }}
         value={sql}
         onChange={(e) => onChange(e.currentTarget.value)}
-        error={problem?.all ? problem.first.p!.message : undefined}
+        error={problem?.all ? sqlProblemText(problem.first.p!) : undefined}
         data-testid="query-sql"
       />
       {problem && !problem.all && (
         <Alert color="yellow" variant="light" p="xs" icon={<IconAlertTriangle size={14} />}>
           <Text size="xs">
-            {t('query.refusedFor', { dbms: problem.dialects.map((d) => DB_DIALECT_INFO[d].label).join(', '), reason: problem.first.p!.message })}
+            {t('query.refusedFor', { dbms: problem.dialects.map((d) => DB_DIALECT_INFO[d].label).join(', '), reason: sqlProblemText(problem.first.p!) })}
           </Text>
         </Alert>
       )}

@@ -1,14 +1,16 @@
 import { EventEmitter } from 'node:events';
+import net from 'node:net';
 import { describe, expect, it } from 'vitest';
-import { DB_CATALOGS, effectiveDbLimits, readOnlyStatementProblem, validateProcess, type DbDialect } from '@sm/shared';
-import { pgRun, type PgQueryable } from '../src/dbms/postgres.js';
-import { mysqlRun, timeLimitStatement, type MyQueryable } from '../src/dbms/mysql.js';
+import { DB_CATALOGS, effectiveDbLimits, readOnlyStatementProblem, sqlProblemParam, validateProcess, type DbDialect } from '@sm/shared';
+import { PG_SESSION_RESET, pgRun, type PgQueryable } from '../src/dbms/postgres.js';
+import { killQuery, mysqlRun, timeLimitStatement, type MyKillConnection, type MyQueryable } from '../src/dbms/mysql.js';
 import { mssqlRun, msType, type MsLib, type MsQueryable, type MsRequest } from '../src/dbms/sqlserver.js';
 import { CATALOG, catalogSql, mapCatalogRows, myAccount, msIdent, pgIdent } from '../src/dbms/catalog.js';
 import { mapDriverError } from '../src/dbms/errors.js';
 import { ConnectionPool } from '../src/dbms/pool.js';
 import { DbError, RowCollector, cellValue, type DriverConnection, type RunLimits } from '../src/dbms/types.js';
-import { bindValue } from '../src/dbms/service.js';
+import { bindValue, redactDbError } from '../src/dbms/service.js';
+import { assertNotOwnDatabase, isOwnDatabase, ownDatabaseEndpoint, type AddressLookup } from '../src/dbms/own.js';
 
 /**
  * Database platforms (#203, ADR 0008) without a database: the statement check per dialect, the read-only wrapping and
@@ -105,6 +107,97 @@ describe('statement check (sqlcheck.ts)', () => {
     refused('SELECT @p1', 'placeholders', ['sqlserver'], 0);
   });
 
+  it('checks quoted function names, refusing them without regard to case', () => {
+    refused('SELECT "pg_advisory_lock"(1)', 'refusedFunction', ['postgresql']);
+    refused('SELECT "PG_Terminate_Backend"(42)', 'refusedFunction', ['postgresql']);
+    refused('SELECT "pg_catalog"."pg_advisory_lock" (1)', 'refusedFunction', ['postgresql']);
+    refused('SELECT [xp_dirtree](1)', 'refusedFunction', ['sqlserver']);
+    refused('SELECT "sp_who"(1)', 'refusedFunction', ['sqlserver']);
+    refused("SELECT `GET_LOCK`('x', 1)", 'refusedFunction', ['mysql']);
+    refused('SELECT "get_lock"(\'x\', 1)', 'refusedFunction', ['mysql']);
+    // a quoted name that is not called stays a name
+    ok('SELECT "pg_advisory_lock", "sp_name" FROM t', ['postgresql', 'sqlserver']);
+    ok('SELECT [lo_value] FROM t', ['sqlserver']);
+    ok('SELECT `lo_value` FROM t', ['mysql']);
+    // escapes the check would not see
+    refused('SELECT U&"x" UESCAPE \'!\'', 'refusedWord', ['postgresql']);
+  });
+
+  it('refuses functions that run SQL given as text, and dblink', () => {
+    for (const f of [
+      'query_to_xml',
+      'query_to_xml_and_xmlschema',
+      'query_to_xmlschema',
+      'cursor_to_xml',
+      'table_to_xml',
+      'schema_to_xml',
+      'database_to_xml',
+      'ts_stat',
+      'crosstab',
+      'crosstab3',
+    ])
+      refused(`SELECT ${f}('x', true, true, '')`, 'refusedFunction', ['postgresql']);
+    refused('SELECT dblink(1)', 'refusedFunction', ['postgresql']);
+    refused('SELECT dblink_exec(1)', 'refusedFunction', ['postgresql']);
+    refused('SELECT dblinkx(1)', 'refusedFunction', ['postgresql']);
+    refused('SELECT * FROM "dblink"(1) AS t(a int)', 'refusedFunction', ['postgresql']);
+    refused('SELECT NEXTVAL(s)', 'refusedFunction', ['mysql']);
+  });
+
+  it('refuses optimizer hints in MariaDB/MySQL', () => {
+    refused('SELECT /*+ MAX_EXECUTION_TIME(1) */ 1', 'optimizerHint', ['mysql']);
+    refused('SELECT /*+ SET_VAR(x = 1) */ 1', 'optimizerHint', ['mysql']);
+    // an ordinary comment elsewhere
+    ok('SELECT /*+ x */ 1', ['postgresql', 'sqlserver']);
+    ok('SELECT /* + */ 1', ['mysql']);
+  });
+
+  it('refuses row locks: FOR SHARE and its variants, SQL Server lock hints', () => {
+    for (const lock of ['FOR SHARE', 'FOR SHARE NOWAIT', 'FOR SHARE SKIP LOCKED', 'FOR SHARE OF t'])
+      refused(`SELECT * FROM t ${lock}`, 'rowLock', ['mysql', 'postgresql']);
+    refused('SELECT * FROM t FOR KEY SHARE', 'rowLock', ['postgresql']);
+    refused('SELECT * FROM t FOR NO KEY UPDATE', 'rowLock', ['postgresql']);
+    refused('SELECT * FROM t FOR UPDATE SKIP LOCKED', 'refusedWord', ['mysql', 'postgresql']);
+    for (const hint of ['UPDLOCK', 'XLOCK', 'HOLDLOCK', 'TABLOCK', 'TABLOCKX']) refused(`SELECT * FROM t WITH (${hint})`, 'rowLock', ['sqlserver']);
+    ok('SELECT * FROM t WITH (NOLOCK)', ['sqlserver']);
+    ok('SELECT * FROM t FOR XML PATH', ['sqlserver']);
+  });
+
+  it('refuses what starts another T-SQL statement without a semicolon', () => {
+    for (const w of [
+      'IF 1 = 1 SELECT 2',
+      "RAISERROR('x', 16, 1) WITH LOG",
+      'ENABLE TRIGGER t ON x',
+      'DISABLE TRIGGER t ON x',
+      'RECEIVE * FROM q',
+      "THROW 50000, 'x', 1",
+      "PRINT 'x'",
+      'GOTO x',
+      'CLOSE c',
+      'WHILE 1 = 1 BREAK',
+    ])
+      refused(`SELECT 1 ${w}`, 'refusedWord', ['sqlserver']);
+    refused('SELECT NEXT VALUE FOR seq', 'refusedWord', ['sqlserver', 'mysql']);
+    // a second SELECT outside parentheses is a second statement
+    refused('SELECT 1 SELECT 2', 'multipleStatements', ['sqlserver']);
+    refused('SELECT a FROM t SELECT b FROM u', 'multipleStatements', ['sqlserver']);
+    refused('(SELECT 1) SELECT 2', 'multipleStatements', ['sqlserver']);
+    refused('WITH a AS (SELECT 1 AS x) SELECT x FROM a SELECT 2', 'multipleStatements', ['sqlserver']);
+    // … unless UNION, EXCEPT or INTERSECT joins it, or it is the query of a WITH
+    ok('SELECT 1 UNION ALL SELECT 2 EXCEPT SELECT 3 INTERSECT SELECT 4', ['sqlserver']);
+    ok('WITH a AS (SELECT 1 AS x), b (y) AS (SELECT 2) SELECT x FROM a UNION SELECT y FROM b', ['sqlserver']);
+    ok('SELECT x FROM (SELECT 1 AS x) d WHERE x IN (SELECT 1) ORDER BY x OFFSET 0 ROWS FETCH NEXT 5 ROWS ONLY', ['sqlserver']);
+    ok('SELECT CASE WHEN 1 = 1 THEN 1 ELSE 2 END', ['sqlserver']);
+    ok('SELECT [if], [print] FROM t', ['sqlserver']);
+  });
+
+  it('describes a refusal for the translated text', () => {
+    const p = readOnlyStatementProblem('SELECT 1 FROM t FOR SHARE', 'mysql')!;
+    expect(sqlProblemParam(p)).toEqual({ code: 'DB_SQL_ROW_LOCK', message: p.message, params: { word: 'FOR SHARE', at: 17 } });
+    const c = readOnlyStatementProblem('SELECT ?', 'mysql', 2)!;
+    expect(sqlProblemParam(c)).toMatchObject({ code: 'DB_SQL_PLACEHOLDERS', params: { context: 'count', need: 1, given: 2 } });
+  });
+
   it('is part of process validation', () => {
     const def = (step: Record<string, unknown>) => ({
       name: 'x',
@@ -167,6 +260,7 @@ describe('PostgreSQL session (postgres.ts)', () => {
       'DECLARE steward_q NO',
       'FETCH 500 FROM',
       'ROLLBACK',
+      'SELECT pg_advisory_unlock_all()',
     ]);
     // the statement time limit is a bound value, the parameters are bound – never in the text
     expect(calls[1]!.values).toEqual(['5000']);
@@ -177,7 +271,7 @@ describe('PostgreSQL session (postgres.ts)', () => {
   it('rolls back after an error', async () => {
     const { client, calls } = fakePg([], { failOn: 'DECLARE' });
     await expect(pgRun(client, stmt, LIMITS, never)).rejects.toThrow(/permission denied/);
-    expect(calls.at(-1)!.text).toBe('ROLLBACK');
+    expect(calls.slice(-2).map((c) => c.text)).toEqual(['ROLLBACK', PG_SESSION_RESET]);
   });
 
   it('reads in batches and enforces the row limit (fail or truncate)', async () => {
@@ -190,7 +284,7 @@ describe('PostgreSQL session (postgres.ts)', () => {
     expect(r).toMatchObject({ rowCount: 700, truncated: true });
     // it stopped fetching once enough rows were there
     expect(cut.calls.filter((c) => c.text.startsWith('FETCH'))).toHaveLength(2);
-    expect(cut.calls.at(-1)!.text).toBe('ROLLBACK');
+    expect(cut.calls.slice(-2).map((c) => c.text)).toEqual(['ROLLBACK', PG_SESSION_RESET]);
   });
 
   it('enforces the size limit', async () => {
@@ -202,18 +296,44 @@ describe('PostgreSQL session (postgres.ts)', () => {
   });
 });
 
+describe('PostgreSQL session reset (postgres.ts)', () => {
+  const stmt = { sql: 'SELECT 1', params: [], trusted: false };
+  it('releases session advisory locks after every statement, also after an error', async () => {
+    const ok = fakePg([[1, 'a']]);
+    await pgRun(ok.client, stmt, LIMITS, never);
+    expect(ok.calls.at(-1)!.text).toBe('SELECT pg_advisory_unlock_all()');
+    const failed = fakePg([], { failOn: 'DECLARE' });
+    await pgRun(failed.client, stmt, LIMITS, never).catch(() => undefined);
+    expect(failed.calls.at(-1)!.text).toBe(PG_SESSION_RESET);
+  });
+
+  it('marks the connection unclean when the reset fails', async () => {
+    const f = fakePg([[1, 'a']], { failOn: 'pg_advisory_unlock_all' });
+    let unclean = false;
+    const r = await pgRun(f.client, stmt, LIMITS, never, () => (unclean = true));
+    expect(r.rowCount).toBe(1);
+    expect(unclean).toBe(true);
+  });
+});
+
 // ---------- MariaDB / MySQL ----------
 
-function fakeMy(rows: unknown[][], opts: { sets?: number; error?: { errno: number; message: string } } = {}) {
+function fakeMy(rows: unknown[][], opts: { sets?: number; error?: { errno: number; message: string }; hang?: boolean } = {}) {
   const log: string[] = [];
   const executed: { kind: string; sql: string; values?: unknown[] }[] = [];
   let destroyed = false;
+  let hung: (() => void) | undefined;
   const emitter = (kind: string, sql: string, values?: unknown[]) => {
     executed.push({ kind, sql, values });
     const e = new EventEmitter();
     setImmediate(() => {
       if (opts.error) return void e.emit('error', Object.assign(new Error(opts.error.message), { errno: opts.error.errno }));
       for (let s = 0; s < (opts.sets ?? 1); s++) e.emit('fields', [{ name: 'id' }, { name: 'name' }]);
+      if (opts.hang) {
+        // a statement the server keeps running: KILL QUERY ends it with an error, rows come no more
+        hung = () => e.emit('error', Object.assign(new Error('Query execution was interrupted'), { errno: 1317 }));
+        return;
+      }
       for (const r of rows) {
         if (destroyed) return;
         e.emit('result', r);
@@ -239,7 +359,12 @@ function fakeMy(rows: unknown[][], opts: { sets?: number; error?: { errno: numbe
       log.push('<destroyed>');
     },
   } as unknown as MyQueryable;
-  return { conn, log, executed };
+  /** KILL QUERY, as the server would answer it */
+  const kill = async () => {
+    log.push('<kill>');
+    hung?.();
+  };
+  return { conn, log, executed, kill };
 }
 
 describe('MariaDB / MySQL session (mysql.ts)', () => {
@@ -295,6 +420,61 @@ describe('MariaDB / MySQL session (mysql.ts)', () => {
     const e = await mysqlRun(f.conn, mysql, { sql: 'SELECT 1', params: [], trusted: false }, LIMITS, never).catch((x) => x);
     expect(mapDriverError('mysql', e, 'query').code).toBe('DB_READ_ONLY_VIOLATION');
     expect(f.log.at(-1)).toBe('ROLLBACK');
+  });
+
+  it('kills the statement on the server before it closes the connection at the time limit', async () => {
+    const f = fakeMy([], { hang: true });
+    const ctl = new AbortController();
+    const done = mysqlRun(f.conn, mysql, { sql: 'SELECT SLEEP(60)', params: [], trusted: false }, LIMITS, ctl.signal, f.kill).catch((x) => x);
+    await new Promise((r) => setTimeout(r, 20));
+    ctl.abort(new DbError('DB_TIMEOUT', 'The statement ran longer than 5 s (the limit)'));
+    const e = await done;
+    expect(e).toMatchObject({ code: 'DB_TIMEOUT' });
+    // KILL QUERY first, then the connection is dropped (not rolled back and reused)
+    expect(f.log.slice(-2)).toEqual(['<kill>', '<destroyed>']);
+    expect(f.log).not.toContain('ROLLBACK');
+  });
+
+  it('sends KILL QUERY over a second connection and closes it, best effort', async () => {
+    const fake = (opts: { fail?: boolean; slow?: boolean } = {}) => {
+      const log: string[] = [];
+      const conn: MyKillConnection = {
+        query(sql, cb) {
+          log.push(sql);
+          if (!opts.slow) setImmediate(() => cb(opts.fail ? new Error('Unknown thread id: 42') : null));
+          return undefined;
+        },
+        end(cb) {
+          log.push('<end>');
+          cb();
+        },
+        destroy() {
+          log.push('<destroyed>');
+        },
+      };
+      return { log, open: async () => conn };
+    };
+    const a = fake();
+    expect(await killQuery(a.open, 42)).toBe(true);
+    expect(a.log).toEqual(['KILL QUERY 42', '<end>']);
+    // no thread id: nothing to kill, no connection
+    let opened = false;
+    expect(
+      await killQuery(async () => {
+        opened = true;
+        return a.open();
+      }, undefined),
+    ).toBe(false);
+    expect(opened).toBe(false);
+    // the server refuses or the second connection fails: the caller closes its socket anyway
+    const b = fake({ fail: true });
+    expect(await killQuery(b.open, 42)).toBe(false);
+    expect(b.log).toContain('<end>');
+    expect(await killQuery(() => Promise.reject(new Error('ECONNREFUSED')), 42)).toBe(false);
+    // no answer within the time: given up, the connection closed
+    const c = fake({ slow: true });
+    expect(await killQuery(c.open, 42, 30)).toBe(false);
+    expect(c.log).toContain('<end>');
   });
 });
 
@@ -626,5 +806,46 @@ describe('limits, values, errors and the pool', () => {
     expect(pool.stats).toMatchObject({ open: 0, idle: 0 });
     await pool.close();
     await expect(pool.acquire(never)).rejects.toMatchObject({ code: 'DB_CONNECT_FAILED' });
+  });
+});
+
+describe('Steward’s own database server (own.ts) and redaction', () => {
+  const own = ownDatabaseEndpoint({ kind: 'postgres', url: 'postgres://steward:pw@db.internal:5544/steward', schema: 'public' })!;
+  const lookup: AddressLookup = async (h) =>
+    ({ 'db.internal': ['10.9.8.7'], 'db-alias.internal': ['10.9.8.7'], localhost: ['127.0.0.1', '::1'], 'other.internal': ['10.9.8.6'] })[h] ??
+    (net.isIP(h) ? [h] : []);
+
+  it('reads host and port from the database URL (SQLite has none)', () => {
+    expect(own).toEqual({ hosts: ['db.internal'], port: 5544 });
+    expect(ownDatabaseEndpoint({ kind: 'sqlite', file: 'x.db' })).toBeNull();
+    expect(ownDatabaseEndpoint({ kind: 'postgres', url: 'postgres://u@/steward?host=/var/run/postgresql', schema: 'public' })).toEqual({
+      hosts: ['localhost'],
+      port: 5432,
+    });
+    expect(ownDatabaseEndpoint({ kind: 'postgres', url: 'postgres://u@[::1]/s', schema: 'public' })).toEqual({ hosts: ['::1'], port: 5432 });
+  });
+
+  it('refuses the same server by name or address, and every local address for a local server', async () => {
+    for (const host of ['db.internal', 'DB.internal', 'db-alias.internal', '10.9.8.7'])
+      await expect(assertNotOwnDatabase(host, 5544, own, lookup), host).rejects.toMatchObject({ code: 'DB_OWN_DATABASE', statusCode: 403 });
+    await expect(assertNotOwnDatabase('db.internal', 5545, own, lookup)).resolves.toBeUndefined();
+    await expect(assertNotOwnDatabase('other.internal', 5544, own, lookup)).resolves.toBeUndefined();
+    const local = ownDatabaseEndpoint({ kind: 'postgres', url: 'postgres://u@localhost:5432/s', schema: 'public' })!;
+    for (const host of ['127.0.0.1', '127.0.0.2', '::1', '0.0.0.0', 'localhost'])
+      await expect(assertNotOwnDatabase(host, 5432, local, lookup), host).rejects.toMatchObject({ code: 'DB_OWN_DATABASE' });
+    expect(await isOwnDatabase(['10.9.8.6'], 5432, local, lookup)).toBe(false);
+    expect(await isOwnDatabase(['127.0.0.1'], 5432, null, lookup)).toBe(false);
+  });
+
+  it('masks the platform’s secrets in driver errors', () => {
+    const secrets = { username: 'reader', password: 'S3cret-pass' };
+    const e = redactDbError(new DbError('DB_QUERY_FAILED', 'syntax error at "S3cret-pass"', { detail: 'near "S3cret-pass"' }), secrets) as DbError;
+    expect(e.message).toBe('syntax error at "***"');
+    expect(e.params).toEqual({ detail: 'near "***"' });
+    expect((redactDbError(new Error('x S3cret-pass'), secrets) as Error).message).toBe('x ***');
+    // the driver's message is masked before it is cut to one line of 500 characters (a cut secret would stay half visible)
+    const long = mapDriverError('postgresql', new Error(`${'x'.repeat(495)} S3cret-pass`), 'query', ['S3cret-pass']);
+    expect(long.message).not.toContain('S3cr');
+    expect(long.params).toEqual({ detail: `${'x'.repeat(495)} ***` });
   });
 });

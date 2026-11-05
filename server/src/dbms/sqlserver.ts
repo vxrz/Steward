@@ -155,7 +155,7 @@ export const sqlserverDriver: DbDriver = {
     } catch (e) {
       usable = false;
       conn.close();
-      throw mapDriverError('sqlserver', e, 'connect');
+      throw mapDriverError('sqlserver', e, 'connect', [t.password]);
     } finally {
       signal.removeEventListener('abort', onAbort);
     }
@@ -191,7 +191,7 @@ export const sqlserverDriver: DbDriver = {
           if (code === 'ETIMEOUT')
             throw new DbError('DB_TIMEOUT', `The statement ran longer than ${Math.round(limits.timeoutMs / 1000)} s (the limit)`, undefined, 504);
           if (code !== 'EREQUEST') usable = false;
-          throw mapDriverError('sqlserver', e, 'query');
+          throw mapDriverError('sqlserver', e, 'query', [t.password]);
         } finally {
           d.done();
         }

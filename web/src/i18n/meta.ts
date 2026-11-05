@@ -7,7 +7,8 @@
  * default when a key is missing. A server test keeps web/src/locales/en in sync
  * with the shared defaults.
  */
-import type { FieldMeta, NodeCategory, NodeType, StepMeta } from '@sm/shared';
+import { sqlProblemTextCode, sqlProblemValues, type FieldMeta, type NodeCategory, type NodeType, type SqlProblem, type StepMeta } from '@sm/shared';
+import { codeText } from './errors';
 import i18n from './index';
 
 /** Dynamic key lookup (the key is built from an id, so it cannot be checked at compile time). */
@@ -39,5 +40,13 @@ export function localizeField(scope: NodeType | 'common', f: FieldMeta): Localiz
 
 /** Validation issue in the UI language (rules with a code are translated, others keep the English message). */
 export function issueText(i: { code?: string; params?: Record<string, string | number>; message: string }): string {
-  return i.code ? (i18n.t(`editor:validation.${i.code}` as 'common:add', { ...i.params, defaultValue: i.message }) as string) : i.message;
+  if (!i.code) return i.message;
+  const params = { ...i.params };
+  // a refused statement: the statement check's reason in the UI language too
+  if (i.code === 'queryRefused' && typeof params.reason === 'string')
+    params.problem = codeText(sqlProblemTextCode(params.reason), params, String(params.problem ?? '')) ?? params.problem ?? '';
+  return i18n.t(`editor:validation.${i.code}` as 'common:add', { ...params, defaultValue: i.message }) as string;
 }
+
+/** A problem of the statement check (sqlcheck.ts) in the UI language. */
+export const sqlProblemText = (p: SqlProblem): string => codeText(sqlProblemTextCode(p.code), sqlProblemValues(p), p.message) ?? p.message;
