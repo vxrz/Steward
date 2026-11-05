@@ -267,8 +267,8 @@ describe('rights per site', () => {
     expect(await status(users.pia!('PUT', '/plant/sites/alpha', { name: 'Changed' }))).toMatchObject({ status: 403 });
     expect(await status(users.vera!('POST', '/plant/assets', { id: 'v-1', siteId: 'alpha', name: 'V' }))).toMatchObject({ status: 403 });
     expect(await status(users.pia!('POST', '/plant/sites', { id: 'p-site', name: 'P' }))).toMatchObject({ status: 403 });
-    // the Plant viewer role gives nothing else
-    expect(await users.pia!('GET', '/processes')).toEqual([]);
+    // the Plant viewer role gives nothing else (see "the Plant viewer sees only the registry")
+    expect(await status(users.pia!('GET', '/processes'))).toEqual({ status: 403, code: 'PLANT_VIEWER_ONLY' });
     expect(await status(users.pia!('GET', '/audit'))).toMatchObject({ status: 403 });
   });
 
@@ -297,6 +297,24 @@ describe('rights per site', () => {
     expect(log[0].summary).toMatch(/restricted to 2 entries/);
   });
 
+  it('a site code taken by a site the caller may not see: the other site is not named', async () => {
+    await s.api('POST', '/plant/sites', { id: 'gamma', code: 'GAM', name: 'Gamma' });
+    const refused = (p: Promise<unknown>) =>
+      p.then(
+        () => null,
+        (e: { status: number; body: unknown }) => ({ status: e.status, body: e.body }),
+      );
+    expect(await refused(users.dana!('POST', '/plant/sites', { id: 'gamma2', code: 'gam', name: 'G' }))).toMatchObject({
+      status: 409,
+      body: { code: 'PLANT_SITE_CODE_TAKEN', params: { code: 'gam', id: 'gamma' } },
+    });
+    await s.api('PUT', '/plant/sites/gamma/access', { acl: [{ subject: 'user:pia', permissions: ['view'] }] });
+    const hidden = await refused(users.dana!('POST', '/plant/sites', { id: 'gamma2', code: 'gam', name: 'G' }));
+    expect(hidden).toEqual({ status: 409, body: expect.objectContaining({ code: 'PLANT_SITE_CODE_TAKEN_HIDDEN', params: { code: 'gam' } }) });
+    expect(JSON.stringify(hidden)).not.toContain('gamma"');
+    await s.api('DELETE', '/plant/sites/gamma');
+  });
+
   it('owning teams scope a site like other resources', async () => {
     const team = await s.api('POST', '/teams', { name: 'Riverside team', members: ['vera'] });
     await s.api('PUT', '/plant/sites/alpha/access', { acl: [] });
@@ -306,6 +324,58 @@ describe('rights per site', () => {
     const why = await s.api('GET', '/access/explain?kind=site&id=alpha&user=vera');
     expect(why.permissions).toEqual(['view']);
     await s.api('PUT', `/owning-teams/site/alpha`, { teamIds: [] });
+  });
+});
+
+describe('the Plant viewer sees only the registry', () => {
+  it('every other route refuses a plant viewer, in the web app and the public API; the registry and their profile work', async () => {
+    for (const url of [
+      '/services',
+      '/applications',
+      '/systems',
+      '/records',
+      '/processes',
+      '/runs',
+      '/dashboards',
+      '/monitors',
+      '/platforms',
+      '/ticket-references',
+      '/status-pages',
+      '/me/daily-summary',
+      '/owning-teams/process/x',
+    ])
+      expect(await status(users.pia!('GET', url)), url).toEqual(
+        url.startsWith('/owning-teams') ? { status: 404, code: 'PROCESS_NOT_FOUND' } : { status: 403, code: 'PLANT_VIEWER_ONLY' },
+      );
+    for (const url of ['/plant/sites', '/plant/assets', '/plant/hierarchy', '/notifications', '/me/tokens', '/link-types', '/about', '/public-api'])
+      expect(await status(users.pia!('GET', url)), url).toEqual({ status: 200 });
+    expect((await users.pia!('GET', '/auth/status')).me.capabilities).toMatchObject({ plant: true, plantOnly: true });
+    expect((await users.vera!('GET', '/auth/status')).me.capabilities.plantOnly).toBe(false);
+    const { token } = await users.pia!('POST', '/me/tokens', { name: 'plant viewer', scope: 'read' });
+    const v1 = (url: string) => fetch(`${s.base}/api/v1${url}`, { headers: { authorization: `Bearer ${token}` } });
+    for (const url of ['/services', '/records', '/processes', '/dashboards', '/systems']) expect((await v1(url)).status, url).toBe(403);
+    expect((await v1('/plant/sites')).status).toBe(200);
+    expect((await v1('/me')).status).toBe(200);
+  });
+
+  it('another working role keeps its access: in the instance or in a team; the status role adds the status pages', async () => {
+    const { createUser } = await import('../src/auth/users.js');
+    createUser({ username: 'pete', roles: ['plant', 'viewer'], password: PW });
+    createUser({ username: 'polly', roles: ['plant', 'status'], password: PW });
+    createUser({ username: 'tia', roles: ['plant'], password: PW });
+    const pete = await s.as('pete', PW);
+    const polly = await s.as('polly', PW);
+    expect(await status(pete('GET', '/services'))).toEqual({ status: 200 });
+    expect(await status(pete('GET', '/records'))).toEqual({ status: 200 });
+    expect((await pete('GET', '/auth/status')).me.capabilities.plantOnly).toBe(false);
+    expect(await status(polly('GET', '/status-pages'))).toEqual({ status: 200 });
+    expect(await status(polly('GET', '/plant/sites'))).toEqual({ status: 200 });
+    expect(await status(polly('GET', '/services'))).toEqual({ status: 403, code: 'PLANT_VIEWER_ONLY' });
+    // a role in a team is a working role too
+    const team = await s.api('POST', '/teams', { name: 'Plant team', members: ['tia'], memberRoles: { tia: ['viewer'] } });
+    const tia = await s.as('tia', PW);
+    expect(await status(tia('GET', '/services'))).toEqual({ status: 200 });
+    await s.api('DELETE', `/teams/${team.id}`);
   });
 });
 
@@ -324,7 +394,17 @@ describe('links', () => {
       ['asset', false, null],
       ['site', true, 'alpha'],
     ]);
-    expect((await users.pia!('GET', '/plant/assets/beta-1')).backlinks.map((b: { kind: string }) => b.kind)).toEqual(['service']);
+    expect((await users.olaf!('GET', '/plant/assets/beta-1')).backlinks.map((b: { kind: string }) => b.kind)).toEqual(['service']);
+    // a plant viewer: no service among the backlinks; the linked system by name only, without a way to it
+    expect((await users.pia!('GET', '/plant/assets/beta-1')).backlinks).toEqual([]);
+    expect((await users.pia!('GET', '/plant/assets/mill-2')).links).toEqual([
+      expect.objectContaining({ kind: 'system', visible: true, label: 'Line PLC gateway', path: null, targetId: null }),
+    ]);
+    expect((await users.vera!('GET', '/plant/assets/mill-2')).links).toEqual([
+      expect.objectContaining({ kind: 'system', visible: true, path: `/systems/${sys.id}`, targetId: sys.id }),
+    ]);
+    // they find sites and assets to link, nothing else
+    expect(await users.pia!('GET', '/link-targets?kind=system&q=Line')).toEqual([]);
     expect((await s.api('GET', '/link-targets?kind=asset&q=mill-')).map((t: { id: string }) => t.id)).toEqual(expect.arrayContaining(['mill-2', 'mill-3']));
     // turned off, nothing resolves – and comes back when turned on again
     await enable(false);

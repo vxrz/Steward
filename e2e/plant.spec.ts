@@ -2,7 +2,7 @@ import type { APIRequestContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
 import { expectAccessible, settle } from './support/axe';
-import { expectNoHorizontalScroll } from './support/helpers';
+import { expectNoHorizontalScroll, json, uniq } from './support/helpers';
 
 /**
  * The plant registry (#218, opt-in module): turned on, the demo loads its invented enterprise (two sites, their
@@ -145,6 +145,40 @@ test.describe('as a viewer', () => {
     await expect(page.getByTestId('plant-hierarchy').getByRole('button', { name: 'Add area' })).toBeHidden();
     await expect(page.getByTestId('site-access')).toBeHidden();
     await expectAccessible(page, 'plant site (viewer)');
+  });
+});
+
+test.describe('as a plant viewer', () => {
+  // a fresh account with the role "plant" only (the demo has none): it signs in itself
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test('sees the Plant area and the profile – nothing else', async ({ page, apiAs }) => {
+    const admin = await apiAs('admin');
+    await plantOn(admin);
+    const username = uniq('plant').replace(/\s/g, '').toLowerCase();
+    await json(await admin.post('/api/users', { data: { username, displayName: 'Pia Plant', roles: ['plant'], password: 'Temp-password-1' } }));
+    await page.goto('/');
+    await page.getByLabel('User name').fill(username);
+    await page.getByLabel(/^Password/).fill('Temp-password-1');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByLabel('Temporary password').fill('Temp-password-1');
+    await page.getByLabel(/^New password/).fill('Own-password-2');
+    await page.getByLabel('Repeat new password').fill('Own-password-2');
+    await page.getByRole('button', { name: 'Change password' }).click();
+    // the start page is the registry
+    await expect(page).toHaveURL(/\/plant\/sites$/);
+    await expect(page.getByTestId('plant-site-table').getByRole('link', { name: 'Riverside Works', exact: true })).toBeVisible();
+    const nav = sidebar(page);
+    await expect(nav.getByRole('link', { name: 'Sites' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Assets' })).toBeVisible();
+    for (const name of ['Home', 'Processes', 'Services', 'Records', 'Dashboards', 'Monitors', 'Import'])
+      await expect(nav.getByRole('link', { name, exact: true }), name).toHaveCount(0);
+    await expectAccessible(page, 'plant sites for a plant viewer');
+    // other pages are not there for them
+    await page.goto('/services');
+    await expect(page.getByText('Page not found', { exact: true })).toBeVisible();
+    await page.goto('/profile');
+    await expect(page.getByRole('heading', { name: 'Profile', level: 1 })).toBeVisible();
   });
 });
 

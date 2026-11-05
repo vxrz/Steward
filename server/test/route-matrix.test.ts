@@ -22,8 +22,8 @@ import { tinyPng } from './png.js';
  * "route role status" line to <file> – a starting point when classifying new routes.
  */
 
-type Role = 'admin' | 'designer' | 'operator' | 'approver' | 'auditor' | 'viewer' | 'status';
-const ROLES: Role[] = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer', 'status'];
+type Role = 'admin' | 'designer' | 'operator' | 'approver' | 'auditor' | 'viewer' | 'status' | 'plant';
+const ROLES: Role[] = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer', 'status', 'plant'];
 const USERS: Record<Role, string> = {
   admin: 'admin',
   designer: 'dana',
@@ -32,6 +32,7 @@ const USERS: Record<Role, string> = {
   auditor: 'audrey',
   viewer: 'vera',
   status: 'stella',
+  plant: 'pia',
 };
 const PW = 'Demo-password-1';
 
@@ -41,9 +42,14 @@ const PUBLIC = 'public' as const;
 const HOOK = 'hook' as const;
 type Access = typeof PUBLIC | typeof HOOK | Role[];
 
-/** Every role that works in Steward; a status viewer (#26) only reaches the status pages (EVERYONE) */
-const ALL: Role[] = ROLES.filter((r) => r !== 'status');
+/**
+ * Every role that works in Steward; a status viewer (#26) only reaches the status pages (STATUS_PAGES), a plant
+ * viewer (#218, role "plant" only) the plant registry and their own profile (PLANT)
+ */
+const ALL: Role[] = ROLES.filter((r) => r !== 'status' && r !== 'plant');
 const EVERYONE: Role[] = ROLES;
+const STATUS_PAGES: Role[] = [...ALL, 'status'];
+const PLANT: Role[] = [...ALL, 'plant'];
 const ADMIN: Role[] = ['admin'];
 const ADMIN_AUDITOR: Role[] = ['admin', 'auditor'];
 /** Roles that may create processes, dashboards, monitors, records and credentials. */
@@ -101,14 +107,14 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/auth/step-up': EVERYONE,
   'POST /api/auth/step-up/sso': EVERYONE,
   'POST /api/auth/step-up/sso/complete': EVERYONE,
-  'GET /api/about': ALL,
+  'GET /api/about': PLANT,
   'GET /api/system/status': ADMIN_AUDITOR,
   'GET /api/system/update-notice': ADMIN,
   'GET /api/system/jobs': ADMIN,
   'POST /api/system/jobs/:name/run': ADMIN,
   'POST /api/system/update-notice/dismiss': ADMIN,
   'GET /api/metrics': ADMIN_AUDITOR,
-  'GET /api/public-api': ALL,
+  'GET /api/public-api': PLANT,
 
   // ---- vault ----
   'POST /api/vault/unlock': ADMIN,
@@ -136,10 +142,10 @@ const EXPECT: Record<string, Access> = {
   'POST /api/teams/:id/settings/logo': ADMIN,
   'DELETE /api/teams/:id/settings/logo': ADMIN,
   'GET /api/subjects': ACTIVE,
-  'PATCH /api/me': ALL,
-  'GET /api/me/tokens': ALL,
-  'POST /api/me/tokens': ALL,
-  'DELETE /api/me/tokens/:id': ALL,
+  'PATCH /api/me': PLANT,
+  'GET /api/me/tokens': PLANT,
+  'POST /api/me/tokens': PLANT,
+  'DELETE /api/me/tokens/:id': PLANT,
   'GET /api/tokens': ADMIN,
   'DELETE /api/tokens/:id': ADMIN,
   'GET /api/sso/providers': ADMIN,
@@ -172,20 +178,20 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/settings/theme/logo': ADMIN,
   'GET /api/maintenance': ADMIN,
   'POST /api/maintenance/cleanup': ADMIN,
-  'GET /api/notifications': ALL,
-  'POST /api/notifications/read-all': ALL,
-  'POST /api/notifications/:id/read': ALL,
+  'GET /api/notifications': PLANT,
+  'POST /api/notifications/read-all': PLANT,
+  'POST /api/notifications/:id/read': PLANT,
   'GET /api/mcp-server': ALL,
   'PUT /api/mcp-server': ADMIN,
   // requests of MCP clients (#11): each reader sees the ones they may (the route decides per request)
   'GET /api/mcp-requests': ALL,
   // service status pages (#26): every signed-in user and the status viewers read them, designers and admins set them up
-  'GET /api/status-pages': EVERYONE,
+  'GET /api/status-pages': STATUS_PAGES,
   'POST /api/status-pages': DESIGN,
   'GET /api/status-pages/:pageId': ALL,
   'PUT /api/status-pages/:pageId': DESIGN,
   'DELETE /api/status-pages/:pageId': DESIGN,
-  'GET /api/status-pages/:pageId/view': EVERYONE,
+  'GET /api/status-pages/:pageId/view': STATUS_PAGES,
   'POST /api/status-pages/:pageId/link': DESIGN,
   'DELETE /api/status-pages/:pageId/link': DESIGN,
   'GET /api/public/status-page': PUBLIC,
@@ -518,7 +524,7 @@ const EXPECT: Record<string, Access> = {
 
   'POST /api/record-types': ADMIN,
   'PUT /api/record-types/:id': ADMIN,
-  'GET /api/link-targets': ALL,
+  'GET /api/link-targets': PLANT,
   'GET /api/backlinks': ALL,
   'GET /api/services': ALL,
   'POST /api/services': DESIGN,
@@ -527,7 +533,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/services/:id/archive': DESIGN,
   'POST /api/services/:id/links': DESIGN,
   // types of external links: everyone reads them (the add-link dialog), administrators manage their own
-  'GET /api/link-types': ALL,
+  'GET /api/link-types': PLANT,
   'POST /api/link-types': ADMIN,
   'PUT /api/link-types/:key': ADMIN,
   'PATCH /api/services/:id/links/:linkId': DESIGN,
@@ -672,7 +678,7 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/v1/*': PUBLIC,
   'PATCH /api/v1/*': PUBLIC,
   'DELETE /api/v1/*': PUBLIC,
-  'GET /api/v1/me': ALL,
+  'GET /api/v1/me': PLANT,
   'GET /api/v1/processes': ALL,
   'GET /api/v1/processes/:processId': ALL,
   'GET /api/v1/processes/:processId/versions': ALL,
@@ -721,10 +727,10 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/systems': ALL,
   'GET /api/v1/systems/:systemId': ALL,
   // the plant registry (#218): who may see the site (every role that works in Steward, without an access list)
-  'GET /api/v1/plant/sites': ALL,
-  'GET /api/v1/plant/sites/:siteId': ALL,
-  'GET /api/v1/plant/assets': ALL,
-  'GET /api/v1/plant/assets/:assetId': ALL,
+  'GET /api/v1/plant/sites': PLANT,
+  'GET /api/v1/plant/sites/:siteId': PLANT,
+  'GET /api/v1/plant/assets': PLANT,
+  'GET /api/v1/plant/assets/:assetId': PLANT,
   'GET /api/v1/environments': ALL,
   'GET /api/v1/maintenance-windows': ALL,
   'GET /api/v1/measures': ALL,
@@ -838,12 +844,12 @@ const EXPECT: Record<string, Access> = {
   // ---- the plant registry (#218, on in these fixtures): its switch is the administrators'; rights per site ----
   'GET /api/settings/plant': ADMIN,
   'PUT /api/settings/plant': ADMIN,
-  'GET /api/plant/config': ALL,
-  'GET /api/plant/schema': ALL,
-  'GET /api/plant/hierarchy': ALL,
-  'GET /api/plant/sites': ALL,
+  'GET /api/plant/config': PLANT,
+  'GET /api/plant/schema': PLANT,
+  'GET /api/plant/hierarchy': PLANT,
+  'GET /api/plant/sites': PLANT,
   'POST /api/plant/sites': DESIGN,
-  'GET /api/plant/sites/:siteId': ALL,
+  'GET /api/plant/sites/:siteId': PLANT,
   'PUT /api/plant/sites/:siteId': DESIGN,
   'DELETE /api/plant/sites/:siteId': DESIGN,
   'PUT /api/plant/sites/:siteId/access': DESIGN,
@@ -856,22 +862,22 @@ const EXPECT: Record<string, Access> = {
   'POST /api/plant/sites/:siteId/links': DESIGN,
   'PATCH /api/plant/sites/:siteId/links/:linkId': DESIGN,
   'DELETE /api/plant/sites/:siteId/links/:linkId': DESIGN,
-  'GET /api/plant/assets': ALL,
+  'GET /api/plant/assets': PLANT,
   'POST /api/plant/assets': DESIGN,
-  'GET /api/plant/assets/:assetId': ALL,
+  'GET /api/plant/assets/:assetId': PLANT,
   'PUT /api/plant/assets/:assetId': DESIGN,
   'DELETE /api/plant/assets/:assetId': DESIGN,
   'PUT /api/plant/assets/:assetId/image': DESIGN,
   'DELETE /api/plant/assets/:assetId/image': DESIGN,
-  'GET /api/plant/assets/:assetId/image': ALL,
+  'GET /api/plant/assets/:assetId/image': PLANT,
   'POST /api/plant/assets/:assetId/links': DESIGN,
   'PATCH /api/plant/assets/:assetId/links/:linkId': DESIGN,
   'DELETE /api/plant/assets/:assetId/links/:linkId': DESIGN,
-  // a preview changes nothing (it lists what the caller may not change); applying needs the right to change a site
-  'POST /api/plant/import/preview': ALL,
+  // preview and import need the right to add sites or manage one (a preview shows what an import would change)
+  'POST /api/plant/import/preview': DESIGN,
   'POST /api/plant/import': DESIGN,
-  'GET /api/plant/imports': ALL,
-  'GET /api/plant/export': ALL,
+  'GET /api/plant/imports': PLANT,
+  'GET /api/plant/export': PLANT,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
@@ -1455,6 +1461,9 @@ beforeAll(async () => {
   await s.api('PUT', '/settings/plant', { enabled: true, enterprise: '', labels: {}, fields: {} });
   await s.api('POST', '/demo/setup', {});
   await allowEmailDomains(s, ['example.com']);
+  // a plant viewer (#218): the demo has none
+  const { createUser } = await import('../src/auth/users.js');
+  createUser({ username: USERS.plant, roles: ['plant'], password: PW });
   const a = s.api;
   // an AI budget, so raising it is a sensitive change (STEP_UP)
   await a('PUT', '/ai/budgets', { scope: 'installation', scopeId: '', tokensPerDay: 1000, tokensPerMonth: null });

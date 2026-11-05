@@ -196,9 +196,16 @@ function Shell({ status }: { status: AuthStatus }) {
   const navigate = useNavigate();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const caps = status.me!.capabilities;
+  // a plant viewer (#218, role "plant" only): the Plant area and the profile, nothing else (the server refuses the rest)
+  const plantOnly = caps.plantOnly === true;
   // recent items (command palette) are kept per user
   setRecentUser(status.me!.user.id);
-  const tasks = useQuery({ queryKey: ['tasks', 'mine-count'], queryFn: () => get<TaskRecord[]>('/tasks?status=open&mine=1'), refetchInterval: 5000 });
+  const tasks = useQuery({
+    queryKey: ['tasks', 'mine-count'],
+    queryFn: () => get<TaskRecord[]>('/tasks?status=open&mine=1'),
+    refetchInterval: 5000,
+    enabled: !plantOnly,
+  });
   const openTasks = tasks.data?.length ?? 0;
 
   const navGroups = useNavGroups(caps);
@@ -216,6 +223,17 @@ function Shell({ status }: { status: AuthStatus }) {
   // full-screen pages (the process editor) collapse the sidebar on wide screens
   const [wide, setWide] = useState(false);
   const layout = useMemo(() => ({ wide, setWide }), [wide]);
+  const notFound = (
+    <EmptyState
+      icon={IconMapPinOff}
+      title={t('pageNotFound')}
+      action={
+        <Button component={Link} to="/">
+          {t('backToDashboard')}
+        </Button>
+      }
+    />
+  );
 
   return (
     <ShellLayoutContext.Provider value={layout}>
@@ -242,7 +260,7 @@ function Shell({ status }: { status: AuthStatus }) {
               )}
             </Group>
             <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
-              <CommandPaletteButton />
+              {!plantOnly && <CommandPaletteButton />}
               <HelpMenu />
               <NotificationCenter />
               <Tooltip label={colorScheme === 'dark' ? t('lightMode') : t('darkMode')}>
@@ -258,7 +276,7 @@ function Shell({ status }: { status: AuthStatus }) {
               <UserMenu />
             </Group>
           </Group>
-          <CommandPalette pages={navItems} />
+          {!plantOnly && <CommandPalette pages={navItems} />}
         </AppShell.Header>
         <AppShell.Navbar p="xs" aria-label={t('mainNavigation')}>
           <AppNav
@@ -277,94 +295,96 @@ function Shell({ status }: { status: AuthStatus }) {
             {caps.manageSettings && <UpdateNotice />}
             <ErrorBoundary resetKey={location.pathname}>
               <Suspense fallback={<PageLoader />}>
-                <Routes>
-                  <Route path="/" element={<DashboardPage demo={status.demo} />} />
-                  <Route path="/dashboards" element={<DashboardsPage />} />
-                  <Route path="/dashboards/:id" element={<DashboardViewPage />} />
-                  <Route path="/tasks" element={<TasksPage />} />
-                  <Route path="/mcp-requests" element={<McpRequestsPage />} />
-                  <Route path="/mcp-requests/:id" element={<McpRequestDetailPage />} />
-                  <Route path="/runs" element={<RunsPage />} />
-                  <Route path="/runs/:id" element={<RunDetailPage />} />
-                  <Route path="/processes" element={<ProcessesPage />} />
-                  <Route path="/processes/:id" element={<ProcessEditorPage />} />
-                  <Route path="/schedules" element={<SchedulesPage />} />
-                  <Route path="/triggers" element={<TriggersPage />} />
-                  <Route path="/git-updates" element={<GitUpdatesPage />} />
-                  <Route path="/git-updates/:id" element={<GitUpdateDetailPage />} />
-                  <Route path="/monitors" element={<MonitorsPage />} />
-                  <Route path="/monitors/new" element={<MonitorEditorPage />} />
-                  <Route path="/monitors/wall" element={<MonitorWallPage />} />
-                  <Route path="/monitors/:id" element={<MonitorDetailPage />} />
-                  <Route path="/monitors/:id/edit" element={<MonitorEditorPage />} />
-                  <Route path="/platforms" element={<PlatformsPage />} />
-                  <Route path="/platforms/:id" element={<PlatformDetailPage />} />
-                  <Route path="/records" element={<RecordsPage />} />
-                  <Route path="/records/types" element={<RecordTypesPage />} />
-                  <Route path="/records/link-types" element={<LinkTypesPage />} />
-                  <Route path="/records/:id" element={<RecordDetailPage />} />
-                  <Route path="/records/:id/edit" element={<RecordEditorPage />} />
-                  <Route path="/services" element={<ServicesPage />} />
-                  <Route path="/services/:id" element={<ServiceDetailPage />} />
-                  <Route path="/services/:id/:tab" element={<ServiceDetailPage />} />
-                  <Route path="/applications" element={<ApplicationsPage />} />
-                  <Route path="/applications/cia-scale" element={<CiaScalePage />} />
-                  <Route path="/applications/:id" element={<ApplicationDetailPage />} />
-                  <Route path="/systems" element={<SystemsPage />} />
-                  <Route path="/systems/:id" element={<SystemDetailPage />} />
-                  <Route path="/maintenance" element={<MaintenancePage />} />
-                  <Route path="/status-pages" element={<StatusPagesPage />} />
-                  <Route path="/status-pages/:id" element={<StatusPageViewPage />} />
-                  <Route path="/duties" element={<DutiesPage />} />
-                  <Route path="/duties/:id" element={<DutyDetailPage />} />
-                  <Route path="/scorecard" element={<ScorecardPage />} />
-                  <Route path="/credentials" element={<CredentialsPage />} />
-                  <Route path="/tickets" element={<TicketsPage />} />
-                  <Route path="/tickets/:id" element={<TicketDetailPage />} />
-                  <Route path="/compliance/controls" element={<ComplianceControlsPage />} />
-                  <Route path="/compliance/access-changes" element={<AccessChangesPage />} />
-                  <Route path="/compliance/reconciliation" element={<AccessReconciliationPage />} />
-                  <Route path="/compliance/person-reviews" element={<PersonReviewsPage />} />
-                  <Route path="/compliance/person-reviews/:id" element={<PersonReviewDetailPage />} />
-                  <Route path="/compliance/evidence-packs" element={<EvidencePacksPage />} />
-                  <Route path="/reports" element={<ReportsPage />} />
-                  {/* the plant registry (#218): only while its module is on – otherwise "page not found" */}
-                  {caps.plant && <Route path="/plant/sites" element={<PlantSitesPage />} />}
-                  {caps.plant && <Route path="/plant/sites/:siteId" element={<PlantSitePage />} />}
-                  {caps.plant && <Route path="/plant/assets" element={<PlantAssetsPage />} />}
-                  {caps.plant && <Route path="/plant/assets/:assetId" element={<PlantAssetPage />} />}
-                  {caps.plant && <Route path="/plant/import" element={<PlantImportPage />} />}
-                  {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
-                  {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
-                  <Route path="/settings" element={<SettingsIndex />} />
-                  <Route path="/settings/git-sync" element={<GitSyncPage />} />
-                  <Route path="/settings/migration" element={<MigrationPage />} />
-                  <Route path="/settings/backups" element={<BackupsPage />} />
-                  <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="/oauth/authorize" element={<OAuthAuthorizePage />} />
-                  <Route path="/about" element={<AboutPage />} />
-                  {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}
-                  <Route path="/settings/:area" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
-                  {/* the areas of the sidebar as addresses: their first page */}
-                  {Object.entries(AREA_HOME).map(([from, to]) => (
-                    <Route key={from} path={from} element={<Navigate to={to} replace />} />
-                  ))}
-                  <Route path="/admin" element={<Navigate to={caps.manageUsers ? '/users' : caps.viewAudit ? '/audit' : '/profile'} replace />} />
-                  <Route
-                    path="*"
-                    element={
-                      <EmptyState
-                        icon={IconMapPinOff}
-                        title={t('pageNotFound')}
-                        action={
-                          <Button component={Link} to="/">
-                            {t('backToDashboard')}
-                          </Button>
-                        }
-                      />
-                    }
-                  />
-                </Routes>
+                {plantOnly ? (
+                  <Routes>
+                    <Route path="/" element={<Navigate to="/plant/sites" replace />} />
+                    {caps.plant && <Route path="/plant/sites" element={<PlantSitesPage />} />}
+                    {caps.plant && <Route path="/plant/sites/:siteId" element={<PlantSitePage />} />}
+                    {caps.plant && <Route path="/plant/assets" element={<PlantAssetsPage />} />}
+                    {caps.plant && <Route path="/plant/assets/:assetId" element={<PlantAssetPage />} />}
+                    {caps.plant && <Route path="/plant/import" element={<PlantImportPage />} />}
+                    <Route path="/plant" element={<Navigate to="/plant/sites" replace />} />
+                    <Route path="/profile" element={<ProfilePage />} />
+                    <Route path="/about" element={<AboutPage />} />
+                    <Route path="*" element={notFound} />
+                  </Routes>
+                ) : (
+                  <Routes>
+                    <Route path="/" element={<DashboardPage demo={status.demo} />} />
+                    <Route path="/dashboards" element={<DashboardsPage />} />
+                    <Route path="/dashboards/:id" element={<DashboardViewPage />} />
+                    <Route path="/tasks" element={<TasksPage />} />
+                    <Route path="/mcp-requests" element={<McpRequestsPage />} />
+                    <Route path="/mcp-requests/:id" element={<McpRequestDetailPage />} />
+                    <Route path="/runs" element={<RunsPage />} />
+                    <Route path="/runs/:id" element={<RunDetailPage />} />
+                    <Route path="/processes" element={<ProcessesPage />} />
+                    <Route path="/processes/:id" element={<ProcessEditorPage />} />
+                    <Route path="/schedules" element={<SchedulesPage />} />
+                    <Route path="/triggers" element={<TriggersPage />} />
+                    <Route path="/git-updates" element={<GitUpdatesPage />} />
+                    <Route path="/git-updates/:id" element={<GitUpdateDetailPage />} />
+                    <Route path="/monitors" element={<MonitorsPage />} />
+                    <Route path="/monitors/new" element={<MonitorEditorPage />} />
+                    <Route path="/monitors/wall" element={<MonitorWallPage />} />
+                    <Route path="/monitors/:id" element={<MonitorDetailPage />} />
+                    <Route path="/monitors/:id/edit" element={<MonitorEditorPage />} />
+                    <Route path="/platforms" element={<PlatformsPage />} />
+                    <Route path="/platforms/:id" element={<PlatformDetailPage />} />
+                    <Route path="/records" element={<RecordsPage />} />
+                    <Route path="/records/types" element={<RecordTypesPage />} />
+                    <Route path="/records/link-types" element={<LinkTypesPage />} />
+                    <Route path="/records/:id" element={<RecordDetailPage />} />
+                    <Route path="/records/:id/edit" element={<RecordEditorPage />} />
+                    <Route path="/services" element={<ServicesPage />} />
+                    <Route path="/services/:id" element={<ServiceDetailPage />} />
+                    <Route path="/services/:id/:tab" element={<ServiceDetailPage />} />
+                    <Route path="/applications" element={<ApplicationsPage />} />
+                    <Route path="/applications/cia-scale" element={<CiaScalePage />} />
+                    <Route path="/applications/:id" element={<ApplicationDetailPage />} />
+                    <Route path="/systems" element={<SystemsPage />} />
+                    <Route path="/systems/:id" element={<SystemDetailPage />} />
+                    <Route path="/maintenance" element={<MaintenancePage />} />
+                    <Route path="/status-pages" element={<StatusPagesPage />} />
+                    <Route path="/status-pages/:id" element={<StatusPageViewPage />} />
+                    <Route path="/duties" element={<DutiesPage />} />
+                    <Route path="/duties/:id" element={<DutyDetailPage />} />
+                    <Route path="/scorecard" element={<ScorecardPage />} />
+                    <Route path="/credentials" element={<CredentialsPage />} />
+                    <Route path="/tickets" element={<TicketsPage />} />
+                    <Route path="/tickets/:id" element={<TicketDetailPage />} />
+                    <Route path="/compliance/controls" element={<ComplianceControlsPage />} />
+                    <Route path="/compliance/access-changes" element={<AccessChangesPage />} />
+                    <Route path="/compliance/reconciliation" element={<AccessReconciliationPage />} />
+                    <Route path="/compliance/person-reviews" element={<PersonReviewsPage />} />
+                    <Route path="/compliance/person-reviews/:id" element={<PersonReviewDetailPage />} />
+                    <Route path="/compliance/evidence-packs" element={<EvidencePacksPage />} />
+                    <Route path="/reports" element={<ReportsPage />} />
+                    {/* the plant registry (#218): only while its module is on – otherwise "page not found" */}
+                    {caps.plant && <Route path="/plant/sites" element={<PlantSitesPage />} />}
+                    {caps.plant && <Route path="/plant/sites/:siteId" element={<PlantSitePage />} />}
+                    {caps.plant && <Route path="/plant/assets" element={<PlantAssetsPage />} />}
+                    {caps.plant && <Route path="/plant/assets/:assetId" element={<PlantAssetPage />} />}
+                    {caps.plant && <Route path="/plant/import" element={<PlantImportPage />} />}
+                    {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
+                    {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
+                    <Route path="/settings" element={<SettingsIndex />} />
+                    <Route path="/settings/git-sync" element={<GitSyncPage />} />
+                    <Route path="/settings/migration" element={<MigrationPage />} />
+                    <Route path="/settings/backups" element={<BackupsPage />} />
+                    <Route path="/profile" element={<ProfilePage />} />
+                    <Route path="/oauth/authorize" element={<OAuthAuthorizePage />} />
+                    <Route path="/about" element={<AboutPage />} />
+                    {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}
+                    <Route path="/settings/:area" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
+                    {/* the areas of the sidebar as addresses: their first page */}
+                    {Object.entries(AREA_HOME).map(([from, to]) => (
+                      <Route key={from} path={from} element={<Navigate to={to} replace />} />
+                    ))}
+                    <Route path="/admin" element={<Navigate to={caps.manageUsers ? '/users' : caps.viewAudit ? '/audit' : '/profile'} replace />} />
+                    <Route path="*" element={notFound} />
+                  </Routes>
+                )}
               </Suspense>
             </ErrorBoundary>
           </div>

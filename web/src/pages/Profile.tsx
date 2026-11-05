@@ -49,6 +49,8 @@ export function ProfilePage() {
   if (!me) return null;
   const u = me.user;
   const local = !u.authSource || u.authSource === 'local';
+  // a plant viewer (#218) sees the plant registry only: no daily summary, teams for new resources or MCP clients
+  const plantOnly = me.capabilities.plantOnly === true;
   return (
     <>
       <PageHeader title={t('title')} description={t('description')} />
@@ -56,11 +58,11 @@ export function ProfilePage() {
         <AccountCard user={u} local={local} />
         <LanguageCard user={u} />
         <NotificationsCard user={u} />
-        <DailySummaryCard />
-        <NewResourceTeamsCard />
+        {!plantOnly && <DailySummaryCard />}
+        {!plantOnly && <NewResourceTeamsCard />}
         {local && <PasswordCard />}
-        <TokensCard />
-        <McpConnectedClientsCard />
+        <TokensCard plantOnly={plantOnly} />
+        {!plantOnly && <McpConnectedClientsCard />}
       </Stack>
     </>
   );
@@ -259,7 +261,7 @@ function PasswordCard() {
   );
 }
 
-function TokensCard() {
+function TokensCard({ plantOnly }: { plantOnly: boolean }) {
   const { t } = useTranslation(['profile', 'common']);
   const qc = useQueryClient();
   const tokens = useQuery({ queryKey: ['me', 'tokens'], queryFn: () => getOptional<ApiToken[] | null>('/me/tokens', null) });
@@ -283,7 +285,8 @@ function TokensCard() {
   const publicApi = usePublicApi();
   const mcp = useMcpServer();
   // The versioned REST API is the stable interface for scripts; fall back to the internal API when it is off.
-  const exampleUrl = `${host}${publicApi.data?.enabled ? `${publicApi.data.basePath}/runs?limit=10` : '/api/runs'}`;
+  const example = plantOnly ? '/plant/sites' : '/runs?limit=10';
+  const exampleUrl = `${host}${publicApi.data?.enabled ? `${publicApi.data.basePath}${example}` : `/api${example.split('?')[0]}`}`;
   return (
     <Card withBorder>
       <Group justify="space-between" mb="sm" gap="sm">
@@ -317,7 +320,7 @@ function TokensCard() {
         </Text>
       </Stack>
       <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{`curl -H "Authorization: Bearer <token>" "${exampleUrl}"`}</Code>
-      {mcp.data?.enabled && (
+      {mcp.data?.enabled && !plantOnly && (
         <Text size="sm" mt="sm">
           {t('tokens.mcpAvailable')}
         </Text>

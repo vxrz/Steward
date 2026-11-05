@@ -12,6 +12,8 @@ import {
   type ReviewStatus,
 } from '@sm/shared';
 import { HttpError } from '../util.js';
+import { ACCESS } from '../auth/access.js';
+import { plantOnly } from '../auth/policy.js';
 import * as reviews from './reviews.js';
 import { canApproveRecords, canCreateRecords, canManageRecordTypes, me } from './access.js';
 import * as svc from './service.js';
@@ -312,15 +314,17 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- links (shared) ----------
-  app.get('/link-targets', async (req) => {
-    me();
+  // plant viewers (#218) manage links of sites and assets where an access list lets them: they find sites and assets
+  app.get('/link-targets', { config: { access: ACCESS.plantViewer } }, async (req) => {
+    const u = me();
     const q = z
       .object({ kind: z.enum(LINK_KINDS), q: z.string().max(100).default(''), limit: z.coerce.number().int().min(1).max(50).default(20) })
       .parse(req.query);
+    if (q.kind !== 'site' && q.kind !== 'asset' && plantOnly(u)) return [];
     return searchTargets(q.kind, q.q, q.limit);
   });
-  // types of external links: everyone reads them, administrators add, rename and archive their own
-  app.get('/link-types', async () => linkTypes.listLinkTypes());
+  // types of external links: everyone reads them (plant viewers too: sites and assets have links), administrators add, rename and archive their own
+  app.get('/link-types', { config: { access: ACCESS.plantViewer } }, async () => linkTypes.listLinkTypes());
   app.post('/link-types', async (req) => linkTypes.createLinkType(linkTypes.linkTypeInput.parse(req.body)));
   app.put('/link-types/:key', async (req) => linkTypes.updateLinkType(params(req).key!, linkTypes.linkTypeUpdate.parse(req.body)));
   app.get('/backlinks', async (req) => {

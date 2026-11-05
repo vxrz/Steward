@@ -202,20 +202,23 @@ export function useNavGroups(caps: Capabilities): { key: NavGroupKey; label: str
   // Memoised: the command palette rebuilds its actions when this changes.
   return useMemo(
     () =>
-      NAV_GROUPS.map((g) => {
-        const label = g.key === 'home' ? '' : t(`groups.${g.key}`);
-        const itemLabel = (key: NavKey) =>
-          key === 'plantSites'
-            ? own('site', true, t('items.plantSites'))
-            : key === 'plantAssets'
-              ? own('asset', true, t('items.plantAssets'))
-              : t(`items.${key}`);
-        return {
-          key: g.key,
-          label,
-          items: g.items.filter(visible(caps)).map((n) => ({ to: n.to, key: n.key, icon: n.icon, label: itemLabel(n.key), group: label, also: n.also })),
-        };
-      }).filter((g) => g.items.length > 0),
+      // a plant viewer (#218) sees the Plant area only
+      NAV_GROUPS.filter((g) => !caps.plantOnly || g.key === 'plant')
+        .map((g) => {
+          const label = g.key === 'home' ? '' : t(`groups.${g.key}`);
+          const itemLabel = (key: NavKey) =>
+            key === 'plantSites'
+              ? own('site', true, t('items.plantSites'))
+              : key === 'plantAssets'
+                ? own('asset', true, t('items.plantAssets'))
+                : t(`items.${key}`);
+          return {
+            key: g.key,
+            label,
+            items: g.items.filter(visible(caps)).map((n) => ({ to: n.to, key: n.key, icon: n.icon, label: itemLabel(n.key), group: label, also: n.also })),
+          };
+        })
+        .filter((g) => g.items.length > 0),
     [t, caps, own],
   );
 }
@@ -224,7 +227,14 @@ export function useNavGroups(caps: Capabilities): { key: NavGroupKey; label: str
 export function useAutomateTabs(caps: Capabilities): NavEntry[] {
   const { t } = useTranslation('nav');
   return useMemo(
-    () => AUTOMATE_TABS.filter(visible(caps)).map((n) => ({ to: n.to, key: n.key, icon: n.icon, label: t(`items.${n.key}`), group: t('groups.automate') })),
+    () =>
+      AUTOMATE_TABS.filter((n) => !caps.plantOnly && visible(caps)(n)).map((n) => ({
+        to: n.to,
+        key: n.key,
+        icon: n.icon,
+        label: t(`items.${n.key}`),
+        group: t('groups.automate'),
+      })),
     [t, caps],
   );
 }

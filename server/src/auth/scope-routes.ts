@@ -17,6 +17,7 @@ import {
   catalogueAccess,
   catalogueTeams,
   owningTeams,
+  plantOnly,
   platformAccess,
   processAccess,
   recordAccess,
@@ -191,8 +192,10 @@ function nextTeams(before: OwningTeam[], b: BulkInput, known: Map<string, string
 }
 
 export async function scopeRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/owning-teams/:kind/:id', async (req) => {
+  // a plant viewer (#218) sees the owning teams of sites only (the site page shows them)
+  app.get('/owning-teams/:kind/:id', { config: { access: ACCESS.plantViewer } }, async (req) => {
     const { kind, id } = params(req);
+    if (kind !== 'site' && plantOnly(me())) throw notFound(kind, id);
     const r = visible(kind, id);
     return { teams: owningTeams(kind, r.id), canChange: isAdmin(me()) };
   });

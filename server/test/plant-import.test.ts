@@ -316,24 +316,100 @@ describe('problems', () => {
     expect(r.problems[0].message).toMatch(/Unknown key "x"/);
   });
 
-  it('rights: a viewer may not import; nobody changes a site without the manage right', async () => {
+  it('rights: a viewer may not import or preview; nobody changes a site without the manage right', async () => {
     const tree = await exportYaml();
+    // the preview needs the import's own right (adding sites or managing one): viewers and plant viewers have neither
+    const { createUser } = await import('../src/auth/users.js');
+    createUser({ username: 'pia', roles: ['plant'], password: PW });
+    const pia = await s.as('pia', PW);
+    for (const c of [vera, pia])
+      expect(await status(c('POST', '/plant/import/preview', { files: [file('t.yaml', tree)], mode: 'update' }))).toEqual({ status: 403, code: 'FORBIDDEN' });
+    // who may manage a site sees which ones they may not change
+    await s.api('PUT', '/plant/sites/hillcrest/access', { acl: [{ subject: 'user:vera', permissions: ['manage'] }] });
     const v = await vera('POST', '/plant/import/preview', { files: [file('t.yaml', tree)], mode: 'update' });
     expect(v.ok).toBe(false);
-    expect(v.problems[0].message).toMatch(/You may not change site "eastfield"/);
+    expect(v.problems[0].message).toBe('You may not change site "eastfield"');
+    // a new site reads like one the caller may not see
     expect(
       (await vera('POST', '/plant/import/preview', { files: [file('t.yaml', { version: 1, site: { id: 'mine', name: 'Mine' } })], mode: 'add' })).problems[0]
         .message,
-    ).toBe('You may not add sites: site "mine" is new');
+    ).toBe('You may not add or change site "mine"');
     await s.api('PUT', '/plant/sites/hillcrest/access', { acl: [{ subject: 'user:vera', permissions: ['view'] }] });
     const d = await dana('POST', '/plant/import/preview', { files: [file('t.yaml', tree)], mode: 'update' });
-    expect(d.problems.map((p: { message: string }) => p.message)).toEqual(['You may not change site "hillcrest" (or it exists and you may not see it)']);
+    expect(d.problems.map((p: { message: string }) => p.message)).toEqual(['You may not add or change site "hillcrest"']);
     // designers export what they see
     const res = await fetch(`${s.base}/api/plant/export`, {
       headers: { authorization: `Bearer ${(await dana('POST', '/me/tokens', { name: 'x', scope: 'read' })).token}` },
     });
     expect((YAML.parse(await res.text()) as Doc).sites.map((x) => x.id)).not.toContain('hillcrest');
     await s.api('PUT', '/plant/sites/hillcrest/access', { acl: [] });
+  });
+
+  it('sites the caller may not see: an earlier import of them does not exist, their ids, codes and records are not named', async () => {
+    const secret = await s.api('POST', '/plant/import', {
+      files: [file('secret-works.yaml', { version: 1, site: { id: 'secret', code: 'SEC', name: 'Secret works', assets: [{ id: 'secret-1', name: 'S 1' }] } })],
+      mode: 'add',
+    });
+    await s.api('PUT', '/plant/sites/secret/access', { acl: [{ subject: 'user:vera', permissions: ['view'] }] });
+    const mine = { version: 1, site: { id: 'dana-site', name: 'Dana works' } };
+    const p = await dana('POST', '/plant/import/preview', { files: [file('t.yaml', mine)], mode: 'replace', replaces: secret.import.id, missing: 'remove' });
+    expect(p.replaces).toBeNull();
+    expect(p.problems.map((x: { message: string }) => x.message)).toEqual(['Choose the earlier import this file replaces']);
+    expect(JSON.stringify(p)).not.toMatch(/secret|admin/i);
+    // who sees the site sees the import
+    expect(
+      (await s.api('POST', '/plant/import/preview', { files: [file('t.yaml', mine)], mode: 'replace', replaces: secret.import.id })).replaces,
+    ).toMatchObject({
+      id: secret.import.id,
+      files: ['secret-works.yaml'],
+    });
+    // the site's code, an asset id in it and the site itself in a file: no hint that it is there
+    const q = await dana('POST', '/plant/import/preview', {
+      files: [file('t.yaml', { version: 1, sites: [{ id: 'dana-2', code: 'sec', name: 'D', assets: [{ id: 'secret-1', name: 'Mine' }] }] })],
+      mode: 'add',
+    });
+    expect(q.problems.map((x: { path: string; message: string }) => `${x.path}: ${x.message}`).sort()).toEqual(
+      ['sites[0].assets[0].id: You may not add or change asset "secret-1"', 'sites[0].code: Another site has the code sec already'].sort(),
+    );
+    const named = await dana('POST', '/plant/import/preview', { files: [file('t.yaml', { version: 1, site: { id: 'secret', name: 'X' } })], mode: 'update' });
+    expect(named.problems.map((x: { message: string }) => x.message)).toEqual(['You may not add or change site "secret"']);
+    // nor what the file would change there
+    expect(named.changes).toEqual([]);
+
+    // replace: what the earlier import wrote in a site the caller may not see is not named (an asset moved there by hand)
+    const gv = await s.api('POST', '/plant/import', {
+      files: [
+        file('gv.yaml', {
+          version: 1,
+          site: {
+            id: 'gv',
+            name: 'GV',
+            assets: [
+              { id: 'gv-1', name: 'GV 1' },
+              { id: 'gv-2', name: 'GV 2' },
+            ],
+          },
+        }),
+      ],
+      mode: 'add',
+    });
+    await s.api('POST', '/plant/sites', { id: 'gh', name: 'GH' });
+    await s.api('PUT', '/plant/assets/gv-2', { siteId: 'gh', name: 'GV 2' });
+    await s.api('PUT', '/plant/sites/gv/access', { acl: [{ subject: 'user:dana', permissions: ['view'] }] });
+    await s.api('PUT', '/plant/sites/gh/access', { acl: [{ subject: 'user:vera', permissions: ['view'] }] });
+    const g = await dana('POST', '/plant/import/preview', {
+      files: [file('gv.yaml', { version: 1, site: { id: 'gv', name: 'GV' } })],
+      mode: 'replace',
+      replaces: gv.import.id,
+      missing: 'remove',
+    });
+    expect(g.replaces).toMatchObject({ id: gv.import.id });
+    expect(g.warnings.map((x: { message: string }) => x.message)).toEqual(['asset "gv-1" is not in the files, but you may not change site "gv": it stays']);
+    expect(JSON.stringify(g)).not.toMatch(/gv-2|"gh"/);
+    for (const id of ['secret', 'gv', 'gh']) {
+      for (const a of await s.api('GET', `/plant/assets?site=${id}`)) await s.api('DELETE', `/plant/assets/${a.id}`);
+      await s.api('DELETE', `/plant/sites/${id}`);
+    }
   });
 
   it('answers 404 while the module is off', async () => {

@@ -148,7 +148,8 @@ export function systemStatus(full: boolean): SystemStatus {
 }
 
 export async function systemRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/api/about', async (): Promise<AboutInfo> => {
+  // the build, for every signed-in person (plant viewers too, #218)
+  app.get('/api/about', { config: { access: ACCESS.plantViewer } }, async (): Promise<AboutInfo> => {
     if (!currentUser()) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
     return { build: buildInfo() };
   });

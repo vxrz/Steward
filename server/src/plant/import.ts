@@ -422,9 +422,9 @@ function compute(input: ImportInput, importId: string): Computed {
   const missing: PlantMissing = input.missing;
   let replaces: PlantImportPreview['replaces'] = null;
   if (mode === 'replace') {
-    const prev = input.replaces
-      ? db().get<{ id: string; created_at: string; created_by: string; files: string }>('SELECT * FROM plant_imports WHERE id = ?', input.replaces)
-      : undefined;
+    // an earlier import the caller may not see (listImports) is one that does not exist
+    const found = input.replaces ? db().get<ImportRow>('SELECT * FROM plant_imports WHERE id = ?', input.replaces) : undefined;
+    const prev = found && importVisible(found, s.rights) ? found : undefined;
     if (!prev) problems.push({ file: '(import)', path: 'replaces', message: 'Choose the earlier import this file replaces' });
     else
       replaces = {
@@ -455,14 +455,14 @@ function compute(input: ImportInput, importId: string): Computed {
     return canCreateSites(u);
   };
   const refused = new Set<string>();
+  // a stored site the caller may not see: nothing of it is named, it reads like a new one (no hint that it exists)
+  const hiddenSite = (id: string) => s.sites.has(id) && !s.rights.get(id)?.includes('view');
   const needManage = (siteId: string, o: Origin) => {
     if (canManage(siteId) || refused.has(siteId)) return;
     refused.add(siteId);
     problems.push({
       ...o,
-      message: s.sites.has(siteId)
-        ? `You may not change site "${siteId}" (or it exists and you may not see it)`
-        : `You may not add sites: site "${siteId}" is new`,
+      message: s.sites.has(siteId) && !hiddenSite(siteId) ? `You may not change site "${siteId}"` : `You may not add or change site "${siteId}"`,
     });
   };
 
@@ -515,7 +515,8 @@ function compute(input: ImportInput, importId: string): Computed {
       problems.push({
         file: ps?.file ?? '(files)',
         path: `${ps?.path ?? 'sites'}.code`,
-        message: `Sites "${other}" and "${v.id}" have the same code ${v.code}`,
+        message:
+          hiddenSite(other) || hiddenSite(v.id) ? `Another site has the code ${v.code} already` : `Sites "${other}" and "${v.id}" have the same code ${v.code}`,
       });
     }
     codes.set(v.code.toLowerCase(), v.id);
@@ -673,8 +674,10 @@ function compute(input: ImportInput, importId: string): Computed {
   const afterAssets = new Map<string, { pa: PlannedAsset; before: AssetValues | null; after: AssetValues; cur: AssetRow | undefined }>();
   for (const pa of p.assets.values()) {
     const cur = s.assets.get(pa.values.id);
-    if (cur && !s.rights.get(cur.site_id)?.includes('view')) {
-      needManage(cur.site_id, pa);
+    if (cur && hiddenSite(cur.site_id)) {
+      // the id is taken in a site the caller may not see: that site is named only where the file names it itself
+      if (p.sites.has(cur.site_id) || pa.siteId === cur.site_id) needManage(cur.site_id, pa);
+      else problems.push({ ...pa, path: `${pa.path}.id`, message: `You may not add or change asset "${pa.values.id}"` });
       continue;
     }
     if (cur && mode !== 'add') needManage(cur.site_id, pa);
@@ -764,6 +767,8 @@ function compute(input: ImportInput, importId: string): Computed {
       mark: () => void,
     ) => {
       if (!fromPrev(r)) return;
+      // records of sites the caller may not see are not theirs to hear of: they stay, unnamed
+      if (!s.rights.get(siteId)?.includes('view')) return;
       if (!s.rights.get(siteId)?.includes('manage')) {
         warnings.push({
           file: '(files)',
@@ -907,7 +912,8 @@ function compute(input: ImportInput, importId: string): Computed {
     }
   }
 
-  const changes: PlantChange[] = writes.map(({ apply: _a, ...c }) => c);
+  // what the file would change in sites the caller may not see is not shown (it cannot be imported anyway)
+  const changes: PlantChange[] = writes.filter((w) => !hiddenSite(w.siteId)).map(({ apply: _a, ...c }) => c);
   const counts = emptyCounts();
   const byKind: PlantImportPreview['byKind'] = {};
   for (const c of changes) {
@@ -957,6 +963,9 @@ function pushWrite<V extends object>(
 // ---------- the API ----------
 
 export function previewImport(input: ImportInput): PlantImportPreview {
+  requirePlant();
+  // the same right as the import itself: a preview shows what an import would change
+  if (!plantManagesSome(me())) throw new HttpError(403, 'You are not allowed to import into the plant registry', 'FORBIDDEN', { context: 'managePlant' });
   return compute(input, 'preview').preview;
 }
 
@@ -1070,8 +1079,13 @@ export function listImports(): PlantImportSummary[] {
   const counts = recordCounts();
   return db()
     .all<ImportRow>('SELECT * FROM plant_imports ORDER BY created_at DESC LIMIT 200')
-    .filter((r) => parseJson<string[]>(r.sites, []).every((s) => !rights.has(s) || rights.get(s)!.includes('view')))
+    .filter((r) => importVisible(r, rights))
     .map((r) => toSummary(r, counts.get(r.id) ?? 0));
+}
+
+/** Whether the caller sees an import: every site it wrote that still exists is one they may see. */
+function importVisible(r: Pick<ImportRow, 'sites'>, rights: Map<string, PlantPermission[]>): boolean {
+  return parseJson<string[]>(r.sites, []).every((s) => !rights.has(s) || rights.get(s)!.includes('view'));
 }
 
 // ---------- export ----------

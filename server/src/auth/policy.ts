@@ -187,6 +187,16 @@ export function memberships(u: AuthUser): Map<string, { name: string; roles: Rol
   return m;
 }
 
+/**
+ * A plant viewer (#218): the instance role "plant" and no other role that works in Steward – none in the instance
+ * (the status viewer's role adds nothing but the status pages) and none in a team. They see the plant registry only:
+ * app.ts refuses every other route, the public API and the MCP endpoint answer only for the registry.
+ */
+export function plantOnly(u: AuthUser | null): boolean {
+  if (!u || !u.roles.includes('plant') || !u.roles.every((r) => r === 'plant' || r === 'status')) return false;
+  return [...memberships(u).values()].every((m) => !m.roles.length);
+}
+
 interface Decision<P extends string> {
   permissions: P[];
   reasons: AccessReason[];
@@ -290,6 +300,8 @@ export interface CatalogueDecision {
  * Seeing and changing a catalogue item. Without owning teams: everybody signed in sees it, designers, administrators
  * and its named owners change it (as before). With owning teams: members of those teams see it and change it when
  * they are designers there; its named owners, administrators (both: change) and auditors (see) as well.
+ * The plant role's "see" only names the systems and applications that sites and assets link to (without a way to
+ * them): a plant viewer reaches no route of the catalogue (app.ts, plantOnly).
  */
 export function catalogueAccess(u: AuthUser | null, r: { kind: CatalogueKind; id: string; owners: string[] }): CatalogueDecision {
   if (!u) return { view: false, edit: false, reasons: [] };
@@ -343,13 +355,16 @@ export function recordAccess(u: AuthUser | null, r: { id: string; owner: string 
     ...(roles.some((x) => RECORD_EDITORS.includes(x)) ? ['edit'] : []),
     ...(roles.some((x) => RECORD_APPROVERS.includes(x)) ? ['approve'] : []),
   ];
+  // the plant role (#218) gives nothing on records and documents: plant viewers see the plant registry only
+  const working = (roles: readonly Role[]) => roles.filter((x) => x !== 'plant');
   if (r.owner && r.owner.toLowerCase() === u.username.toLowerCase()) reasons.push({ source: 'owner', permissions: ['view', 'edit'] });
   const teams = owningTeams('record', r.id);
   if (!teams.length) {
-    for (const role of u.roles) reasons.push({ source: 'instanceRole', role, permissions: rights([role]) });
+    for (const role of working(u.roles)) reasons.push({ source: 'instanceRole', role, permissions: rights([role]) });
   } else {
     if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
-    for (const m of teamRoles(u, teams)) for (const role of m.roles) reasons.push({ source: 'teamRole', role, team: m.team, permissions: rights([role]) });
+    for (const m of teamRoles(u, teams))
+      for (const role of working(m.roles)) reasons.push({ source: 'teamRole', role, team: m.team, permissions: rights([role]) });
   }
   const granted = new Set(reasons.flatMap((x) => x.permissions));
   return { view: granted.has('view'), edit: granted.has('edit'), approve: granted.has('approve'), reasons };

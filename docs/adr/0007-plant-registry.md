@@ -49,7 +49,7 @@ Later phases read monitors, checks and datasets (live status) through the same i
 
 Every import shows its preview first (add, change, remove, mark, unchanged, skip per record, with the fields that change), and applies all or nothing in one transaction. Problems name the file and the place in it (`sites[0].areas[2].id`). Limits as for the other YAML importers: 8 MB for all files, a bound on keys before parsing, linear duplicate-key check, nesting depth 12, alias count 100.
 
-**Permissions.** View and manage per site. Without owning teams or an access list: every role that works in Steward sees a site (as the catalogue), designers and administrators manage it. An access list restricts a site to its entries (plus administrators; auditors always see). With owning teams, their members have their roles there. A new instance role **Plant viewer** (`plant`) sees the plant registry and nothing of the automation (no processes, platforms or monitors by default). Nothing of the module is shown on status pages.
+**Permissions.** View and manage per site. Without owning teams or an access list: every role that works in Steward sees a site (as the catalogue), designers and administrators manage it. An access list restricts a site to its entries (plus administrators; auditors always see). With owning teams, their members have their roles there. A new instance role **Plant viewer** (`plant`) sees only the plant registry: a user whose only working role it is reaches nothing else – the server refuses the other routes (as for status viewers), the web app shows the Plant area and the profile; linked systems and applications show by name only. Nothing of the module is shown on status pages.
 
 ## Why not a separate app, and why not the system catalogue
 
