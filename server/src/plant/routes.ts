@@ -185,6 +185,6 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     const x = exportYaml(q);
     reply.header('content-disposition', `attachment; filename="${x.filename}"`);
     reply.header('cache-control', 'no-store');
-    return reply.type('application/yaml; charset=utf-8').send(x.content);
+    return reply.type(x.contentType).send(x.content);
   });
 }

@@ -514,21 +514,33 @@ export function deleteKpi(id: string): void {
 
 // ---------- checks ----------
 
-/** Every check of the assets the caller may see and of the KPI definitions: Plant → Checks. */
-export function listChecks(): PlantCheck[] {
+/** A check with the KPI definition it concerns: an asset check of a KPI instance names the instance's definition. */
+export type CheckWithKpi = PlantCheck & { kpiId: string | null };
+
+/** Every check of the assets the caller may see (by asset name) and then of the KPI definitions (by name), unlimited. */
+export function allChecks(): CheckWithKpi[] {
   requirePlant();
   const v = visibleAssets();
   const profiles = allProfiles();
   const kpis = allKpis();
-  const out: PlantCheck[] = [];
+  const out: CheckWithKpi[] = [];
   const assignments: [string, PlantAssignmentValues][] = [...allAssignments()].filter(([id]) => v.assets.has(id));
   assignments.sort(([a], [b]) => v.briefs.get(a)!.name.localeCompare(v.briefs.get(b)!.name) || a.localeCompare(b));
   for (const [assetId, a] of assignments) {
     const b = v.briefs.get(assetId)!;
-    out.push(...assignmentChecks({ kind: 'asset', id: assetId, name: b.name, siteId: b.siteId }, a, profiles, kpis));
+    const kpiOfJob = new Map(a.kpis.map((k) => [k.job, k.kpi]));
+    for (const c of assignmentChecks({ kind: 'asset', id: assetId, name: b.name, siteId: b.siteId }, a, profiles, kpis))
+      out.push({ ...c, kpiId: c.job !== undefined ? (kpiOfJob.get(c.job) ?? null) : null });
   }
-  for (const k of kpis.values()) out.push(...kpiChecks(k, profiles));
-  return out.slice(0, 2000);
+  for (const k of kpis.values()) for (const c of kpiChecks(k, profiles)) out.push({ ...c, kpiId: k.id });
+  return out;
+}
+
+/** Every check of the assets the caller may see and of the KPI definitions: Plant → Checks. */
+export function listChecks(): PlantCheck[] {
+  return allChecks()
+    .slice(0, 2000)
+    .map(({ kpiId: _k, ...c }) => c);
 }
 
 export { profileInput, profileUpdate, kpiInput, kpiUpdate };

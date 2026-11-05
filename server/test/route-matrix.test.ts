@@ -739,6 +739,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/plant/profiles/:profileId': PLANT,
   'GET /api/v1/plant/kpis': PLANT,
   'GET /api/v1/plant/kpis/:kpiId': PLANT,
+  // the checks of the assets the token owner may see, the export of what they may see (#219)
+  'GET /api/v1/plant/checks': PLANT,
+  'GET /api/v1/plant/export': PLANT,
   'GET /api/v1/environments': ALL,
   'GET /api/v1/maintenance-windows': ALL,
   'GET /api/v1/measures': ALL,
