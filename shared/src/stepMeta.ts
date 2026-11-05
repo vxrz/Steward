@@ -22,7 +22,9 @@ export type FieldKind =
   | 'process'
   | 'aiModel'
   | 'prompt'
-  | 'aiContext';
+  | 'aiContext'
+  | 'sql'
+  | 'sqlParams';
 
 export interface FieldMeta {
   key: string;
@@ -106,6 +108,50 @@ export const STEP_META: Record<NodeType, StepMeta> = {
       },
     ],
     defaults: () => ({ method: 'GET', path: '/' }),
+  },
+  query: {
+    type: 'query',
+    label: 'Query a database',
+    category: 'API',
+    color: 'cyan',
+    description:
+      'Runs one read-only statement on a database platform: your SELECT (or WITH … SELECT) with bound parameters, or a catalog query of Steward for the platform\'s DBMS (accounts, role members, privileges, replication, tables). Always in a transaction that is rolled back, with time, row and size limits. Runs in dry runs too; test runs use the recorded response POST /sql/<step id>. Connect "error" to handle a refused or failed query.',
+    fields: [
+      { key: 'connection', label: 'Database connection', kind: 'connection', required: true },
+      {
+        key: 'catalog',
+        label: 'Catalog query',
+        kind: 'select',
+        options: ['status', 'accounts', 'role-members', 'privileges', 'replication', 'tables'],
+        help: "Instead of SQL: Steward runs the statement for the platform's DBMS and returns the same columns everywhere",
+      },
+      {
+        key: 'sql',
+        label: 'SQL statement',
+        kind: 'sql',
+        placeholder: 'SELECT usename, valuntil FROM pg_user WHERE usename LIKE $1',
+        help: 'One SELECT or WITH … SELECT. Placeholders: $1 (PostgreSQL), ? (MariaDB/MySQL), @p1 (SQL Server) – values never go into the text',
+      },
+      { key: 'params', label: 'Parameters', kind: 'sqlParams', help: 'One value per placeholder, in order; templates allowed' },
+      {
+        key: 'dialect',
+        label: 'Written for',
+        kind: 'select',
+        options: ['postgresql', 'mysql', 'sqlserver'],
+        help: 'The step refuses a platform of another DBMS; empty: any',
+      },
+      { key: 'maxRows', label: 'Most rows', kind: 'number', help: "Default and ceiling: the platform's limit (1,000 unless set)" },
+      { key: 'maxMb', label: 'Largest result (MB)', kind: 'number', help: "Default and ceiling: the platform's limit (5 MB unless set)" },
+      { key: 'timeoutSeconds', label: 'Time limit (seconds)', kind: 'number', help: "Default and ceiling: the platform's limit (30 s unless set)" },
+      {
+        key: 'onLimit',
+        label: 'More rows than allowed',
+        kind: 'select',
+        options: ['fail', 'truncate'],
+        help: 'fail (default): the step fails; truncate: the first rows are kept and the result is marked truncated',
+      },
+    ],
+    defaults: () => ({ catalog: 'status' }),
   },
   set: {
     type: 'set',

@@ -7,7 +7,7 @@ import type { AuthType } from './api.js';
  */
 
 /** Kinds whose username/password or token are not the HTTP sign-in of the base URL (broker login, SASL, webhooks …). */
-const OWN_LOGIN_KINDS = new Set(['mqtt', 'kafka', 'aws', 'snowflake', 'teams']);
+const OWN_LOGIN_KINDS = new Set(['mqtt', 'kafka', 'aws', 'snowflake', 'teams', 'database']);
 
 export interface UnsentCredentials {
   /** The stored credential names that are not sent */

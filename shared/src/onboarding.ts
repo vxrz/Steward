@@ -131,13 +131,14 @@ export const MONITOR_TYPE_KINDS: Readonly<Record<string, readonly string[]>> = {
   kafka: ['kafka'],
   mqtt: ['mqtt'],
   snowflake: ['snowflake'],
+  database: ['database'],
   'dependency-track': ['dependency-track'],
   entra: ['microsoft-graph'],
   'privilege-vault': ['privilege-vault'],
 };
 
 /** Platform kinds without an HTTP API of their own: the "platform" monitor check (an HTTP request) does not fit them. */
-export const NON_HTTP_KINDS: ReadonlySet<string> = new Set(['kafka', 'mqtt', 'aws', 'snowflake', 'teams', 'zabbix']);
+export const NON_HTTP_KINDS: ReadonlySet<string> = new Set(['kafka', 'mqtt', 'aws', 'snowflake', 'teams', 'zabbix', 'database']);
 
 // ---------- platform health ----------
 

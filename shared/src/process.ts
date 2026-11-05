@@ -12,6 +12,8 @@ import { boundedRecord } from './zodLimits.js';
 import { tagInput } from './tags.js';
 import { AWS_REGION_RE } from './aws.js';
 import { AI_ANSWER_FORMATS, AI_CONTEXT_FROM, AI_LIMITS, promptVariables, type AiAnswerFormat, type AiContextFrom } from './ai.js';
+import { DB_CATALOGS, DB_DIALECTS, DB_LIMITS, type DbCatalog, type DbDialect } from './database.js';
+import { readOnlyStatementProblem } from './sqlcheck.js';
 
 /**
  * Process definition model.
@@ -33,6 +35,7 @@ export type HttpMethod = (typeof HTTP_METHODS)[number];
 export const NODE_TYPES = [
   'start',
   'http',
+  'query',
   'set',
   'forEach',
   'if',
@@ -54,6 +57,7 @@ export type NodeType = (typeof NODE_TYPES)[number];
 /** Step types of the sequential (YAML) format. */
 export const STEP_TYPES = [
   'http',
+  'query',
   'set',
   'forEach',
   'if',
@@ -154,6 +158,32 @@ export interface HttpConfig {
   aws?: { service: string; region: string };
   /** Largest answer accepted, in MB (default HTTP_RESPONSE_MB.default, at most HTTP_RESPONSE_MB.max); larger answers fail the step. */
   maxResponseMb?: number;
+}
+
+/**
+ * Query a database (0.7.0, #203, docs/DATABASES.md): one read-only statement on a database platform – the designer's
+ * SQL (one SELECT or WITH … SELECT, parameters bound with the DBMS's placeholders) or one of Steward's catalog queries
+ * for the platform's DBMS. The result is `{ columns, rows, rowCount, truncated, durationMs }`. Runs in dry runs (it
+ * only reads); test runs use the recorded response POST /sql/<step id> of the platform.
+ */
+export interface QueryConfig {
+  type: 'query';
+  /** Connection slot of a database platform */
+  connection: string;
+  /** The statement: one SELECT or WITH … SELECT; placeholders $1 (PostgreSQL), ? (MariaDB/MySQL), @p1 (SQL Server) */
+  sql?: string;
+  /** Instead of sql: a built-in catalog query, the same columns for every DBMS */
+  catalog?: DbCatalog;
+  /** Values of the placeholders, in order (templates) */
+  params?: unknown[];
+  /** The statement is written for this DBMS: the step refuses a platform of another */
+  dialect?: DbDialect;
+  /** Lower than the platform's limits (they are the ceiling) */
+  maxRows?: number;
+  maxMb?: number;
+  timeoutSeconds?: number;
+  /** More rows or bytes than allowed: fail the step (default) or keep the first rows and mark the result truncated */
+  onLimit?: 'fail' | 'truncate';
 }
 
 /** The size limit of an http step's answer, per page (v0.3.1: it had none and was kept in memory and in the run). */
@@ -522,6 +552,18 @@ const shapes = {
       .optional(),
     maxResponseMb: z.number().int().min(1).max(HTTP_RESPONSE_MB.max).optional(),
   },
+  query: {
+    type: z.literal('query'),
+    connection: z.string().min(1),
+    sql: z.string().max(DB_LIMITS.sqlChars).optional(),
+    catalog: z.enum(DB_CATALOGS).optional(),
+    params: z.array(z.unknown()).max(DB_LIMITS.params).optional(),
+    dialect: z.enum(DB_DIALECTS).optional(),
+    maxRows: z.number().int().min(1).max(DB_LIMITS.maxRows.max).optional(),
+    maxMb: z.number().int().min(1).max(DB_LIMITS.maxMb.max).optional(),
+    timeoutSeconds: z.number().int().min(1).max(DB_LIMITS.timeoutSeconds.max).optional(),
+    onLimit: z.enum(['fail', 'truncate']).optional(),
+  },
   set: { type: z.literal('set'), values: boundedRecord(z.unknown(), 500) },
   forEach: {
     type: z.literal('forEach'),
@@ -642,6 +684,7 @@ const shapes = {
 // ---------------------------------------------------------------------------
 
 export type HttpStep = Base & HttpConfig;
+export type QueryStep = Base & QueryConfig;
 export type SetStep = Base & SetConfig;
 export type ForEachStep = Base & ForEachConfig & { steps: Step[] };
 export type IfStep = Base & IfConfig & { then: Step[]; else?: Step[] };
@@ -659,6 +702,7 @@ export type WaitStep = Base & WaitConfig;
 export type FailStep = Base & FailConfig;
 export type Step =
   | HttpStep
+  | QueryStep
   | SetStep
   | ForEachStep
   | IfStep
@@ -678,6 +722,7 @@ export type Step =
 export const stepSchema: z.ZodType<Step> = z.lazy(() =>
   z.discriminatedUnion('type', [
     z.object({ ...baseFields, ...shapes.http }),
+    z.object({ ...baseFields, ...shapes.query }),
     z.object({ ...baseFields, ...shapes.set }),
     z.object({ ...baseFields, ...shapes.forEach, steps: z.array(stepSchema).max(MAX_STEPS) }),
     z.object({ ...baseFields, ...shapes.if, then: z.array(stepSchema).max(MAX_STEPS), else: z.array(stepSchema).max(MAX_STEPS).optional() }),
@@ -703,6 +748,7 @@ export const stepSchema: z.ZodType<Step> = z.lazy(() =>
 type Pos = { x: number; y: number };
 export type NodeConfig =
   | HttpConfig
+  | QueryConfig
   | SetConfig
   | ForEachConfig
   | IfConfig
@@ -726,6 +772,7 @@ const pos = { x: z.number(), y: z.number() };
 export const nodeSchema = z.discriminatedUnion('type', [
   z.object({ ...baseFields, ...pos, ...shapes.start }),
   z.object({ ...baseFields, ...pos, ...shapes.http }),
+  z.object({ ...baseFields, ...pos, ...shapes.query }),
   z.object({ ...baseFields, ...pos, ...shapes.set }),
   z.object({ ...baseFields, ...pos, ...shapes.forEach }),
   z.object({ ...baseFields, ...pos, ...shapes.if }),
@@ -776,6 +823,7 @@ export function nodePorts(n: Pick<FlowNode, 'type'> & { mode?: string }): PortDe
           ]
         : [{ id: 'out', label: '' }];
     case 'http':
+    case 'query':
     case 'browser':
     case 'ai':
     case 'subprocess':
@@ -947,7 +995,10 @@ function checkGraph(d: ProcessDefinition): { issues: ValidationIssue[]; warnings
     if (byId.has(n.id))
       issues.push({ path: `nodes[${i}]`, nodeId: n.id, code: 'duplicateNodeId', params: { id: n.id }, message: `Duplicate node id "${n.id}"` });
     byId.set(n.id, n);
-    if ((n.type === 'http' || n.type === 'accessChange' || n.type === 'ai' || (n.type === 'browser' && n.connection)) && !slots.has(n.connection!)) {
+    if (
+      (n.type === 'http' || n.type === 'query' || n.type === 'accessChange' || n.type === 'ai' || (n.type === 'browser' && n.connection)) &&
+      !slots.has(n.connection!)
+    ) {
       issues.push({
         path: `nodes[${i}]`,
         nodeId: n.id,
@@ -961,6 +1012,7 @@ function checkGraph(d: ProcessDefinition): { issues: ValidationIssue[]; warnings
     }
     if (n.type === 'userTask') checkManual(n, i, issues, warnings);
     if (n.type === 'ai') aiNodes.push([n, i]);
+    if (n.type === 'query') checkQuery(n, i, issues);
     if (n.type === 'subprocess') {
       for (const [childSlot, parentSlot] of Object.entries(n.connections ?? {})) {
         if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(childSlot))
@@ -1118,6 +1170,26 @@ function writtenVars(n: FlowNode): string[] {
   if (n.type === 'set') out.push(...Object.keys(n.values ?? {}));
   if (n.type === 'forEach') out.push(n.as, `${n.as}Index`);
   return out;
+}
+
+/**
+ * Rules of "Query a database" steps: SQL or a catalog query (one of them), and a statement the read-only check accepts –
+ * for the DBMS the step names, else for at least one (the run checks it again for the platform's DBMS).
+ */
+function checkQuery(n: NodeOf<'query'>, i: number, issues: ValidationIssue[]): void {
+  const at = { path: `nodes[${i}]`, nodeId: n.id };
+  const sql = n.sql?.trim() ? n.sql : undefined;
+  if (!sql === !n.catalog) {
+    issues.push({ ...at, code: 'querySqlOrCatalog', message: 'Give either the SQL statement or a catalog query' });
+    return;
+  }
+  if (n.catalog && n.params?.length) issues.push({ ...at, code: 'queryCatalogParams', message: 'Catalog queries take no parameters' });
+  if (!sql) return;
+  const dialects = n.dialect ? [n.dialect] : DB_DIALECTS;
+  const problems = dialects.map((d) => readOnlyStatementProblem(sql, d, n.params?.length ?? 0));
+  const first = problems[0];
+  if (first && problems.every(Boolean))
+    issues.push({ ...at, code: 'queryRefused', params: { problem: first.message, reason: first.code }, message: `The statement is refused: ${first.message}` });
 }
 
 /** Rules of "Ask an AI model" steps: placeholders, context sources and the answer's schema. */

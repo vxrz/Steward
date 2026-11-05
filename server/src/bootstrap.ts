@@ -9,6 +9,7 @@ import { startAccessChecks, stopAccessChecks } from './compliance/reconciliation
 import { startBackupJobs, stopBackupJobs } from './backup/service.js';
 import { registerBuiltInJobs } from './jobs/builtin.js';
 import { startJobs, stopJobs } from './jobs/registry.js';
+import { closeAllPools } from './dbms/pool.js';
 import { startEventLoopMonitor, stopEventLoopMonitor } from './eventloop.js';
 import { isUnexpected, reportError } from './errorReporting.js';
 import { lifecyclePhase, setLifecyclePhase, shuttingDown } from './lifecycle.js';
@@ -110,6 +111,8 @@ async function doShutdown(graceMs: number): Promise<ShutdownReport> {
   ]);
   stopGatusScraper();
   stopEventLoopMonitor();
+  // database platforms (0.7.0): their pooled connections
+  await safely('closing database connections', closeAllPools(), undefined);
   const interrupted = left.length ? interruptBusyRuns() : [];
   // the last moment the scheduler was alive: fires after it count as missed at the next start
   scheduler.recordAlive();

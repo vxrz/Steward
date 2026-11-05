@@ -33,6 +33,7 @@ import { duplicateRoutes } from '../duplicate/routes.js';
 import { postmanExportRoutes } from '../export/routes.js';
 import { assuranceRoutes } from './assurance.js';
 import { aiRoutes } from '../ai/routes.js';
+import { databaseRoutes } from '../dbms/routes.js';
 import { plantRoutes } from '../plant/routes.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
@@ -66,6 +67,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await complianceRoutes(app);
   await assuranceRoutes(app);
   await aiRoutes(app);
+  await databaseRoutes(app);
   await migrationRoutes(app);
   await onboardingRoutes(app);
   await duplicateRoutes(app);

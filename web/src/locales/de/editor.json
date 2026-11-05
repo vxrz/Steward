@@ -59,6 +59,47 @@
         }
       }
     },
+    "query": {
+      "label": "Datenbank abfragen",
+      "description": "Führt eine lesende Anweisung auf einer Datenbank-Plattform aus: Ihr SELECT (oder WITH … SELECT) mit gebundenen Parametern oder eine Katalogabfrage von Steward für das DBMS der Plattform (Konten, Rollenmitglieder, Berechtigungen, Replikation, Tabellen). Immer in einer Transaktion, die zurückgerollt wird, mit Zeit-, Zeilen- und Größenlimit. Läuft auch in Probeläufen; Testläufe nutzen die aufgezeichnete Antwort POST /sql/<step id>. Verbinden Sie „error“, um eine abgelehnte oder fehlgeschlagene Abfrage zu behandeln.",
+      "fields": {
+        "connection": {
+          "label": "Datenbank-Verbindung"
+        },
+        "catalog": {
+          "label": "Katalogabfrage",
+          "help": "Statt SQL: Steward führt die Anweisung für das DBMS der Plattform aus und liefert überall dieselben Spalten"
+        },
+        "sql": {
+          "label": "SQL-Anweisung",
+          "help": "Ein SELECT oder WITH … SELECT. Platzhalter: $1 (PostgreSQL), ? (MariaDB/MySQL), @p1 (SQL Server) – Werte kommen nie in den Text"
+        },
+        "params": {
+          "label": "Parameter",
+          "help": "Ein Wert je Platzhalter, in dieser Reihenfolge; Vorlagen erlaubt"
+        },
+        "dialect": {
+          "label": "Geschrieben für",
+          "help": "Der Schritt lehnt eine Plattform mit anderem DBMS ab; leer: jedes"
+        },
+        "maxRows": {
+          "label": "Höchstens Zeilen",
+          "help": "Standard und Obergrenze: das Limit der Plattform (1.000, wenn nicht gesetzt)"
+        },
+        "maxMb": {
+          "label": "Größtes Ergebnis (MB)",
+          "help": "Standard und Obergrenze: das Limit der Plattform (5 MB, wenn nicht gesetzt)"
+        },
+        "timeoutSeconds": {
+          "label": "Zeitlimit (Sekunden)",
+          "help": "Standard und Obergrenze: das Limit der Plattform (30 s, wenn nicht gesetzt)"
+        },
+        "onLimit": {
+          "label": "Mehr Zeilen als erlaubt",
+          "help": "fail (Standard): der Schritt schlägt fehl; truncate: die ersten Zeilen bleiben, das Ergebnis wird als gekürzt markiert"
+        }
+      }
+    },
     "set": {
       "label": "Variablen setzen",
       "description": "Werte mit JSONata-Ausdrücken berechnen und in vars.<name> speichern.",
@@ -471,7 +512,8 @@
     "noProcess": "kein Prozess gewählt",
     "ai": "{{model}}",
     "aiJson": "{{model}} → JSON",
-    "noModel": "kein Modell gewählt"
+    "noModel": "kein Modell gewählt",
+    "queryCatalog": "Katalog: {{catalog}}"
   },
   "options": {
     "select": "Auswahl",
@@ -490,7 +532,17 @@
     "modify": "Änderung",
     "onboarding": "Onboarding",
     "offboarding": "Offboarding",
-    "manual": "manuell"
+    "manual": "manuell",
+    "status": "Status",
+    "accounts": "Konten",
+    "role-members": "Rollenmitglieder",
+    "privileges": "Berechtigungen",
+    "replication": "Replikation",
+    "tables": "Tabellen",
+    "postgresql": "PostgreSQL",
+    "mysql": "MariaDB / MySQL",
+    "sqlserver": "SQL Server",
+    "truncate": "kürzen"
   },
   "palette": {
     "search": "Knoten suchen",
@@ -855,7 +907,10 @@
     "aiUnknownVariable": "{{name}} ist keine Kontextquelle dieses Schritts",
     "aiUnusedContext": "Kontext „{{name}}“ wird im Prompt nicht verwendet und nicht gesendet",
     "aiSchemaMissing": "Eine JSON-Antwort braucht ein JSON-Schema",
-    "aiSchemaInvalid": "Das JSON-Schema der Antwort ist nicht verwendbar: {{problem}}"
+    "aiSchemaInvalid": "Das JSON-Schema der Antwort ist nicht verwendbar: {{problem}}",
+    "querySqlOrCatalog": "Geben Sie entweder die SQL-Anweisung oder eine Katalogabfrage an",
+    "queryCatalogParams": "Katalogabfragen nehmen keine Parameter",
+    "queryRefused": "Die Anweisung wird abgelehnt: {{problem}}"
   },
   "diff": {
     "none": "Keine Unterschiede.",
@@ -1084,5 +1139,25 @@
     "maxChars": "Höchstens (Zeichen)",
     "maxCharsHint": "Standard {{value}}; mehr wird abgeschnitten",
     "addContext": "Kontextquelle hinzufügen"
+  },
+  "query": {
+    "mode": "Anweisung",
+    "modes": {
+      "catalog": "Katalogabfrage",
+      "sql": "Eigenes SQL"
+    },
+    "catalogHint": "Steward führt seine Anweisung für das DBMS der Plattform aus (PostgreSQL, MariaDB, MySQL oder SQL Server) und liefert überall dieselben Spalten – die richtige Wahl für Vorlagen.",
+    "sqlHint": "Ein SELECT oder WITH … SELECT, nur lesend. Werte gehören in Parameter, nie in den Text.",
+    "refusedFor": "Abgelehnt für {{dbms}}: {{reason}}",
+    "placeholders": "Platzhalter: {{placeholders}}",
+    "paramLabel": "Parameter {{n}}",
+    "removeParam": "Parameter entfernen",
+    "removeParamNamed": "Parameter {{n}} entfernen",
+    "addParam": "Parameter hinzufügen",
+    "previewLine_one": "{{shown}} von {{count}} Zeile",
+    "previewLine_other": "{{shown}} von {{count}} Zeilen",
+    "truncated": "gekürzt (onLimit: truncate)",
+    "moreColumns_one": "{{count}} weitere Spalte",
+    "moreColumns_other": "{{count}} weitere Spalten"
   }
 }

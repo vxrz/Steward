@@ -154,7 +154,11 @@
       "Converse (Bedrock)",
       "Filter",
       "Budgets",
-      "Budget: {{name}}"
+      "Budget: {{name}}",
+      "PostgreSQL",
+      "MariaDB / MySQL",
+      "SQL Server",
+      "Parameter {{n}}"
     ]
   }
 }

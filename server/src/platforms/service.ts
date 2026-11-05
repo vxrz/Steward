@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  DATABASE_KIND,
   aiGatewaySettingsSchema,
+  databaseSettingsSchema,
   type ApiOperation,
   type McpGatewayConfig,
   type Platform,
@@ -139,6 +141,28 @@ function checkedAi(cfg: PlatformConfig): PlatformConfig {
   return { ...cfg, ai: r.data };
 }
 
+/** The database connection (0.7.0) changes only through dbms/service.ts (PUT /platforms/:id/database). */
+function withoutDatabase(cfg: PlatformConfig): PlatformConfig {
+  const { database: _database, ...rest } = cfg;
+  return rest as PlatformConfig;
+}
+
+/** Database settings given when a platform is created (the setup wizard, a copy) must be valid ones. */
+function checkedDatabase(cfg: PlatformConfig): PlatformConfig {
+  if (cfg.database === undefined) return cfg;
+  const r = databaseSettingsSchema.safeParse(cfg.database);
+  if (!r.success)
+    throw new HttpError(
+      400,
+      `Database settings: ${r.error.issues[0]?.path.join('.') ?? ''} ${r.error.issues[0]?.message ?? 'invalid'}`.trim(),
+      'DB_SETTINGS_INVALID',
+      {
+        field: r.error.issues[0]?.path.join('.') ?? '',
+      },
+    );
+  return { ...cfg, database: r.data };
+}
+
 export function createPlatform(input: PlatformInput): Platform {
   if (!input.name?.trim()) throw new HttpError(400, 'Name is required', 'NAME_REQUIRED');
   const id = newId('pf_');
@@ -154,7 +178,7 @@ export function createPlatform(input: PlatformInput): Platform {
       input.description ?? '',
       input.baseUrl ?? '',
       input.environment ?? '',
-      JSON.stringify(checkedAi(withoutGateway(input.config ?? defaultConfig()))),
+      JSON.stringify(checkedDatabase(checkedAi(withoutGateway(input.config ?? defaultConfig())))),
       Object.keys(secrets).length ? vault().encrypt(secrets) : null,
       ts,
       ts,
@@ -188,12 +212,14 @@ export function updatePlatform(id: string, patch: Partial<PlatformInput>): Platf
     baseUrl: patch.baseUrl ?? before.baseUrl,
     environment: patch.environment ?? before.environment,
     // the MCP gateway setting only changes through setMcpGateway, the AI settings of an LLM gateway only through
-    // ai/gateway.ts setGatewaySettings (own right check and audit entry)
+    // ai/gateway.ts setGatewaySettings, the connection of a database platform only through dbms/service.ts (own right
+    // check and audit entry)
     config: patch.config
       ? {
-          ...withoutAi(withoutGateway(patch.config)),
+          ...withoutDatabase(withoutAi(withoutGateway(patch.config))),
           ...(before.config.mcpGateway ? { mcpGateway: before.config.mcpGateway } : {}),
           ...(before.config.ai ? { ai: before.config.ai } : {}),
+          ...(before.config.database ? { database: before.config.database } : {}),
         }
       : before.config,
   };
@@ -264,6 +290,14 @@ export function setMcpGateway(id: string, input: McpGatewayConfig): Platform {
   const prefixes = [...new Set((input.allowedPathPrefixes ?? []).map((x) => x.trim()).filter(Boolean))];
   // changing calls (#11) keep their mode when a client sends none; "off" is not stored
   const writes = input.writes ?? before.config.mcpGateway?.writes ?? 'off';
+  // database platforms (0.7.0, ADR 0008): read-only through MCP – changing statements are not offered at all
+  if (before.kind === DATABASE_KIND && writes !== 'off')
+    throw new HttpError(
+      400,
+      `"${before.name}" is a database platform: its MCP gateway is read-only (changing statements are not available)`,
+      'MCP_WRITES_NOT_AVAILABLE',
+      { name: before.name },
+    );
   const gateway: McpGatewayConfig = {
     enabled: input.enabled,
     ...(prefixes.length ? { allowedPathPrefixes: prefixes } : {}),
