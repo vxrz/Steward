@@ -18,6 +18,11 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
   - **Demo and tests**: a simulated multi-format LLM gateway (`/mock/llm`, one model per format) as the demo platform _LLM gateway (demo)_, and the example process _CheckMk – AI summary of the trends_ (JSON answer, four-eyes approval, report and check).
   - New: the setting `SM_AI_USAGE_RETENTION_DAYS` (default 400 days), the background job `ai-usage`, the database migration `ai-001-usage-and-budgets` (additive: tables `ai_usage`, `ai_budgets`, `ai_budget_notices`) and the internal routes `PUT /api/platforms/:id/ai`, `POST /api/platforms/:id/ai/discover`, `GET /api/platforms/:id/ai/usage`, `GET`/`PUT /api/ai/budgets` and `GET /api/ai/usage`.
 
+### Fixed
+
+- **Process editor**: expression fields no longer carry `aria-expanded` on their text area (an accessibility error screen readers and axe report); the suggestions stay announced.
+- **Platform page on phones**: the panel with the last connection test no longer squeezes its text to one letter a line next to the periodic test.
+
 ## [0.5.1] - 2026-11-05
 
 Steward 0.5.1 publishes the container images of 0.5.0. Their build stopped at the vulnerability scan: Debian published a fix for CVE-2026-109518 in `apt` (high) after 0.5.0 was merged, and the pinned base image still had the old version. The application is the same as in 0.5.0; the executables of 0.5.0 are not affected (they contain no Debian packages). No database migrations; update from 0.4.x straight to 0.5.1 (the notes of 0.5.0 apply).
