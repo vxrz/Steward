@@ -1889,6 +1889,16 @@ async function execQuery(step: NodeOf<'query'>, ctx: RunContext, key: string): P
   // Semgrep's res-render-injection takes (step, ctx, key) for Express's (req, res, next): ctx.render() evaluates the
   // step's templates in the run scope, it never loads a file or template by name (false positive).
   const params = (step.params?.length ? await ctx.render(step.params) : []) as unknown[]; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
+  // the secrets of the run's other platforms never go to the database (as for an http step to a foreign origin)
+  const host = String(b.platform.config.database?.host ?? 'database.invalid').replace(/^\[|\]$/g, '');
+  await assertNoSecretLeak(
+    `https://${host.includes(':') ? `[${host}]` : host}/`,
+    {},
+    { sql: step.sql, params },
+    Object.values(ctx.bindings)
+      .filter((x) => x.platform.id !== b.platform.id)
+      .map((x) => ({ platformName: x.platform.name, values: egressSecretValues(x.secrets), allowed: () => false })),
+  );
   const { runQueryStep } = await import('../dbms/step.js');
   const res = await runQueryStep(step, {
     platform: b.platform,

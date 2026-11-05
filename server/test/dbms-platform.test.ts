@@ -174,6 +174,32 @@ describe('the query step', () => {
     expect((await stepOf(r.id, 'q')).error).toContain('written for MariaDB / MySQL');
   });
 
+  it('never sends another bound platform’s secret to the database', async () => {
+    const other = await s.api('POST', '/platforms', {
+      name: 'Leaky API',
+      kind: 'generic',
+      baseUrl: 'https://api.example.com',
+      secrets: { token: 'leak-me-token-123' },
+    });
+    const p = await s.api('POST', '/processes', {
+      definition: {
+        name: 'DB leak',
+        connections: [
+          { slot: 'db', kind: DATABASE_KIND },
+          { slot: 'api', kind: 'generic' },
+        ],
+        inputs: [{ name: 'value', type: 'string' }],
+        nodes: [n('start', 'start'), n('q', 'query', { connection: 'db', sql: 'SELECT $1 AS v', params: ['{{ inputs.value }}'], saveAs: 'q' })],
+        wires: [w('start', 'q')],
+      },
+    });
+    const { id } = await s.api('POST', '/runs', { processId: p.id, bindings: { db: db.id, api: other.id }, inputs: { value: 'leak-me-token-123' } });
+    const r = await s.waitRun(id, DONE);
+    expect(r.status).toBe('failed');
+    expect((await stepOf(r.id, 'q')).error).toContain('would send a secret of platform "Leaky API"');
+    await s.api('DELETE', `/platforms/${other.id}`);
+  });
+
   it('enforces the platform’s row limit as the ceiling', async () => {
     await s.api('PUT', `/platforms/${db.id}/database`, { ...db.config.database, limits: { maxRows: 3 } });
     const p = await processWith('DB limit', [
