@@ -16,6 +16,7 @@ import {
   IconBoxMultiple,
   IconUserShield,
   IconSparkles,
+  IconDatabase,
 } from '@tabler/icons-react';
 import { STEP_META, type FlowNode, type NodeType } from '@sm/shared';
 import i18n from '../../i18n';
@@ -24,6 +25,7 @@ import { optionLabel } from '../../i18n/meta';
 export const NODE_ICONS: Record<NodeType, typeof IconApi> = {
   start: IconPlayerPlayFilled,
   http: IconApi,
+  query: IconDatabase,
   subprocess: IconBoxMultiple,
   set: IconVariable,
   forEach: IconRepeat,
@@ -62,6 +64,8 @@ export function nodeSummary(n: FlowNode): string {
       return i18n.t('editor:summary.start');
     case 'http':
       return `${n.method} ${short(n.path, 48)}`;
+    case 'query':
+      return n.catalog ? i18n.t('editor:summary.queryCatalog', { catalog: optionLabel(n.catalog) }) : short(n.sql, 48);
     case 'set':
       return short(Object.keys(n.values ?? {}).join(', '));
     case 'forEach':

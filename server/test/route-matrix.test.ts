@@ -246,6 +246,8 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/platforms/:id/ai': ADMIN,
   'POST /api/platforms/:id/ai/discover': ADMIN,
   'GET /api/platforms/:id/ai/usage': USE,
+  // database platforms (#203): the connection, with the platform's manage right
+  'PUT /api/platforms/:id/database': ADMIN,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
@@ -1398,6 +1400,7 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/mcp-server': { enabled: true },
   'PUT /api/platforms/:id/mcp-gateway': { enabled: true },
   'PUT /api/platforms/:id/ai': { models: [] },
+  'PUT /api/platforms/:id/database': { dialect: 'postgresql', host: 'db.example.com', database: 'shop' },
   'PUT /api/ai/budgets': { scope: 'installation', scopeId: '', tokensPerDay: 100, tokensPerMonth: null },
   'POST /api/settings/notifications/test': { channel: 'email', to: 'it@example.com' },
   'PUT /api/settings/notifications/look': { name: 'Matrix' },

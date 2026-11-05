@@ -1,0 +1,165 @@
+# steward-min-version: 0.7.0
+name: "Database – Account hygiene"
+description: |
+  A daily look at the accounts of a database, read with Steward's catalog
+  query – the same template for PostgreSQL, MariaDB/MySQL and SQL Server:
+  superusers and administrators (sysadmin, SUPER, CREATEROLE …), default
+  accounts that can still sign in (postgres, root, sa …), locked and disabled
+  accounts, expired passwords, passwords older than N days (MariaDB/MySQL and
+  SQL Server record when a password was set) and passwords that expire soon.
+  Checks warn about each finding; nothing is changed – the generated
+  statements to lock or disable an account are in the published rows.
+
+  Recommended schedule: daily (`25 6 * * *`), with "message on change" in the
+  schedule's notification policy. Publishes `database.accounts` (one row per
+  account) for the "Databases" dashboard. Needs a database platform whose
+  account may read the catalog (docs/DATABASES.md, read-only role).
+recommendedSchedule: "25 6 * * *"
+tags: [governance, security, database]
+connections:
+  - slot: db
+    kind: database
+    description: Database platform (PostgreSQL, MariaDB/MySQL or SQL Server; read-only)
+inputs:
+  - name: maxSuperusers
+    label: At most this many superusers (sysadmin, SUPER, PostgreSQL superuser)
+    type: number
+    default: 2
+  - name: maxPasswordAgeDays
+    label: Passwords older than (days) are a finding
+    type: number
+    default: 365
+  - name: expiresWithinDays
+    label: Warn when a password or account expires within (days)
+    type: number
+    default: 14
+  - name: allowedSuperusers
+    label: Superusers that are expected (they do not count against the limit)
+    type: list
+    default: []
+steps:
+  - id: accounts
+    type: query
+    name: Accounts (catalog query)
+    connection: db
+    catalog: accounts
+    saveAs: accounts
+  - id: rows
+    type: set
+    name: Findings per account
+    values:
+      rows: >-
+        {{ [vars.accounts.rows.(
+          $acc := $;
+          $age := passwordChangedAt ? $daysSince(passwordChangedAt) : null;
+          $left := expiresAt ? -$daysSince(expiresAt) : null;
+          $findings := [
+            superuser and $not(name in $inputs.allowedSuperusers) ? 'superuser' : undefined,
+            admin and $not(superuser) ? 'administrator' : undefined,
+            defaultAccount and canLogin and $not(locked) ? 'default account can sign in' : undefined,
+            passwordExpired and canLogin and $not(locked) ? 'password expired' : undefined,
+            $age != null and $age > $inputs.maxPasswordAgeDays and canLogin ? 'password ' & $age & ' days old' : undefined,
+            $left != null and $left >= 0 and $left <= $inputs.expiresWithinDays and canLogin ? 'expires in ' & $left & ' days' : undefined
+          ];
+          {
+            "key": host ? name & '@' & host : name,
+            "account": host ? name & '@' & host : name,
+            "canLogin": canLogin and $not(locked),
+            "superuser": superuser,
+            "admin": admin,
+            "defaultAccount": defaultAccount,
+            "passwordAge": $age,
+            "expires": expiresAt ? $substring(expiresAt, 0, 10) : '',
+            "authentication": authentication ? authentication : '',
+            "roles": $join(roles, ', '),
+            "findings": $findings,
+            "disable": disable
+          }
+        )] }}
+  - id: counts
+    type: set
+    name: Counts
+    values:
+      superusers: "{{ $count(vars.rows[superuser and $not(account in $inputs.allowedSuperusers)]) }}"
+      defaultLogins: "{{ $count(vars.rows['default account can sign in' in findings]) }}"
+      expired: "{{ $count(vars.rows['password expired' in findings]) }}"
+      oldPasswords: "{{ $count(vars.rows[$count(findings[$contains($, 'days old')]) > 0]) }}"
+      expiring: "{{ $count(vars.rows[$count(findings[$contains($, 'expires in')]) > 0]) }}"
+  - id: superuserCheck
+    type: check
+    name: Few superusers
+    severity: warning
+    condition: "vars.superusers <= inputs.maxSuperusers"
+    message: "{{ vars.superusers }} superuser(s), at most {{ inputs.maxSuperusers }} expected"
+    headline: "{{ vars.superusers }} superusers (at most {{ inputs.maxSuperusers }})"
+    value: vars.superusers
+    items: "vars.rows[superuser and $not(account in $inputs.allowedSuperusers)].account"
+  - id: defaultCheck
+    type: check
+    name: No default account can sign in
+    severity: warning
+    condition: "vars.defaultLogins = 0"
+    message: "{{ vars.defaultLogins = 0 ? 'No default account can sign in' : vars.defaultLogins & ' default account(s) can sign in' }}"
+    headline: "{{ vars.defaultLogins }} default account(s) can sign in"
+    value: vars.defaultLogins
+    items: "vars.rows['default account can sign in' in findings].account"
+  - id: passwordCheck
+    type: check
+    name: Passwords are current
+    severity: warning
+    condition: "vars.expired + vars.oldPasswords = 0"
+    message: "{{ vars.expired }} expired, {{ vars.oldPasswords }} older than {{ inputs.maxPasswordAgeDays }} days"
+    headline: "{{ vars.expired + vars.oldPasswords }} account(s) with an expired or old password"
+    value: "vars.expired + vars.oldPasswords"
+    items: "vars.rows[$count(findings[$ = 'password expired' or $contains($, 'days old')]) > 0].(account & ': ' & $join(findings, ', '))"
+  - id: expiringCheck
+    type: check
+    name: Nothing expires soon
+    severity: info
+    notify: false
+    condition: "vars.expiring = 0"
+    message: "{{ vars.expiring }} account(s) expire within {{ inputs.expiresWithinDays }} days"
+    items: "vars.rows[$count(findings[$contains($, 'expires in')]) > 0].(account & ': ' & $join(findings, ', '))"
+  - id: publish
+    type: publish
+    name: Publish the accounts
+    dataset: database.accounts
+    title: Database accounts
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Account, value: account }
+      - { label: Can sign in, value: "canLogin ? 'yes' : 'no'" }
+      - { label: Superuser, value: "superuser ? 'yes' : (admin ? 'administrator' : '')" }
+      - { label: Default account, value: "defaultAccount ? 'yes' : ''" }
+      - { label: Password age (days), value: "passwordAge != null ? passwordAge : '–'" }
+      - { label: Expires, value: expires }
+      - { label: Roles, value: roles }
+      - { label: Findings, value: "$join(findings, '; ')" }
+      - { label: Statement to lock, value: disable }
+    status: >-
+      'default account can sign in' in findings or 'password expired' in findings ? 'serious'
+        : ($count(findings) > 0 ? 'warning' : 'good')
+    statusText: "$join(findings, '; ')"
+    metrics:
+      accounts: "$count(vars.rows)"
+      canLogin: "$count(vars.rows[canLogin])"
+      superusers: "vars.superusers"
+      admins: "$count(vars.rows[admin])"
+      defaultLogins: "vars.defaultLogins"
+      expired: "vars.expired"
+      oldPasswords: "vars.oldPasswords"
+  - id: summary
+    type: report
+    name: Summary
+    title: "Database account hygiene"
+    text: |
+      - Accounts: **{{ $count(vars.rows) }}**, can sign in: **{{ $count(vars.rows[canLogin]) }}**
+      - Superusers: **{{ vars.superusers }}** (at most {{ inputs.maxSuperusers }}), administrators: **{{ $count(vars.rows[admin]) }}**
+      - Default accounts that can sign in: **{{ vars.defaultLogins }}**
+      - Expired passwords: **{{ vars.expired }}**, older than {{ inputs.maxPasswordAgeDays }} days: **{{ vars.oldPasswords }}**
+    rows: "vars.rows[$count(findings) > 0]"
+    columns:
+      - { label: Account, value: account }
+      - { label: Findings, value: "$join(findings, '; ')" }
+      - { label: Statement to lock, value: disable }

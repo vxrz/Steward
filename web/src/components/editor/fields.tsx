@@ -30,6 +30,7 @@ import i18n from '../../i18n';
 import { browserActionLabel, type LocalizedField } from '../../i18n/meta';
 import { subjectOptionLabel } from '../AccessEditor';
 import { AiContextEditor, AiModelField, PromptField } from './AiStepFields';
+import { SqlField, SqlParamsField } from './QueryStepFields';
 
 /** "{{ expression }}" as a value, so i18next does not read it as a placeholder of its own. */
 const EXPR = { expr: '{{ expression }}' };
@@ -212,6 +213,10 @@ export function FieldInput({ field, value, onChange, connections }: FieldProps) 
       return <PromptField field={field} value={value} onChange={onChange} />;
     case 'aiContext':
       return <AiContextEditor field={field} value={value} onChange={onChange} />;
+    case 'sql':
+      return <SqlField field={field} value={value} onChange={onChange} node={{}} />;
+    case 'sqlParams':
+      return <SqlParamsField field={field} value={value} onChange={onChange} />;
     default:
       return null;
   }

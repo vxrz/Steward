@@ -282,7 +282,28 @@
     "vaultMaxAgeDays": "Rotiert innerhalb von (Tagen)",
     "vaultMaxFindings": "Erlaubte Befunde",
     "vaultMaxFindingsHint": "An nicht privilegierten Secrets",
-    "vaultFailAs": "Bei Befunden"
+    "vaultFailAs": "Bei Befunden",
+    "dbMode": "Was geprüft wird",
+    "dbModes": {
+      "connection": "Verbindung",
+      "replication": "Replikationsverzug",
+      "query": "Wert einer Abfrage"
+    },
+    "dbModeHints": {
+      "connection": "Verbindet und meldet sich an; eingeschränkt, wenn das Konto schreiben darf",
+      "replication": "Der größte Replikationsverzug in Sekunden (Replikate eines Primärservers oder dieser Standby)",
+      "query": "Die erste Spalte der ersten Zeile einer lesenden Abfrage, verglichen mit WARN und CRIT"
+    },
+    "dbSql": "SQL-Anweisung",
+    "dbSqlHint": "Ein SELECT; Platzhalter {{pg}} (PostgreSQL), {{my}} (MariaDB/MySQL), {{ms}} (SQL Server)",
+    "dbParams": "Parameter",
+    "dbParamsHint": "Ein Wert je Platzhalter, in dieser Reihenfolge (Enter fügt einen hinzu)",
+    "dbCritLag": "CRIT (Sekunden Verzug)",
+    "dbNoData": "Status ohne Daten",
+    "dbNoDataHints": {
+      "replication": "Wenn der Server kein Replikat hat und kein Standby ist",
+      "query": "Wenn die Abfrage keine Zeile liefert"
+    }
   },
   "detail": {
     "template": "Vorlage",
@@ -630,6 +651,10 @@
       "label": "Snowflake",
       "help": "Eine Snowflake-Tabelle wurde kürzlich genug geändert, kein Task einer Datenbank ist fehlgeschlagen oder ein Warehouse blieb innerhalb seiner Credits"
     },
+    "database": {
+      "label": "Datenbank",
+      "help": "Eine Datenbank-Plattform: die Verbindung funktioniert (und ist nur lesend), der Replikationsverzug bleibt unter einer Grenze, oder der Wert einer lesenden Abfrage wird gegen WARN- und CRIT-Stufen beurteilt"
+    },
     "dependency-track": {
       "label": "Schwachstellen (Dependency-Track)",
       "help": "Ein Dependency-Track-Projekt hat nicht mehr offene kritische (oder hohe) Befunde als erlaubt und keinen fehlgeschlagenen Richtlinienverstoß"
@@ -661,7 +686,8 @@
     "snowflake": "Snowflake-Tabelle aktuell",
     "dependency-track": "Keine kritischen Schwachstellen",
     "entra": "App-Zugangsdaten gültig",
-    "privilege-vault": "Tresor-Hygiene"
+    "privilege-vault": "Tresor-Hygiene",
+    "database": "Datenbank erreichbar"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"

@@ -36,6 +36,36 @@
         "clientId": "OAuth client id",
         "clientSecret": "OAuth client secret"
       }
+    },
+    "postgresql-read-only": {
+      "description": "A PostgreSQL database (also Amazon RDS / Aurora PostgreSQL, Azure Database for PostgreSQL, Cloud SQL), read directly with SQL: access reviews of roles and grants, account hygiene, monitor checks (connection, replication lag, a query whose value is judged) and datasets. Every statement runs in a read-only transaction that is rolled back, with time, row and size limits; only one SELECT at a time is accepted. Set host, port, database and TLS under Platform → Database after creating it; credentials username and password of a read-only role (the GRANT statements are in docs/DATABASES.md). The outbound policy must allow host:port unless it is \"platforms\".",
+      "secrets": {
+        "username": "User name",
+        "password": "Password"
+      },
+      "secretHelp": {
+        "username": "A read-only role (docs/DATABASES.md): pg_read_all_stats, SELECT on what processes read"
+      }
+    },
+    "mariadb-mysql-read-only": {
+      "description": "A MariaDB or MySQL database (also Amazon RDS / Aurora MySQL, Azure Database for MySQL), read directly with SQL: access reviews of users, roles and grants, account hygiene (locked and expired accounts, password age, default accounts), monitor checks (connection, replica lag, a query whose value is judged) and datasets. Every statement runs in START TRANSACTION READ ONLY and is rolled back, with time, row and size limits; only one SELECT at a time is accepted. Set host, port, database and TLS under Platform → Database after creating it; credentials username and password of a read-only account (docs/DATABASES.md).",
+      "secrets": {
+        "username": "User name",
+        "password": "Password"
+      },
+      "secretHelp": {
+        "username": "A read-only account (docs/DATABASES.md): SELECT on the mysql tables Steward reads, REPLICATION CLIENT"
+      }
+    },
+    "microsoft-sql-server-read-only": {
+      "description": "A Microsoft SQL Server database (2016 or later, also Azure SQL Managed Instance and Amazon RDS for SQL Server), read directly with SQL: access reviews of logins, users, roles and permissions, account hygiene (sysadmins, disabled, locked and expired logins, password age, sa), monitor checks (connection, availability group lag, a query whose value is judged) and datasets. SQL Server has no read-only transaction: every statement runs in a transaction that is rolled back and the login must be read-only (db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION – docs/DATABASES.md). Only one SELECT at a time is accepted. Sign-in with a SQL login (user name and password); set host, port, database and TLS under Platform → Database.",
+      "secrets": {
+        "username": "Login (SQL authentication)",
+        "password": "Password"
+      },
+      "secretHelp": {
+        "username": "A read-only login (docs/DATABASES.md): db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION"
+      }
     }
   },
   "title": "Platforms",
@@ -145,6 +175,7 @@
     "viewOnly": "You may look at this platform but not use it in runs. Ask an administrator for access.",
     "tabs": {
       "settings": "Settings",
+      "database": "Database",
       "credentials": "Credentials",
       "specs": "API specs",
       "docs": "Docs",
@@ -439,6 +470,7 @@
       "industrial": "Industrial IoT",
       "monitoring": "Monitoring",
       "cloud": "Cloud, data and streaming",
+      "databases": "Databases",
       "development": "Development and security",
       "messaging": "Messaging",
       "custom": "Your connector types",
@@ -467,7 +499,9 @@
       "outbound": "The outbound policy blocked the address: an administrator allows it under Settings → Outbound access.",
       "tls": "The certificate was not accepted: add the private CA under the platform’s HTTP settings (or allow self-signed certificates for a test).",
       "timeout": "No answer in time: the platform may be slow or the address may be unreachable from the server."
-    }
+    },
+    "databaseConnection": "{{dbms}} connection",
+    "databaseHint": "TLS certificate, limits and the connection pool can be set later under Database."
   },
   "start": {
     "tab": "Get started",
@@ -670,5 +704,60 @@
       "pending": "Waiting"
     },
     "cardLine": "{{when}} · {{input}} in / {{output}} out"
+  },
+  "database": {
+    "intro": "The connection of this database platform. Every statement runs read-only, in a transaction that is rolled back, within the limits below. User name and password are credentials (Credentials tab).",
+    "notSet": "No connection yet: enter the host and the database and save, then test the connection.",
+    "notSetReadOnly": "No connection yet. People who manage the platform set it here.",
+    "connection": "Connection",
+    "dialect": "Database system",
+    "database": "Database",
+    "databaseHint": {
+      "postgresql": "The database to connect to",
+      "mysql": "The default database (schema); catalog queries read the server's accounts",
+      "sqlserver": "The database whose users, roles and permissions are read"
+    },
+    "host": "Host",
+    "hostHint": "Host name or IP address, without scheme or port",
+    "port": "Port",
+    "portHint": "Empty: {{port}}",
+    "credentialsHint": "Sign-in: the credentials username and password of a read-only account – the GRANT statements per database system are in docs/DATABASES.md.",
+    "tls": "TLS",
+    "tlsMode": "TLS mode",
+    "tlsModes": {
+      "verify": "Verify certificate (recommended)",
+      "require": "Encrypt without verification",
+      "off": "Off (no encryption)"
+    },
+    "tlsModeHints": {
+      "verify": "Encrypted; the certificate and the host name are checked",
+      "require": "Encrypted, but any certificate is accepted",
+      "off": "Password and data travel unencrypted"
+    },
+    "tlsWarning": {
+      "require": "Without verification, a server that pretends to be the database can read the password. Use it only for a test system, or add the CA certificate and verify.",
+      "off": "Without TLS, the password and every result travel in clear text. Use it only on a trusted local network."
+    },
+    "ca": "CA certificate (PEM, optional)",
+    "caHint": "For a private CA; the system's CAs are trusted as well",
+    "serverName": "Server name in the certificate (optional)",
+    "serverNameHint": "When the certificate names another host than the one connected to",
+    "limits": "Limits",
+    "limitsHint": "Ceilings for every statement on this platform – steps can lower them, not raise them. Empty: the default.",
+    "timeout": "Time limit (seconds)",
+    "maxRows": "Most rows",
+    "maxMb": "Largest result (MB)",
+    "poolSize": "Connections",
+    "atMost": "At most {{max}}",
+    "readOnlyTitle": "Read-only",
+    "readOnly": {
+      "postgresql": "PostgreSQL: the session is read-only (default_transaction_read_only) and every statement runs in BEGIN TRANSACTION READ ONLY, then ROLLBACK.",
+      "mysql": "MariaDB / MySQL: the session is SET SESSION TRANSACTION READ ONLY and every statement runs in START TRANSACTION READ ONLY, then ROLLBACK.",
+      "sqlserver": "SQL Server has no read-only transaction: every statement runs in a transaction that is rolled back – the login itself must be read-only (db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION)."
+    },
+    "docsLink": "Read-only roles and what Steward refuses (docs/DATABASES.md)",
+    "save": "Save connection",
+    "saved": "Connection saved",
+    "notSaved": "The connection could not be saved"
   }
 }

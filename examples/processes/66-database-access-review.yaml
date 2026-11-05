@@ -1,0 +1,243 @@
+# steward-min-version: 0.7.0
+name: "Database – Access review (roles and grants)"
+description: |
+  Periodic review of who can reach a database: every role membership and
+  every object privilege (tables, views, schemas, the database itself), read
+  with Steward's catalog queries – the same template for PostgreSQL,
+  MariaDB/MySQL and SQL Server. Accounts that cannot sign in any more (locked,
+  NOLOGIN, expired password) are marked and not preselected. The owner ticks
+  what stays, a second person confirms the removals (four-eyes), and a manual
+  step shows the generated REVOKE / DROP MEMBER statements, quoted for the
+  DBMS, to run in the database – the database connection is read-only –
+  which a second person verifies (maker–checker). The removals are documented
+  as access changes.
+
+  Recommended schedule: quarterly (`0 7 1 1,4,7,10 *`). Publishes
+  `database.access` (one row per grant) for the "Databases" dashboard. Needs a
+  database platform whose account may read the catalog (docs/DATABASES.md,
+  read-only role).
+recommendedSchedule: "0 7 1 1,4,7,10 *"
+tags: [access-review, governance, database]
+connections:
+  - slot: db
+    kind: database
+    description: Database platform (PostgreSQL, MariaDB/MySQL or SQL Server; read-only)
+inputs:
+  - name: excludeRoles
+    label: Roles not reviewed here (built-in roles, reviewed on their own)
+    type: list
+    default:
+      - pg_monitor
+      - pg_read_all_stats
+      - pg_read_all_settings
+      - pg_stat_scan_tables
+      - pg_signal_backend
+      - pg_checkpoint
+      - pg_use_reserved_connections
+      - pg_create_subscription
+      - public
+  - name: excludeMembers
+    label: Accounts not reviewed here (for example Steward's own read-only account)
+    type: list
+    default: []
+  - name: includePublic
+    label: Review grants to PUBLIC (everyone)
+    type: boolean
+    default: true
+steps:
+  - id: members
+    type: query
+    name: Role memberships (catalog query)
+    connection: db
+    catalog: role-members
+    saveAs: members
+  - id: privileges
+    type: query
+    name: Object privileges (catalog query)
+    connection: db
+    catalog: privileges
+    saveAs: privileges
+  - id: accounts
+    type: query
+    name: Accounts (catalog query)
+    connection: db
+    catalog: accounts
+    onError: continue
+    saveAs: accounts
+  - id: rows
+    type: set
+    name: One row per grant
+    values:
+      rows: >-
+        {{ (
+          $acct := $merge([$exists(vars.accounts.error) ? [] : vars.accounts.rows.{ (host ? name & '@' & host : name): $ }]);
+          $state := function($who) {(
+            $a := $lookup($acct, $who);
+            $not($exists($a)) ? 'role'
+              : ($a.locked or $not($a.canLogin) ? 'cannot sign in'
+              : ($a.passwordExpired ? 'password expired' : 'active'))
+          )};
+          $roles := [vars.members.rows[$not(role in $inputs.excludeRoles) and $not(member in $inputs.excludeMembers)].(
+            {
+              "key": 'role|' & scope & '|' & role & '|' & member,
+              "kind": 'role',
+              "grant": role,
+              "object": scope = 'database' ? 'database role' : 'role',
+              "member": member,
+              "memberType": memberType,
+              "detail": adminOption ? 'with admin option' : '',
+              "state": $state(member),
+              "revoke": revoke
+            }
+          )];
+          $privs := [vars.privileges.rows[$not(grantee in $inputs.excludeMembers) and $not(grantee in $inputs.excludeRoles) and ($inputs.includePublic or grantee != 'PUBLIC')].(
+            {
+              "key": 'privilege|' & grantee & '|' & privilege & '|' & objectType & '|' & (schema ? schema : '') & '|' & (object ? object : ''),
+              "kind": 'privilege',
+              "grant": privilege,
+              "object": objectType & ' ' & (schema and object ? schema & '.' & object : (schema ? schema : (object ? object : ''))),
+              "member": grantee,
+              "memberType": grantee = 'PUBLIC' ? 'everyone' : ($exists($lookup($acct, grantee)) ? 'user' : 'role'),
+              "detail": grantable ? 'with grant option' : '',
+              "state": grantee = 'PUBLIC' ? 'everyone' : $state(grantee),
+              "revoke": revoke
+            }
+          )];
+          [$append($roles, $privs)]
+        ) }}
+      accountsReadable: "{{ $not($exists(vars.accounts.error)) }}"
+  - id: readable
+    type: check
+    name: The accounts could be read
+    severity: warning
+    condition: "vars.accountsReadable"
+    message: "{{ vars.accountsReadable ? 'Accounts read' : 'The accounts could not be read – every grant counts as active (grant the read-only role of docs/DATABASES.md)' }}"
+  - id: attest
+    type: userTask
+    name: Which grants stay?
+    when: "$count(vars.rows) > 0"
+    mode: select
+    title: "Access review: tick the {{ $count(vars.rows) }} grant(s) that stay"
+    instructions: |
+      Each row is a role membership or a privilege on an object.
+      **Unticked** rows are revoked after a second person confirms – the statements are generated for this DBMS and run by a person.
+      Grants of accounts that can still sign in are preselected; grants to PUBLIC apply to everyone.
+    items: vars.rows
+    itemKey: key
+    columns:
+      - { label: Member, value: member }
+      - { label: Type, value: memberType }
+      - { label: Grant, value: grant }
+      - { label: On, value: object }
+      - { label: Note, value: detail }
+      - { label: State, value: state }
+    preselect: "state = 'active' or state = 'role'"
+    saveAs: attestation
+  - id: confirm
+    type: userTask
+    name: Confirm the revocations (four-eyes)
+    when: "$count(vars.attestation.unselected) > 0"
+    mode: approve
+    title: "Revoke {{ $count(vars.attestation.unselected) }} grant(s) in the database?"
+    instructions: |
+      Reviewed by {{ vars.attestation.decidedBy }}. A different person has to confirm.
+
+      {{ $join(vars.attestation.unselected.('- ' & member & ': ' & grant & ' (' & object & ')'), '\n') }}
+    assignees: [role:approver, role:admin]
+    fourEyes: true
+    onReject: continue
+    saveAs: removal
+  - id: statements
+    type: set
+    name: REVOKE statements
+    when: "vars.removal.approved = true"
+    values:
+      revokes: "{{ [$distinct(vars.attestation.unselected.revoke[$ != null])] }}"
+      noStatement: "{{ [vars.attestation.unselected[$not($exists(revoke)) or revoke = null].(member & ': ' & grant)] }}"
+  - id: revokeInDatabase
+    type: userTask
+    mode: manual
+    name: Run the REVOKE statements in the database
+    when: "vars.removal.approved = true"
+    title: "Revoke {{ $count(vars.attestation.unselected) }} grant(s) in the database"
+    instructions: |
+      Steward reads the database only. Run these statements as an account that may change grants, in the database the
+      platform connects to, then check that the grants are gone (run this review again, or the catalog query).
+
+      ```sql
+      {{ $join(vars.revokes, '\n') }}
+      ```
+
+      {{ $count(vars.noStatement) ? 'No statement could be generated for: ' & $join(vars.noStatement, '; ') & ' – remove these by hand.' : '' }}
+      A second person verifies the result before the access changes are documented.
+    checklist:
+      - Statements run as an account that may change grants
+      - "Checked: the revoked grants are gone"
+    checklistAllRequired: true
+    fields:
+      - id: ticket
+        type: ticket
+        label: Change ticket
+        hint: e.g. CHG0012345
+    evidence: optional
+    verification:
+      required: true
+      onReject: return
+    saveAs: revoked
+  - id: documentRevoked
+    type: accessChange
+    name: Document the revoked grants
+    when: "vars.removal.approved = true and vars.revoked.completed = true"
+    connection: db
+    kind: revoke
+    items: vars.attestation.unselected
+    subjectId: member
+    rights: "[kind & ':' & grant & (kind = 'privilege' ? ' on ' & object : '')]"
+    reason: "Database access review: grant not attested"
+    requestRef: "{{ vars.revoked.fields.ticket ? vars.revoked.fields.ticket : '' }}"
+    approvedBy: "{{ vars.removal.decidedBy }}"
+  - id: publish
+    type: publish
+    name: Publish the review result
+    dataset: database.access
+    title: Database access
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Member, value: member }
+      - { label: Type, value: memberType }
+      - { label: Kind, value: kind }
+      - { label: Grant, value: grant }
+      - { label: On, value: object }
+      - { label: Note, value: detail }
+      - { label: State, value: state }
+      - label: Review
+        value: >-
+          key in $vars.attestation.selectedKeys ? 'kept'
+            : ($vars.removal.approved = true ? ($vars.revoked.completed = true ? 'revoked' : 'to revoke')
+            : ($exists($vars.attestation) ? 'revocation rejected' : 'not reviewed'))
+    status: "state = 'cannot sign in' or state = 'password expired' ? 'warning' : (memberType = 'everyone' ? 'warning' : 'good')"
+    statusText: "state = 'cannot sign in' or state = 'password expired' ? 'grant of an account that ' & (state = 'cannot sign in' ? 'cannot sign in' : 'has an expired password') : (memberType = 'everyone' ? 'granted to everyone (PUBLIC)' : '')"
+    metrics:
+      grants: "$count(vars.rows)"
+      members: "$count($distinct(vars.rows.member))"
+      public: "$count(vars.rows[memberType = 'everyone'])"
+      inactive: "$count(vars.rows[state = 'cannot sign in' or state = 'password expired'])"
+      revoked: "vars.removal.approved = true and vars.revoked.completed = true ? $count(vars.attestation.unselected) : 0"
+    staleAfterMinutes: 264960
+  - id: summary
+    type: report
+    name: Summary
+    title: "Database access review"
+    text: |
+      - Grants: **{{ $count(vars.rows) }}** ({{ $count($distinct(vars.rows.member)) }} members), to PUBLIC: **{{ $count(vars.rows[memberType = 'everyone']) }}**
+      - Kept: **{{ $count(vars.attestation.selected) }}**
+      - Revoked: **{{ vars.removal.approved = true and vars.revoked.completed = true ? $count(vars.attestation.unselected) : 0 }}**{{ vars.removal.approved = false ? ' (revocation rejected by ' & vars.removal.decidedBy & ')' : '' }}{{ vars.revoked.verifiedBy ? ' – verified by ' & vars.revoked.verifiedBy : '' }}
+    rows: vars.rows
+    columns:
+      - { label: Member, value: member }
+      - { label: Grant, value: grant }
+      - { label: On, value: object }
+      - { label: State, value: state }
+      - label: Result
+        value: "key in $vars.attestation.selectedKeys ? 'kept' : ($vars.removal.approved = true ? 'revoked' : 'kept (not confirmed)')"

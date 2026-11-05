@@ -572,6 +572,79 @@ export const PRESETS: PlatformPreset[] = [
       { title: 'Amazon Bedrock Converse API', url: 'https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html' },
     ],
   },
+  // Database platforms (0.7.0, #203, docs/DATABASES.md): direct SQL, read-only
+  {
+    kind: 'database',
+    label: 'PostgreSQL (read-only)',
+    description:
+      'A PostgreSQL database (also Amazon RDS / Aurora PostgreSQL, Azure Database for PostgreSQL, Cloud SQL), read directly with SQL: access reviews of roles and grants, account hygiene, monitor checks (connection, replication lag, a query whose value is judged) and datasets. Every statement runs in a read-only transaction that is rolled back, with time, row and size limits; only one SELECT at a time is accepted. Set host, port, database and TLS under Platform → Database after creating it; credentials username and password of a read-only role (the GRANT statements are in docs/DATABASES.md). The outbound policy must allow host:port unless it is "platforms".',
+    baseUrl: '',
+    config: {
+      auth: { type: 'none' },
+      variables: {},
+      http: {},
+      database: { dialect: 'postgresql', host: 'db.example.internal', port: 5432, database: 'postgres', tls: { mode: 'verify' }, limits: {}, auth: 'password' },
+    },
+    secretFields: [
+      { key: 'username', label: 'User name', help: 'A read-only role (docs/DATABASES.md): pg_read_all_stats, SELECT on what processes read' },
+      { key: 'password', label: 'Password' },
+    ],
+    docs: [
+      { title: 'PostgreSQL: GRANT', url: 'https://www.postgresql.org/docs/current/sql-grant.html' },
+      { title: 'PostgreSQL: predefined roles', url: 'https://www.postgresql.org/docs/current/predefined-roles.html' },
+      { title: 'PostgreSQL: pg_stat_replication', url: 'https://www.postgresql.org/docs/current/monitoring-stats.html#MONITORING-PG-STAT-REPLICATION-VIEW' },
+    ],
+  },
+  {
+    kind: 'database',
+    label: 'MariaDB / MySQL (read-only)',
+    description:
+      'A MariaDB or MySQL database (also Amazon RDS / Aurora MySQL, Azure Database for MySQL), read directly with SQL: access reviews of users, roles and grants, account hygiene (locked and expired accounts, password age, default accounts), monitor checks (connection, replica lag, a query whose value is judged) and datasets. Every statement runs in START TRANSACTION READ ONLY and is rolled back, with time, row and size limits; only one SELECT at a time is accepted. Set host, port, database and TLS under Platform → Database after creating it; credentials username and password of a read-only account (docs/DATABASES.md).',
+    baseUrl: '',
+    config: {
+      auth: { type: 'none' },
+      variables: {},
+      http: {},
+      database: { dialect: 'mysql', host: 'db.example.internal', port: 3306, database: 'mysql', tls: { mode: 'verify' }, limits: {}, auth: 'password' },
+    },
+    secretFields: [
+      { key: 'username', label: 'User name', help: 'A read-only account (docs/DATABASES.md): SELECT on the mysql tables Steward reads, REPLICATION CLIENT' },
+      { key: 'password', label: 'Password' },
+    ],
+    docs: [
+      { title: 'MariaDB: GRANT', url: 'https://mariadb.com/kb/en/grant/' },
+      { title: 'MySQL: privileges provided', url: 'https://dev.mysql.com/doc/refman/8.4/en/privileges-provided.html' },
+      { title: 'MySQL: SHOW REPLICA STATUS', url: 'https://dev.mysql.com/doc/refman/8.4/en/show-replica-status.html' },
+    ],
+  },
+  {
+    kind: 'database',
+    label: 'Microsoft SQL Server (read-only)',
+    description:
+      'A Microsoft SQL Server database (2016 or later, also Azure SQL Managed Instance and Amazon RDS for SQL Server), read directly with SQL: access reviews of logins, users, roles and permissions, account hygiene (sysadmins, disabled, locked and expired logins, password age, sa), monitor checks (connection, availability group lag, a query whose value is judged) and datasets. SQL Server has no read-only transaction: every statement runs in a transaction that is rolled back and the login must be read-only (db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION – docs/DATABASES.md). Only one SELECT at a time is accepted. Sign-in with a SQL login (user name and password); set host, port, database and TLS under Platform → Database.',
+    baseUrl: '',
+    config: {
+      auth: { type: 'none' },
+      variables: {},
+      http: {},
+      database: { dialect: 'sqlserver', host: 'db.example.internal', port: 1433, database: 'master', tls: { mode: 'verify' }, limits: {}, auth: 'password' },
+    },
+    secretFields: [
+      {
+        key: 'username',
+        label: 'Login (SQL authentication)',
+        help: 'A read-only login (docs/DATABASES.md): db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION',
+      },
+      { key: 'password', label: 'Password' },
+    ],
+    docs: [
+      { title: 'SQL Server: permissions', url: 'https://learn.microsoft.com/sql/relational-databases/security/permissions-database-engine' },
+      {
+        title: 'SQL Server: sys.dm_hadr_database_replica_states',
+        url: 'https://learn.microsoft.com/sql/relational-databases/system-dynamic-management-views/sys-dm-hadr-database-replica-states-transact-sql',
+      },
+    ],
+  },
   {
     kind: 'generic',
     label: 'Generic REST API',

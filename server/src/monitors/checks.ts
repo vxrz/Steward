@@ -8,7 +8,7 @@ import { buildUrl, platformRequest, type HttpResult } from '../platforms/http.js
 import { findRecording, missingRecording } from '../platforms/recordings.js';
 import { assertAddressSafe, assertNetAllowed, assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
-import { BRAND, PVAULT_KIND, isGitPlatformKind, type PvFindingKind } from '@sm/shared';
+import { BRAND, DATABASE_KIND, PVAULT_KIND, isGitPlatformKind, type PvFindingKind } from '@sm/shared';
 import { freshnessStatus, freshnessWindowSeconds, fmtAge, statusMatcher } from './logic.js';
 import { promInstant, seriesName } from '../platforms/prometheus.js';
 import { readNamespace } from '../catalogue/kubernetes.js';
@@ -710,6 +710,39 @@ async function checkSnowflake(c: CheckOf<'snowflake'>, ctx: ExecContext): Promis
   }
 }
 
+// ---------- databases ----------
+
+/** A database platform (#203): the connection, the replication lag or the value of a read-only query. */
+async function checkDatabase(c: CheckOf<'database'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  if (platform.kind !== DATABASE_KIND) return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a database platform` };
+  if (ctx.recorded) {
+    // a test run never connects: the recorded response POST /sql/<check id> stands for the answer
+    const path = `/sql/${c.id}`;
+    const hit = findRecording(platform.id, { method: 'POST', url: path });
+    if (!hit) return { status: 'unknown', message: missingRecording(platform.name, 'POST', path).message };
+    ctx.recorded.recorded = true;
+    const body = hit.result.body;
+    const rows = (Array.isArray(body) ? body : ((body as { rows?: unknown[] })?.rows ?? [])) as Record<string, unknown>[];
+    const first = rows[0] ? Object.values(rows[0])[0] : undefined;
+    return {
+      status: 'up',
+      message: `Database (recorded): ${rows.length} row(s)${first !== undefined ? `, first value ${String(first).slice(0, 60)}` : ''}`,
+      durationMs: 0,
+    };
+  }
+  const { databaseCheck } = await import('../dbms/service.js');
+  try {
+    return {
+      ...(await databaseCheck(platform, secrets, c, AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs + 5000)]))),
+      durationMs: Date.now() - t0,
+    };
+  } catch (e) {
+    return { status: 'unknown', message: `The database could not be read: ${(e as Error).message}`.slice(0, 1000), durationMs: Date.now() - t0 };
+  }
+}
+
 // ---------- Entra ID ----------
 
 /** Expiring app credentials or Microsoft 365 service health of an Entra ID tenant (v0.5.0). */
@@ -996,6 +1029,7 @@ type Active =
   | CheckOf<'kafka'>
   | CheckOf<'mqtt'>
   | CheckOf<'snowflake'>
+  | CheckOf<'database'>
   | CheckOf<'dependency-track'>
   | CheckOf<'entra'>
   | CheckOf<'privilege-vault'>;
@@ -1026,6 +1060,8 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkGit(c, ctx);
       case 'snowflake':
         return await checkSnowflake(c, ctx);
+      case 'database':
+        return await checkDatabase(c, ctx);
       case 'dependency-track':
         return await checkDtrack(c, ctx);
       case 'entra':

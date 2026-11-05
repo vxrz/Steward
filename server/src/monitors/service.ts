@@ -328,6 +328,7 @@ const PLATFORM_KIND: Partial<Record<string, string>> = {
   kafka: 'kafka',
   mqtt: 'mqtt',
   snowflake: 'snowflake',
+  database: 'database',
   'dependency-track': 'dependency-track',
   entra: 'microsoft-graph',
   'privilege-vault': 'privilege-vault',

@@ -1,0 +1,46 @@
+# A database platform (#203): the connection, the replication lag and – for PostgreSQL – the sessions waiting for a
+# lock. "platform: Shop database" finds your database platform when it is the only one (or the only one whose name
+# starts with "Shop database"); on import you choose it otherwise. The lock check is PostgreSQL SQL: for MariaDB/MySQL
+# or SQL Server, replace its statement or remove it. See docs/DATABASES.md.
+kind: monitor
+key: shop-database
+name: Shop database
+description: The database answers and signs in read-only, its replicas keep up, and few sessions wait for locks.
+tags: [database]
+intervalSeconds: 300
+aggregate: { rule: worst }
+checks:
+  - id: connection
+    name: Database reachable
+    type: database
+    platform: Shop database
+    mode: connection
+    x: 0
+    y: 0
+  - id: replication
+    name: Replication lag
+    type: database
+    platform: Shop database
+    mode: replication
+    warn: 30
+    crit: 300
+    unit: " s"
+    noData: up
+    critical: false
+    x: 260
+    y: 0
+  - id: lock-waits
+    name: Sessions waiting for a lock (PostgreSQL)
+    type: database
+    platform: Shop database
+    mode: query
+    sql: "SELECT count(*) AS waiting FROM pg_stat_activity WHERE wait_event_type = 'Lock'"
+    warn: 1
+    crit: 10
+    noData: up
+    critical: false
+    x: 520
+    y: 0
+links:
+  - { from: replication, to: connection, mode: hard }
+  - { from: lock-waits, to: connection, mode: hard }

@@ -20,7 +20,8 @@ import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
 import { PRESETS, PRESET_SPECS } from '../platforms/presets.js';
 import { audit } from '../audit.js';
 import { createUser, findUserByName, saveTeam } from '../auth/users.js';
-import { LLM_GATEWAY_KIND, PVAULT_KIND, type AiGatewaySettings, type ComponentType, type Role } from '@sm/shared';
+import { DATABASE_KIND, LLM_GATEWAY_KIND, PVAULT_KIND, type AiGatewaySettings, type ComponentType, type Role } from '@sm/shared';
+import { DEMO_DB, DEMO_DB_HOST } from '../dbms/demo.js';
 import { createDashboard, listDashboardTemplates } from '../dashboards/service.js';
 import { listSchedules, saveSchedule } from '../scheduler.js';
 import { startRun } from '../engine/runner.js';
@@ -99,6 +100,10 @@ const FEEDERS: { process: string; cron: string; inputs?: Record<string, unknown>
   { process: 'github-repository-health', cron: '20 * * * *', bind: { github: 'forgejo' }, label: 'Forgejo' },
   { process: 'dependency-track-vulnerabilities', cron: '0 */6 * * *' },
   { process: 'snowflake-account-hygiene', cron: '15 6 * * *' },
+  // database platforms (0.7.0): the demo database answers the catalog queries and the examples' statements
+  { process: 'database-account-hygiene', cron: '25 6 * * *' },
+  { process: 'database-table-sizes', cron: '35 6 * * *' },
+  { process: 'postgresql-connections', cron: '*/15 * * * *' },
   { process: 'prometheus-slo-report', cron: '0 7 * * 1' },
   // from the sample applications (their components' readouts and tech stacks)
   { process: 'end-of-life-overview', cron: '0 7 * * 1', apps: true },
@@ -409,6 +414,26 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
       baseUrl: `${base}/llm`,
       config: { ...preset.config, http: { ...preset.config.http, proxy: 'none' }, ai },
       secrets: { apiKey: DEMO_LLM.apiKey },
+    });
+    platforms++;
+  }
+  if (!existing.has('Shop database (demo)')) {
+    // a database platform (#203): a fake PostgreSQL that answers the catalog queries with canned rows – it never reads
+    // Steward's own database (ADR 0008)
+    createPlatform({
+      name: 'Shop database (demo)',
+      kind: DATABASE_KIND,
+      environment: 'demo',
+      description:
+        'Simulated PostgreSQL database "shop" served by the built-in demo driver: accounts, roles, grants, replication and tables with canned rows (no real data). See docs/DATABASES.md.',
+      baseUrl: '',
+      config: {
+        auth: { type: 'none' },
+        variables: {},
+        http: {},
+        database: { dialect: 'postgresql', host: DEMO_DB_HOST, port: 5432, database: DEMO_DB.database, tls: { mode: 'verify' }, limits: {}, auth: 'password' },
+      },
+      secrets: { username: DEMO_DB.username, password: DEMO_DB.password },
     });
     platforms++;
   }

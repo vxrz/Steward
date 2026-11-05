@@ -36,6 +36,36 @@
         "clientId": "OAuth-Client-ID",
         "clientSecret": "OAuth-Client-Secret"
       }
+    },
+    "postgresql-read-only": {
+      "description": "Eine PostgreSQL-Datenbank (auch Amazon RDS / Aurora PostgreSQL, Azure Database for PostgreSQL, Cloud SQL), direkt mit SQL gelesen: Zugriffsprüfungen von Rollen und Rechten, Kontenhygiene, Monitor-Prüfungen (Verbindung, Replikationsverzug, eine Abfrage, deren Wert beurteilt wird) und Datensätze. Jede Anweisung läuft in einer nur lesenden Transaktion, die zurückgerollt wird, mit Zeit-, Zeilen- und Größenlimit; angenommen wird nur ein SELECT auf einmal. Host, Port, Datenbank und TLS legen Sie nach dem Anlegen unter Plattform → Datenbank fest; Zugangsdaten username und password einer nur lesenden Rolle (die GRANT-Anweisungen stehen in docs/DATABASES.md). Die Richtlinie für ausgehende Verbindungen muss host:port erlauben, wenn sie nicht „platforms“ ist.",
+      "secrets": {
+        "username": "Benutzername",
+        "password": "Passwort"
+      },
+      "secretHelp": {
+        "username": "Eine nur lesende Rolle (docs/DATABASES.md): pg_read_all_stats, SELECT auf das, was Prozesse lesen"
+      }
+    },
+    "mariadb-mysql-read-only": {
+      "description": "Eine MariaDB- oder MySQL-Datenbank (auch Amazon RDS / Aurora MySQL, Azure Database for MySQL), direkt mit SQL gelesen: Zugriffsprüfungen von Benutzern, Rollen und Rechten, Kontenhygiene (gesperrte und abgelaufene Konten, Passwortalter, Standardkonten), Monitor-Prüfungen (Verbindung, Replikatverzug, eine Abfrage, deren Wert beurteilt wird) und Datensätze. Jede Anweisung läuft in START TRANSACTION READ ONLY und wird zurückgerollt, mit Zeit-, Zeilen- und Größenlimit; angenommen wird nur ein SELECT auf einmal. Host, Port, Datenbank und TLS legen Sie nach dem Anlegen unter Plattform → Datenbank fest; Zugangsdaten username und password eines nur lesenden Kontos (docs/DATABASES.md).",
+      "secrets": {
+        "username": "Benutzername",
+        "password": "Passwort"
+      },
+      "secretHelp": {
+        "username": "Ein nur lesendes Konto (docs/DATABASES.md): SELECT auf die mysql-Tabellen, die Steward liest, REPLICATION CLIENT"
+      }
+    },
+    "microsoft-sql-server-read-only": {
+      "description": "Eine Microsoft-SQL-Server-Datenbank (2016 oder neuer, auch Azure SQL Managed Instance und Amazon RDS for SQL Server), direkt mit SQL gelesen: Zugriffsprüfungen von Logins, Benutzern, Rollen und Berechtigungen, Kontenhygiene (sysadmins, deaktivierte, gesperrte und abgelaufene Logins, Passwortalter, sa), Monitor-Prüfungen (Verbindung, Verzug der Verfügbarkeitsgruppe, eine Abfrage, deren Wert beurteilt wird) und Datensätze. SQL Server kennt keine nur lesende Transaktion: Jede Anweisung läuft in einer Transaktion, die zurückgerollt wird, und das Login muss nur lesend sein (db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION – docs/DATABASES.md). Angenommen wird nur ein SELECT auf einmal. Anmeldung mit einem SQL-Login (Benutzername und Passwort); Host, Port, Datenbank und TLS legen Sie unter Plattform → Datenbank fest.",
+      "secrets": {
+        "username": "Login (SQL-Authentifizierung)",
+        "password": "Passwort"
+      },
+      "secretHelp": {
+        "username": "Ein nur lesendes Login (docs/DATABASES.md): db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION"
+      }
     }
   },
   "title": "Plattformen",
@@ -145,6 +175,7 @@
     "viewOnly": "Sie dürfen diese Plattform ansehen, aber nicht in Ausführungen nutzen. Bitten Sie einen Administrator um Zugriff.",
     "tabs": {
       "settings": "Einstellungen",
+      "database": "Datenbank",
       "credentials": "Zugangsdaten",
       "specs": "API-Spezifikationen",
       "docs": "Dokumentation",
@@ -439,6 +470,7 @@
       "industrial": "Industrielles IoT",
       "monitoring": "Monitoring",
       "cloud": "Cloud, Daten und Streaming",
+      "databases": "Datenbanken",
       "development": "Entwicklung und Sicherheit",
       "messaging": "Nachrichten",
       "custom": "Ihre Connector-Typen",
@@ -467,7 +499,9 @@
       "outbound": "Die Richtlinie für ausgehende Verbindungen hat die Adresse blockiert: Ein Administrator erlaubt sie unter Einstellungen → Ausgehender Zugriff.",
       "tls": "Das Zertifikat wurde nicht akzeptiert: Hinterlegen Sie die private CA in den HTTP-Einstellungen der Plattform (oder erlauben Sie für einen Test selbst signierte Zertifikate).",
       "timeout": "Keine Antwort in der Zeit: Die Plattform ist vielleicht langsam oder vom Server aus nicht erreichbar."
-    }
+    },
+    "databaseConnection": "Verbindung zu {{dbms}}",
+    "databaseHint": "TLS-Zertifikat, Limits und Verbindungen legen Sie später unter Datenbank fest."
   },
   "start": {
     "tab": "Erste Schritte",
@@ -670,5 +704,60 @@
       "pending": "Wartet"
     },
     "cardLine": "{{when}} · {{input}} ein / {{output}} aus"
+  },
+  "database": {
+    "intro": "Die Verbindung dieser Datenbank-Plattform. Jede Anweisung läuft nur lesend, in einer Transaktion, die zurückgerollt wird, innerhalb der Limits unten. Benutzername und Passwort sind Zugangsdaten (Reiter Zugangsdaten).",
+    "notSet": "Noch keine Verbindung: Geben Sie Host und Datenbank ein, speichern Sie und testen Sie dann die Verbindung.",
+    "notSetReadOnly": "Noch keine Verbindung. Wer die Plattform verwaltet, legt sie hier fest.",
+    "connection": "Verbindung",
+    "dialect": "Datenbanksystem",
+    "database": "Datenbank",
+    "databaseHint": {
+      "postgresql": "Die Datenbank, mit der verbunden wird",
+      "mysql": "Die Standard-Datenbank (Schema); Katalogabfragen lesen die Konten des Servers",
+      "sqlserver": "Die Datenbank, deren Benutzer, Rollen und Berechtigungen gelesen werden"
+    },
+    "host": "Host",
+    "hostHint": "Hostname oder IP-Adresse, ohne Schema und Port",
+    "port": "Port",
+    "portHint": "Leer: {{port}}",
+    "credentialsHint": "Anmeldung: die Zugangsdaten username und password eines nur lesenden Kontos – die GRANT-Anweisungen je Datenbanksystem stehen in docs/DATABASES.md.",
+    "tls": "TLS",
+    "tlsMode": "TLS-Modus",
+    "tlsModes": {
+      "verify": "Zertifikat prüfen (empfohlen)",
+      "require": "Verschlüsseln ohne Prüfung",
+      "off": "Aus (keine Verschlüsselung)"
+    },
+    "tlsModeHints": {
+      "verify": "Verschlüsselt; Zertifikat und Hostname werden geprüft",
+      "require": "Verschlüsselt, aber jedes Zertifikat wird angenommen",
+      "off": "Passwort und Daten gehen unverschlüsselt über das Netz"
+    },
+    "tlsWarning": {
+      "require": "Ohne Prüfung kann ein Server, der sich als die Datenbank ausgibt, das Passwort lesen. Nutzen Sie das nur für ein Testsystem, oder fügen Sie das CA-Zertifikat hinzu und prüfen Sie.",
+      "off": "Ohne TLS gehen das Passwort und jedes Ergebnis im Klartext über das Netz. Nutzen Sie das nur in einem vertrauenswürdigen lokalen Netz."
+    },
+    "ca": "CA-Zertifikat (PEM, optional)",
+    "caHint": "Für eine eigene CA; die CAs des Systems gelten zusätzlich",
+    "serverName": "Servername im Zertifikat (optional)",
+    "serverNameHint": "Wenn das Zertifikat einen anderen Host nennt als den, mit dem verbunden wird",
+    "limits": "Grenzwerte",
+    "limitsHint": "Obergrenzen für jede Anweisung auf dieser Plattform – Schritte können sie senken, nicht erhöhen. Leer: der Standard.",
+    "timeout": "Zeitlimit (Sekunden)",
+    "maxRows": "Höchstens Zeilen",
+    "maxMb": "Größtes Ergebnis (MB)",
+    "poolSize": "Verbindungen",
+    "atMost": "Höchstens {{max}}",
+    "readOnlyTitle": "Nur lesend",
+    "readOnly": {
+      "postgresql": "PostgreSQL: Die Sitzung ist nur lesend (default_transaction_read_only), und jede Anweisung läuft in BEGIN TRANSACTION READ ONLY, danach ROLLBACK.",
+      "mysql": "MariaDB / MySQL: Die Sitzung ist SET SESSION TRANSACTION READ ONLY, und jede Anweisung läuft in START TRANSACTION READ ONLY, danach ROLLBACK.",
+      "sqlserver": "SQL Server kennt keine nur lesende Transaktion: Jede Anweisung läuft in einer Transaktion, die zurückgerollt wird – das Login selbst muss nur lesend sein (db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION)."
+    },
+    "docsLink": "Nur lesende Rollen und was Steward ablehnt (docs/DATABASES.md)",
+    "save": "Verbindung speichern",
+    "saved": "Verbindung gespeichert",
+    "notSaved": "Die Verbindung konnte nicht gespeichert werden"
   }
 }

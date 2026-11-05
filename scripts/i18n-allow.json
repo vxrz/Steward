@@ -163,7 +163,11 @@
       "Management",
       "Batch",
       "Job",
-      "Dashboard: {{name}}"
+      "Dashboard: {{name}}",
+      "PostgreSQL",
+      "MariaDB / MySQL",
+      "SQL Server",
+      "Parameter {{n}}"
     ]
   }
 }
