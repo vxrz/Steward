@@ -29,7 +29,7 @@ export const ROLE_INFO: Record<Role, string> = {
   auditor: 'Read-only access to all processes, runs, protocols and the audit log',
   viewer: 'Read-only access to processes and their runs (unless restricted)',
   status: 'Only the service status pages – none of the other pages, processes, platforms or data',
-  plant: 'Read-only access to the plant registry (sites and assets, unless a site is restricted) – no processes, platforms or monitors',
+  plant: 'Sees only the plant registry (sites and assets, unless a site is restricted) – none of the other pages, processes, services or records',
 };
 
 export const PROCESS_PERMISSIONS = ['view', 'run', 'edit', 'approve', 'manage'] as const;
@@ -339,6 +339,8 @@ export interface Capabilities {
   plant?: boolean;
   /** With the module on: the user may manage a site or add one (the sidebar's Import). Missing means false. */
   plantManage?: boolean;
+  /** A plant viewer: role "plant" and no other working role – the web app shows the Plant area and the profile only. Missing means false. */
+  plantOnly?: boolean;
 }
 
 export interface Me {

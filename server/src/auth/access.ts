@@ -33,6 +33,8 @@ export interface RouteAccess {
   roles?: readonly Role[];
   /** A status viewer (role "status" only) may call it; every other route refuses them */
   statusViewer?: boolean;
+  /** A plant viewer (role "plant" only, auth/policy.ts plantOnly) may call it; /api/plant/… always, every other route refuses them */
+  plantViewer?: boolean;
 }
 
 declare module 'fastify' {
@@ -42,7 +44,7 @@ declare module 'fastify' {
 }
 
 /** A route's access with the defaults filled in (app.ts resolveAccess). */
-export type ResolvedAccess = RouteAccess & { auth: RouteAuth; statusViewer: boolean };
+export type ResolvedAccess = RouteAccess & { auth: RouteAuth; statusViewer: boolean; plantViewer: boolean };
 
 /** Shorthands for `config: { access: … }`. */
 export const ACCESS = {
@@ -52,6 +54,7 @@ export const ACCESS = {
   admin: { roles: ['admin'] },
   adminSession: { auth: 'session', roles: ['admin'] },
   statusViewer: { statusViewer: true },
+  plantViewer: { plantViewer: true },
 } as const satisfies Record<string, RouteAccess>;
 
 /** The signed-in user; 401 NOT_SIGNED_IN otherwise. */

@@ -20,6 +20,7 @@ import { currentUser, requestContext } from '../auth/context.js';
 import { requireCapability, require as requirePermission } from '../auth/permissions.js';
 import { bearerToken, resolveToken } from '../auth/tokens.js';
 import { toAuthUser } from '../auth/users.js';
+import { plantOnly } from '../auth/policy.js';
 import { TokenBucketLimiter } from '../api/v1/rateLimit.js';
 import * as platforms from '../platforms/service.js';
 import { emit } from '../events.js';
@@ -209,6 +210,9 @@ function admit(req: FastifyRequest, reply: FastifyReply, principal: McpPrincipal
   const r = { user: principal.user, tokenId: principal.tokenId, name: principal.tokenName };
   if (r.user.mustChangePassword)
     return void refuse(reply, 403, STEWARD_ERRORS.forbidden, 'The owner of this token has to change their password in the web UI first', 'forbidden');
+  // a plant viewer (#218) sees the plant registry only, which has no MCP tools
+  if (plantOnly(toAuthUser(r.user as UserInfo)))
+    return void refuse(reply, 403, STEWARD_ERRORS.forbidden, 'Plant viewers only see the plant registry – MCP clients are not for them', 'forbidden');
   if (!vault().unlocked) {
     reply.header('retry-after', '60');
     return void refuse(reply, 503, STEWARD_ERRORS.unavailable, 'The vault is locked – an administrator has to unlock it', 'locked');

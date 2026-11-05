@@ -27,6 +27,7 @@ import { auditPendingUpgrades } from '../upgrades.js';
 import { ACCESS, isStatusViewer, me } from '../auth/access.js';
 import { plantEnabled } from '../plant/settings.js';
 import { plantManagesSome } from '../plant/access.js';
+import { plantOnly } from '../auth/policy.js';
 import { assuranceStepUpStatus, ssoMfaAsk } from '../auth/assurance.js';
 
 /** Things that need the decrypted vault: pending audit entries, scheduler, recovery of waiting runs. */
@@ -83,6 +84,7 @@ function meInfo(): Me | null {
     viewCredentials: credentials.mayReadSomeCredential(u),
     plant: plantEnabled() && !isStatusViewer(u.roles),
     plantManage: plantEnabled() && !isStatusViewer(u.roles) && plantManagesSome(u),
+    plantOnly: plantOnly(u),
   };
   return { user, capabilities: { ...capabilities(u), ...nav }, ...(u.emergency ? { emergency: { expiresAt: u.emergency.expiresAt } } : {}) };
 }

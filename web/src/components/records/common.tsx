@@ -165,6 +165,9 @@ export function LinksPanel({
                           </Badge>
                         )}
                       </>
+                    ) : l.visible ? (
+                      // a name without a page to open (a plant viewer's view of linked systems, #218)
+                      <Text size="sm">{l.label}</Text>
                     ) : (
                       <Text size="sm" c="dimmed">
                         {t('links.notVisible')}

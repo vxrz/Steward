@@ -17,9 +17,10 @@ import { audit } from '../../audit.js';
 import { logger } from '../../log.js';
 import { bearerToken, resolveToken } from '../../auth/tokens.js';
 import { readCookie, SESSION_COOKIE } from '../../auth/cookies.js';
-import { sessionUser } from '../../auth/users.js';
+import { sessionUser, toAuthUser } from '../../auth/users.js';
+import { plantOnly } from '../../auth/policy.js';
 import { BRAND } from '@sm/shared';
-import { apiEnabled, docsMode, rateLimitPerMinute } from './config.js';
+import { API_BASE, apiEnabled, docsMode, rateLimitPerMinute } from './config.js';
 import { sendProblem } from './problem.js';
 import { TokenBucketLimiter } from './rateLimit.js';
 
@@ -183,6 +184,11 @@ export async function apiAuthHook(req: FastifyRequest, reply: FastifyReply): Pro
       title: 'Vault locked',
       detail: 'The vault is locked – an administrator has to unlock it',
     });
+  }
+  // a plant viewer (#218): the plant registry and their own account, nothing else
+  const path = (req.routeOptions.url ?? req.url).split('?')[0]!;
+  if (path !== `${API_BASE}/me` && !path.startsWith(`${API_BASE}/plant/`) && plantOnly(toAuthUser(r.user))) {
+    return void sendProblem(req, reply, 403, { type: 'forbidden', title: 'Forbidden', detail: 'Plant viewers only see the plant registry' });
   }
   const p: ApiPrincipal = {
     user: r.user,

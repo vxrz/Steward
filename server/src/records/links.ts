@@ -4,6 +4,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor, currentUser } from '../auth/context.js';
 import { platformPermissions } from '../auth/permissions.js';
+import { plantOnly } from '../auth/policy.js';
 import { permissionsFor } from '../processes/service.js';
 import { monitorRow, permissionsOfRow } from '../monitors/model.js';
 import { likeEscape } from '../database/sql.js';
@@ -318,7 +319,10 @@ interface LinkRow {
   created_by: string;
 }
 
-function toLink(r: LinkRow): ItemLink {
+/** The registry's own kinds: the only ones a plant viewer (#218) may open. */
+const PLANT_KINDS = new Set(['site', 'asset']);
+
+function toLink(r: LinkRow, plantViewer = plantOnly(currentUser())): ItemLink {
   if (!r.to_kind) {
     return {
       id: r.id,
@@ -335,17 +339,19 @@ function toLink(r: LinkRow): ItemLink {
     };
   }
   const target = RESOLVERS.get(r.to_kind)?.resolve(r.to_id!) ?? null;
+  // a plant viewer sees the name of a linked system or application, not a way to it (they open the registry only)
+  const nameOnly = !!target && plantViewer && !PLANT_KINDS.has(r.to_kind);
   return {
     id: r.id,
     kind: r.to_kind as LinkKind,
     // ids can carry names (process ids are slugs of the name): only for targets the reader may see
-    targetId: target ? r.to_id : null,
+    targetId: target && !nameOnly ? r.to_id : null,
     url: null,
     linkType: null,
     label: target?.label ?? '',
     note: r.note,
     visible: !!target,
-    path: target?.path ?? null,
+    path: nameOnly ? null : (target?.path ?? null),
     ...(target?.edition ? { edition: target.edition } : {}),
     createdAt: r.created_at,
     createdBy: r.created_by,
@@ -353,7 +359,10 @@ function toLink(r: LinkRow): ItemLink {
 }
 
 export function listLinks(from: LinkSource, id: string): ItemLink[] {
-  return db().all<LinkRow>('SELECT * FROM item_links WHERE from_kind = ? AND from_id = ? ORDER BY created_at, id', from, id).map(toLink);
+  const plantViewer = plantOnly(currentUser());
+  return db()
+    .all<LinkRow>('SELECT * FROM item_links WHERE from_kind = ? AND from_id = ? ORDER BY created_at, id', from, id)
+    .map((r) => toLink(r, plantViewer));
 }
 
 /** Whether the current user may see an item (services: everyone; records: everyone but access change entries). */
@@ -368,11 +377,15 @@ export function targetVisible(kind: string, id: string): boolean {
 export function listBacklinks(kind: string, id: string): Backlink[] {
   const rows = db().all<LinkRow>('SELECT * FROM item_links WHERE to_kind = ? AND to_id = ? ORDER BY created_at, id', kind, id);
   const out: Backlink[] = [];
+  // a plant viewer (#218) sees the registry's own sources only: records, services and credentials are not theirs
+  const plantViewer = plantOnly(currentUser());
   for (const r of rows) {
+    if (plantViewer && !PLANT_KINDS.has(r.from_kind)) continue;
     const src = RESOLVERS.get(r.from_kind)?.resolve(r.from_id);
     if (!src) continue;
     out.push({ linkId: r.id, kind: r.from_kind as Backlink['kind'], id: r.from_id, label: src.label, note: r.note, path: src.path });
   }
+  if (plantViewer) return out;
   for (const c of credentialsLinkingTo(kind, id)) {
     out.push({ linkId: `credential:${c.id}`, kind: 'credential', id: c.id, label: c.name, note: '', path: `/credentials?open=${encodeURIComponent(c.id)}` });
   }
