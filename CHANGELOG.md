@@ -29,6 +29,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Status viewers and API tokens**: a status viewer is refused by the public API (`/api/v1`) and the MCP endpoint, also with a token made before the account became a status viewer; before, such a token could still read the API.
 - **Process editor**: expression fields no longer carry `aria-expanded` on their text area (an accessibility error screen readers and axe report); the suggestions stay announced.
 - **Platform page on phones**: the panel with the last connection test no longer squeezes its text to one letter a line next to the periodic test.
 
