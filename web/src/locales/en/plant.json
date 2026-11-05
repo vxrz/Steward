@@ -349,6 +349,11 @@
       "siteId": "site",
       "status": "status",
       "notInSource": "back in the source"
+    },
+    "kinds": {
+      "profile": "Device profile",
+      "kpi": "KPI definition",
+      "assignment": "Assignment"
     }
   },
   "settings": {

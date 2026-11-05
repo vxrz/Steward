@@ -46,6 +46,12 @@ export const sitePermissions = (s: { id: string; acl: string }, u: AuthUser | nu
 export const canCreateSites = (u: AuthUser | null = currentUser()): boolean => !!u && u.roles.some((r) => SITE_CREATORS.includes(r));
 
 /**
+ * Who manages the catalogues of part 2 (#219) – device profiles and KPI definitions, which belong to no site: whoever
+ * may add sites (designers and administrators). Everyone who sees the plant registry sees them.
+ */
+export const canManageCatalogue = (u: AuthUser | null = currentUser()): boolean => canCreateSites(u);
+
+/**
  * The rights on every site, read once (lists of assets check many rows of few sites). Unknown sites: no rights.
  */
 export function siteRights(rows: { id: string; acl: string }[], u: AuthUser | null = currentUser()): Map<string, PlantPermission[]> {

@@ -20,8 +20,10 @@ import { assignCreatorTeams } from '../auth/policy.js';
 import { listBacklinks, listLinks } from '../records/links.js';
 import { imageInfo, looksLikeSvg } from '../theme/service.js';
 import { HttpError, nowIso, parseJson, sha256 } from '../util.js';
-import { canCreateSites, plantManagesSome, requireManage, siteRights, sitePermissions } from './access.js';
+import { canCreateSites, canManageCatalogue, plantManagesSome, requireManage, siteRights, sitePermissions } from './access.js';
 import { cleanFields, plantSettings, requirePlant } from './settings.js';
+import { assignmentValuesOf, profileRowOf, profileValuesOf, type AssignmentRow } from './data-model.js';
+import { deliveries } from './checks.js';
 import {
   assetInput,
   assetRowOf,
@@ -197,6 +199,7 @@ export function plantConfig(): PlantConfig {
     fields: s.fields,
     canCreateSites: canCreateSites(),
     canManageSome: plantManagesSome(),
+    canManageCatalogue: canManageCatalogue(),
   };
 }
 
@@ -492,6 +495,10 @@ export interface AssetFilter {
   q?: string;
   /** An external reference: system:id (or just the id) */
   ref?: string;
+  /** Assets with this device profile (#219) */
+  profile?: string;
+  /** With profile: assets that deliver this data point of it */
+  dataPoint?: string;
 }
 
 /** Assets the caller may see (filtered), with their locations; sorted by name. */
@@ -521,6 +528,20 @@ export function listAssets(f: AssetFilter = {}): PlantAssetSummary[] {
   if (f.tag) {
     const t = f.tag.toLowerCase();
     rows = rows.filter((a) => parseJson<string[]>(a.tags, []).some((x) => x.toLowerCase() === t));
+  }
+  if (f.profile) {
+    const pr = profileRowOf(f.profile);
+    const profile = pr ? profileValuesOf(pr) : null;
+    const assigned = new Map(
+      db()
+        .all<AssignmentRow>('SELECT * FROM plant_assignments WHERE profile_id = ?', f.profile)
+        .map((r) => [r.asset_id, assignmentValuesOf(r)]),
+    );
+    rows = rows.filter((a) => {
+      const x = assigned.get(a.id);
+      if (!x || !profile) return false;
+      return !f.dataPoint || !!deliveries(x, profile).get(f.dataPoint)?.delivers;
+    });
   }
   const refs = refsOf(
     'asset',

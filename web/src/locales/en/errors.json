@@ -851,7 +851,16 @@
     "PLANT_IMAGE_DIMENSIONS": "The image must be between 1 and {{max}} pixels wide and high.",
     "PLANT_IMAGE_NONE": "The asset has no image.",
     "PLANT_IMPORT_INVALID": "The files have {{count}} problems – see the preview.",
-    "PLANT_IMPORT_TOO_LARGE": "The files are too large together (at most {{mb}} MB)."
+    "PLANT_IMPORT_TOO_LARGE": "The files are too large together (at most {{mb}} MB).",
+    "FORBIDDEN_managePlantCatalogue": "Only designers and administrators add and change device profiles and KPI definitions.",
+    "PLANT_PROFILE_NOT_FOUND": "This device profile does not exist (any more).",
+    "PLANT_KPI_NOT_FOUND": "This KPI definition does not exist (any more).",
+    "PLANT_POINT_NOT_FOUND": "This data point does not exist (any more).",
+    "PLANT_PROFILE_INVALID": "The device profile cannot be saved – {{path}}: {{message}}",
+    "PLANT_KPI_INVALID": "The KPI definition cannot be saved – {{path}}: {{message}}",
+    "PLANT_ASSIGNMENT_INVALID": "The assignment cannot be saved – {{path}}: {{message}}",
+    "PLANT_PROFILE_IN_USE": "The device profile is still assigned to assets – remove those assignments first.",
+    "PLANT_KPI_IN_USE": "Assets still have KPI instances of this definition – remove those first."
   },
   "boundary": {
     "title": "Something went wrong on this page",

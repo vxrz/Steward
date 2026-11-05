@@ -35,7 +35,7 @@ import { secretInputNames } from '../engine/secret-inputs.js';
 import { copyOwningTeams, type Duplicator } from './common.js';
 import { monitorDuplicator } from './monitor.js';
 import { applicationDuplicator, serviceDuplicator, systemDuplicator } from './catalogue.js';
-import { assetDuplicator } from '../plant/duplicate.js';
+import { assetDuplicator, kpiDuplicator, profileDuplicator } from '../plant/duplicate.js';
 
 /** Platforms bound to a schedule must be usable by the person who copies it (as when they create one). */
 const usablePlatforms = (bindings: Record<string, string>): boolean =>
@@ -333,4 +333,6 @@ export const DUPLICATORS: Record<DuplicateKind, Duplicator<never>> = {
   'status-page': statusPageDuplicator,
   system: systemDuplicator,
   asset: assetDuplicator,
+  'device-profile': profileDuplicator,
+  'kpi-definition': kpiDuplicator,
 } as unknown as Record<DuplicateKind, Duplicator<never>>;

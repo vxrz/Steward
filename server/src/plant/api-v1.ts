@@ -8,7 +8,9 @@ import { linkNext, pageArray } from '../api/v1/pagination.js';
 import type { Op } from '../api/v1/routes.js';
 import { refsOf } from './model.js';
 import * as svc from './service.js';
-import { PlantAssetListQuery, PlantSiteListQuery } from './api-schemas.js';
+import * as cat from './catalogue.js';
+import { getAssignment } from './assignments.js';
+import { PlantAssetListQuery, PlantCatalogueListQuery, PlantSiteListQuery } from './api-schemas.js';
 
 /**
  * The plant registry in the public, read-only API (#218): sites with their hierarchy and buildings, assets with their
@@ -136,6 +138,125 @@ export function plantApiRoutes(get: Get): void {
     async (req) => {
       const { canManage: _c, backlinks: _b, image: _i, refs, links, ...a } = found(() => svc.getAsset((req.params as { assetId: string }).assetId), 'Asset');
       return { ...a, externalRefs: refs, links: links.map(mapLink) };
+    },
+  );
+
+  // ---------- part 2 (#219): device profiles, KPI definitions, an asset's assignment ----------
+  get(
+    '/plant/assets/:assetId/assignment',
+    {
+      operationId: 'getPlantAssetAssignment',
+      tag: 'Plant',
+      summary: 'Get what an asset delivers: its device profile, interfaces, KPI instances and checks',
+      description: `The asset's device profile and controller firmware, per interface whether it is set up and where (endpoint), data points that differ on this asset, where its data points are published, its KPI instances (job, parameters, dashboard or dataset), what Steward checks and the KPI definitions it can have. ${MODULE}`,
+      params: { assetId: 'Asset id' },
+      response: { $ref: 'PlantAssignmentEntry#' },
+    },
+    async (req) => {
+      const { canManage: _c, profile, kpis, ...a } = found(() => getAssignment((req.params as { assetId: string }).assetId), 'Asset');
+      return {
+        ...a,
+        profile: profile
+          ? {
+              id: profile.id,
+              name: profile.name,
+              manufacturer: profile.manufacturer,
+              model: profile.model,
+              version: profile.version,
+              category: profile.category,
+              interfaces: profile.interfaces,
+            }
+          : null,
+        kpis: kpis.map(({ results: _r, ...k }) => k),
+      };
+    },
+  );
+
+  get(
+    '/plant/profiles',
+    {
+      operationId: 'listPlantProfiles',
+      tag: 'Plant',
+      summary: 'List device profiles',
+      description: `The device profiles of the installation (a catalogue: controllers and devices with their interfaces and data points), ordered by name. ${MODULE}`,
+      query: PlantCatalogueListQuery,
+      paginated: true,
+      response: {
+        ...page,
+        description: 'A page of device profiles',
+        properties: { items: { type: 'array', items: { $ref: 'PlantProfileEntry#' } }, nextCursor: { type: ['string', 'null'] } },
+      },
+    },
+    async (req, reply) => {
+      const q = req.query as z.infer<typeof PlantCatalogueListQuery>;
+      const p = pageArray(
+        found(() => cat.listProfiles(), 'Plant registry'),
+        (x) => [x.name.toLowerCase(), x.id],
+        q,
+        {},
+      );
+      linkNext(req, reply, p.nextCursor);
+      return p;
+    },
+  );
+
+  get(
+    '/plant/profiles/:profileId',
+    {
+      operationId: 'getPlantProfile',
+      tag: 'Plant',
+      summary: 'Get a device profile with its interfaces and data points',
+      description: `Interfaces (protocol, direction, port, authentication, the client they need) with their data point groups and data points (data type, UCUM unit, address, access, update rate), file sets, the assets with this profile and the KPI definitions that read it. ${MODULE}`,
+      params: { profileId: 'Device profile id' },
+      response: { $ref: 'PlantProfileDetailEntry#' },
+    },
+    async (req) => {
+      const { canManage: _c, ...p } = found(() => cat.getProfile((req.params as { profileId: string }).profileId), 'Device profile');
+      return p;
+    },
+  );
+
+  get(
+    '/plant/kpis',
+    {
+      operationId: 'listPlantKpis',
+      tag: 'Plant',
+      summary: 'List KPI definitions',
+      description: `The KPI definitions of the installation (a catalogue), ordered by name, with their category, unit, ISO 22400-2 trend and counts. ${MODULE}`,
+      query: PlantCatalogueListQuery,
+      paginated: true,
+      response: {
+        ...page,
+        description: 'A page of KPI definitions',
+        properties: { items: { type: 'array', items: { $ref: 'PlantKpiEntry#' } }, nextCursor: { type: ['string', 'null'] } },
+      },
+    },
+    async (req, reply) => {
+      const q = req.query as z.infer<typeof PlantCatalogueListQuery>;
+      const p = pageArray(
+        found(() => cat.listKpis(), 'Plant registry'),
+        (x) => [x.name.toLowerCase(), x.id],
+        q,
+        {},
+      );
+      linkNext(req, reply, p.nextCursor);
+      return p;
+    },
+  );
+
+  get(
+    '/plant/kpis/:kpiId',
+    {
+      operationId: 'getPlantKpi',
+      tag: 'Plant',
+      summary: 'Get a KPI definition',
+      description: `Inputs, parameters (type, default, aliases, range), result columns (sum, ratio, ignore), the computation and its limits, the ISO 22400-2 attributes, its problems, the assets with an instance and those that could have one. ${MODULE}`,
+      params: { kpiId: 'KPI definition id' },
+      response: { $ref: 'PlantKpiDetailEntry#' },
+    },
+    async (req) => {
+      const { canManage: _c, ...k } = found(() => cat.getKpi((req.params as { kpiId: string }).kpiId), 'KPI definition');
+      return k;
     },
   );
 }

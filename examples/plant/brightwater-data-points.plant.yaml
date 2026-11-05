@@ -1,0 +1,295 @@
+# yaml-language-server: $schema=https://github.com/vxrz/Steward/blob/main/docs/plant/plant-registry-1.schema.json
+# Steward plant registry, format 1 (docs/PLANT.md) – part 2: device profiles, KPI definitions and assignments.
+# Invented devices of the invented enterprise in brightwater.plant.yaml: manufacturers, models, addresses and hosts
+# are made up (example.com is reserved for examples). Milling centre 2 has a KPI instance whose OPC UA interface is
+# not set up yet – on purpose, so the checks have something to show.
+version: 1
+device_profiles:
+  - id: example-controls-c80
+    name: Example Controls C80 CNC controller
+    manufacturer: Example Controls
+    model: C80
+    version: 3.x
+    category: CNC controller
+    description: CNC controller of the milling centres. Its OPC UA server delivers the machine state, spindle and counters; NC programs are exchanged over WebDAV.
+    notes: The OPC UA namespace index (ns=2) is the same for every controller of firmware 3.x.
+    interfaces:
+      - id: opc-ua
+        name: OPC UA server
+        protocol: opc_ua
+        description: Built-in OPC UA server; read-only account for data collection.
+        version: "1.04"
+        default_port: 4840
+        authentication: username_password
+        client: OPC UA gateway
+        groups:
+          - name: Machine state
+            description: Operating state of channel 1.
+            data_points:
+              - id: program_status
+                name: Program status
+                description: State of the NC program in channel 1.
+                data_type: Int32
+                address: ns=2;s=Channel1.ProgramStatus
+                update_rate_ms: 1000
+                enum_values: [running, stopped, interrupted, aborted, reset]
+                notes: 1 = running … 5 = reset.
+                publications:
+                  - { target: iot-platform, path: machine-state, name: ProgramStatus }
+              - id: operating_mode
+                name: Operating mode
+                data_type: String
+                address: ns=2;s=Channel1.OperatingMode
+                update_rate_ms: 1000
+                enum_values: [auto, mdi, jog]
+              - id: active_program
+                name: Active NC program
+                data_type: String
+                address: ns=2;s=Channel1.ProgramName
+                update_rate_ms: 2000
+          - name: Spindle and feed
+            data_points:
+              - id: spindle_speed
+                name: Spindle speed
+                data_type: Double
+                unit: /min
+                address: ns=2;s=Spindle1.ActualSpeed
+                update_rate_ms: 500
+              - id: spindle_load
+                name: Spindle load
+                data_type: Double
+                unit: "%"
+                address: ns=2;s=Spindle1.Load
+                update_rate_ms: 500
+              - id: feed_override
+                name: Feed override
+                data_type: Double
+                unit: "%"
+                address: ns=2;s=Channel1.FeedOverride
+                access: read_write
+                update_rate_ms: 1000
+          - name: Counters
+            data_points:
+              - id: part_counter
+                name: Part counter
+                description: Parts finished since the counter was last reset.
+                data_type: UInt32
+                address: ns=2;i=50110
+                update_rate_ms: 5000
+              - id: alarm_count
+                name: Active alarms
+                data_type: UInt16
+                address: ns=2;s=Alarms.Count
+                update_rate_ms: 1000
+      - id: nc-files
+        name: NC program share
+        protocol: webdav
+        direction: read_write
+        default_port: 443
+        authentication: certificate
+        client: manual
+        file_sets:
+          - id: nc-programs
+            name: NC programs
+            format: ISO 6983 (G code)
+            direction: read_write
+            path_pattern: /nc/*.mpf
+            produced_per: program
+      - id: web-ui
+        name: Web diagnostics
+        protocol: http
+        default_port: 443
+        authentication: username_password
+        client: browser
+  - id: example-meters-pm200
+    name: Example Meters PM 200 power meter
+    manufacturer: Example Meters
+    model: PM 200
+    version: any
+    category: Power meter
+    description: Three-phase power meter in the distribution board of a machine. Polled over Modbus/TCP; it does not publish on its own.
+    interfaces:
+      - id: modbus-tcp
+        name: Modbus/TCP
+        protocol: modbus_tcp
+        description: All values are input registers (function code 4), 0-based; 32-bit floats span two registers, energy counters four.
+        default_port: 502
+        client: Modbus gateway
+        groups:
+          - name: Voltage and current
+            data_points:
+              - { id: voltage_l1_n, name: Voltage L1-N, data_type: Float, unit: V, address: "input:1,2", update_rate_ms: 10000 }
+              - { id: voltage_l2_n, name: Voltage L2-N, data_type: Float, unit: V, address: "input:3,2", update_rate_ms: 10000 }
+              - { id: voltage_l3_n, name: Voltage L3-N, data_type: Float, unit: V, address: "input:5,2", update_rate_ms: 10000 }
+              - { id: current_l1, name: Current L1, data_type: Float, unit: A, address: "input:13,2", update_rate_ms: 10000 }
+              - { id: current_l2, name: Current L2, data_type: Float, unit: A, address: "input:15,2", update_rate_ms: 10000 }
+              - { id: current_l3, name: Current L3, data_type: Float, unit: A, address: "input:17,2", update_rate_ms: 10000 }
+          - name: Power and energy
+            data_points:
+              - { id: active_power_total, name: Active power, data_type: Float, unit: kW, address: "input:65,2", update_rate_ms: 10000 }
+              - { id: power_factor, name: Power factor, data_type: Float, unit: "1", address: "input:69,2", update_rate_ms: 10000 }
+              - id: active_energy_import
+                name: Active energy (import)
+                description: Energy drawn since the meter was installed; kept across power failures.
+                data_type: Double
+                unit: kW.h
+                address: "input:801,4"
+                update_rate_ms: 60000
+                notes: 64-bit value in four registers.
+      - id: web-ui
+        name: Web page
+        protocol: http
+        default_port: 80
+        client: browser
+  - id: example-plastics-mc6
+    name: Example Plastics MC 6 machine control
+    manufacturer: Example Plastics Machinery
+    model: MC 6
+    version: "6.1"
+    category: Injection moulding control
+    description: Control of the injection moulding machines; publishes its cycle data to the site's MQTT broker.
+    interfaces:
+      - id: mqtt
+        name: MQTT client
+        protocol: mqtt
+        description: Publishes one message per cycle and the machine state when it changes (JSON payload).
+        default_port: 8883
+        authentication: certificate
+        client: MQTT broker
+        data_points:
+          - { id: machine_state, name: Machine state, data_type: String, address: im/+/state, enum_values: [production, setup, idle, alarm, off] }
+          - { id: cycle_counter, name: Cycle counter, data_type: UInt32, address: im/+/cycle/counter }
+          - { id: cycle_time, name: Cycle time, data_type: Double, unit: s, address: im/+/cycle/time }
+          - { id: mould_temperature, name: Mould temperature, data_type: Double, unit: Cel, address: im/+/mould/temperature, update_rate_ms: 5000 }
+kpi_definitions:
+  - id: machine-state-time
+    name: Time in machine state
+    names:
+      de: Zeit je Maschinenzustand
+    category: Availability
+    description: How long a machine spent in each program status per day, and its availability over the planned production time.
+    formula: availability_pct = running / planned_production_time × 100
+    unit: s
+    trend: higher_is_better
+    timing: periodic
+    audience: [supervisor, management]
+    methodology: discrete
+    strategy: state-duration
+    inputs:
+      - profile: example-controls-c80
+        data_points: [program_status]
+        notes: The status holds until the next sample says otherwise.
+    parameters:
+      - name: offline_timeout_ms
+        aliases: [max_sample_gap_ms]
+        description: A gap between two samples this long counts as offline, not as the last status.
+        type: integer
+        default: 60000
+        min: 1000
+        max: 3600000
+        unit: ms
+      - name: shift_calendar
+        description: The shift calendar that gives the planned production time.
+        type: string
+    columns:
+      - { name: total, scope: full, unit: s, description: Length of the window. }
+      - { name: planned_production_time, scope: bare, unit: s, description: Scheduled production time from the shift calendar. }
+      - { name: running, scope: full, unit: s }
+      - { name: stopped, scope: full, unit: s }
+      - { name: interrupted, scope: full, unit: s }
+      - { name: offline, scope: full, unit: s, description: Time the source could not be reached. }
+      - name: availability_pct
+        kind: ratio
+        scope: bare
+        unit: "%"
+        numerator: running
+        denominator: planned_production_time
+        scale: 100
+        description: Combined over a longer period by summing both sides and dividing once.
+      - { name: sample_count, kind: ignore, scope: bare, description: "Samples in the window – descriptive, not a measurement." }
+    computation:
+      summary: Each sample's status is billed the time until the next sample, up to the offline timeout; longer gaps are offline.
+      steps:
+        - {
+            name: Clip to the window,
+            does: Samples before the window are dropped.,
+            why: An earlier sample would bill time to a status seen before the window began.,
+          }
+        - { name: Accumulate dwell, does: Each status gets the time until the next sample., why: A status is a step function. }
+      identities:
+        - { relation: running + stopped + interrupted + offline = total, note: The buckets partition the window. }
+      limits:
+        - A gap is not a state – nothing here says what the machine did while it was offline.
+  - id: energy-consumption
+    name: Energy consumption
+    names:
+      de: Energieverbrauch
+    category: Energy
+    description: Energy drawn per day and the mean power over the time the meter was read.
+    formula: mean_power = energy / duration_hours
+    unit: kW.h
+    trend: lower_is_better
+    timing: periodic
+    audience: [supervisor, management]
+    methodology: discrete
+    strategy: counter-difference
+    inputs:
+      - profile: example-meters-pm200
+        data_points: [active_energy_import, active_power_total]
+    parameters:
+      - name: closest_point_max_distance_ms
+        description: How far a reading at a window boundary may be from it.
+        type: integer
+        default: 900000
+        min: 0
+        unit: ms
+    columns:
+      - { name: energy, unit: kW.h, description: Difference of the energy counter over the window. }
+      - { name: duration_hours, unit: h }
+      - { name: mean_power, kind: ratio, unit: kW, numerator: energy, denominator: duration_hours }
+      - { name: peak_power, kind: ignore, unit: kW, description: Highest reading – not summed over a period. }
+    computation:
+      summary: The energy counter is read at both window boundaries; the difference is the energy of the window.
+      limits:
+        - A meter that was replaced within the window gives a negative difference; the window is left out.
+assignments:
+  - asset: rvs-mill-01
+    profile: example-controls-c80
+    firmware: 3.4.2
+    interfaces:
+      - { interface: opc-ua, endpoint: "opc.tcp://rvs-mill-01.ot.example.com:4840" }
+      - { interface: nc-files, endpoint: "https://files.example.com/nc/rvs-mill-01/" }
+      - { interface: web-ui, active: false, notes: Only on the machine's own network. }
+    publications:
+      - { data_point: program_status, target: iot-platform, path: rvs-mill-01/machine-state, name: ProgramStatus, published_by: OPC UA gateway }
+      - { data_point: part_counter, target: iot-platform, path: rvs-mill-01/counters, name: PartCounter, published_by: OPC UA gateway }
+    kpis:
+      - kpi: machine-state-time
+        job: rvs-mill-01-machine-state
+        params: { offline_timeout_ms: 60000, shift_calendar: riverside-two-shift }
+        dataset: plant.machine-state
+  - asset: rvs-mill-02
+    profile: example-controls-c80
+    firmware: 3.2.0
+    interfaces:
+      - { interface: opc-ua, active: false, notes: Set up with the gateway upgrade. }
+      - { interface: nc-files, endpoint: "https://files.example.com/nc/rvs-mill-02/" }
+    kpis:
+      - kpi: machine-state-time
+        job: rvs-mill-02-machine-state
+        params: { offline_timeout_ms: 60000 }
+  - asset: rvs-mill-01-meter
+    profile: example-meters-pm200
+    firmware: "2.0"
+    interfaces:
+      - { interface: modbus-tcp, endpoint: "rvs-mill-01-meter.ot.example.com:502" }
+    overrides:
+      - { data_point: power_factor, available: false, notes: Not configured on this meter. }
+    kpis:
+      - kpi: energy-consumption
+        job: rvs-mill-01-energy
+  - asset: hlc-im-01
+    profile: example-plastics-mc6
+    firmware: "6.1.4"
+    interfaces:
+      - { interface: mqtt, endpoint: "mqtts://broker.ot.example.com:8883" }

@@ -23,7 +23,7 @@ import { fmtBytes, fmtDate } from '../format';
 import { plantKeys } from '../queryKeys';
 import { PreviewBadge, usePlantConfig, usePlantLabel } from '../components/plant/common';
 
-const KIND_TYPE: Record<PlantChangeKind, PlantRecordType> = {
+const KIND_TYPE: Partial<Record<PlantChangeKind, PlantRecordType>> = {
   site: 'site',
   area: 'area',
   work_center: 'workCenter',
@@ -31,6 +31,8 @@ const KIND_TYPE: Record<PlantChangeKind, PlantRecordType> = {
   building: 'building',
   asset: 'asset',
 };
+/** Kinds of part 2 (#219) without an own display name */
+type DataKind = 'profile' | 'kpi' | 'assignment';
 const ACTION_COLOR: Record<PlantChangeAction, string> = { add: 'green', change: 'blue', remove: 'red', mark: 'orange', unchanged: 'gray', skip: 'gray' };
 const ACTIONS: PlantChangeAction[] = ['add', 'change', 'remove', 'mark', 'unchanged', 'skip'];
 
@@ -108,7 +110,10 @@ export function PlantImportPage() {
     }
   };
   const changes = (preview?.changes ?? []).filter((c) => show === 'all' || (c.action !== 'unchanged' && c.action !== 'skip'));
-  const kindLabel = (k: PlantChangeKind) => label(KIND_TYPE[k]);
+  const kindLabel = (k: PlantChangeKind) => {
+    const type = KIND_TYPE[k];
+    return type ? label(type) : t(`import.kinds.${k as DataKind}`);
+  };
   return (
     <>
       <PageHeader
@@ -429,7 +434,7 @@ function ChangeTable({ changes, kindLabel }: { changes: PlantChange[]; kindLabel
               <Table.Td>
                 <Text size="sm">{c.name}</Text>
                 <Text size="xs" c="dimmed" className="mono">
-                  {c.kind === 'site' ? c.id : `${c.siteId} / ${c.id}`}
+                  {c.kind === 'site' || !c.siteId ? c.id : `${c.siteId} / ${c.id}`}
                 </Text>
               </Table.Td>
               <Table.Td>

@@ -136,4 +136,74 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // part 2 (#219): device profiles and KPI definitions (catalogues of the installation), an asset's assignment
+    name: 'plant-002-data-points',
+    sql: `
+      CREATE TABLE plant_profiles (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        manufacturer TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL DEFAULT '',
+        version TEXT NOT NULL DEFAULT '',
+        category TEXT NOT NULL DEFAULT '',
+        description TEXT NOT NULL DEFAULT '',
+        notes TEXT NOT NULL DEFAULT '',
+        interfaces TEXT NOT NULL DEFAULT '[]',
+        import_id TEXT,
+        not_in_source INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE TABLE plant_kpis (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        names TEXT NOT NULL DEFAULT '{}',
+        category TEXT NOT NULL DEFAULT '',
+        kind TEXT NOT NULL DEFAULT '',
+        description TEXT NOT NULL DEFAULT '',
+        formula TEXT NOT NULL DEFAULT '',
+        unit TEXT NOT NULL DEFAULT '',
+        range_min REAL,
+        range_max REAL,
+        trend TEXT,
+        timing TEXT,
+        audience TEXT NOT NULL DEFAULT '[]',
+        methodology TEXT,
+        strategy TEXT NOT NULL DEFAULT '',
+        implementation TEXT NOT NULL DEFAULT '',
+        dynamic_columns INTEGER NOT NULL DEFAULT 0,
+        inputs TEXT NOT NULL DEFAULT '[]',
+        parameters TEXT NOT NULL DEFAULT '[]',
+        result_columns TEXT NOT NULL DEFAULT '[]',
+        computation TEXT NOT NULL DEFAULT '{}',
+        notes TEXT NOT NULL DEFAULT '',
+        import_id TEXT,
+        not_in_source INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE TABLE plant_assignments (
+        asset_id TEXT PRIMARY KEY,
+        profile_id TEXT,
+        firmware TEXT NOT NULL DEFAULT '',
+        interfaces TEXT NOT NULL DEFAULT '[]',
+        overrides TEXT NOT NULL DEFAULT '[]',
+        publications TEXT NOT NULL DEFAULT '[]',
+        kpis TEXT NOT NULL DEFAULT '[]',
+        notes TEXT NOT NULL DEFAULT '',
+        import_id TEXT,
+        not_in_source INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE INDEX plant_assignments_profile ON plant_assignments(profile_id);
+    `,
+  },
 ];

@@ -349,6 +349,11 @@
       "siteId": "Standort",
       "status": "Status",
       "notInSource": "wieder in der Quelle"
+    },
+    "kinds": {
+      "profile": "Geräteprofil",
+      "kpi": "KPI-Definition",
+      "assignment": "Zuordnung"
     }
   },
   "settings": {

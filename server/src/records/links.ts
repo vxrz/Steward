@@ -398,6 +398,12 @@ export function searchTargets(kind: LinkKind, q: string, limit = 20): LinkTarget
   return r.search(q.slice(0, 100), Math.min(Math.max(limit, 1), 50));
 }
 
+/** Name and page of a link target the current user may see (null: missing or not visible). */
+export function resolveTarget(kind: string, id: string): { label: string; path: string } | null {
+  const r = RESOLVERS.get(kind)?.resolve(id);
+  return r ? { label: r.label, path: r.path } : null;
+}
+
 /** Label of a link target for audit summaries (never the label of an invisible item). */
 export function describeTarget(kind: string, id: string): string | null {
   return RESOLVERS.get(kind)?.resolve(id)?.label ?? null;
