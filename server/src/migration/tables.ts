@@ -55,6 +55,7 @@ export const NOT_MOVED: Record<string, string> = {
   identity_aliases: 'history of earlier moves',
   assurance_policy_changes:
     "pending changes of this instance's assurance policy (7 days at most; the target keeps its own policy, set it there – a second administrator approves loosening it)",
+  ai_budget_notices: 'send bookkeeping of the source (an AI budget notice of the current period may be sent again on the target)',
   schema_version: 'maintained by the migrations',
   schema_migrations: 'maintained by the migrations',
   sqlite_sequence: 'SQLite internal',
@@ -114,6 +115,8 @@ export const USER_REFS: UserRef[] = [
   // the owners a service had on the day of the snapshot: mapped, so the trend per owner names the target's users and teams
   { table: 'scorecard_snapshots', column: 'owners', kind: 'subjects' },
   { table: 'ticket_refs', column: 'responsible', kind: 'subjects' },
+  // the access list of a plant registry site (#218)
+  { table: 'plant_sites', column: 'acl', kind: 'acl' },
 ];
 
 /**
@@ -121,6 +124,19 @@ export const USER_REFS: UserRef[] = [
  * Listed so that the classification test notices new person columns.
  */
 export const HISTORY_COLUMNS: string[] = [
+  'ai_usage.actor',
+  'ai_budgets.updated_by',
+  // the plant registry (#218)
+  'plant_sites.created_by',
+  'plant_sites.updated_by',
+  'plant_nodes.created_by',
+  'plant_nodes.updated_by',
+  'plant_buildings.created_by',
+  'plant_buildings.updated_by',
+  'plant_assets.created_by',
+  'plant_assets.updated_by',
+  'plant_asset_images.updated_by',
+  'plant_imports.created_by',
   'access_checks.updated_by',
   'application_components.created_by',
   'platform_recordings.created_by',
@@ -253,6 +269,7 @@ export const SETTINGS_MOVED = [
   'notifications.look',
   'catalogue.lifecycle',
   'catalogue.environments',
+  'plant.settings',
 ];
 
 /** Folders of the data directory with stored files (attachments, artifacts, reports, evidence packs, logos). */

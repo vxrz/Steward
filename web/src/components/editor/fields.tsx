@@ -29,6 +29,7 @@ import { useProcesses } from './editorApi';
 import i18n from '../../i18n';
 import { browserActionLabel, type LocalizedField } from '../../i18n/meta';
 import { subjectOptionLabel } from '../AccessEditor';
+import { AiContextEditor, AiModelField, PromptField } from './AiStepFields';
 
 /** "{{ expression }}" as a value, so i18next does not read it as a placeholder of its own. */
 const EXPR = { expr: '{{ expression }}' };
@@ -205,6 +206,12 @@ export function FieldInput({ field, value, onChange, connections }: FieldProps) 
       return <SubjectsField label={label} description={description} value={value as string[] | undefined} onChange={onChange} />;
     case 'process':
       return <ProcessField label={label} description={description} value={value as string | undefined} onChange={onChange} required={field.required} />;
+    case 'aiModel':
+      return <AiModelField field={field} value={value} onChange={onChange} />;
+    case 'prompt':
+      return <PromptField field={field} value={value} onChange={onChange} />;
+    case 'aiContext':
+      return <AiContextEditor field={field} value={value} onChange={onChange} />;
     default:
       return null;
   }

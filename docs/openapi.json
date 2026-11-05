@@ -138,7 +138,8 @@
                     "approver",
                     "auditor",
                     "viewer",
-                    "status"
+                    "status",
+                    "plant"
                   ]
                 }
               },
@@ -3339,7 +3340,8 @@
                 "approver",
                 "auditor",
                 "viewer",
-                "status"
+                "status",
+                "plant"
               ]
             }
           },
@@ -16480,6 +16482,2094 @@
           "history"
         ],
         "additionalProperties": false
+      },
+      "PlantSiteEntry": {
+        "title": "PlantSiteEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable id"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "names": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Translations of the name, keyed by language code"
+          },
+          "description": {
+            "type": "string"
+          },
+          "geo": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "lat": {
+                    "type": "number"
+                  },
+                  "lon": {
+                    "type": "number"
+                  },
+                  "zoom": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "lat",
+                  "lon",
+                  "zoom"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "areaCount": {
+            "type": "integer"
+          },
+          "buildingCount": {
+            "type": "integer"
+          },
+          "assetCount": {
+            "type": "integer"
+          },
+          "statusCounts": {
+            "type": "object",
+            "properties": {
+              "planned": {
+                "type": "integer"
+              },
+              "commissioning": {
+                "type": "integer"
+              },
+              "operational": {
+                "type": "integer"
+              },
+              "maintenance": {
+                "type": "integer"
+              },
+              "out_of_service": {
+                "type": "integer"
+              },
+              "decommissioned": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Assets by status"
+          },
+          "importId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The last import that wrote the record (null: entered in Steward)"
+          },
+          "notInSource": {
+            "type": "boolean",
+            "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "names",
+          "description",
+          "geo",
+          "areaCount",
+          "buildingCount",
+          "assetCount",
+          "statusCounts",
+          "importId",
+          "notInSource",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "PlantSiteDetailEntry": {
+        "title": "PlantSiteDetailEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable id"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "names": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Translations of the name, keyed by language code"
+          },
+          "description": {
+            "type": "string"
+          },
+          "geo": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "lat": {
+                    "type": "number"
+                  },
+                  "lon": {
+                    "type": "number"
+                  },
+                  "zoom": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "lat",
+                  "lon",
+                  "zoom"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "areaCount": {
+            "type": "integer"
+          },
+          "buildingCount": {
+            "type": "integer"
+          },
+          "assetCount": {
+            "type": "integer"
+          },
+          "statusCounts": {
+            "type": "object",
+            "properties": {
+              "planned": {
+                "type": "integer"
+              },
+              "commissioning": {
+                "type": "integer"
+              },
+              "operational": {
+                "type": "integer"
+              },
+              "maintenance": {
+                "type": "integer"
+              },
+              "out_of_service": {
+                "type": "integer"
+              },
+              "decommissioned": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Assets by status"
+          },
+          "importId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The last import that wrote the record (null: entered in Steward)"
+          },
+          "notInSource": {
+            "type": "boolean",
+            "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "phone": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "role",
+                "email",
+                "phone",
+                "url"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "externalRefs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "system": {
+                  "type": "string",
+                  "description": "The other tool (erp, cmms, inventory, …)"
+                },
+                "id": {
+                  "type": "string",
+                  "description": "The record’s id there"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Its page there, or empty"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "system",
+                "id",
+                "url",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "null",
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "description": "Own fields (Settings → Modules → Plant registry)"
+          },
+          "areas": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "area",
+                    "work_center",
+                    "work_unit"
+                  ],
+                  "description": "ISA-95 level: area, work_center or work_unit"
+                },
+                "parentId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "names": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Translations of the name, keyed by language code"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "ISA-95 kind of a work center or work unit, or empty"
+                },
+                "domain": {
+                  "type": "string"
+                },
+                "buildingId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The building the node names"
+                },
+                "effectiveBuildingId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The building that applies: the innermost one of the node and its parents"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "fields": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": [
+                      "null",
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  },
+                  "description": "Own fields (Settings → Modules → Plant registry)"
+                },
+                "assetCount": {
+                  "type": "integer",
+                  "description": "Assets placed exactly here"
+                },
+                "importId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The last import that wrote the record (null: entered in Steward)"
+                },
+                "notInSource": {
+                  "type": "boolean",
+                  "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "level": {
+                        "type": "string",
+                        "enum": [
+                          "area",
+                          "work_center",
+                          "work_unit"
+                        ],
+                        "description": "ISA-95 level: area, work_center or work_unit"
+                      },
+                      "parentId": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "names": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Translations of the name, keyed by language code"
+                      },
+                      "type": {
+                        "type": "string",
+                        "description": "ISA-95 kind of a work center or work unit, or empty"
+                      },
+                      "domain": {
+                        "type": "string"
+                      },
+                      "buildingId": {
+                        "type": [
+                          "null",
+                          "string"
+                        ],
+                        "description": "The building the node names"
+                      },
+                      "effectiveBuildingId": {
+                        "type": [
+                          "null",
+                          "string"
+                        ],
+                        "description": "The building that applies: the innermost one of the node and its parents"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "fields": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": [
+                            "null",
+                            "string",
+                            "number",
+                            "boolean"
+                          ]
+                        },
+                        "description": "Own fields (Settings → Modules → Plant registry)"
+                      },
+                      "assetCount": {
+                        "type": "integer",
+                        "description": "Assets placed exactly here"
+                      },
+                      "importId": {
+                        "type": [
+                          "null",
+                          "string"
+                        ],
+                        "description": "The last import that wrote the record (null: entered in Steward)"
+                      },
+                      "notInSource": {
+                        "type": "boolean",
+                        "description": "Kept although the import that replaced its earlier one no longer contained it"
+                      },
+                      "children": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "level": {
+                              "type": "string",
+                              "enum": [
+                                "area",
+                                "work_center",
+                                "work_unit"
+                              ],
+                              "description": "ISA-95 level: area, work_center or work_unit"
+                            },
+                            "parentId": {
+                              "type": [
+                                "null",
+                                "string"
+                              ]
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "names": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "description": "Translations of the name, keyed by language code"
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "ISA-95 kind of a work center or work unit, or empty"
+                            },
+                            "domain": {
+                              "type": "string"
+                            },
+                            "buildingId": {
+                              "type": [
+                                "null",
+                                "string"
+                              ],
+                              "description": "The building the node names"
+                            },
+                            "effectiveBuildingId": {
+                              "type": [
+                                "null",
+                                "string"
+                              ],
+                              "description": "The building that applies: the innermost one of the node and its parents"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "fields": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": [
+                                  "null",
+                                  "string",
+                                  "number",
+                                  "boolean"
+                                ]
+                              },
+                              "description": "Own fields (Settings → Modules → Plant registry)"
+                            },
+                            "assetCount": {
+                              "type": "integer",
+                              "description": "Assets placed exactly here"
+                            },
+                            "importId": {
+                              "type": [
+                                "null",
+                                "string"
+                              ],
+                              "description": "The last import that wrote the record (null: entered in Steward)"
+                            },
+                            "notInSource": {
+                              "type": "boolean",
+                              "description": "Kept although the import that replaced its earlier one no longer contained it"
+                            },
+                            "children": {
+                              "type": "array",
+                              "items": {
+                                "not": {}
+                              },
+                              "description": "Always empty"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "level",
+                            "parentId",
+                            "name",
+                            "names",
+                            "type",
+                            "domain",
+                            "buildingId",
+                            "effectiveBuildingId",
+                            "description",
+                            "fields",
+                            "assetCount",
+                            "importId",
+                            "notInSource",
+                            "children"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "description": "Its work units"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "level",
+                      "parentId",
+                      "name",
+                      "names",
+                      "type",
+                      "domain",
+                      "buildingId",
+                      "effectiveBuildingId",
+                      "description",
+                      "fields",
+                      "assetCount",
+                      "importId",
+                      "notInSource",
+                      "children"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Its work centers with their work units"
+                }
+              },
+              "required": [
+                "id",
+                "level",
+                "parentId",
+                "name",
+                "names",
+                "type",
+                "domain",
+                "buildingId",
+                "effectiveBuildingId",
+                "description",
+                "fields",
+                "assetCount",
+                "importId",
+                "notInSource",
+                "children"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The ISA-95 hierarchy: areas with their work centers and work units"
+          },
+          "buildings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "names": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Translations of the name, keyed by language code"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "building",
+                    "hall",
+                    "floor",
+                    "room",
+                    "outdoor",
+                    "other"
+                  ]
+                },
+                "parentId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "A building part names the building it is in"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "fields": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": [
+                      "null",
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  },
+                  "description": "Own fields (Settings → Modules → Plant registry)"
+                },
+                "nodeCount": {
+                  "type": "integer"
+                },
+                "assetCount": {
+                  "type": "integer",
+                  "description": "Assets whose building this is"
+                },
+                "importId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The last import that wrote the record (null: entered in Steward)"
+                },
+                "notInSource": {
+                  "type": "boolean",
+                  "description": "Kept although the import that replaced its earlier one no longer contained it"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "names",
+                "kind",
+                "parentId",
+                "description",
+                "fields",
+                "nodeCount",
+                "assetCount",
+                "importId",
+                "notInSource"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The spatial axis: buildings, halls, floors, rooms, outdoor places"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service, credential, application); null for an external URL"
+                },
+                "targetId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Id of the internal item – null for an external URL and when the token owner may not see the item"
+                },
+                "url": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "External http(s) URL"
+                },
+                "linkType": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "External links: key of the link type – built-in runbook, repository, monitoring, vendor-portal, documentation, ticket-system, other, or one an administrator added; null for internal links and external links without a type"
+                },
+                "linkTypeName": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Name of the link type (built-in types in English); null when the link has no type"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Name of the target – empty when the token owner may not see it"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "visible": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "targetId",
+                "url",
+                "linkType",
+                "linkTypeName",
+                "label",
+                "note",
+                "visible"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "names",
+          "description",
+          "geo",
+          "areaCount",
+          "buildingCount",
+          "assetCount",
+          "statusCounts",
+          "importId",
+          "notInSource",
+          "updatedAt",
+          "contacts",
+          "externalRefs",
+          "fields",
+          "areas",
+          "buildings",
+          "links",
+          "createdAt",
+          "createdBy",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "PlantNodeEntry": {
+        "title": "PlantNodeEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "area",
+              "work_center",
+              "work_unit"
+            ],
+            "description": "ISA-95 level: area, work_center or work_unit"
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "names": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Translations of the name, keyed by language code"
+          },
+          "type": {
+            "type": "string",
+            "description": "ISA-95 kind of a work center or work unit, or empty"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "buildingId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The building the node names"
+          },
+          "effectiveBuildingId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The building that applies: the innermost one of the node and its parents"
+          },
+          "description": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean",
+                "null"
+              ]
+            },
+            "description": "Own fields (Settings → Modules → Plant registry)"
+          },
+          "assetCount": {
+            "type": "integer",
+            "description": "Assets placed exactly here"
+          },
+          "importId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The last import that wrote the record (null: entered in Steward)"
+          },
+          "notInSource": {
+            "type": "boolean",
+            "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "area",
+                    "work_center",
+                    "work_unit"
+                  ],
+                  "description": "ISA-95 level: area, work_center or work_unit"
+                },
+                "parentId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "names": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Translations of the name, keyed by language code"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "ISA-95 kind of a work center or work unit, or empty"
+                },
+                "domain": {
+                  "type": "string"
+                },
+                "buildingId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The building the node names"
+                },
+                "effectiveBuildingId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The building that applies: the innermost one of the node and its parents"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "fields": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "description": "Own fields (Settings → Modules → Plant registry)"
+                },
+                "assetCount": {
+                  "type": "integer",
+                  "description": "Assets placed exactly here"
+                },
+                "importId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The last import that wrote the record (null: entered in Steward)"
+                },
+                "notInSource": {
+                  "type": "boolean",
+                  "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "level": {
+                        "type": "string",
+                        "enum": [
+                          "area",
+                          "work_center",
+                          "work_unit"
+                        ],
+                        "description": "ISA-95 level: area, work_center or work_unit"
+                      },
+                      "parentId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "names": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Translations of the name, keyed by language code"
+                      },
+                      "type": {
+                        "type": "string",
+                        "description": "ISA-95 kind of a work center or work unit, or empty"
+                      },
+                      "domain": {
+                        "type": "string"
+                      },
+                      "buildingId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The building the node names"
+                      },
+                      "effectiveBuildingId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The building that applies: the innermost one of the node and its parents"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "fields": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": [
+                            "string",
+                            "number",
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "description": "Own fields (Settings → Modules → Plant registry)"
+                      },
+                      "assetCount": {
+                        "type": "integer",
+                        "description": "Assets placed exactly here"
+                      },
+                      "importId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The last import that wrote the record (null: entered in Steward)"
+                      },
+                      "notInSource": {
+                        "type": "boolean",
+                        "description": "Kept although the import that replaced its earlier one no longer contained it"
+                      },
+                      "children": {
+                        "type": "array",
+                        "items": {
+                          "not": {}
+                        },
+                        "description": "Always empty"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "level",
+                      "parentId",
+                      "name",
+                      "names",
+                      "type",
+                      "domain",
+                      "buildingId",
+                      "effectiveBuildingId",
+                      "description",
+                      "fields",
+                      "assetCount",
+                      "importId",
+                      "notInSource",
+                      "children"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Its work units"
+                }
+              },
+              "required": [
+                "id",
+                "level",
+                "parentId",
+                "name",
+                "names",
+                "type",
+                "domain",
+                "buildingId",
+                "effectiveBuildingId",
+                "description",
+                "fields",
+                "assetCount",
+                "importId",
+                "notInSource",
+                "children"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Its work centers with their work units"
+          }
+        },
+        "required": [
+          "id",
+          "level",
+          "parentId",
+          "name",
+          "names",
+          "type",
+          "domain",
+          "buildingId",
+          "effectiveBuildingId",
+          "description",
+          "fields",
+          "assetCount",
+          "importId",
+          "notInSource",
+          "children"
+        ],
+        "additionalProperties": false
+      },
+      "PlantBuildingEntry": {
+        "title": "PlantBuildingEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "names": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Translations of the name, keyed by language code"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "building",
+              "hall",
+              "floor",
+              "room",
+              "outdoor",
+              "other"
+            ]
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A building part names the building it is in"
+          },
+          "description": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean",
+                "null"
+              ]
+            },
+            "description": "Own fields (Settings → Modules → Plant registry)"
+          },
+          "nodeCount": {
+            "type": "integer"
+          },
+          "assetCount": {
+            "type": "integer",
+            "description": "Assets whose building this is"
+          },
+          "importId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The last import that wrote the record (null: entered in Steward)"
+          },
+          "notInSource": {
+            "type": "boolean",
+            "description": "Kept although the import that replaced its earlier one no longer contained it"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "names",
+          "kind",
+          "parentId",
+          "description",
+          "fields",
+          "nodeCount",
+          "assetCount",
+          "importId",
+          "notInSource"
+        ],
+        "additionalProperties": false
+      },
+      "PlantAssetEntry": {
+        "title": "PlantAssetEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "manufacturer": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "commissioning",
+              "operational",
+              "maintenance",
+              "out_of_service",
+              "decommissioned"
+            ]
+          },
+          "siteId": {
+            "type": "string"
+          },
+          "location": {
+            "type": "object",
+            "properties": {
+              "site": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "names": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Translations of the name, keyed by language code"
+                  },
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "names",
+                  "code"
+                ],
+                "additionalProperties": false
+              },
+              "area": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "names": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Translations of the name, keyed by language code"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "names"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "workCenter": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "names": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Translations of the name, keyed by language code"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "names"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "workUnit": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "names": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Translations of the name, keyed by language code"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "names"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "buildingId": {
+                "type": [
+                  "null",
+                  "string"
+                ],
+                "description": "The asset’s own building (override)"
+              },
+              "building": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "names": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Translations of the name, keyed by language code"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "building",
+                          "hall",
+                          "floor",
+                          "room",
+                          "outdoor",
+                          "other"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "names",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The building that applies"
+              },
+              "buildingFrom": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "asset",
+                      "work_unit",
+                      "work_center",
+                      "area"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Where the building comes from"
+              }
+            },
+            "required": [
+              "site",
+              "area",
+              "workCenter",
+              "workUnit",
+              "buildingId",
+              "building",
+              "buildingFrom"
+            ],
+            "additionalProperties": false
+          },
+          "domain": {
+            "type": "string"
+          },
+          "processArea": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "parentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The asset this one is part of (equipment hierarchy)"
+          },
+          "childCount": {
+            "type": "integer"
+          },
+          "externalRefs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "system": {
+                  "type": "string",
+                  "description": "The other tool (erp, cmms, inventory, …)"
+                },
+                "id": {
+                  "type": "string",
+                  "description": "The record’s id there"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Its page there, or empty"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "system",
+                "id",
+                "url",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "importId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The last import that wrote the record (null: entered in Steward)"
+          },
+          "notInSource": {
+            "type": "boolean",
+            "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "manufacturer",
+          "model",
+          "status",
+          "siteId",
+          "location",
+          "domain",
+          "processArea",
+          "role",
+          "tags",
+          "parentId",
+          "childCount",
+          "externalRefs",
+          "importId",
+          "notInSource",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "PlantAssetDetailEntry": {
+        "title": "PlantAssetDetailEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "manufacturer": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "commissioning",
+              "operational",
+              "maintenance",
+              "out_of_service",
+              "decommissioned"
+            ]
+          },
+          "siteId": {
+            "type": "string"
+          },
+          "location": {
+            "type": "object",
+            "properties": {
+              "site": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "names": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Translations of the name, keyed by language code"
+                  },
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "names",
+                  "code"
+                ],
+                "additionalProperties": false
+              },
+              "area": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "names": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Translations of the name, keyed by language code"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "names"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "workCenter": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "names": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Translations of the name, keyed by language code"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "names"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "workUnit": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "names": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Translations of the name, keyed by language code"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "names"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "buildingId": {
+                "type": [
+                  "null",
+                  "string"
+                ],
+                "description": "The asset’s own building (override)"
+              },
+              "building": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "names": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Translations of the name, keyed by language code"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "building",
+                          "hall",
+                          "floor",
+                          "room",
+                          "outdoor",
+                          "other"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "names",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The building that applies"
+              },
+              "buildingFrom": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "asset",
+                      "work_unit",
+                      "work_center",
+                      "area"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Where the building comes from"
+              }
+            },
+            "required": [
+              "site",
+              "area",
+              "workCenter",
+              "workUnit",
+              "buildingId",
+              "building",
+              "buildingFrom"
+            ],
+            "additionalProperties": false
+          },
+          "domain": {
+            "type": "string"
+          },
+          "processArea": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "parentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The asset this one is part of (equipment hierarchy)"
+          },
+          "childCount": {
+            "type": "integer"
+          },
+          "externalRefs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "system": {
+                  "type": "string",
+                  "description": "The other tool (erp, cmms, inventory, …)"
+                },
+                "id": {
+                  "type": "string",
+                  "description": "The record’s id there"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Its page there, or empty"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "system",
+                "id",
+                "url",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "importId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The last import that wrote the record (null: entered in Steward)"
+          },
+          "notInSource": {
+            "type": "boolean",
+            "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "description": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "commissioned": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Date (YYYY-MM-DD)"
+          },
+          "endOfSupport": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Date (YYYY-MM-DD)"
+          },
+          "imageName": {
+            "type": "string"
+          },
+          "hasImage": {
+            "type": "boolean"
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "null",
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "description": "Own fields (Settings → Modules → Plant registry)"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "planned",
+                      "commissioning",
+                      "operational",
+                      "maintenance",
+                      "out_of_service",
+                      "decommissioned"
+                    ]
+                  },
+                  "visible": {
+                    "type": "boolean",
+                    "description": "False: in a site the token owner may not see"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status",
+                  "visible"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "planned",
+                    "commissioning",
+                    "operational",
+                    "maintenance",
+                    "out_of_service",
+                    "decommissioned"
+                  ]
+                },
+                "visible": {
+                  "type": "boolean",
+                  "description": "False: in a site the token owner may not see"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "status",
+                "visible"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service, credential, application); null for an external URL"
+                },
+                "targetId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Id of the internal item – null for an external URL and when the token owner may not see the item"
+                },
+                "url": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "External http(s) URL"
+                },
+                "linkType": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "External links: key of the link type – built-in runbook, repository, monitoring, vendor-portal, documentation, ticket-system, other, or one an administrator added; null for internal links and external links without a type"
+                },
+                "linkTypeName": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Name of the link type (built-in types in English); null when the link has no type"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Name of the target – empty when the token owner may not see it"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "visible": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "targetId",
+                "url",
+                "linkType",
+                "linkTypeName",
+                "label",
+                "note",
+                "visible"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "manufacturer",
+          "model",
+          "status",
+          "siteId",
+          "location",
+          "domain",
+          "processArea",
+          "role",
+          "tags",
+          "parentId",
+          "childCount",
+          "externalRefs",
+          "importId",
+          "notInSource",
+          "updatedAt",
+          "description",
+          "capabilities",
+          "commissioned",
+          "endOfSupport",
+          "imageName",
+          "hasImage",
+          "fields",
+          "parent",
+          "children",
+          "links",
+          "createdAt",
+          "createdBy",
+          "updatedBy"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
@@ -23896,6 +25986,395 @@
           }
         }
       }
+    },
+    "/plant/sites": {
+      "get": {
+        "operationId": "listPlantSites",
+        "summary": "List the sites of the plant registry",
+        "tags": [
+          "Plant"
+        ],
+        "description": "The sites (factories) of the enterprise the token owner may see, ordered by name, with counts of areas, buildings and assets. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of sites",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of sites",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlantSiteEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/sites/{siteId}": {
+      "get": {
+        "operationId": "getPlantSite",
+        "summary": "Get a site with its ISA-95 hierarchy and buildings",
+        "tags": [
+          "Plant"
+        ],
+        "description": "Areas with their work centers and work units (each with the building that applies: the innermost one), the buildings, contacts, external references, own fields and links. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "siteId",
+            "required": true,
+            "description": "Site id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantSiteDetailEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/assets": {
+      "get": {
+        "operationId": "listPlantAssets",
+        "summary": "List assets",
+        "tags": [
+          "Plant"
+        ],
+        "description": "Assets of the sites the token owner may see, ordered by name, with their location (site, area, work center, work unit and the building that applies) and external references. Filter by site, node, domain, status, tag or an external reference (`ref=erp:10004711`). Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "site",
+            "required": false,
+            "description": "Only assets of this site (id)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "node",
+            "required": false,
+            "description": "Only assets in this area, work center or work unit (id)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "domain",
+            "required": false,
+            "description": "Only assets of this domain (their own, or their area’s)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "planned",
+                "commissioning",
+                "operational",
+                "maintenance",
+                "out_of_service",
+                "decommissioned"
+              ]
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "tag",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "in": "query",
+            "name": "ref",
+            "required": false,
+            "description": "An external reference: system:id, or only the id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of assets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of assets",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlantAssetEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/assets/{assetId}": {
+      "get": {
+        "operationId": "getPlantAsset",
+        "summary": "Get an asset",
+        "tags": [
+          "Plant"
+        ],
+        "description": "An asset with its location, equipment (parent and children), taxonomy, lifecycle, capabilities, external references, own fields and links. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "description": "Asset id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantAssetDetailEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
     }
   },
   "servers": [
@@ -23972,6 +26451,10 @@
     {
       "name": "Compliance",
       "description": "Access governance evidence: access change entries, access reconciliation findings, control catalogues and evidence coverage"
+    },
+    {
+      "name": "Plant",
+      "description": "The plant registry (opt-in module): sites with their ISA-95 hierarchy (area, work center, work unit) and buildings, and the assets in them"
     }
   ],
   "externalDocs": {

@@ -36,7 +36,7 @@ import { dutiesDueFor } from '../duties/service.js';
 import { listTickets } from '../tickets/service.js';
 import { getRecord } from '../records/service.js';
 import { listDatasets, metricTrends } from '../dashboards/datasets.js';
-import { monitorDatasetVisible } from '../monitors/datasets.js';
+import { builtinDatasetVisible } from '../dashboards/builtin.js';
 import { permissionsFor } from '../processes/service.js';
 import { absoluteLink, getNotificationSettings } from './settings.js';
 import { addInApp } from './store.js';
@@ -556,7 +556,7 @@ function topicsSection(c: Ctx): Section {
 
 /** May the reader see the dataset's data (as on the dashboards: the process's view right, or the monitor's)? */
 function datasetReadable(processId: string): boolean {
-  return monitorDatasetVisible(processId) ?? permissionsFor(processId).includes('view');
+  return builtinDatasetVisible(processId) ?? permissionsFor(processId).includes('view');
 }
 
 /** The first dashboard the reader may see that shows the dataset, else the dashboards list. */

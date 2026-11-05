@@ -1,0 +1,379 @@
+{
+  "types": {
+    "site": {
+      "one": "Standort",
+      "other": "Standorte"
+    },
+    "area": {
+      "one": "Bereich",
+      "other": "Bereiche"
+    },
+    "workCenter": {
+      "one": "Arbeitszentrum",
+      "other": "Arbeitszentren"
+    },
+    "workUnit": {
+      "one": "Arbeitseinheit",
+      "other": "Arbeitseinheiten"
+    },
+    "building": {
+      "one": "Gebäude",
+      "other": "Gebäude"
+    },
+    "asset": {
+      "one": "Anlage",
+      "other": "Anlagen"
+    }
+  },
+  "status": {
+    "planned": "Geplant",
+    "commissioning": "In Inbetriebnahme",
+    "operational": "In Betrieb",
+    "maintenance": "In Wartung",
+    "out_of_service": "Außer Betrieb",
+    "decommissioned": "Stillgelegt"
+  },
+  "isaTypes": {
+    "production_line": "Fertigungslinie",
+    "production_unit": "Produktionseinheit",
+    "process_cell": "Prozesszelle",
+    "storage_zone": "Lagerzone",
+    "unit": "Einheit",
+    "work_cell": "Arbeitszelle",
+    "storage_unit": "Lagereinheit"
+  },
+  "buildingKinds": {
+    "building": "Gebäude",
+    "hall": "Halle",
+    "floor": "Geschoss",
+    "room": "Raum",
+    "outdoor": "Außenfläche",
+    "other": "Sonstiges"
+  },
+  "fieldKinds": {
+    "text": "Text",
+    "number": "Zahl",
+    "date": "Datum",
+    "boolean": "Ja / nein",
+    "select": "Auswahl",
+    "url": "Link"
+  },
+  "preview": "Vorschau",
+  "previewHint": "Das Werksregister ist in dieser Version eine Vorschau: Seiten und Importformat können sich noch ändern.",
+  "notInSource": "Nicht in der Quelle",
+  "notInSourceHint": "Ein Import hat den ersetzt, aus dem dieser Eintrag stammt, und seine Dateien enthalten ihn nicht mehr. Er wurde behalten und markiert.",
+  "yes": "Ja",
+  "no": "Nein",
+  "updated": "Geändert",
+  "actions": "Aktionen",
+  "changedBy": "Geändert von {{user}} am {{date}}",
+  "map": {
+    "openNamed": "– {{name}} in OpenStreetMap (neuer Tab)"
+  },
+  "form": {
+    "name": "Name",
+    "nameIn": "Name auf {{language}}",
+    "id": "ID",
+    "idHelp": "Dauerhaft: Kleinbuchstaben, Ziffern, „.“, „_“ und „-“. Importe und Links verwenden sie; sie ändert sich nie.",
+    "idFixed": "Die ID ändert sich nie.",
+    "idInvalid": "Verwenden Sie Kleinbuchstaben, Ziffern, „.“, „_“ und „-“, beginnend mit einem Buchstaben oder einer Ziffer.",
+    "description": "Beschreibung",
+    "geoBoth": "Geben Sie Breite und Länge an, oder keines von beiden."
+  },
+  "sites": {
+    "description": "Die Standorte des Unternehmens mit ihrer Hierarchie (ISA-95) und ihren Gebäuden.",
+    "descriptionOf": "Die Standorte von {{enterprise}} mit ihrer Hierarchie (ISA-95) und ihren Gebäuden.",
+    "new": "Neu: {{type}}",
+    "search": "Name, Kürzel oder ID suchen",
+    "map": "Lage",
+    "counts": "{{areas}} Bereiche · {{buildings}} Gebäude · {{assets}} Anlagen",
+    "emptyTitle": "Noch keine {{type}}",
+    "emptyText": "Ein Standort ist ein Werk des Unternehmens. Legen Sie einen von Hand an, oder importieren Sie die YAML-Dateien, die Sie anderswo pflegen.",
+    "noMatch": "Kein Standort passt zur Suche."
+  },
+  "site": {
+    "newTitle": "Neu: {{type}}",
+    "editTitle": "{{name}} bearbeiten",
+    "code": "Kürzel",
+    "codeHelp": "Kurz und eindeutig, z. B. RVS",
+    "position": "Lage",
+    "positionHelp": "Optional: wo der Standort liegt, für den Link zu OpenStreetMap.",
+    "lat": "Breite",
+    "lon": "Länge",
+    "zoom": "Kartenzoom",
+    "delete": "Standort löschen",
+    "deleteConfirm": "{{name}} mit Hierarchie und Gebäuden löschen? Ein Standort mit Anlagen kann nicht gelöscht werden.",
+    "showAssets": "{{type}} anzeigen",
+    "access": "Zugriff"
+  },
+  "contacts": {
+    "title": "Kontakte",
+    "name": "Name",
+    "role": "Rolle",
+    "email": "E-Mail",
+    "phone": "Telefon",
+    "add": "Kontakt hinzufügen",
+    "remove": "Kontakt {{name}} entfernen",
+    "invalid": "Jeder Kontakt braucht einen Namen; prüfen Sie die E-Mail-Adressen."
+  },
+  "refs": {
+    "title": "Externe Referenzen",
+    "help": "Die IDs dieses Eintrags in anderen Werkzeugen: eine ERP-Equipmentnummer, eine Asset-ID in einem anderen Inventar.",
+    "system": "System",
+    "id": "ID dort",
+    "url": "Link",
+    "add": "Referenz hinzufügen",
+    "remove": "Referenz {{system}} {{id}} entfernen",
+    "invalid": "Jede Referenz braucht ein System und eine ID; Links beginnen mit http:// oder https://."
+  },
+  "fields": {
+    "title": "Eigene Felder",
+    "required": "Pflichtfeld"
+  },
+  "hierarchy": {
+    "title": "Hierarchie",
+    "help": "Was wo geschieht, nach ISA-95: Bereiche enthalten Arbeitszentren (Linien, Zellen), Arbeitszentren enthalten Arbeitseinheiten. Jeder Teil nennt sein Gebäude; das innerste gilt.",
+    "add": "{{type}} hinzufügen",
+    "emptyTitle": "Noch keine Hierarchie",
+    "emptyText": "Beginnen Sie mit den Bereichen des Standorts, z. B. Zerspanung oder Montage.",
+    "whoCanAct": "Wer den Standort verwaltet, legt seine Hierarchie an.",
+    "assetCount_one": "{{count}} Anlage",
+    "assetCount_other": "{{count}} Anlagen",
+    "buildingOwn": "Das Gebäude, das dieser Teil nennt",
+    "buildingInherited": "Von der Ebene darüber übernommen",
+    "actionsNamed": "Aktionen für {{name}}"
+  },
+  "node": {
+    "newTitle": "Neu: {{type}}",
+    "editTitle": "{{type}} {{name}} bearbeiten",
+    "help": {
+      "area": "Ein Bereich sagt, was geschieht (Zerspanung, Montage, Infrastruktur) – nicht wo. Die Halle gehört unter „Gebäude“.",
+      "work_center": "Ein Arbeitszentrum ist eine Linie, Einheit, Zelle oder Lagerzone seines Bereichs.",
+      "work_unit": "Eine Arbeitseinheit ist ein Platz in einem Arbeitszentrum: eine Zelle, eine Station, ein Regal."
+    },
+    "domain": "Domäne",
+    "domainHelp": "Optional: die Fertigungsdomäne des Bereichs",
+    "type": "ISA-95-Typ",
+    "typeHelp": "Optional",
+    "buildingHelp": "Optional: das Gebäude, in dem er steht",
+    "buildingInherits": "Leer: {{name}} (von der Ebene darüber)",
+    "deleteConfirm": "{{type}} {{name}} entfernen? Nur leere Teile können entfernt werden."
+  },
+  "buildings": {
+    "help": "Wo etwas ist: Gebäude, Hallen, Geschosse und Außenflächen – getrennt davon, was dort geschieht.",
+    "add": "{{type}} hinzufügen",
+    "empty": "Noch keine Gebäude.",
+    "nodes": "Genannt von"
+  },
+  "building": {
+    "newTitle": "Neu: {{type}}",
+    "editTitle": "{{name}} bearbeiten",
+    "help": "Ein Ort auf der räumlichen Achse. Ein Geschoss oder Raum nennt das Gebäude, in dem er liegt.",
+    "kind": "Art",
+    "parent": "In",
+    "parentHelp": "Optional: das Gebäude, zu dem es gehört",
+    "deleteConfirm": "{{name}} entfernen? Nur Gebäude, die nichts nennt, können entfernt werden.",
+    "editNamed": "{{name}} bearbeiten",
+    "removeNamed": "{{name}} entfernen"
+  },
+  "assets": {
+    "description": "Maschinen und Ausrüstung der Standorte, die Sie sehen dürfen, mit ihrem Ort.",
+    "new": "Neu: {{type}}",
+    "search": "Name, ID, Modell oder Tag suchen",
+    "place": "Bereich, Arbeitszentrum oder Arbeitseinheit",
+    "count_one": "{{count}} Anlage",
+    "count_other": "{{count}} Anlagen",
+    "emptyTitle": "Noch keine {{type}}",
+    "emptyText": "Anlagen sind die Maschinen und die Ausrüstung eines Standorts. Legen Sie eine auf der Seite des Standorts oder hier an, oder importieren Sie sie.",
+    "noMatch": "Keine Anlage passt zu den Filtern."
+  },
+  "asset": {
+    "newTitle": "Neu: {{type}}",
+    "editTitle": "{{name}} bearbeiten",
+    "status": "Status",
+    "location": "Ort",
+    "place": "Bereich, Arbeitszentrum oder Arbeitseinheit",
+    "placeHelp": "Der innerste Ort: die Ebenen darüber ergeben sich daraus",
+    "buildingOverride": "Eigenes Gebäude",
+    "buildingHelp": "Optional: nur, wenn es von dem seines Orts abweicht",
+    "buildingInherits": "Leer: {{name}} (von seinem Ort)",
+    "parent": "Teil von",
+    "parentHelp": "Optional: die Anlage, zu der diese gehört (gleicher Standort)",
+    "details": "Details",
+    "manufacturer": "Hersteller",
+    "model": "Modell",
+    "manufacturerModel": "Hersteller und Modell",
+    "domain": "Domäne",
+    "domainHelp": "Taxonomie, z. B. machining",
+    "processArea": "Prozessbereich",
+    "role": "Rolle",
+    "roleHelp": "Was sie ist, z. B. machining-centre",
+    "tag": "Tag",
+    "tags": "Tags",
+    "commissioned": "In Betrieb seit",
+    "endOfSupport": "Supportende",
+    "capabilities": "Fähigkeiten",
+    "capabilitiesHelp": "Eine pro Zeile",
+    "equipment": "Ausrüstung",
+    "equipmentHelp": "Die Anlage, zu der diese gehört, und die Anlagen, die zu ihr gehören.",
+    "partOf": "Teil von",
+    "parts": "Teile",
+    "hidden": "An einem Standort, den Sie nicht sehen dürfen",
+    "taxonomy": "Taxonomie",
+    "domainIs": "Domäne: {{value}}",
+    "processAreaIs": "Prozessbereich: {{value}}",
+    "roleIs": "Rolle: {{value}}",
+    "lifecycle": "Lebenszyklus",
+    "commissionedOn": "In Betrieb seit: {{date}}",
+    "endOfSupportOn": "Supportende: {{date}}",
+    "pastEndOfSupport": "Supportende überschritten",
+    "buildingFrom": {
+      "asset": "eigenes",
+      "work_unit": "von {{type}}",
+      "work_center": "von {{type}}",
+      "area": "von {{type}}"
+    },
+    "imageAlt": "Bild von {{name}}",
+    "noImage": "Kein Bild",
+    "imageNotUploaded": "Die Quelle nennt das Bild {{name}}; es ist nicht hochgeladen.",
+    "imageUpload": "Bild hochladen",
+    "imageReplace": "Bild ersetzen",
+    "imageRemove": "Entfernen",
+    "imageHelp": "PNG, JPEG oder WebP, höchstens {{kb}} KB.",
+    "delete": "Anlage löschen",
+    "deleteConfirm": "{{name}} löschen? Ihre Links und ihr Bild werden mit gelöscht.",
+    "deleteConfirmChildren": "{{name}} löschen? Ihre Links und ihr Bild werden mit gelöscht; ihre {{count}} Teile bleiben, ohne übergeordnete Anlage."
+  },
+  "source": {
+    "title": "Quelle",
+    "import": "Importlauf {{id}}",
+    "importOf": "{{files}}, importiert am {{when}}",
+    "manual": "In Steward erfasst"
+  },
+  "export": {
+    "all": "YAML exportieren",
+    "site": "YAML exportieren"
+  },
+  "import": {
+    "button": "Importieren",
+    "title": "YAML importieren",
+    "description": "Standorte, ihre Hierarchie, Gebäude und Anlagen aus YAML-Dateien übernehmen – eine je Standort, Anlagen getrennt oder ein ganzer Baum. Sie sehen, was sich ändert, bevor etwas gespeichert wird.",
+    "schema": "JSON-Schema",
+    "notAllowedTitle": "Sie können nicht importieren",
+    "notAllowedText": "Für einen Import brauchen Sie das Recht, einen Standort zu verwalten oder Standorte anzulegen.",
+    "step1": "1. Dateien",
+    "filesHelp": "YAML oder JSON im Format des Werksregisters (Version 1, siehe docs/PLANT.md). Mehrere Dateien werden zusammen importiert.",
+    "chooseFiles": "Dateien wählen",
+    "addFiles": "Dateien hinzufügen",
+    "clearFiles": "Alle entfernen",
+    "removeFile": "{{name}} entfernen",
+    "tooLarge": "Die Dateien sind zusammen zu groß (höchstens {{mb}} MB).",
+    "step2": "2. Modus",
+    "mode": "Modus",
+    "modes": {
+      "add": {
+        "title": "Nur hinzufügen",
+        "text": "Neue Einträge werden hinzugefügt; vorhandene bleiben, wie sie sind."
+      },
+      "update": {
+        "title": "Hinzufügen und aktualisieren",
+        "text": "Neue Einträge werden hinzugefügt, vorhandene erhalten, was die Datei sagt. Schlüssel, die die Datei auslässt, behalten ihre Werte."
+      },
+      "replace": {
+        "title": "Einen früheren Import ersetzen",
+        "text": "Die Dateien werden maßgeblich für einen früheren Import: seine Einträge werden vollständig geschrieben, und die, die in den Dateien fehlen, werden entfernt oder behalten und markiert.",
+        "none": "Verfügbar nach einem ersten Import."
+      }
+    },
+    "replaces": "Früherer Import",
+    "replacesHelp": "Seine Einträge, die nicht mehr in den Dateien stehen, werden entfernt oder markiert. In Steward erfasste Einträge bleiben.",
+    "earlierLabel": "{{date}} von {{user}} – {{files}}",
+    "missing": "Einträge dieses Imports, die die Dateien nicht mehr enthalten",
+    "missingMark": "Behalten und „nicht in der Quelle“ markieren",
+    "missingRemove": "Entfernen",
+    "previewButton": "Anzeigen, was sich ändert",
+    "step3": "3. Was sich ändert",
+    "problems_one": "{{count}} Problem – nichts wird importiert",
+    "problems_other": "{{count}} Probleme – nichts wird importiert",
+    "warnings": "Hinweise",
+    "show": "Anzeigen",
+    "showChanges": "Änderungen",
+    "showAll": "Alle Einträge",
+    "nothingChanges": "Es ändert sich nichts.",
+    "changes": "Änderungen",
+    "action": "Änderung",
+    "kind": "Art",
+    "what": "Was",
+    "more": "… und {{count}} weitere",
+    "apply": "Importieren",
+    "removeConfirm_one": "Der Import entfernt {{count}} Eintrag. Trotzdem importieren?",
+    "removeConfirm_other": "Der Import entfernt {{count}} Einträge. Trotzdem importieren?",
+    "done": "Importiert: {{add}} hinzugefügt, {{change}} geändert, {{remove}} entfernt, {{mark}} markiert.",
+    "resultTitle": "Importiert",
+    "toSites": "Zu den {{type}}",
+    "history": "Frühere Importe",
+    "noHistory": "Noch keine Importe.",
+    "when": "Wann",
+    "files": "Dateien",
+    "result": "Ergebnis",
+    "records": "Verbliebene Einträge",
+    "actions": {
+      "add": "Hinzufügen",
+      "change": "Ändern",
+      "remove": "Entfernen",
+      "mark": "Markieren",
+      "unchanged": "Unverändert",
+      "skip": "Übersprungen"
+    },
+    "notes": {
+      "exists": "Gibt es schon (nur hinzufügen)",
+      "notInSource": "Nicht in der Quelle",
+      "marked": "Behalten, „nicht in der Quelle“ markiert",
+      "markedHolds": "Behalten, „nicht in der Quelle“ markiert – er enthält noch Einträge",
+      "namesRemoved": "Nennt einen Eintrag, der entfernt wird"
+    },
+    "fields": {
+      "name": "Name",
+      "names": "Übersetzungen",
+      "code": "Kürzel",
+      "description": "Beschreibung",
+      "geo": "Position",
+      "contacts": "Kontakte",
+      "refs": "externe Referenzen",
+      "fields": "eigene Felder",
+      "parentId": "übergeordnet",
+      "buildingId": "Gebäude",
+      "areaId": "Bereich",
+      "workCenterId": "Arbeitszentrum",
+      "workUnitId": "Arbeitseinheit",
+      "siteId": "Standort",
+      "status": "Status",
+      "notInSource": "wieder in der Quelle"
+    }
+  },
+  "settings": {
+    "title": "Werksregister",
+    "description": "Die Standorte des Unternehmens, ihre <b>ISA-95</b>-Hierarchie (Bereich, Arbeitszentrum, Arbeitseinheit), Gebäude und Anlagen – mit YAML-Import und -Export. Ein eigenes Modul: ausgeschaltet zeigt sich nichts davon, und Steward arbeitet wie bisher.",
+    "enabled": "Werksregister einschalten",
+    "enabledHelp": "Fügt der Seitenleiste den Bereich Werk hinzu und Standorte und Anlagen als Linkziele. Ausgeschaltet ist es wieder verborgen; seine Daten bleiben erhalten.",
+    "turningOff": "Ausgeschaltet sind Seiten, Routen und Links des Werksregisters verborgen. Seine Daten bleiben erhalten und kommen beim Einschalten zurück.",
+    "enterprise": "Unternehmen",
+    "enterpriseHelp": "Der Name des Unternehmens, das diese Installation dokumentiert (die Wurzel des Exports)",
+    "labels": "Anzeigenamen",
+    "labelsHelp": "Ihre eigenen Wörter für die Eintragsarten, z. B. „Maschine“ statt „Anlage“. Leer: das Standardwort.",
+    "recordType": "Eintragsart",
+    "labelOne": "{{type}} ({{language}}, einer)",
+    "labelOther": "{{type}} ({{language}}, mehrere)",
+    "fields": "Eigene Felder",
+    "fieldsHelp": "Eigene Felder je Eintragsart, bei jedem Speichern und Import geprüft. In der Importdatei stehen sie unter „fields:“ mit ihrem Schlüssel.",
+    "fieldKey": "Schlüssel",
+    "fieldLabel": "Bezeichnung",
+    "fieldKind": "Art",
+    "fieldOptions": "Optionen",
+    "fieldRequired": "Pflichtfeld",
+    "fieldAdd": "Feld hinzufügen",
+    "fieldRemove": "Feld {{name}} entfernen",
+    "save": "Speichern",
+    "saved": "Einstellungen des Werksregisters gespeichert"
+  }
+}

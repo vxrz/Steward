@@ -358,6 +358,53 @@
           "label": "Approved by"
         }
       }
+    },
+    "ai": {
+      "label": "Ask an AI model",
+      "description": "Sends a predefined question to a model of an LLM gateway, with the context you choose (results of earlier steps, datasets), and uses the answer in later steps. Limits and budgets are checked before anything is sent, secret-looking values are removed. Dry runs and test runs never call the model. Connect \"error\" to handle a refused or failed call.",
+      "fields": {
+        "connection": {
+          "label": "LLM gateway connection"
+        },
+        "model": {
+          "label": "Model",
+          "help": "A model configured on the gateway (platform → AI models)"
+        },
+        "system": {
+          "label": "Instructions (system part)"
+        },
+        "prompt": {
+          "label": "Question (user part)",
+          "help": "The name of a context source in double braces inserts it; nothing else is filled in at run time"
+        },
+        "context": {
+          "label": "Context"
+        },
+        "answer": {
+          "label": "Answer",
+          "help": "json: the answer must match the JSON Schema below"
+        },
+        "schema": {
+          "label": "JSON Schema of the answer",
+          "help": "For a JSON answer: later steps and checks can rely on its shape"
+        },
+        "temperature": {
+          "label": "Temperature",
+          "help": "0 (default of the model if empty) to 2; lower is more predictable"
+        },
+        "maxOutputTokens": {
+          "label": "Most output tokens",
+          "help": "Default and ceiling: the model's maximum output"
+        },
+        "maxInputTokens": {
+          "label": "Most input tokens",
+          "help": "Estimated before sending: a larger input fails the step without a call. Default and ceiling: the model's"
+        },
+        "sampleAnswer": {
+          "label": "Sample answer (dry runs and test runs)",
+          "help": "Used instead of the model in dry runs, and in test runs without a recorded response"
+        }
+      }
     }
   },
   "commonFields": {
@@ -421,7 +468,10 @@
     "actions_other": "{{count}} actions",
     "subprocess": "run {{process}}",
     "subprocessVersion": "run {{process}} v{{version}}",
-    "noProcess": "no process chosen"
+    "noProcess": "no process chosen",
+    "ai": "{{model}}",
+    "aiJson": "{{model}} → JSON",
+    "noModel": "no model chosen"
   },
   "options": {
     "select": "select",
@@ -794,7 +844,18 @@
     "unreachable": "\"{{name}}\" is not connected to the start node and will never run",
     "manualSettingsIgnored": "{{settings}} only apply to manual steps (mode “manual”) and are ignored",
     "duplicateFieldId": "Duplicate field id “{{id}}”",
-    "checklistEmpty": "“All items required” has no effect without checklist items"
+    "checklistEmpty": "“All items required” has no effect without checklist items",
+    "aiDuplicateContext": "Context \"{{name}}\" is named twice",
+    "aiUnknownStep": "Context \"{{name}}\": no step \"{{step}}\"",
+    "aiStepNeedsSaveAs": "Context \"{{name}}\": step \"{{step}}\" needs \"Save result as\" so its result can be sent",
+    "aiContextOverwritten": "Context \"{{name}}\": the variable \"{{variable}}\" is also written by step \"{{step}}\" – give the result its own name",
+    "aiNoDataset": "Context \"{{name}}\": name the dataset",
+    "aiUnknownInput": "Context \"{{name}}\": no input \"{{input}}\"",
+    "aiPlaceholder": "{{placeholder}}: a prompt placeholder is the name of a context source, e.g. {{example}}",
+    "aiUnknownVariable": "{{name}} is not a context source of this step",
+    "aiUnusedContext": "Context \"{{name}}\" is not used in the prompt and is not sent",
+    "aiSchemaMissing": "A JSON answer needs a JSON Schema",
+    "aiSchemaInvalid": "The answer's JSON Schema cannot be used: {{problem}}"
   },
   "diff": {
     "none": "No differences.",
@@ -991,5 +1052,37 @@
     "late": "After-the-fact entries",
     "backdateDays": "Allow a “done at” time up to this many days before the run started",
     "backdateHint": "0 = not before the run started. At most {{max}} days. A “done at” time is never in the future."
+  },
+  "ai": {
+    "modelPlaceholder": "Model id, e.g. a model of your gateway",
+    "modelOn": "{{gateway}}: {{kind}} · {{window}} tokens context · at most {{output}} output",
+    "modelUnknown": "No LLM gateway you can see has this model set up – runs fail unless the bound gateway has it.",
+    "placeholders": "Placeholders: {{names}}",
+    "noPlaceholders": "Add a context source below to insert data with {{example}}",
+    "unknownPlaceholders": "Not a context source: {{names}}.",
+    "invalidPlaceholders": "Only names of context sources go between double braces, not expressions: {{list}}",
+    "from": {
+      "step": "Earlier step",
+      "dataset": "Dataset",
+      "input": "Input"
+    },
+    "fromLabel": "Comes from",
+    "contextHint": "Only what you list here can be sent, and only the sources the prompt uses are read. Secret-looking values are removed; the gateway’s allowed data decides what may leave.",
+    "name": "Name (the placeholder)",
+    "nameInvalid": "Letters, digits and _ only",
+    "nameUsed": "Another source has this name",
+    "remove": "Remove",
+    "removeNamed": "Remove the context source {{name}}",
+    "step": "Step",
+    "needsSaveAs": "This step needs “Save result as” so its result can be sent",
+    "dataset": "Dataset key",
+    "columns": "Only these columns (optional)",
+    "columnsHint": "Leave empty to send every column; the status of each row is always kept",
+    "input": "Input of the run",
+    "path": "Only part of it (expression, optional)",
+    "pathHint": "JSONata on the value, e.g. a filter",
+    "maxChars": "At most (characters)",
+    "maxCharsHint": "Default {{value}}; more is cut off",
+    "addContext": "Add context source"
   }
 }

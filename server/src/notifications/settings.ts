@@ -43,6 +43,7 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'backup.failed',
     'mcp.request',
     'platform.failing',
+    'ai.budget',
   ];
   // emergency access: every channel that is set up, so nobody can use it unnoticed
   return Object.fromEntries(

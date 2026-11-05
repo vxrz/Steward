@@ -47,8 +47,8 @@ export function OwningTeams({ kind, id, mt }: { kind: OwnedKind; id: string; mt?
   return (
     <Paper withBorder p="md" mb="md" mt={mt}>
       <Stack gap="xs">
-        <Group justify="space-between" wrap="nowrap" align="flex-start">
-          <Group gap={6}>
+        <Group justify="space-between" wrap="wrap" align="flex-start" gap="xs">
+          <Group gap={6} wrap="nowrap">
             <IconUsersGroup size={18} aria-hidden />
             <Text fw={600}>{t('owning.title')}</Text>
           </Group>

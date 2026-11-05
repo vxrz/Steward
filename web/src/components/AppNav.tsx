@@ -8,12 +8,14 @@ import {
   IconArrowsDiff,
   IconBrandGit,
   IconBroadcast,
+  IconBuildingFactory2,
   IconCalendarCheck,
   IconCalendarTime,
   IconChartBar,
   IconChecklist,
   IconChevronDown,
   IconFileCertificate,
+  IconFileImport,
   IconGauge,
   IconHeartRateMonitor,
   IconInbox,
@@ -35,6 +37,7 @@ import {
   IconStack2,
   IconTicket,
   IconTool,
+  IconEngine,
   IconUserSearch,
   IconUserShield,
   IconUsers,
@@ -42,6 +45,7 @@ import {
   type Icon,
 } from '@tabler/icons-react';
 import type { Capabilities } from '@sm/shared';
+import { useOwnLabel } from './plant/labels';
 
 export type NavKey =
   | 'dashboard'
@@ -74,9 +78,12 @@ export type NavKey =
   | 'audit'
   | 'users'
   | 'settings'
-  | 'systemStatus';
-/** The six areas of the sidebar (v0.4.0): Home has no heading. */
-export type NavGroupKey = 'home' | 'operate' | 'automate' | 'catalogue' | 'compliance' | 'admin';
+  | 'systemStatus'
+  | 'plantSites'
+  | 'plantAssets'
+  | 'plantImport';
+/** The areas of the sidebar (v0.4.0): Home has no heading; Plant only while its module is on (#218). */
+export type NavGroupKey = 'home' | 'operate' | 'automate' | 'catalogue' | 'plant' | 'compliance' | 'admin';
 
 interface NavItemDef {
   to: string;
@@ -92,6 +99,8 @@ interface NavItemDef {
 // The server leaves these out for API clients and older sessions: then the entry shows.
 const automation = (c: Capabilities) => c.viewAutomation !== false;
 const credentialsRegister = (c: Capabilities) => c.viewCredentials !== false;
+// the plant registry module (#218): only while it is on
+const plant = (c: Capabilities) => c.plant === true;
 
 /**
  * Processes, Schedules, Triggers and Git sync: one sidebar entry ("Processes"), the others are tabs of it
@@ -142,6 +151,14 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
     ],
   },
   {
+    key: 'plant',
+    items: [
+      { to: '/plant/sites', key: 'plantSites', icon: IconBuildingFactory2, when: plant },
+      { to: '/plant/assets', key: 'plantAssets', icon: IconEngine, when: plant },
+      { to: '/plant/import', key: 'plantImport', icon: IconFileImport, when: (c) => plant(c) && c.plantManage === true },
+    ],
+  },
+  {
     key: 'compliance',
     items: [
       { to: '/compliance/controls', key: 'controls', icon: IconChecklist },
@@ -180,18 +197,29 @@ const visible = (caps: Capabilities) => (n: NavItemDef) => (!n.cap || caps[n.cap
 /** The areas and pages the user may see, with translated labels. */
 export function useNavGroups(caps: Capabilities): { key: NavGroupKey; label: string; items: NavEntry[] }[] {
   const { t } = useTranslation('nav');
+  // the plant registry's own display names (Settings → Modules): "Machines" instead of "Assets"
+  const own = useOwnLabel(caps.plant === true);
   // Memoised: the command palette rebuilds its actions when this changes.
   return useMemo(
     () =>
-      NAV_GROUPS.map((g) => {
-        const label = g.key === 'home' ? '' : t(`groups.${g.key}`);
-        return {
-          key: g.key,
-          label,
-          items: g.items.filter(visible(caps)).map((n) => ({ to: n.to, key: n.key, icon: n.icon, label: t(`items.${n.key}`), group: label, also: n.also })),
-        };
-      }).filter((g) => g.items.length > 0),
-    [t, caps],
+      // a plant viewer (#218) sees the Plant area only
+      NAV_GROUPS.filter((g) => !caps.plantOnly || g.key === 'plant')
+        .map((g) => {
+          const label = g.key === 'home' ? '' : t(`groups.${g.key}`);
+          const itemLabel = (key: NavKey) =>
+            key === 'plantSites'
+              ? own('site', true, t('items.plantSites'))
+              : key === 'plantAssets'
+                ? own('asset', true, t('items.plantAssets'))
+                : t(`items.${key}`);
+          return {
+            key: g.key,
+            label,
+            items: g.items.filter(visible(caps)).map((n) => ({ to: n.to, key: n.key, icon: n.icon, label: itemLabel(n.key), group: label, also: n.also })),
+          };
+        })
+        .filter((g) => g.items.length > 0),
+    [t, caps, own],
   );
 }
 
@@ -199,7 +227,14 @@ export function useNavGroups(caps: Capabilities): { key: NavGroupKey; label: str
 export function useAutomateTabs(caps: Capabilities): NavEntry[] {
   const { t } = useTranslation('nav');
   return useMemo(
-    () => AUTOMATE_TABS.filter(visible(caps)).map((n) => ({ to: n.to, key: n.key, icon: n.icon, label: t(`items.${n.key}`), group: t('groups.automate') })),
+    () =>
+      AUTOMATE_TABS.filter((n) => !caps.plantOnly && visible(caps)(n)).map((n) => ({
+        to: n.to,
+        key: n.key,
+        icon: n.icon,
+        label: t(`items.${n.key}`),
+        group: t('groups.automate'),
+      })),
     [t, caps],
   );
 }

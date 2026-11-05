@@ -111,6 +111,27 @@ describe('status pages', () => {
     expect((await stella('GET', '/auth/me')).user.username).toBe('stella');
   });
 
+  it('also refuses a token made before the user became a status viewer (public API and MCP)', async () => {
+    const users = await s.api('GET', '/users');
+    const u = users.find((x: any) => x.username === 'stella');
+    await s.api('PUT', `/users/${u.id}`, { roles: ['viewer'] });
+    const before = await s.as('stella', PW);
+    const read = (await before('POST', '/me/tokens', { name: 'before', scope: 'read' })).token as string;
+    const mcp = (await before('POST', '/me/tokens', { name: 'before-mcp', scope: 'mcp' })).token as string;
+    const v1 = (t: string) => fetch(`${s.base}/api/v1/services`, { headers: { authorization: `Bearer ${t}` } });
+    expect((await v1(read)).status).toBe(200);
+    await s.api('PUT', `/users/${u.id}`, { roles: ['status'] });
+    const r = await v1(read);
+    expect(r.status).toBe(403);
+    expect((await r.json()).detail).toMatch(/status pages/);
+    const m = await fetch(`${s.base}/api/mcp`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${mcp}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    });
+    expect(m.status).toBe(403);
+  });
+
   it('can be opened without signing in through a secret link, which can be revoked', async () => {
     const open = (token: string) => fetch(`${s.base}/api/public/status-page`, { headers: { 'x-status-token': token } });
     await expect(olivia('POST', `/status-pages/${page}/link`)).rejects.toThrow(/403/);

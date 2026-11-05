@@ -47,8 +47,9 @@ import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
 import { openBrowser, type BrowserSession } from './browser.js';
 import * as store from './store.js';
 import { completeManual, manualSpec, verifyManual, type ManualCompletionInput, type Settled } from './manual.js';
-import { publishDataset, datasetOwner, metricForRun } from '../dashboards/datasets.js';
-import { monitorDatasetVisible } from '../monitors/datasets.js';
+import { publishDataset, datasetOwner, getDataset, metricForRun } from '../dashboards/datasets.js';
+import { builtinDatasetVisible } from '../dashboards/builtin.js';
+import { ANY, INPUT, datasetSource, inputSources, resultVars, runSources } from '../ai/provenance.js';
 import { recordStepAccessChanges, type AccessChangeInput } from '../compliance/run-entries.js';
 import { logger } from '../log.js';
 import { withSpan } from '../telemetry.js';
@@ -58,6 +59,7 @@ import { isInternalError, isUnexpected, reportError } from '../errorReporting.js
 import { applicationInputValue, applicationsInputValue } from '../catalogue/components.js';
 import { systemsForProcess } from '../catalogue/systems.js';
 import { checkOutcome } from './check-alerts.js';
+import { runAiStep } from '../ai/step.js';
 
 // ---------------------------------------------------------------------------
 // Run context
@@ -151,6 +153,12 @@ class RunContext {
   nodes: Map<string, FlowNode>;
   activations = new Map<string, number>();
   totalActivations = 0;
+  /** Answers of "Ask an AI model" steps (text → model): reports and check messages that carry one are marked */
+  private aiTexts = new Map<string, string>();
+  /** Where each variable's value may come from (ai/provenance.ts): every source ever written to the name in this run */
+  private provenance = new Map<string, Set<string>>();
+  private anySources?: Set<string>;
+  private inputSourceSet?: Set<string>;
 
   constructor(
     public runId: string,
@@ -167,6 +175,53 @@ class RunContext {
     this.nodes = new Map(def.nodes.map((n) => [n.id, n]));
     this.stats = stats;
     for (const b of Object.values(bindings)) this.redactor.add(...Object.values(b.secrets));
+  }
+
+  /** Remembers an AI answer (strings of 12 characters or more: shorter ones are too common to mean anything). */
+  rememberAiText(text: unknown, model: string): void {
+    if (typeof text !== 'string') return;
+    const t = text.trim();
+    if (t.length >= 12 && this.aiTexts.size < 5000) this.aiTexts.set(t, model);
+  }
+
+  /** The models whose answers appear in these values, or undefined: they carry AI-generated text. */
+  aiModelsIn(...values: unknown[]): string[] | undefined {
+    if (!this.aiTexts.size) return undefined;
+    const models = new Set<string>();
+    const visit = (v: unknown, depth: number): void => {
+      if (depth > 20) return;
+      if (typeof v === 'string') {
+        for (const [t, m] of this.aiTexts) if (v.includes(t)) models.add(m);
+      } else if (Array.isArray(v)) v.forEach((x) => visit(x, depth + 1));
+      else if (v && typeof v === 'object') Object.values(v).forEach((x) => visit(x, depth + 1));
+    };
+    values.forEach((v) => visit(v, 0));
+    return models.size ? [...models].sort() : undefined;
+  }
+
+  /** Records where a value written to a variable comes from (also when a resumed run replays the step). */
+  taint(name: string, sources: Iterable<string>): void {
+    let set = this.provenance.get(name);
+    if (!set) this.provenance.set(name, (set = new Set()));
+    for (const x of sources) set.add(x);
+  }
+
+  /** The recorded sources of variables (ANY for one without a record). */
+  sourcesOf(names: readonly string[]): Set<string> {
+    const out = new Set<string>();
+    for (const n of names) for (const x of this.provenance.get(n) ?? [ANY]) out.add(x);
+    return out;
+  }
+
+  /** Sources with ANY and INPUT expanded to what they stand for in this run: platform ids, INPUT, dataset:<key>. */
+  expandSources(sources: Iterable<string>): Set<string> {
+    const out = new Set<string>();
+    for (const x of sources) {
+      if (x === ANY) for (const y of (this.anySources ??= runSources(this.runId))) out.add(y);
+      else if (x === INPUT) for (const y of (this.inputSourceSet ??= inputSources(this.runId))) out.add(y);
+      else out.add(x);
+    }
+    return out;
   }
 
   /** Status of a step as recorded in the run journal (for traces). */
@@ -262,9 +317,9 @@ class RunContext {
       runId: this.runId,
       processId: this.processId,
       mayRead: (pid) => {
-        if (pid.startsWith('monitor:')) {
+        if (pid.startsWith('monitor:') || pid.startsWith('ai:')) {
           const u = findUserByName(this.actor);
-          return !!u && u.active && runAs(toAuthUser(u), () => monitorDatasetVisible(pid) === true);
+          return !!u && u.active && runAs(toAuthUser(u), () => builtinDatasetVisible(pid) === true);
         }
         return actorPermissions(this.actor, pid).includes('view');
       },
@@ -1074,7 +1129,10 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
   const ports = failurePorts(node, ctx);
   if (ports) {
     ctx.log('warn', `"${name}" failed, continuing${ports.includes('error') ? ' on its error output' : ''}: ${message}`, key);
-    if (node.saveAs) ctx.vars[node.saveAs] = { error: message };
+    if (node.saveAs) {
+      ctx.vars[node.saveAs] = { error: message };
+      ctx.taint(node.saveAs, outputSources(node, ctx));
+    }
     return ports;
   }
   logger.warn({ runId: ctx.runId, stepKey: key, nodeType: node.type, error: message }, 'step failed');
@@ -1082,11 +1140,47 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
 }
 
 function applyOutput(node: FlowNode, ctx: RunContext, output: unknown, status: StepStatus): void {
+  // an AI answer, also of a step replayed after a resume
+  if (node.type === 'ai' && output && typeof output === 'object' && (output as { aiGenerated?: unknown }).aiGenerated) {
+    const o = output as { text?: unknown; answer?: unknown; modelLabel?: string };
+    ctx.rememberAiText(o.text, o.modelLabel ?? node.model);
+    if (o.answer && typeof o.answer === 'object') for (const t of stringLeaves(o.answer)) ctx.rememberAiText(t, o.modelLabel ?? node.model);
+  }
   if (node.type === 'set' && output && typeof output === 'object') {
     Object.assign(ctx.vars, output as Record<string, unknown>);
+    for (const k of Object.keys(output)) ctx.taint(k, [ANY]);
     return;
   }
-  if (node.saveAs) ctx.vars[node.saveAs] = status === 'failed' && node.type !== 'check' ? { error: (output as { error?: string })?.error } : output;
+  if (node.saveAs) {
+    ctx.vars[node.saveAs] = status === 'failed' && node.type !== 'check' ? { error: (output as { error?: string })?.error } : output;
+    ctx.taint(node.saveAs, outputSources(node, ctx));
+  }
+}
+
+/**
+ * Where a step's result comes from (ai/provenance.ts): the platform of an API call or a browser step; for an AI step
+ * the gateway and everything its context may carry; ANY for every other step – its result is computed from the run.
+ */
+function outputSources(node: FlowNode, ctx: RunContext): string[] {
+  if (node.type === 'http' || node.type === 'browser') {
+    const id = node.connection ? ctx.bindings[node.connection]?.platform.id : undefined;
+    return id ? [id] : [ANY];
+  }
+  if (node.type === 'ai') {
+    const out = new Set<string>();
+    const gw = ctx.bindings[node.connection]?.platform.id;
+    if (gw) out.add(gw);
+    for (const c of node.context ?? []) {
+      const src = c.from === 'step' ? ctx.nodes.get(c.step ?? '') : undefined;
+      if (c.from === 'dataset') out.add(datasetSource(c.dataset ?? '*'));
+      else if (c.from === 'input') out.add(INPUT);
+      else for (const x of src ? ctx.sourcesOf(resultVars(src)) : [ANY]) out.add(x);
+    }
+    return [...out];
+  }
+  // what a person entered counts as an input of the run
+  if (node.type === 'userTask') return [ANY, INPUT];
+  return [ANY];
 }
 
 function journalHasPrefix(ctx: RunContext, prefix: string): boolean {
@@ -1134,6 +1228,8 @@ async function execControl(
         if (ctx.signal.aborted) throw new Cancelled();
         ctx.vars[node.as] = items[i];
         ctx.vars[`${node.as}Index`] = i;
+        ctx.taint(node.as, [ANY]);
+        ctx.taint(`${node.as}Index`, [ANY]);
         for (const b of body) await runNode(b, ctx, `${key}[${i}]`);
         if (node.delayMs && i < items.length - 1 && !journalHasPrefix(ctx, `${key}[${i + 1}]/`)) await sleep(node.delayMs, ctx.signal);
       }
@@ -1145,7 +1241,10 @@ async function execControl(
       startedMs: started,
       output,
     });
-    if (node.saveAs) ctx.vars[node.saveAs] = output;
+    if (node.saveAs) {
+      ctx.vars[node.saveAs] = output;
+      ctx.taint(node.saveAs, [ANY]);
+    }
     return ['done'];
   } catch (e) {
     const cancelled = e instanceof Cancelled || ctx.signal.aborted;
@@ -1177,6 +1276,7 @@ async function runItemsInParallel(
   const outer = ctx.vars;
   const results: Record<string, unknown>[] = items.map(() => ({}));
   const local = new Set([node.as, `${node.as}Index`]);
+  for (const v of local) ctx.taint(v, [ANY]);
   let next = 0;
   let failure: { error: unknown } | undefined;
   let gate: Promise<void> = Promise.resolve();
@@ -1349,6 +1449,7 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
         const val = await ctx.render(v);
         out[k] = val === undefined ? null : val;
         ctx.vars[k] = out[k];
+        ctx.taint(k, [ANY]);
       }
       return {
         output: out,
@@ -1425,7 +1526,12 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
           rows = list.map((it) => (keys.size ? columns!.map((k) => stringify((it as Record<string, unknown>)?.[k])) : [stringify(it)]));
         }
       }
-      return { output: { title, text, columns, rows }, summary: rows ? `${title}: ${rows.length} row(s)` : title };
+      // a report that carries an AI answer says so (and names the model) wherever it is shown
+      const ai = ctx.aiModelsIn(title, text, rows);
+      return {
+        output: { title, text, columns, rows, ...(ai ? { aiGenerated: { models: ai } } : {}) },
+        summary: (rows ? `${title}: ${rows.length} row(s)` : title) + (ai ? ` · AI-generated (${ai.join(', ')})` : ''),
+      };
     }
     case 'wait':
       await sleep(step.seconds * 1000, ctx.signal).catch(() => {
@@ -1440,6 +1546,8 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
       return execPublish(step, ctx, key);
     case 'accessChange':
       return execAccessChange(step, ctx, key);
+    case 'ai':
+      return execAi(step, ctx, key);
     case 'browser':
       return execBrowser(step, ctx, key);
     case 'subprocess':
@@ -1718,6 +1826,62 @@ function cell(v: unknown): unknown {
   if (typeof v === 'number' || typeof v === 'boolean') return v;
   if (Array.isArray(v) && v.every((x) => x === null || typeof x !== 'object')) return v.join(', ');
   return stringify(v).slice(0, 500);
+}
+
+/**
+ * Ask an AI model (0.6.0, ai/step.ts): the step reads its context from the run (results of earlier steps, datasets the
+ * actor may read, inputs), and its call goes through the same outbound policy and secret-leak check as an http step.
+ * The answer's text is remembered, so reports and check messages that carry it are marked as AI-generated.
+ */
+async function execAi(step: NodeOf<'ai'>, ctx: RunContext, key: string): Promise<LeafResult> {
+  const b = ctx.bindings[step.connection];
+  if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
+  const res = await runAiStep(step, {
+    runId: ctx.runId,
+    processId: ctx.processId,
+    parentProcessIds: store
+      .ancestorChain(ctx.runId)
+      .slice(1)
+      .map((a) => a.processId),
+    processName: ctx.def.name,
+    processVersion: store.runRow(ctx.runId).process_version ?? null,
+    stepKey: key,
+    actor: ctx.actor,
+    dryRun: ctx.dryRun,
+    recorded: ctx.recorded,
+    def: ctx.def,
+    gateway: { platform: b.platform, secrets: b.secrets },
+    vars: ctx.vars,
+    inputs: ctx.inputs,
+    sourcesOf: (names) => ctx.expandSources(ctx.sourcesOf(names)),
+    inputSources: () => ctx.expandSources([INPUT]),
+    evalOn: (expr, value) => ctx.data(expr, value),
+    datasetRows: (dsKey) => {
+      const owner = datasetOwner(dsKey);
+      if (!owner) throw new Error(`Dataset "${dsKey}" has no data yet`);
+      const user = findUserByName(ctx.actor);
+      const visible =
+        owner === ctx.processId ||
+        (!!user && user.active && runAs(toAuthUser(user), () => builtinDatasetVisible(owner) ?? permissionsFor(owner).includes('view')));
+      if (!visible) throw new Error(`Dataset "${dsKey}" is not visible to ${ctx.actor}`);
+      return (user ? runAs(toAuthUser(user), () => getDataset(dsKey)) : getDataset(dsKey)).rows as Record<string, unknown>[];
+    },
+    secrets: () => [...ctx.redactor.list(), ...Object.values(ctx.bindings).flatMap((x) => secretValues(x.secrets))],
+    log: (level, message) => ctx.log(level, message, key),
+    setInput: (input) => store.updateStepInput(ctx.runId, key, ctx.redactor.apply(input)),
+    enforceOutbound: async (p, headers, body) => enforceOutbound(ctx, await buildUrl(b.platform, b.secrets, p), headers, body),
+    signal: ctx.signal,
+  });
+  return { output: res.output, status: res.output.dryRun ? 'dryrun' : 'succeeded', summary: res.summary };
+}
+
+/** Strings inside a JSON answer (long enough to be recognised in a message). */
+function stringLeaves(v: unknown, out: string[] = [], depth = 0): string[] {
+  if (depth > 20 || out.length > 500) return out;
+  if (typeof v === 'string') out.push(v);
+  else if (Array.isArray(v)) for (const x of v) stringLeaves(x, out, depth + 1);
+  else if (v && typeof v === 'object') for (const x of Object.values(v)) stringLeaves(x, out, depth + 1);
+  return out;
 }
 
 async function execPublish(step: NodeOf<'publish'>, ctx: RunContext, key: string): Promise<LeafResult> {
@@ -2246,8 +2410,8 @@ async function checkContent(
   step: NodeOf<'check'>,
   passed: boolean,
   key: string,
-): Promise<{ headline?: string; value?: number; items?: string[] }> {
-  const out: { headline?: string; value?: number; items?: string[] } = {};
+): Promise<{ headline?: string; value?: number; items?: string[]; aiGenerated?: string[] }> {
+  const out: { headline?: string; value?: number; items?: string[]; aiGenerated?: string[] } = {};
   const attempt = async (what: string, fn: () => Promise<void>) => {
     try {
       await fn();
@@ -2273,5 +2437,7 @@ async function checkContent(
         .filter(Boolean);
       if (list.length) out.items = list.slice(0, CHECK_ITEMS_MAX);
     });
+  const ai = passed ? undefined : ctx.aiModelsIn(out.headline, out.items, step.message ? await ctx.str(step.message).catch(() => '') : '');
+  if (ai) out.aiGenerated = ai;
   return out;
 }

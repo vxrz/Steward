@@ -112,7 +112,12 @@ export function createTypeFromPlatform(platformId: string, opts: { kind?: string
     label: opts.label || p.name,
     description: opts.description ?? p.description,
     baseUrl: p.baseUrl,
-    config: (({ mcpGateway: _gateway, ...cfg }) => ({ ...cfg, http: { ...cfg.http, caPem: cfg.http?.caPem } }))(p.config),
+    // an LLM gateway's models travel with the type; what it may be sent names this installation's platforms: not
+    config: (({ mcpGateway: _gateway, ai, ...cfg }) => ({
+      ...cfg,
+      http: { ...cfg.http, caPem: cfg.http?.caPem },
+      ...(ai ? { ai: { ...ai, allowedData: { platforms: [], datasets: [], inputs: false } } } : {}),
+    }))(p.config),
     secretFields: secretKeys.map((k) => ({ key: k, label: k })),
     docs: listDocs(platformId)
       .filter((d) => d.kind === 'link' && d.url)

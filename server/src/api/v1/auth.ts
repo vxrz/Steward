@@ -18,8 +18,10 @@ import { logger } from '../../log.js';
 import { bearerToken, resolveToken } from '../../auth/tokens.js';
 import { readCookie, SESSION_COOKIE } from '../../auth/cookies.js';
 import { sessionUser } from '../../auth/users.js';
+import { plantOnly } from '../../auth/policy.js';
+import { isStatusViewer } from '../../auth/access.js';
 import { BRAND } from '@sm/shared';
-import { apiEnabled, docsMode, rateLimitPerMinute } from './config.js';
+import { API_BASE, apiEnabled, docsMode, rateLimitPerMinute } from './config.js';
 import { sendProblem } from './problem.js';
 import { TokenBucketLimiter } from './rateLimit.js';
 
@@ -183,6 +185,16 @@ export async function apiAuthHook(req: FastifyRequest, reply: FastifyReply): Pro
       title: 'Vault locked',
       detail: 'The vault is locked – an administrator has to unlock it',
     });
+  }
+  // a status viewer (#26) sees the status pages only – also with a token made before they became one
+  if (isStatusViewer(r.user.roles)) {
+    return void sendProblem(req, reply, 403, { type: 'forbidden', title: 'Forbidden', detail: 'Status viewers only see the status pages' });
+  }
+  // a plant viewer (#218): the plant registry and their own account, nothing else
+  // the matched route's pattern, not the requested URL: what a client sends cannot widen what a plant viewer reaches
+  const route = req.routeOptions.url ?? '';
+  if (route !== `${API_BASE}/me` && !route.startsWith(`${API_BASE}/plant/`) && plantOnly(r.user)) {
+    return void sendProblem(req, reply, 403, { type: 'forbidden', title: 'Forbidden', detail: 'Plant viewers only see the plant registry' });
   }
   const p: ApiPrincipal = {
     user: r.user,

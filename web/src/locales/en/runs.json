@@ -187,7 +187,8 @@
     "checkFailed": "Failed: {{name}}",
     "expected": "expected: {{name}}",
     "moreFindings_one": "and {{count}} more finding",
-    "moreFindings_other": "and {{count}} more findings"
+    "moreFindings_other": "and {{count}} more findings",
+    "aiGenerated": "AI-generated with {{models}} – check it before you rely on it"
   },
   "emptyState": {
     "title": "No runs yet",

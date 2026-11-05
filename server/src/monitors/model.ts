@@ -155,6 +155,7 @@ export const MONITOR_DEFAULTS: Record<Role, MonitorPermission[]> = {
   auditor: ['view'],
   viewer: ['view'],
   status: [],
+  plant: [],
 };
 
 /**

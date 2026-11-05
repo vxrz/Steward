@@ -14,6 +14,7 @@ import {
   IconCircleX,
   IconBoxMultiple,
   IconFileCertificate,
+  IconSparkles,
 } from '@tabler/icons-react';
 import { outcomeOf, topSeverity, type AuditEntry, type ProcessDetail, type RunChild, type RunDetail, type RunStepRecord } from '@sm/shared';
 import { get, notifyError, post, apiUrl } from '../api';
@@ -277,6 +278,18 @@ export function RunDetailPage() {
                   <Text fw={600} mb="xs">
                     {rep.title}
                   </Text>
+                  {rep.aiGenerated && (
+                    <Badge
+                      color="pink"
+                      variant="light"
+                      mb="xs"
+                      leftSection={<IconSparkles size={12} />}
+                      style={{ textTransform: 'none' }}
+                      data-testid="report-ai-generated"
+                    >
+                      {t('detail.aiGenerated', { models: rep.aiGenerated.models.join(', ') })}
+                    </Badge>
+                  )}
                   <Markdown text={rep.text} />
                   {rep.rows && (
                     <div className="table-scroll">

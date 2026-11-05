@@ -20,6 +20,7 @@ import { currentUser, requestContext } from '../auth/context.js';
 import { requireCapability, require as requirePermission } from '../auth/permissions.js';
 import { bearerToken, resolveToken } from '../auth/tokens.js';
 import { toAuthUser } from '../auth/users.js';
+import { plantOnly } from '../auth/policy.js';
 import { TokenBucketLimiter } from '../api/v1/rateLimit.js';
 import * as platforms from '../platforms/service.js';
 import { emit } from '../events.js';
@@ -41,7 +42,7 @@ import type { McpPrincipal } from './tools.js';
 import { decide, getRequest, listRequests } from './requests.js';
 import { offersSignIn, resolveAccessGrant, resourceMetadataUrl, resourceOf } from './oauth.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
-import { ACCESS } from '../auth/access.js';
+import { ACCESS, isStatusViewer } from '../auth/access.js';
 
 export const mcpLimiter = new TokenBucketLimiter();
 const REALM = 'Steward MCP';
@@ -209,6 +210,12 @@ function admit(req: FastifyRequest, reply: FastifyReply, principal: McpPrincipal
   const r = { user: principal.user, tokenId: principal.tokenId, name: principal.tokenName };
   if (r.user.mustChangePassword)
     return void refuse(reply, 403, STEWARD_ERRORS.forbidden, 'The owner of this token has to change their password in the web UI first', 'forbidden');
+  // a status viewer (#26) sees the status pages only – also with a token made before they became one
+  if (isStatusViewer(toAuthUser(r.user as UserInfo).roles))
+    return void refuse(reply, 403, STEWARD_ERRORS.forbidden, 'Status viewers only see the status pages – MCP clients are not for them', 'forbidden');
+  // a plant viewer (#218) sees the plant registry only, which has no MCP tools
+  if (plantOnly(toAuthUser(r.user as UserInfo)))
+    return void refuse(reply, 403, STEWARD_ERRORS.forbidden, 'Plant viewers only see the plant registry – MCP clients are not for them', 'forbidden');
   if (!vault().unlocked) {
     reply.header('retry-after', '60');
     return void refuse(reply, 503, STEWARD_ERRORS.unavailable, 'The vault is locked – an administrator has to unlock it', 'locked');

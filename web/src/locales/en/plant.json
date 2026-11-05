@@ -1,0 +1,379 @@
+{
+  "types": {
+    "site": {
+      "one": "Site",
+      "other": "Sites"
+    },
+    "area": {
+      "one": "Area",
+      "other": "Areas"
+    },
+    "workCenter": {
+      "one": "Work center",
+      "other": "Work centers"
+    },
+    "workUnit": {
+      "one": "Work unit",
+      "other": "Work units"
+    },
+    "building": {
+      "one": "Building",
+      "other": "Buildings"
+    },
+    "asset": {
+      "one": "Asset",
+      "other": "Assets"
+    }
+  },
+  "status": {
+    "planned": "Planned",
+    "commissioning": "Commissioning",
+    "operational": "Operational",
+    "maintenance": "Maintenance",
+    "out_of_service": "Out of service",
+    "decommissioned": "Decommissioned"
+  },
+  "isaTypes": {
+    "production_line": "Production line",
+    "production_unit": "Production unit",
+    "process_cell": "Process cell",
+    "storage_zone": "Storage zone",
+    "unit": "Unit",
+    "work_cell": "Work cell",
+    "storage_unit": "Storage unit"
+  },
+  "buildingKinds": {
+    "building": "Building",
+    "hall": "Hall",
+    "floor": "Floor",
+    "room": "Room",
+    "outdoor": "Outdoor area",
+    "other": "Other"
+  },
+  "fieldKinds": {
+    "text": "Text",
+    "number": "Number",
+    "date": "Date",
+    "boolean": "Yes / no",
+    "select": "Choice",
+    "url": "Link"
+  },
+  "preview": "Preview",
+  "previewHint": "The plant registry is a preview in this version: its pages and the import format can still change.",
+  "notInSource": "Not in source",
+  "notInSourceHint": "An import replaced the one this record came from, and its files no longer contain it. It was kept and marked.",
+  "yes": "Yes",
+  "no": "No",
+  "updated": "Updated",
+  "actions": "Actions",
+  "changedBy": "Changed by {{user}} on {{date}}",
+  "map": {
+    "openNamed": "– {{name}} in OpenStreetMap (new tab)"
+  },
+  "form": {
+    "name": "Name",
+    "nameIn": "Name in {{language}}",
+    "id": "Id",
+    "idHelp": "Stable: lower-case letters, digits, “.”, “_” and “-”. Imports and links use it; it never changes.",
+    "idFixed": "The id never changes.",
+    "idInvalid": "Use lower-case letters, digits, “.”, “_” and “-”, starting with a letter or digit.",
+    "description": "Description",
+    "geoBoth": "Give latitude and longitude, or neither."
+  },
+  "sites": {
+    "description": "The sites of the enterprise with their hierarchy (ISA-95) and buildings.",
+    "descriptionOf": "The sites of {{enterprise}} with their hierarchy (ISA-95) and buildings.",
+    "new": "New {{type}}",
+    "search": "Search name, code or id",
+    "map": "Position",
+    "counts": "{{areas}} areas · {{buildings}} buildings · {{assets}} assets",
+    "emptyTitle": "No {{type}} yet",
+    "emptyText": "A site is a factory of the enterprise. Add one by hand, or import the YAML files you keep elsewhere.",
+    "noMatch": "No site matches the search."
+  },
+  "site": {
+    "newTitle": "New {{type}}",
+    "editTitle": "Edit {{name}}",
+    "code": "Code",
+    "codeHelp": "Short and unique, e.g. RVS",
+    "position": "Position",
+    "positionHelp": "Optional: where the site is, for the link to OpenStreetMap.",
+    "lat": "Latitude",
+    "lon": "Longitude",
+    "zoom": "Map zoom",
+    "delete": "Delete site",
+    "deleteConfirm": "Delete {{name}} with its hierarchy and buildings? A site with assets cannot be deleted.",
+    "showAssets": "Show {{type}}",
+    "access": "Access"
+  },
+  "contacts": {
+    "title": "Contacts",
+    "name": "Name",
+    "role": "Role",
+    "email": "E-mail",
+    "phone": "Phone",
+    "add": "Add contact",
+    "remove": "Remove contact {{name}}",
+    "invalid": "Each contact needs a name; check the e-mail addresses."
+  },
+  "refs": {
+    "title": "External references",
+    "help": "The ids of this record in other tools: an ERP equipment number, an asset id in another inventory.",
+    "system": "System",
+    "id": "Id there",
+    "url": "Link",
+    "add": "Add reference",
+    "remove": "Remove reference {{system}} {{id}}",
+    "invalid": "Each reference needs a system and an id; links start with http:// or https://."
+  },
+  "fields": {
+    "title": "Own fields",
+    "required": "Required"
+  },
+  "hierarchy": {
+    "title": "Hierarchy",
+    "help": "What happens where, after ISA-95: areas hold work centers (lines, cells), work centers hold work units. Each part names its building; the innermost one applies.",
+    "add": "Add {{type}}",
+    "emptyTitle": "No hierarchy yet",
+    "emptyText": "Start with the areas of the site, e.g. machining or assembly.",
+    "whoCanAct": "Whoever manages the site adds its hierarchy.",
+    "assetCount_one": "{{count}} asset",
+    "assetCount_other": "{{count}} assets",
+    "buildingOwn": "The building this part names",
+    "buildingInherited": "Inherited from the level above",
+    "actionsNamed": "Actions for {{name}}"
+  },
+  "node": {
+    "newTitle": "New {{type}}",
+    "editTitle": "Edit {{type}} {{name}}",
+    "help": {
+      "area": "An area says what happens (machining, assembly, utilities) – not where. Put the hall in “Building”.",
+      "work_center": "A work center is a line, unit, cell or storage zone of its area.",
+      "work_unit": "A work unit is one place in a work center: a cell, a station, a rack."
+    },
+    "domain": "Domain",
+    "domainHelp": "Optional: the manufacturing domain of the area",
+    "type": "ISA-95 type",
+    "typeHelp": "Optional",
+    "buildingHelp": "Optional: the building it stands in",
+    "buildingInherits": "Empty: {{name}} (from the level above)",
+    "deleteConfirm": "Remove {{type}} {{name}}? Only empty parts can be removed."
+  },
+  "buildings": {
+    "help": "Where things are: buildings, halls, floors and outdoor areas – apart from what happens there.",
+    "add": "Add {{type}}",
+    "empty": "No buildings yet.",
+    "nodes": "Named by"
+  },
+  "building": {
+    "newTitle": "New {{type}}",
+    "editTitle": "Edit {{name}}",
+    "help": "A place on the spatial axis. A floor or room names the building it is in.",
+    "kind": "Kind",
+    "parent": "Inside",
+    "parentHelp": "Optional: the building this one is part of",
+    "deleteConfirm": "Remove {{name}}? Only buildings nothing names can be removed.",
+    "editNamed": "Edit {{name}}",
+    "removeNamed": "Remove {{name}}"
+  },
+  "assets": {
+    "description": "Machines and equipment of the sites you may see, with where they stand.",
+    "new": "New {{type}}",
+    "search": "Search name, id, model or tag",
+    "place": "Area, work center or work unit",
+    "count_one": "{{count}} asset",
+    "count_other": "{{count}} assets",
+    "emptyTitle": "No {{type}} yet",
+    "emptyText": "Assets are the machines and equipment of a site. Add one on a site's page or here, or import them.",
+    "noMatch": "No asset matches the filters."
+  },
+  "asset": {
+    "newTitle": "New {{type}}",
+    "editTitle": "Edit {{name}}",
+    "status": "Status",
+    "location": "Location",
+    "place": "Area, work center or work unit",
+    "placeHelp": "The innermost place: the levels above follow from it",
+    "buildingOverride": "Own building",
+    "buildingHelp": "Optional: only when it differs from its place's",
+    "buildingInherits": "Empty: {{name}} (from its place)",
+    "parent": "Part of",
+    "parentHelp": "Optional: the asset this one belongs to (same site)",
+    "details": "Details",
+    "manufacturer": "Manufacturer",
+    "model": "Model",
+    "manufacturerModel": "Manufacturer and model",
+    "domain": "Domain",
+    "domainHelp": "Taxonomy, e.g. machining",
+    "processArea": "Process area",
+    "role": "Role",
+    "roleHelp": "What it is, e.g. machining-centre",
+    "tag": "Tag",
+    "tags": "Tags",
+    "commissioned": "Commissioned",
+    "endOfSupport": "End of support",
+    "capabilities": "Capabilities",
+    "capabilitiesHelp": "One per line",
+    "equipment": "Equipment",
+    "equipmentHelp": "The asset this one is part of, and the assets that are part of it.",
+    "partOf": "Part of",
+    "parts": "Parts",
+    "hidden": "In a site you may not see",
+    "taxonomy": "Taxonomy",
+    "domainIs": "Domain: {{value}}",
+    "processAreaIs": "Process area: {{value}}",
+    "roleIs": "Role: {{value}}",
+    "lifecycle": "Lifecycle",
+    "commissionedOn": "Commissioned: {{date}}",
+    "endOfSupportOn": "End of support: {{date}}",
+    "pastEndOfSupport": "Past end of support",
+    "buildingFrom": {
+      "asset": "its own",
+      "work_unit": "from its {{type}}",
+      "work_center": "from its {{type}}",
+      "area": "from its {{type}}"
+    },
+    "imageAlt": "Image of {{name}}",
+    "noImage": "No image",
+    "imageNotUploaded": "The source names the image {{name}}; it is not uploaded.",
+    "imageUpload": "Upload image",
+    "imageReplace": "Replace image",
+    "imageRemove": "Remove",
+    "imageHelp": "PNG, JPEG or WebP, at most {{kb}} KB.",
+    "delete": "Delete asset",
+    "deleteConfirm": "Delete {{name}}? Its links and image go with it.",
+    "deleteConfirmChildren": "Delete {{name}}? Its links and image go with it; its {{count}} parts stay, without a parent."
+  },
+  "source": {
+    "title": "Source",
+    "import": "Import {{id}}",
+    "importOf": "{{files}}, imported {{when}}",
+    "manual": "Entered in Steward"
+  },
+  "export": {
+    "all": "Export YAML",
+    "site": "Export YAML"
+  },
+  "import": {
+    "button": "Import",
+    "title": "Import YAML",
+    "description": "Add sites, their hierarchy, buildings and assets from YAML files – one per site, assets apart, or a whole tree. You see what changes before anything is saved.",
+    "schema": "JSON Schema",
+    "notAllowedTitle": "You cannot import",
+    "notAllowedText": "Importing needs the right to manage a site or to add sites.",
+    "step1": "1. Files",
+    "filesHelp": "YAML or JSON in the plant registry format (version 1, see docs/PLANT.md). Several files are imported together.",
+    "chooseFiles": "Choose files",
+    "addFiles": "Add files",
+    "clearFiles": "Remove all",
+    "removeFile": "Remove {{name}}",
+    "tooLarge": "The files are too large together (at most {{mb}} MB).",
+    "step2": "2. Mode",
+    "mode": "Mode",
+    "modes": {
+      "add": {
+        "title": "Add only",
+        "text": "New records are added; records that are there already stay as they are."
+      },
+      "update": {
+        "title": "Add and update",
+        "text": "New records are added, existing ones get what the file says. Keys the file leaves out keep their values."
+      },
+      "replace": {
+        "title": "Replace an earlier import",
+        "text": "The files become the truth for an earlier import: its records are written in full, and those the files no longer have are removed or kept and marked.",
+        "none": "Available after a first import."
+      }
+    },
+    "replaces": "Earlier import",
+    "replacesHelp": "Its records that are not in the files any more are removed or marked. Records entered in Steward stay.",
+    "earlierLabel": "{{date}} by {{user}} – {{files}}",
+    "missing": "Records of that import that the files no longer have",
+    "missingMark": "Keep and mark “not in source”",
+    "missingRemove": "Remove",
+    "previewButton": "Show what changes",
+    "step3": "3. What changes",
+    "problems_one": "{{count}} problem – nothing is imported",
+    "problems_other": "{{count}} problems – nothing is imported",
+    "warnings": "Notes",
+    "show": "Show",
+    "showChanges": "Changes",
+    "showAll": "All records",
+    "nothingChanges": "Nothing changes.",
+    "changes": "Changes",
+    "action": "Change",
+    "kind": "Kind",
+    "what": "What",
+    "more": "… and {{count}} more",
+    "apply": "Import",
+    "removeConfirm_one": "The import removes {{count}} record. Import anyway?",
+    "removeConfirm_other": "The import removes {{count}} records. Import anyway?",
+    "done": "Imported: {{add}} added, {{change}} changed, {{remove}} removed, {{mark}} marked.",
+    "resultTitle": "Imported",
+    "toSites": "Go to the {{type}}",
+    "history": "Earlier imports",
+    "noHistory": "No imports yet.",
+    "when": "When",
+    "files": "Files",
+    "result": "Result",
+    "records": "Records left",
+    "actions": {
+      "add": "Add",
+      "change": "Change",
+      "remove": "Remove",
+      "mark": "Mark",
+      "unchanged": "Unchanged",
+      "skip": "Skip"
+    },
+    "notes": {
+      "exists": "Exists already (add only)",
+      "notInSource": "Not in source",
+      "marked": "Kept, marked “not in source”",
+      "markedHolds": "Kept, marked “not in source” – it still holds records",
+      "namesRemoved": "Names a record that is removed"
+    },
+    "fields": {
+      "name": "name",
+      "names": "translations",
+      "code": "code",
+      "description": "description",
+      "geo": "position",
+      "contacts": "contacts",
+      "refs": "external references",
+      "fields": "own fields",
+      "parentId": "parent",
+      "buildingId": "building",
+      "areaId": "area",
+      "workCenterId": "work center",
+      "workUnitId": "work unit",
+      "siteId": "site",
+      "status": "status",
+      "notInSource": "back in the source"
+    }
+  },
+  "settings": {
+    "title": "Plant registry",
+    "description": "The sites of the enterprise, their <b>ISA-95</b> hierarchy (area, work center, work unit), buildings and assets – with YAML import and export. A module of its own: off, nothing of it shows, and the rest of Steward works as before.",
+    "enabled": "Turn on the plant registry",
+    "enabledHelp": "Adds the Plant area to the sidebar and sites and assets as link targets. Turning it off hides it again; its data is kept.",
+    "turningOff": "Off, the plant registry's pages, routes and links are hidden. Its data is kept and comes back when it is turned on again.",
+    "enterprise": "Enterprise",
+    "enterpriseHelp": "The name of the enterprise this installation documents (the root of the export)",
+    "labels": "Display names",
+    "labelsHelp": "Your own words for the record types, e.g. “Machine” instead of “Asset”. Empty: the standard word.",
+    "recordType": "Record type",
+    "labelOne": "{{type}} ({{language}}, one)",
+    "labelOther": "{{type}} ({{language}}, several)",
+    "fields": "Own fields",
+    "fieldsHelp": "Fields of your own per record type, checked on every save and import. In the import file they are under “fields:” with their key.",
+    "fieldKey": "Key",
+    "fieldLabel": "Label",
+    "fieldKind": "Kind",
+    "fieldOptions": "Options",
+    "fieldRequired": "Required",
+    "fieldAdd": "Add field",
+    "fieldRemove": "Remove field {{name}}",
+    "save": "Save",
+    "saved": "Plant registry settings saved"
+  }
+}

@@ -20,7 +20,7 @@ import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
 import { PRESETS, PRESET_SPECS } from '../platforms/presets.js';
 import { audit } from '../audit.js';
 import { createUser, findUserByName, saveTeam } from '../auth/users.js';
-import { PVAULT_KIND, type ComponentType, type Role } from '@sm/shared';
+import { LLM_GATEWAY_KIND, PVAULT_KIND, type AiGatewaySettings, type ComponentType, type Role } from '@sm/shared';
 import { createDashboard, listDashboardTemplates } from '../dashboards/service.js';
 import { listSchedules, saveSchedule } from '../scheduler.js';
 import { startRun } from '../engine/runner.js';
@@ -36,7 +36,9 @@ import { DEMO_AWS } from '../mock/mockAws.js';
 import { DEMO_DTRACK } from '../mock/mockDtrack.js';
 import { DEMO_SNOWFLAKE, setSnowflakePublicKey } from '../mock/mockSnowflake.js';
 import { DEMO_GRAPH } from '../mock/mockGraph.js';
+import { seedPlantDemo } from '../plant/demo.js';
 import { DEMO_PVAULT } from '../mock/mockPrivilegeVault.js';
+import { DEMO_LLM } from '../mock/mockLlmGateway.js';
 
 /** Creates demo platforms (pointing to the built-in mock) and imports all templates. */
 export const DEMO_USER_PASSWORD = 'Demo-password-1';
@@ -376,6 +378,40 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
     for (const sp of PRESET_SPECS[PVAULT_KIND]!()) addSpec(v.id, sp.name, sp.content);
     platforms++;
   }
+  if (!existing.has('LLM gateway (demo)')) {
+    // LLM gateway (#216): the simulated multi-format gateway with one model per format; it may be sent CheckMk data
+    // and the CheckMk datasets – nothing else, as an administrator would set it up
+    const preset = PRESETS.find((x) => x.kind === LLM_GATEWAY_KIND)!;
+    const checkmk = db().get<{ id: string }>("SELECT id FROM platforms WHERE name = 'CheckMk (demo)'");
+    const window = { contextTokens: 32_000, maxOutputTokens: 1_000 };
+    const ai: AiGatewaySettings = {
+      models: [
+        { id: 'demo-chat-small', label: 'Demo chat (small)', format: 'chat-completions', ...window, priceInputPer1k: 0.0005, priceOutputPer1k: 0.0015 },
+        { id: 'demo-responses-small', label: 'Demo responses (small)', format: 'responses', ...window },
+        {
+          id: 'demo-messages-small',
+          label: 'Demo messages (small)',
+          format: 'anthropic-messages',
+          ...window,
+          priceInputPer1k: 0.0008,
+          priceOutputPer1k: 0.004,
+        },
+        { id: 'demo.converse-small-v1:0', label: 'Demo converse (small)', format: 'bedrock-converse', ...window },
+      ],
+      allowedData: { platforms: checkmk ? [checkmk.id] : [], datasets: ['checkmk.*'], inputs: false },
+    };
+    createPlatform({
+      name: 'LLM gateway (demo)',
+      kind: LLM_GATEWAY_KIND,
+      environment: 'demo',
+      description:
+        'Simulated multi-format LLM gateway served by the built-in mock: Chat Completions, Responses, Messages and Converse on one base URL, an API key in x-api-key. Its answers are made up from the question – no real model is asked. See docs/AI.md.',
+      baseUrl: `${base}/llm`,
+      config: { ...preset.config, http: { ...preset.config.http, proxy: 'none' }, ai },
+      secrets: { apiKey: DEMO_LLM.apiKey },
+    });
+    platforms++;
+  }
   if (!existing.has('Snowflake (demo)')) {
     // Snowflake (#115): a key pair for the demo user – the mock knows the public key, Steward keeps the private one
     const keys = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -593,6 +629,12 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
   await setupComplianceDemo(platformByKind.get('insights-hub'));
   // ---- access checks of Snowflake, AWS and GitHub, so person reviews span several platforms ----
   await setupAccessSourcesDemo(platformByKind);
+  // ---- the plant registry's invented enterprise, when the module is on (plant/demo.ts) ----
+  try {
+    seedPlantDemo();
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'plant registry demo data not loaded');
+  }
 
   audit({
     action: 'demo.setup',

@@ -322,6 +322,7 @@ export function TicketForm({
 
 /** Affected services, platforms, credentials, records, monitors and processes (only items the user can see can be picked). */
 function AffectedPicker({ value, onChange, hidden }: { value: Affected[]; onChange: (v: Affected[]) => void; hidden: number }) {
+  const { caps } = useMe();
   const { t } = useTranslation(['tickets', 'records']);
   const [kind, setKind] = useState<TicketLinkKind>('service');
   const [q, setQ] = useState('');
@@ -381,7 +382,8 @@ function AffectedPicker({ value, onChange, hidden }: { value: Affected[]; onChan
         <Select
           size="xs"
           aria-label={t('affected.kind')}
-          data={TICKET_LINK_KINDS.map((k) => ({ value: k, label: t(`records:links.kinds.${k}`) }))}
+          // sites and assets only while the plant registry module is on (#218)
+          data={TICKET_LINK_KINDS.filter((k) => caps.plant || (k !== 'site' && k !== 'asset')).map((k) => ({ value: k, label: t(`records:links.kinds.${k}`) }))}
           value={kind}
           onChange={(v) => v && setKind(v as TicketLinkKind)}
           allowDeselect={false}

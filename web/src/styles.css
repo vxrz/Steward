@@ -267,3 +267,34 @@ p .mantine-Anchor-root,
   outline: 2px solid var(--mantine-primary-color-filled);
   outline-offset: -2px;
 }
+
+/* The plant registry's hierarchy (#218): areas as boxes, work centers and work units indented below them */
+.plant-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.plant-tree .plant-tree {
+  margin-left: 10px;
+  padding-left: var(--mantine-spacing-sm);
+  border-left: 1px solid var(--mantine-color-default-border);
+}
+.plant-tree-item[data-level='area'] {
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  padding: 4px;
+  margin-bottom: var(--mantine-spacing-xs);
+}
+.plant-tree-row {
+  padding: 5px 6px;
+  border-radius: var(--mantine-radius-sm);
+}
+.plant-tree-row:hover {
+  background: var(--mantine-color-default-hover);
+}
+@media (min-width: 48em) {
+  .plant-tree .plant-tree {
+    margin-left: 14px;
+    padding-left: var(--mantine-spacing-md);
+  }
+}

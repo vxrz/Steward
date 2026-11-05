@@ -27,8 +27,18 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { IconCalendarTime, IconDownload, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { DUTY_LEVELS, REPORT_LANGS } from '@sm/shared';
-import type { GatusMetricsSource, MonitorSummary, ProcessSummary, RecordType, ReportRecord, ReportSchedule, ReportSchedulePreset, Subject } from '@sm/shared';
+import { DUTY_LEVELS, LLM_GATEWAY_KIND, REPORT_LANGS } from '@sm/shared';
+import type {
+  GatusMetricsSource,
+  MonitorSummary,
+  Platform,
+  ProcessSummary,
+  RecordType,
+  ReportRecord,
+  ReportSchedule,
+  ReportSchedulePreset,
+  Subject,
+} from '@sm/shared';
 import { apiUrl, del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, PageHeader, QueryState, useCreateParam } from '../components/common';
 import { reportLangName } from '../components/reports/RunReports';
@@ -37,11 +47,11 @@ import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { CronPreview } from '../components/CronPreview';
 import { useMe } from '../auth';
-import { monitorKeys, processKeys, scheduleKeys } from '../queryKeys';
+import { monitorKeys, platformKeys, processKeys, scheduleKeys } from '../queryKeys';
 import { DuplicateActionIcon, useDuplicate } from '../components/duplicate/DuplicateButton';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
-const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties', 'scorecard'];
+const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties', 'scorecard', 'ai'];
 
 type Draft = Pick<
   ReportSchedule,
@@ -354,6 +364,11 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
   const typeName = useTypeName();
   const gatus = useQuery({ queryKey: ['gatus-sources'], queryFn: () => getOptional<GatusMetricsSource[]>('/gatus/sources', []) });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => getOptional<Subject[]>('/subjects', []), retry: false });
+  const gateways = useQuery({
+    queryKey: platformKeys.ofKind(LLM_GATEWAY_KIND),
+    queryFn: async () => (await get<Platform[]>('/platforms')).filter((p) => p.kind === LLM_GATEWAY_KIND),
+    enabled: sections.includes('ai'),
+  });
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
   const sec = (id: string) => d.sections[id] as SectionConfig | undefined;
   const setSec = (id: string, v: SectionConfig | undefined) => {
@@ -371,6 +386,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     tickets: {},
     duties: { levels: null, serviceIds: null },
     scorecard: { serviceIds: null },
+    ai: { platformIds: null },
   };
   const save = async () => {
     setBusy(true);
@@ -511,6 +527,18 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
                   data={(processes.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
                   value={cfg.processIds ?? []}
                   onChange={(v) => setSec(id, { ...cfg, processIds: v.length ? v : null })}
+                />
+              )}
+              {cfg && id === 'ai' && (
+                <MultiSelect
+                  ml="lg"
+                  maw={420}
+                  label={t('form.gateways')}
+                  placeholder={t('form.allGateways')}
+                  searchable
+                  data={(gateways.data ?? []).map((g) => ({ value: g.id, label: g.name }))}
+                  value={(cfg.platformIds as string[] | null) ?? []}
+                  onChange={(v) => setSec(id, { ...cfg, platformIds: v.length ? v : null })}
                 />
               )}
               {cfg && id === 'duties' && (

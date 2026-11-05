@@ -1,0 +1,19 @@
+name: AI usage
+description: Calls of AI models through the LLM gateways – tokens today and this month against the installation's budgets, refused and failed calls, and which processes use the most. Fed by the built-in dataset "AI usage" (ai.usage), which Steward keeps up to date itself; administrators and auditors see it.
+refreshSeconds: 300
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **AI usage** – every call of the step *Ask an AI model* and every connection test of an LLM gateway, as the gateways counted the tokens. The usage log holds no prompts and no answers; they stay in the runs.
+      Budgets per day and month are set on each gateway's page (*AI usage* tab) for the installation, the gateway and single processes; at 80 % a notification goes out, a call that no longer fits is refused (`AI_BUDGET_EXHAUSTED`). The monthly report: a report schedule with the section *AI usage*. See docs/AI.md.
+  - { id: tokensToday, type: kpi, title: Tokens today, dataset: ai.usage, metric: tokensToday, goodWhen: down, width: 3 }
+  - { id: tokensMonth, type: kpi, title: Tokens this month, dataset: ai.usage, metric: tokensThisMonth, goodWhen: down, width: 3, days: 31 }
+  - { id: callsToday, type: kpi, title: Calls today, dataset: ai.usage, metric: callsToday, width: 3 }
+  - { id: refusedToday, type: kpi, title: Refused today, dataset: ai.usage, metric: refusedToday, goodWhen: down, width: 3 }
+  - { id: trend, type: trend, title: Tokens this month, dataset: ai.usage, metrics: [tokensThisMonth], days: 31, width: 8 }
+  - { id: status, type: status, title: Calls by result, dataset: ai.usage, width: 4 }
+  - { id: problems, type: table, title: Refused or failed calls this month, dataset: ai.usage, problemsOnly: true, width: 12 }
+  - { id: all, type: table, title: "Use this month per gateway, model and process", dataset: ai.usage, width: 12 }
+  - { id: fresh, type: freshness, title: Data freshness, width: 12 }

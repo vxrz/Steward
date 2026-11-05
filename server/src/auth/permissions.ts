@@ -29,6 +29,7 @@ export const DEFAULT_PROCESS: Record<Role, ProcessPermission[]> = {
   auditor: ['view'],
   viewer: ['view'],
   status: [],
+  plant: [],
 };
 
 export const DEFAULT_PLATFORM: Record<Role, PlatformPermission[]> = {
@@ -39,6 +40,7 @@ export const DEFAULT_PLATFORM: Record<Role, PlatformPermission[]> = {
   auditor: [],
   viewer: [],
   status: [],
+  plant: [],
 };
 
 export function subjectsOf(u: AuthUser): Set<string> {

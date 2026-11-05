@@ -207,7 +207,8 @@ export function PlatformHealthPanel({ platform, canManage }: { platform: Pick<Pl
   return (
     <Card withBorder padding="sm" mb="md" data-testid="platform-health">
       <Group justify="space-between" wrap="wrap" align="flex-start" gap="sm">
-        <Group gap="sm" wrap="nowrap" align="flex-start" style={{ minWidth: 0, flex: 1 }}>
+        {/* a basis, so the periodic test wraps below on a phone instead of squeezing the text to one letter a line */}
+        <Group gap="sm" wrap="nowrap" align="flex-start" style={{ minWidth: 0, flex: '1 1 240px' }}>
           <ThemeIcon color={color} variant="light" size="lg" aria-hidden>
             {last && !last.ok ? <IconAlertTriangle size={18} /> : last ? <IconCheck size={18} /> : <IconActivityHeartbeat size={18} />}
           </ThemeIcon>

@@ -20,7 +20,7 @@ import * as dashboards from '../dashboards/service.js';
 import * as monitors from '../monitors/service.js';
 import * as triggers from '../triggers/service.js';
 import * as tickets from '../tickets/service.js';
-import { monitorDatasetVisible } from '../monitors/datasets.js';
+import { builtinDatasetVisible } from '../dashboards/builtin.js';
 import { systemStatus } from '../system/routes.js';
 import { HttpError } from '../util.js';
 import { ProblemError } from '../api/v1/problem.js';
@@ -74,7 +74,7 @@ function visibleDataset(key: string) {
   } catch {
     throw notFound(`Dataset ${key}`);
   }
-  if (!(monitorDatasetVisible(meta.processId) ?? processes.permissionsFor(meta.processId).includes('view'))) throw notFound(`Dataset ${key}`);
+  if (!(builtinDatasetVisible(meta.processId) ?? processes.permissionsFor(meta.processId).includes('view'))) throw notFound(`Dataset ${key}`);
   return meta;
 }
 
@@ -429,7 +429,7 @@ const steward: ToolDef[] = [
       const visible = new Set(visibleProcessIds());
       const list = datasets
         .listDatasets()
-        .filter((d) => monitorDatasetVisible(d.processId) ?? visible.has(d.processId))
+        .filter((d) => builtinDatasetVisible(d.processId) ?? visible.has(d.processId))
         .map((d) => ({
           key: d.key,
           title: d.title,

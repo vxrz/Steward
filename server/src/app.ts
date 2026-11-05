@@ -15,6 +15,7 @@ import { registerRoutes } from './routes/index.js';
 import { mockPlatform } from './mock/mockPlatform.js';
 import { currentUser, requestContext, type AuthUser } from './auth/context.js';
 import { ACCESS, hasRole, isStatusViewer, type ResolvedAccess, type RouteAccess } from './auth/access.js';
+import { plantOnly } from './auth/policy.js';
 import { sessionUser, toAuthUser } from './auth/users.js';
 import { LINK_PARAM, readCookie, SESSION_COOKIE, SESSION_HEADER } from './auth/cookies.js';
 import { connectVaultToDatabase } from './vault-rotation.js';
@@ -199,11 +200,13 @@ export const registeredRoutes = (app: FastifyInstance): RegisteredRoute[] =>
  */
 export function resolveAccess(url: string, routeConfig: unknown): ResolvedAccess {
   const c = (routeConfig ?? {}) as { access?: RouteAccess; smPublicApi?: boolean };
-  if (!url.startsWith('/api/')) return { auth: 'public', statusViewer: true };
-  if (c.smPublicApi || isPublicApiPath(url) || isMcpEndpoint(url)) return { auth: 'api', statusViewer: false };
+  if (!url.startsWith('/api/')) return { auth: 'public', statusViewer: true, plantViewer: true };
+  // the public API and the MCP endpoint check plant viewers themselves (api/v1/auth.ts, mcp/http.ts)
+  if (c.smPublicApi || isPublicApiPath(url) || isMcpEndpoint(url)) return { auth: 'api', statusViewer: false, plantViewer: false };
   const a = c.access ?? {};
   const auth = a.auth ?? (url.startsWith('/api/auth/oidc/') ? 'public' : url.startsWith(HOOKS_PREFIX) ? 'hook' : 'user');
-  return { ...a, auth, statusViewer: a.statusViewer ?? (auth === 'public' || url.startsWith('/api/auth/')) };
+  const own = auth === 'public' || url.startsWith('/api/auth/');
+  return { ...a, auth, statusViewer: a.statusViewer ?? own, plantViewer: a.plantViewer ?? (own || url.startsWith('/api/plant/')) };
 }
 /** Every route with its resolved access, keyed "METHOD /url" (the route permission matrix checks them). */
 export const routeAccess = (app: FastifyInstance): Record<string, ResolvedAccess> =>
@@ -373,6 +376,10 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       // A status viewer (#26) reaches the routes that allow them – nothing else, whatever a route checks itself.
       if (isStatusViewer(user.roles) && !access.statusViewer) {
         return void reply.code(403).send({ error: 'Status viewers only see the status pages', code: 'STATUS_VIEWER_ONLY' });
+      }
+      // A plant viewer (#218) sees the plant registry and their own profile – nothing else (a status role adds its pages).
+      if (!access.plantViewer && !(access.statusViewer && user.roles.includes('status')) && plantOnly(user)) {
+        return void reply.code(403).send({ error: 'Plant viewers only see the plant registry', code: 'PLANT_VIEWER_ONLY' });
       }
       if (access.roles && !hasRole(user, access.roles)) {
         return void reply.code(403).send({ error: 'You are not allowed to do this', code: 'FORBIDDEN' });

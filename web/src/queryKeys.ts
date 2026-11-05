@@ -44,6 +44,13 @@ export const platformKeys = {
   application: (id: string | null | undefined) => ['platform', id, 'application'] as const,
   presets: ['platform-presets'] as const,
   recordings: (id: string | null | undefined) => ['platform-recordings', id] as const,
+  /** LLM gateways (0.6.0): budgets, use and the latest calls; refreshed with the platform (prefix ['platform', id]) */
+  aiUsage: (id: string | null | undefined) => ['platform', id, 'ai-usage'] as const,
+};
+
+/** AI models (0.6.0): every budget (administrators and auditors) */
+export const aiKeys = {
+  budgets: ['ai-budgets'] as const,
 };
 
 export const monitorKeys = {
@@ -85,4 +92,18 @@ export const assuranceKeys = {
   all: ['assurance'] as const,
   policy: ['assurance', 'policy'] as const,
   history: ['assurance', 'history'] as const,
+};
+
+/** The plant registry (#218, opt-in module). */
+export const plantKeys = {
+  /** Everything of the module (after an import or the settings changed) */
+  all: ['plant'] as const,
+  config: ['plant', 'config'] as const,
+  settings: ['plant', 'settings'] as const,
+  sites: ['plant', 'sites'] as const,
+  site: (id: string | null | undefined) => ['plant', 'site', id] as const,
+  hierarchy: ['plant', 'hierarchy'] as const,
+  assets: (filter: string) => ['plant', 'assets', filter] as const,
+  asset: (id: string | null | undefined) => ['plant', 'asset', id] as const,
+  imports: ['plant', 'imports'] as const,
 };

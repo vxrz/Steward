@@ -84,22 +84,22 @@ const notificationSettingsBody = z.object({
 export async function opsRoutes(app: FastifyInstance): Promise<void> {
   initNotifications();
 
-  // ---------- in-app notifications ----------
-  app.get('/notifications', async (req) => {
+  // ---------- in-app notifications (plant viewers, #218, too: their own) ----------
+  app.get('/notifications', { config: { access: ACCESS.plantViewer } }, async (req) => {
     const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(500).default(50) }).parse(req.query ?? {});
     return listInApp(me().id, limit);
   });
-  app.post('/notifications/read-all', async () => {
+  app.post('/notifications/read-all', { config: { access: ACCESS.plantViewer } }, async () => {
     markAllRead(me().id);
     return { ok: true };
   });
-  app.post('/notifications/:id/read', async (req) => {
+  app.post('/notifications/:id/read', { config: { access: ACCESS.plantViewer } }, async (req) => {
     markRead(me().id, params(req).id!);
     return { ok: true };
   });
 
-  // ---------- own profile ----------
-  app.patch('/me', async (req) => {
+  // ---------- own profile (plant viewers too) ----------
+  app.patch('/me', { config: { access: ACCESS.plantViewer } }, async (req) => {
     const b = z
       .object({
         displayName: z.string().max(100).optional(),
@@ -115,9 +115,9 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- API tokens ----------
-  app.get('/me/tokens', async () => listTokens(me().id));
+  app.get('/me/tokens', { config: { access: ACCESS.plantViewer } }, async () => listTokens(me().id));
   // a token outlives the session: creating one needs a recent confirmation (auth/step-up.ts)
-  app.post('/me/tokens', { config: { access: ACCESS.session, stepUp: { action: 'createToken' } } }, async (req) => {
+  app.post('/me/tokens', { config: { access: { ...ACCESS.session, plantViewer: true }, stepUp: { action: 'createToken' } } }, async (req) => {
     if (viaToken(req)) throw new HttpError(403, 'API tokens cannot create other tokens – sign in to the web UI');
     // emergency access is for repairing sign-in, not for lasting access that outlives its session
     if (me().emergency) throw new HttpError(403, 'API tokens cannot be created in an emergency access session', 'EMERGENCY_NO_TOKENS');
@@ -127,7 +127,7 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     const u = getUser(me().id);
     return createToken(u.id, b);
   });
-  app.delete('/me/tokens/:id', async (req) => {
+  app.delete('/me/tokens/:id', { config: { access: ACCESS.plantViewer } }, async (req) => {
     revokeToken(params(req).id!, me().id);
     return { ok: true };
   });
@@ -142,7 +142,7 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- public REST API (/api/v1): effective configuration for the web UI ----------
-  app.get('/public-api', async () => {
+  app.get('/public-api', { config: { access: ACCESS.plantViewer } }, async () => {
     me();
     return publicApiStatus();
   });

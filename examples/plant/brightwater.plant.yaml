@@ -1,0 +1,325 @@
+# yaml-language-server: $schema=https://github.com/vxrz/Steward/blob/main/docs/plant/plant-registry-1.schema.json
+# Steward plant registry, format 1 (docs/PLANT.md).
+# An invented enterprise with two invented sites – the demo data of the plant registry module and the fixture of its
+# tests. Names, places, contacts and ids are made up; example.com is reserved for examples.
+version: 1
+enterprise:
+  name: Brightwater Components
+sites:
+  - id: riverside
+    code: RVS
+    name: Riverside Works
+    names:
+      de: Werk Riverside
+    description: Machining and final assembly of pump housings.
+    geo:
+      lat: 52.3512
+      lon: 9.0531
+      zoom: 16
+    contacts:
+      - name: Plant office
+        role: Site management
+        email: plant-office@example.com
+        phone: +49 000 000000
+    external_refs:
+      - system: erp
+        id: PLANT-1000
+    # The spatial axis (IEC 81346 location aspect): halls, a floor inside a hall, the yard.
+    buildings:
+      - id: rvs-hall-1
+        name: Hall 1
+        names:
+          de: Halle 1
+        kind: hall
+      - id: rvs-hall-2
+        name: Hall 2
+        names:
+          de: Halle 2
+        kind: hall
+      - id: rvs-hall-2-mezzanine
+        name: Hall 2, mezzanine
+        names:
+          de: Halle 2, Zwischengeschoss
+        kind: floor
+        parent: rvs-hall-2
+      - id: rvs-yard
+        name: Yard
+        names:
+          de: Werkhof
+        kind: outdoor
+    # The functional axis (ISA-95 / IEC 62264): what happens, not where – each node names its building.
+    areas:
+      - id: rvs-machining
+        name: Machining
+        names:
+          de: Zerspanung
+        domain: machining
+        work_centers:
+          - id: rvs-mill-line-1
+            name: Milling line 1
+            names:
+              de: Fräslinie 1
+            type: production_line
+            building: rvs-hall-1
+            work_units:
+              - id: rvs-mill-line-1-cell-1
+                name: Milling cell 1
+                names:
+                  de: Fräszelle 1
+                type: work_cell
+              - id: rvs-mill-line-1-cell-2
+                name: Milling cell 2
+                names:
+                  de: Fräszelle 2
+                type: work_cell
+          - id: rvs-mill-line-2
+            name: Milling line 2
+            names:
+              de: Fräslinie 2
+            type: production_line
+            building: rvs-hall-2
+            work_units:
+              - id: rvs-mill-line-2-cell-1
+                name: Milling cell 1
+                names:
+                  de: Fräszelle 1
+                type: work_cell
+      - id: rvs-assembly
+        name: Assembly
+        names:
+          de: Montage
+        domain: assembly
+        building: rvs-hall-2
+        work_centers:
+          - id: rvs-final-assembly
+            name: Final assembly
+            names:
+              de: Endmontage
+            type: production_line
+            work_units:
+              - id: rvs-final-assembly-station-1
+                name: Pressing station
+                names:
+                  de: Pressstation
+                type: work_cell
+              - id: rvs-final-assembly-test
+                name: Test bench
+                names:
+                  de: Prüfstand
+                type: work_cell
+                building: rvs-hall-2-mezzanine
+      # Site-wide services: no work centers; each asset names the building it stands in.
+      - id: rvs-utilities
+        name: Plant utilities
+        names:
+          de: Werksinfrastruktur
+        domain: utilities
+    assets:
+      - id: rvs-mill-01
+        name: Milling centre 1
+        manufacturer: Example Machine Tools
+        model: VMC 800
+        status: operational
+        location:
+          area: rvs-machining
+          work_center: rvs-mill-line-1
+          work_unit: rvs-mill-line-1-cell-1
+        taxonomy:
+          domain: machining
+          process_area: milling
+          role: machining-centre
+        tags: [cnc, milling]
+        lifecycle:
+          commissioned: "2019-03-01"
+          end_of_support: "2031-12-31"
+        description: Five-axis machining centre for housings up to 800 mm.
+        capabilities:
+          - 5-axis simultaneous milling
+          - Automatic pallet changer
+        external_refs:
+          - system: erp
+            id: "10004711"
+          - system: cmms
+            id: EQ-2231
+            url: https://cmms.example.com/equipment/EQ-2231
+      - id: rvs-mill-01-meter
+        name: Power meter of milling centre 1
+        manufacturer: Example Meters
+        model: PM 200
+        status: operational
+        parent: rvs-mill-01
+        location:
+          work_unit: rvs-mill-line-1-cell-1
+        taxonomy:
+          domain: utilities
+          role: energy-meter
+        tags: [energy]
+      - id: rvs-mill-02
+        name: Milling centre 2
+        manufacturer: Example Machine Tools
+        model: VMC 800
+        status: operational
+        location:
+          work_unit: rvs-mill-line-1-cell-2
+        taxonomy:
+          domain: machining
+          process_area: milling
+          role: machining-centre
+        tags: [cnc, milling]
+        lifecycle:
+          commissioned: "2021-06-15"
+      - id: rvs-mill-03
+        name: Milling centre 3
+        manufacturer: Example Machine Tools
+        model: HMC 500
+        status: maintenance
+        location:
+          work_unit: rvs-mill-line-2-cell-1
+        taxonomy:
+          domain: machining
+          process_area: milling
+          role: machining-centre
+        tags: [cnc, milling]
+      - id: rvs-press-01
+        name: Assembly press
+        manufacturer: Example Hydraulics
+        model: HP 40
+        status: operational
+        location:
+          work_unit: rvs-final-assembly-station-1
+        taxonomy:
+          domain: assembly
+          role: press
+        tags: [assembly]
+      - id: rvs-test-bench-01
+        name: Pump test bench
+        manufacturer: Example Test Systems
+        model: TB 3
+        status: commissioning
+        location:
+          work_unit: rvs-final-assembly-test
+        taxonomy:
+          domain: assembly
+          role: test-bench
+        tags: [quality]
+      - id: rvs-compressor-01
+        name: Compressed air station
+        manufacturer: Example Air
+        model: CA 75
+        status: operational
+        location:
+          area: rvs-utilities
+          building: rvs-yard
+        taxonomy:
+          domain: utilities
+          role: compressor
+        tags: [energy, utilities]
+  - id: hillcrest
+    code: HLC
+    name: Hillcrest Plant
+    names:
+      de: Werk Hillcrest
+    description: Injection moulding of pump parts and the central warehouse.
+    geo:
+      lat: 50.9234
+      lon: 11.5812
+      zoom: 16
+    buildings:
+      - id: hlc-main
+        name: Main building
+        names:
+          de: Hauptgebäude
+      - id: hlc-store
+        name: Storage hall
+        names:
+          de: Lagerhalle
+        kind: hall
+    areas:
+      - id: hlc-moulding
+        name: Injection moulding
+        names:
+          de: Spritzguss
+        domain: moulding
+        building: hlc-main
+        work_centers:
+          - id: hlc-moulding-unit-1
+            name: Moulding unit 1
+            names:
+              de: Spritzgießeinheit 1
+            type: production_unit
+            work_units:
+              - id: hlc-moulding-unit-1-m1
+                name: Machine place 1
+                names:
+                  de: Maschinenplatz 1
+              - id: hlc-moulding-unit-1-m2
+                name: Machine place 2
+                names:
+                  de: Maschinenplatz 2
+      - id: hlc-logistics
+        name: Logistics
+        names:
+          de: Logistik
+        domain: logistics
+        work_centers:
+          - id: hlc-warehouse
+            name: Warehouse
+            names:
+              de: Lager
+            type: storage_zone
+            building: hlc-store
+            work_units:
+              - id: hlc-warehouse-rack-a
+                name: High-bay rack A
+                names:
+                  de: Hochregal A
+                type: storage_unit
+    assets:
+      - id: hlc-im-01
+        name: Moulding machine 1
+        manufacturer: Example Plastics Machinery
+        model: IM 250
+        status: operational
+        location:
+          work_unit: hlc-moulding-unit-1-m1
+        taxonomy:
+          domain: moulding
+          role: injection-moulding-machine
+        tags: [moulding]
+        lifecycle:
+          commissioned: "2017-09-01"
+          end_of_support: "2027-09-01"
+      - id: hlc-im-02
+        name: Moulding machine 2
+        manufacturer: Example Plastics Machinery
+        model: IM 250
+        status: out_of_service
+        location:
+          work_unit: hlc-moulding-unit-1-m2
+        taxonomy:
+          domain: moulding
+          role: injection-moulding-machine
+        tags: [moulding]
+      - id: hlc-chiller-01
+        name: Mould chiller
+        manufacturer: Example Cooling
+        model: CH 12
+        status: operational
+        parent: hlc-im-01
+        location:
+          work_unit: hlc-moulding-unit-1-m1
+        taxonomy:
+          domain: utilities
+          role: chiller
+        tags: [utilities]
+      - id: hlc-agv-01
+        name: Driverless transport vehicle 1
+        manufacturer: Example Intralogistics
+        model: AGV 1
+        status: planned
+        location:
+          work_center: hlc-warehouse
+        taxonomy:
+          domain: logistics
+          role: agv
+        tags: [logistics]

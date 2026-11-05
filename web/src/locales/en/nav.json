@@ -31,7 +31,10 @@
     "evidencePacks": "Evidence packs",
     "duties": "Duties",
     "scorecard": "Scorecard",
-    "systemStatus": "System status"
+    "systemStatus": "System status",
+    "plantSites": "Sites",
+    "plantAssets": "Assets",
+    "plantImport": "Import"
   },
   "serverUnreachable": "Cannot reach the {{brand}} server: {{error}}",
   "pageNotFound": "Page not found",
@@ -131,7 +134,9 @@
       "duty": "Duty",
       "personReview": "Person review",
       "statusPage": "Status page",
-      "credential": "Credential entry"
+      "credential": "Credential entry",
+      "site": "Site",
+      "asset": "Asset"
     }
   },
   "groups": {
@@ -139,7 +144,8 @@
     "automate": "Automate",
     "catalogue": "Catalogue",
     "compliance": "Compliance",
-    "admin": "Admin"
+    "admin": "Admin",
+    "plant": "Plant"
   },
   "mainNavigation": "Main navigation",
   "skipToContent": "Skip to content",

@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.4.0 (November 2026)._
+_Last reviewed for 0.6.0 (November 2026)._
 
 ## What Steward is for
 
@@ -15,7 +15,7 @@ Guiding principles:
 3. **People stay in charge.** Automation – schedules, webhooks, AI assistants – proposes and prepares; people approve writes (four-eyes where it matters).
 4. **Small footprint.** One process, one database, no cluster; integrations through open standards (OIDC, OpenAPI, OpenTelemetry, Prometheus, MCP, RFC 9457).
 
-## Where it stands (0.3)
+## Where it stands (0.6)
 
 | Area                | Today                                                                                                                                                                                                                                                                  |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -28,6 +28,8 @@ Guiding principles:
 | Evidence            | HMAC-chained audit log with signed checkpoints and external anchors, run protocols with a sealed fingerprint, PDF/A reports drawn in a worker thread, evidence packs.                                                                                                  |
 | Data and dashboards | Datasets published by procedures, metric history with trends and forecasts, dashboards with KPI, trend, status, table and Vega-Lite widgets, the public REST API `/api/v1` for BI tools.                                                                               |
 | AI assistants       | An MCP server with a platform gateway, approved write requests (0.2.10) and OAuth 2.1 sign-in for MCP clients (0.3.0).                                                                                                                                                 |
+| AI models           | **LLM gateways** (0.6.0) in four request formats, the process step _Ask an AI model_ with per-call limits, token budgets per day and month, a usage log and the _AI usage_ dataset; answers are marked as AI-generated.                                                |
+| Plant registry      | Opt-in module (0.6.0, preview): sites with their ISA-95 hierarchy and buildings, assets, links to systems and applications, YAML import and export with a JSON Schema.                                                                                                 |
 | Running it          | Desktop executable, installable PWA, signed container image, SQLite or PostgreSQL, backups (local and S3), moving an instance with a migration package, upgrade tests from every release, OpenTelemetry traces, Prometheus metrics, optional Sentry-compatible errors. |
 
 ## Non-goals
@@ -35,7 +37,7 @@ Guiding principles:
 Steward stays a tool for procedures and their evidence. These are **out of scope** – not "later", but deliberately left to tools that do them well:
 
 - **No on-call or paging.** Steward notifies (e-mail, Teams, webhooks) and links to the run or monitor; rotations, escalation and acknowledgement belong to PagerDuty, Opsgenie or your ITSM tool, which a webhook can feed.
-- **No CMDB or discovery.** The service catalogue describes what a team runs, maintained by people and procedures; it does not scan networks or reconcile configuration items. Read your CMDB with a procedure if you need its data.
+- **No CMDB or discovery.** The service catalogue and the plant registry describe what a team runs, maintained by people, procedures and imports; they do not scan networks or reconcile configuration items. Read your CMDB with a procedure if you need its data.
 - **No metrics stack or time-series database.** Monitors check, datasets keep the history a procedure publishes; long-term metrics, PromQL and alerting rules stay in Prometheus, Grafana and friends (Steward reads them and exposes its own `/api/metrics`).
 - **No secret storage or rotation for others.** The vault protects the credentials Steward itself needs ([ADR 0004](adr/0004-vault-with-master-passphrase.md)); it is not a secret manager for other applications and does not rotate platform credentials on its own. The credentials register documents where secrets live and when they expire.
 - **No full GRC suite.** Control catalogues, mappings, coverage and evidence packs support audits of what Steward runs; risk registers, policy management, vendor questionnaires and audit planning stay in a GRC tool.
@@ -55,15 +57,20 @@ Themes of this release (details in the CHANGELOG once released):
 - **Getting started.** Onboarding for a new installation, ready-made bundles of procedures, dashboards and monitors, simpler set-up of the integrations.
 - **Architecture documentation.** [ARCHITECTURE.md](ARCHITECTURE.md) with C4 diagrams and [decision records](adr/README.md).
 
-## After 0.4.0 – audit-proof changes and more platforms
+## Shipped since 0.4.0
+
+- **0.5.0:** audit-proof firewall changes ([#208](https://github.com/vxrz/Steward/issues/208)), Microsoft Graph / Entra ID ([#202](https://github.com/vxrz/Steward/issues/202)), the Postman export ([#204](https://github.com/vxrz/Steward/issues/204)), IBM Verify Privilege Vault ([#205](https://github.com/vxrz/Steward/issues/205)) and the assurance policy ([#210](https://github.com/vxrz/Steward/issues/210)).
+- **0.6.0:** AI models through LLM gateways ([#216](https://github.com/vxrz/Steward/issues/216)) and part 1 of the plant registry ([#218](https://github.com/vxrz/Steward/issues/218), [ADR 0007](adr/0007-plant-registry.md)).
+
+## Next – 0.7.0 to 0.9.0
 
 In this order:
 
-1. **Audit-proof firewall changes** ([#208](https://github.com/vxrz/Steward/issues/208)), opt-in and without becoming a CMDB: network segments (for example shopfloor IoT subnets) as a system kind, the network context of chosen systems, a _Firewall change_ record type with four-eyes approval, evidence and verification, an _Approved firewall rules_ document per segment or system with a yearly review, and a process template for changes made by a provider.
-2. **Microsoft Graph / Entra ID** ([#202](https://github.com/vxrz/Steward/issues/202)): a read-only platform for access reviews of groups, directory roles and app roles, guests and stale accounts, and app registrations whose secrets or certificates expire soon (into the credentials register).
-3. **Postman export** ([#204](https://github.com/vxrz/Steward/issues/204)): processes and platforms as Postman collections and environments – sign-in, requests and checks as scripts, never a secret; an import of requests and auth later.
-4. **IBM PAM** ([#205](https://github.com/vxrz/Steward/issues/205), likely IBM Verify Privilege Vault): who may use which privileged secret, rotation and heartbeat hygiene, links from the credentials register, and secret checkouts as evidence – never the secret values.
-5. **Direct SQL databases** ([#203](https://github.com/vxrz/Steward/issues/203)): PostgreSQL, MariaDB/MySQL and SQL Server first, Oracle later; read-only by default, for grant reviews, account hygiene, monitor checks and datasets. The first platform kind that is not HTTP, so a decision record comes first.
+1. **0.7.0 – plant registry part 2** ([#219](https://github.com/vxrz/Steward/issues/219)): device profiles with interfaces (OPC UA, Modbus/TCP, file transfer, …) and data points, their assignment to assets, KPI definitions and KPI instances linked to the datasets that show them.
+2. **0.8.0 – plant registry part 3** ([#220](https://github.com/vxrz/Steward/issues/220)): the OT network – devices of an asset, VLANs (optionally linked to network segments), zones and conduits after **IEC 62443-3-2**, data paths – and live status from what Steward already reads.
+3. **Direct SQL databases** ([#203](https://github.com/vxrz/Steward/issues/203)): PostgreSQL, MariaDB/MySQL and SQL Server first, Oracle later; read-only by default, for grant reviews, account hygiene, monitor checks and datasets. The first platform kind that is not HTTP, so a decision record comes first. With it: **database schemas** ([#222](https://github.com/vxrz/Steward/issues/222)) – snapshots and changes, a [tbls](https://github.com/k1LoW/tbls) import for databases Steward does not reach, DBML and SQL export, then a table diagram.
+4. **Data contracts** ([#221](https://github.com/vxrz/Steward/issues/221)) after #203: contracts in the Open Data Contract Standard (ODCS v3) with versions and breaking-change detection, drafts from API schemas, datasets and tables, tests through the datacontract API as a platform and a monitor check.
+5. **Postman import** (rest of [#204](https://github.com/vxrz/Steward/issues/204)): requests and sign-in from a collection.
 
 ## Later
 
@@ -77,6 +84,8 @@ Bigger topics we expect to work on, in no fixed order. Each gets a decision reco
 - **Audit anchoring with RFC 3161 timestamps** or a transparency log, next to the signed checkpoints.
 - **Shared procedure libraries** distributed through Git as signed bundles, building on Git sync.
 - **External key management:** wrap the vault keys with a KMS or HSM instead of (or in addition to) the master passphrase.
+- **Kafka Connect and Debezium** ([#223](https://github.com/vxrz/Steward/issues/223)): connectors and tasks of an existing Kafka Connect watched like other platforms – Steward does not capture changes itself.
+- **A map of sites** in the plant registry (needs a map library and tile sources allowed by the content security policy).
 - **An engine boundary** (start run / signal decision / cancel) that would allow a durable-execution backend such as Temporal for very long or very many runs.
 
 ## Ideas parked

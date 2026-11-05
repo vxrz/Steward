@@ -556,6 +556,10 @@
     "assurance": {
       "title": "Assurance policy",
       "description": "Where a second person (four-eyes) or a fresh confirmation (step-up) is required, the baseline, overrides and the assurance report."
+    },
+    "modules": {
+      "title": "Modules",
+      "description": "Opt-in parts of Steward that are off by default: the plant registry."
     }
   },
   "endOfLife": {

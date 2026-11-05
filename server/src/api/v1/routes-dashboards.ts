@@ -3,7 +3,7 @@ import type { DatasetRow } from '@sm/shared';
 import * as processes from '../../processes/service.js';
 import * as datasets from '../../dashboards/datasets.js';
 import * as dashboards from '../../dashboards/service.js';
-import { monitorDatasetVisible } from '../../monitors/datasets.js';
+import { builtinDatasetVisible } from '../../dashboards/builtin.js';
 import { HttpError } from '../../util.js';
 import { ProblemError } from './problem.js';
 import { decodeCursor, encodeCursor, pageArray } from './pagination.js';
@@ -17,7 +17,7 @@ function visibleDataset(key: string) {
   } catch {
     throw notFound(`Dataset ${key}`);
   }
-  if (!(monitorDatasetVisible(meta.processId) ?? processes.permissionsFor(meta.processId).includes('view'))) throw notFound(`Dataset ${key}`);
+  if (!(builtinDatasetVisible(meta.processId) ?? processes.permissionsFor(meta.processId).includes('view'))) throw notFound(`Dataset ${key}`);
   return meta;
 }
 
@@ -79,7 +79,7 @@ export function dashboardRoutes(get: Get): void {
       const visible = new Set(visibleProcessIds());
       const list = datasets
         .listDatasets()
-        .filter((d) => monitorDatasetVisible(d.processId) ?? visible.has(d.processId))
+        .filter((d) => builtinDatasetVisible(d.processId) ?? visible.has(d.processId))
         .map(mapDataset);
       return paged(
         req,

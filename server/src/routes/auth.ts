@@ -24,7 +24,10 @@ import * as credentials from '../credentials/service.js';
 import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { auditPendingUpgrades } from '../upgrades.js';
-import { ACCESS, me } from '../auth/access.js';
+import { ACCESS, isStatusViewer, me } from '../auth/access.js';
+import { plantEnabled } from '../plant/settings.js';
+import { plantManagesSome } from '../plant/access.js';
+import { plantOnly } from '../auth/policy.js';
 import { assuranceStepUpStatus, ssoMfaAsk } from '../auth/assurance.js';
 
 /** Things that need the decrypted vault: pending audit entries, scheduler, recovery of waiting runs. */
@@ -75,7 +78,14 @@ function meInfo(): Me | null {
   const user = users.getUser(u.id);
   if (u.emergency) user.mustChangePassword = false;
   // what the sidebar shows besides the capabilities (pages that are of no use to the user are left out)
-  const nav = { viewAutomation: viewsAutomation(u), viewCredentials: credentials.mayReadSomeCredential(u) };
+  // the plant registry module (#218): its area and link kinds while it is on (never for status viewers)
+  const nav = {
+    viewAutomation: viewsAutomation(u),
+    viewCredentials: credentials.mayReadSomeCredential(u),
+    plant: plantEnabled() && !isStatusViewer(u.roles),
+    plantManage: plantEnabled() && !isStatusViewer(u.roles) && plantManagesSome(u),
+    plantOnly: plantOnly(u),
+  };
   return { user, capabilities: { ...capabilities(u), ...nav }, ...(u.emergency ? { emergency: { expiresAt: u.emergency.expiresAt } } : {}) };
 }
 

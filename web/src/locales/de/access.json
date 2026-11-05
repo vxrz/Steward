@@ -43,7 +43,8 @@
       "credential": "Dieser Eintrag gehört der ganzen Instanz: Rollen und seine Eigentümer bestimmen, wer ihn sieht und ändert.",
       "monitor": "Dieser Monitor gehört der ganzen Instanz: Rollen und seine Zugriffsliste bestimmen, wer was darf.",
       "dashboard": "Dieses Dashboard gehört der ganzen Instanz: alle Angemeldeten sehen es; sein Eigentümer und Administratoren ändern es.",
-      "ticket": "Diese Ticket-Referenz gehört der ganzen Instanz: alle Angemeldeten sehen sie; Designer, Operatoren und ihre Verantwortlichen ändern sie."
+      "ticket": "Diese Ticket-Referenz gehört der ganzen Instanz: alle Angemeldeten sehen sie; Designer, Operatoren und ihre Verantwortlichen ändern sie.",
+      "site": "Dieser Standort gehört der ganzen Instanz: Rollen und die Zugriffsliste bestimmen, wer ihn, seine Hierarchie und seine Anlagen sehen und verwalten darf."
     },
     "hintOwned": {
       "process": "Mitglieder dieser Teams haben auf diesem Prozess ihre Rollen im Team. Alle anderen sehen ihn nur über die Zugriffsliste unten; Administratoren immer, Auditoren dürfen ihn ansehen.",
@@ -55,7 +56,8 @@
       "credential": "Nur Mitglieder dieser Teams sehen diesen Eintrag (Designer und Operatoren unter ihnen ändern ihn), außerdem seine Eigentümer, Administratoren und Auditoren.",
       "monitor": "Mitglieder dieser Teams haben auf diesem Monitor ihre Rollen im Team. Alle anderen sehen ihn nur über seine Zugriffsliste; Administratoren immer, Auditoren dürfen ihn ansehen.",
       "dashboard": "Nur Mitglieder dieser Teams sehen dieses Dashboard, außerdem sein Eigentümer, Administratoren und Auditoren.",
-      "ticket": "Nur Mitglieder dieser Teams sehen diese Ticket-Referenz (Designer und Operatoren unter ihnen ändern sie), außerdem ihre Verantwortlichen, Administratoren und Auditoren."
+      "ticket": "Nur Mitglieder dieser Teams sehen diese Ticket-Referenz (Designer und Operatoren unter ihnen ändern sie), außerdem ihre Verantwortlichen, Administratoren und Auditoren.",
+      "site": "Nur Mitglieder dieser Teams sehen diesen Standort mit Hierarchie und Anlagen (Designer unter ihnen verwalten ihn), außerdem die Einträge seiner Zugriffsliste, Administratoren und Auditoren."
     },
     "saved": "Zuständige Teams gespeichert",
     "notSaved": "Zuständige Teams nicht gespeichert",
@@ -103,8 +105,15 @@
         "credential": "Zugangsdaten",
         "monitor": "Monitor",
         "dashboard": "Dashboard",
-        "ticket": "Ticket-Referenz"
+        "ticket": "Ticket-Referenz",
+        "site": "Standort"
       }
     }
+  },
+  "restrictedSite": "<b>Eingeschränkt:</b> Nur die Einträge unten erhalten die genannten Rechte am Standort, seiner Hierarchie und seinen Anlagen, außerdem Administratoren. Auditoren können immer lesen.",
+  "defaultsSite": "<b>Es gelten die Rollenrechte</b> (alle, die in Steward arbeiten, sehen den Standort, Designer verwalten ihn). Fügen Sie Einträge hinzu, um den Zugriff auf bestimmte Benutzer, Teams oder Rollen zu beschränken.",
+  "helpSite": {
+    "view": "Den Standort, seine Hierarchie, Gebäude und Anlagen sehen",
+    "manage": "Den Standort, seine Hierarchie, Gebäude und Anlagen ändern; in ihn importieren"
   }
 }

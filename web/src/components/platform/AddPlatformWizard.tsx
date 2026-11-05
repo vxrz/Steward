@@ -31,12 +31,13 @@ import { authLabel, presetDescription, presetSecretHelp, presetSecretLabel } fro
 import { GetStartedPanel, TestHints } from './onboarding';
 
 /** Groups of the connector list (kinds not named here: "Other"). */
-type GroupKey = 'industrial' | 'monitoring' | 'cloud' | 'development' | 'messaging' | 'custom' | 'other';
+type GroupKey = 'industrial' | 'monitoring' | 'cloud' | 'development' | 'ai' | 'messaging' | 'custom' | 'other';
 const GROUPS: { key: GroupKey; kinds: string[] }[] = [
   { key: 'industrial', kinds: ['insights-hub', 'industrial-edge-management', 'mqtt'] },
   { key: 'monitoring', kinds: ['gatus', 'checkmk', 'prometheus', 'zabbix'] },
   { key: 'cloud', kinds: ['aws', 'kubernetes', 'snowflake', 'kafka', 'confluent-cloud', 'microsoft-graph'] },
   { key: 'development', kinds: ['github', 'gitlab', 'forgejo', 'dependency-track', 'endoflife-date'] },
+  { key: 'ai', kinds: ['llm-gateway'] },
   { key: 'messaging', kinds: ['teams'] },
 ];
 const groupOf = (p: PlatformPreset): GroupKey => (p.custom ? 'custom' : (GROUPS.find((g) => g.kinds.includes(p.kind))?.key ?? 'other'));

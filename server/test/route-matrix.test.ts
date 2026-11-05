@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { allowEmailDomains, authHeaders, loginCookie, setup, startTestServer, type TestServer } from './helpers.js';
+import { allowEmailDomains, authHeaders, loginCookie, setEnv, setup, startTestServer, type TestServer } from './helpers.js';
+import { tinyPng } from './png.js';
 
 /**
  * Route permission matrix: every route the server registers, called by every role.
@@ -21,8 +22,8 @@ import { allowEmailDomains, authHeaders, loginCookie, setup, startTestServer, ty
  * "route role status" line to <file> – a starting point when classifying new routes.
  */
 
-type Role = 'admin' | 'designer' | 'operator' | 'approver' | 'auditor' | 'viewer' | 'status';
-const ROLES: Role[] = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer', 'status'];
+type Role = 'admin' | 'designer' | 'operator' | 'approver' | 'auditor' | 'viewer' | 'status' | 'plant';
+const ROLES: Role[] = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer', 'status', 'plant'];
 const USERS: Record<Role, string> = {
   admin: 'admin',
   designer: 'dana',
@@ -31,6 +32,7 @@ const USERS: Record<Role, string> = {
   auditor: 'audrey',
   viewer: 'vera',
   status: 'stella',
+  plant: 'pia',
 };
 const PW = 'Demo-password-1';
 
@@ -40,9 +42,14 @@ const PUBLIC = 'public' as const;
 const HOOK = 'hook' as const;
 type Access = typeof PUBLIC | typeof HOOK | Role[];
 
-/** Every role that works in Steward; a status viewer (#26) only reaches the status pages (EVERYONE) */
-const ALL: Role[] = ROLES.filter((r) => r !== 'status');
+/**
+ * Every role that works in Steward; a status viewer (#26) only reaches the status pages (STATUS_PAGES), a plant
+ * viewer (#218, role "plant" only) the plant registry and their own profile (PLANT)
+ */
+const ALL: Role[] = ROLES.filter((r) => r !== 'status' && r !== 'plant');
 const EVERYONE: Role[] = ROLES;
+const STATUS_PAGES: Role[] = [...ALL, 'status'];
+const PLANT: Role[] = [...ALL, 'plant'];
 const ADMIN: Role[] = ['admin'];
 const ADMIN_AUDITOR: Role[] = ['admin', 'auditor'];
 /** Roles that may create processes, dashboards, monitors, records and credentials. */
@@ -100,14 +107,14 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/auth/step-up': EVERYONE,
   'POST /api/auth/step-up/sso': EVERYONE,
   'POST /api/auth/step-up/sso/complete': EVERYONE,
-  'GET /api/about': ALL,
+  'GET /api/about': PLANT,
   'GET /api/system/status': ADMIN_AUDITOR,
   'GET /api/system/update-notice': ADMIN,
   'GET /api/system/jobs': ADMIN,
   'POST /api/system/jobs/:name/run': ADMIN,
   'POST /api/system/update-notice/dismiss': ADMIN,
   'GET /api/metrics': ADMIN_AUDITOR,
-  'GET /api/public-api': ALL,
+  'GET /api/public-api': PLANT,
 
   // ---- vault ----
   'POST /api/vault/unlock': ADMIN,
@@ -135,10 +142,10 @@ const EXPECT: Record<string, Access> = {
   'POST /api/teams/:id/settings/logo': ADMIN,
   'DELETE /api/teams/:id/settings/logo': ADMIN,
   'GET /api/subjects': ACTIVE,
-  'PATCH /api/me': ALL,
-  'GET /api/me/tokens': ALL,
-  'POST /api/me/tokens': ALL,
-  'DELETE /api/me/tokens/:id': ALL,
+  'PATCH /api/me': PLANT,
+  'GET /api/me/tokens': PLANT,
+  'POST /api/me/tokens': PLANT,
+  'DELETE /api/me/tokens/:id': PLANT,
   'GET /api/tokens': ADMIN,
   'DELETE /api/tokens/:id': ADMIN,
   'GET /api/sso/providers': ADMIN,
@@ -171,20 +178,20 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/settings/theme/logo': ADMIN,
   'GET /api/maintenance': ADMIN,
   'POST /api/maintenance/cleanup': ADMIN,
-  'GET /api/notifications': ALL,
-  'POST /api/notifications/read-all': ALL,
-  'POST /api/notifications/:id/read': ALL,
+  'GET /api/notifications': PLANT,
+  'POST /api/notifications/read-all': PLANT,
+  'POST /api/notifications/:id/read': PLANT,
   'GET /api/mcp-server': ALL,
   'PUT /api/mcp-server': ADMIN,
   // requests of MCP clients (#11): each reader sees the ones they may (the route decides per request)
   'GET /api/mcp-requests': ALL,
   // service status pages (#26): every signed-in user and the status viewers read them, designers and admins set them up
-  'GET /api/status-pages': EVERYONE,
+  'GET /api/status-pages': STATUS_PAGES,
   'POST /api/status-pages': DESIGN,
   'GET /api/status-pages/:pageId': ALL,
   'PUT /api/status-pages/:pageId': DESIGN,
   'DELETE /api/status-pages/:pageId': DESIGN,
-  'GET /api/status-pages/:pageId/view': EVERYONE,
+  'GET /api/status-pages/:pageId/view': STATUS_PAGES,
   'POST /api/status-pages/:pageId/link': DESIGN,
   'DELETE /api/status-pages/:pageId/link': DESIGN,
   'GET /api/public/status-page': PUBLIC,
@@ -235,6 +242,13 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/platforms/:id': ADMIN,
   'PUT /api/platforms/:id/access': ADMIN,
   'PUT /api/platforms/:id/mcp-gateway': ADMIN,
+  // LLM gateways (#216): AI settings like the platform, its usage like the platform itself; budgets for administrators
+  'PUT /api/platforms/:id/ai': ADMIN,
+  'POST /api/platforms/:id/ai/discover': ADMIN,
+  'GET /api/platforms/:id/ai/usage': USE,
+  'GET /api/ai/budgets': ADMIN_AUDITOR,
+  'PUT /api/ai/budgets': ADMIN,
+  'GET /api/ai/usage': ADMIN_AUDITOR,
   'POST /api/platforms/:id/confirm-config': ADMIN,
   'POST /api/platforms/:id/contract-check': ADMIN,
   'PUT /api/platforms/:id/secrets': ADMIN,
@@ -510,7 +524,7 @@ const EXPECT: Record<string, Access> = {
 
   'POST /api/record-types': ADMIN,
   'PUT /api/record-types/:id': ADMIN,
-  'GET /api/link-targets': ALL,
+  'GET /api/link-targets': PLANT,
   'GET /api/backlinks': ALL,
   'GET /api/services': ALL,
   'POST /api/services': DESIGN,
@@ -519,7 +533,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/services/:id/archive': DESIGN,
   'POST /api/services/:id/links': DESIGN,
   // types of external links: everyone reads them (the add-link dialog), administrators manage their own
-  'GET /api/link-types': ALL,
+  'GET /api/link-types': PLANT,
   'POST /api/link-types': ADMIN,
   'PUT /api/link-types/:key': ADMIN,
   'PATCH /api/services/:id/links/:linkId': DESIGN,
@@ -664,7 +678,7 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/v1/*': PUBLIC,
   'PATCH /api/v1/*': PUBLIC,
   'DELETE /api/v1/*': PUBLIC,
-  'GET /api/v1/me': ALL,
+  'GET /api/v1/me': PLANT,
   'GET /api/v1/processes': ALL,
   'GET /api/v1/processes/:processId': ALL,
   'GET /api/v1/processes/:processId/versions': ALL,
@@ -712,6 +726,11 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/applications/:applicationId': ALL,
   'GET /api/v1/systems': ALL,
   'GET /api/v1/systems/:systemId': ALL,
+  // the plant registry (#218): who may see the site (every role that works in Steward, without an access list)
+  'GET /api/v1/plant/sites': PLANT,
+  'GET /api/v1/plant/sites/:siteId': PLANT,
+  'GET /api/v1/plant/assets': PLANT,
+  'GET /api/v1/plant/assets/:assetId': PLANT,
   'GET /api/v1/environments': ALL,
   'GET /api/v1/maintenance-windows': ALL,
   'GET /api/v1/measures': ALL,
@@ -819,6 +838,46 @@ const EXPECT: Record<string, Access> = {
   // the suggestion for the dialog (fixture: the demo process) and where a copy came from (everyone who sees it)
   'GET /api/duplicates/:kind/:id': DESIGN,
   'GET /api/duplicates/:kind/:id/source': ALL,
+  // whoever manages the asset's site
+  'POST /api/plant/assets/:assetId/duplicate': DESIGN,
+
+  // ---- the plant registry (#218, on in these fixtures): its switch is the administrators'; rights per site ----
+  'GET /api/settings/plant': ADMIN,
+  'PUT /api/settings/plant': ADMIN,
+  'GET /api/plant/config': PLANT,
+  'GET /api/plant/schema': PLANT,
+  'GET /api/plant/hierarchy': PLANT,
+  'GET /api/plant/sites': PLANT,
+  'POST /api/plant/sites': DESIGN,
+  'GET /api/plant/sites/:siteId': PLANT,
+  'PUT /api/plant/sites/:siteId': DESIGN,
+  'DELETE /api/plant/sites/:siteId': DESIGN,
+  'PUT /api/plant/sites/:siteId/access': DESIGN,
+  'POST /api/plant/sites/:siteId/nodes': DESIGN,
+  'PUT /api/plant/sites/:siteId/nodes/:nodeId': DESIGN,
+  'DELETE /api/plant/sites/:siteId/nodes/:nodeId': DESIGN,
+  'POST /api/plant/sites/:siteId/buildings': DESIGN,
+  'PUT /api/plant/sites/:siteId/buildings/:buildingId': DESIGN,
+  'DELETE /api/plant/sites/:siteId/buildings/:buildingId': DESIGN,
+  'POST /api/plant/sites/:siteId/links': DESIGN,
+  'PATCH /api/plant/sites/:siteId/links/:linkId': DESIGN,
+  'DELETE /api/plant/sites/:siteId/links/:linkId': DESIGN,
+  'GET /api/plant/assets': PLANT,
+  'POST /api/plant/assets': DESIGN,
+  'GET /api/plant/assets/:assetId': PLANT,
+  'PUT /api/plant/assets/:assetId': DESIGN,
+  'DELETE /api/plant/assets/:assetId': DESIGN,
+  'PUT /api/plant/assets/:assetId/image': DESIGN,
+  'DELETE /api/plant/assets/:assetId/image': DESIGN,
+  'GET /api/plant/assets/:assetId/image': PLANT,
+  'POST /api/plant/assets/:assetId/links': DESIGN,
+  'PATCH /api/plant/assets/:assetId/links/:linkId': DESIGN,
+  'DELETE /api/plant/assets/:assetId/links/:linkId': DESIGN,
+  // preview and import need the right to add sites or manage one (a preview shows what an import would change)
+  'POST /api/plant/import/preview': DESIGN,
+  'POST /api/plant/import': DESIGN,
+  'GET /api/plant/imports': PLANT,
+  'GET /api/plant/export': PLANT,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
@@ -932,6 +991,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     harmless: { newResources: 'auto' },
   },
   // (harmless: no list, so nobody gains a right – refused by the route's validation, the fixture stays)
+  // an access list of a plant registry site gives rights to others (#218)
+  'PUT /api/plant/sites/:siteId/access': 'always',
   'PUT /api/platforms/:id/access': {
     sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] },
     harmless: { acl: 'not a list' },
@@ -958,6 +1019,11 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'PUT /api/catalogue/cia-scale': 'always',
   'PUT /api/backups/settings': 'always',
   'PUT /api/platforms/:id/mcp-gateway': { sensitive: { enabled: true, writes: 'confirm' }, harmless: { enabled: true } },
+  // raising an AI budget (the fixtures set 1,000 tokens a day for the installation); lowering it needs no confirmation
+  'PUT /api/ai/budgets': {
+    sensitive: { scope: 'installation', scopeId: '', tokensPerDay: 2000, tokensPerMonth: null },
+    harmless: { scope: 'installation', scopeId: '', tokensPerDay: 500, tokensPerMonth: null },
+  },
   'PUT /api/backups/passphrase': 'always',
 };
 
@@ -1069,7 +1135,22 @@ function fill(url: string): string {
     .replace(/:file/g, fx.monitorExample!)
     .replace(/:attId/g, 'att_none')
     .replace(/:evidenceId/g, 'tev_none')
-    .replace(/:linkId/g, url.startsWith('/api/services') ? fx.serviceLink! : url.startsWith('/api/applications') ? fx.applicationLink! : fx.recordLink!)
+    .replace(/:siteId/g, fx.site!)
+    .replace(/:assetId/g, fx.asset!)
+    .replace(/:nodeId/g, fx.plantNode!)
+    .replace(/:buildingId/g, fx.building!)
+    .replace(
+      /:linkId/g,
+      url.startsWith('/api/services')
+        ? fx.serviceLink!
+        : url.startsWith('/api/applications')
+          ? fx.applicationLink!
+          : url.startsWith('/api/plant/sites')
+            ? fx.siteLink!
+            : url.startsWith('/api/plant/assets')
+              ? fx.assetLink!
+              : fx.recordLink!,
+    )
     .replace(/:measureId/g, fx.measure!)
     .replace(/^\/api\/records\/:id\/(measures|timeline)/, (_m, rest: string) => `/api/records/${fx.review}/${rest}`)
     .replace(/:id/g, () => {
@@ -1187,6 +1268,22 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/applications/:id/components/:componentId/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/systems': { name: 'Matrix system x', kind: 'server' },
+  'PUT /api/settings/plant': { enabled: true, enterprise: '', labels: {}, fields: {} },
+  'POST /api/plant/sites': { id: 'matrix-new', name: 'Matrix new site' },
+  'PUT /api/plant/sites/:siteId': { name: 'Matrix site' },
+  'PUT /api/plant/sites/:siteId/access': { acl: [] },
+  'POST /api/plant/sites/:siteId/nodes': { id: 'matrix-new-node', level: 'area', name: 'New area' },
+  'PUT /api/plant/sites/:siteId/nodes/:nodeId': { name: 'Matrix area' },
+  'POST /api/plant/sites/:siteId/buildings': { id: 'matrix-new-building', name: 'New building' },
+  'PUT /api/plant/sites/:siteId/buildings/:buildingId': { name: 'Matrix building' },
+  'POST /api/plant/sites/:siteId/links': { url: 'https://cmdb.example.com/9', label: 'x' },
+  'PATCH /api/plant/sites/:siteId/links/:linkId': { note: 'x' },
+  'POST /api/plant/assets': { id: 'matrix-new-asset', siteId: 'matrix-site', name: 'New asset' },
+  'PUT /api/plant/assets/:assetId': { siteId: 'matrix-site', name: 'Matrix asset', areaId: 'matrix-area' },
+  'POST /api/plant/assets/:assetId/links': { url: 'https://cmdb.example.com/9', label: 'x' },
+  'PATCH /api/plant/assets/:assetId/links/:linkId': { note: 'x' },
+  'POST /api/plant/import/preview': { files: [{ name: 'm.yaml', content: 'version: 1\nsites: []\n' }], mode: 'add' },
+  'POST /api/plant/import': { files: [{ name: 'm.yaml', content: 'version: 1\nsite:\n  id: matrix-site\n  name: Matrix site\n' }], mode: 'update' },
   'PUT /api/systems/:id': { name: 'Matrix system', kind: 'server' },
   'POST /api/systems/:id/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/systems/:id/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
@@ -1264,6 +1361,8 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/record-types': { key: 'XX', name: 'x', workflow: 'decision' },
   'PUT /api/mcp-server': { enabled: true },
   'PUT /api/platforms/:id/mcp-gateway': { enabled: true },
+  'PUT /api/platforms/:id/ai': { models: [] },
+  'PUT /api/ai/budgets': { scope: 'installation', scopeId: '', tokensPerDay: 100, tokensPerMonth: null },
   'POST /api/settings/notifications/test': { channel: 'email', to: 'it@example.com' },
   'PUT /api/settings/notifications/look': { name: 'Matrix' },
   'POST /api/settings/notifications/look/preview': { name: 'Matrix' },
@@ -1353,11 +1452,28 @@ const target = (r: { method: string; url: string }) => fill(r.url) + (QUERY[key(
 const ok = (status: number) => status >= 200 && status < 300;
 
 beforeAll(async () => {
+  // the matrix calls every route without credentials within a minute; each refusal counts against the address,
+  // and there are more routes than the default limit (600 a minute) allows
   s = await startTestServer();
+  await setEnv({ SM_RATE_LIMIT_PER_MINUTE: '10000' });
   await setup(s);
+  // the plant registry module on (#218): in demo mode it loads its example enterprise with the demo data
+  await s.api('PUT', '/settings/plant', { enabled: true, enterprise: '', labels: {}, fields: {} });
   await s.api('POST', '/demo/setup', {});
   await allowEmailDomains(s, ['example.com']);
+  // a plant viewer (#218): the demo has none
+  const { createUser } = await import('../src/auth/users.js');
+  createUser({ username: USERS.plant, roles: ['plant'], password: PW });
   const a = s.api;
+  // an AI budget, so raising it is a sensitive change (STEP_UP)
+  await a('PUT', '/ai/budgets', { scope: 'installation', scopeId: '', tokensPerDay: 1000, tokensPerMonth: null });
+  await a('POST', '/plant/sites', { id: 'matrix-site', name: 'Matrix site' });
+  await a('POST', '/plant/sites/matrix-site/buildings', { id: 'matrix-building', name: 'Matrix building' });
+  await a('POST', '/plant/sites/matrix-site/nodes', { id: 'matrix-area', level: 'area', name: 'Matrix area' });
+  await a('POST', '/plant/assets', { id: 'matrix-asset', siteId: 'matrix-site', name: 'Matrix asset', areaId: 'matrix-area' });
+  await a('PUT', '/plant/assets/matrix-asset/image', { contentBase64: tinyPng().toString('base64') });
+  const siteLink = (await a('POST', '/plant/sites/matrix-site/links', { url: 'https://cmdb.example.com/4', label: 'x' })).id;
+  const assetLink = (await a('POST', '/plant/assets/matrix-asset/links', { url: 'https://cmdb.example.com/5', label: 'x' })).id;
   const procs = await a('GET', '/processes');
   const proc = procs.find((p: { id: string }) => p.id === 'ih-health-check') ?? procs[0];
   const run = await s.waitRun((await a('GET', `/runs?processId=${proc.id}`))[0].id, ['succeeded', 'failed']);
@@ -1451,6 +1567,12 @@ beforeAll(async () => {
     task: 'tsk_none',
     syncSource,
     syncUpdate,
+    site: 'matrix-site',
+    asset: 'matrix-asset',
+    plantNode: 'matrix-area',
+    building: 'matrix-building',
+    siteLink,
+    assetLink,
   };
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;
@@ -1539,6 +1661,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await s?.app.close();
+  await setEnv({ SM_RATE_LIMIT_PER_MINUTE: undefined });
   if (s) fs.rmSync(s.dataDir, { recursive: true, force: true });
 });
 

@@ -1,4 +1,4 @@
-import { PVAULT_KIND, type Platform } from '@sm/shared';
+import { LLM_GATEWAY_KIND, PVAULT_KIND, type Platform } from '@sm/shared';
 import { audit } from '../audit.js';
 import { buildUrl, platformRequest, secretValues, tokenInfo } from './http.js';
 import { judgeHttpTest } from './connectionTest.js';
@@ -50,11 +50,15 @@ export async function runConnectionTest(p: Platform, secrets: Record<string, str
     return r;
   };
   const testPath = p.config.testPath || '/';
-  // Microsoft Graph (v0.5.0): the sign-in, the admin consent and every part Steward reads, with what is missing
-  if (p.kind === 'microsoft-graph') {
+  // Microsoft Graph (v0.5.0): the sign-in, the admin consent and every part Steward reads, with what is missing;
+  // LLM gateways (0.6.0): the model list and one minimal request per model that is set up
+  if (p.kind === 'microsoft-graph' || p.kind === LLM_GATEWAY_KIND) {
     const t0 = Date.now();
     try {
-      const r = await (await import('../entra/service.js')).testGraph(p, secrets);
+      const r =
+        p.kind === LLM_GATEWAY_KIND
+          ? await (await import('../ai/gateway.js')).testGateway(p, secrets)
+          : await (await import('../entra/service.js')).testGraph(p, secrets);
       const message = redactSecrets(r.message, secrets);
       return done(
         {

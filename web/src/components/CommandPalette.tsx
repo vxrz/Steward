@@ -37,6 +37,8 @@ import {
   IconTicket,
   IconUser,
   type Icon,
+  IconBuildingFactory2,
+  IconEngine,
 } from '@tabler/icons-react';
 import type {
   ApplicationSummary,
@@ -77,6 +79,8 @@ const RECENT_ICONS: Record<RecentKind, Icon> = {
   personReview: IconUserSearch,
   statusPage: IconLayoutGrid,
   credential: IconKey,
+  site: IconBuildingFactory2,
+  asset: IconEngine,
 };
 
 interface TestResult {

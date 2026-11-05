@@ -43,7 +43,8 @@
       "credential": "This entry belongs to the whole instance: roles and its owners decide who sees and changes it.",
       "monitor": "This monitor belongs to the whole instance: roles and its access list decide who may do what.",
       "dashboard": "This dashboard belongs to the whole instance: everybody signed in sees it; its owner and administrators change it.",
-      "ticket": "This ticket reference belongs to the whole instance: everybody signed in sees it; designers, operators and its responsibles change it."
+      "ticket": "This ticket reference belongs to the whole instance: everybody signed in sees it; designers, operators and its responsibles change it.",
+      "site": "This site belongs to the whole instance: roles and the access list decide who may see and manage it, its hierarchy and its assets."
     },
     "hintOwned": {
       "process": "Members of these teams have their roles in the team on this process. Everyone else sees it only through the access list below; administrators always, auditors may view.",
@@ -55,7 +56,8 @@
       "credential": "Only members of these teams see this entry (designers and operators among them change it), besides its owners, administrators and auditors.",
       "monitor": "Members of these teams have their roles in the team on this monitor. Everyone else sees it only through its access list; administrators always, auditors may view.",
       "dashboard": "Only members of these teams see this dashboard, besides its owner, administrators and auditors.",
-      "ticket": "Only members of these teams see this ticket reference (designers and operators among them change it), besides its responsibles, administrators and auditors."
+      "ticket": "Only members of these teams see this ticket reference (designers and operators among them change it), besides its responsibles, administrators and auditors.",
+      "site": "Only members of these teams see this site with its hierarchy and assets (designers among them manage it), besides those on its access list, administrators and auditors."
     },
     "saved": "Owning teams saved",
     "notSaved": "Owning teams not saved",
@@ -103,8 +105,15 @@
         "credential": "Credential",
         "monitor": "Monitor",
         "dashboard": "Dashboard",
-        "ticket": "Ticket reference"
+        "ticket": "Ticket reference",
+        "site": "Site"
       }
     }
+  },
+  "restrictedSite": "<b>Restricted:</b> only the subjects below get the listed rights on the site, its hierarchy and its assets, plus administrators. Auditors can always read.",
+  "defaultsSite": "<b>Default role rights apply</b> (everyone who works in Steward sees the site, designers manage it). Add entries to restrict access to specific users, teams or roles.",
+  "helpSite": {
+    "view": "See the site, its hierarchy, buildings and assets",
+    "manage": "Change the site, its hierarchy, buildings and assets; import into it"
   }
 }

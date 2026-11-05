@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { BUNDLE_FORMATS, dashboardDefinitionSchema, validateProcess } from '@sm/shared';
 import { validateMonitorFile } from '../monitors/validation.js';
+import { plantFileSchema } from '../plant/format.js';
 import { bundleFileSchema, looksLikeBundle } from '../onboarding/bundleSchema.js';
 import { config } from '../config.js';
 import { MAX_DEFINITION_TEXT } from '../util.js';
@@ -40,7 +41,7 @@ Colours are only used on a terminal; NO_COLOR=1 turns them off.
 
 export interface FileResult {
   file: string;
-  kind: 'process' | 'dashboard' | 'monitor' | 'monitor template' | 'bundle' | 'template bundle' | 'unreadable';
+  kind: 'process' | 'dashboard' | 'monitor' | 'monitor template' | 'bundle' | 'template bundle' | 'plant registry' | 'unreadable';
   /** Nodes (process), widgets (dashboard) or checks (monitor). */
   ok: boolean;
   count?: number;
@@ -80,6 +81,15 @@ export async function validateFile(file: string): Promise<FileResult> {
           warnings: [],
         }
       : { file: rel, kind: 'template bundle', ok: false, errors: r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`), warnings: [] };
+  }
+  // a plant registry file (#218, examples/plant): version 1 with sites, a site or assets – checked against its format
+  if (obj && typeof obj === 'object' && 'version' in obj && ('sites' in obj || 'site' in obj || 'assets' in obj)) {
+    const r = plantFileSchema.safeParse(raw);
+    if (!r.success)
+      return { file: rel, kind: 'plant registry', ok: false, errors: r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`), warnings: [] };
+    const sites = r.data.sites ?? (r.data.site ? [r.data.site] : []);
+    const count = sites.length + sites.reduce((n, x) => n + (x.assets?.length ?? 0), 0) + (r.data.assets?.length ?? 0);
+    return { file: rel, kind: 'plant registry', ok: true, count, errors: [], warnings: [] };
   }
   if (obj && (obj.kind === 'monitor' || obj.kind === 'monitorTemplate')) {
     const r = await validateMonitorFile(obj);
@@ -151,7 +161,7 @@ export async function main(argv: string[]): Promise<number> {
       if (r.kind === 'bundle') out.push(`${c.dim('•')} ${r.file}: bundle (skipped)`);
       else
         out.push(
-          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : 'nodes'}`,
+          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : r.kind === 'plant registry' ? 'sites and assets' : 'nodes'}`,
         );
     }
     if (!values.quiet || !r.ok) for (const w of r.warnings) out.push(`  ${c.yellow('⚠')} ${w}`);

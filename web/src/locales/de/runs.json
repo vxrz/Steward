@@ -187,7 +187,8 @@
     "checkFailed": "Nicht erfüllt: {{name}}",
     "expected": "erwartet: {{name}}",
     "moreFindings_one": "und {{count}} weiterer Befund",
-    "moreFindings_other": "und {{count}} weitere Befunde"
+    "moreFindings_other": "und {{count}} weitere Befunde",
+    "aiGenerated": "Mit {{models}} KI-generiert – prüfen Sie es, bevor Sie sich darauf verlassen"
   },
   "emptyState": {
     "title": "Noch keine Ausführungen",
