@@ -202,8 +202,11 @@ export function plantConfig(): PlantConfig {
 
 function checkSiteCode(code: string, id: string): void {
   if (!code) return;
-  const other = db().get<{ id: string }>('SELECT id FROM plant_sites WHERE lower(code) = lower(?) AND id <> ?', code, id);
-  if (other) throw new HttpError(409, `Site "${other.id}" has the code ${code} already`, 'PLANT_SITE_CODE_TAKEN', { code, id: other.id });
+  const other = db().get<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites WHERE lower(code) = lower(?) AND id <> ?', code, id);
+  if (!other) return;
+  // a site the caller may not see is not named
+  if (!sitePermissions(other).includes('view')) throw new HttpError(409, `Another site has the code ${code} already`, 'PLANT_SITE_CODE_TAKEN_HIDDEN', { code });
+  throw new HttpError(409, `Site "${other.id}" has the code ${code} already`, 'PLANT_SITE_CODE_TAKEN', { code, id: other.id });
 }
 
 const siteValues = (id: string, b: z.infer<typeof siteUpdate>): SiteValues => ({

@@ -297,6 +297,24 @@ describe('rights per site', () => {
     expect(log[0].summary).toMatch(/restricted to 2 entries/);
   });
 
+  it('a site code taken by a site the caller may not see: the other site is not named', async () => {
+    await s.api('POST', '/plant/sites', { id: 'gamma', code: 'GAM', name: 'Gamma' });
+    const refused = (p: Promise<unknown>) =>
+      p.then(
+        () => null,
+        (e: { status: number; body: unknown }) => ({ status: e.status, body: e.body }),
+      );
+    expect(await refused(users.dana!('POST', '/plant/sites', { id: 'gamma2', code: 'gam', name: 'G' }))).toMatchObject({
+      status: 409,
+      body: { code: 'PLANT_SITE_CODE_TAKEN', params: { code: 'gam', id: 'gamma' } },
+    });
+    await s.api('PUT', '/plant/sites/gamma/access', { acl: [{ subject: 'user:pia', permissions: ['view'] }] });
+    const hidden = await refused(users.dana!('POST', '/plant/sites', { id: 'gamma2', code: 'gam', name: 'G' }));
+    expect(hidden).toEqual({ status: 409, body: expect.objectContaining({ code: 'PLANT_SITE_CODE_TAKEN_HIDDEN', params: { code: 'gam' } }) });
+    expect(JSON.stringify(hidden)).not.toContain('gamma"');
+    await s.api('DELETE', '/plant/sites/gamma');
+  });
+
   it('owning teams scope a site like other resources', async () => {
     const team = await s.api('POST', '/teams', { name: 'Riverside team', members: ['vera'] });
     await s.api('PUT', '/plant/sites/alpha/access', { acl: [] });

@@ -826,6 +826,7 @@
     "PLANT_ID_TAKEN": "The id {{id}} is taken already – choose another one.",
     "PLANT_SITE_CODE_TAKEN": "Site {{id}} has the code {{code}} already.",
     "PLANT_LIMIT": "The limit is reached (at most {{max}}).",
+    "PLANT_SITE_CODE_TAKEN_HIDDEN": "Another site has the code {{code}} already – choose another one.",
     "PLANT_SITE_HAS_ASSETS": "The site still has {{count}} assets – remove or move them first.",
     "PLANT_NODE_IN_USE": "It still holds {{children}} parts and {{assets}} assets – move or remove them first.",
     "PLANT_BUILDING_IN_USE": "{{nodes}} parts of the hierarchy, {{parts}} building parts and {{assets}} assets name this building.",

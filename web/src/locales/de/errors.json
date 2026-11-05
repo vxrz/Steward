@@ -826,6 +826,7 @@
     "PLANT_ID_TAKEN": "Die ID {{id}} ist schon vergeben – wählen Sie eine andere.",
     "PLANT_SITE_CODE_TAKEN": "Standort {{id}} hat schon das Kürzel {{code}}.",
     "PLANT_LIMIT": "Die Grenze ist erreicht (höchstens {{max}}).",
+    "PLANT_SITE_CODE_TAKEN_HIDDEN": "Ein anderer Standort hat schon das Kürzel {{code}} – wählen Sie ein anderes.",
     "PLANT_SITE_HAS_ASSETS": "Der Standort hat noch {{count}} Anlagen – entfernen oder verschieben Sie sie zuerst.",
     "PLANT_NODE_IN_USE": "Darin liegen noch {{children}} Teile und {{assets}} Anlagen – verschieben oder entfernen Sie sie zuerst.",
     "PLANT_BUILDING_IN_USE": "{{nodes}} Teile der Hierarchie, {{parts}} Gebäudeteile und {{assets}} Anlagen nennen dieses Gebäude.",

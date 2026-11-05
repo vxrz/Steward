@@ -867,8 +867,8 @@ const EXPECT: Record<string, Access> = {
   'POST /api/plant/assets/:assetId/links': DESIGN,
   'PATCH /api/plant/assets/:assetId/links/:linkId': DESIGN,
   'DELETE /api/plant/assets/:assetId/links/:linkId': DESIGN,
-  // a preview changes nothing (it lists what the caller may not change); applying needs the right to change a site
-  'POST /api/plant/import/preview': ALL,
+  // preview and import need the right to add sites or manage one (a preview shows what an import would change)
+  'POST /api/plant/import/preview': DESIGN,
   'POST /api/plant/import': DESIGN,
   'GET /api/plant/imports': ALL,
   'GET /api/plant/export': ALL,
