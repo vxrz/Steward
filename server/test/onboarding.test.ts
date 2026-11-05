@@ -52,6 +52,7 @@ describe('template bundles', () => {
       '70-kubernetes',
       '80-dependency-track',
       '90-privileged-access-governance',
+      '95-databases',
     ]);
     for (const b of list) expect(b.problems, b.id).toEqual([]);
     const ag = list[0];

@@ -55,7 +55,7 @@ interface Throw {
   contexts: string[];
 }
 
-/** Every `new HttpError(…)` / `new CertificateError(…)` with its code(s) and literal `context` values. */
+/** Every `new HttpError(…)` / `new CertificateError(…)` / `new DbError(…)` with its code(s) and literal `context` values. */
 function scan(): { throws: Throw[]; otherCodes: { file: string; code: string }[] } {
   const throws: Throw[] = [];
   const otherCodes: { file: string; code: string }[] = [];
@@ -63,9 +63,10 @@ function scan(): { throws: Throw[]; otherCodes: { file: string; code: string }[]
     const rel = path.relative(src, file).split(path.sep).join('/');
     const sf = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
     const visit = (n: ts.Node) => {
-      if (ts.isNewExpression(n) && ts.isIdentifier(n.expression) && ['HttpError', 'CertificateError'].includes(n.expression.text)) {
+      if (ts.isNewExpression(n) && ts.isIdentifier(n.expression) && ['HttpError', 'CertificateError', 'DbError'].includes(n.expression.text)) {
         const args = n.arguments ?? [];
-        const codeAt = n.expression.text === 'HttpError' ? 2 : 1;
+        // DbError (database platforms) takes the code first: new DbError(code, message, params, status)
+        const codeAt = n.expression.text === 'HttpError' ? 2 : n.expression.text === 'DbError' ? 0 : 1;
         const params = args[codeAt + 1];
         const contexts: string[] = [];
         if (params && ts.isObjectLiteralExpression(params))
