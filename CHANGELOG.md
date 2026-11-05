@@ -16,6 +16,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - **Plant registry: deleting a device profile or KPI definition in use** no longer hints at assets the person may not see: when an asset of a hidden site has it, the answer is only that it is in use (`PLANT_PROFILE_IN_USE_HIDDEN`, `PLANT_KPI_IN_USE_HIDDEN`, without a count); who sees every asset that has it gets the count.
+- **Plant registry pages: long identifiers** no longer break mid-word ("ProgramStatu / s"): paths, names, addresses and ids wrap after `/`, `.`, `_`, `:` and `;`; in the publications table of an asset and the table of assets that deliver a data point they stay whole and the table scrolls when they do not fit.
 
 ## [0.6.0] - 2026-11-05
 

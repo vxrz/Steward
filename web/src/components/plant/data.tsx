@@ -63,13 +63,16 @@ export function useAddressHint() {
   };
 }
 
-/** An address or path that may wrap after its separators (ns=2;s=Channel1.Status), not inside a word. */
+/**
+ * An identifier, address or path that may wrap after its separators (ns=2;s=Channel1.Status), not inside a word. In a
+ * table sized by its content (.code-keep) its parts never break – not even at a hyphen – and the table scrolls instead.
+ */
 export function Breakable({ text }: { text: string }) {
   const parts = text.split(/(?<=[;./:,_])/);
   return (
     <>
       {parts.map((p, i) => (
-        <span key={i}>
+        <span key={i} className="code-part">
           {p}
           {i < parts.length - 1 && <wbr />}
         </span>
@@ -244,8 +247,8 @@ export function DataPointTable({
                 <Anchor component={Link} to={to(p)} fw={500} size="sm" style={{ overflowWrap: 'anywhere' }}>
                   {p.name}
                 </Anchor>
-                <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                  {p.id}
+                <Text size="xs" c="dimmed" className="mono code-wrap">
+                  <Breakable text={p.id} />
                 </Text>
               </Stack>
               {menu(p)}
@@ -271,8 +274,8 @@ export function DataPointTable({
               </Text>
             </Group>
             {p.address && (
-              <Text size="xs" className="mono" mt={4} style={{ overflowWrap: 'anywhere' }}>
-                {p.address}
+              <Text size="xs" className="mono code-wrap" mt={4}>
+                <Breakable text={p.address} />
               </Text>
             )}
           </Paper>
@@ -310,18 +313,18 @@ export function DataPointTable({
                 <Anchor component={Link} to={to(p)} fw={500} size="sm">
                   {p.name}
                 </Anchor>
-                <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                  {p.id}
+                <Text size="xs" c="dimmed" className="mono code-wrap">
+                  <Breakable text={p.id} />
                 </Text>
               </Table.Td>
-              <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
-                {p.dataType || '–'}
+              <Table.Td className="mono code-wrap">
+                <Breakable text={p.dataType || '–'} />
               </Table.Td>
               <Table.Td>
                 <UnitText unit={p.unit} />
               </Table.Td>
               <Table.Td>
-                <Text size="sm" className="mono" style={{ overflowWrap: 'break-word' }}>
+                <Text size="sm" className="mono code-wrap">
                   {p.address ? <Breakable text={p.address} /> : '–'}
                 </Text>
                 {hint(protocol, p.address) && (

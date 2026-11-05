@@ -48,7 +48,7 @@ export function PlantDataPointPage() {
     a.publications.length ? (
       <Stack gap={2}>
         {a.publications.map((x, i) => (
-          <Text key={i} size="xs" className="mono" style={{ overflowWrap: 'break-word' }}>
+          <Text key={i} size="xs" className="mono code-wrap">
             <Breakable text={[x.target, [x.path, x.name].filter(Boolean).join(' / ')].filter(Boolean).join(': ')} />
           </Text>
         ))}
@@ -108,8 +108,8 @@ export function PlantDataPointPage() {
                         <AssetBriefLink asset={a.asset} />
                         {why(a)}
                         {a.endpoint && (
-                          <Text size="xs" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                            {a.endpoint}
+                          <Text size="xs" className="mono code-wrap">
+                            <Breakable text={a.endpoint} />
                           </Text>
                         )}
                         {pubs(a)}
@@ -119,16 +119,11 @@ export function PlantDataPointPage() {
                 </Stack>
               ) : (
                 <div className="table-scroll" tabIndex={0} role="region" aria-label={t('point.deliveredBy', { type: label('asset', true) })}>
-                  <Table fz="sm" aria-label={t('point.deliveredBy', { type: label('asset', true) })} layout="fixed" miw={600}>
-                    <colgroup>
-                      <col style={{ width: '27%' }} />
-                      <col style={{ width: '25%' }} />
-                      <col style={{ width: '24%' }} />
-                      <col />
-                    </colgroup>
+                  {/* columns sized by their content: identifiers stay whole, the table scrolls when they do not fit */}
+                  <Table fz="sm" aria-label={t('point.deliveredBy', { type: label('asset', true) })} miw={600} className="code-keep">
                     <Table.Thead>
                       <Table.Tr>
-                        <Table.Th>{label('asset')}</Table.Th>
+                        <Table.Th miw={140}>{label('asset')}</Table.Th>
                         <Table.Th>{t('point.state')}</Table.Th>
                         <Table.Th>{t('assignment.endpoint')}</Table.Th>
                         <Table.Th>{t('assignment.publications')}</Table.Th>
@@ -142,7 +137,7 @@ export function PlantDataPointPage() {
                           </Table.Td>
                           <Table.Td>{why(a)}</Table.Td>
                           <Table.Td>
-                            <Text size="xs" className="mono" style={{ overflowWrap: 'break-word' }}>
+                            <Text size="xs" className="mono code-wrap">
                               {a.endpoint ? <Breakable text={a.endpoint} /> : '–'}
                             </Text>
                           </Table.Td>
@@ -192,8 +187,8 @@ export function PlantDataPointPage() {
               </Field>
               <Field label={t('data.unit')}>{p.unit ? (unitSymbol(p.unit) === p.unit ? p.unit : `${unitSymbol(p.unit)} (UCUM ${p.unit})`) : '–'}</Field>
               <Field label={t('data.address')}>
-                <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                  {p.address || '–'}
+                <Text size="sm" className="mono code-wrap">
+                  <Breakable text={p.address || '–'} />
                 </Text>
                 {hint(d.interface.protocol, p.address) && (
                   <Text size="xs" c="dimmed">
@@ -218,8 +213,8 @@ export function PlantDataPointPage() {
                 <Field label={t('data.defaultPublications')}>
                   <Stack gap={2}>
                     {p.publications.map((x, i) => (
-                      <Text key={i} size="xs" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                        {[x.target, [x.path, x.name].filter(Boolean).join(' / ')].filter(Boolean).join(': ')}
+                      <Text key={i} size="xs" className="mono code-wrap">
+                        <Breakable text={[x.target, [x.path, x.name].filter(Boolean).join(' / ')].filter(Boolean).join(': ')} />
                       </Text>
                     ))}
                   </Stack>

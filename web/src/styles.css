@@ -43,6 +43,17 @@ body {
 .table-scroll {
   overflow-x: auto;
 }
+/*
+ * Identifiers, paths and addresses (plant registry): broken after / . _ : ; , (the Breakable component marks those
+ * places) and mid-word only when one part is wider than its place. In a table sized by its content (.code-keep) its
+ * parts stay whole (also at a hyphen), and the table scrolls inside its .table-scroll container.
+ */
+.code-wrap {
+  overflow-wrap: break-word;
+}
+.code-keep .code-part {
+  white-space: nowrap;
+}
 
 /*
  * Accessibility (WCAG 2.1 AA, 4.5:1 text contrast) for the light color scheme.

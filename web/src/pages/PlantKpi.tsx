@@ -309,11 +309,11 @@ export function PlantKpiPage() {
                       {k.parameters.map((p, i) => (
                         <Table.Tr key={p.name}>
                           <Table.Td>
-                            <Text size="sm" className="mono" fw={500} style={{ overflowWrap: 'anywhere' }}>
-                              {p.name}
+                            <Text size="sm" className="mono code-wrap" fw={500}>
+                              <Breakable text={p.name} />
                             </Text>
                             {p.aliases.length > 0 && (
-                              <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
+                              <Text size="xs" c="dimmed" className="mono code-wrap">
                                 {t('kpi.aliasesAre', { aliases: p.aliases.join(', ') })}
                               </Text>
                             )}
@@ -384,7 +384,7 @@ export function PlantKpiPage() {
                     <Table.Tbody>
                       {k.columns.map((col, i) => (
                         <Table.Tr key={col.name}>
-                          <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
+                          <Table.Td className="mono code-wrap">
                             <Breakable text={col.name} />
                           </Table.Td>
                           <Table.Td>
@@ -392,7 +392,7 @@ export function PlantKpiPage() {
                               {t(`kpi.columnKinds.${col.kind}`)}
                             </Badge>
                             {col.kind === 'ratio' && (
-                              <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'break-word' }}>
+                              <Text size="xs" c="dimmed" className="mono code-wrap">
                                 <Breakable text={`${col.numerator || '?'} / ${col.denominator || '?'}${col.scale !== null ? ` × ${col.scale}` : ''}`} />
                               </Text>
                             )}
@@ -577,8 +577,8 @@ export function PlantKpiPage() {
                 )}
                 {k.implementation && (
                   <Field label={t('kpi.implementation')}>
-                    <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                      {k.implementation}
+                    <Text size="sm" className="mono code-wrap">
+                      <Breakable text={k.implementation} />
                     </Text>
                   </Field>
                 )}

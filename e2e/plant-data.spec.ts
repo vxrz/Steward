@@ -107,6 +107,19 @@ test.describe('as a designer', () => {
     await expect(data.getByTestId('assigned-opc-ua')).toContainText('Not active');
     await expectAccessible(page, 'asset data');
 
+    // identifiers in the publications table stay whole (they wrap after / . _ only, else the table scrolls); at 1280 px
+    // the column was narrower than "ProgramStatus"
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/plant/assets/rvs-mill-01');
+    const name = page.getByTestId('assignment-publications').getByRole('cell', { name: 'ProgramStatus', exact: true });
+    await expect(name).toBeVisible();
+    const lines = await name.evaluate((td) => {
+      const r = document.createRange();
+      r.selectNodeContents(td);
+      return new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size;
+    });
+    expect(lines).toBe(1);
+
     // a fresh asset: assign a profile, add a KPI instance with a parameter outside its range
     const api = await apiAs('dana');
     const id = `e2e-mill-${Date.now()}`;
