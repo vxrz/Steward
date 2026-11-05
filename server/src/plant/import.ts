@@ -1113,14 +1113,33 @@ export interface ExportQuery {
   part?: 'all' | 'catalogue';
 }
 
+export interface ExportOptions {
+  /** yaml (default; with a comment naming the JSON Schema) or json (the same document) */
+  format?: 'yaml' | 'json';
+  /** Exported through the public API with this token (recorded in the audit entry) */
+  tokenId?: string;
+}
+
+export const EXPORT_TYPES = { yaml: 'application/yaml; charset=utf-8', json: 'application/json; charset=utf-8' } as const;
+
 /**
- * The registry as a YAML document of format 1: every site the caller may see with the catalogues and the assignments
- * of their assets, one site (`site:` and its assignments), the catalogues only, one device profile or one KPI definition.
+ * The registry as a document of format 1 (YAML, or the same as JSON): every site the caller may see with the catalogues
+ * and the assignments of their assets, one site (`site:` and its assignments), the catalogues only, one device profile
+ * or one KPI definition. The importer reads both.
  */
-export function exportYaml(q: ExportQuery = {}): { filename: string; content: string; sites: number; assets: number } {
+export function exportYaml(
+  q: ExportQuery = {},
+  opts: ExportOptions = {},
+): { filename: string; content: string; contentType: string; sites: number; assets: number } {
   requirePlant();
   const u = me();
+  const format = opts.format ?? 'yaml';
   const header = `# yaml-language-server: $schema=${SCHEMA_ID}\n# Steward plant registry, format ${PLANT_FORMAT_VERSION} (docs/PLANT.md) – exported ${nowIso()} by ${u.username}\n`;
+  const render = (doc: Record<string, unknown>) => (format === 'json' ? `${JSON.stringify(doc, null, 2)}\n` : header + YAML.stringify(doc, { lineWidth: 0 }));
+  const file = (name: string) => (format === 'json' ? name.replace(/\.yaml$/, '.json') : name);
+  // through the public API: the token is named in the audit entry
+  const via = opts.tokenId ? { via: 'api', tokenId: opts.tokenId } : {};
+  const viaText = opts.tokenId ? ' via the API' : '';
   // one catalogue record, or the catalogues
   if (q.profile || q.kpi || q.part === 'catalogue') {
     const profiles = allProfiles();
@@ -1145,19 +1164,19 @@ export function exportYaml(q: ExportQuery = {}): { filename: string; content: st
       };
       filename = 'plant-catalogue.plant.yaml';
     }
-    const content = header + YAML.stringify(doc, { lineWidth: 0 });
+    const content = render(doc);
     audit({
       action: 'plant.exported',
       entityType: q.profile ? 'device_profile' : q.kpi ? 'kpi_definition' : 'plant_import',
       entityId: q.profile ?? q.kpi ?? null,
       summary: q.profile
-        ? `Device profile ${q.profile} exported`
+        ? `Device profile ${q.profile} exported${viaText}`
         : q.kpi
-          ? `KPI definition ${q.kpi} exported`
-          : `Plant registry catalogues exported (${profiles.size} device profiles, ${kpis.size} KPI definitions)`,
-      details: { profiles: q.profile ? 1 : q.kpi ? 0 : profiles.size, kpis: q.kpi ? 1 : q.profile ? 0 : kpis.size, sha256: sha256(content) },
+          ? `KPI definition ${q.kpi} exported${viaText}`
+          : `Plant registry catalogues exported${viaText} (${profiles.size} device profiles, ${kpis.size} KPI definitions)`,
+      details: { profiles: q.profile ? 1 : q.kpi ? 0 : profiles.size, kpis: q.kpi ? 1 : q.profile ? 0 : kpis.size, format, ...via, sha256: sha256(content) },
     });
-    return { filename, content, sites: 0, assets: 0 };
+    return { filename: file(filename), content, contentType: EXPORT_TYPES[format], sites: 0, assets: 0 };
   }
   const siteId = q.site;
   const sites = db().all<SiteRow>('SELECT * FROM plant_sites ORDER BY name, id');
@@ -1265,13 +1284,22 @@ export function exportYaml(q: ExportQuery = {}): { filename: string; content: st
     ...(kpis.length ? { kpi_definitions: kpis.map(kpiOut) } : {}),
     ...(assigned.length ? { assignments: assigned } : {}),
   };
-  const content = header + YAML.stringify(doc, { lineWidth: 0 });
+  const content = render(doc);
   audit({
     action: 'plant.exported',
     entityType: siteId ? 'site' : 'plant_import',
     entityId: siteId ?? null,
-    summary: `Plant registry exported (${out.length} sites, ${assetCount} assets${siteId ? '' : `, ${profiles.length} device profiles, ${kpis.length} KPI definitions`})`,
-    details: { sites: out.length, assets: assetCount, profiles: profiles.length, kpis: kpis.length, assignments: assigned.length, sha256: sha256(content) },
+    summary: `Plant registry exported${viaText} (${out.length} sites, ${assetCount} assets${siteId ? '' : `, ${profiles.length} device profiles, ${kpis.length} KPI definitions`})`,
+    details: {
+      sites: out.length,
+      assets: assetCount,
+      profiles: profiles.length,
+      kpis: kpis.length,
+      assignments: assigned.length,
+      format,
+      ...via,
+      sha256: sha256(content),
+    },
   });
-  return { filename: `${siteId ?? 'plant-registry'}.plant.yaml`, content, sites: out.length, assets: assetCount };
+  return { filename: file(`${siteId ?? 'plant-registry'}.plant.yaml`), content, contentType: EXPORT_TYPES[format], sites: out.length, assets: assetCount };
 }

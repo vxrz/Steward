@@ -501,6 +501,10 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   for (const x of await listAll('/plant/profiles', '/plant/profiles')) await get('/plant/profiles/{profileId}', `/plant/profiles/${x.id}`);
   for (const x of await listAll('/plant/kpis', '/plant/kpis')) await get('/plant/kpis/{kpiId}', `/plant/kpis/${x.id}`);
   for (const id of ['rvs-mill-01', 'rvs-mill-02', 'rvs-press-01']) await get('/plant/assets/{assetId}/assignment', `/plant/assets/${id}/assignment`);
+  // what Steward checks, and the export in the import format (YAML; JSON is the same document)
+  await listAll('/plant/checks', '/plant/checks');
+  await get('/plant/export', '/plant/export');
+  await get('/plant/export', '/plant/export?part=catalogue');
   return out;
 }
 

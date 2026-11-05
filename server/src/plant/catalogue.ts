@@ -258,19 +258,14 @@ export function deleteProfile(id: string): void {
   const by = requireCatalogue('delete device profiles');
   const r = profileRowOf(id);
   if (!r) throw profileNotFound(id);
-  // an assignment names it: refused – the count names only assets the caller may see
+  // an assignment names it: refused – with the count only when the caller sees every asset that has it
   const users = db().all<{ asset_id: string }>('SELECT asset_id FROM plant_assignments WHERE profile_id = ?', id);
   if (users.length) {
     const seen = visibleAssets().assets;
-    const visible = users.filter((u) => seen.has(u.asset_id)).length;
-    throw new HttpError(
-      409,
-      visible ? `The profile is assigned to ${visible} assets – remove those assignments first` : 'The profile is still in use',
-      'PLANT_PROFILE_IN_USE',
-      {
-        count: visible,
-      },
-    );
+    if (users.some((u) => !seen.has(u.asset_id))) throw new HttpError(409, 'The profile is in use – it cannot be deleted', 'PLANT_PROFILE_IN_USE_HIDDEN');
+    throw new HttpError(409, `The profile is assigned to ${users.length} assets – remove those assignments first`, 'PLANT_PROFILE_IN_USE', {
+      count: users.length,
+    });
   }
   db().tx(() => {
     removeProfileRow(id);
@@ -495,16 +490,11 @@ export function deleteKpi(id: string): void {
   if (!r) throw kpiNotFound(id);
   const v = visibleAssets();
   const users = [...allAssignments()].filter(([, a]) => a.kpis.some((k) => k.kpi === id));
+  // with the count only when the caller sees every asset that has an instance (see deleteProfile)
   if (users.length) {
-    const visible = users.filter(([assetId]) => v.assets.has(assetId)).length;
-    throw new HttpError(
-      409,
-      visible ? `${visible} assets have a KPI instance of it – remove those first` : 'The KPI definition is still in use',
-      'PLANT_KPI_IN_USE',
-      {
-        count: visible,
-      },
-    );
+    if (users.some(([assetId]) => !v.assets.has(assetId)))
+      throw new HttpError(409, 'The KPI definition is in use – it cannot be deleted', 'PLANT_KPI_IN_USE_HIDDEN');
+    throw new HttpError(409, `${users.length} assets have a KPI instance of it – remove those first`, 'PLANT_KPI_IN_USE', { count: users.length });
   }
   db().tx(() => {
     removeKpiRow(id);
@@ -514,21 +504,33 @@ export function deleteKpi(id: string): void {
 
 // ---------- checks ----------
 
-/** Every check of the assets the caller may see and of the KPI definitions: Plant → Checks. */
-export function listChecks(): PlantCheck[] {
+/** A check with the KPI definition it concerns: an asset check of a KPI instance names the instance's definition. */
+export type CheckWithKpi = PlantCheck & { kpiId: string | null };
+
+/** Every check of the assets the caller may see (by asset name) and then of the KPI definitions (by name), unlimited. */
+export function allChecks(): CheckWithKpi[] {
   requirePlant();
   const v = visibleAssets();
   const profiles = allProfiles();
   const kpis = allKpis();
-  const out: PlantCheck[] = [];
+  const out: CheckWithKpi[] = [];
   const assignments: [string, PlantAssignmentValues][] = [...allAssignments()].filter(([id]) => v.assets.has(id));
   assignments.sort(([a], [b]) => v.briefs.get(a)!.name.localeCompare(v.briefs.get(b)!.name) || a.localeCompare(b));
   for (const [assetId, a] of assignments) {
     const b = v.briefs.get(assetId)!;
-    out.push(...assignmentChecks({ kind: 'asset', id: assetId, name: b.name, siteId: b.siteId }, a, profiles, kpis));
+    const kpiOfJob = new Map(a.kpis.map((k) => [k.job, k.kpi]));
+    for (const c of assignmentChecks({ kind: 'asset', id: assetId, name: b.name, siteId: b.siteId }, a, profiles, kpis))
+      out.push({ ...c, kpiId: c.job !== undefined ? (kpiOfJob.get(c.job) ?? null) : null });
   }
-  for (const k of kpis.values()) out.push(...kpiChecks(k, profiles));
-  return out.slice(0, 2000);
+  for (const k of kpis.values()) for (const c of kpiChecks(k, profiles)) out.push({ ...c, kpiId: k.id });
+  return out;
+}
+
+/** Every check of the assets the caller may see and of the KPI definitions: Plant → Checks. */
+export function listChecks(): PlantCheck[] {
+  return allChecks()
+    .slice(0, 2000)
+    .map(({ kpiId: _k, ...c }) => c);
 }
 
 export { profileInput, profileUpdate, kpiInput, kpiUpdate };

@@ -10,7 +10,7 @@ import { QueryState } from '../components/common';
 import { ListPage } from '../components/page/ListPage';
 import { plantKeys } from '../queryKeys';
 import { PreviewBadge, useNameOf, usePlantLabel } from '../components/plant/common';
-import { ChecksList, NoProblems, ProtocolBadge, UnitText } from '../components/plant/data';
+import { Breakable, ChecksList, NoProblems, ProtocolBadge, UnitText } from '../components/plant/data';
 
 const pointPath = (h: PlantPointHit) => `/plant/profiles/${encodeURIComponent(h.profile.id)}/points/${encodeURIComponent(h.point.id)}`;
 const assetsPath = (h: PlantPointHit) => `/plant/assets?profile=${encodeURIComponent(h.profile.id)}&dataPoint=${encodeURIComponent(h.point.id)}`;
@@ -120,8 +120,8 @@ function PointSearch({ needle }: { needle: string }) {
                 <Anchor component={Link} to={pointPath(h)} fw={500} size="sm" style={{ overflowWrap: 'anywhere' }}>
                   {h.point.name}
                 </Anchor>
-                <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                  {h.point.id}
+                <Text size="xs" c="dimmed" className="mono code-wrap">
+                  <Breakable text={h.point.id} />
                 </Text>
                 <Group gap={6} wrap="wrap">
                   <ProtocolBadge protocol={h.interface.protocol} size="xs" />
@@ -176,8 +176,8 @@ function PointSearch({ needle }: { needle: string }) {
                     )}
                   </Table.Td>
                   <Table.Td>
-                    <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                      {h.point.address || '–'}
+                    <Text size="sm" className="mono code-wrap">
+                      <Breakable text={h.point.address || '–'} />
                     </Text>
                   </Table.Td>
                   <Table.Td>{delivered(h)}</Table.Td>

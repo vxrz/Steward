@@ -4,18 +4,22 @@ import type { ItemLink, PlantAssetSummary } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { linkTypeByKey } from '../records/link-types.js';
 import { notFound } from '../api/v1/helpers.js';
+import { ProblemError } from '../api/v1/problem.js';
 import { linkNext, pageArray } from '../api/v1/pagination.js';
 import type { Op } from '../api/v1/routes.js';
 import { refsOf } from './model.js';
 import * as svc from './service.js';
 import * as cat from './catalogue.js';
 import { getAssignment } from './assignments.js';
-import { PlantAssetListQuery, PlantCatalogueListQuery, PlantSiteListQuery } from './api-schemas.js';
+import { exportYaml } from './import.js';
+import type { ApiPrincipal } from '../api/v1/auth.js';
+import { PlantAssetListQuery, PlantCatalogueListQuery, PlantCheckListQuery, PlantExportQuery, PlantSiteListQuery } from './api-schemas.js';
 
 /**
  * The plant registry in the public, read-only API (#218): sites with their hierarchy and buildings, assets with their
- * locations. The token owner sees the sites (and their assets) they may see in the web app. While the module is off
- * every endpoint answers 404.
+ * locations, the catalogues and assignments (#219), what Steward checks and the export in the import format. The token
+ * owner sees the sites (and their assets) they may see in the web app. While the module is off every endpoint answers
+ * 404.
  */
 type Get = <R>(url: string, op: Op, handler: (req: FastifyRequest, reply: FastifyReply) => Promise<R> | R) => unknown;
 
@@ -23,6 +27,9 @@ function found<T>(f: () => T, what: string): T {
   try {
     return f();
   } catch (e) {
+    // while the module is off every endpoint says so (the problem's type stays not-found)
+    if (e instanceof HttpError && e.code === 'PLANT_MODULE_OFF')
+      throw new ProblemError(404, { type: 'not-found', title: 'Not found', detail: 'The plant registry module is off (Settings → Modules)' });
     if (e instanceof HttpError && e.statusCode === 404) throw notFound(what);
     throw e;
   }
@@ -257,6 +264,84 @@ export function plantApiRoutes(get: Get): void {
     async (req) => {
       const { canManage: _c, ...k } = found(() => cat.getKpi((req.params as { kpiId: string }).kpiId), 'KPI definition');
       return k;
+    },
+  );
+
+  // ---------- what Steward checks, and the export in the import format ----------
+  get(
+    '/plant/checks',
+    {
+      operationId: 'listPlantChecks',
+      tag: 'Plant',
+      summary: 'List the problems Steward finds in the plant data',
+      description: `What Plant → Checks shows: KPI instances whose inputs the asset does not deliver, parameters outside their definition, references to profiles, interfaces or data points that do not exist, ratios without their denominator … First the problems of the assets the token owner may see (by asset name), then those of the KPI definitions (by name). Filter by site, asset, KPI definition (its own problems and those of its instances) or kind. ${MODULE}`,
+      query: PlantCheckListQuery,
+      paginated: true,
+      response: {
+        ...page,
+        description: 'A page of problems',
+        properties: { items: { type: 'array', items: { $ref: 'PlantCheckEntry#' } }, nextCursor: { type: ['string', 'null'] } },
+      },
+    },
+    async (req, reply) => {
+      const q = req.query as z.infer<typeof PlantCheckListQuery>;
+      const { limit: _l, cursor: _c, ...filter } = q;
+      const seq = new Map<string, number>();
+      const list = found(() => cat.allChecks(), 'Plant registry')
+        .filter(
+          (c) =>
+            (!filter.kind || c.code === filter.kind) &&
+            (!filter.kpi || c.kpiId === filter.kpi) &&
+            (!filter.asset || (c.subject.kind === 'asset' && c.subject.id === filter.asset)) &&
+            (!filter.site || (c.subject.kind === 'asset' && c.subject.siteId === filter.site)),
+        )
+        .map((c) => {
+          // the position among the problems of its record keeps the order stable across pages
+          const key = `${c.subject.kind}:${c.subject.id}`;
+          const n = (seq.get(key) ?? 0) + 1;
+          seq.set(key, n);
+          return { c, key: [c.subject.kind === 'asset' ? 0 : 1, c.subject.name.toLowerCase(), c.subject.id, n] as (string | number)[] };
+        });
+      const p = pageArray(list, (x) => x.key, q, filter);
+      linkNext(req, reply, p.nextCursor);
+      return {
+        items: p.items.map(({ c }) => ({
+          kind: c.code,
+          message: c.message,
+          on: c.subject.kind,
+          asset: c.subject.kind === 'asset' ? { id: c.subject.id, name: c.subject.name } : null,
+          siteId: c.subject.kind === 'asset' ? c.subject.siteId : null,
+          kpiId: c.kpiId,
+          job: c.job ?? null,
+          details: c.params,
+        })),
+        nextCursor: p.nextCursor,
+      };
+    },
+  );
+
+  get(
+    '/plant/export',
+    {
+      operationId: 'exportPlantRegistry',
+      tag: 'Plant',
+      summary: 'Export the plant registry in the import format',
+      description: `The registry as a document of format 1 (docs/PLANT.md, JSON Schema docs/plant/plant-registry-1.schema.json), the same as Plant → Import → Export: every site the token owner may see with the device profiles, KPI definitions and the assignments of their assets; one site (\`site\`, with the assignments of its assets); the catalogues only (\`part=catalogue\`); one device profile (\`profile\`) or one KPI definition (\`kpi\`). Sites the token owner may not see and their assets are never in it; the catalogues belong to the installation. YAML by default, JSON with \`format=json\`; both import back unchanged. Recorded in the audit log with the token. ${MODULE}`,
+      query: PlantExportQuery,
+      response: {
+        content: {
+          'application/yaml': { schema: { type: 'string', description: 'The document as YAML (format 1)' } },
+          'application/json': { schema: { type: 'object', additionalProperties: true, description: 'The same document as JSON' } },
+        },
+      },
+    },
+    async (req, reply) => {
+      const { format, ...q } = req.query as z.infer<typeof PlantExportQuery>;
+      const { tokenId } = (req as unknown as { smApi: ApiPrincipal }).smApi;
+      const what = q.profile ? 'Device profile' : q.kpi ? 'KPI definition' : q.site ? 'Site' : 'Plant registry';
+      const x = found(() => exportYaml(q, { format, tokenId }), what);
+      reply.header('content-disposition', `attachment; filename="${x.filename}"`);
+      return reply.type(x.contentType).send(x.content);
     },
   );
 }

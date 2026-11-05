@@ -363,15 +363,13 @@ describe('hidden sites stay hidden', () => {
     expect((await dana('GET', '/plant/profiles/example-plastics-mc6')).assets).toEqual([]);
     expect((await dana('GET', '/plant/explore/points?q=cycle_counter'))[0].deliveredBy).toBe(0);
     expect((await dana('GET', '/plant/profiles/example-plastics-mc6/points/cycle_counter')).assets).toEqual([]);
-    // a profile that only a hidden asset has is "still in use" – without a count or a name
+    // a profile that only a hidden asset has is "in use" – without a count or a name
     const res = await status(dana('DELETE', '/plant/profiles/example-plastics-mc6'));
-    expect(res).toEqual({ status: 409, code: 'PLANT_PROFILE_IN_USE' });
-    try {
-      await dana('DELETE', '/plant/profiles/example-plastics-mc6');
-    } catch (e) {
-      expect((e as { body: { error: string; params?: { count: number } } }).body).toMatchObject({ params: { count: 0 } });
-      expect(JSON.stringify((e as { body: unknown }).body)).not.toContain('hlc');
-    }
+    expect(res).toEqual({ status: 409, code: 'PLANT_PROFILE_IN_USE_HIDDEN' });
+    const body = await dana('DELETE', '/plant/profiles/example-plastics-mc6').catch((e: { body: { error: string; params?: unknown } }) => e.body);
+    expect(body).toMatchObject({ error: 'The profile is in use – it cannot be deleted' });
+    expect(body.params).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain('hlc');
     // an import into it reads like one the designer may not change, without naming the site
     const p = await dana('POST', '/plant/import/preview', {
       files: [file('a.yaml', { version: 1, assignment: { asset: 'hlc-im-01', profile: 'example-plastics-mc6' } })],
@@ -668,5 +666,245 @@ describe('public API', () => {
     await enable(false);
     expect((await v1('/plant/profiles')).status).toBe(404);
     await enable(true);
+  });
+
+  describe('checks and export', () => {
+    const tokenOf = async (c: Client) => (await c('POST', '/me/tokens', { name: 'checks and export', scope: 'read' })) as { id: string; token: string };
+    const call = async (token: string, url: string) => {
+      const res = await fetch(`${s.base}/api/v1${url}`, { headers: { authorization: `Bearer ${token}` } });
+      const text = await res.text();
+      return {
+        status: res.status,
+        type: res.headers.get('content-type') ?? '',
+        disposition: res.headers.get('content-disposition') ?? '',
+        link: res.headers.get('link'),
+        text,
+      };
+    };
+    const json = async (token: string, url: string) => {
+      const r = await call(token, url);
+      expect(r.status, `${url}: ${r.text.slice(0, 300)}`).toBe(200);
+      return JSON.parse(r.text);
+    };
+    /** Every page of the checks, `limit` at a time. */
+    const allPages = async (token: string, url: string, limit: number) => {
+      const items: { kind: string; on: string; asset: { id: string } | null; kpiId: string | null; job: string | null }[] = [];
+      let cursor: string | null = null;
+      do {
+        const page: { items: typeof items; nextCursor: string | null } = await json(
+          token,
+          `${url}${url.includes('?') ? '&' : '?'}limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`,
+        );
+        items.push(...page.items);
+        cursor = page.nextCursor;
+      } while (cursor);
+      return items;
+    };
+    const preview = (c: Client, content: string, name = 'export.plant.yaml') =>
+      c('POST', '/plant/import/preview', { files: [{ name, content }], mode: 'update' });
+    /** Only "unchanged": the file imports back as it is. */
+    const unchanged = (p: { counts: Record<string, number>; problems: unknown[] }) => {
+      expect(p.problems).toEqual([]);
+      expect(p.counts).toMatchObject({ add: 0, change: 0, remove: 0, mark: 0, skip: 0 });
+      expect(p.counts.unchanged).toBeGreaterThan(0);
+    };
+    let admin: { id: string; token: string };
+    let dana: string;
+    let pia: string;
+
+    beforeAll(async () => {
+      admin = await tokenOf(s.api);
+      dana = (await tokenOf(users.dana!)).token;
+      pia = (await tokenOf(users.pia!)).token;
+      // Hillcrest only for the administrators; its chiller has a KPI instance with problems (and the drive profile)
+      await s.api('PUT', '/plant/sites/hillcrest/access', { acl: [{ subject: 'user:vera', permissions: ['view'] }] });
+      await s.api('PUT', '/plant/assets/hlc-chiller-01/assignment', {
+        profileId: 'example-drives-x1',
+        interfaces: [],
+        kpis: [{ kpi: 'drive-uptime', job: 'chiller-uptime', params: {} }],
+      });
+    });
+    afterAll(async () => {
+      await s.api('DELETE', '/plant/assets/hlc-chiller-01/assignment');
+      await s.api('PUT', '/plant/sites/hillcrest/access', { acl: [] });
+    });
+
+    it('lists the problems with their asset, site, KPI definition and job; filters; pages', async () => {
+      const all = await json(admin.token, '/plant/checks?limit=200');
+      expect(all.nextCursor).toBeNull();
+      // the same as Plant → Checks
+      const internal = await s.api('GET', '/plant/checks');
+      expect(all.items.map((c: { kind: string; message: string }) => `${c.kind} ${c.message}`)).toEqual(
+        internal.map((c: { code: string; message: string }) => `${c.code} ${c.message}`),
+      );
+      expect(all.items).toContainEqual({
+        kind: 'kpi_interface_inactive',
+        message: expect.stringContaining('is not set up as active on this asset'),
+        on: 'asset',
+        asset: { id: 'rvs-mill-02', name: expect.any(String) },
+        siteId: 'riverside',
+        kpiId: 'machine-state-time',
+        job: expect.any(String),
+        details: expect.objectContaining({ point: expect.any(String) }),
+      });
+      expect(all.items).toContainEqual(
+        expect.objectContaining({
+          kind: 'param_required',
+          asset: expect.objectContaining({ id: 'hlc-chiller-01' }),
+          siteId: 'hillcrest',
+          kpiId: 'drive-uptime',
+          job: 'chiller-uptime',
+          details: { param: 'calendar' },
+        }),
+      );
+      // filters
+      const ids = (x: { items: { asset: { id: string } | null }[] }) => [...new Set(x.items.map((c) => c.asset?.id ?? null))];
+      expect(ids(await json(admin.token, '/plant/checks?asset=rvs-mill-02'))).toEqual(['rvs-mill-02']);
+      expect(ids(await json(admin.token, '/plant/checks?site=hillcrest'))).toEqual(['hlc-chiller-01']);
+      expect((await json(admin.token, '/plant/checks?site=nope')).items).toEqual([]);
+      const kind = await json(admin.token, '/plant/checks?kind=param_required');
+      expect(kind.items.length).toBeGreaterThan(0);
+      expect(kind.items.every((c: { kind: string }) => c.kind === 'param_required')).toBe(true);
+      const kpi = await json(admin.token, '/plant/checks?kpi=drive-uptime');
+      expect(kpi.items.length).toBeGreaterThan(0);
+      expect(kpi.items.every((c: { kpiId: string }) => c.kpiId === 'drive-uptime')).toBe(true);
+      // pages: one at a time gives the same list, each once
+      const paged = await allPages(admin.token, '/plant/checks', 1);
+      expect(paged).toEqual(all.items);
+      const first = await call(admin.token, '/plant/checks?limit=1');
+      expect(first.link).toContain('rel="next"');
+      // a cursor belongs to its filters; wrong values are problem details
+      const cursor = JSON.parse(first.text).nextCursor as string;
+      const wrong = await call(admin.token, `/plant/checks?limit=1&kind=param_required&cursor=${cursor}`);
+      expect(wrong.status).toBe(400);
+      expect(wrong.type).toContain('application/problem+json');
+      expect(JSON.parse(wrong.text).type).toContain('invalid-cursor');
+      const bad = await call(admin.token, '/plant/checks?kind=nope');
+      expect(bad.status).toBe(400);
+      expect(bad.type).toContain('application/problem+json');
+    });
+
+    it('leaves out the assets of sites the token owner may not see; the Plant viewer gets them, a status viewer not', async () => {
+      const mine = await allPages(dana, '/plant/checks', 200);
+      expect(mine.length).toBeGreaterThan(0);
+      expect(mine.some((c) => c.asset?.id.startsWith('hlc-'))).toBe(false);
+      expect((await json(dana, '/plant/checks?site=hillcrest')).items).toEqual([]);
+      expect((await json(dana, '/plant/checks?asset=hlc-chiller-01')).items).toEqual([]);
+      expect(JSON.stringify(await json(dana, '/plant/checks?kpi=drive-uptime'))).not.toContain('hlc');
+      // the KPI definitions' own problems are the installation's: the same for everyone
+      const kpiOnes = (x: { on: string }[]) => x.filter((c) => c.on === 'kpi');
+      expect(kpiOnes(mine)).toEqual(kpiOnes(await allPages(admin.token, '/plant/checks', 200)));
+      expect((await allPages(pia, '/plant/checks', 200)).length).toBeGreaterThan(0);
+      // a status viewer sees the status pages only; an MCP token is for /api/mcp
+      const { createUser } = await import('../src/auth/users.js');
+      const { createToken } = await import('../src/auth/tokens.js');
+      const sam = createUser({ username: 'sam-status', roles: ['status'], password: PW });
+      const statusToken = createToken(sam.user.id, { name: 'status', scope: 'read' }).token;
+      const { db } = await import('../src/db.js');
+      const adminId = db().get<{ user_id: string }>('SELECT user_id FROM api_tokens WHERE id = ?', admin.id)!.user_id;
+      const mcp = createToken(adminId, { name: 'mcp', scope: 'mcp' }).token;
+      const full = createToken(adminId, { name: 'full', scope: 'full' }).token;
+      for (const url of ['/plant/checks', '/plant/export']) {
+        const r = await call(statusToken, url);
+        expect(r.status, url).toBe(403);
+        expect(r.type).toContain('application/problem+json');
+        expect((await call(mcp, url)).status, url).toBe(403);
+        expect((await call(full, url)).status, url).toBe(200);
+        expect((await fetch(`${s.base}/api/v1${url}`)).status, url).toBe(401);
+      }
+    });
+
+    it('exports what the token owner may see in the import format – YAML or JSON – and it imports back unchanged', async () => {
+      const yaml = await call(admin.token, '/plant/export');
+      expect(yaml.status).toBe(200);
+      expect(yaml.type).toContain('application/yaml');
+      expect(yaml.disposition).toContain('plant-registry.plant.yaml');
+      expect(yaml.text).toMatch(/^# yaml-language-server: \$schema=/);
+      const doc = YAML.parse(yaml.text);
+      expect(Object.keys(doc)).toEqual(['version', 'enterprise', 'sites', 'device_profiles', 'kpi_definitions', 'assignments']);
+      // the same as the internal export (but for the time in its first comment)
+      const internal = await (await fetch(`${s.base}/api/plant/export`, { headers: { authorization: `Bearer ${admin.token}` } })).text();
+      expect(YAML.parse(internal)).toEqual(doc);
+      const asJson = await call(admin.token, '/plant/export?format=json');
+      expect(asJson.type).toContain('application/json');
+      expect(asJson.disposition).toContain('plant-registry.plant.json');
+      expect(JSON.parse(asJson.text)).toEqual(doc);
+      // the round trip: the preview of each export shows only "unchanged"
+      unchanged(await preview(s.api, yaml.text));
+      unchanged(await preview(s.api, asJson.text, 'export.plant.json'));
+      const site = await call(admin.token, '/plant/export?site=riverside');
+      expect(Object.keys(YAML.parse(site.text))).toEqual(['version', 'enterprise', 'site', 'assignments']);
+      unchanged(await preview(s.api, site.text));
+      const catalogue = await call(admin.token, '/plant/export?part=catalogue&format=json');
+      expect(Object.keys(JSON.parse(catalogue.text))).toEqual(['version', 'device_profiles', 'kpi_definitions']);
+      unchanged(await preview(s.api, catalogue.text, 'c.json'));
+      const one = await call(admin.token, '/plant/export?profile=example-drives-x1');
+      expect(one.disposition).toContain('example-drives-x1.profile.plant.yaml');
+      unchanged(await preview(s.api, one.text));
+      // audited like the export in the web app, with the token
+      const [log] = await s.api('GET', '/audit?action=plant.exported&limit=1');
+      expect(log.summary).toBe('Device profile example-drives-x1 exported via the API');
+      expect(log.details).toMatchObject({ via: 'api', tokenId: admin.id, format: 'yaml' });
+      // unknown or hidden records: problem details
+      for (const q of ['?site=nope', '?profile=nope', '?kpi=nope']) {
+        const r = await call(admin.token, `/plant/export${q}`);
+        expect(r.status, q).toBe(404);
+        expect(r.type).toContain('application/problem+json');
+      }
+      expect((await call(admin.token, '/plant/export?format=xml')).status).toBe(400);
+    });
+
+    it('a hidden site and its assets are never in the export; the catalogues are; 404 while the module is off', async () => {
+      const r = await call(dana, '/plant/export');
+      expect(r.status).toBe(200);
+      const doc = YAML.parse(r.text);
+      expect(doc.sites.map((x: { id: string }) => x.id)).not.toContain('hillcrest');
+      expect(r.text).not.toContain('hlc-');
+      expect(r.text).not.toContain('chiller-uptime');
+      expect(doc.device_profiles.map((p: { id: string }) => p.id)).toContain('example-plastics-mc6');
+      unchanged(await preview(users.dana!, r.text));
+      const hidden = await call(dana, '/plant/export?site=hillcrest');
+      expect(hidden.status).toBe(404);
+      expect(hidden.text).toBe((await call(dana, '/plant/export?site=nope')).text.replace('/nope', '/hillcrest').replace('nope', 'hillcrest'));
+      // the Plant viewer exports what they see
+      expect((await call(pia, '/plant/export?format=json')).status).toBe(200);
+      await enable(false);
+      for (const url of ['/plant/checks', '/plant/export']) {
+        const off = await call(pia, url);
+        expect(off.status, url).toBe(404);
+        expect(off.type).toContain('application/problem+json');
+        expect(JSON.parse(off.text).detail).toContain('module is off');
+      }
+      await enable(true);
+    });
+
+    it('deleting a profile or KPI definition that a hidden asset uses says only that it is in use', async () => {
+      const del = (c: Client, url: string) =>
+        c('DELETE', url).catch((e: { status: number; body: { code: string; error: string; params?: unknown } }) => ({ status: e.status, ...e.body }));
+      for (const [url, code, error] of [
+        ['/plant/profiles/example-drives-x1', 'PLANT_PROFILE_IN_USE_HIDDEN', 'The profile is in use – it cannot be deleted'],
+        ['/plant/kpis/drive-uptime', 'PLANT_KPI_IN_USE_HIDDEN', 'The KPI definition is in use – it cannot be deleted'],
+      ] as const) {
+        const r = await del(users.dana!, url);
+        expect(r).toMatchObject({ status: 409, code, error });
+        expect((r as { params?: unknown }).params).toBeUndefined();
+        expect(JSON.stringify(r)).not.toMatch(/hlc|chiller|hillcrest/);
+      }
+      // also when a visible asset has it, too: no count that leaves the hidden ones out
+      await s.api('PUT', '/plant/assets/rvs-press-01/assignment', {
+        profileId: 'example-drives-x1',
+        kpis: [{ kpi: 'drive-uptime', job: 'press-uptime', params: { calendar: 'x' } }],
+      });
+      expect(await del(users.dana!, '/plant/profiles/example-drives-x1')).toMatchObject({ code: 'PLANT_PROFILE_IN_USE_HIDDEN' });
+      // who sees every asset that has it gets the count
+      expect(await del(s.api, '/plant/profiles/example-drives-x1')).toMatchObject({
+        status: 409,
+        code: 'PLANT_PROFILE_IN_USE',
+        error: 'The profile is assigned to 2 assets – remove those assignments first',
+        params: { count: 2 },
+      });
+      expect(await del(s.api, '/plant/kpis/drive-uptime')).toMatchObject({ code: 'PLANT_KPI_IN_USE', params: { count: 2 } });
+      await s.api('DELETE', '/plant/assets/rvs-press-01/assignment');
+    });
   });
 });

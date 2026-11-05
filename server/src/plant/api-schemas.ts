@@ -383,7 +383,36 @@ export const PlantCatalogueListQuery = z.object({
   cursor: z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)'),
 });
 
+export const PlantCheckEntry = z.object({
+  kind: z.enum(PLANT_CHECK_CODES).describe('What is wrong (the check’s code, e.g. kpi_interface_inactive)'),
+  message: z.string().describe('Plain English text'),
+  on: z.enum(['asset', 'kpi']).describe('The record the problem is on: an asset (its assignment or a KPI instance) or a KPI definition'),
+  asset: z.object({ id: z.string(), name: z.string() }).nullable().describe('The asset (null: a problem of a KPI definition)'),
+  siteId: z.string().nullable().describe('The asset’s site'),
+  kpiId: z.string().nullable().describe('The KPI definition: the one with the problem, or the definition of the KPI instance'),
+  job: z.string().nullable().describe('The KPI instance (job) the problem is on'),
+  details: z.record(z.string(), z.union([z.string(), z.number()])).describe('The values the message names (data point, parameter, profile …)'),
+});
+
+export const PlantCheckListQuery = z.object({
+  limit: z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)'),
+  cursor: z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)'),
+  site: z.string().max(100).optional().describe('Only problems of assets of this site (id)'),
+  asset: z.string().max(100).optional().describe('Only problems of this asset (id)'),
+  kpi: z.string().max(100).optional().describe('Only problems of this KPI definition and of its KPI instances (id)'),
+  kind: z.enum(PLANT_CHECK_CODES).optional().describe('Only problems of this kind'),
+});
+
+export const PlantExportQuery = z.object({
+  site: z.string().max(100).optional().describe('One site (`site:`) with the assignments of its assets'),
+  part: z.enum(['all', 'catalogue']).optional().describe('`catalogue`: the device profiles and KPI definitions only'),
+  profile: z.string().max(100).optional().describe('One device profile (`device_profile:`)'),
+  kpi: z.string().max(100).optional().describe('One KPI definition (`kpi_definition:`)'),
+  format: z.enum(['yaml', 'json']).default('yaml').describe('yaml (default) or json: the same document'),
+});
+
 export const PLANT_COMPONENTS: Record<string, ZodTypeAny> = {
+  PlantCheckEntry,
   PlantSiteEntry,
   PlantSiteDetailEntry,
   PlantNodeEntry,

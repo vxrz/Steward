@@ -181,7 +181,7 @@ export function PlantKpisPage() {
                   </Table.Td>
                   <Table.Td>{k.trend ? t(`kpi.trends.${k.trend}`) : '–'}</Table.Td>
                   <Table.Td>
-                    <Text size="xs" className="mono" style={{ overflowWrap: 'anywhere' }}>
+                    <Text size="xs" className="mono code-wrap">
                       {k.profiles.join(', ') || '–'}
                     </Text>
                   </Table.Td>

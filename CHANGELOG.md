@@ -25,6 +25,15 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
   - **MCP gateway**: off by default; when on, the tool `database_query` (read-only, the same checks, audited); changing statements are refused (`MCP_WRITES_NOT_AVAILABLE`).
   - **Templates** for every supported DBMS: _Database – Access review_ (four-eyes, generated `REVOKE` statements as a manual step, documented access changes), _Database – Account hygiene_, _Database – Table sizes_, the own-SQL example _PostgreSQL – Connections per database_, the dashboard _Databases_, a monitor example and the bundle _Databases_. The demo has the simulated platform _Shop database (demo)_ (canned catalog rows; it never reads Steward's own database).
   - The host:port of a database follows the outbound policy like Kafka and MQTT; connections are pooled per platform (at most 5, closed after 60 s idle, on any change of the platform and on shutdown). New internal route `PUT /api/platforms/:id/database`; `/api/v1` lists the check type `database`. No migration.
+- **Plant registry in the public API: checks and export** (#219, [docs/PLANT.md](docs/PLANT.md#fetching-the-registry-from-other-tools)): two more read endpoints for other tools and backups.
+  - `GET /api/v1/plant/checks` lists what _Plant → Checks_ shows – kind, English message, asset, site, KPI definition, job and details – for the assets the token owner may see and the KPI definitions; filters `site`, `asset`, `kpi` (the definition's own problems and those of its instances), `kind`; paginated like the other lists.
+  - `GET /api/v1/plant/export` gives the registry in the import format, as the export in the web app: everything the token owner may see, one site, the catalogues (`part=catalogue`), one profile or KPI definition; YAML (default) or JSON (`format=json`). Sites the owner may not see and their assets are never in it; it imports back unchanged and is audited (`plant.exported`, with the token id).
+  - While the module is off, the plant endpoints of the public API now say so in their `404` (before: "Plant registry not found").
+
+### Fixed
+
+- **Plant registry: deleting a device profile or KPI definition in use** no longer hints at assets the person may not see: when an asset of a hidden site has it, the answer is only that it is in use (`PLANT_PROFILE_IN_USE_HIDDEN`, `PLANT_KPI_IN_USE_HIDDEN`, without a count); who sees every asset that has it gets the count.
+- **Plant registry pages: long identifiers** no longer break mid-word ("ProgramStatu / s"): paths, names, addresses and ids wrap after `/`, `.`, `_`, `:` and `;`; in the publications table of an asset and the table of assets that deliver a data point they stay whole and the table scrolls when they do not fit.
 
 ## [0.6.0] - 2026-11-05
 

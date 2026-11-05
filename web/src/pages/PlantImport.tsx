@@ -344,7 +344,7 @@ export function PlantImportPage() {
               <Text size="sm">
                 {t('import.done', { add: result.counts.add, change: result.counts.change, remove: result.counts.remove, mark: result.counts.mark })}
               </Text>
-              <Text size="xs" c="dimmed" className="mono" mt={4} style={{ overflowWrap: 'anywhere' }}>
+              <Text size="xs" c="dimmed" className="mono code-wrap" mt={4}>
                 SHA-256 {result.sha256}
               </Text>
               <Anchor component={Link} to="/plant/sites" size="sm">

@@ -237,8 +237,8 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                             )}
                           </Group>
                           {set?.endpoint && (
-                            <Text size="xs" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                              {set.endpoint}
+                            <Text size="xs" className="mono code-wrap">
+                              <Breakable text={set.endpoint} />
                             </Text>
                           )}
                           {set?.notes && (
@@ -329,8 +329,8 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                       <Group key={i} justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
                         <Stack gap={0} style={{ minWidth: 0 }}>
                           {pointLink(p.dataPoint)}
-                          <Text size="xs" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                            {[p.target, [p.path, p.name].filter(Boolean).join(' / ')].filter(Boolean).join(': ')}
+                          <Text size="xs" className="mono code-wrap">
+                            <Breakable text={[p.target, [p.path, p.name].filter(Boolean).join(' / ')].filter(Boolean).join(': ')} />
                           </Text>
                           {p.publishedBy && (
                             <Text size="xs" c="dimmed">
@@ -350,15 +350,8 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                   </Stack>
                 ) : (
                   <div className="table-scroll" tabIndex={0} role="region" aria-label={t('assignment.publications')}>
-                    <Table fz="sm" aria-label={t('assignment.publications')} layout="fixed" miw={560}>
-                      <colgroup>
-                        <col style={{ width: '24%' }} />
-                        <col style={{ width: '16%' }} />
-                        <col style={{ width: '24%' }} />
-                        <col style={{ width: '17%' }} />
-                        <col />
-                        {canManage && <col style={{ width: 40 }} />}
-                      </colgroup>
+                    {/* columns sized by their content: identifiers stay whole, the table scrolls when they do not fit */}
+                    <Table fz="sm" aria-label={t('assignment.publications')} miw={560} className="code-keep">
                       <Table.Thead>
                         <Table.Tr>
                           <Table.Th>{t('data.point')}</Table.Th>
@@ -374,11 +367,9 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                           <Table.Tr key={i}>
                             <Table.Td>{pointLink(p.dataPoint)}</Table.Td>
                             <Table.Td style={{ overflowWrap: 'break-word' }}>{p.target || '–'}</Table.Td>
-                            <Table.Td className="mono" style={{ overflowWrap: 'break-word' }}>
-                              {p.path ? <Breakable text={p.path} /> : '–'}
-                            </Table.Td>
-                            <Table.Td className="mono" style={{ overflowWrap: 'break-word' }}>
-                              {p.name || '–'}
+                            <Table.Td className="mono code-wrap">{p.path ? <Breakable text={p.path} /> : '–'}</Table.Td>
+                            <Table.Td className="mono code-wrap">
+                              <Breakable text={p.name || '–'} />
                             </Table.Td>
                             <Table.Td>{p.publishedBy || '–'}</Table.Td>
                             {canManage && (
