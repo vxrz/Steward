@@ -556,6 +556,10 @@
     "assurance": {
       "title": "Absicherungsrichtlinie",
       "description": "Wo eine zweite Person (Vier-Augen-Prinzip) oder eine erneute Bestätigung verlangt ist, die Grundlinie, Abweichungen und der Absicherungsbericht."
+    },
+    "modules": {
+      "title": "Module",
+      "description": "Zuschaltbare Teile von Steward, die zunächst ausgeschaltet sind: das Werksregister."
     }
   },
   "endOfLife": {

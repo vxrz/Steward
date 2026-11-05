@@ -15,7 +15,9 @@ export type RecentKind =
   | 'duty'
   | 'personReview'
   | 'statusPage'
-  | 'credential';
+  | 'credential'
+  | 'site'
+  | 'asset';
 
 export interface RecentItem {
   to: string;

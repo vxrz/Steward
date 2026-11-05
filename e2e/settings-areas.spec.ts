@@ -9,7 +9,16 @@ test('settings are split into areas with their own addresses, and each says its 
   await page.goto('/settings');
   await expect(page).toHaveURL(/\/settings\/general$/);
   const nav = page.getByRole('navigation', { name: 'Settings areas' });
-  for (const area of ['General', 'Security & sign-in', 'Integrations', 'Notifications', 'Appearance & branding', 'Catalogue & compliance', 'Data & retention'])
+  for (const area of [
+    'General',
+    'Security & sign-in',
+    'Integrations',
+    'Notifications',
+    'Appearance & branding',
+    'Catalogue & compliance',
+    'Modules',
+    'Data & retention',
+  ])
     await expect(nav.getByRole('link', { name: area })).toBeVisible();
   await expect(page.getByTestId('settings-scope')).toContainText('Instance settings apply to the whole installation');
   await expect(page.getByRole('heading', { name: 'Language' })).toBeVisible();

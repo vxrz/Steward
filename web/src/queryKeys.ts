@@ -86,3 +86,17 @@ export const assuranceKeys = {
   policy: ['assurance', 'policy'] as const,
   history: ['assurance', 'history'] as const,
 };
+
+/** The plant registry (#218, opt-in module). */
+export const plantKeys = {
+  /** Everything of the module (after an import or the settings changed) */
+  all: ['plant'] as const,
+  config: ['plant', 'config'] as const,
+  settings: ['plant', 'settings'] as const,
+  sites: ['plant', 'sites'] as const,
+  site: (id: string | null | undefined) => ['plant', 'site', id] as const,
+  hierarchy: ['plant', 'hierarchy'] as const,
+  assets: (filter: string) => ['plant', 'assets', filter] as const,
+  asset: (id: string | null | undefined) => ['plant', 'asset', id] as const,
+  imports: ['plant', 'imports'] as const,
+};

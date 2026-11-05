@@ -31,6 +31,7 @@ import type gitSync from '../locales/en/gitSync.json';
 import type tickets from '../locales/en/tickets.json';
 import type compliance from '../locales/en/compliance.json';
 import type assurance from '../locales/en/assurance.json';
+import type plant from '../locales/en/plant.json';
 import auth from '../locales/en/auth.json';
 import common from '../locales/en/common.json';
 import errors from '../locales/en/errors.json';
@@ -75,4 +76,5 @@ export interface Resources {
   tickets: typeof tickets;
   compliance: typeof compliance;
   assurance: typeof assurance;
+  plant: typeof plant;
 }
