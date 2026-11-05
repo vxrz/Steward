@@ -1,5 +1,5 @@
 import type net from 'node:net';
-import type { DbDialect, DbQueryResult, DbTlsMode } from '@sm/shared';
+import type { DbDialect, DbQueryResult, DbTlsMode, ErrorParams } from '@sm/shared';
 import { HttpError } from '../util.js';
 
 /**
@@ -57,7 +57,7 @@ export interface DbDriver {
 
 /** Errors of database platforms: a stable code (problem+json, translated in the web app) and an English message. */
 export class DbError extends HttpError {
-  constructor(code: DbErrorCode, message: string, params?: Record<string, string | number>, status = 502) {
+  constructor(code: DbErrorCode, message: string, params?: ErrorParams, status = 502) {
     super(status, message, code, params);
   }
 }
@@ -80,7 +80,8 @@ export type DbErrorCode =
   | 'DB_PERMISSION_DENIED'
   | 'DB_READ_ONLY_VIOLATION'
   | 'DB_QUERY_FAILED'
-  | 'DB_MULTIPLE_RESULTS';
+  | 'DB_MULTIPLE_RESULTS'
+  | 'DB_OWN_DATABASE';
 
 // ---------- results ----------
 

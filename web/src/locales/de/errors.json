@@ -878,6 +878,7 @@
     "DB_READ_ONLY_VIOLATION": "Die Anweisung wollte schreiben – Steward führt nur lesende Anweisungen aus.",
     "DB_QUERY_FAILED": "Die Datenbank hat mit einem Fehler geantwortet: {{detail}}",
     "DB_MULTIPLE_RESULTS": "Die Anweisung lieferte mehr als eine Ergebnismenge.",
+    "DB_OWN_DATABASE": "{{host}} ist der Datenbankserver von Steward selbst – eine Datenbank-Plattform darf nicht darauf zeigen. Verwenden Sie für die Datenbanken, die Steward liest, einen eigenen Server oder Port.",
     "DB_SQL_EMPTY": "Die Anweisung ist leer.",
     "DB_SQL_TOO_LONG": "Die Anweisung ist länger als {{limit}} Zeichen.",
     "DB_SQL_NOT_SELECT": "Nur eine Abfrage ist erlaubt: ein SELECT oder WITH … SELECT.",

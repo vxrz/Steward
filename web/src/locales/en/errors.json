@@ -878,6 +878,7 @@
     "DB_READ_ONLY_VIOLATION": "The statement tried to write – Steward runs read-only statements only.",
     "DB_QUERY_FAILED": "The database answered with an error: {{detail}}",
     "DB_MULTIPLE_RESULTS": "The statement returned more than one result set.",
+    "DB_OWN_DATABASE": "{{host}} is Steward’s own database server – a database platform may not point at it. Use a separate server or port for the databases Steward reads.",
     "DB_SQL_EMPTY": "The statement is empty.",
     "DB_SQL_TOO_LONG": "The statement is longer than {{limit}} characters.",
     "DB_SQL_NOT_SELECT": "Only a query is allowed: one SELECT, or WITH … SELECT.",

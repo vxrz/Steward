@@ -40,6 +40,10 @@ interface Target {
   cleanup: () => Promise<void>;
   /** A statement that writes through a function the statement check cannot see (null: SQL Server has none) */
   writingSelect: string | null;
+  /** PostgreSQL: the server itself (host:port) when it is also Steward's own database server (npm run test:pg) */
+  direct?: { host: string; port: number };
+  /** PostgreSQL: session advisory locks held by the platform's accounts */
+  advisoryLocks?: () => Promise<number>;
   sleep: string;
   placeholder: string;
 }
@@ -82,12 +86,38 @@ async function pgTarget(url: string): Promise<Target> {
     `GRANT SELECT, INSERT, UPDATE ON orders TO ${writer}`,
     `GRANT USAGE ON SEQUENCE order_numbers TO ${writer}`,
     `GRANT ${writer} TO ${rw}`,
+    // takes a session lock the statement check cannot see (it is inside a function): Steward releases it before reuse
+    `CREATE FUNCTION take_lock() RETURNS boolean LANGUAGE sql VOLATILE AS 'SELECT pg_try_advisory_lock(4242)'`,
   ])
     await c.query(sql);
+  // Steward refuses its own database server as a platform (npm run test:pg uses one server for both): the platforms
+  // reach the server through a relay on another port, the direct host:port is tested to be refused
+  const relay = net.createServer((client) => {
+    const upstream = net.connect({ host: u.hostname, port: Number(u.port || 5432) });
+    client.pipe(upstream).pipe(client);
+    const close = () => {
+      client.destroy();
+      upstream.destroy();
+    };
+    client.on('error', close);
+    upstream.on('error', close);
+    client.on('close', close);
+    upstream.on('close', close);
+  });
+  await new Promise<void>((resolve) => relay.listen(0, '127.0.0.1', resolve));
   return {
     dialect: 'postgresql',
-    host: u.hostname,
-    port: Number(u.port || 5432),
+    host: '127.0.0.1',
+    port: (relay.address() as net.AddressInfo).port,
+    direct: { host: u.hostname, port: Number(u.port || 5432) },
+    advisoryLocks: async () =>
+      Number(
+        (
+          await c.query(
+            `SELECT count(*) AS n FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid WHERE l.locktype = 'advisory' AND a.usename IN ('${ro}', '${rw}')`,
+          )
+        ).rows[0].n,
+      ),
     database,
     ro,
     rw,
@@ -97,6 +127,7 @@ async function pgTarget(url: string): Promise<Target> {
     placeholder: '$1',
     cleanup: async () => {
       await c.end();
+      relay.close();
       const r = admin(u.pathname.slice(1) || 'postgres');
       await r.connect();
       await r.query(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`);
@@ -422,6 +453,47 @@ for (const dialect of ['postgresql', 'mysql', 'sqlserver'] as DbDialect[]) {
         // MariaDB/MySQL may end SLEEP early without an error; PostgreSQL cancels the statement
         if (dialect === 'postgresql') expect(e.code).toBe('DB_TIMEOUT');
       }
+    });
+
+    it('releases session advisory locks before a pooled connection is used again', async () => {
+      if (!t.advisoryLocks) return;
+      const { runQuery } = await import('../src/dbms/service.js');
+      const { getPlatform, getSecrets } = await import('../src/platforms/service.js');
+      const p = getPlatform(ro.id);
+      // passes the statement check (the lock is taken inside a function)
+      const r = await runQuery(p, getSecrets(ro.id), { sql: 'SELECT take_lock() AS locked' }, AbortSignal.timeout(30_000));
+      expect(r.result.rows).toEqual([{ locked: true }]);
+      expect(await t.advisoryLocks()).toBe(0);
+      // the connection stays in the pool and works
+      expect((await runQuery(p, getSecrets(ro.id), { sql: 'SELECT 1 AS one' }, AbortSignal.timeout(30_000))).result.rows).toEqual([{ one: 1 }]);
+    });
+
+    it('refuses Steward’s own database server as a platform', async () => {
+      const own = (await import('../src/dbms/own.js')).ownDatabaseEndpoint();
+      if (!t.direct || !own) return; // Steward runs on SQLite here
+      const { isOwnDatabase, resolveAddresses } = await import('../src/dbms/own.js');
+      if (!(await isOwnDatabase(await resolveAddresses(t.direct.host), t.direct.port, own))) return; // another server
+      const direct = await s.api('POST', '/platforms', {
+        name: `DB own ${dialect}`,
+        kind: DATABASE_KIND,
+        config: { auth: { type: 'none' }, variables: {}, http: {}, database: { dialect, ...t.direct, database: t.database, tls: { mode: 'off' } } },
+        secrets: { username: t.ro, password: RO_PW },
+      });
+      const r = await s.api('POST', `/platforms/${direct.id}/test`);
+      expect(r.ok).toBe(false);
+      expect(r.message).toContain('database server of Steward itself');
+      for (const host of ['localhost', '127.0.0.1'])
+        if (t.direct.host === 'localhost' || t.direct.host.startsWith('127.'))
+          await expect(
+            (await import('../src/dbms/service.js')).assertDatabaseAllowed({
+              dialect,
+              host,
+              port: t.direct.port,
+              database: 'x',
+              tls: { mode: 'off' },
+              limits: {},
+            } as never),
+          ).rejects.toMatchObject({ code: 'DB_OWN_DATABASE' });
     });
 
     it('follows the outbound policy for host:port', async () => {

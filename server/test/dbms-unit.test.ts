@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import net from 'node:net';
 import { describe, expect, it } from 'vitest';
 import { DB_CATALOGS, effectiveDbLimits, readOnlyStatementProblem, sqlProblemParam, validateProcess, type DbDialect } from '@sm/shared';
 import { PG_SESSION_RESET, pgRun, type PgQueryable } from '../src/dbms/postgres.js';
@@ -8,7 +9,8 @@ import { CATALOG, catalogSql, mapCatalogRows, myAccount, msIdent, pgIdent } from
 import { mapDriverError } from '../src/dbms/errors.js';
 import { ConnectionPool } from '../src/dbms/pool.js';
 import { DbError, RowCollector, cellValue, type DriverConnection, type RunLimits } from '../src/dbms/types.js';
-import { bindValue } from '../src/dbms/service.js';
+import { bindValue, redactDbError } from '../src/dbms/service.js';
+import { assertNotOwnDatabase, isOwnDatabase, ownDatabaseEndpoint, type AddressLookup } from '../src/dbms/own.js';
 
 /**
  * Database platforms (#203, ADR 0008) without a database: the statement check per dialect, the read-only wrapping and
@@ -804,5 +806,46 @@ describe('limits, values, errors and the pool', () => {
     expect(pool.stats).toMatchObject({ open: 0, idle: 0 });
     await pool.close();
     await expect(pool.acquire(never)).rejects.toMatchObject({ code: 'DB_CONNECT_FAILED' });
+  });
+});
+
+describe('Steward’s own database server (own.ts) and redaction', () => {
+  const own = ownDatabaseEndpoint({ kind: 'postgres', url: 'postgres://steward:pw@db.internal:5544/steward', schema: 'public' })!;
+  const lookup: AddressLookup = async (h) =>
+    ({ 'db.internal': ['10.9.8.7'], 'db-alias.internal': ['10.9.8.7'], localhost: ['127.0.0.1', '::1'], 'other.internal': ['10.9.8.6'] })[h] ??
+    (net.isIP(h) ? [h] : []);
+
+  it('reads host and port from the database URL (SQLite has none)', () => {
+    expect(own).toEqual({ hosts: ['db.internal'], port: 5544 });
+    expect(ownDatabaseEndpoint({ kind: 'sqlite', file: 'x.db' })).toBeNull();
+    expect(ownDatabaseEndpoint({ kind: 'postgres', url: 'postgres://u@/steward?host=/var/run/postgresql', schema: 'public' })).toEqual({
+      hosts: ['localhost'],
+      port: 5432,
+    });
+    expect(ownDatabaseEndpoint({ kind: 'postgres', url: 'postgres://u@[::1]/s', schema: 'public' })).toEqual({ hosts: ['::1'], port: 5432 });
+  });
+
+  it('refuses the same server by name or address, and every local address for a local server', async () => {
+    for (const host of ['db.internal', 'DB.internal', 'db-alias.internal', '10.9.8.7'])
+      await expect(assertNotOwnDatabase(host, 5544, own, lookup), host).rejects.toMatchObject({ code: 'DB_OWN_DATABASE', statusCode: 403 });
+    await expect(assertNotOwnDatabase('db.internal', 5545, own, lookup)).resolves.toBeUndefined();
+    await expect(assertNotOwnDatabase('other.internal', 5544, own, lookup)).resolves.toBeUndefined();
+    const local = ownDatabaseEndpoint({ kind: 'postgres', url: 'postgres://u@localhost:5432/s', schema: 'public' })!;
+    for (const host of ['127.0.0.1', '127.0.0.2', '::1', '0.0.0.0', 'localhost'])
+      await expect(assertNotOwnDatabase(host, 5432, local, lookup), host).rejects.toMatchObject({ code: 'DB_OWN_DATABASE' });
+    expect(await isOwnDatabase(['10.9.8.6'], 5432, local, lookup)).toBe(false);
+    expect(await isOwnDatabase(['127.0.0.1'], 5432, null, lookup)).toBe(false);
+  });
+
+  it('masks the platform’s secrets in driver errors', () => {
+    const secrets = { username: 'reader', password: 'S3cret-pass' };
+    const e = redactDbError(new DbError('DB_QUERY_FAILED', 'syntax error at "S3cret-pass"', { detail: 'near "S3cret-pass"' }), secrets) as DbError;
+    expect(e.message).toBe('syntax error at "***"');
+    expect(e.params).toEqual({ detail: 'near "***"' });
+    expect((redactDbError(new Error('x S3cret-pass'), secrets) as Error).message).toBe('x ***');
+    // the driver's message is masked before it is cut to one line of 500 characters (a cut secret would stay half visible)
+    const long = mapDriverError('postgresql', new Error(`${'x'.repeat(495)} S3cret-pass`), 'query', ['S3cret-pass']);
+    expect(long.message).not.toContain('S3cr');
+    expect(long.params).toEqual({ detail: `${'x'.repeat(495)} ***` });
   });
 });

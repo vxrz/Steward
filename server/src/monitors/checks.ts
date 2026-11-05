@@ -733,13 +733,19 @@ async function checkDatabase(c: CheckOf<'database'>, ctx: ExecContext): Promise<
     };
   }
   const { databaseCheck } = await import('../dbms/service.js');
+  const { redactSecrets } = await import('../platforms/testConnection.js');
+  // driver messages (and values a query returns) are stored with the result: the platform's secrets masked
   try {
     return {
-      ...(await databaseCheck(platform, secrets, c, AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs + 5000)]))),
+      ...redactSecrets(await databaseCheck(platform, secrets, c, AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs + 5000)])), secrets),
       durationMs: Date.now() - t0,
     };
   } catch (e) {
-    return { status: 'unknown', message: `The database could not be read: ${(e as Error).message}`.slice(0, 1000), durationMs: Date.now() - t0 };
+    return {
+      status: 'unknown',
+      message: redactSecrets(`The database could not be read: ${(e as Error).message}`, secrets).slice(0, 1000),
+      durationMs: Date.now() - t0,
+    };
   }
 }
 
