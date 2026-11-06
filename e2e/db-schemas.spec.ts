@@ -132,7 +132,7 @@ async function importAndChanges(page: Page, mobile: boolean) {
 }
 
 /** A push token: created (shown once), it pushes from "CI", is listed with its last use, rotated and revoked. */
-async function pushTokens(page: Page, mobile: boolean, target: { kind: string; id: string }) {
+async function pushTokens(page: Page, mobile: boolean, target: { kind: string; id: string }, api: APIRequestContext, olivia: APIRequestContext) {
   const panel = page.getByTestId('push-tokens');
   await expect(panel).toContainText('No push token yet');
   await panel.getByTestId('push-token-new').click();
@@ -177,6 +177,24 @@ async function pushTokens(page: Page, mobile: boolean, target: { kind: string; i
     .getByRole('button', { name: /^Revoke/ })
     .click();
   await expect(page.getByTestId('push-tokens')).toContainText('No push token yet');
+  // a token stops with its creator: Olivia may no longer manage the database, and the list says so
+  await api.put(`/api/platforms/${target.id}/access`, {
+    data: {
+      acl: [
+        { subject: 'user:olivia', permissions: ['manage'] },
+        { subject: 'user:admin', permissions: ['manage'] },
+      ],
+    },
+  });
+  const theirs = await json<{ id: string }>(
+    await olivia.post(`/api/db-schemas/${target.kind}/${target.id}/push-tokens`, { data: { name: 'Olivia’s pipeline' } }),
+  );
+  await api.put(`/api/platforms/${target.id}/access`, { data: { acl: [] } });
+  await page.reload();
+  await expect(page.getByTestId('push-token-creator-inactive')).toContainText('Creator inactive – create a new token');
+  await expectAccessible(page, 'push tokens: creator inactive');
+  if (mobile) await expectNoHorizontalScroll(page);
+  await api.delete(`/api/db-schemas/${target.kind}/${target.id}/push-tokens/${theirs.id}`);
 }
 
 async function exportsAndSettings(page: Page, api: APIRequestContext, dbId: string) {
@@ -232,7 +250,7 @@ test('the Schema tab: read, tables, import, changes, history, exports, settings 
   const db = await schemaTab(page, api, false);
   await importAndChanges(page, false);
   await exportsAndSettings(page, api, db.id);
-  await pushTokens(page, false, { kind: 'platform', id: db.id });
+  await pushTokens(page, false, { kind: 'platform', id: db.id }, api, await apiAs('olivia'));
   await systemSchema(page, api, false);
   await monitorCheck(page, db);
   await api.delete(`/api/platforms/${db.id}`);
@@ -244,6 +262,6 @@ test('database schemas on a phone @mobile', async ({ page, apiAs }) => {
   await importAndChanges(page, true);
   await systemSchema(page, api, true);
   await page.goto(`/platforms/${db.id}?tab=schema`);
-  await pushTokens(page, true, { kind: 'platform', id: db.id });
+  await pushTokens(page, true, { kind: 'platform', id: db.id }, api, await apiAs('olivia'));
   await api.delete(`/api/platforms/${db.id}`);
 });

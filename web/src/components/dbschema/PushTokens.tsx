@@ -78,8 +78,8 @@ export function PushTokensPanel({ subject }: { subject: SchemaSubject }) {
   const stopped = (x: DbSchemaPushToken) =>
     x.creatorInactive ? (
       <Group gap={4} wrap="nowrap" align="flex-start" data-testid="push-token-creator-inactive">
-        <IconAlertTriangle size={14} aria-hidden style={{ flex: 'none', marginTop: 2, color: 'var(--mantine-color-orange-8)' }} />
-        <Text size="xs" c="orange.8" title={t('schema.push.creatorInactiveHint', { name: x.createdBy })}>
+        <IconAlertTriangle size={14} aria-hidden style={{ flex: 'none', marginTop: 2, color: 'var(--mantine-color-orange-text)' }} />
+        <Text size="xs" c="orange" title={t('schema.push.creatorInactiveHint', { name: x.createdBy })}>
           {t('schema.push.creatorInactive')}
         </Text>
       </Group>
