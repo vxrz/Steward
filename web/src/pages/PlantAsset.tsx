@@ -16,6 +16,7 @@ import { plantKeys } from '../queryKeys';
 import { AssetStatusBadge, FieldValuesView, NotInSourceBadge, PreviewBadge, RefsView, useNameOf, usePlantLabel } from '../components/plant/common';
 import { AssetFormModal } from '../components/plant/forms';
 import { AssetDataSection } from '../components/plant/AssetData';
+import { AssetNetworkSection } from '../components/plant/AssetNetwork';
 import { SourceLine } from './PlantSite';
 
 /**
@@ -202,6 +203,7 @@ export function PlantAssetPage() {
               </Field>
             </Stack>
             <AssetDataSection assetId={a.id} />
+            <AssetNetworkSection assetId={a.id} />
             <LinksPanel
               links={a.links}
               backlinks={a.backlinks}

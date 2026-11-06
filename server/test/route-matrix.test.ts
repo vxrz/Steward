@@ -742,6 +742,9 @@ const EXPECT: Record<string, Access> = {
   // the checks of the assets the token owner may see, the export of what they may see (#219)
   'GET /api/v1/plant/checks': PLANT,
   'GET /api/v1/plant/export': PLANT,
+  // the OT network of a site and of an asset (#220): follows the site
+  'GET /api/v1/plant/sites/:siteId/network': PLANT,
+  'GET /api/v1/plant/assets/:assetId/network': PLANT,
   'GET /api/v1/environments': ALL,
   'GET /api/v1/maintenance-windows': ALL,
   'GET /api/v1/measures': ALL,
@@ -909,6 +912,26 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/plant/assets/:assetId/assignment': DESIGN,
   'GET /api/plant/explore/points': PLANT,
   'GET /api/plant/checks': PLANT,
+  // part 3 (#220): the OT network follows the site – who sees it sees the network, who manages it changes it
+  'GET /api/plant/sites/:siteId/network': PLANT,
+  'POST /api/plant/sites/:siteId/vlans': DESIGN,
+  'PUT /api/plant/sites/:siteId/vlans/:vlanId': DESIGN,
+  'DELETE /api/plant/sites/:siteId/vlans/:vlanId': DESIGN,
+  'POST /api/plant/sites/:siteId/vlans/:vlanId/segment': DESIGN,
+  'POST /api/plant/sites/:siteId/zones': DESIGN,
+  'PUT /api/plant/sites/:siteId/zones/:zoneId': DESIGN,
+  'DELETE /api/plant/sites/:siteId/zones/:zoneId': DESIGN,
+  'POST /api/plant/sites/:siteId/conduits': DESIGN,
+  'PUT /api/plant/sites/:siteId/conduits/:conduitId': DESIGN,
+  'DELETE /api/plant/sites/:siteId/conduits/:conduitId': DESIGN,
+  'GET /api/plant/assets/:assetId/network': PLANT,
+  'PUT /api/plant/assets/:assetId/checks': DESIGN,
+  'POST /api/plant/assets/:assetId/devices': DESIGN,
+  'PUT /api/plant/assets/:assetId/devices/:deviceId': DESIGN,
+  'DELETE /api/plant/assets/:assetId/devices/:deviceId': DESIGN,
+  'POST /api/plant/assets/:assetId/paths': DESIGN,
+  'PUT /api/plant/assets/:assetId/paths/:pathId': DESIGN,
+  'DELETE /api/plant/assets/:assetId/paths/:pathId': DESIGN,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */

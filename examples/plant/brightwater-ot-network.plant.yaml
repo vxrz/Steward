@@ -1,0 +1,144 @@
+# yaml-language-server: $schema=https://github.com/vxrz/Steward/blob/main/docs/plant/plant-registry-1.schema.json
+# Steward plant registry, format 1 (docs/PLANT.md) – part 3: the OT network (#220).
+# The invented OT network of the invented Riverside Works (brightwater.plant.yaml): IEEE 802.1Q VLANs with their
+# subnets, IEC 62443-3-2 zones and a conduit, and the devices and data paths of two milling centres. Addresses are
+# private (10.x) or documentation ranges (192.0.2.0/24, RFC 5737); MAC addresses use the IEEE documentation block
+# 00-00-5E-00-53-xx (RFC 7042); host names are below example.com. Nothing here names a real host.
+version: 1
+ot_network:
+  site: riverside
+  vlans:
+    - id: rvs-vlan-110
+      name: Machining cells
+      vid: 110
+      type: production
+      owner: OT network team
+      description: The cells of milling line 1 – machine PCs, PLCs and edge gateways.
+      subnets:
+        - cidr: 10.20.110.0/24
+          gateway: 10.20.110.1
+          ranges:
+            - { start: 10.20.110.1, end: 10.20.110.9, type: blocked, notes: Gateway and switches }
+            - { start: 10.20.110.10, end: 10.20.110.99, type: static }
+            - { start: 10.20.110.100, end: 10.20.110.199, type: dynamic, notes: DHCP for service laptops }
+      restricted: true
+      managed_by: OT network team
+      rules_at: Firewall FW-RVS-1, rule set "machining"
+      location: Hall 1, rack H1-A
+    - id: rvs-vlan-120
+      name: Final assembly
+      vid: 120
+      type: production
+      owner: OT network team
+      subnets:
+        - cidr: 10.20.120.0/24
+          gateway: 10.20.120.1
+          ranges:
+            - { start: 10.20.120.10, end: 10.20.120.99, type: static }
+      restricted: true
+      managed_by: OT network team
+      location: Hall 2, rack H2-B
+    - id: rvs-vlan-900
+      name: OT DMZ
+      vid: 900
+      type: dmz
+      owner: Plant IT
+      description: Edge servers and the file share between the shop floor and the office network.
+      subnets:
+        - cidr: 192.0.2.0/26
+          gateway: 192.0.2.1
+      managed_by: Plant IT
+      rules_at: Firewall FW-RVS-1, rule set "dmz"
+  zones:
+    - id: rvs-zone-cells
+      name: Production cells
+      description: Machining and assembly – the machines and their controllers.
+      criticality: high
+      vlans: [rvs-vlan-110, rvs-vlan-120]
+      owner: Head of production
+      sl_t: 2
+      risk_assessment: RA-RVS-2026-01
+      assessed_at: "2026-03-02"
+    - id: rvs-zone-dmz
+      name: OT DMZ
+      criticality: medium
+      vlans: [rvs-vlan-900]
+      owner: Plant IT
+      notes: The target security level is open until the risk assessment of the DMZ (planned).
+  conduits:
+    - id: rvs-cdt-cells-dmz
+      name: Cells to DMZ
+      description: Data leaves the cells only towards the DMZ, started from the cells.
+      zones: [rvs-zone-cells, rvs-zone-dmz]
+      direction: a_to_b
+      protocols: [opc-ua tcp/4840, mqtt tcp/8883, smb tcp/445]
+      controls: [firewall FW-RVS-1, no inbound connections]
+asset_networks:
+  - asset: rvs-mill-01
+    site: riverside
+    devices:
+      - id: rvs-mill-01-ipc
+        hostname: rvs-mill-01-ipc
+        domain: ot.example.com
+        purpose: Machine PC (OPC UA server)
+        mac: 00-00-5E-00-53-11
+        serial: SN-0001-IPC
+        vlan: rvs-vlan-110
+        address_type: static
+        address: 10.20.110.21
+        switch: rvs-sw-h1-a1
+        switch_port: Gi1/0/12
+        wall_outlet: H1-A-12
+        cmdb_port: RVS-H1-A1-12
+        flags: [port_ordered]
+        confidence: high
+        owner: OT network team
+        monitoring: Gatus endpoint (to be linked)
+      - id: rvs-mill-01-gw
+        hostname: rvs-mill-01-gw
+        domain: ot.example.com
+        purpose: Edge gateway
+        mac: 00-00-5E-00-53-12
+        vlan: rvs-vlan-110
+        address_type: reserved
+        address: 10.20.110.22
+        switch: rvs-sw-h1-a1
+        switch_port: Gi1/0/13
+        state: planned
+        flags: [device_ordered, address_ordered]
+        confidence: medium
+    data_paths:
+      - id: machine-state
+        subject: Machine state and spindle values
+        devices: [rvs-mill-01-ipc]
+        collector: { kind: job, ref: rvs-edge-collector }
+        transfers:
+          - { protocol: opc-ua, mode: pull, peer_kind: device, peer: rvs-mill-01-ipc, port: 4840 }
+          - { protocol: mqtt, mode: push, peer: IoT platform broker, port: 8883 }
+        destinations:
+          - { ref: IoT platform, path: rvs-mill-01/state }
+  - asset: rvs-mill-02
+    site: riverside
+    devices:
+      - id: rvs-mill-02-ipc
+        hostname: rvs-mill-02-ipc
+        domain: ot.example.com
+        purpose: Machine PC
+        mac: 00:00:5e:00:53:21
+        vlan: rvs-vlan-110
+        address_type: static
+        address: 10.20.110.31
+        switch: rvs-sw-h1-a1
+        switch_port: Gi1/0/14
+        confidence: low
+        notes: Address read from the machine's display; port not checked yet.
+    data_paths:
+      - id: nc-programs
+        subject: NC programs
+        description: Programs come from the CAM file share; the machine PC fetches them.
+        devices: [rvs-mill-02-ipc]
+        collector: { kind: job, ref: nc-transfer }
+        transfers:
+          - { protocol: smb, mode: pull, peer: CAM file share, port: 445 }
+        destinations:
+          - { ref: Machine PC, path: 'D:\NC\in' }

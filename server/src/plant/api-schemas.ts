@@ -14,6 +14,19 @@ import {
   PLANT_DIRECTIONS,
   PLANT_LEVELS,
   PLANT_PROTOCOLS,
+  ADDRESS_TYPES,
+  COLLECTOR_KINDS,
+  CONDUIT_DIRECTIONS,
+  DESTINATION_KINDS,
+  DEVICE_CONFIDENCE,
+  DEVICE_STATES,
+  LIVE_REASONS,
+  LIVE_STATES,
+  PEER_KINDS,
+  STATUS_CHECK_KINDS,
+  TRANSFER_MODES,
+  VLAN_RANGE_TYPES,
+  ZONE_CRITICALITIES,
 } from '@sm/shared';
 import { RecordLink } from '../records/api-schemas.js';
 
@@ -411,6 +424,194 @@ export const PlantExportQuery = z.object({
   format: z.enum(['yaml', 'json']).default('yaml').describe('yaml (default) or json: the same document'),
 });
 
+// ---------- part 3 (#220): the OT network ----------
+
+const StatusCheck = z.object({
+  kind: z.enum(STATUS_CHECK_KINDS).describe('monitor (a Steward monitor or one of its checks) or dataset (its freshness)'),
+  ref: z.string().describe('The monitor (key or id) or the dataset (key)'),
+  check: z.string().describe('A monitor: one of its checks (empty: the whole monitor)'),
+  column: z.string(),
+  value: z.string(),
+  timeColumn: z.string(),
+  maxAgeMinutes: z.number().int().nullable(),
+  note: z.string(),
+});
+const CheckStatus = z.object({
+  kind: z.enum(STATUS_CHECK_KINDS),
+  ref: z.string(),
+  check: z.string(),
+  state: z.enum(LIVE_STATES),
+  reason: z.enum(LIVE_REASONS).describe('Why: the monitor’s status, the dataset is fresh or stale, missing, …'),
+  label: z.string().describe('Name of the monitor or dataset (empty when the token owner may not see it)'),
+  path: z.string().nullable(),
+  visible: z.boolean(),
+  at: ts().nullable().describe('When the value it is based on was taken'),
+});
+export const PlantLiveEntry = z.object({
+  state: z.enum(LIVE_STATES).describe('online, offline or unknown – only linked checks set it; unknown is never online'),
+  watched: z.boolean().describe('Whether any check is linked'),
+  checks: z.array(CheckStatus),
+});
+const ItemRef = z.object({
+  kind: z.enum(['system', 'application', 'platform', 'process', 'dataset', 'job']),
+  id: z.string(),
+  label: z.string().describe('Its name (empty when the token owner may not see it)'),
+  path: z.string().nullable(),
+  visible: z.boolean(),
+});
+const Vlan = z.object({
+  id: z.string(),
+  name: z.string(),
+  vid: z.number().int().nullable().describe('IEEE 802.1Q VLAN identifier (1–4094)'),
+  type: z.string(),
+  owner: z.string(),
+  description: z.string(),
+  subnets: z.array(
+    z.object({
+      cidr: z.string().describe('CIDR notation, IPv4 or IPv6'),
+      gateway: z.string(),
+      description: z.string(),
+      ranges: z.array(z.object({ start: z.string(), end: z.string(), type: z.enum(VLAN_RANGE_TYPES), notes: z.string() })),
+    }),
+  ),
+  restricted: z.boolean(),
+  managedBy: z.string(),
+  rulesAt: z.string().describe('Where its access rules are kept'),
+  sites: z.array(z.string()).describe('Other sites it reaches'),
+  location: z.string(),
+  segmentId: z.string().nullable().describe('The Steward network segment (system id) it is linked to'),
+  notes: z.string(),
+  ...source,
+  segment: ItemRef.extend({ vid: z.number().int().nullable(), subnets: z.array(z.string()) }).nullable(),
+  segmentHint: z
+    .object({ vidDiffers: z.boolean(), onlyVlan: z.array(z.string()), onlySegment: z.array(z.string()) })
+    .nullable()
+    .describe('The linked segment’s VLAN ID or subnets differ'),
+  otherSites: z.array(z.object({ id: z.string(), name: z.string() })),
+  zones: z.array(z.string()),
+  deviceCount: z.number().int(),
+});
+const Zone = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  criticality: z.enum(ZONE_CRITICALITIES).nullable(),
+  vlans: z.array(z.string()),
+  owner: z.string(),
+  slTarget: z.number().int().min(1).max(4).nullable().describe('IEC 62443-3-2 target security level (SL-T); null: open until a risk assessment sets it'),
+  riskAssessment: z.string(),
+  assessedAt: z.string().nullable(),
+  notes: z.string(),
+  ...source,
+  conduits: z.array(z.string()),
+  deviceCount: z.number().int(),
+});
+const Conduit = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  zones: z.array(z.string()).describe('The two zones it connects'),
+  direction: z.enum(CONDUIT_DIRECTIONS),
+  protocols: z.array(z.string()),
+  controls: z.array(z.string()),
+  notes: z.string(),
+  ...source,
+  linkId: z.string().describe('Its id as a link target (`<site>/<conduit>`)'),
+  linkedFrom: z
+    .array(z.object({ kind: z.string(), id: z.string(), label: z.string(), path: z.string(), note: z.string() }))
+    .describe('Firewall changes and other records that link to it'),
+});
+const Device = z.object({
+  id: z.string(),
+  hostname: z.string(),
+  domain: z.string(),
+  purpose: z.string(),
+  mac: z.string().describe('EUI-48 in IEEE 802 notation (AC-DE-48-00-00-80)'),
+  serial: z.string(),
+  vlan: z.string().nullable(),
+  addressType: z.enum(ADDRESS_TYPES).nullable(),
+  address: z.string(),
+  switch: z.string(),
+  switchPort: z.string(),
+  wallOutlet: z.string(),
+  cmdbPort: z.string(),
+  state: z.enum(DEVICE_STATES),
+  flags: z.array(z.string()),
+  confidence: z.enum(DEVICE_CONFIDENCE).nullable(),
+  owner: z.string(),
+  monitoring: z.string(),
+  checks: z.array(StatusCheck),
+  notes: z.string(),
+  ...source,
+  assetId: z.string(),
+  assetName: z.string(),
+  live: PlantLiveEntry,
+  hints: z.array(z.enum(['vlan_missing', 'address_outside', 'address_blocked'])),
+});
+const PathLink = z.object({
+  assetId: z.string(),
+  assetName: z.string(),
+  pathId: z.string(),
+  subject: z.string(),
+  via: z.string().describe('The system they share'),
+});
+const DataPath = z.object({
+  id: z.string(),
+  subject: z.string(),
+  description: z.string(),
+  devices: z.array(z.string()),
+  collector: z.object({ kind: z.enum(COLLECTOR_KINDS), ref: z.string(), host: z.string().nullable() }).nullable(),
+  transfers: z.array(
+    z.object({
+      protocol: z.string(),
+      mode: z.enum(TRANSFER_MODES),
+      peerKind: z.enum(PEER_KINDS),
+      peer: z.string(),
+      port: z.number().int().nullable(),
+      notes: z.string(),
+    }),
+  ),
+  destinations: z.array(z.object({ kind: z.enum(DESTINATION_KINDS), ref: z.string(), path: z.string(), notes: z.string() })),
+  notes: z.string(),
+  ...source,
+  assetId: z.string(),
+  assetName: z.string(),
+  collectorRef: ItemRef.nullable(),
+  collectorHost: ItemRef.nullable(),
+  peers: z.array(ItemRef.nullable()),
+  targets: z.array(ItemRef.nullable()),
+  next: z.array(PathLink).describe('Data paths that read from a system this one writes to'),
+  previous: z.array(PathLink).describe('Data paths that write to a system this one reads from'),
+});
+const AssetLive = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.enum(ASSET_STATUSES),
+  live: PlantLiveEntry,
+  devices: z.number().int(),
+  paths: z.number().int(),
+});
+
+export const PlantSiteNetworkEntry = z.object({
+  site: z.object({ id: z.string(), code: z.string(), name: z.string(), names }),
+  vlans: z.array(Vlan),
+  zones: z.array(Zone),
+  conduits: z.array(Conduit),
+  devices: z.array(Device),
+  dataPaths: z.array(DataPath),
+  assets: z.array(AssetLive).describe('Every asset of the site with its live status'),
+  statusCounts: z.object({ online: z.number().int(), offline: z.number().int(), unknown: z.number().int() }),
+  hosts: z.array(ItemRef).describe('The Steward systems the data paths name'),
+});
+
+export const PlantAssetNetworkEntry = z.object({
+  asset: z.object({ id: z.string(), name: z.string(), siteId: z.string() }),
+  live: PlantLiveEntry,
+  checks: z.array(StatusCheck).describe('The checks linked to the asset itself'),
+  devices: z.array(Device),
+  dataPaths: z.array(DataPath),
+});
+
 export const PLANT_COMPONENTS: Record<string, ZodTypeAny> = {
   PlantCheckEntry,
   PlantSiteEntry,
@@ -424,4 +625,6 @@ export const PLANT_COMPONENTS: Record<string, ZodTypeAny> = {
   PlantKpiEntry,
   PlantKpiDetailEntry,
   PlantAssignmentEntry,
+  PlantSiteNetworkEntry,
+  PlantAssetNetworkEntry,
 };

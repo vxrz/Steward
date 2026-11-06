@@ -24,6 +24,7 @@ import { fmtDate } from '../format';
 import { plantKeys } from '../queryKeys';
 import { AssetStatusBadge, FieldValuesView, MapLink, NotInSourceBadge, PreviewBadge, RefsView, useNameOf, usePlantLabel } from '../components/plant/common';
 import { AssetFormModal, BuildingFormModal, NodeFormModal, SiteFormModal } from '../components/plant/forms';
+import { SiteNetworkCard } from '../components/plant/network';
 
 type NodeDialog = { level: PlantLevel; parentId: string | null; node?: PlantNode } | null;
 
@@ -310,6 +311,8 @@ export function PlantSitePage() {
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Box visibleFrom="md">{assetsCard}</Box>
+          {/* the OT network (#220): the live status of the assets and the way to the site's network */}
+          <SiteNetworkCard siteId={s.id} />
           <Paper withBorder p="md" mt={{ base: 0, md: 'md' }}>
             <Stack gap="sm">
               <Field label={t('form.id')}>

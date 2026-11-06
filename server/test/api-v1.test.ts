@@ -86,6 +86,10 @@ beforeAll(async () => {
   await setup(s);
   // the plant registry module on (#218): the demo loads its example enterprise
   await s.api('PUT', '/settings/plant', { enabled: true, enterprise: 'Brightwater Components', labels: {}, fields: {} });
+  // part 3 (#220): the invented OT network of the example enterprise
+  const otExample = 'brightwater-ot-network.plant.yaml';
+  const otContent = (await import('node:fs')).readFileSync(path.resolve(__dirname, '../../examples/plant', otExample), 'utf8');
+  await s.api('POST', '/plant/import', { files: [{ name: otExample, content: otContent }], mode: 'add' });
   await s.api('POST', '/demo/setup', {});
   await allowEmailDomains(s, ['example.com']);
   [vera, audrey, dana] = await Promise.all(['vera', 'audrey', 'dana'].map((u) => s.as(u, PW)));
@@ -501,6 +505,9 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   for (const x of await listAll('/plant/profiles', '/plant/profiles')) await get('/plant/profiles/{profileId}', `/plant/profiles/${x.id}`);
   for (const x of await listAll('/plant/kpis', '/plant/kpis')) await get('/plant/kpis/{kpiId}', `/plant/kpis/${x.id}`);
   for (const id of ['rvs-mill-01', 'rvs-mill-02', 'rvs-press-01']) await get('/plant/assets/{assetId}/assignment', `/plant/assets/${id}/assignment`);
+  // part 3 (#220): the OT network of a site and of assets (the example imports devices and data paths of two)
+  for (const x of await listAll('/plant/sites', '/plant/sites')) await get('/plant/sites/{siteId}/network', `/plant/sites/${x.id}/network`);
+  for (const id of ['rvs-mill-01', 'rvs-mill-02']) await get('/plant/assets/{assetId}/network', `/plant/assets/${id}/network`);
   // what Steward checks, and the export in the import format (YAML; JSON is the same document)
   await listAll('/plant/checks', '/plant/checks');
   await get('/plant/export', '/plant/export');
