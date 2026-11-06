@@ -58,7 +58,8 @@
     "stale": "Die Daten sind älter als erlaubt.",
     "no_data": "Unter diesem Schlüssel ist (noch) nichts veröffentlicht.",
     "no_row": "Der Datensatz hat keine Zeile dafür.",
-    "no_time": "Die Zeitspalte enthält keine lesbare Zeit."
+    "no_time": "Die Zeitspalte enthält keine lesbare Zeit.",
+    "hidden": "Sie zählt für den Status; was sie prüft, wird Ihnen nicht gezeigt."
   },
   "checks": {
     "title": "Verknüpfte Prüfungen",
@@ -80,7 +81,8 @@
     "timeColumn": "Zeitspalte",
     "timeColumnHelp": "Die Zeit des letzten Werts; leer: wann der Datensatz geschrieben wurde.",
     "maxAge": "Höchstalter (Minuten)",
-    "maxAgeHelp": "Älter ist offline; leer: die eigene Aktualität des Datensatzes."
+    "maxAgeHelp": "Älter ist offline; leer: die eigene Aktualität des Datensatzes.",
+    "hidden": "Eine Prüfung, die Sie nicht sehen dürfen – sie bleibt, wie sie ist. Sie können sie entfernen."
   },
   "hints": {
     "vlan_missing": "VLAN existiert nicht",

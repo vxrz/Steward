@@ -641,6 +641,18 @@ export function ChecksEditor({ value, onChange }: { value: PlantStatusCheck[]; o
         {t('checks.help')}
       </Text>
       {value.map((c, i) => {
+        // a check the reader may not see: it is kept as it is (sent back by its slot) or removed, never changed
+        if (c.hiddenSlot !== undefined)
+          return (
+            <Paper key={i} withBorder p="xs" data-testid="hidden-check">
+              <Group gap="xs" align="center" wrap="nowrap" justify="space-between">
+                <Text size="sm" c="dimmed" style={{ minWidth: 0 }}>
+                  {t('checks.hidden')}
+                </Text>
+                <RemoveButton label={t('checks.remove')} onClick={() => onChange(del(value, i))} />
+              </Group>
+            </Paper>
+          );
         const set = (x: Partial<PlantStatusCheck>) => onChange(at(value, i, x));
         const options = c.ref && !monitorOptions.some((o) => o.value === c.ref) ? [{ value: c.ref, label: c.ref }, ...monitorOptions] : monitorOptions;
         return (
@@ -711,7 +723,11 @@ export function ChecksEditor({ value, onChange }: { value: PlantStatusCheck[]; o
 }
 
 const cleanChecks = (list: PlantStatusCheck[]) =>
-  list.filter((c) => c.ref.trim()).map((c) => ({ ...c, ref: c.ref.trim(), column: c.column.trim(), value: c.value.trim(), timeColumn: c.timeColumn.trim() }));
+  list
+    .filter((c) => c.hiddenSlot !== undefined || c.ref.trim())
+    .map((c) =>
+      c.hiddenSlot !== undefined ? c : { ...c, ref: c.ref.trim(), column: c.column.trim(), value: c.value.trim(), timeColumn: c.timeColumn.trim() },
+    );
 
 export function AssetChecksModal({
   assetId,

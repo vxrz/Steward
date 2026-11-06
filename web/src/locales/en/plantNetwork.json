@@ -58,7 +58,8 @@
     "stale": "The data is older than allowed.",
     "no_data": "Nothing is published under this key (yet).",
     "no_row": "The dataset has no row for it.",
-    "no_time": "The time column has no readable time."
+    "no_time": "The time column has no readable time.",
+    "hidden": "It counts towards the status; what it checks is not shown to you."
   },
   "checks": {
     "title": "Linked checks",
@@ -80,7 +81,8 @@
     "timeColumn": "Time column",
     "timeColumnHelp": "The time of the last value; empty: when the dataset was written.",
     "maxAge": "Maximum age (minutes)",
-    "maxAgeHelp": "Older is offline; empty: the dataset’s own freshness."
+    "maxAgeHelp": "Older is offline; empty: the dataset’s own freshness.",
+    "hidden": "A check you may not see – it stays as it is. You may remove it."
   },
   "hints": {
     "vlan_missing": "VLAN does not exist",

@@ -252,7 +252,7 @@ const date = z
 export const statusCheckInput = z
   .object({
     kind: z.enum(STATUS_CHECK_KINDS),
-    ref: z.string().trim().min(1).max(200),
+    ref: z.string().trim().max(200),
     check: text(128),
     column: text(120),
     value: text(L.text),
@@ -265,8 +265,18 @@ export const statusCheckInput = z
       .nullable()
       .default(null),
     note: text(500),
+    /** A check the caller may not see, sent back as it was read (live.ts `withHiddenChecks`) */
+    hiddenSlot: z
+      .number()
+      .int()
+      .min(0)
+      .max(L.checks - 1)
+      .optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((c, ctx) => {
+    if (c.hiddenSlot === undefined && !c.ref) ctx.addIssue({ code: 'custom', path: ['ref'], message: 'Name the monitor or dataset' });
+  });
 export const checksInput = z.array(statusCheckInput).max(L.checks).default([]);
 
 export const vlanInput = z
@@ -516,22 +526,38 @@ export function dataPathProblems(v: PlantDataPathValues, devices: Set<string>): 
 
 export const assetChecksProblems = (v: PlantAssetChecksValues): NetProblem[] => checkProblems(v.checks);
 
+/** A Steward item a record names; `detail` is what a check reads of it (a monitor's check, a dataset's filter). */
+export interface NamedRef {
+  kind: 'system' | 'application' | 'platform' | 'process' | 'monitor' | 'dataset';
+  id: string;
+  path: string;
+  detail?: string;
+  check?: PlantStatusCheck;
+}
+
 /**
- * The Steward items a record names – a segment, a collector, hosts, monitors – as `kind:id`. A save checks the ones
- * that are new (the caller must see them); one that was there already may stay although the caller cannot see it.
+ * The Steward items a record names – a segment, a collector, hosts, monitors, datasets – as `kind:id` (with what a
+ * check reads of it). A save checks the ones that are new (the caller must see them); one that was there already may
+ * stay although the caller cannot see it. Another check of a monitor, or another filter or time column of a dataset,
+ * is a new reference.
  */
-export function namedRefs(
-  v: Partial<PlantVlanValues & PlantDeviceValues & PlantDataPathValues & PlantAssetChecksValues>,
-): { kind: 'system' | 'application' | 'platform' | 'process' | 'monitor'; id: string; path: string }[] {
-  const out: { kind: 'system' | 'application' | 'platform' | 'process' | 'monitor'; id: string; path: string }[] = [];
+export function namedRefs(v: Partial<PlantVlanValues & PlantDeviceValues & PlantDataPathValues & PlantAssetChecksValues>): NamedRef[] {
+  const out: NamedRef[] = [];
   if (v.segmentId) out.push({ kind: 'system', id: v.segmentId, path: 'segment' });
   if (v.collector) {
     if (v.collector.kind !== 'job') out.push({ kind: v.collector.kind, id: v.collector.ref, path: 'collector.ref' });
     if (v.collector.host) out.push({ kind: 'system', id: v.collector.host, path: 'collector.host' });
   }
   v.transfers?.forEach((t, i) => t.peerKind === 'system' && out.push({ kind: 'system', id: t.peer, path: `transfers[${i}].peer` }));
+  // a dataset destination is documentation (it may be published later): only systems must be visible
   v.destinations?.forEach((d, i) => d.kind === 'system' && out.push({ kind: 'system', id: d.ref, path: `destinations[${i}].ref` }));
-  v.checks?.forEach((c, i) => c.kind === 'monitor' && out.push({ kind: 'monitor', id: c.ref, path: `checks[${i}].ref` }));
+  v.checks?.forEach((c, i) =>
+    out.push(
+      c.kind === 'monitor'
+        ? { kind: 'monitor', id: c.ref, path: `checks[${i}].ref`, detail: c.check, check: c }
+        : { kind: 'dataset', id: c.ref, path: `checks[${i}].ref`, detail: JSON.stringify([c.column, c.value, c.timeColumn, c.maxAgeMinutes]), check: c },
+    ),
+  );
   return out;
 }
 

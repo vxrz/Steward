@@ -435,14 +435,23 @@ const StatusCheck = z.object({
   timeColumn: z.string(),
   maxAgeMinutes: z.number().int().nullable(),
   note: z.string(),
+  hiddenSlot: z
+    .number()
+    .int()
+    .optional()
+    .describe('A check the token owner may not see (or that no longer exists): every other field is empty, this is its place in the list'),
 });
 const CheckStatus = z.object({
   kind: z.enum(STATUS_CHECK_KINDS),
   ref: z.string(),
   check: z.string(),
   state: z.enum(LIVE_STATES),
-  reason: z.enum(LIVE_REASONS).describe('Why: the monitor’s status, the dataset is fresh or stale, missing, …'),
-  label: z.string().describe('Name of the monitor or dataset (empty when the token owner may not see it)'),
+  reason: z
+    .enum(LIVE_REASONS)
+    .describe(
+      'Why: the monitor’s status, the dataset is fresh or stale, missing, … – `hidden`: a check the token owner may not see, which shows its state only',
+    ),
+  label: z.string().describe('Name of the monitor or dataset (empty when the token owner may not see it; then `ref`, `check` and `at` are empty too)'),
   path: z.string().nullable(),
   visible: z.boolean(),
   at: ts().nullable().describe('When the value it is based on was taken'),

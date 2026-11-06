@@ -362,11 +362,12 @@ describe('live status', () => {
 
   it('dataset freshness: the newest row of the asset, or the dataset itself', async () => {
     const { publishDataset } = await import('../src/dashboards/datasets.js');
+    const proc = await s.api('POST', '/processes', { definition: { name: 'OT values', steps: [{ id: 'n', type: 'log', message: 'x' }] } });
     const now = Date.now();
     publishDataset({
       key: 'plant.last-values',
       title: 'Last values',
-      processId: 'prc_ot',
+      processId: proc.id,
       processName: 'OT values',
       runId: '',
       dryRun: false,
@@ -385,8 +386,15 @@ describe('live status', () => {
     expect(stale.live).toMatchObject({ state: 'offline', checks: [{ reason: 'stale' }] });
     const missing = await put('rvs-mill-03', { column: 'asset', value: 'rvs-mill-03', timeColumn: 'ts', maxAgeMinutes: 15 });
     expect(missing.live).toMatchObject({ state: 'unknown', checks: [{ reason: 'no_row' }] });
-    const none = await put('rvs-test-bench-01', { ref: 'plant.not-there' });
-    expect(none.live).toMatchObject({ state: 'unknown', checks: [{ reason: 'no_data' }] });
+    // a dataset that has no data cannot be linked (it reads like one the caller may not see), nor a column it lacks
+    expect(await status(put('rvs-test-bench-01', { ref: 'plant.not-there' }))).toMatchObject({
+      status: 400,
+      message: 'There is no dataset "plant.not-there"',
+    });
+    expect(await status(put('rvs-test-bench-01', { column: 'machine', value: 'x' }))).toMatchObject({
+      status: 400,
+      message: 'The dataset "plant.last-values" has no column "machine"',
+    });
     // a monitor check has no dataset settings
     expect(
       await status(s.api('PUT', '/plant/assets/rvs-mill-02/checks', { checks: [{ kind: 'monitor', ref: 'rvs-ot', column: 'asset', value: 'x' }] })),

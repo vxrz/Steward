@@ -68,6 +68,7 @@ export function LiveChecks({ live, empty }: { live: PlantLiveStatus; empty?: str
   return (
     <Stack gap={4} data-testid="live-checks">
       {live.checks.map((c, i) => {
+        // a check the reader may not see: its state only, no name, check, reason or time
         const name = c.visible ? c.label || c.ref : t('live.hiddenCheck');
         return (
           <Group key={i} gap={6} wrap="nowrap" align="flex-start">

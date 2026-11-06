@@ -21,15 +21,12 @@ import {
   type PlantStructure,
   type PlantStructureNode,
   type Translations,
+  type LiveState,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { currentUser } from '../auth/context.js';
 import { plantOnly } from '../auth/policy.js';
-import { permissionsOfRow } from '../monitors/model.js';
 import { resolveTarget } from '../records/links.js';
-import { getDatasetMeta } from '../dashboards/datasets.js';
-import { builtinDatasetVisible } from '../dashboards/builtin.js';
-import { permissionsFor } from '../processes/service.js';
 import { parseJson } from '../util.js';
 import { siteRights } from './access.js';
 import { requirePlant } from './settings.js';
@@ -39,6 +36,7 @@ import { briefOf, kpiNotFound, pointNotFound, profileNotFound } from './catalogu
 import { allAssignments, allKpis, allProfiles, assignmentRowOf, assignmentValuesOf, pointsOf, profileRowOf, profileValuesOf } from './data-model.js';
 import { assignmentChecks, deliveries, inputGaps } from './checks.js';
 import { siteNetwork } from './network.js';
+import { monitorState, monitorVisible, readableDataset } from './live.js';
 
 /**
  * The plant registry's visualizations (#230), read-only aggregates for the web app: a site's structure, an asset's data
@@ -49,7 +47,8 @@ import { siteNetwork } from './network.js';
  * such a link has `live: null` (documentation only); a linked item without data is "unknown", never "ok".
  *
  * Hidden-site rules: only assets of sites the caller may see are drawn or counted; a hidden site reads like a missing
- * one (404); monitors, datasets and dashboards follow their own rights (a hidden one is not named).
+ * one (404); monitors, datasets and dashboards follow their own rights (a hidden one is not named). A linked monitor
+ * the caller may not see counts with its state only, by the same rule as the OT network's live status (live.ts).
  */
 
 // ---------- live status of linked Steward items ----------
@@ -67,7 +66,15 @@ interface MonitorStateRow {
   last_evaluated_at: string | null;
 }
 
-/** The monitors each asset links to that the caller may see, with their state (assets without one are missing). */
+/** A state of the OT network's rule (live.ts) in the views' words: what a hidden item may tell. */
+const AS_VIEW: Record<LiveState, PlantLiveState> = { online: 'ok', offline: 'fail', unknown: 'unknown' };
+
+/**
+ * The monitors each asset links to, with their state (assets without one are missing). The rule of the OT network
+ * (live.ts): a monitor the caller may see is named and linked; one they may not see (or that no longer exists) still
+ * counts, as "a check you may not see" with its state only (ok, fail or unknown – as online, offline or unknown
+ * there), without name, status word, time or link.
+ */
 export function assetMonitors(assetIds: Set<string>): Map<string, PlantLive[]> {
   const out = new Map<string, PlantLive[]>();
   const links = db()
@@ -81,7 +88,11 @@ export function assetMonitors(assetIds: Set<string>): Map<string, PlantLive[]> {
   for (const m of db().all<MonitorStateRow>(
     'SELECT m.id, m.name, m.owner, m.acl, m.enabled, m.is_template, s.status, s.last_evaluated_at FROM monitors m LEFT JOIN monitor_state s ON s.monitor_id = m.id',
   )) {
-    if (!wanted.has(m.id) || m.is_template || !permissionsOfRow(m, user).includes('view')) continue;
+    if (!wanted.has(m.id)) continue;
+    if (!monitorVisible(m)) {
+      monitors.set(m.id, hiddenLive(m.is_template ? 'unknown' : AS_VIEW[monitorState(m)]));
+      continue;
+    }
     // a disabled monitor knows nothing now
     const status = m.enabled ? (m.status ?? 'unknown') : 'unknown';
     monitors.set(m.id, {
@@ -94,11 +105,13 @@ export function assetMonitors(assetIds: Set<string>): Map<string, PlantLive[]> {
     });
   }
   for (const l of links) {
-    const live = monitors.get(l.to_id);
-    if (live) out.set(l.from_id, [...(out.get(l.from_id) ?? []), live]);
+    const live = monitors.get(l.to_id) ?? hiddenLive('unknown'); // a monitor that no longer exists reads like a hidden one
+    out.set(l.from_id, [...(out.get(l.from_id) ?? []), live]);
   }
   return out;
 }
+
+const hiddenLive = (state: PlantLiveState): PlantLive => ({ source: 'monitor', state, status: 'hidden', label: '', path: null, at: null });
 
 /** The worst of an asset's monitors (null: none linked that the caller may see). */
 const worstOf = (lives: PlantLive[] | undefined): PlantLive | null => {
@@ -114,9 +127,9 @@ const worstOf = (lives: PlantLive[] | undefined): PlantLive | null => {
 function datasetLive(key: string): PlantLive {
   const none: PlantLive = { source: 'dataset', state: 'unknown', status: 'no_data', label: key, path: null, at: null };
   try {
-    const meta = getDatasetMeta(key);
-    const visible = builtinDatasetVisible(meta.processId) ?? permissionsFor(meta.processId).includes('view');
-    if (!visible) return none;
+    // who may see the dataset: the one rule of the OT network (live.ts)
+    const meta = readableDataset(key);
+    if (!meta) return none;
     const now = Date.now();
     const due = meta.sources.some((s) => {
       const age = now - Date.parse(s.updatedAt);

@@ -13,6 +13,7 @@ import {
   type Icon,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { ASSET_STATUSES, type AssetStatus, type PlantLive, type PlantLiveState } from '@sm/shared';
 import { notifyError } from '../../../api';
 import { useMotion, type ViewMode } from './prefs';
@@ -26,10 +27,22 @@ export const liveVar = (s: PlantLiveState) => `var(--pv-${s})`;
 export const LIVE_ICON: Record<PlantLiveState, Icon> = { ok: IconCircleCheck, warn: IconAlertTriangle, fail: IconCircleX, unknown: IconHelpCircle };
 const LIVE_COLOR: Record<PlantLiveState, string> = { ok: 'green', warn: 'orange', fail: 'red', unknown: 'gray' };
 
-/** The word of a linked item's state: a monitor's status or a dataset's freshness. */
+/**
+ * The word of a linked item's state: a monitor's status or a dataset's freshness – for an item the reader may not see
+ * (`hidden`) only online, offline or unknown, as on the OT network.
+ */
+export const liveWord = (t: TFunction<'plantViews'>, l: Pick<PlantLive, 'source' | 'status' | 'state'>): string =>
+  l.status === 'hidden'
+    ? t(`live.hidden.${l.state}`, { defaultValue: l.state })
+    : t(`live.${l.source}.${l.status}`, { defaultValue: t('live.unknownStatus', { status: l.status }) });
+
+/** Where a linked item's state comes from, in words (an item the reader may not see is not named). */
+export const liveSourceName = (t: TFunction<'plantViews'>, l: Pick<PlantLive, 'source' | 'status'>): string =>
+  l.status === 'hidden' ? t('live.hiddenSource') : t(`live.sourceName.${l.source}`);
+
 export function useLiveText() {
   const { t } = useTranslation('plantViews');
-  return (l: Pick<PlantLive, 'source' | 'status'>) => t(`live.${l.source}.${l.status}`, { defaultValue: t('live.unknownStatus', { status: l.status }) });
+  return (l: Pick<PlantLive, 'source' | 'status' | 'state'>) => liveWord(t, l);
 }
 
 /** Live status of a linked item: icon + word (+ where it comes from), never colour alone. */
@@ -50,7 +63,14 @@ export function LiveBadge({
   const I = LIVE_ICON[live.state];
   const word = text(live);
   return (
-    <Tooltip label={live.label ? t(`live.from.${live.source}`, { name: live.label }) : t(`live.fromAny.${live.source}`)} withArrow multiline maw={260}>
+    <Tooltip
+      label={
+        live.status === 'hidden' ? t('live.fromHidden') : live.label ? t(`live.from.${live.source}`, { name: live.label }) : t(`live.fromAny.${live.source}`)
+      }
+      withArrow
+      multiline
+      maw={260}
+    >
       <Badge
         size={size}
         color={LIVE_COLOR[live.state]}
@@ -60,7 +80,7 @@ export function LiveBadge({
         data-live={live.state}
         tabIndex={focusable ? 0 : undefined}
       >
-        {withSource ? t(`live.sourceWord.${live.source}`, { word }) : word}
+        {withSource ? (live.status === 'hidden' ? t('live.hiddenWord', { word }) : t(`live.sourceWord.${live.source}`, { word })) : word}
       </Badge>
     </Tooltip>
   );

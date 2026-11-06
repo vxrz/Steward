@@ -72,7 +72,15 @@
     "sourceWord": {
       "monitor": "Monitor: {{word}}",
       "dataset": "Dataset: {{word}}"
-    }
+    },
+    "hidden": {
+      "ok": "Online",
+      "fail": "Offline",
+      "unknown": "Unknown"
+    },
+    "hiddenSource": "A check you may not see",
+    "hiddenWord": "A check you may not see: {{word}}",
+    "fromHidden": "From a check you may not see: it counts towards the status, without its name or details."
   },
   "liveCount": {
     "ok_one": "{{count}} up",

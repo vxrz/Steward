@@ -20,7 +20,12 @@ export type PlantLiveState = (typeof PLANT_LIVE_STATES)[number];
 export interface PlantLive {
   source: 'monitor' | 'dataset';
   state: PlantLiveState;
-  /** The item's own word: a monitor's status (up, degraded, down, maintenance, blocked, unknown), a dataset's freshness (fresh, due, stale, no_data) */
+  /**
+   * The item's own word: a monitor's status (up, degraded, down, maintenance, blocked, unknown), a dataset's freshness
+   * (fresh, due, stale, no_data) – or `hidden`: an item the reader may not see (or that no longer exists). It counts
+   * with its state only (ok, fail or unknown, as online, offline or unknown on the OT network), without name, time or
+   * link.
+   */
   status: string;
   /** The item's name (empty when the reader may not see it) */
   label: string;

@@ -34,14 +34,13 @@ import { listBacklinks, registerLinkKind, resolveTarget } from '../records/links
 import { likeEscape } from '../database/sql.js';
 import { attributesOf } from '../catalogue/network.js';
 import { createSystem } from '../catalogue/systems.js';
-import { monitorRow, permissionsOfRow } from '../monitors/model.js';
-import { getDatasetMeta } from '../dashboards/datasets.js';
+import { monitorRow } from '../monitors/model.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
 import { requireManage, siteRights, sitePermissions } from './access.js';
 import { plantEnabled } from './settings.js';
 import { changedKeys, siteRowOf, type AssetRow, type SiteRow } from './model.js';
 import { visibleAsset, visibleSite } from './service.js';
-import { assetLive, liveContext, liveOf, type LiveContext } from './live.js';
+import { assetLive, checksForReader, liveContext, liveOf, monitorVisible, readableDataset, withHiddenChecks, type LiveContext } from './live.js';
 import {
   assetChecksInput,
   assetChecksProblems,
@@ -82,6 +81,7 @@ import {
   type ConduitRow,
   type DataPathRow,
   type DeviceRow,
+  type NamedRef,
   type NetProblem,
   type VlanRow,
 } from './network-model.js';
@@ -115,20 +115,44 @@ function notFound(what: 'vlan' | 'zone' | 'conduit' | 'device' | 'data_path', id
 
 // ---------- references to Steward items ----------
 
-const KIND_TEXT = { system: 'system', application: 'application', platform: 'platform', process: 'process', monitor: 'monitor' } as const;
+const KIND_TEXT = {
+  system: 'system',
+  application: 'application',
+  platform: 'platform',
+  process: 'process',
+  monitor: 'monitor',
+  dataset: 'dataset',
+} as const;
+const refKey = (r: NamedRef) => `${r.kind}:${r.id}:${r.detail ?? ''}`;
 
 /**
- * The Steward items a save names that it did not name before must exist and be visible to the caller; a segment
- * must be a network segment (a system of kind network).
+ * The Steward items a save names that it did not name before must exist and be visible to the caller (a hidden one
+ * reads like a missing one); a segment must be a network segment (a system of kind network). A check that reads
+ * another check of a monitor, or another filter or time column of a dataset, names it anew. The columns a dataset
+ * check reads must be columns of the dataset (as the caller may see it).
  */
 export function refProblems(after: Parameters<typeof namedRefs>[0], before: Parameters<typeof namedRefs>[0] | null): NetProblem[] {
-  const had = new Set((before ? namedRefs(before) : []).map((r) => `${r.kind}:${r.id}`));
+  const had = new Set((before ? namedRefs(before) : []).map(refKey));
   const out: NetProblem[] = [];
   for (const r of namedRefs(after)) {
-    if (had.has(`${r.kind}:${r.id}`)) continue;
+    if (had.has(refKey(r))) continue;
     if (r.kind === 'monitor') {
-      const m = monitorRow(r.id);
-      if (!m || m.is_template || !permissionsOfRow(m).includes('view')) out.push({ path: r.path, message: `There is no monitor "${r.id}"` });
+      if (!monitorVisible(monitorRow(r.id))) out.push({ path: r.path, message: `There is no monitor "${r.id}"` });
+      continue;
+    }
+    if (r.kind === 'dataset') {
+      const meta = readableDataset(r.id);
+      if (!meta) {
+        out.push({ path: r.path, message: `There is no dataset "${r.id}"` });
+        continue;
+      }
+      const at = r.path.replace(/\.ref$/, '');
+      if (r.check && meta.columns.length)
+        for (const [k, col] of [
+          ['column', r.check.column],
+          ['timeColumn', r.check.timeColumn],
+        ] as const)
+          if (col && !meta.columns.includes(col)) out.push({ path: `${at}.${k}`, message: `The dataset "${r.id}" has no column "${col}"` });
       continue;
     }
     if (!resolveTarget(r.kind, r.id)) {
@@ -145,13 +169,8 @@ export function refProblems(after: Parameters<typeof namedRefs>[0], before: Para
 export function itemRef(kind: PlantItemRef['kind'], id: string): PlantItemRef {
   if (kind === 'job') return { kind, id, label: id, path: null, visible: true };
   if (kind === 'dataset') {
-    let visible: boolean;
-    try {
-      getDatasetMeta(id);
-      visible = true;
-    } catch {
-      visible = false; // not published yet, or not visible to the reader: the key is shown as written
-    }
+    // not published, or not visible to the reader: the key is shown as written, not linked
+    const visible = readableDataset(id) !== null;
     return { kind, id, label: id, path: visible && !plantOnly(currentUser()) ? '/dashboards' : null, visible };
   }
   const r = resolveTarget(kind, id);
@@ -245,7 +264,7 @@ function deviceView(r: DeviceRow, assetName: string, vlans: Map<string, PlantVla
     if (!subnet) hints.push('address_outside');
     else if (subnet.ranges.some((x) => x.type === 'blocked' && addressBetween(v.address, x.start, x.end))) hints.push('address_blocked');
   }
-  return { ...v, ...source(r), assetId: r.asset_id, assetName, live: liveOf(v.checks, ctx), hints };
+  return { ...v, checks: checksForReader(v.checks, ctx), ...source(r), assetId: r.asset_id, assetName, live: liveOf(v.checks, ctx), hints };
 }
 
 function addressBetween(a: string, start: string, end: string): boolean {
@@ -663,7 +682,7 @@ export function assetNetwork(assetId: string): PlantAssetNetwork {
       own,
       devices.map((d) => d.live),
     ),
-    checks: assetChecksValuesOf(checksRow).checks,
+    checks: checksForReader(assetChecksValuesOf(checksRow).checks, ctx),
     checksSource: { importId: checksRow?.import_id ?? null, notInSource: !!checksRow?.not_in_source },
     devices,
     dataPaths: dataPathRows(assetId).map((r) => pathView(r, row.name, all, refs)),
@@ -686,8 +705,9 @@ export function createDevice(assetId: string, input: z.infer<typeof deviceInput>
   if (deviceRowOf(assetId, input.id)) throw new HttpError(409, `The asset has a device "${input.id}" already`, 'PLANT_ID_TAKEN', { id: input.id });
   if (deviceRows(assetId).length >= L.devicesPerAsset)
     throw new HttpError(409, `At most ${L.devicesPerAsset} devices per asset`, 'PLANT_LIMIT', { max: L.devicesPerAsset });
-  const v: PlantDeviceValues = input;
-  invalid([...deviceProblems(v, siteVlans(a.site_id)), ...refProblems(v, null)]);
+  const hidden = withHiddenChecks(input.checks, null);
+  const v: PlantDeviceValues = { ...input, checks: hidden.checks };
+  invalid([...hidden.problems, ...deviceProblems(v, siteVlans(a.site_id)), ...refProblems(v, null)]);
   db().tx(() => {
     upsertDevice(assetId, v, nextPosition('plant_devices', 'asset_id', assetId), { at: nowIso(), by: me().username });
     audit({
@@ -706,8 +726,9 @@ export function updateDevice(assetId: string, deviceId: string, input: z.infer<t
   const cur = deviceRowOf(assetId, deviceId);
   if (!cur) throw notFound('device', deviceId);
   const before = deviceValuesOf(cur);
-  const v: PlantDeviceValues = { id: deviceId, ...input };
-  invalid([...deviceProblems(v, siteVlans(a.site_id)), ...refProblems(v, before)]);
+  const hidden = withHiddenChecks(input.checks, before.checks);
+  const v: PlantDeviceValues = { id: deviceId, ...input, checks: hidden.checks };
+  invalid([...hidden.problems, ...deviceProblems(v, siteVlans(a.site_id)), ...refProblems(v, before)]);
   const changes = changedKeys(before, v);
   if (!changes.length) return assetNetwork(assetId);
   db().tx(() => {
@@ -808,16 +829,18 @@ export function putAssetChecks(assetId: string, input: z.infer<typeof assetCheck
   const a = manageableAsset(assetId);
   const cur = assetChecksRow(assetId);
   const before = assetChecksValuesOf(cur);
-  invalid([...assetChecksProblems(input), ...refProblems(input, before)]);
-  if (JSON.stringify(before.checks) === JSON.stringify(input.checks)) return assetNetwork(assetId);
+  const hidden = withHiddenChecks(input.checks, before.checks);
+  const after = { checks: hidden.checks };
+  invalid([...hidden.problems, ...assetChecksProblems(after), ...refProblems(after, before)]);
+  if (JSON.stringify(before.checks) === JSON.stringify(after.checks)) return assetNetwork(assetId);
   db().tx(() => {
-    upsertAssetChecks(assetId, input, { at: nowIso(), by: me().username }, { keepSource: true });
+    upsertAssetChecks(assetId, after, { at: nowIso(), by: me().username }, { keepSource: true });
     audit({
       action: 'asset.checks_set',
       entityType: 'asset',
       entityId: assetId,
-      summary: `Live-status checks of asset "${a.name}" set (${input.checks.length})`,
-      details: { old: before.checks, new: input.checks },
+      summary: `Live-status checks of asset "${a.name}" set (${after.checks.length})`,
+      details: { old: before.checks, new: after.checks },
     });
   });
   return assetNetwork(assetId);

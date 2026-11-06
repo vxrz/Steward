@@ -19,6 +19,7 @@ import type { AssetRow, SiteRow } from './model.js';
 import type { AssetNetworkFile, OtNetworkFile, PlantFile, StatusCheckFile } from './format.js';
 import { clean, pushWrite, type Origin, type Write } from './import-data.js';
 import { refProblems } from './network.js';
+import { checkVisible, liveContext, withStoredHiddenChecks } from './live.js';
 import {
   assetChecksInput,
   assetChecksProblems,
@@ -487,6 +488,8 @@ export function computeNetwork(c: NetContext): void {
     write: (owner: string, v: V, position: number) => void;
     adopt: (owner: string, id: string, position: number) => void;
     refs?: boolean;
+    /** What the importer may not see of the stored record stays (they cannot name or remove it) */
+    keep?: (after: V, before: V | null) => V;
   }) => {
     for (const [k, x] of args.planned) {
       const siteId = args.ok(x.owner);
@@ -496,7 +499,8 @@ export function computeNetwork(c: NetContext): void {
       const merged = { ...(before && !full ? before : args.defaults(x.values.id)), ...x.values } as V;
       const parsed = checked(args.schema, merged, x, problems) as V | null;
       if (!parsed) continue;
-      const after = { ...parsed, id: x.values.id } as V;
+      const parsedAfter = { ...parsed, id: x.values.id } as V;
+      const after = args.keep ? args.keep(parsedAfter, before) : parsedAfter;
       report(x, args.rules(after, x.owner, siteId), problems);
       if (args.refs) report(x, refProblems(after, before), problems);
       const id = args.kind === 'device' || args.kind === 'data_path' ? k : after.id;
@@ -573,6 +577,7 @@ export function computeNetwork(c: NetContext): void {
     write: (asset, v, pos) => upsertDevice(asset, v, pos, c.meta),
     adopt: adoptSql('plant_devices', 'asset_id'),
     refs: true,
+    keep: (v, before) => ({ ...v, checks: withStoredHiddenChecks(v.checks, before?.checks) }),
   });
   plannedRecords<PlantDataPathValues, DataPathRow>({
     planned: p.paths,
@@ -594,8 +599,9 @@ export function computeNetwork(c: NetContext): void {
     if (!siteId || !a.checks) continue;
     const cur = stored.checks.get(assetId);
     const before = cur ? assetChecksValuesOf(cur) : null;
-    const parsed = checked(assetChecksInput, { checks: a.checks }, a, problems) as PlantAssetChecksValues | null;
-    if (!parsed) continue;
+    const read = checked(assetChecksInput, { checks: a.checks }, a, problems) as PlantAssetChecksValues | null;
+    if (!read) continue;
+    const parsed: PlantAssetChecksValues = { checks: withStoredHiddenChecks(read.checks, before?.checks) };
     report(a, assetChecksProblems(parsed), problems);
     report(a, refProblems(parsed, before), problems);
     pushWrite(
@@ -802,11 +808,14 @@ export function assetNetworksOut(assetIds: string[]): Record<string, unknown>[] 
       .all<AssetChecksRow>('SELECT * FROM plant_asset_checks')
       .map((r) => [r.asset_id, assetChecksValuesOf(r).checks]),
   );
+  // checks the exporter may not see are left out (an import keeps them)
+  const ctx = liveContext();
+  const seen = (list: PlantStatusCheck[]) => list.filter((c) => checkVisible(c, ctx)).map(checkOut);
   return assetIds
     .filter((a) => devices.has(a) || paths.has(a) || checks.has(a))
     .map((a) => ({
       asset: a,
-      ...(checks.has(a) ? { checks: checks.get(a)!.map(checkOut) } : {}),
+      ...(checks.has(a) ? { checks: seen(checks.get(a)!) } : {}),
       ...clean({
         devices: (devices.get(a) ?? []).map(deviceValuesOf).map((d) =>
           clean({
@@ -828,7 +837,7 @@ export function assetNetworksOut(assetIds: string[]): Record<string, unknown>[] 
             confidence: d.confidence,
             owner: d.owner,
             monitoring: d.monitoring,
-            checks: d.checks.map(checkOut),
+            checks: seen(d.checks),
             notes: d.notes,
           }),
         ),

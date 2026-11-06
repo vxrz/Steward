@@ -107,7 +107,7 @@ describe('site structure', () => {
     expect(x.assets.every((a: { live: unknown }) => a.live === null)).toBe(true);
   });
 
-  it('counts a linked monitor as live status – only for who may see the monitor', async () => {
+  it('counts a linked monitor as live status – named only for who may see the monitor', async () => {
     const down = await monitor('Mill 1 controller', 'down');
     const link = await s.api('POST', '/plant/assets/rvs-mill-01/links', { kind: 'monitor', id: down });
     try {
@@ -115,10 +115,10 @@ describe('site structure', () => {
       expect(x.live).toEqual({ fail: 1 });
       expect(byId(x.assets, 'rvs-mill-01').live).toBe('fail');
       expect(byId(x.function, 'rvs-machining').live).toEqual({ fail: 1 });
-      // the Plant viewer may not see monitors: nothing is drawn or counted
+      // the Plant viewer may not see monitors: it still counts, by its state only (the OT network's rule)
       const pia = await users.pia!('GET', '/plant/sites/riverside/structure');
-      expect(pia.live).toEqual({});
-      expect(byId(pia.assets, 'rvs-mill-01').live).toBeNull();
+      expect(pia.live).toEqual({ fail: 1 });
+      expect(byId(pia.assets, 'rvs-mill-01').live).toBe('fail');
       // the flow shows it on the asset, with the monitor's own word
       const flow = await s.api('GET', '/plant/assets/rvs-mill-01/flow');
       expect(byId(flow.nodes, 'asset').live).toMatchObject({
@@ -128,11 +128,23 @@ describe('site structure', () => {
         label: 'Mill 1 controller',
         path: `/monitors/${down}`,
       });
-      expect(byId((await users.pia!('GET', '/plant/assets/rvs-mill-01/flow')).nodes, 'asset').live).toBeNull();
+      expect(byId((await users.pia!('GET', '/plant/assets/rvs-mill-01/flow')).nodes, 'asset').live).toEqual({
+        source: 'monitor',
+        state: 'fail',
+        status: 'hidden',
+        label: '',
+        path: null,
+        at: null,
+      });
       // a monitor in maintenance is a warning, an unknown one unknown – never ok
       const { db } = await import('../src/db.js');
       db().run('UPDATE monitor_state SET status = ? WHERE monitor_id = ?', 'unknown', down);
       expect((await s.api('GET', '/plant/sites/riverside/structure')).live).toEqual({ unknown: 1 });
+      // a reader who may not see it learns the OT network's three states only: degraded reads ok, not a warning
+      db().run('UPDATE monitor_state SET status = ? WHERE monitor_id = ?', 'degraded', down);
+      expect((await s.api('GET', '/plant/sites/riverside/structure')).live).toEqual({ warn: 1 });
+      expect((await users.pia!('GET', '/plant/sites/riverside/structure')).live).toEqual({ ok: 1 });
+      db().run('UPDATE monitor_state SET status = ? WHERE monitor_id = ?', 'unknown', down);
       const tiles = await s.api('GET', '/plant/views/overview');
       expect(
         byId(

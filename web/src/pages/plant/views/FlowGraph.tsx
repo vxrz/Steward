@@ -45,7 +45,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { compoundLayout, layeredLayout, type PlantFlowEdge, type PlantFlowGraph, type PlantFlowNode, type PlantFlowNodeKind } from '@sm/shared';
 import { ProtocolBadge } from '../../../components/plant/data';
-import { LiveBadge, liveVar } from './common';
+import { LiveBadge, liveSourceName, liveVar, liveWord } from './common';
 import { useMotion } from './prefs';
 
 /**
@@ -624,8 +624,8 @@ export function statusSentence(t: T, n: PlantFlowNode): string {
   if (n.live)
     out.push(
       t('node.liveSentence', {
-        source: t(`live.sourceName.${n.live.source}`),
-        status: t(`live.${n.live.source}.${n.live.status}`, { defaultValue: n.live.status }),
+        source: liveSourceName(t, n.live),
+        status: liveWord(t, n.live),
       }),
     );
   if (n.inactive) out.push(t('node.inactiveSentence'));

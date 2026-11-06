@@ -72,7 +72,15 @@
     "sourceWord": {
       "monitor": "Monitorstatus: {{word}}",
       "dataset": "Datensatz: {{word}}"
-    }
+    },
+    "hidden": {
+      "ok": "Online",
+      "fail": "Offline",
+      "unknown": "Unbekannt"
+    },
+    "hiddenSource": "Eine Prüfung, die Sie nicht sehen dürfen",
+    "hiddenWord": "Eine Prüfung, die Sie nicht sehen dürfen: {{word}}",
+    "fromHidden": "Von einer Prüfung, die Sie nicht sehen dürfen: Sie zählt für den Status, ohne Namen und Einzelheiten."
   },
   "liveCount": {
     "ok_one": "{{count}} OK",

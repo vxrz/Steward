@@ -71,7 +71,8 @@ export type StatusCheckKind = (typeof STATUS_CHECK_KINDS)[number];
 /**
  * Why a check says what it says (the web app shows the text from the code): a monitor's status (up, degraded, down,
  * unknown, maintenance, disabled), the monitor or dataset is missing, a dataset is fresh or stale, has no row for the
- * record or no readable time.
+ * record or no readable time – or `hidden`: a check the reader may not see (or that no longer exists). Such a check
+ * still counts towards the status, but shows only its state: no name, key, check, reason, time or filter.
  */
 export const LIVE_REASONS = [
   'up',
@@ -86,6 +87,7 @@ export const LIVE_REASONS = [
   'no_data',
   'no_row',
   'no_time',
+  'hidden',
 ] as const;
 export type LiveReason = (typeof LIVE_REASONS)[number];
 
@@ -202,6 +204,11 @@ export interface PlantStatusCheck {
   /** A dataset: older than this is offline (null: the dataset's own freshness) */
   maxAgeMinutes: number | null;
   note: string;
+  /**
+   * A check the reader may not see (or that no longer exists): everything above is empty, this is its place in the
+   * stored list. A save that sends it back keeps that check as it is; a save without it removes the check.
+   */
+  hiddenSlot?: number;
 }
 
 export interface PlantDeviceValues {
@@ -288,7 +295,7 @@ export interface PlantCheckStatus {
   check: string;
   state: LiveState;
   reason: LiveReason;
-  /** The monitor's or dataset's name – empty when the reader may not see it */
+  /** The monitor's or dataset's name – empty when the reader may not see it (then `ref`, `check` and `at` are empty too) */
   label: string;
   /** Its page, for readers who may open it */
   path: string | null;

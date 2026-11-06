@@ -127,6 +127,48 @@ test.describe('as a designer', () => {
   });
 });
 
+test.describe('a check someone may not see', () => {
+  test.use({ storageState: authFile('dana') });
+  test.beforeEach(async ({ apiAs }) => networkOn(await apiAs('admin')));
+
+  test('counts with its state only, under a neutral label; the editor keeps it as it is', async ({ page, apiAs }) => {
+    const admin = await apiAs('admin');
+    const key = `e2e-hidden-${Date.now()}`;
+    const m = await admin.post('/api/monitors', {
+      data: {
+        key,
+        definition: { name: 'Hidden monitor', checks: [{ id: 'hb', name: 'HB', type: 'heartbeat', key: `${key}.hb`, mode: 'maxAge', maxAgeSeconds: 600 }] },
+      },
+    });
+    expect(m.ok(), await m.text()).toBe(true);
+    const id = (await m.json()).monitor?.id ?? (await m.json()).id;
+    expect((await admin.put(`/api/monitors/${id}/access`, { data: { acl: [{ subject: 'role:admin', permissions: ['view', 'edit', 'manage'] }] } })).ok()).toBe(
+      true,
+    );
+    expect((await admin.put('/api/plant/assets/rvs-mill-03/checks', { data: { checks: [{ kind: 'monitor', ref: key }] } })).ok()).toBe(true);
+    try {
+      await page.goto('/plant/assets/rvs-mill-03');
+      const live = page.getByTestId('asset-live');
+      await expect(live.getByTestId('live-checks')).toContainText('A check you may not see');
+      await expect(live.getByTestId('live-checks')).toContainText('what it checks is not shown to you');
+      await expect(live).not.toContainText(key);
+      await expect(live).not.toContainText('Hidden monitor');
+      await live.getByTestId('edit-asset-checks').click();
+      const dialog = page.getByRole('dialog', { name: 'Live-status checks of the asset' });
+      await expect(dialog.getByTestId('hidden-check')).toContainText('A check you may not see');
+      await expectAccessible(page, 'checks dialog with a hidden check');
+      await dialog.getByRole('button', { name: 'Save' }).click();
+      await expect(dialog).toBeHidden();
+      const after = await (await admin.get('/api/plant/assets/rvs-mill-03/network')).json();
+      expect(after.checks.map((c: { ref: string }) => c.ref)).toEqual([key]);
+      await expectAccessible(page, 'asset with a hidden check');
+    } finally {
+      await admin.put('/api/plant/assets/rvs-mill-03/checks', { data: { checks: [] } });
+      await admin.delete(`/api/monitors/${id}`);
+    }
+  });
+});
+
 test.describe('as a viewer', () => {
   test.use({ storageState: authFile('vera') });
   test.beforeEach(async ({ apiAs }) => networkOn(await apiAs('admin')));
