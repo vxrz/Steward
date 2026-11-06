@@ -179,6 +179,7 @@ export async function mysqlRun(
 
 export function mysqlSsl(t: ConnectTarget): undefined | Record<string, unknown> {
   if (t.tls.mode === 'off') return undefined;
+  // nosemgrep: problem-based-packs.insecure-transport.js-node.bypass-tls-verification.bypass-tls-verification -- the opt-in TLS mode "require" (encrypted, any certificate, like libpq sslmode=require); the default is "verify", the UI warns, and changing it is audited (docs/DATABASES.md)
   if (t.tls.mode === 'require') return { rejectUnauthorized: false };
   return { rejectUnauthorized: true, verifyIdentity: true, ...(t.tls.ca?.trim() ? { ca: t.tls.ca } : {}) };
 }

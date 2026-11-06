@@ -605,6 +605,7 @@ export const PRESETS: PlatformPreset[] = [
       auth: { type: 'none' },
       variables: {},
       http: {},
+      // nosemgrep: javascript.sequelize.security.audit.sequelize-enforce-tls.sequelize-enforce-tls -- not Sequelize: a preset of Steward's own database platform, with TLS verified (mode "verify")
       database: { dialect: 'mysql', host: 'db.example.internal', port: 3306, database: 'mysql', tls: { mode: 'verify' }, limits: {}, auth: 'password' },
     },
     secretFields: [

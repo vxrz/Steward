@@ -72,6 +72,7 @@ export async function pgRun(
 /** TLS options of the pg client. */
 export function pgSsl(t: ConnectTarget): false | Record<string, unknown> {
   if (t.tls.mode === 'off') return false;
+  // nosemgrep: problem-based-packs.insecure-transport.js-node.bypass-tls-verification.bypass-tls-verification -- the opt-in TLS mode "require" (encrypted, any certificate, like libpq sslmode=require); the default is "verify", the UI warns, and changing it is audited (docs/DATABASES.md)
   if (t.tls.mode === 'require') return { rejectUnauthorized: false };
   const name = t.tls.serverName || (net.isIP(t.host) ? undefined : t.host);
   return { rejectUnauthorized: true, ...(t.tls.ca?.trim() ? { ca: t.tls.ca } : {}), ...(name ? { servername: name } : {}) };
