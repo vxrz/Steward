@@ -1,4 +1,4 @@
-import { PVAULT_KIND } from '@sm/shared';
+import { CHANGEDETECTION_KIND, PVAULT_KIND } from '@sm/shared';
 import { HttpError } from '../util.js';
 
 /**
@@ -18,7 +18,7 @@ import { HttpError } from '../util.js';
  * The list is an allow list under /secrets: a sub-resource added in a later version is refused until it is reviewed.
  */
 
-type Rule = (segments: string[], queryNames: string[]) => string | null;
+type Rule = (segments: string[], queryNames: string[], method: string) => string | null;
 
 const SECRET_SUBRESOURCES_ALLOWED = new Set(['summary', 'audits', 'state']);
 const SECRET_LISTS_ALLOWED = new Set(['lookup', 'search-total']);
@@ -50,7 +50,40 @@ const pvaultRule: Rule = (segs, query) => {
   return null;
 };
 
-const RULES: Record<string, Rule> = { [PVAULT_KIND]: pvaultRule };
+/**
+ * changedetection.io (0.9.0, #242): read-only, and never page contents. Its API key may do everything, so the kind
+ * itself only reads – an allow list below /api/v1 (any prefix before it, for a reverse proxy's sub-path):
+ *   - GET (and HEAD) only: creating, changing and deleting watches, tags, notifications or history is refused
+ *   - the watch list, a watch, the snapshot times of a watch (/watch/{uuid}/history), its favicon, the tags, a tag,
+ *     search, systeminfo and the API description; refused are a snapshot (/watch/{uuid}/history/{timestamp}), a diff
+ *     (/watch/{uuid}/difference/…) and /changes – page contents –, /notifications (its URLs carry credentials), and
+ *     everything outside the API (changedetection.io's own pages: diff, preview, settings, backups …)
+ *   - the parameters that change state on a GET: recheck, recheck_all, paused, muted
+ */
+const CD_ALLOWED = new Set(['watch', 'tags', 'tag', 'systeminfo', 'search', 'full-spec']);
+const CD_REFUSED_QUERY = new Set(['recheck', 'recheck_all', 'paused', 'muted']);
+const changedetectionRule: Rule = (segs, query, method) => {
+  if (method !== 'GET' && method !== 'HEAD') return `${method} (Steward only reads changedetection.io)`;
+  for (const q of query) if (CD_REFUSED_QUERY.has(q)) return `the query parameter ${q} (it changes the watch)`;
+  let i = 0;
+  while (i < segs.length - 1 && !(segs[i] === 'api' && segs[i + 1] === 'v1')) i++;
+  if (i >= segs.length - 1) return "a path outside the REST API /api/v1 (changedetection.io's own pages can show page contents)";
+  const rest = segs.slice(i + 2);
+  const [first, , third, fourth] = rest;
+  if (!first) return null;
+  if (first === 'changes') return '/changes (its answer holds the diffs of the pages)';
+  if (first === 'notifications') return '/notifications (notification URLs carry credentials)';
+  if (!CD_ALLOWED.has(first)) return `/${first} (not one of the read endpoints Steward uses)`;
+  if (first !== 'watch')
+    return rest.length <= 2 && (first === 'tag' || rest.length === 1) ? null : `/${rest.slice(0, 3).join('/')} (not one of the read endpoints Steward uses)`;
+  if (rest.length <= 2) return null;
+  if (third === 'history' && fourth === undefined) return null;
+  if (third === 'favicon' && fourth === undefined) return null;
+  if (third === 'history' || third === 'difference') return `/watch/{uuid}/${third}/… (a snapshot or diff holds the page content)`;
+  return `/watch/{uuid}/${third} (not one of the read endpoints Steward uses)`;
+};
+
+const RULES: Record<string, Rule> = { [PVAULT_KIND]: pvaultRule, [CHANGEDETECTION_KIND]: changedetectionRule };
 
 /** The decoded, lower-case path segments of a URL; null when a segment cannot be decoded (refused). */
 export function pathSegments(pathname: string): string[] | null {
@@ -73,7 +106,7 @@ export function pathSegments(pathname: string): string[] | null {
 }
 
 /** Why a request of this platform kind to the URL is refused, or null (kinds without rules: always null). */
-export function deniedPath(kind: string, url: string): string | null {
+export function deniedPath(kind: string, url: string, method = 'GET'): string | null {
   const rule = RULES[kind];
   if (!rule) return null;
   let u: URL;
@@ -87,12 +120,13 @@ export function deniedPath(kind: string, url: string): string | null {
   return rule(
     segs,
     [...u.searchParams.keys()].map((k) => k.trim().toLowerCase()),
+    method.toUpperCase(),
   );
 }
 
 /** Throws 403 PLATFORM_PATH_DENIED when the platform kind never calls this URL. */
-export function assertPathAllowed(kind: string, url: string): void {
-  const why = deniedPath(kind, url);
+export function assertPathAllowed(kind: string, url: string, method?: string): void {
+  const why = deniedPath(kind, url, method);
   if (!why) return;
   let where = url;
   try {
@@ -117,6 +151,9 @@ export function assertPathAllowed(kind: string, url: string): void {
 /** Keys that hold secret values in a vault's answers: removed from every answer of the kind before it is used, stored or logged. */
 const VALUE_KEYS: Record<string, ReadonlySet<string>> = {
   [PVAULT_KIND]: new Set(['itemvalue', 'extendedfields', 'password', 'privatekey', 'privatekeypassphrase', 'passphrase', 'filecontent']),
+  // a watch's settings can carry credentials of the watched site or of notification targets (a Steward webhook secret),
+  // and the AI evaluation cache of newer versions text of the page (#242)
+  [CHANGEDETECTION_KIND]: new Set(['notification_urls', 'headers', 'body', 'browser_steps', 'webdriver_js_execute_code', 'llm_evaluation_cache']),
 };
 
 /** A copy of an answer without the kind's value keys (at most 64 levels deep; deeper parts are dropped). */

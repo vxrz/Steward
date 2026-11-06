@@ -882,8 +882,8 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
     query[p.config.auth.apiKeyName || 'api_key'] = secrets.apiKey ?? '';
   }
   const url = await buildUrl(p, secrets, req.url, query);
-  // paths the kind never calls, e.g. a vault's secret values (v0.5.0, deniedPaths.ts)
-  assertPathAllowed(p.kind, url);
+  // paths the kind never calls, e.g. a vault's secret values (v0.5.0, deniedPaths.ts); changedetection.io: reads only (#242)
+  assertPathAllowed(p.kind, url, req.method);
   if (!trusted && /^https?:\/\//i.test(req.url)) await assertAbsoluteAllowed(url);
   if (!trusted) {
     let host = '';

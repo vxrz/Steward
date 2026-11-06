@@ -4,6 +4,7 @@ import { forgejoSpec, githubSpec, gitlabSpec } from './gitSpecs.js';
 import { prometheusSpec } from './prometheusSpec.js';
 import { graphSpec } from './graphSpec.js';
 import { pvaultSpec } from './pvaultSpec.js';
+import { changedetectionSpec } from './changedetectionSpec.js';
 import { readAsset } from '../reports/pdf/assets.js';
 
 /**
@@ -325,6 +326,25 @@ export const PRESETS: PlatformPreset[] = [
       },
     ],
     docs: [{ title: 'Dependency-Track REST API', url: 'https://docs.dependencytrack.org/integrations/rest-api/' }],
+  },
+  {
+    kind: 'changedetection',
+    label: 'changedetection.io (page watches, read-only)',
+    description:
+      "A changedetection.io instance that runs separately – its own container, with its own browser for JavaScript pages – and watches pages without an API: vendor changelogs and release notes, terms and pricing pages, status pages, documentation. Steward reads its watches (title, URL, tags, last check, last change, errors, snapshot times) as components of the platform, links them to applications, services or vendors, and checks them in monitors (check \"Page watch\"); changedetection.io's notifications start processes through a webhook trigger. Read-only: Steward never writes and never reads page contents – only metadata and the link to the diff. Base URL: the instance's root (e.g. http://changedetection:5000 on the same Docker network); variable uiUrl: its address in the browser, for links, when it differs. API key: Settings → API in changedetection.io, sent as x-api-key. The outbound policy must allow the instance's host. Software versions are better watched by the version watch of the tech stack. See docs/CHANGEDETECTION.md.",
+    baseUrl: 'https://changes.example.com',
+    config: {
+      auth: { type: 'apiKey', apiKeyIn: 'header', apiKeyName: 'x-api-key' },
+      variables: { uiUrl: '' },
+      http: {},
+      testPath: '/api/v1/systeminfo',
+    },
+    secretFields: [{ key: 'apiKey', label: 'API key', help: 'Settings → API in changedetection.io (with "Require API key" on)', auth: 'apiKey' }],
+    docs: [
+      { title: 'changedetection.io API', url: 'https://changedetection.io/docs/api_v1/' },
+      { title: 'changedetection.io on GitHub', url: 'https://github.com/dgtlmoon/changedetection.io' },
+      { title: 'Notifications (Apprise URLs)', url: 'https://github.com/dgtlmoon/changedetection.io/wiki/Notification-configuration-notes' },
+    ],
   },
   {
     kind: 'kafka',
@@ -683,4 +703,6 @@ export const PRESET_SPECS: Record<string, () => { name: string; content: string 
   'microsoft-graph': () => [{ name: 'Microsoft Graph (Entra ID read endpoints)', content: JSON.stringify(graphSpec(), null, 2) }],
   // metadata only, no value endpoint (#205); the value endpoints are refused for the kind (deniedPaths.ts)
   'privilege-vault': () => [{ name: 'IBM Verify Privilege Vault REST API (metadata)', content: JSON.stringify(pvaultSpec(), null, 2) }],
+  // the read endpoints the kind allows (#242); writes, snapshots and diffs are refused (deniedPaths.ts)
+  changedetection: () => [{ name: 'changedetection.io API (read endpoints)', content: JSON.stringify(changedetectionSpec(), null, 2) }],
 };
