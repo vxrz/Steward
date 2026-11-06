@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { mdCodeSpan, mdText } from './markdown.js';
 
 /**
  * Database schemas (0.8.0, #222, docs/DATABASES.md#database-schemas): the structure of a database – schemas, tables,
@@ -326,3 +327,33 @@ export const dbSchemaPushTokenInput = z
 export type DbSchemaPushTokenInput = z.input<typeof dbSchemaPushTokenInput>;
 
 export const dbSchemaPushPath = (kind: DbSchemaSubjectKind, id: string): string => `/api/hooks/db-schema/${kind}/${encodeURIComponent(id)}`;
+
+// ---------- changes as text (the change request, "Copy as Markdown") ----------
+
+/** A translation function (the web app's i18next `t`): key and values → text. */
+export type DbSchemaTx = (key: string, values?: Record<string, unknown>) => string;
+
+/** A change as one line of text: `public.orders.total – type narrowed: numeric(12,2) → numeric(10,2)`. */
+export function dbSchemaChangeLine(t: DbSchemaTx, c: DbSchemaChange): string {
+  const where = `${c.table}${c.column ? `.${c.column}` : ''}${c.name ? ` (${c.name})` : ''}`;
+  const values = c.before || c.after ? `: ${[c.before ?? '–', c.after ?? '–'].join(' → ')}` : '';
+  return `${where} – ${t(`schema.changeKinds.${c.kind}`)}${values}`;
+}
+
+/**
+ * The changes as Markdown for a change record. Names and values come from the database or a tbls file: each change is
+ * one code span on one line, the subject's name is escaped – nothing of them becomes a heading, a link or a new block.
+ */
+export function dbSchemaChangesMarkdown(t: DbSchemaTx, subject: string, d: DbSchemaDiff, when: string): string {
+  const lines = [
+    `## ${t('schema.mdTitle', { name: mdText(subject) })}`,
+    '',
+    t('schema.mdSummary', { when, count: d.total, breaking: d.breaking }),
+    '',
+    ...d.changes.map(
+      (c) => `- ${c.breaking ? `**${t('schema.breaking')}** (${t(`schema.reasons.${c.reason}`)}) ` : ''}${mdCodeSpan(dbSchemaChangeLine(t, c))}`,
+    ),
+  ];
+  if (d.total > d.changes.length) lines.push('', t('schema.mdMore', { count: d.total - d.changes.length }));
+  return lines.join('\n');
+}

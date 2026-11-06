@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { DB_SCHEMA_LIMITS, type DbSchemaDoc } from '@sm/shared';
+import { DB_SCHEMA_LIMITS, dbSchemaChangesMarkdown, inlineText, mdCodeSpan, parseInline, parseMarkdown, type DbSchemaDoc } from '@sm/shared';
 import { buildDoc, contentHash, type TableInput } from '../src/dbschema/model.js';
 import { compareTypes, diffSchemas, typeInfo } from '../src/dbschema/diff.js';
 import { lintRule, parseTbls, parseTblsLint } from '../src/dbschema/tbls.js';
@@ -681,6 +681,59 @@ describe('exports write nothing that runs (security review of #222)', () => {
       ['[x;', 'sqlserver'],
     ] as const)
       expect(safeExpression(v, dialect), v).toBe(false);
+  });
+});
+
+describe('changes as Markdown (security review of #222)', () => {
+  const t = (k: string, o?: Record<string, unknown>) => `${k}${o ? ` ${JSON.stringify(o)}` : ''}`.replace(/^schema\.changeKinds\./, '');
+  /** Every node of a parsed Markdown text (blocks and inline), depth first */
+  const nodesOf = (x: unknown, out: Record<string, unknown>[] = []): Record<string, unknown>[] => {
+    if (Array.isArray(x)) x.forEach((y) => nodesOf(y, out));
+    else if (x && typeof x === 'object') {
+      const o = x as Record<string, unknown>;
+      if (typeof o.t === 'string') out.push(o);
+      Object.values(o).forEach((y) => nodesOf(y, out));
+    }
+    return out;
+  };
+
+  it('keeps names with blank lines, headings and links inside one code span (PoC)', () => {
+    const md = dbSchemaChangesMarkdown(
+      t,
+      'Shop\n\n# [db](https://evil.example)',
+      {
+        changes: [
+          {
+            kind: 'column-removed',
+            table: 'public.orders\n\n## Approved by security – [details](https://evil.example/login)',
+            column: 'x`y``z',
+            breaking: true,
+            reason: 'removed',
+            before: 'integer\r\n\r\n> quote',
+            after: null,
+          },
+        ],
+        total: 1,
+        breaking: 1,
+        incomplete: false,
+      } as never,
+      'now',
+    );
+    expect(md.split('\n').filter((l) => l.startsWith('-'))).toHaveLength(1);
+    const blocks = parseMarkdown(md);
+    // the change list: one item, code and the breaking mark only – no heading, link or quote from a name
+    const list = blocks.find((b) => b.t === 'list')!;
+    expect([...new Set(nodesOf(list).map((n) => n.t))].sort()).toEqual(['code', 'list', 'paragraph', 'strong', 'text']);
+    expect(nodesOf(blocks).some((n) => n.t === 'quote')).toBe(false);
+    // the subject's name is escaped: no [label](link) – a bare URL stays a URL that shows itself
+    for (const l of nodesOf(blocks).filter((n) => n.t === 'link')) expect(inlineText(l.c as never)).toBe(l.href);
+    expect(blocks.filter((b) => b.t === 'heading')).toHaveLength(1);
+    expect(JSON.stringify(blocks)).toContain('public.orders ## Approved by security – [details](https://evil.example/login).x`y``z');
+  });
+
+  it('writes a code span that gives the text back, backticks included', () => {
+    for (const text of ['plain', 'a`b', '``x``', '`start', 'end`', ' spaced ', 'line\nbreak'])
+      expect(inlineText(parseInline(mdCodeSpan(text)))).toBe(text.replace('\n', ' '));
   });
 });
 
