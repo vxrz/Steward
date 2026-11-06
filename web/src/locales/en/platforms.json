@@ -178,6 +178,7 @@
       "database": "Database",
       "schema": "Schema",
       "credentials": "Credentials",
+      "identities": "Identities",
       "specs": "API specs",
       "docs": "Docs",
       "explorer": "Explorer",
@@ -219,6 +220,40 @@
     "store": "Store secret",
     "removeTitle": "Remove secret",
     "removeText": "Remove the secret <b>{{key}}</b>? Processes using it will fail until it is set again."
+  },
+  "identities": {
+    "info": "An identity is one set of credentials of this platform. Every platform has a default identity: requests use it unless they name another one. Its credentials are on the Credentials tab, its access for MCP clients on the MCP tab.",
+    "none": "This platform has no identity yet. Ask an administrator to review its connection settings.",
+    "default": "Default",
+    "readOnly": "Read only",
+    "privileged": "Privileged",
+    "changedOutside": "Changed outside Steward",
+    "signIn": "Sign-in",
+    "ownSignIn": "Its own sign-in settings",
+    "platformSignIn": "The platform’s sign-in settings ({{auth}})",
+    "credentials": "Stored credentials",
+    "noCredentials": "None stored",
+    "openCredentials": "Change on the Credentials tab",
+    "mcpLabel": "MCP clients",
+    "openMcp": "Change on the MCP tab",
+    "operations": "Operations",
+    "allOperations": "All operations",
+    "filtered": "Chosen operations only",
+    "whoMayUse": "Who may use it",
+    "everyoneWithUse": "Everyone with the “use” right on this platform",
+    "accessList": "The people and teams on its access list",
+    "you": "You",
+    "youMayUse": "You may use it",
+    "youMayNotUse": "You may not use it",
+    "mcp": {
+      "off": "Off",
+      "read": "Read only",
+      "writes": "Reads, and changing calls after approval ({{mode}})",
+      "writeModes": {
+        "confirm": "the token owner confirms",
+        "fourEyes": "a second person approves"
+      }
+    }
   },
   "settings": {
     "kind": "Kind",

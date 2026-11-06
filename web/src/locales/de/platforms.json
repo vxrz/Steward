@@ -178,6 +178,7 @@
       "database": "Datenbank",
       "schema": "Schema",
       "credentials": "Zugangsdaten",
+      "identities": "Identitäten",
       "specs": "API-Spezifikationen",
       "docs": "Dokumentation",
       "explorer": "Explorer",
@@ -219,6 +220,40 @@
     "store": "Geheimnis speichern",
     "removeTitle": "Geheimnis entfernen",
     "removeText": "Geheimnis <b>{{key}}</b> entfernen? Prozesse, die es verwenden, schlagen fehl, bis es wieder gesetzt ist."
+  },
+  "identities": {
+    "info": "Eine Identität ist ein Satz Zugangsdaten dieser Plattform. Jede Plattform hat eine Standard-Identität: Anfragen verwenden sie, wenn sie keine andere nennen. Ihre Zugangsdaten finden Sie im Reiter Zugangsdaten, den Zugriff für MCP-Clients im Reiter MCP.",
+    "none": "Diese Plattform hat noch keine Identität. Bitten Sie einen Administrator, die Verbindungseinstellungen zu prüfen.",
+    "default": "Standard",
+    "readOnly": "Nur lesen",
+    "privileged": "Privilegiert",
+    "changedOutside": "Außerhalb von Steward geändert",
+    "signIn": "Anmeldung",
+    "ownSignIn": "Eigene Anmeldeeinstellungen",
+    "platformSignIn": "Die Anmeldeeinstellungen der Plattform ({{auth}})",
+    "credentials": "Gespeicherte Zugangsdaten",
+    "noCredentials": "Keine gespeichert",
+    "openCredentials": "Im Reiter Zugangsdaten ändern",
+    "mcpLabel": "MCP-Clients",
+    "openMcp": "Im Reiter MCP ändern",
+    "operations": "Operationen",
+    "allOperations": "Alle Operationen",
+    "filtered": "Nur ausgewählte Operationen",
+    "whoMayUse": "Wer sie verwenden darf",
+    "everyoneWithUse": "Alle mit dem Recht „Nutzen“ auf dieser Plattform",
+    "accessList": "Die Personen und Teams auf ihrer Zugriffsliste",
+    "you": "Sie",
+    "youMayUse": "Sie dürfen sie verwenden",
+    "youMayNotUse": "Sie dürfen sie nicht verwenden",
+    "mcp": {
+      "off": "Aus",
+      "read": "Nur lesen",
+      "writes": "Lesen und ändernde Aufrufe nach Freigabe ({{mode}})",
+      "writeModes": {
+        "confirm": "der Besitzer des Tokens bestätigt",
+        "fourEyes": "eine zweite Person gibt frei"
+      }
+    }
   },
   "settings": {
     "kind": "Art",
