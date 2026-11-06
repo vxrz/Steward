@@ -3,7 +3,7 @@ import { db } from '../db.js';
 import { vault } from '../vault.js';
 import { currentUser, runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
-import { getPlatform, getSecrets } from '../platforms/service.js';
+import { getConnection, getPlatform } from '../platforms/service.js';
 import { HttpError } from '../util.js';
 
 /**
@@ -45,7 +45,9 @@ export function platformFor(owner: string, platformId: string): { platform: Plat
   const problem = ownerProblem(owner, platformId);
   if (problem) throw new CheckSetupError(problem);
   try {
-    return { platform: getPlatform(platformId), secrets: getSecrets(platformId) };
+    // the platform with its default identity (0.9.0, ADR 0009: a check or output naming an identity comes in step 2)
+    const { platform, secrets } = getConnection(platformId);
+    return { platform, secrets };
   } catch (e) {
     throw new CheckSetupError(e instanceof HttpError ? e.message : String(e));
   }

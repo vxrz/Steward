@@ -88,6 +88,8 @@ export const USER_REFS: UserRef[] = [
   { table: 'processes', column: 'owner', kind: 'username' },
   { table: 'processes', column: 'acl', kind: 'acl' },
   { table: 'platforms', column: 'acl', kind: 'acl' },
+  // an identity's own access list (0.9.0, ADR 0009; the default identity has none)
+  { table: 'platform_identities', column: 'acl', kind: 'acl' },
   { table: 'schedules', column: 'owner', kind: 'username' },
   { table: 'dashboards', column: 'owner', kind: 'username' },
   { table: 'monitors', column: 'owner', kind: 'username' },
@@ -165,6 +167,9 @@ export const HISTORY_COLUMNS: string[] = [
   'platform_recordings.created_by',
   'platform_recordings.updated_by',
   'platform_health.updated_by',
+  // platform identities (0.9.0, ADR 0009): who created and last changed one
+  'platform_identities.created_by',
+  'platform_identities.updated_by',
   'application_topic_prefixes.created_by',
   'application_components.updated_by',
   'application_components.sbom_imported_by',

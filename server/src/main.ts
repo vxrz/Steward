@@ -14,7 +14,7 @@ import { flushNotifications } from './notifications/service.js';
 import { db } from './db.js';
 import { passwordLoginPending } from './settings.js';
 import { closeErrorReporting, initErrorReporting, isUnexpected, reportError } from './errorReporting.js';
-import { listPlatforms, getSecretsUnchecked } from './platforms/service.js';
+import { listPlatforms, allSecretsUnchecked } from './platforms/service.js';
 import { secretValues } from './platforms/http.js';
 import { removeInstanceFile, writeInstanceFile } from './instance.js';
 import { warnEmailVerifiedProviders } from './auth/sso.js';
@@ -29,7 +29,8 @@ function platformSecretValues(): string[] {
   if (!vault().unlocked) return [];
   return listPlatforms().flatMap((p) => {
     try {
-      return secretValues(getSecretsUnchecked(p.id));
+      // every identity's credentials, not only the default one's (ADR 0009)
+      return allSecretsUnchecked(p.id).flatMap((x) => secretValues(x));
     } catch {
       return [];
     }

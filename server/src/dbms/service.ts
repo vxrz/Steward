@@ -26,9 +26,9 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { getSettings } from '../settings.js';
 import { nowIso } from '../util.js';
-import { getPlatform } from '../platforms/service.js';
-import { requireIntact, sealPlatform } from '../platforms/integrity.js';
-import { invalidatePlatformCaches, onPlatformInvalidated } from '../platforms/http.js';
+import { getPlatform, storedConfig } from '../platforms/service.js';
+import { requirePlatformIntact, sealPlatform } from '../platforms/integrity.js';
+import { identityKey, invalidatePlatformCaches, onPlatformInvalidated } from '../platforms/http.js';
 import { assertAddressSafe, assertNetAllowed } from '../platforms/outbound.js';
 import { redactSecrets } from '../platforms/testConnection.js';
 import { outboundContext } from '../platforms/policyContext.js';
@@ -81,12 +81,11 @@ const auditView = (s: DatabaseSettings | null) =>
 export function setDatabaseSettings(id: string, input: DatabaseSettingsInput): Platform {
   const before = getPlatform(id);
   requireDatabasePlatform(before);
-  const row = db().get<Parameters<typeof requireIntact>[0]>('SELECT * FROM platforms WHERE id = ?', id);
-  if (row) requireIntact(row);
+  requirePlatformIntact(id);
   const next = databaseSettingsSchema.parse(input);
   const prev = before.config.database ? databaseSettingsSchema.safeParse(before.config.database) : null;
   db().tx(() => {
-    db().run('UPDATE platforms SET config = ?, updated_at = ? WHERE id = ?', JSON.stringify({ ...before.config, database: next }), nowIso(), id);
+    db().run('UPDATE platforms SET config = ?, updated_at = ? WHERE id = ?', JSON.stringify({ ...storedConfig(id), database: next }), nowIso(), id);
     audit({
       action: 'platform.database_changed',
       entityType: 'platform',
@@ -164,7 +163,10 @@ async function withConnection<T>(
   signal: AbortSignal,
   fn: (c: DriverConnection) => Promise<T>,
 ): Promise<T> {
-  const pool = poolFor(p.id, `${p.updatedAt}|${JSON.stringify(s)}`, s.poolSize ?? DB_LIMITS.poolSize.default, (sig) => openConnection(p, s, secrets, sig));
+  // one pool per identity (0.9.0, ADR 0009): each identity is its own database account
+  const pool = poolFor(identityKey(p), `${p.updatedAt}|${JSON.stringify(s)}`, s.poolSize ?? DB_LIMITS.poolSize.default, (sig) =>
+    openConnection(p, s, secrets, sig),
+  );
   const conn = await pool.acquire(signal).catch((e: unknown) => {
     throw redactDbError(e, secrets);
   });

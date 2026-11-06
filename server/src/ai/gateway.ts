@@ -14,8 +14,8 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor } from '../auth/context.js';
 import { HttpError, nowIso } from '../util.js';
-import { getPlatform } from '../platforms/service.js';
-import { requireIntact, sealPlatform } from '../platforms/integrity.js';
+import { getPlatform, storedConfig } from '../platforms/service.js';
+import { requirePlatformIntact, sealPlatform } from '../platforms/integrity.js';
 import { invalidatePlatformCaches, platformRequest } from '../platforms/http.js';
 import { ADAPTERS, gatewayErrorText, modelList } from './formats.js';
 import { estimateTokens } from './estimate.js';
@@ -49,8 +49,7 @@ const requireGateway = (p: Platform) => {
 export function setGatewaySettings(id: string, input: AiGatewaySettingsInput): Platform {
   const before = getPlatform(id);
   requireGateway(before);
-  const row = db().get<Parameters<typeof requireIntact>[0]>('SELECT * FROM platforms WHERE id = ?', id);
-  if (row) requireIntact(row);
+  requirePlatformIntact(id);
   const next = aiGatewaySettingsSchema.parse(input);
   const prev = gatewaySettings(before);
   const ids = (s: AiGatewaySettings) => s.models.map((m) => m.id);
@@ -58,7 +57,7 @@ export function setGatewaySettings(id: string, input: AiGatewaySettingsInput): P
   const removed = ids(prev).filter((m) => !ids(next).includes(m));
   const dataChanged = JSON.stringify(prev.allowedData) !== JSON.stringify(next.allowedData);
   db().tx(() => {
-    db().run('UPDATE platforms SET config = ?, updated_at = ? WHERE id = ?', JSON.stringify({ ...before.config, ai: next }), nowIso(), id);
+    db().run('UPDATE platforms SET config = ?, updated_at = ? WHERE id = ?', JSON.stringify({ ...storedConfig(id), ai: next }), nowIso(), id);
     audit({
       action: 'platform.ai_changed',
       entityType: 'platform',

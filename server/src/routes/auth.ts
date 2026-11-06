@@ -6,7 +6,7 @@ import { vault, publicKeyPem } from '../vault.js';
 import { audit, flushPendingAudit } from '../audit.js';
 import { changeMasterPassphrase } from '../vault-rotation.js';
 import { unlockThrottle } from '../auth/unlock-throttle.js';
-import { sealPlatformConfigs } from '../platforms/integrity.js';
+import { createPlatformIdentities, sealPlatformConfigs } from '../platforms/integrity.js';
 import { getSettings, passwordLoginMode } from '../settings.js';
 import { resolveLocale, t as serverT } from '../i18n/index.js';
 import { HttpError } from '../util.js';
@@ -45,6 +45,8 @@ async function onUnlocked(): Promise<void> {
   }
   // configuration integrity: seal platforms that have no seal yet (installations from before it existed)
   sealPlatformConfigs();
+  // identities (0.9.0, ADR 0009): credentials and MCP mode move to each intact platform's sealed default identity, once
+  createPlatformIdentities();
   sso.sealProviderConfigs();
   // Steward's example library as a disabled Git sync source, once per installation
   seedExamplesSource();

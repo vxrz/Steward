@@ -99,21 +99,23 @@ export class ConnectionPool {
 
 const pools = new Map<string, { stamp: string; pool: ConnectionPool }>();
 
-/** The pool of a platform for its current settings (a new stamp closes the old pool). */
-export function poolFor(platformId: string, stamp: string, size: number, opener: (signal: AbortSignal) => Promise<DriverConnection>): ConnectionPool {
-  const hit = pools.get(platformId);
+/** The pool of a platform identity (key `platformId:identityId`, platforms/http.ts identityKey) for its current settings (a new stamp closes the old pool). */
+export function poolFor(key: string, stamp: string, size: number, opener: (signal: AbortSignal) => Promise<DriverConnection>): ConnectionPool {
+  const hit = pools.get(key);
   if (hit && hit.stamp === stamp) return hit.pool;
   if (hit) void hit.pool.close();
   const pool = new ConnectionPool(opener, size);
-  pools.set(platformId, { stamp, pool });
+  pools.set(key, { stamp, pool });
   return pool;
 }
 
-export function closePool(platformId: string): void {
-  const hit = pools.get(platformId);
-  if (!hit) return;
-  pools.delete(platformId);
-  void hit.pool.close();
+/** Closes the pools of a platform: of all its identities, or of one. */
+export function closePool(platformId: string, identityId?: string): void {
+  for (const [key, hit] of [...pools]) {
+    if (identityId ? key !== `${platformId}:${identityId}` : !key.startsWith(`${platformId}:`)) continue;
+    pools.delete(key);
+    void hit.pool.close();
+  }
 }
 
 export async function closeAllPools(): Promise<void> {

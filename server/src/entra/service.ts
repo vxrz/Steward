@@ -509,7 +509,7 @@ export async function testGraph(platform: Platform, secrets: Record<string, stri
     if (!(e instanceof GraphError)) throw new Error(signInHint((e as Error).message));
     // signed in, but the tenant itself is not readable (Directory.Read.All missing): the probes below say what is
   }
-  const claims = tokenClaims(platform.id);
+  const claims = tokenClaims(platform);
   const roles = Array.isArray(claims?.roles) ? (claims.roles as unknown[]).map(String) : [];
   const checks: TestCheck[] = [];
   const signedIn = `signed in${org?.displayName ? ` to ${org.displayName}` : ''}${claims?.tid ? ` (tenant ${String(claims.tid)})` : ''}`;

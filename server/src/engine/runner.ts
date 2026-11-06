@@ -26,7 +26,7 @@ import { currentActor, runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { tracePseudonym } from '../auth/login-audit.js';
 import { HttpError, newId, nowIso, parseJson, pathInside, sha256, sleep } from '../util.js';
-import { getPlatform, getSecrets } from '../platforms/service.js';
+import { getConnection } from '../platforms/service.js';
 import { openInputs, sealInputs, secretValuesOf } from './secret-inputs.js';
 import { platformRequest, resolveBaseUrl, secretValues, buildUrl, credentialsAllowed, type HttpResult } from '../platforms/http.js';
 import { assertPathAllowed } from '../platforms/deniedPaths.js';
@@ -624,8 +624,8 @@ async function resolveBindings(def: ProcessDefinition, requested: Record<string,
   for (const slot of def.connections) {
     const pid = requested[slot.slot];
     if (!pid) throw new HttpError(400, `Select a platform for connection "${slot.slot}"`);
-    const platform = getPlatform(pid);
-    const secrets = getSecrets(pid);
+    // the platform with its default identity (0.9.0, ADR 0009: choosing another one per slot comes in step 2)
+    const { platform, secrets } = getConnection(pid);
     out[slot.slot] = { platform, secrets, baseUrl: await resolveBaseUrl(platform, secrets) };
   }
   return out;

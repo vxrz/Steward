@@ -31,7 +31,8 @@ import { audit } from '../audit.js';
 import { decryptWith, publicKeyFingerprint, vault, verifySignature } from '../vault.js';
 import { ENCRYPTED_COLUMNS } from '../vault-rotation.js';
 import { ZipReader, safeEntryName, type ZipEntry } from '../compliance/zip.js';
-import { sealPlatform } from '../platforms/integrity.js';
+import { moveToDefaultIdentity, sealIdentity, sealPlatform } from '../platforms/integrity.js';
+import { hasLegacyGateway } from '../platforms/identities.js';
 import { columns, fkOrder, tables } from '../cli/db-copy.js';
 import { quoteIdent } from '../database/sql.js';
 import { canonicalJson, HttpError, newId, nowIso, parseJson, pathInside, rasterImageType, sha256 } from '../util.js';
@@ -163,6 +164,7 @@ const manifestSchema = z.object({
     .max(10000),
   settings: z.object({ sha256: hex64, keys: z.array(z.string().max(200)).max(10000) }),
   platformIntegrity: boundedRecord(z.enum(['ok', 'mismatch', 'unsealed']), 10000),
+  identityIntegrity: boundedRecord(z.enum(['ok', 'mismatch', 'unsealed']), 100000).optional(),
 });
 
 export interface OpenedPackage {
@@ -1303,6 +1305,19 @@ function copyIntoTarget(
     for (const [id, state] of Object.entries(m.platformIntegrity)) {
       if (state === 'ok') sealPlatform(id);
       else d.run('UPDATE platforms SET config_mac = NULL WHERE id = ?', id);
+    }
+    // identities (0.9.0, ADR 0009): sealed when intact on the source. A package of an older version has the old layout
+    // (credentials on the platform row, identities made by the SQL migration in staging): an intact platform's move to
+    // its default identity now, exactly as the one-time step after an update; the others wait for an administrator.
+    for (const [id, state] of Object.entries(m.platformIntegrity)) {
+      const row = d.get<{ secrets: string | null; config: string }>('SELECT secrets, config FROM platforms WHERE id = ?', id);
+      if (!row) continue;
+      const legacy = !m.identityIntegrity || row.secrets !== null || hasLegacyGateway(row.config);
+      for (const i of d.all<{ id: string }>('SELECT id FROM platform_identities WHERE platform_id = ?', id)) {
+        if (state === 'ok' && !legacy && m.identityIntegrity?.[i.id] === 'ok') sealIdentity(i.id);
+        else d.run('UPDATE platform_identities SET config_mac = NULL WHERE id = ?', i.id);
+      }
+      if (state === 'ok' && legacy) moveToDefaultIdentity(id);
     }
     // ---- the imported history, unchanged ----
     for (const e of history.entries()) {
