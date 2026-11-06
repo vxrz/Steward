@@ -80,6 +80,7 @@ Themes of this release (details in the CHANGELOG once released):
 4. **Kafka Connect and Debezium** ([#223](https://github.com/vxrz/Steward/issues/223)): connectors and tasks of an existing Kafka Connect watched like other platforms – Steward does not capture changes itself.
 5. **Version watch for the tech stack** ([#241](https://github.com/vxrz/Steward/issues/241)): the newest version of every known component from endoflife.date, Dependency-Track, package and container registries and Git releases – how far behind, end of life, a monitor check and a scorecard part.
 6. **changedetection.io** ([#242](https://github.com/vxrz/Steward/issues/242)), run separately: a platform preset, its watches as components, a check for changed or failing watches, and a webhook example that starts a process – for vendor pages without an API.
+7. **Outbound policy on every redirect** ([#243](https://github.com/vxrz/Steward/issues/243)): every redirect target is checked against the outbound policy like the first request; same-host redirects and the platform's trusted origins keep working.
 
 ## Then – 0.10.0
 
