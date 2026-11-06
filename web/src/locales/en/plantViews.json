@@ -89,7 +89,8 @@
     "target": "Target system",
     "kpi": "KPI job",
     "dataset": "Dataset",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "kpiDefinition": "KPI definition"
   },
   "node": {
     "hidden": "Not visible",

@@ -73,7 +73,7 @@ export function FlowView({
     ...flowSvg(graph, {
       title,
       subtitle: t('export.subtitle', { date: new Date().toLocaleDateString() }),
-      kind: (k) => t(`kinds.${k}`),
+      kind: (n) => text.kind(n),
       status: (n) => statusSentence(t, n),
       pill,
       hidden: t('node.hidden'),

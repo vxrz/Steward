@@ -65,6 +65,9 @@ export const KIND_ICON: Record<PlantFlowNodeKind, Icon> = {
   dashboard: IconLayoutDashboard,
 };
 
+/** Kinds whose second line is an identifier (an endpoint, a path, a job): set in monospace. */
+const MONO = new Set<PlantFlowNodeKind>(['interface', 'target', 'kpi', 'point']);
+
 // ---------- layout, computed once per graph ----------
 
 export interface FlowLayout {
@@ -119,7 +122,8 @@ const READABLE_ZOOM = 0.8;
 export function useNodeText() {
   const { t } = useTranslation('plantViews');
   return {
-    kind: (n: Pick<PlantFlowNode, 'kind'>) => t(`kinds.${n.kind}`),
+    // a KPI node of the lineage is the definition (with its jobs), in the asset flow one job
+    kind: (n: Pick<PlantFlowNode, 'kind' | 'instances'>) => (n.kind === 'kpi' && n.instances !== undefined ? t('kinds.kpiDefinition') : t(`kinds.${n.kind}`)),
     label: (n: Pick<PlantFlowNode, 'label' | 'hidden'>) => (n.hidden ? t('node.hidden') : n.label),
   };
 }
@@ -169,7 +173,7 @@ const PartNode = memo(function PartNode({ data }: NodeProps<FlowRfNode>) {
       </Text>
       {node.detail && (
         <Text
-          className="pv-node-detail mono"
+          className={MONO.has(node.kind) ? 'pv-node-detail mono' : 'pv-node-detail'}
           size="xs"
           c="dimmed"
           lineClamp={badges ? 1 : 2}
@@ -339,7 +343,7 @@ function GraphInner({ graph, label, height, highlight, focusKey, onHover, counts
           source: e.from,
           target: e.to,
           type: 'way',
-          markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
+          markerEnd: { type: MarkerType.ArrowClosed, color, width: 16, height: 16, markerUnits: 'userSpaceOnUse' },
           data: { edge: e, dim: !!highlight && !hl, hl, animate, pill, problemText: t('edge.problem'), inactiveText: t('edge.inactive') },
           selectable: false,
           focusable: false,
@@ -450,7 +454,8 @@ type T = TFunction<'plantViews'>;
 
 /** A node as a sentence: "Interface: OPC UA server, opc.tcp://… Not active. 1 problem." */
 export function nodeAria(t: T, n: PlantFlowNode): string {
-  const parts = [`${t(`kinds.${n.kind}`)}: ${n.hidden ? t('node.hidden') : n.label}${n.detail ? `, ${n.detail.replace(/\n/g, ', ')}` : ''}.`];
+  const kind = n.kind === 'kpi' && n.instances !== undefined ? t('kinds.kpiDefinition') : t(`kinds.${n.kind}`);
+  const parts = [`${kind}: ${n.hidden ? t('node.hidden') : n.label}${n.detail ? `, ${n.detail.replace(/\n/g, ', ')}` : ''}.`];
   parts.push(statusSentence(t, n));
   if (n.path) parts.push(t('node.opens'));
   return parts.join(' ');

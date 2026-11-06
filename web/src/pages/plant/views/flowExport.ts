@@ -1,4 +1,4 @@
-import type { PlantFlowGraph, PlantFlowNodeKind } from '@sm/shared';
+import type { PlantFlowGraph } from '@sm/shared';
 import { clip, cssColor, escapeXml, exportTheme, svgDocument } from './exportImage';
 import { NODE_H, NODE_W, edgeWidth, flowLayout } from './FlowGraph';
 
@@ -11,7 +11,7 @@ export function flowSvg(
   o: {
     title: string;
     subtitle: string;
-    kind: (k: PlantFlowNodeKind) => string;
+    kind: (n: PlantFlowGraph['nodes'][number]) => string;
     status: (n: PlantFlowGraph['nodes'][number]) => string;
     pill: (e: PlantFlowGraph['edges'][number]) => string;
     hidden: string;
@@ -75,7 +75,7 @@ export function flowSvg(
       `<g>`,
       `<rect x="${p.x}" y="${p.y}" width="${NODE_W}" height="${NODE_H}" rx="10" fill="${th.surface}" stroke="${th.border}"${dash}/>`,
       `<rect x="${p.x}" y="${p.y}" width="5" height="${NODE_H}" rx="2" fill="${accent}"/>`,
-      `<text x="${p.x + 14}" y="${p.y + 20}" font-size="9.5" font-weight="600" letter-spacing="0.5" fill="${th.dimmed}">${escapeXml(o.kind(n.kind).toUpperCase())}</text>`,
+      `<text x="${p.x + 14}" y="${p.y + 20}" font-size="9.5" font-weight="600" letter-spacing="0.5" fill="${th.dimmed}">${escapeXml(o.kind(n).toUpperCase())}</text>`,
       `<text x="${p.x + 14}" y="${p.y + 40}" font-size="13" font-weight="600" fill="${th.text}">${escapeXml(clip(n.hidden ? o.hidden : n.label, 30))}</text>`,
       n.detail
         ? `<text x="${p.x + 14}" y="${p.y + 58}" font-size="10.5" font-family="ui-monospace, monospace" fill="${th.dimmed}">${escapeXml(clip(n.detail.split('\n')[0]!, 36))}</text>`
