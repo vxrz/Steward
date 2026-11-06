@@ -1,4 +1,7 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { DATA_CONTRACT_SERVICE_KIND, DATABASE_KIND } from '@sm/shared';
+import { config } from '../config.js';
 import { db } from '../db.js';
 import { logger } from '../log.js';
 import { createPlatform } from '../platforms/service.js';
@@ -15,106 +18,8 @@ import { runContractTest } from './testing.js';
 
 const SERVICE = 'Data contract service (demo)';
 
-const ORDERS = `apiVersion: v3.0.2
-kind: DataContract
-id: shop-orders
-name: Shop orders
-version: 1.0.0
-status: active
-domain: sales
-description:
-  purpose: Orders of the web shop for invoicing and the sales dashboards
-  usage: Read-only; one row per order
-  limitations: Orders of the last two years
-servers:
-  - server: production
-    type: postgresql
-    host: postgres.demo.invalid
-    port: 5432
-    database: shop
-    schema: public
-schema:
-  - name: orders
-    physicalName: public.orders
-    physicalType: table
-    description: One order of a customer
-    properties:
-      - name: id
-        logicalType: integer
-        physicalType: bigint
-        primaryKey: true
-        primaryKeyPosition: 1
-        required: true
-        unique: true
-      - name: customer_id
-        logicalType: integer
-        physicalType: integer
-        required: true
-      - name: status
-        logicalType: string
-        physicalType: character varying(20)
-        required: true
-        logicalTypeOptions:
-          maxLength: 20
-      - name: total
-        logicalType: number
-        physicalType: numeric(12,2)
-        quality:
-          - rule: nullValues
-            mustBeLessThan: 5
-            unit: percent
-      - name: ordered_at
-        logicalType: date
-        physicalType: timestamp with time zone
-        required: true
-team:
-  - username: dana
-    role: owner
-slaProperties:
-  - property: latency
-    value: 4
-    unit: h
-`;
-
-const CUSTOMERS = `apiVersion: v3.0.2
-kind: DataContract
-id: shop-customers
-name: Shop customers
-version: 0.3.0
-status: proposed
-domain: sales
-description:
-  purpose: People and companies that order in the web shop
-servers:
-  - server: production
-    type: postgresql
-    host: postgres.demo.invalid
-    port: 5432
-    database: shop
-    schema: public
-schema:
-  - name: customers
-    physicalName: public.customers
-    physicalType: table
-    properties:
-      - name: id
-        logicalType: integer
-        required: true
-      - name: email
-        logicalType: string
-        required: true
-        unique: true
-      - name: name
-        logicalType: string
-        required: true
-      - name: phone
-        logicalType: string
-        description: Promised to the call centre – not in the table yet
-      - name: country
-        logicalType: string
-        logicalTypeOptions:
-          maxLength: 2
-`;
+/** The demo's contracts: the example library's files (examples/data-contracts). */
+const example = (file: string) => fs.readFileSync(path.join(config.examplesDir, 'data-contracts', file), 'utf8');
 
 /** The simulated service and the two contracts, once (called by the demo setup, as the administrator loading it). */
 export async function seedContractDemo(base: string): Promise<number> {
@@ -135,7 +40,7 @@ export async function seedContractDemo(base: string): Promise<number> {
   const shop = db().get<{ id: string }>("SELECT id FROM platforms WHERE name = 'Shop database (demo)' AND kind = ?", DATABASE_KIND)?.id;
   if (!shop || db().get("SELECT 1 FROM data_contracts WHERE contract_key IN ('shop-orders', 'shop-customers')")) return 0;
   const app = db().get<{ id: string }>("SELECT id FROM applications WHERE name LIKE '%hop%' ORDER BY name LIMIT 1")?.id;
-  const made = [ORDERS, CUSTOMERS].map((yaml, i) =>
+  const made = [example('shop-orders.odcs.yaml'), example('shop-customers.odcs.yaml')].map((yaml, i) =>
     createContract({
       yaml,
       note: 'Demo data',

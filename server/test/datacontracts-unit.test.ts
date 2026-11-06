@@ -4,6 +4,8 @@ import { factsOf, lintContract, parseContract, propertyPaths } from '../src/data
 import { comparePhysical, diffContracts } from '../src/datacontracts/diff.js';
 import { logicalOfSql } from '../src/datacontracts/draft.js';
 import { serverHeaders } from '../src/datacontracts/testing.js';
+import { validateFile } from '../src/cli/validate.js';
+import path from 'node:path';
 
 /**
  * Data contracts without a server (#221): reading within limits, the JSON Schema check of ODCS v3.0.2, the facts,
@@ -305,5 +307,14 @@ describe('drafts and tests', () => {
       'datacontract-postgres-port',
       'datacontract-postgres-database',
     ]);
+  });
+});
+
+describe('the example library', () => {
+  it('validates the example contracts as data contracts', async () => {
+    for (const f of ['shop-orders.odcs.yaml', 'shop-customers.odcs.yaml']) {
+      const r = await validateFile(path.resolve(__dirname, '..', '..', 'examples', 'data-contracts', f));
+      expect(r).toMatchObject({ kind: 'data contract', ok: true, count: 1, errors: [] });
+    }
   });
 });

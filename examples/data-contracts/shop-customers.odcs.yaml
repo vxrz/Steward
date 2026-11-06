@@ -1,0 +1,40 @@
+# A data contract of the demo shop database (invented) that promises a column the table does not have: its test fails
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bitol-io/open-data-contract-standard/main/schema/odcs-json-schema-v3.0.2.json
+apiVersion: v3.0.2
+kind: DataContract
+id: shop-customers
+name: Shop customers
+version: 0.3.0
+status: proposed
+domain: sales
+description:
+  purpose: People and companies that order in the web shop
+servers:
+  - server: production
+    type: postgresql
+    host: postgres.demo.invalid
+    port: 5432
+    database: shop
+    schema: public
+schema:
+  - name: customers
+    physicalName: public.customers
+    physicalType: table
+    properties:
+      - name: id
+        logicalType: integer
+        required: true
+      - name: email
+        logicalType: string
+        required: true
+        unique: true
+      - name: name
+        logicalType: string
+        required: true
+      - name: phone
+        logicalType: string
+        description: Promised to the call centre – not in the table yet
+      - name: country
+        logicalType: string
+        logicalTypeOptions:
+          maxLength: 2
