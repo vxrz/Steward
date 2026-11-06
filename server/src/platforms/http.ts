@@ -9,7 +9,7 @@ import { HttpError } from '../util.js';
 import { SpanKind, SpanStatusCode, injectTraceHeaders, withSpan } from '../telemetry.js';
 import { logger } from '../log.js';
 import { emit } from '../events.js';
-import { assertOutboundAllowed, guardedLookup } from './outbound.js';
+import { assertOutboundAllowed, assertRedirectAllowed, guardedLookup } from './outbound.js';
 import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
 import { JWT_ALGS, certificateThumbprints, clientAssertion, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
 import { where as originAndPath } from './answers.js';
@@ -776,6 +776,9 @@ const MAX_REDIRECTS = 5;
  * origins receives no auth header, no default headers and no user header whose
  * value contains one of the platform's secret values. undici's own redirect
  * handling only strips `Authorization`, not custom-named credential headers.
+ * Every redirect target goes through the outbound policy (0.9.0): the platform's
+ * own origins and redirects that stay on an origin already sent to pass, any
+ * other host must be allowed like a first request.
  */
 async function followRedirects(
   p: Platform,
@@ -790,10 +793,14 @@ async function followRedirects(
   let body = req.body;
   let sawHttps = /^https:/i.test(url);
   const leakValues = secretValues(secrets);
+  const sent: string[] = [];
   for (let hop = 0; ; hop++) {
     // paths the kind never calls (v0.5.0): a redirect cannot lead there either
     assertPathAllowed(p.kind, url);
     const hopTrusted = await credentialsAllowed(p, secrets, url);
+    // the outbound policy on every redirect hop (0.9.0, #243), with the platform's own origins allowed as for the first request
+    if (hop > 0) await assertRedirectHop(p, url, sent, hopTrusted);
+    sent.push(url);
     // AWS SigV4: only requests to the platform's own origins are signed
     let sign: HttpRequest['sign'];
     const headers: Record<string, string> = {};
@@ -866,6 +873,12 @@ const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
 async function assertAbsoluteAllowed(url: string): Promise<void> {
   const { outboundContext } = await import('./policyContext.js');
   await assertOutboundAllowed(url, outboundContext());
+}
+
+/** A redirect target of a platform request: the outbound policy as for the first request (outbound.ts). */
+async function assertRedirectHop(p: Platform, url: string, sent: string[], own: boolean): Promise<void> {
+  const { outboundContext } = await import('./policyContext.js');
+  await assertRedirectAllowed(url, sent, outboundContext(), { own, platformName: p.name });
 }
 
 /**

@@ -1,6 +1,7 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import type { LookupFunction } from 'node:net';
+import { fetch, type Dispatcher } from 'undici';
 import type { Platform } from '@sm/shared';
 import { config } from '../config.js';
 import { getSettings } from '../settings.js';
@@ -221,6 +222,24 @@ export async function assertAddressSafe(url: string): Promise<void> {
   }
 }
 
+/** The origin policy alone (no address safety): the policy `open`, the allow-list or – under `platforms` – a platform's origin. */
+async function policyAllows(u: URL, ctx: OutboundContext, opts: { platformOrigins?: string[] }): Promise<boolean> {
+  const settings = getSettings();
+  const policy = settings.outboundPolicy ?? 'platforms';
+  if (policy === 'open') return true;
+
+  const allowList = settings.outboundAllowList ?? [];
+  if (allowList.some((e) => allowListMatches(e, u))) return true;
+
+  if (policy === 'platforms') {
+    // origins that belong to a platform for this one call (an AWS service endpoint a step names, v0.3.1)
+    if (opts.platformOrigins?.some((o) => originOf(o) === u.origin)) return true;
+    const origins = await platformOrigins(ctx.platforms, ctx.resolveOrigin);
+    if (origins.has(u.origin)) return true;
+  }
+  return false;
+}
+
 /**
  * Throw a clear HttpError if a process may not send a request to `url` under the
  * current policy. Always rejects the metadata ranges and the server's own port.
@@ -232,26 +251,109 @@ export async function assertOutboundAllowed(url: string, ctx: OutboundContext, o
   if (!u) throw new HttpError(400, `Invalid outbound URL "${String(url).slice(0, 120)}"`);
 
   await assertAddressSafe(url);
-
-  const settings = getSettings();
-  const policy = settings.outboundPolicy ?? 'platforms';
-  if (policy === 'open') return;
-
-  const allowList = settings.outboundAllowList ?? [];
-  if (allowList.some((e) => allowListMatches(e, u))) return;
-
-  if (policy === 'platforms') {
-    // origins that belong to a platform for this one call (an AWS service endpoint a step names, v0.3.1)
-    if (opts.platformOrigins?.some((o) => originOf(o) === u.origin)) return;
-    const origins = await platformOrigins(ctx.platforms, ctx.resolveOrigin);
-    if (origins.has(u.origin)) return;
-  }
-
+  if (await policyAllows(u, ctx, opts)) return;
   throw new HttpError(
     403,
     `Blocked by the outbound policy: ${u.origin} is not a configured platform or on the allow-list. ` +
       `An administrator can allow it under Settings → Outbound access (outboundAllowList).`,
   );
+}
+
+/** The port a URL connects to (its default when it names none). */
+function portOf(u: URL): string {
+  return u.port || (u.protocol === 'https:' ? '443' : '80');
+}
+
+/**
+ * A redirect that stays where the request already went: the same origin as one of the URLs sent so far, or the same
+ * host from http to https (on the default https port or the same port). It is not checked against the policy again –
+ * the first request was – but address safety still applies (the server's own API is a path, not an origin).
+ */
+function staysWhereSent(target: URL, sent: string[]): boolean {
+  return sent.some((s) => {
+    const from = originOf(s) ? new URL(s) : null;
+    if (!from) return false;
+    if (from.origin === target.origin) return true;
+    return (
+      from.protocol === 'http:' &&
+      target.protocol === 'https:' &&
+      from.hostname.toLowerCase() === target.hostname.toLowerCase() &&
+      (!target.port || portOf(target) === portOf(from))
+    );
+  });
+}
+
+/**
+ * The outbound policy for a redirect hop (0.9.0, #243): every redirect target is checked with the same rules as the
+ * first request, not only the first URL. `sent`: the URLs of this request sent so far (the first one first) – a
+ * redirect that stays on their origins (or goes from http to https on the same host) passes; `own`: the target is one
+ * of the platform's own origins (base URL, trusted origins, AWS endpoints – where its credentials go), which counts as
+ * allowed exactly as for the first request. Address safety applies to every hop. A refused hop throws a 403 that is
+ * not retried and names the target and how to allow it.
+ */
+export async function assertRedirectAllowed(
+  target: string,
+  sent: string[],
+  ctx: OutboundContext,
+  opts: { own?: boolean; platformName?: string; platformOrigins?: string[] } = {},
+): Promise<void> {
+  const u = originOf(target) ? new URL(target) : null;
+  if (!u) throw new HttpError(400, `Invalid redirect target "${String(target).slice(0, 120)}"`);
+  await assertAddressSafe(target);
+  if (opts.own || staysWhereSent(u, sent) || (await policyAllows(u, ctx, opts))) return;
+  const from = originOf(sent[sent.length - 1] ?? '') ?? 'the server';
+  const how = opts.platformName
+    ? `An administrator can allow it under Settings → Outbound access (outboundAllowList), or add it to the trusted origins of platform "${opts.platformName}" (its credentials are then sent there too).`
+    : 'An administrator can allow it under Settings → Outbound access (outboundAllowList).';
+  logger.warn({ from, to: u.origin, platform: opts.platformName }, 'redirect refused by the outbound policy');
+  throw Object.assign(
+    new HttpError(
+      403,
+      `Blocked by the outbound policy: ${from} redirected to ${u.origin}, which is not a configured platform or on the allow-list. ${how}`,
+      opts.platformName ? 'PLATFORM_REDIRECT_BLOCKED' : 'OUTBOUND_REDIRECT_BLOCKED',
+      { from, to: u.origin, ...(opts.platformName ? { platform: opts.platformName } : {}) },
+    ),
+    { retryable: false },
+  );
+}
+
+const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
+
+/**
+ * fetch for a request to one URL without a platform (a monitor's webhook output, an OpenAPI import by URL): follows up
+ * to `maxRedirects` redirects itself and checks every target with assertRedirectAllowed (0.9.0, #243), as fetch's own
+ * `redirect: 'follow'` would not. The caller checks the first URL. 301/302 of a POST and every 303 continue as a GET
+ * without body, 307/308 keep method and body (as fetch does).
+ */
+export async function fetchCheckingRedirects(
+  url: string,
+  init: { method?: string; headers?: Record<string, string>; body?: string; dispatcher?: Dispatcher; signal?: AbortSignal },
+  ctx: OutboundContext,
+  maxRedirects = 5,
+): Promise<Awaited<ReturnType<typeof fetch>>> {
+  let method = init.method ?? 'GET';
+  let body = init.body;
+  const sent: string[] = [];
+  for (let hop = 0; ; hop++) {
+    sent.push(url);
+    const res = await fetch(url, { ...init, method, body, redirect: 'manual' });
+    const location = res.headers.get('location');
+    if (!REDIRECT_CODES.has(res.status) || !location) return res;
+    await res.body?.cancel().catch(() => undefined); // a redirect's body is not read: a failed cancel changes nothing
+    if (hop >= maxRedirects) throw new HttpError(502, `Too many redirects (more than ${maxRedirects}) starting at ${originOf(sent[0]!) ?? 'the URL'}`);
+    let next: string;
+    try {
+      next = new URL(location, url).toString();
+    } catch {
+      throw new HttpError(502, `Invalid redirect target from ${originOf(url) ?? 'the server'}`);
+    }
+    await assertRedirectAllowed(next, sent, ctx);
+    if (res.status === 303 || ((res.status === 301 || res.status === 302) && method !== 'GET' && method !== 'HEAD')) {
+      method = 'GET';
+      body = undefined;
+    }
+    url = next;
+  }
 }
 
 /**
