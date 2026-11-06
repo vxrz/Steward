@@ -137,7 +137,7 @@ Each snapshot is compared with the one before it (or, on the page, with any othe
 
 Spellings that mean the same type are the same (`int4` = `integer`, `character varying(120)` = `varchar(120)`, MySQL display widths). When a snapshot is truncated, removals cannot be told from what was left out: they are not listed and the comparison says so. The Schema tab shows the changes with the reason of each breaking one, copies them as Markdown and starts a **change request** with them (a change record linked to the platform or system); the monitor check below watches them.
 
-**Monitor check _Database schema changes_** (`type: db-schema`, [MONITORS.md](MONITORS.md)): a database platform (`platform`) or a system (`system`); `mode: breaking` (default, down) fails on a breaking change within `withinHours` (default 24), `mode: changed` (degraded) on any change; `read: true` reads the platform first (only a changed schema adds a snapshot); without a snapshot the check is `noData` (unknown).
+**Monitor check _Database schema changes_** (`type: db-schema`, [MONITORS.md](MONITORS.md)): a database platform (`platform`) or a system (`system`); `mode: breaking` (default, down) fails on a breaking change within `withinHours` (default 24), `mode: changed` (degraded) on any change; `read: true` reads the platform first (only a changed schema adds a snapshot); without a snapshot the check is `noData` (unknown). Whoever saves the check or tries it with _Check now_ must see the platform or system it names (one they may not see answers like a missing one); _Check now_ with `read: true` needs their own _use_ right on the platform, not only the monitor owner's.
 
 ```yaml
 - id: shop-schema
