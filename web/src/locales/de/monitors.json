@@ -369,7 +369,36 @@
     "dbSchemaFailAs": "Wenn sie fehlschlägt",
     "dbSchemaNoData": "Ohne Snapshot",
     "dbSchemaRead": "Zuerst die Datenbank lesen",
-    "dbSchemaReadHint": "Liest das Schema bei jeder Prüfung (ein Snapshot, wenn es sich geändert hat). Aus: Es zählen nur die schon gespeicherten Lesevorgänge und Importe."
+    "dbSchemaReadHint": "Liest das Schema bei jeder Prüfung (ein Snapshot, wenn es sich geändert hat). Aus: Es zählen nur die schon gespeicherten Lesevorgänge und Importe.",
+    "cost": {
+      "scope": "Kosten von",
+      "target": "Welche",
+      "targetEmpty": "Nichts, das Sie sehen dürfen",
+      "period": "Vergleich",
+      "periods": {
+        "month": "Letzter Monat mit dem Monat davor",
+        "monthToDate": "Dieser Monat bisher mit demselben Anteil des Monats davor"
+      },
+      "maxIncreasePct": "Gestiegen um mehr als (%)",
+      "maxIncrease": "oder um mehr als (Betrag)",
+      "maxIncreaseHint": "In der verglichenen Währung, z. B. 500",
+      "currency": "Währung",
+      "currencyHint": "Leer: die mit den höchsten Kosten",
+      "failAs": "Status, wenn sie stärker steigen",
+      "noData": "Status ohne Kosten zum Vergleichen",
+      "statuses": {
+        "down": "Ausgefallen",
+        "degraded": "Beeinträchtigt",
+        "unknown": "Unbekannt",
+        "up": "In Ordnung"
+      },
+      "scopes": {
+        "service": "Service",
+        "application": "Anwendung",
+        "team": "Team",
+        "platform": "Plattform"
+      }
+    }
   },
   "detail": {
     "template": "Vorlage",
@@ -740,6 +769,10 @@
     "dynamodb": {
       "label": "DynamoDB-Tabelle",
       "help": "Eine DynamoDB-Tabelle auf einer AWS-Plattform: das neueste Element je Partitionsschlüssel ist aktuell genug, die Tabelle wurde im Zeitfenster beschrieben (CloudWatch), oder ihr Status, die Point-in-Time-Wiederherstellung und die Gültigkeitsdauer (TTL)"
+    },
+    "cost": {
+      "label": "Kostenänderung",
+      "help": "Die Kosten eines Service, einer Anwendung, eines Teams oder einer Plattform: um mehr als einen Prozentsatz oder einen Betrag gestiegen gegenüber dem Monat davor"
     }
   },
   "newCheck": {
@@ -763,7 +796,8 @@
     "privilege-vault": "Tresor-Hygiene",
     "database": "Datenbank erreichbar",
     "dynamodb": "DynamoDB-Tabelle aktuell",
-    "db-schema": "Keine inkompatible Schemaänderung"
+    "db-schema": "Keine inkompatible Schemaänderung",
+    "cost": "Kosten steigen nicht"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"

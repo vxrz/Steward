@@ -146,7 +146,7 @@ describe('FOCUS imports', () => {
     expect(p.warnings[0]).toMatch(/^Line 6: BilledCost "n\/a" is not a number/);
     expect(p.sha256).toBe(crypto.createHash('sha256').update(file).digest('hex'));
     const { db } = await import('../src/db.js');
-    expect(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM cost_records')!.n).toBe(0);
+    expect(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM cost_records WHERE source_platform_id = ?', platform)!.n).toBe(0);
   });
 
   it('refuses files that are not FOCUS', async () => {

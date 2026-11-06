@@ -29,7 +29,8 @@
     "documentation": "Dokumentation",
     "protection": "Schutzbedarf",
     "lifecycle": "Tech-Stack",
-    "vulnerabilities": "Schwachstellen"
+    "vulnerabilities": "Schwachstellen",
+    "costs": "Kosten"
   },
   "windows": {
     "h1": "1 Std.",
@@ -186,5 +187,12 @@
     "error": "Abfrage fehlgeschlagen: {{error}}",
     "readAt": "zuletzt gelesen am {{date}}",
     "open": "In Dependency-Track öffnen"
+  },
+  "costs": {
+    "none": "Der Service hat kein Kostenbudget.",
+    "summary": "Dieser Monat bisher: {{pct}} % des Budgets",
+    "summaryAmounts": "Dieser Monat bisher: {{used}} von {{budget}} {{currency}} ({{pct}} %)",
+    "forecast": "Prognose für den Monat: {{pct}} % des Budgets",
+    "open": "Kosten anzeigen"
   }
 }

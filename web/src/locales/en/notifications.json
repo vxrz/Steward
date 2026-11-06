@@ -159,6 +159,12 @@
         "label": "AI budget",
         "info": "An AI token budget reached 80 % or is used up (administrators; the gateway’s managers, the process owner)"
       }
+    },
+    "cost": {
+      "budget": {
+        "label": "Cost budget",
+        "info": "The monthly cost budget of a service, application or team you own reached 80 % or 100 %"
+      }
     }
   }
 }

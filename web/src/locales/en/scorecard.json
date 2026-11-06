@@ -29,7 +29,8 @@
     "documentation": "Documentation",
     "protection": "Protection need",
     "lifecycle": "Tech stack",
-    "vulnerabilities": "Vulnerabilities"
+    "vulnerabilities": "Vulnerabilities",
+    "costs": "Costs"
   },
   "windows": {
     "h1": "1 h",
@@ -186,5 +187,12 @@
     "error": "read failed: {{error}}",
     "readAt": "last read {{date}}",
     "open": "Open in Dependency-Track"
+  },
+  "costs": {
+    "none": "The service has no cost budget.",
+    "summary": "This month so far: {{pct}} % of the budget",
+    "summaryAmounts": "This month so far: {{used}} of {{budget}} {{currency}} ({{pct}} %)",
+    "forecast": "Forecast for the month: {{pct}} % of the budget",
+    "open": "Show the costs"
   }
 }

@@ -27,7 +27,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { IconCalendarTime, IconDownload, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { DUTY_LEVELS, LLM_GATEWAY_KIND, REPORT_LANGS } from '@sm/shared';
+import { COST_SCOPES, DUTY_LEVELS, LLM_GATEWAY_KIND, REPORT_LANGS } from '@sm/shared';
 import type {
   GatusMetricsSource,
   MonitorSummary,
@@ -51,7 +51,7 @@ import { monitorKeys, platformKeys, processKeys, scheduleKeys } from '../queryKe
 import { DuplicateActionIcon, useDuplicate } from '../components/duplicate/DuplicateButton';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
-const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties', 'scorecard', 'ai'];
+const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties', 'scorecard', 'ai', 'costs'];
 
 type Draft = Pick<
   ReportSchedule,
@@ -387,6 +387,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     duties: { levels: null, serviceIds: null },
     scorecard: { serviceIds: null },
     ai: { platformIds: null },
+    costs: { scope: 'service', ids: null },
   };
   const save = async () => {
     setBusy(true);
@@ -539,6 +540,17 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
                   data={(gateways.data ?? []).map((g) => ({ value: g.id, label: g.name }))}
                   value={(cfg.platformIds as string[] | null) ?? []}
                   onChange={(v) => setSec(id, { ...cfg, platformIds: v.length ? v : null })}
+                />
+              )}
+              {cfg && id === 'costs' && (
+                <Select
+                  ml="lg"
+                  maw={260}
+                  label={t('form.costScope')}
+                  allowDeselect={false}
+                  data={COST_SCOPES.map((x) => ({ value: x, label: t(`form.costScopes.${x}`) }))}
+                  value={(cfg.scope as string) ?? 'service'}
+                  onChange={(v) => setSec(id, { ...cfg, scope: v ?? 'service', ids: null })}
                 />
               )}
               {cfg && id === 'duties' && (

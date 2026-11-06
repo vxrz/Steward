@@ -414,6 +414,8 @@ export const STEP_UP_ACTIONS = [
   'closeFirewallChange',
   // 0.6.0 (#216): raising an AI token budget (or removing its limit)
   'changeAiBudget',
+  // 0.9.0 (#226): raising a monthly cost budget (or removing it)
+  'changeCostBudget',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 

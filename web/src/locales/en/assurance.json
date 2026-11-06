@@ -287,6 +287,12 @@
         "label": "Raise an AI token budget",
         "description": "More tokens a day or a month for the installation, an LLM gateway or a process – or no limit any more. Lowering a budget needs no confirmation."
       }
+    },
+    "cost": {
+      "budget": {
+        "label": "Raise a cost budget",
+        "description": "A higher monthly cost budget of a service, application or team, another currency, or no budget any more. Lowering a budget needs no confirmation."
+      }
     }
   }
 }

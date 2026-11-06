@@ -27,6 +27,7 @@ export const NOTIFICATION_EVENTS = [
   'mcp.request',
   'platform.failing',
   'ai.budget',
+  'cost.budget',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -57,6 +58,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'mcp.request': 'An AI assistant asks to change something on a platform or to start a run, and you decide',
   'platform.failing': 'The periodic connection test of a platform you manage started failing',
   'ai.budget': 'An AI token budget reached 80 % or is used up (administrators; the gateway’s managers, the process owner)',
+  'cost.budget': 'The monthly cost budget of a service, application or team you own reached 80 % or 100 %',
 };
 
 export interface AppNotification {

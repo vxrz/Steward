@@ -13,6 +13,7 @@ import { boundedRecord } from './zodLimits.js';
 import { DB_LIMITS } from './database.js';
 import { tagInput } from './tags.js';
 import { AWS_REGION_RE } from './aws.js';
+import { COST_CHECK_PERIODS, COST_SCOPES, currencyCode, toMicros } from './costs.js';
 
 // ---------- statuses ----------
 
@@ -59,6 +60,7 @@ export const CHECK_TYPES = [
   'database',
   'dynamodb',
   'db-schema',
+  'cost',
   'dependency-track',
   'entra',
   'privilege-vault',
@@ -104,6 +106,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   'db-schema': {
     label: 'Database schema changes',
     help: 'The schema snapshots of a database platform or a system: no change, or no breaking change, within the last N hours; optionally reads the platform first',
+  },
+  cost: {
+    label: 'Cost change',
+    help: 'The costs of a service, application, team or platform (#226): up by more than a percentage or an amount compared with the month before',
   },
   entra: {
     label: 'Entra ID (Microsoft Graph)',
@@ -498,6 +504,32 @@ export const checkSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     ...checkBase,
+    type: z.literal('cost'),
+    /** What the costs are of (#226): a service, application, team or platform – by id */
+    scope: z.enum(COST_SCOPES),
+    target: z.string().trim().min(1).max(100),
+    /**
+     * month: the last complete month against the month before; monthToDate: this month so far against the same share of
+     * the month before
+     */
+    period: z.enum(COST_CHECK_PERIODS).default('month'),
+    /** The currency compared (default: the one with the highest costs) */
+    currency: currencyCode.optional(),
+    /** Fails when the costs rose by more than this many percent … */
+    maxIncreasePct: z.number().min(0).max(100_000).optional(),
+    /** … or by more than this amount (decimal, in the currency) */
+    maxIncrease: z
+      .string()
+      .trim()
+      .max(32)
+      .refine((v) => toMicros(v) !== null && toMicros(v)! >= 0, 'an amount like 500 or 500.50')
+      .optional(),
+    failAs: z.enum(['down', 'degraded']).default('degraded'),
+    /** Status without costs in the periods (default unknown) */
+    noData: z.enum(['unknown', 'up']).default('unknown'),
+  }),
+  z.object({
+    ...checkBase,
     type: z.literal('kafka'),
     platform: platformRef,
     /** The topic (#112) */
@@ -696,6 +728,8 @@ export function definitionIssues(def: MonitorDefinition, opts: { template?: bool
       issues.push({ path: `checks.${i}.crit`, message: `${c.mode} mode needs the CRIT level`, checkId: c.id });
     if (c.type === 'db-schema' && !c.platform === !c.system)
       issues.push({ path: `checks.${i}.platform`, message: 'name a database platform or a system (one of them)', checkId: c.id });
+    if (c.type === 'cost' && c.maxIncreasePct === undefined && c.maxIncrease === undefined)
+      issues.push({ path: `checks.${i}.maxIncreasePct`, message: 'a cost change check needs a percentage or an amount', checkId: c.id });
     if (c.type === 'db-schema' && c.read && !c.platform)
       issues.push({ path: `checks.${i}.read`, message: 'only a database platform can be read', checkId: c.id });
     if (c.type === 'freshness' && c.source === 'platform') {

@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { COST_SCOPES } from '@sm/shared';
+import { COST_SCOPES, costBudgetInput } from '@sm/shared';
 import { ACCESS } from '../auth/access.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
@@ -8,6 +8,7 @@ import { costSettings, setCostSettings } from './access.js';
 import { overview, scopeDetail } from './query.js';
 import { getSource, importFromUi, listImports, previewImport, setSource } from './service.js';
 import { readNow } from './sources.js';
+import { mayChangeBudget, raisesBudget, setBudget } from './budgets.js';
 import {
   authorizePush,
   createPushToken,
@@ -26,6 +27,7 @@ import {
  *
  *   GET  /api/costs?scope=service|application|team|platform          the overview of a kind
  *   GET  /api/costs/:scope/:id                                        one scope: 12 months, this month, trend, forecast, budget
+ *   PUT  /api/costs/budgets                                           a month's budget (raising one: step-up, control point cost.budget)
  *   GET|PUT /api/costs/settings                                       hide amounts from viewers, default currency (PUT: administrators)
  *   GET|PUT /api/costs/platform/:id/source                            how a platform's costs are read (PUT: its manage right)
  *   POST /api/costs/platform/:id/read                                 read a connector's costs now (its manage right)
@@ -37,6 +39,11 @@ import {
 const scopeParams = (req: FastifyRequest) => z.object({ scope: z.enum(COST_SCOPES), id: z.string().min(1).max(100) }).parse(req.params);
 const platformParam = (req: FastifyRequest) => z.object({ id: z.string().min(1).max(100) }).parse(req.params).id;
 const tokenId = (req: FastifyRequest) => z.object({ tokenId: z.string().min(1).max(100) }).parse(req.params).tokenId;
+/** A budget change that raises a budget asks for a step-up (control point cost.budget); a body that does not parse goes on to the route (400). */
+const budgetBody = (req: FastifyRequest) => {
+  const b = costBudgetInput.safeParse(req.body);
+  return b.success ? b.data : null;
+};
 const imports = { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.costImport.bytes };
 
 export async function costRoutes(app: FastifyInstance): Promise<void> {
@@ -46,6 +53,25 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
   });
   app.get('/costs/settings', async () => costSettings());
   app.put('/costs/settings', { config: { access: ACCESS.admin } }, async (req) => setCostSettings(req.body));
+  app.put(
+    '/costs/budgets',
+    {
+      config: {
+        stepUp: {
+          action: 'changeCostBudget',
+          who: (req: FastifyRequest) => {
+            const b = budgetBody(req);
+            return !!b && mayChangeBudget(b.scope, b.scopeId);
+          },
+          when: (req: FastifyRequest) => {
+            const b = budgetBody(req);
+            return !!b && raisesBudget(b);
+          },
+        },
+      },
+    },
+    async (req) => ({ budget: setBudget(req.body) }),
+  );
   app.get('/costs/:scope/:id', async (req) => {
     const p = scopeParams(req);
     return scopeDetail(p.scope, p.id);

@@ -15,6 +15,7 @@ const EVENT_COLORS: Record<string, string> = {
   'schedule.skipped': 'gray',
   'platform.failing': 'red',
   'ai.budget': 'orange',
+  'cost.budget': 'orange',
 };
 
 /** Bell with unread badge; opens a drawer with the latest notifications. */

@@ -491,6 +491,9 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   }
   await get('/scorecard', '/scorecard');
   await get('/scorecard/trend', '/scorecard/trend?days=30');
+  // platform costs (#226)
+  const costRows = await listAll('/costs', '/costs?scope=platform');
+  if (costRows[0]) await get('/costs/{scope}/{id}', `/costs/platform/${costRows[0].id}`);
   if (apiService) await get('/services/{serviceId}/scorecard', `/services/${apiService}/scorecard`);
   for (const x of (await listAll('/objectives', '/objectives')).slice(0, 5)) await listAll('/objectives/{objectiveId}/samples', `/objectives/${x.id}/samples`);
   await listAll('/access-changes', '/access-changes');

@@ -8,6 +8,7 @@ import { requireMonitor } from './service.js';
 import { isActive, runActiveCheck } from './checks.js';
 import { requireVisiblePlatform, resolvePlatformRef } from './platforms.js';
 import { requireVisibleSystem } from '../dbschema/check.js';
+import { requireVisibleCostScope } from '../costs/check.js';
 
 /**
  * Test run of a monitor (#105): its platform checks answered from the platforms' recorded responses, nothing stored
@@ -107,6 +108,7 @@ export async function previewCheck(input: { monitorId?: string; check: unknown; 
     (c as { platform: string }).platform = id;
   }
   if (c.type === 'db-schema' && c.system) requireVisibleSystem(c.name, c.system);
+  if (c.type === 'cost') requireVisibleCostScope(c.name, c);
   const started = Date.now();
   const res = await runActiveCheck(c, {
     owner,

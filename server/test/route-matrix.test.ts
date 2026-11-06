@@ -269,6 +269,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/costs': ALL,
   'GET /api/costs/settings': ALL,
   'PUT /api/costs/settings': ADMIN,
+  'PUT /api/costs/budgets': DESIGN,
   'GET /api/costs/:scope/:id': RECON_READ,
   'GET /api/costs/platform/:id/source': RECON_READ,
   'PUT /api/costs/platform/:id/source': ADMIN,
@@ -780,6 +781,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/plant/assets/:assetId/network': PLANT,
   // database schemas (#222): of the demo database platform (who sees it) and of the matrix system (everyone);
   'GET /api/v1/platforms/:platformId/schema/snapshots': USE,
+  // platform costs (#226): the overview for everyone (each sees what they may see); one scope as in the web app
+  'GET /api/v1/costs': ALL,
+  'GET /api/v1/costs/:scope/:id': RECON_READ,
   'GET /api/v1/platforms/:platformId/schema/snapshots/:snapshotId': USE,
   'GET /api/v1/platforms/:platformId/schema/snapshots/:snapshotId/export': USE,
   'GET /api/v1/platforms/:platformId/schema/changes': USE,
@@ -1130,6 +1134,15 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     harmless: { scope: 'installation', scopeId: '', tokensPerDay: 500, tokensPerMonth: null },
   },
   'PUT /api/backups/passphrase': 'always',
+  // raising a cost budget (#226; the fixtures set 1,000 USD a month for a service); lowering it needs no confirmation
+  'PUT /api/costs/budgets': {
+    get sensitive() {
+      return { scope: 'service', scopeId: fx.service, amount: '2000', currency: 'USD' };
+    },
+    get harmless() {
+      return { scope: 'service', scopeId: fx.service, amount: '500', currency: 'USD' };
+    },
+  },
 };
 
 /**
@@ -1203,7 +1216,7 @@ function fill(url: string): string {
       .replace(/\/api\/db-schemas\/([^/]+)\/([^/]+)\/snapshots\/:snapshotId/, '/api/db-schemas/$1/$2/snapshots/latest')
       .replace(/:platformId\/schema/, `${fx.dbPlatform}/schema`)
       // platform costs (#226): the demo platform
-      .replace(/\/api\/costs\/:scope\/:id/, `/api/costs/platform/${fx.platform}`)
+      .replace(/\/api\/(v1\/)?costs\/:scope\/:id/, `/api/$1costs/platform/${fx.platform}`)
       .replace(/\/api\/costs\/platform\/:id/, `/api/costs/platform/${fx.platform}`)
       .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : fx.platform!)
       .replace(/:specId/g, fx.spec!)
@@ -1711,6 +1724,8 @@ beforeAll(async () => {
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
   // database schemas (#222): a read of the demo database platform, a tbls import for the matrix system
   fx.dbPlatform = platforms.find((p: { kind: string }) => p.kind === 'database').id;
+  // a cost budget (#226), so raising it is a sensitive change (STEP_UP)
+  await a('PUT', '/costs/budgets', { scope: 'service', scopeId: fx.service, amount: '1000', currency: 'USD' });
   const dbSnap = (await a('POST', `/db-schemas/platform/${fx.dbPlatform}/read`)).snapshot.id;
   const tbls = JSON.stringify({
     name: 'matrix',

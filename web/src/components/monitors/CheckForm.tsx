@@ -20,6 +20,7 @@ import { ExpressionInput } from '../editor/ExpressionInput';
 import { Hint, JsonView, KeyValueEditor } from '../common';
 import { fmtDate, fmtRelative } from '../../format';
 import { checkTypeHelp, checkTypeLabel } from './status';
+import { CostCheckFields } from '../costs/CostCheckFields';
 
 type Patch = (p: Partial<CheckDef>) => void;
 
@@ -1713,6 +1714,7 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
         </>
       )}
       {c.type === 'db-schema' && <DbSchemaFields c={c} set={set} platforms={platforms} disabled={disabled} err={err} />}
+      {c.type === 'cost' && <CostCheckFields c={c} set={set} disabled={disabled} err={err} />}
       {c.type === 'gatus' && (
         <>
           <PlatformSelect

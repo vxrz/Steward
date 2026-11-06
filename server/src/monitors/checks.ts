@@ -792,6 +792,15 @@ async function checkDbSchema(c: CheckOf<'db-schema'>, ctx: ExecContext): Promise
   return { ...(await dbSchemaCheck(c, ctx)), durationMs: Date.now() - t0 };
 }
 
+// ---------- platform costs ----------
+
+/** The costs of a service, application, team or platform against the period before (#226). */
+async function checkCost(c: CheckOf<'cost'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { costCheck } = await import('../costs/check.js');
+  return { ...costCheck(c, ctx), durationMs: Date.now() - t0 };
+}
+
 // ---------- Entra ID ----------
 
 /** Expiring app credentials or Microsoft 365 service health of an Entra ID tenant (v0.5.0). */
@@ -1081,6 +1090,7 @@ type Active =
   | CheckOf<'database'>
   | CheckOf<'dynamodb'>
   | CheckOf<'db-schema'>
+  | CheckOf<'cost'>
   | CheckOf<'dependency-track'>
   | CheckOf<'entra'>
   | CheckOf<'privilege-vault'>;
@@ -1117,6 +1127,8 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkDynamoDb(c, ctx);
       case 'db-schema':
         return await checkDbSchema(c, ctx);
+      case 'cost':
+        return await checkCost(c, ctx);
       case 'dependency-track':
         return await checkDtrack(c, ctx);
       case 'entra':

@@ -137,3 +137,14 @@ export const dbSchemaKeys = {
     ['db-schema', kind, id, 'compare', from, to] as const,
   pushTokens: (kind: string, id: string | null | undefined) => ['db-schema', kind, id, 'push-tokens'] as const,
 };
+
+/** Platform costs (#226): the overview per kind, one scope, a platform's source, imports and push tokens. */
+export const costKeys = {
+  all: ['costs'] as const,
+  overview: (scope: string) => ['costs', 'overview', scope] as const,
+  detail: (scope: string, id: string | null | undefined) => ['costs', scope, id] as const,
+  source: (id: string | null | undefined) => ['costs', 'platform', id, 'source'] as const,
+  imports: (id: string | null | undefined) => ['costs', 'platform', id, 'imports'] as const,
+  pushTokens: (id: string | null | undefined) => ['costs', 'platform', id, 'push-tokens'] as const,
+  settings: ['costs', 'settings'] as const,
+};
