@@ -589,8 +589,10 @@ const DataPath = z.object({
   collectorHost: ItemRef.nullable(),
   peers: z.array(ItemRef.nullable()),
   targets: z.array(ItemRef.nullable()),
-  next: z.array(PathLink).describe('Data paths that read from a system this one writes to'),
-  previous: z.array(PathLink).describe('Data paths that write to a system this one reads from'),
+  next: z.array(PathLink).describe('Data paths that read from a system this one writes to (at most 50)'),
+  previous: z.array(PathLink).describe('Data paths that write to a system this one reads from (at most 50)'),
+  nextMore: z.number().int().describe('How many more data paths read from it than `next` lists'),
+  previousMore: z.number().int().describe('How many more data paths write to it than `previous` lists'),
 });
 const AssetLive = z.object({
   id: z.string(),

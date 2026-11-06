@@ -49,6 +49,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 - **The live status of the OT network tells nothing the reader may not see** (#220, #230). Linking a dataset to an asset's or device's checks needs the right to see it – in the editor, the API and the YAML import, with the same answer for a dataset that does not exist –, and its columns must be columns of the dataset. A dataset is read as the reader: only the partitions they may read count. A linked monitor or dataset the reader may not see still counts towards the asset's status, but shows only as "a check you may not see" with online, offline or unknown – no name, key, check, reason, time, value or filter –, by one rule for the OT network and the visualizations (which now count such monitors too); the editor keeps or removes it, the export leaves it out and an import keeps it. Choosing another check of a linked monitor or another filter of a linked dataset is a new link. A time column holds a time only between 2000 and a year from now.
 - **A VLAN's other sites name only sites the reader may see** (#220) – in the internal API, `/api/v1` and the export (`sites`, as `otherSites` did); a save or an import keeps the ones the caller may not see.
+- **Chains of data paths stay fast with many paths** (#220): they are computed from an index built once per request and list at most 50 next and previous data paths each, with the number of the others (`nextMore`, `previousMore`).
 
 ## [0.7.0] - 2026-11-06
 

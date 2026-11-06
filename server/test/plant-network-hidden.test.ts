@@ -326,3 +326,47 @@ describe('the other sites of a VLAN', () => {
     }
   });
 });
+
+describe('chains of data paths', () => {
+  it('stay fast with many paths that share a host, and list at most 50 links each (with how many more)', async () => {
+    const { upsertDataPath } = await import('../src/plant/network-model.js');
+    const share = await s.api('POST', '/systems', { name: 'Chain share', kind: 'server' });
+    const N = 1500;
+    const d = await db();
+    d.tx(() => {
+      for (let i = 0; i < N; i++)
+        upsertDataPath(
+          'rvs-press-01',
+          {
+            id: `p-${String(i).padStart(4, '0')}`,
+            subject: `Path ${i}`,
+            description: '',
+            devices: [],
+            collector: null,
+            transfers: [{ protocol: 'smb', mode: 'pull', peerKind: 'system', peer: share.id, port: null, notes: '' }],
+            destinations: [{ kind: 'system', ref: share.id, path: '', notes: '' }],
+            notes: '',
+          },
+          i,
+          { at: new Date().toISOString(), by: 'admin' },
+        );
+    });
+    try {
+      const t0 = Date.now();
+      const site = await s.api('GET', '/plant/sites/riverside/network');
+      const a = await assetNet('rvs-press-01');
+      const ms = Date.now() - t0;
+      const p = site.dataPaths.find((x: { id: string }) => x.id === 'p-0000');
+      expect(p.next).toHaveLength(50);
+      expect(p.previous).toHaveLength(50);
+      expect([p.nextMore, p.previousMore]).toEqual([N - 1 - 50, N - 1 - 50]);
+      // the path itself is not its own next link
+      expect(p.next.some((x: { pathId: string }) => x.pathId === 'p-0000')).toBe(false);
+      expect(p.next[0]).toMatchObject({ assetId: 'rvs-press-01', pathId: 'p-0001', via: share.id });
+      expect(a.dataPaths).toHaveLength(N);
+      expect(ms).toBeLessThan(15000);
+    } finally {
+      d.run("DELETE FROM plant_data_paths WHERE asset_id = 'rvs-press-01' AND id LIKE 'p-%'");
+    }
+  });
+});

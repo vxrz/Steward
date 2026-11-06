@@ -336,7 +336,9 @@
     "whereHelp": "Ein Pfad, Topic oder Aspekt",
     "how": "Sammler, Übertragungen und Ziele",
     "comesFrom": "Kommt von",
-    "continuesIn": "Geht weiter in"
+    "continuesIn": "Geht weiter in",
+    "chainMore_one": "und {{count}} weiterer",
+    "chainMore_other": "und {{count}} weitere"
   },
   "asset": {
     "title": "OT-Netzwerk",

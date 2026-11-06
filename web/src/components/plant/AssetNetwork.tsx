@@ -30,6 +30,8 @@ export function pathValues(p: PlantDataPathView): PlantDataPathValues {
     targets: _t,
     next: _x,
     previous: _y,
+    nextMore: _xm,
+    previousMore: _ym,
     importId: _i,
     notInSource: _s,
     ...v
@@ -140,6 +142,11 @@ export function DataPathSummary({ path, withAsset }: { path: PlantDataPathView; 
                 {t('path.comesFrom')}
               </Text>
               {path.previous.map(chain)}
+              {path.previousMore > 0 && (
+                <Text size="xs" c="dimmed">
+                  {t('path.chainMore', { count: path.previousMore })}
+                </Text>
+              )}
             </Group>
           )}
           {path.next.length > 0 && (
@@ -148,6 +155,11 @@ export function DataPathSummary({ path, withAsset }: { path: PlantDataPathView; 
                 {t('path.continuesIn')}
               </Text>
               {path.next.map(chain)}
+              {path.nextMore > 0 && (
+                <Text size="xs" c="dimmed">
+                  {t('path.chainMore', { count: path.nextMore })}
+                </Text>
+              )}
             </Group>
           )}
         </Stack>

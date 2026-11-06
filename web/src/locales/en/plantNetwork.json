@@ -336,7 +336,9 @@
     "whereHelp": "A path, topic or aspect",
     "how": "Collector, transfers and destinations",
     "comesFrom": "Comes from",
-    "continuesIn": "Continues in"
+    "continuesIn": "Continues in",
+    "chainMore_one": "and {{count}} more",
+    "chainMore_other": "and {{count}} more"
   },
   "asset": {
     "title": "OT network",

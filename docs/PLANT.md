@@ -182,7 +182,7 @@ On the asset page, section **OT network → Devices** – the network identity o
 
 **OT network → Data paths**: what data leaves the asset – a **subject** (machine state, NC programs), the **devices** it covers, the **collector** (a Steward **application**, **platform** or **process**, or a **job** elsewhere by name, optionally with the Steward **system** it runs on), its **transfers** (protocol, **push or pull**, port, the **peer**: a device of the asset, a Steward system or text) and its **destinations** (a Steward system with a path, a Steward dataset, or text).
 
-**Hosts are Steward systems**, so chains of services – _pull job → file share → archive job_ – can be followed link by link: a data path **continues in** every data path that reads (as a transfer peer or the collector's host) from a system it writes to, and **comes from** those that write to a system it reads from, across assets and sites the reader may see. A device that a data path names cannot be removed (`PLANT_DEVICE_IN_USE`).
+**Hosts are Steward systems**, so chains of services – _pull job → file share → archive job_ – can be followed link by link: a data path **continues in** every data path that reads (as a transfer peer or the collector's host) from a system it writes to, and **comes from** those that write to a system it reads from, across assets and sites the reader may see – at most 50 each, with the number of the others ("and 120 more"; `nextMore` and `previousMore` in the API). A device that a data path names cannot be removed (`PLANT_DEVICE_IN_USE`).
 
 ### Live status
 

@@ -20912,7 +20912,7 @@
                   "items": {
                     "type": "string"
                   },
-                  "description": "Other sites it reaches"
+                  "description": "Other sites it reaches (those the token owner may see)"
                 },
                 "location": {
                   "type": "string"
@@ -21443,6 +21443,10 @@
                       },
                       "note": {
                         "type": "string"
+                      },
+                      "hiddenSlot": {
+                        "type": "integer",
+                        "description": "A check the token owner may not see (or that no longer exists): every other field is empty, this is its place in the list"
                       }
                     },
                     "required": [
@@ -21534,13 +21538,14 @@
                               "stale",
                               "no_data",
                               "no_row",
-                              "no_time"
+                              "no_time",
+                              "hidden"
                             ],
-                            "description": "Why: the monitor’s status, the dataset is fresh or stale, missing, …"
+                            "description": "Why: the monitor’s status, the dataset is fresh or stale, missing, … – `hidden`: a check the token owner may not see, which shows its state only"
                           },
                           "label": {
                             "type": "string",
-                            "description": "Name of the monitor or dataset (empty when the token owner may not see it)"
+                            "description": "Name of the monitor or dataset (empty when the token owner may not see it; then `ref`, `check` and `at` are empty too)"
                           },
                           "path": {
                             "type": [
@@ -22014,7 +22019,7 @@
                     ],
                     "additionalProperties": false
                   },
-                  "description": "Data paths that read from a system this one writes to"
+                  "description": "Data paths that read from a system this one writes to (at most 50)"
                 },
                 "previous": {
                   "type": "array",
@@ -22047,7 +22052,15 @@
                     ],
                     "additionalProperties": false
                   },
-                  "description": "Data paths that write to a system this one reads from"
+                  "description": "Data paths that write to a system this one reads from (at most 50)"
+                },
+                "nextMore": {
+                  "type": "integer",
+                  "description": "How many more data paths read from it than `next` lists"
+                },
+                "previousMore": {
+                  "type": "integer",
+                  "description": "How many more data paths write to it than `previous` lists"
                 }
               },
               "required": [
@@ -22068,7 +22081,9 @@
                 "peers",
                 "targets",
                 "next",
-                "previous"
+                "previous",
+                "nextMore",
+                "previousMore"
               ],
               "additionalProperties": false
             }
@@ -22151,13 +22166,14 @@
                               "stale",
                               "no_data",
                               "no_row",
-                              "no_time"
+                              "no_time",
+                              "hidden"
                             ],
-                            "description": "Why: the monitor’s status, the dataset is fresh or stale, missing, …"
+                            "description": "Why: the monitor’s status, the dataset is fresh or stale, missing, … – `hidden`: a check the token owner may not see, which shows its state only"
                           },
                           "label": {
                             "type": "string",
-                            "description": "Name of the monitor or dataset (empty when the token owner may not see it)"
+                            "description": "Name of the monitor or dataset (empty when the token owner may not see it; then `ref`, `check` and `at` are empty too)"
                           },
                           "path": {
                             "type": [
@@ -22381,13 +22397,14 @@
                         "stale",
                         "no_data",
                         "no_row",
-                        "no_time"
+                        "no_time",
+                        "hidden"
                       ],
-                      "description": "Why: the monitor’s status, the dataset is fresh or stale, missing, …"
+                      "description": "Why: the monitor’s status, the dataset is fresh or stale, missing, … – `hidden`: a check the token owner may not see, which shows its state only"
                     },
                     "label": {
                       "type": "string",
-                      "description": "Name of the monitor or dataset (empty when the token owner may not see it)"
+                      "description": "Name of the monitor or dataset (empty when the token owner may not see it; then `ref`, `check` and `at` are empty too)"
                     },
                     "path": {
                       "type": [
@@ -22476,6 +22493,10 @@
                 },
                 "note": {
                   "type": "string"
+                },
+                "hiddenSlot": {
+                  "type": "integer",
+                  "description": "A check the token owner may not see (or that no longer exists): every other field is empty, this is its place in the list"
                 }
               },
               "required": [
@@ -22630,6 +22651,10 @@
                       },
                       "note": {
                         "type": "string"
+                      },
+                      "hiddenSlot": {
+                        "type": "integer",
+                        "description": "A check the token owner may not see (or that no longer exists): every other field is empty, this is its place in the list"
                       }
                     },
                     "required": [
@@ -22721,13 +22746,14 @@
                               "stale",
                               "no_data",
                               "no_row",
-                              "no_time"
+                              "no_time",
+                              "hidden"
                             ],
-                            "description": "Why: the monitor’s status, the dataset is fresh or stale, missing, …"
+                            "description": "Why: the monitor’s status, the dataset is fresh or stale, missing, … – `hidden`: a check the token owner may not see, which shows its state only"
                           },
                           "label": {
                             "type": "string",
-                            "description": "Name of the monitor or dataset (empty when the token owner may not see it)"
+                            "description": "Name of the monitor or dataset (empty when the token owner may not see it; then `ref`, `check` and `at` are empty too)"
                           },
                           "path": {
                             "type": [
@@ -23201,7 +23227,7 @@
                     ],
                     "additionalProperties": false
                   },
-                  "description": "Data paths that read from a system this one writes to"
+                  "description": "Data paths that read from a system this one writes to (at most 50)"
                 },
                 "previous": {
                   "type": "array",
@@ -23234,7 +23260,15 @@
                     ],
                     "additionalProperties": false
                   },
-                  "description": "Data paths that write to a system this one reads from"
+                  "description": "Data paths that write to a system this one reads from (at most 50)"
+                },
+                "nextMore": {
+                  "type": "integer",
+                  "description": "How many more data paths read from it than `next` lists"
+                },
+                "previousMore": {
+                  "type": "integer",
+                  "description": "How many more data paths write to it than `previous` lists"
                 }
               },
               "required": [
@@ -23255,7 +23289,9 @@
                 "peers",
                 "targets",
                 "next",
-                "previous"
+                "previous",
+                "nextMore",
+                "previousMore"
               ],
               "additionalProperties": false
             }

@@ -112,6 +112,8 @@ export const PLANT_NETWORK_LIMITS = {
   longText: 4000,
   /** Host name: DNS (253), a domain likewise */
   host: 253,
+  /** Data paths listed as the next or previous link of a chain, per data path (the rest is counted) */
+  chainLinks: 50,
 } as const;
 
 // ---------- values (as stored, the API in camelCase) ----------
@@ -375,10 +377,13 @@ export interface PlantDataPathView extends PlantDataPathValues, PlantSource {
   peers: (PlantItemRef | null)[];
   /** Per destination: the system or dataset */
   targets: (PlantItemRef | null)[];
-  /** Data paths that read from a host this one writes to (the next link of a chain) */
+  /** Data paths that read from a host this one writes to (the next link of a chain; at most `chainLinks`) */
   next: PlantPathLink[];
-  /** Data paths that write to a host this one reads from */
+  /** Data paths that write to a host this one reads from (at most `chainLinks`) */
   previous: PlantPathLink[];
+  /** How many more there are than listed */
+  nextMore: number;
+  previousMore: number;
 }
 
 export interface PlantAssetLive {

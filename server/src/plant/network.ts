@@ -293,17 +293,78 @@ const hostsOf = (p: PlantDataPathValues) => ({
   to: p.destinations.filter((x) => x.kind === 'system').map((x) => x.ref),
 });
 
-/** Every data path of the sites the caller may see, for the chains (which path reads what another writes). */
-function visiblePaths(rights: Map<string, PlantPermission[]>): { r: DataPathRow; v: PlantDataPathValues; assetName: string }[] {
-  return db()
+/** A data path of the chains index: where it sits in the index, its hosts. */
+interface IndexedPath {
+  i: number;
+  r: DataPathRow & { asset_name: string };
+  v: PlantDataPathValues;
+  from: Set<string>;
+  to: Set<string>;
+}
+
+/**
+ * Every data path of the sites the caller may see, indexed by the hosts it reads from and writes to – built once per
+ * request, so the chains (which path reads what another writes) cost the links found, not every pair of paths.
+ */
+interface PathIndex {
+  byKey: Map<string, IndexedPath>;
+  readers: Map<string, IndexedPath[]>;
+  writers: Map<string, IndexedPath[]>;
+  /** The chain links of a host list, once per list (many paths share the same hosts) */
+  memo: Map<string, { first: IndexedPath[]; count: number }>;
+}
+
+const pathKey = (assetId: string, id: string) => `${assetId}\u0000${id}`;
+
+function pathIndex(rights: Map<string, PlantPermission[]>): PathIndex {
+  const idx: PathIndex = { byKey: new Map(), readers: new Map(), writers: new Map(), memo: new Map() };
+  const add = (m: Map<string, IndexedPath[]>, host: string, x: IndexedPath) => (m.get(host) ?? m.set(host, []).get(host)!).push(x);
+  db()
     .all<DataPathRow & { asset_name: string; site_id: string }>(
       'SELECT d.*, a.name AS asset_name, a.site_id FROM plant_data_paths d JOIN plant_assets a ON a.id = d.asset_id ORDER BY a.name, d.position, d.id',
     )
     .filter((r) => rights.get(r.site_id)?.includes('view'))
-    .map((r) => ({ r, v: dataPathValuesOf(r), assetName: r.asset_name }));
+    .forEach((r, i) => {
+      const v = dataPathValuesOf(r);
+      const h = hostsOf(v);
+      const x: IndexedPath = { i, r, v, from: new Set(h.from), to: new Set(h.to) };
+      idx.byKey.set(pathKey(r.asset_id, v.id), x);
+      for (const host of x.from) add(idx.readers, host, x);
+      for (const host of x.to) add(idx.writers, host, x);
+    });
+  return idx;
 }
 
-function pathView(r: DataPathRow, assetName: string, all: ReturnType<typeof visiblePaths>, refs: Map<string, PlantItemRef>): PlantDataPathView {
+/**
+ * The data paths that read from (`readers`) or write to (`writers`) any of these hosts, in index order: the first
+ * `chainLinks` + 1 (one may be the path itself) and how many there are.
+ */
+function chainOf(idx: PathIndex, side: 'readers' | 'writers', hosts: string[]): { first: IndexedPath[]; count: number } {
+  const key = `${side}\u0000${hosts.join('\u0000')}`;
+  const hit = idx.memo.get(key);
+  if (hit) return hit;
+  const seen = new Set<number>();
+  const found: IndexedPath[] = [];
+  for (const h of hosts)
+    for (const x of idx[side].get(h) ?? []) {
+      if (seen.has(x.i)) continue;
+      seen.add(x.i);
+      found.push(x);
+    }
+  // the first ones in index order, without sorting them all
+  const first: IndexedPath[] = [];
+  for (const x of found) {
+    if (first.length <= L.chainLinks) first.push(x);
+    else if (x.i < first[first.length - 1]!.i) first[first.length - 1] = x;
+    else continue;
+    first.sort((a, b) => a.i - b.i);
+  }
+  const out = { first, count: found.length };
+  idx.memo.set(key, out);
+  return out;
+}
+
+function pathView(r: DataPathRow, assetName: string, idx: PathIndex, refs: Map<string, PlantItemRef>): PlantDataPathView {
   const v = dataPathValuesOf(r);
   const ref = (kind: PlantItemRef['kind'], id: string) => {
     const k = `${kind}:${id}`;
@@ -311,23 +372,26 @@ function pathView(r: DataPathRow, assetName: string, all: ReturnType<typeof visi
     return refs.get(k)!;
   };
   const mine = hostsOf(v);
-  const link = (x: (typeof all)[number], via: string): PlantPathLink => ({
-    assetId: x.r.asset_id,
-    assetName: x.assetName,
-    pathId: x.v.id,
-    subject: x.v.subject,
-    via,
-  });
-  const others = all.filter((x) => !(x.r.asset_id === r.asset_id && x.v.id === v.id));
-  const next: PlantPathLink[] = [];
-  const previous: PlantPathLink[] = [];
-  for (const x of others) {
-    const h = hostsOf(x.v);
-    const out = mine.to.find((s) => h.from.includes(s));
-    if (out) next.push(link(x, out));
-    const inn = mine.from.find((s) => h.to.includes(s));
-    if (inn) previous.push(link(x, inn));
-  }
+  const self = idx.byKey.get(pathKey(r.asset_id, v.id));
+  const links = (side: 'readers' | 'writers', hosts: string[]): { list: PlantPathLink[]; more: number } => {
+    const unique = [...new Set(hosts)];
+    if (!unique.length) return { list: [], more: 0 };
+    const c = chainOf(idx, side, unique);
+    const others = c.first.filter((x) => x !== self).slice(0, L.chainLinks);
+    const total = c.count - (self && unique.some((h) => (side === 'readers' ? self.from : self.to).has(h)) ? 1 : 0);
+    return {
+      list: others.map((x) => ({
+        assetId: x.r.asset_id,
+        assetName: x.r.asset_name,
+        pathId: x.v.id,
+        subject: x.v.subject,
+        via: unique.find((h) => (side === 'readers' ? x.from : x.to).has(h))!,
+      })),
+      more: Math.max(0, total - others.length),
+    };
+  };
+  const next = links('readers', mine.to);
+  const previous = links('writers', mine.from);
   return {
     ...v,
     ...source(r),
@@ -337,8 +401,10 @@ function pathView(r: DataPathRow, assetName: string, all: ReturnType<typeof visi
     collectorHost: v.collector?.host ? ref('system', v.collector.host) : null,
     peers: v.transfers.map((t) => (t.peerKind === 'system' ? ref('system', t.peer) : null)),
     targets: v.destinations.map((x) => (x.kind === 'system' ? ref('system', x.ref) : x.kind === 'dataset' ? ref('dataset', x.ref) : null)),
-    next,
-    previous,
+    next: next.list,
+    previous: previous.list,
+    nextMore: next.more,
+    previousMore: previous.more,
   };
 }
 
@@ -375,9 +441,9 @@ export function siteNetwork(siteId: string): PlantSiteNetwork {
   const vlanValues = new Map(d.vlans.map((r) => [r.id, vlanValuesOf(r)]));
   const assetName = new Map(d.assets.map((a) => [a.id, a.name]));
   const devices = d.devices.map((r) => deviceView(r, assetName.get(r.asset_id) ?? r.asset_id, vlanValues, ctx));
-  const all = visiblePaths(rights);
+  const idx = pathIndex(rights);
   const refs = new Map<string, PlantItemRef>();
-  const dataPaths = d.paths.map((r) => pathView(r, assetName.get(r.asset_id) ?? r.asset_id, all, refs));
+  const dataPaths = d.paths.map((r) => pathView(r, assetName.get(r.asset_id) ?? r.asset_id, idx, refs));
   const own = new Map(
     db()
       .all<{ asset_id: string; checks: string }>(
@@ -687,7 +753,7 @@ export function assetNetwork(assetId: string): PlantAssetNetwork {
   const vlans = vlanRows(row.site_id).map(vlanValuesOf);
   const byId = new Map(vlans.map((v) => [v.id, v]));
   const devices = deviceRows(assetId).map((r) => deviceView(r, row.name, byId, ctx));
-  const all = visiblePaths(rights);
+  const idx = pathIndex(rights);
   const refs = new Map<string, PlantItemRef>();
   const checksRow = assetChecksRow(assetId);
   const own = liveOf(assetChecksValuesOf(checksRow).checks, ctx);
@@ -701,7 +767,7 @@ export function assetNetwork(assetId: string): PlantAssetNetwork {
     checks: checksForReader(assetChecksValuesOf(checksRow).checks, ctx),
     checksSource: { importId: checksRow?.import_id ?? null, notInSource: !!checksRow?.not_in_source },
     devices,
-    dataPaths: dataPathRows(assetId).map((r) => pathView(r, row.name, all, refs)),
+    dataPaths: dataPathRows(assetId).map((r) => pathView(r, row.name, idx, refs)),
     vlans: vlans.map((v) => ({ id: v.id, name: v.name, vid: v.vid })),
   };
 }
