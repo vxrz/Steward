@@ -159,6 +159,12 @@
         "label": "AI budget",
         "info": "An AI token budget reached 80 % or is used up (administrators; the gateway’s managers, the process owner)"
       }
+    },
+    "contract": {
+      "failed": {
+        "label": "Data contract test failed",
+        "info": "A test of a data contract your team owns failed (the owning team’s members and channel)"
+      }
     }
   }
 }

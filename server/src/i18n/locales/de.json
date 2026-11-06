@@ -420,5 +420,9 @@
     "process": "Prozess „{{name}}“",
     "day": "heute",
     "month": "in diesem Monat"
+  },
+  "contractFailed": {
+    "title": "Test des Datenvertrags fehlgeschlagen: {{name}}",
+    "body": "Der Test von „{{name}}“ (Version {{version}}, Server {{server}}) endete mit „{{result}}“: {{headline}}"
   }
 }

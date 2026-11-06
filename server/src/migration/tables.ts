@@ -141,6 +141,12 @@ export const HISTORY_COLUMNS: string[] = [
   // database schema snapshots and their settings (#222)
   'db_schema_snapshots.actor',
   'db_schema_settings.updated_by',
+  // data contracts, their versions, links and test runs (#221)
+  'data_contracts.created_by',
+  'data_contracts.updated_by',
+  'data_contract_versions.created_by',
+  'data_contract_links.created_by',
+  'data_contract_runs.actor',
   'plant_profiles.created_by',
   'plant_profiles.updated_by',
   'plant_kpis.created_by',

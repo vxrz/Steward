@@ -11,11 +11,13 @@
  * - Rights only add up; there are no deny rules.
  */
 import {
+  DATA_CONTRACT_PERMISSIONS,
   PLATFORM_PERMISSIONS,
   PROCESS_PERMISSIONS,
   TEAM_ROLES,
   type AccessReason,
   type AclEntry,
+  type DataContractPermission,
   type NewResourceTeams,
   type TeamNewResourceMode,
   type OwnedKind,
@@ -264,6 +266,33 @@ export function platformDataVisible(u: AuthUser | null, p: { id: string; acl: Ac
   if (!teams.length) return !p.acl.length;
   const mine = memberships(u);
   return teams.some((t) => mine.has(t.id));
+}
+
+// ---------- data contracts (#221) ----------
+
+/** What each role may do with a data contract: see it, run its tests, change it (new versions, links, settings). */
+export const DEFAULT_CONTRACT: Record<Role, readonly DataContractPermission[]> = {
+  admin: DATA_CONTRACT_PERMISSIONS,
+  designer: ['view', 'test', 'edit'],
+  operator: ['view', 'test'],
+  approver: ['view'],
+  auditor: ['view'],
+  viewer: ['view'],
+  status: [],
+  plant: [],
+};
+
+/**
+ * The rights on a data contract (#221): without owning teams every role that works in Steward sees it, operators run
+ * its tests, designers change it; with owning teams only their members do (with their instance and team roles),
+ * auditors see it, administrators may do everything. Contracts have no access list.
+ */
+export function contractAccess(u: AuthUser | null, c: { id: string }): Decision<DataContractPermission> {
+  const d = decide(u, { kind: 'contract', id: c.id, acl: [] }, DATA_CONTRACT_PERMISSIONS, DEFAULT_CONTRACT, 'view');
+  // any right on a contract includes seeing it
+  if (d.permissions.length && !d.permissions.includes('view'))
+    d.permissions = DATA_CONTRACT_PERMISSIONS.filter((x) => x === 'view' || d.permissions.includes(x));
+  return d;
 }
 
 // ---------- the service catalogue: services, applications, systems ----------

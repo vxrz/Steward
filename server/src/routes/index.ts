@@ -35,6 +35,7 @@ import { assuranceRoutes } from './assurance.js';
 import { aiRoutes } from '../ai/routes.js';
 import { databaseRoutes } from '../dbms/routes.js';
 import { dbSchemaRoutes } from '../dbschema/routes.js';
+import { dataContractRoutes } from '../datacontracts/routes.js';
 import { plantRoutes } from '../plant/routes.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
@@ -71,6 +72,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await databaseRoutes(app);
   // database schemas (#222): snapshots, changes, tbls import, export
   await dbSchemaRoutes(app);
+  // data contracts (#221): ODCS v3 versions, links, tests through the data contract service
+  await dataContractRoutes(app);
   await migrationRoutes(app);
   await onboardingRoutes(app);
   await duplicateRoutes(app);

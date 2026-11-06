@@ -39,6 +39,7 @@ import { DEMO_SNOWFLAKE, setSnowflakePublicKey } from '../mock/mockSnowflake.js'
 import { DEMO_GRAPH } from '../mock/mockGraph.js';
 import { seedPlantDemo } from '../plant/demo.js';
 import { DEMO_PVAULT } from '../mock/mockPrivilegeVault.js';
+import { seedContractDemo } from '../datacontracts/demo.js';
 import { DEMO_LLM } from '../mock/mockLlmGateway.js';
 
 /** Creates demo platforms (pointing to the built-in mock) and imports all templates. */
@@ -654,6 +655,12 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
   await setupComplianceDemo(platformByKind.get('insights-hub'));
   // ---- access checks of Snowflake, AWS and GitHub, so person reviews span several platforms ----
   await setupAccessSourcesDemo(platformByKind);
+  // ---- data contracts (#221): the simulated data contract service and two contracts of the shop database ----
+  try {
+    await seedContractDemo(base);
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'data contract demo data not loaded');
+  }
   // ---- the plant registry's invented enterprise, when the module is on (plant/demo.ts) ----
   try {
     seedPlantDemo();

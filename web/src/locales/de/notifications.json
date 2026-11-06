@@ -159,6 +159,12 @@
         "label": "KI-Budget",
         "info": "Ein Token-Budget für KI-Modelle hat 80 % erreicht oder ist aufgebraucht (Administratoren; die Verwalter des Gateways, der Eigentümer des Prozesses)"
       }
+    },
+    "contract": {
+      "failed": {
+        "label": "Test eines Datenvertrags fehlgeschlagen",
+        "info": "Ein Test eines Datenvertrags Ihres Teams ist fehlgeschlagen (die Mitglieder und der Kanal des Eigentümer-Teams)"
+      }
     }
   }
 }

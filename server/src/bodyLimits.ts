@@ -15,7 +15,7 @@
  * The route permission matrix test checks that only the routes named in LARGE_BODIES accept more than
  * the default, so a new route stays at 1 MB unless it is added here.
  */
-import { COMPONENT_LIMITS, DB_SCHEMA_LIMITS, PLANT_LIMITS, RECORDING_LIMITS, REPORT_LOGO_MAX_BYTES } from '@sm/shared';
+import { COMPONENT_LIMITS, DATA_CONTRACT_LIMITS, DB_SCHEMA_LIMITS, PLANT_LIMITS, RECORDING_LIMITS, REPORT_LOGO_MAX_BYTES } from '@sm/shared';
 import { LIMITS as CATALOGUE_LIMITS } from './compliance/controls.js';
 import { MONITOR_IMPORT_LIMITS } from './monitors/model.js';
 import { IMPORT_LIMITS as RECORD_IMPORT_LIMITS } from './records/markdown-io.js';
@@ -45,6 +45,18 @@ export interface LargeBody {
 /** The only routes that accept bodies above DEFAULT_BODY_LIMIT. Routes pass `bodyLimit: LARGE_BODIES.<name>.bytes`. */
 export const LARGE_BODIES = {
   /** A recorded platform response (#105): RECORDING_LIMITS.bodyBytes (1 MB) as JSON, with headers and match */
+  /** A data contract as YAML (#221): DATA_CONTRACT_LIMITS.yamlBytes (1 MB) in a JSON body */
+  dataContracts: {
+    routes: [
+      'POST /api/data-contracts',
+      'POST /api/data-contracts/check',
+      'POST /api/data-contracts/import',
+      'POST /api/data-contracts/:id/check',
+      'POST /api/data-contracts/:id/versions',
+      'POST /api/data-contracts/:id/service-lint',
+    ],
+    bytes: jsonText(DATA_CONTRACT_LIMITS.yamlBytes),
+  },
   recordings: { routes: ['POST /api/platforms/:id/recordings', 'PUT /api/platforms/:id/recordings/:recId'], bytes: jsonText(RECORDING_LIMITS.bodyBytes) },
   /** Markdown files of records: RECORD_IMPORT_LIMITS.totalBytes (2 MB) together */
   recordsImport: { routes: ['POST /api/records/import'], bytes: jsonText(RECORD_IMPORT_LIMITS.totalBytes) },
