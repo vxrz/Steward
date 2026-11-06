@@ -28,7 +28,7 @@ The platform's limits are **ceilings**: a step can lower them, never raise them.
 
 **The connection test** signs in with a new connection and reports: the server version, whether the session is read-only, **whether the account can write** (a writing account is shown as a finding – use a read-only one), and which catalog queries the account may read (with what is missing). It is audited like every connection test (`platform.tested`); the periodic test of the platform page works the same way.
 
-**Outbound policy.** A database connection is a host:port connection (like Kafka and MQTT): with the policy _platforms_ (the default) the platform's own host and port are allowed; with _allow-list_ the host (or its IP or CIDR) must be on the allow-list (_Settings → Outbound access_). Cloud-metadata and link-local addresses are never reachable, and the checked address is the one connected to. **Steward's own database server** (`SM_DATABASE_URL` on PostgreSQL) is refused under every policy (`DB_OWN_DATABASE`): the same host and port, compared by address – any loopback or local address counts as this machine when Steward's database runs on it. Give the databases Steward reads their own server or port.
+**Outbound policy.** A database connection is a host:port connection (like Kafka and MQTT): with the policy _platforms_ (the default) the platform's own host and port are allowed; with _allow-list_ the host (or its IP or CIDR) must be on the allow-list (_Settings → Outbound access_). Cloud-metadata and link-local addresses are never reachable, and the checked address is the one connected to. **Steward's own database** (`SM_DATABASE_URL` on PostgreSQL) is refused under every policy (`DB_OWN_DATABASE`): the same database name on the same host and port, compared by address – any loopback or local address counts as this machine when Steward's database runs on it. Other databases on that server are allowed (PostgreSQL has no queries across databases, and `dblink` is refused); give their read-only role no `CONNECT` right on Steward's database (`REVOKE CONNECT ON DATABASE steward FROM PUBLIC`).
 
 ## The step "Query a database"
 
@@ -188,7 +188,7 @@ Give the login nothing else: no `db_datawriter`, `db_owner`, `db_ddladmin` or `s
 | `DB_AUTH_FAILED`, `DB_TLS_FAILED`, `DB_CONNECT_FAILED` | Sign-in, TLS or the connection failed (with the driver's message)                    |
 | `DB_DIALECT_MISMATCH`                                  | The step is written for another DBMS                                                 |
 | `DB_PARAM_INVALID`                                     | A parameter is not a text, number or boolean (lists only on PostgreSQL: `= ANY($1)`) |
-| `DB_OWN_DATABASE`                                      | The platform points at Steward's own database server                                 |
+| `DB_OWN_DATABASE`                                      | The platform names Steward's own database on its server                              |
 
 ## Demo
 

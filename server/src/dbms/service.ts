@@ -105,12 +105,12 @@ const isDemoHost = (h: string) => h.toLowerCase().endsWith('.demo.invalid');
 /**
  * The outbound policy for host:port (like Kafka and MQTT): with the policy "platforms" the platform's own host and port
  * are allowed (address safety still applies); otherwise the host must be on the allow-list. Steward's own database
- * server is refused under every policy (own.ts).
+ * database is refused under every policy (own.ts); other databases on its server are not.
  */
 export async function assertDatabaseAllowed(s: DatabaseSettings): Promise<void> {
   const host = bare(s.host);
   const port = dbPort(s);
-  await assertNotOwnDatabase(host, port);
+  await assertNotOwnDatabase(host, port, s.database);
   if ((getSettings().outboundPolicy ?? 'platforms') === 'platforms') await assertAddressSafe(`http://${net.isIP(host) === 6 ? `[${host}]` : host}:${port}`);
   else await assertNetAllowed(host, port, outboundContext());
 }
@@ -139,9 +139,9 @@ function targetOf(p: Platform, s: DatabaseSettings, secrets: Record<string, stri
     password: secrets.password,
     tls: { mode: s.tls.mode, ca: s.tls.ca, serverName: s.tls.serverName },
     connectTimeoutMs: DB_LIMITS.connectTimeoutMs,
-    // Steward opens the socket: the guarded lookup refuses metadata/link-local addresses and Steward's own database
-    // server, and pins the checked address
-    socket: () => net.connect({ host, port, lookup: databaseLookup(port) }),
+    // Steward opens the socket: the guarded lookup refuses metadata/link-local addresses and Steward's own database,
+    // and pins the checked address
+    socket: () => net.connect({ host, port, lookup: databaseLookup(port, s.database) }),
   };
 }
 

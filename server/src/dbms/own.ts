@@ -8,16 +8,20 @@ import { guardedLookup } from '../platforms/outbound.js';
 import { DbError } from './types.js';
 
 /**
- * Steward's own database server is never a database platform (ADR 0008): a platform that reaches it would make the
- * statements of process designers a path into the instance's own tables, even through a read-only account. Host and
- * port are compared by address, resolved like the guarded lookup; every loopback, unspecified or local interface
- * address counts as this machine. The check runs before connecting (a clear error) and again on the address the
- * socket connects to (no DNS rebinding in between).
+ * Steward's own database is never a database platform (ADR 0008): a platform that reaches it would make the
+ * statements of process designers a path into the instance's own tables, even through a read-only account. Other
+ * databases on the same server stay allowed – PostgreSQL has no cross-database queries and `dblink` is refused – so a
+ * small setup can keep its application databases in Steward's cluster. Host and port are compared by address,
+ * resolved like the guarded lookup (every loopback, unspecified or local interface address counts as this machine),
+ * and the database by name. The check runs before connecting (a clear error) and again on the address the socket
+ * connects to (no DNS rebinding in between).
  */
 
 export interface Endpoint {
   hosts: string[];
   port: number;
+  /** Steward's own database on that server */
+  database: string;
 }
 
 /** Steward's own database server (null for SQLite). A socket directory (or no host) means this machine. */
@@ -34,7 +38,9 @@ export function ownDatabaseEndpoint(target: DatabaseTarget = config.database): E
   const raw = (param ?? decodeURIComponent(u.hostname)).split(',').map((h) => h.trim().replace(/^\[|\]$/g, ''));
   const hosts = raw.map((h) => (!h || h.startsWith('/') ? 'localhost' : h));
   const port = Number(u.searchParams.get('port') || u.port || 5432);
-  return { hosts, port };
+  // the database of the URL, else PostgreSQL's default: the user name (else "postgres")
+  const database = decodeURIComponent(u.pathname.replace(/^\//, '')) || u.searchParams.get('dbname') || decodeURIComponent(u.username) || 'postgres';
+  return { hosts, port, database };
 }
 
 const unmap = (ip: string) =>
@@ -64,7 +70,7 @@ export const resolveAddresses: AddressLookup = async (host) => {
   }
 };
 
-/** Whether one of `addresses` (on `port`) is Steward's own database server. */
+/** Whether one of `addresses` (on `port`) is the server of Steward's own database. */
 export async function isOwnDatabase(addresses: string[], port: number, own: Endpoint | null, lookup: AddressLookup = resolveAddresses): Promise<boolean> {
   if (!own || port !== own.port || !addresses.length) return false;
   const ownAddrs = (await Promise.all(own.hosts.map(lookup))).flat();
@@ -73,34 +79,43 @@ export async function isOwnDatabase(addresses: string[], port: number, own: Endp
   return mine.some(isLocalAddress) && ownAddrs.some(isLocalAddress);
 }
 
-export const ownDatabaseError = (host: string, port: number) =>
+export const ownDatabaseError = (host: string, port: number, database: string) =>
   new DbError(
     'DB_OWN_DATABASE',
-    `${host}:${port} is the database server of Steward itself – a database platform may not point at it (use a separate server or port for the databases Steward reads)`,
-    { host: `${host}:${port}` },
+    `${database} on ${host}:${port} is the database of Steward itself – a database platform may not read it (other databases on that server are fine)`,
+    { host: `${host}:${port}`, database },
     403,
   );
 
-/** Refuses host:port when it is Steward's own database server (before connecting). */
-export async function assertNotOwnDatabase(host: string, port: number, own = ownDatabaseEndpoint(), lookup: AddressLookup = resolveAddresses): Promise<void> {
-  if (!own) return;
-  if (own.hosts.some((h) => h.toLowerCase() === host.toLowerCase()) && port === own.port) throw ownDatabaseError(host, port);
-  if (await isOwnDatabase(await lookup(host), port, own, lookup)) throw ownDatabaseError(host, port);
+/** The database a platform names is Steward's own (names compared as the server does: exactly). */
+const sameDatabase = (database: string, own: Endpoint) => database === own.database;
+
+/** Refuses host:port/database when it is Steward's own database (before connecting). */
+export async function assertNotOwnDatabase(
+  host: string,
+  port: number,
+  database: string,
+  own = ownDatabaseEndpoint(),
+  lookup: AddressLookup = resolveAddresses,
+): Promise<void> {
+  if (!own || !sameDatabase(database, own)) return;
+  if (own.hosts.some((h) => h.toLowerCase() === host.toLowerCase()) && port === own.port) throw ownDatabaseError(host, port, database);
+  if (await isOwnDatabase(await lookup(host), port, own, lookup)) throw ownDatabaseError(host, port, database);
 }
 
 /**
- * The guarded lookup for a database socket to `port`: the same address checks, and the address connected to is not
- * Steward's own database server.
+ * The guarded lookup for a database socket to `port` and `database`: the same address checks, and the address
+ * connected to is not the server of Steward's own database when the platform names that database.
  */
-export function databaseLookup(port: number, own = ownDatabaseEndpoint()): LookupFunction {
+export function databaseLookup(port: number, database: string, own = ownDatabaseEndpoint()): LookupFunction {
   return (hostname, options, callback) => {
     guardedLookup(hostname, options, ((err: NodeJS.ErrnoException | null, address: string | { address: string; family: number }[], family?: number) => {
-      if (err || !own) return (callback as (...a: unknown[]) => void)(err, address, family);
+      if (err || !own || !sameDatabase(database, own)) return (callback as (...a: unknown[]) => void)(err, address, family);
       const list = Array.isArray(address) ? address.map((a) => a.address) : [address];
       isOwnDatabase(list, port, own).then(
         (hit) =>
           hit
-            ? (callback as (...a: unknown[]) => void)(ownDatabaseError(hostname, port), '', 4)
+            ? (callback as (...a: unknown[]) => void)(ownDatabaseError(hostname, port, database), '', 4)
             : (callback as (...a: unknown[]) => void)(null, address, family),
         (e) => (callback as (...a: unknown[]) => void)(e, '', 4),
       );

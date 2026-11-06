@@ -816,23 +816,31 @@ describe('Steward’s own database server (own.ts) and redaction', () => {
     (net.isIP(h) ? [h] : []);
 
   it('reads host and port from the database URL (SQLite has none)', () => {
-    expect(own).toEqual({ hosts: ['db.internal'], port: 5544 });
+    expect(own).toEqual({ hosts: ['db.internal'], port: 5544, database: 'steward' });
     expect(ownDatabaseEndpoint({ kind: 'sqlite', file: 'x.db' })).toBeNull();
     expect(ownDatabaseEndpoint({ kind: 'postgres', url: 'postgres://u@/steward?host=/var/run/postgresql', schema: 'public' })).toEqual({
       hosts: ['localhost'],
       port: 5432,
+      database: 'steward',
     });
-    expect(ownDatabaseEndpoint({ kind: 'postgres', url: 'postgres://u@[::1]/s', schema: 'public' })).toEqual({ hosts: ['::1'], port: 5432 });
+    expect(ownDatabaseEndpoint({ kind: 'postgres', url: 'postgres://u@[::1]/s', schema: 'public' })).toEqual({ hosts: ['::1'], port: 5432, database: 's' });
+    // no database in the URL: PostgreSQL's default, the user name
+    expect(ownDatabaseEndpoint({ kind: 'postgres', url: 'postgres://app@db.internal', schema: 'public' })?.database).toBe('app');
   });
 
-  it('refuses the same server by name or address, and every local address for a local server', async () => {
+  it('refuses Steward’s database on the same server by name or address, and every local address for a local server', async () => {
     for (const host of ['db.internal', 'DB.internal', 'db-alias.internal', '10.9.8.7'])
-      await expect(assertNotOwnDatabase(host, 5544, own, lookup), host).rejects.toMatchObject({ code: 'DB_OWN_DATABASE', statusCode: 403 });
-    await expect(assertNotOwnDatabase('db.internal', 5545, own, lookup)).resolves.toBeUndefined();
-    await expect(assertNotOwnDatabase('other.internal', 5544, own, lookup)).resolves.toBeUndefined();
+      await expect(assertNotOwnDatabase(host, 5544, 'steward', own, lookup), host).rejects.toMatchObject({ code: 'DB_OWN_DATABASE', statusCode: 403 });
+    await expect(assertNotOwnDatabase('db.internal', 5545, 'steward', own, lookup)).resolves.toBeUndefined();
+    await expect(assertNotOwnDatabase('other.internal', 5544, 'steward', own, lookup)).resolves.toBeUndefined();
+    // another database on Steward's server is allowed (no queries across databases; dblink is refused)
+    for (const host of ['db.internal', '10.9.8.7']) await expect(assertNotOwnDatabase(host, 5544, 'shop', own, lookup), host).resolves.toBeUndefined();
+    // names are compared as the server does: exactly
+    await expect(assertNotOwnDatabase('db.internal', 5544, 'Steward', own, lookup)).resolves.toBeUndefined();
     const local = ownDatabaseEndpoint({ kind: 'postgres', url: 'postgres://u@localhost:5432/s', schema: 'public' })!;
     for (const host of ['127.0.0.1', '127.0.0.2', '::1', '0.0.0.0', 'localhost'])
-      await expect(assertNotOwnDatabase(host, 5432, local, lookup), host).rejects.toMatchObject({ code: 'DB_OWN_DATABASE' });
+      await expect(assertNotOwnDatabase(host, 5432, 's', local, lookup), host).rejects.toMatchObject({ code: 'DB_OWN_DATABASE' });
+    await expect(assertNotOwnDatabase('127.0.0.1', 5432, 'shop', local, lookup)).resolves.toBeUndefined();
     expect(await isOwnDatabase(['10.9.8.6'], 5432, local, lookup)).toBe(false);
     expect(await isOwnDatabase(['127.0.0.1'], 5432, null, lookup)).toBe(false);
   });

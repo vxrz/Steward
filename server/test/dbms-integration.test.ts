@@ -468,32 +468,33 @@ for (const dialect of ['postgresql', 'mysql', 'sqlserver'] as DbDialect[]) {
       expect((await runQuery(p, getSecrets(ro.id), { sql: 'SELECT 1 AS one' }, AbortSignal.timeout(30_000))).result.rows).toEqual([{ one: 1 }]);
     });
 
-    it('refuses Steward’s own database server as a platform', async () => {
+    it('refuses Steward’s own database as a platform, and allows other databases on its server', async () => {
       const own = (await import('../src/dbms/own.js')).ownDatabaseEndpoint();
       if (!t.direct || !own) return; // Steward runs on SQLite here
       const { isOwnDatabase, resolveAddresses } = await import('../src/dbms/own.js');
       if (!(await isOwnDatabase(await resolveAddresses(t.direct.host), t.direct.port, own))) return; // another server
-      const direct = await s.api('POST', '/platforms', {
-        name: `DB own ${dialect}`,
-        kind: DATABASE_KIND,
-        config: { auth: { type: 'none' }, variables: {}, http: {}, database: { dialect, ...t.direct, database: t.database, tls: { mode: 'off' } } },
-        secrets: { username: t.ro, password: RO_PW },
-      });
-      const r = await s.api('POST', `/platforms/${direct.id}/test`);
+      const platform = async (name: string, database: string) =>
+        s.api('POST', '/platforms', {
+          name,
+          kind: DATABASE_KIND,
+          config: { auth: { type: 'none' }, variables: {}, http: {}, database: { dialect, ...t.direct, database, tls: { mode: 'off' } } },
+          secrets: { username: t.ro, password: RO_PW },
+        });
+      // the application database on Steward's server: allowed
+      const other = await platform(`DB same server ${dialect}`, t.database);
+      expect((await s.api('POST', `/platforms/${other.id}/test`)).ok).toBe(true);
+      // Steward's own database: refused before connecting
+      const mine = await platform(`DB own ${dialect}`, own.database);
+      const r = await s.api('POST', `/platforms/${mine.id}/test`);
       expect(r.ok).toBe(false);
-      expect(r.message).toContain('database server of Steward itself');
+      expect(r.message).toContain('database of Steward itself');
+      const { assertDatabaseAllowed } = await import('../src/dbms/service.js');
+      const settings = (host: string, database: string) => ({ dialect, host, port: t.direct!.port, database, tls: { mode: 'off' }, limits: {} }) as never;
       for (const host of ['localhost', '127.0.0.1'])
-        if (t.direct.host === 'localhost' || t.direct.host.startsWith('127.'))
-          await expect(
-            (await import('../src/dbms/service.js')).assertDatabaseAllowed({
-              dialect,
-              host,
-              port: t.direct.port,
-              database: 'x',
-              tls: { mode: 'off' },
-              limits: {},
-            } as never),
-          ).rejects.toMatchObject({ code: 'DB_OWN_DATABASE' });
+        if (t.direct.host === 'localhost' || t.direct.host.startsWith('127.')) {
+          await expect(assertDatabaseAllowed(settings(host, own.database))).rejects.toMatchObject({ code: 'DB_OWN_DATABASE' });
+          await expect(assertDatabaseAllowed(settings(host, 'x'))).resolves.toBeUndefined();
+        }
     });
 
     it('follows the outbound policy for host:port', async () => {
