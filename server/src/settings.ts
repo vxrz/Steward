@@ -30,6 +30,7 @@ const INTERNAL = [
   'theme.',
   'credentials.',
   'catalogue.',
+  'costs.',
   'gatus.',
   'mcp.',
   'tickets.',

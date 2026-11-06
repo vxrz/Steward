@@ -264,6 +264,22 @@ const EXPECT: Record<string, Access> = {
   'POST /api/db-schemas/:kind/:id/push-tokens/:tokenId/rotate': ADMIN,
   'DELETE /api/db-schemas/:kind/:id/push-tokens/:tokenId': ADMIN,
   'POST /api/hooks/db-schema/:kind/:id': HOOK,
+  // platform costs (#226), here of the demo platform: the overview for everyone (each sees the scopes they may see), a
+  // platform's costs for who may see the platform and auditors; its source, imports and push tokens for its managers
+  'GET /api/costs': ALL,
+  'GET /api/costs/settings': ALL,
+  'PUT /api/costs/settings': ADMIN,
+  'GET /api/costs/:scope/:id': RECON_READ,
+  'GET /api/costs/platform/:id/source': RECON_READ,
+  'PUT /api/costs/platform/:id/source': ADMIN,
+  'GET /api/costs/platform/:id/imports': RECON_READ,
+  'POST /api/costs/platform/:id/imports/preview': ADMIN,
+  'POST /api/costs/platform/:id/imports': ADMIN,
+  'GET /api/costs/platform/:id/push-tokens': ADMIN,
+  'POST /api/costs/platform/:id/push-tokens': ADMIN,
+  'POST /api/costs/platform/:id/push-tokens/:tokenId/rotate': ADMIN,
+  'DELETE /api/costs/platform/:id/push-tokens/:tokenId': ADMIN,
+  'POST /api/hooks/costs/:platformId': HOOK,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
@@ -1185,6 +1201,9 @@ function fill(url: string): string {
       .replace(/\/schema\/snapshots\/:snapshotId/, '/schema/snapshots/latest')
       .replace(/\/api\/db-schemas\/([^/]+)\/([^/]+)\/snapshots\/:snapshotId/, '/api/db-schemas/$1/$2/snapshots/latest')
       .replace(/:platformId\/schema/, `${fx.dbPlatform}/schema`)
+      // platform costs (#226): the demo platform
+      .replace(/\/api\/costs\/:scope\/:id/, `/api/costs/platform/${fx.platform}`)
+      .replace(/\/api\/costs\/platform\/:id/, `/api/costs/platform/${fx.platform}`)
       .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : fx.platform!)
       .replace(/:specId/g, fx.spec!)
       .replace(/:docId/g, fx.doc!)
