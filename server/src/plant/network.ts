@@ -105,8 +105,13 @@ function invalid(problems: NetProblem[]): void {
   throw new HttpError(400, `${p.path}: ${p.message}`, 'PLANT_NETWORK_INVALID', { path: p.path, message: p.message });
 }
 
-const notFound = (what: 'vlan' | 'zone' | 'conduit' | 'device' | 'data_path', id: string) =>
-  new HttpError(404, `${what.replace('_', ' ')} ${id} not found`, `PLANT_${what.toUpperCase()}_NOT_FOUND`, { id });
+function notFound(what: 'vlan' | 'zone' | 'conduit' | 'device' | 'data_path', id: string): HttpError {
+  if (what === 'vlan') return new HttpError(404, `VLAN ${id} not found`, 'PLANT_VLAN_NOT_FOUND', { id });
+  if (what === 'zone') return new HttpError(404, `Zone ${id} not found`, 'PLANT_ZONE_NOT_FOUND', { id });
+  if (what === 'conduit') return new HttpError(404, `Conduit ${id} not found`, 'PLANT_CONDUIT_NOT_FOUND', { id });
+  if (what === 'device') return new HttpError(404, `Device ${id} not found`, 'PLANT_DEVICE_NOT_FOUND', { id });
+  return new HttpError(404, `Data path ${id} not found`, 'PLANT_DATA_PATH_NOT_FOUND', { id });
+}
 
 // ---------- references to Steward items ----------
 
