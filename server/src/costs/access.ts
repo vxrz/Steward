@@ -173,6 +173,16 @@ export function coverOf(scope: CostScope, id: string, visibleOnly = true, reader
   };
 }
 
+/**
+ * Whether the reader sees every application a service or team covers (applications and platforms: always). Who does
+ * not gets only the state of its budget (under, 80 %, reached) – its figures cover the whole scope, so they would give
+ * away the costs of the applications left out by subtraction (docs/COSTS.md#budgets).
+ */
+export function seesWholeScope(scope: CostScope, id: string, reader: AuthUser | null = currentUser()): boolean {
+  if (!reader || scope === 'platform' || scope === 'application') return true;
+  return coverOf(scope, id, true, reader).applications.length === coverOf(scope, id, false).applications.length;
+}
+
 /** The WHERE part (on cost_records) of what a scope covers; `false` when it covers nothing. */
 export function coverWhere(c: ScopeCover): { sql: string; params: unknown[] } | false {
   if (c.platform) return { sql: 'platform_id = ?', params: [c.platform] };

@@ -70,7 +70,7 @@ interface Row {
   before: string | null;
   changePct: number | null;
   unassigned: string | null;
-  budget: { amount: string | null; pct: number; state: string } | null;
+  budget: { amount: string | null; pct: number | null; state: string } | null;
 }
 
 export interface CostSectionData {
@@ -106,6 +106,7 @@ function build(c: CostConfig, ctx: { from: number; to: number; now: number }): C
     const now = sumsIn(where, ctx.from, ctx.to);
     const before = sumsIn(where, ctx.from - span, ctx.from);
     const un = c.scope === 'platform' ? sumsIn(where, ctx.from, ctx.to, true) : new Map<string, number>();
+    // a reader who does not see every application of the scope gets the budget's state only
     const budget = c.scope === 'platform' ? null : budgetOf(c.scope, s.id, s.amounts, ctx.to - 1);
     for (const currency of [...new Set([...now.keys(), ...before.keys()])].sort()) {
       const p = now.get(currency) ?? 0;
@@ -171,7 +172,7 @@ registerReportSection<CostConfig, CostSectionData>({
     const budget = (r: Row): CellInput =>
       r.budget
         ? {
-            text: `${r.budget.amount !== null ? `${money(lang, r.budget.amount, r.currency)} · ` : ''}${r.budget.pct.toLocaleString(lang)} % (${x[r.budget.state as 'ok' | 'warning' | 'exceeded']})`,
+            text: `${r.budget.amount !== null ? `${money(lang, r.budget.amount, r.currency)} · ` : ''}${r.budget.pct !== null ? `${r.budget.pct.toLocaleString(lang)} % (${x[r.budget.state as 'ok' | 'warning' | 'exceeded']})` : x[r.budget.state as 'ok' | 'warning' | 'exceeded']}`,
             tone: r.budget.state === 'exceeded' ? 'danger' : r.budget.state === 'warning' ? 'warning' : 'default',
           }
         : '–';

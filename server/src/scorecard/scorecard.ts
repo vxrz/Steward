@@ -679,16 +679,17 @@ function contractsPart(d: Data, serviceId: string, ctx: ContractCtx): ScorecardC
 
 /**
  * Costs (#226): the service's monthly cost budget against this month so far and the forecast. The amounts only for a
- * reader who may see the service's costs (costs/access.ts); the state for everyone who sees the service.
+ * reader who may see the service's costs (costs/access.ts); the state for everyone who sees the service – and only the
+ * state for a reader who does not see every application of the service (the budget covers them all).
  */
 function costsPart(serviceId: string, viewer: AuthUser | null, now: number): ScorecardCosts {
-  const none: ScorecardCosts = { status: 'none', budgetPct: null, forecastPct: null, currency: null, thisMonth: null, budget: null };
+  const none: ScorecardCosts = { status: 'none', budgetPct: null, forecastPct: null, currency: null, thisMonth: null, budget: null, stateOnly: false };
   const amounts = viewer ? (costScopeInfo('service', serviceId, viewer)?.amounts ?? false) : false;
-  const b = costBudgetOf('service', serviceId, amounts, now);
+  const b = costBudgetOf('service', serviceId, amounts, now, viewer);
   if (!b) return none;
   const status: ScorecardPartStatus =
     b.state === 'exceeded' ? 'attention' : b.state === 'warning' || (b.forecastPct !== null && b.forecastPct > 100) ? 'pending' : 'ok';
-  return { status, budgetPct: b.pct, forecastPct: b.forecastPct, currency: b.currency, thisMonth: b.used, budget: b.amount };
+  return { status, budgetPct: b.pct, forecastPct: b.forecastPct, currency: b.currency, thisMonth: b.used, budget: b.amount, stateOnly: b.stateOnly };
 }
 
 export interface Computed {

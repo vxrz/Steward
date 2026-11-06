@@ -202,6 +202,12 @@
     "none": "The service has no cost budget.",
     "summary": "This month so far: {{pct}} % of the budget",
     "summaryAmounts": "This month so far: {{used}} of {{budget}} {{currency}} ({{pct}} %)",
+    "state": {
+      "ok": "Within the budget this month",
+      "warning": "80 % of the budget reached this month",
+      "exceeded": "The budget is reached this month"
+    },
+    "stateOnly": "Only the budget's state: some applications of the service are hidden from you.",
     "forecast": "Forecast for the month: {{pct}} % of the budget",
     "open": "Show the costs"
   },

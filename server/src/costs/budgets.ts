@@ -1,4 +1,4 @@
-import { COST_BUDGET_WARN_PCT, costBudgetInput, fromMicros, toMicros, type CostBudget, type CostBudgetScope } from '@sm/shared';
+import { costBudgetInput, fromMicros, toMicros, type CostBudget, type CostBudgetScope } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor } from '../auth/context.js';
@@ -101,9 +101,10 @@ export function checkBudgetNotices(now = Date.now()): number {
   for (const r of db().all<{ scope: CostBudgetScope; scope_id: string }>('SELECT scope, scope_id FROM cost_budgets ORDER BY scope, scope_id')) {
     const info = scopeInfo(r.scope, r.scope_id, null);
     if (!info) continue;
-    const b = budgetOf(r.scope, r.scope_id, true, now);
+    // the whole scope (no reader); each recipient's text leaves out what they may not see (notifications/service.ts)
+    const b = budgetOf(r.scope, r.scope_id, true, now, null);
     if (!b) continue;
-    const level: 80 | 100 | null = b.state === 'exceeded' ? 100 : b.pct >= COST_BUDGET_WARN_PCT ? 80 : null;
+    const level: 80 | 100 | null = b.state === 'exceeded' ? 100 : b.state === 'warning' ? 80 : null;
     if (!level) continue;
     const fresh = db().run(
       'INSERT INTO cost_budget_notices (scope, scope_id, month, level, sent_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',

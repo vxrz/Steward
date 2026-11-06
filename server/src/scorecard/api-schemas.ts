@@ -274,6 +274,11 @@ export const ScorecardServiceEntry = z.object({
       currency: z.string().nullable(),
       thisMonth: z.string().nullable().describe('Decimal; null when the token owner may not see the service’s costs'),
       budget: z.string().nullable().describe('Decimal; null when the token owner may not see the service’s costs'),
+      stateOnly: z
+        .boolean()
+        .describe(
+          'The token owner does not see every application of the service: only the status from the budget’s state (budgetPct, forecastPct and thisMonth are null)',
+        ),
     })
     .describe('Costs: the month’s costs against the service’s monthly cost budget (docs/COSTS.md)'),
   contracts: z

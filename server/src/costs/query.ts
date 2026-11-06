@@ -15,7 +15,7 @@ import {
 import { db } from '../db.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { capabilities } from '../auth/permissions.js';
-import { costSettings, coverOf, coverWhere, requireScope, scopeInfo, visibleScopes, type ScopeCover, type ScopeInfo } from './access.js';
+import { costSettings, coverOf, coverWhere, requireScope, scopeInfo, seesWholeScope, visibleScopes, type ScopeCover, type ScopeInfo } from './access.js';
 
 /**
  * Reading the cost model (#226): per scope the last 12 complete months and the current month so far, per currency
@@ -178,8 +178,12 @@ export function budgetRow(scope: CostBudgetScope, id: string): BudgetRow | undef
   return db().get<BudgetRow>('SELECT * FROM cost_budgets WHERE scope = ? AND scope_id = ?', scope, id);
 }
 
-/** A budget with this month's use (in the budget's currency) and its forecast. */
-export function budgetOf(scope: CostBudgetScope, id: string, amounts: boolean, now = Date.now()): CostBudget | null {
+/**
+ * A budget with this month's use (in the budget's currency) and its forecast – always over the whole scope. A reader
+ * who does not see every application of a service or team gets its state only (`stateOnly`): the use and the
+ * percentages minus what they see would be the costs of the others. No reader (jobs, notices): everything.
+ */
+export function budgetOf(scope: CostBudgetScope, id: string, amounts: boolean, now = Date.now(), reader: AuthUser | null = currentUser()): CostBudget | null {
   const b = budgetRow(scope, id);
   if (!b) return null;
   const month = monthOf(now);
@@ -190,15 +194,17 @@ export function budgetOf(scope: CostBudgetScope, id: string, amounts: boolean, n
   const limit = Number(b.amount);
   const forecast = m ? (monthForecast(coverWhere(coverOf(scope, id, false)), month, now).get(b.currency) ?? null) : null;
   const p = limit > 0 ? Math.round((used / limit) * 1000) / 10 : 0;
+  const stateOnly = !seesWholeScope(scope, id, reader);
   return {
     scope,
     scopeId: id,
     amount: amounts ? fromMicros(limit) : null,
     currency: b.currency,
-    used: amounts ? fromMicros(used) : null,
-    pct: p,
-    forecastPct: forecast !== null && limit > 0 ? Math.round((forecast / limit) * 1000) / 10 : null,
+    used: amounts && !stateOnly ? fromMicros(used) : null,
+    pct: stateOnly ? null : p,
+    forecastPct: !stateOnly && forecast !== null && limit > 0 ? Math.round((forecast / limit) * 1000) / 10 : null,
     state: used >= limit ? 'exceeded' : p >= COST_BUDGET_WARN_PCT ? 'warning' : 'ok',
+    stateOnly,
     comment: b.comment,
     updatedAt: b.updated_at,
     updatedBy: b.updated_by,

@@ -347,12 +347,26 @@ function BudgetCard({ d, onEdit }: { d: CostScopeDetail; onEdit: () => void }) {
       </Group>
       {b && (
         <Stack gap={6}>
-          <Text size="sm">
-            {b.amount !== null
-              ? t('budget.used', { used: fmtMoney(b.used, b.currency), amount: fmtMoney(b.amount, b.currency) })
-              : t('budget.usedPct', { pct: numberFormat({ maximumFractionDigits: 1 }).format(b.pct) })}
-          </Text>
-          <BudgetBar pct={b.pct} state={b.state} />
+          {b.stateOnly || b.pct === null ? (
+            <>
+              <Group gap="xs" wrap="wrap">
+                <BudgetBadge state={b.state} />
+                {b.amount !== null && <Text size="sm">{t('budget.amountOnly', { amount: fmtMoney(b.amount, b.currency) })}</Text>}
+              </Group>
+              <Text size="xs" c="dimmed" data-testid="budget-state-only">
+                {t('budget.stateOnly')}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text size="sm">
+                {b.amount !== null
+                  ? t('budget.used', { used: fmtMoney(b.used, b.currency), amount: fmtMoney(b.amount, b.currency) })
+                  : t('budget.usedPct', { pct: numberFormat({ maximumFractionDigits: 1 }).format(b.pct) })}
+              </Text>
+              <BudgetBar pct={b.pct} state={b.state} />
+            </>
+          )}
           {b.forecastPct !== null && (
             <Text size="xs" c="dimmed">
               {t('budget.forecast', { pct: numberFormat({ maximumFractionDigits: 1 }).format(b.forecastPct) })}

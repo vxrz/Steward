@@ -63,9 +63,10 @@ export function BudgetBadge({ state }: { state: CostBudgetStateName }) {
   );
 }
 
-/** This month's share of the budget as a bar with the percentage. */
+/** This month's share of the budget as a bar with the percentage; without a percentage (state only): the badge. */
 export function BudgetBar({ pct, state }: { pct: number | null; state: CostBudgetStateName | null }) {
   const { t } = useTranslation('costs');
+  if (pct === null && state) return <BudgetBadge state={state} />;
   if (pct === null || !state)
     return (
       <Text span size="sm" c="dimmed">

@@ -20,7 +20,7 @@ import { listUsers, toAuthUser } from '../auth/users.js';
 import { matches, platformPermissions, processPermissions, verificationCheck } from '../auth/permissions.js';
 import { onBudgetNotice } from '../ai/usage.js';
 import { onCostBudgetNotice, type BudgetNotice } from '../costs/budgets.js';
-import { scopeInfo as costScopeInfo } from '../costs/access.js';
+import { scopeInfo as costScopeInfo, seesWholeScope as costSeesWholeScope } from '../costs/access.js';
 import { getTask } from '../engine/store.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
 import { addInApp, claimSend } from './store.js';
@@ -644,7 +644,8 @@ export function notifyAiBudget(n: { use: AiBudgetUse; level: 80 | 100; period: '
 /**
  * A monthly cost budget reached 80 % or 100 % (0.9.0, #226, costs/budgets.ts): once per budget, month and level – to
  * the owners of the service or application and the members of its owning teams (of a team: its members), who see its
- * amounts; to the administrators when nobody else is.
+ * amounts; to the administrators when nobody else is. A recipient who does not see every application of the service or
+ * team reads the state only (the budget covers them all: the figures would give away the costs of the others).
  */
 export function notifyCostBudget(n: BudgetNotice): void {
   const all = activeUsers();
@@ -663,17 +664,22 @@ export function notifyCostBudget(n: BudgetNotice): void {
       ? t(l, 'costBudget.noForecast')
       : `${money(l, String((Number(b.amount) * b.forecastPct) / 100))} (${b.forecastPct} %)`;
   const link = `/costs/${n.scope}/${encodeURIComponent(n.scopeId)}`;
+  const whole = new Map(recipients.map((u) => [u.id, costSeesWholeScope(n.scope, n.scopeId, toAuthUser(u))]));
   notify({
     event: 'cost.budget',
-    text: (l) => ({
+    personal: true,
+    text: (l, u) => ({
       title: t(l, n.level === 100 ? 'costBudget.title100' : 'costBudget.title80', { name: titleName(name(l)) }),
-      body: t(l, n.level === 100 ? 'costBudget.body100' : 'costBudget.body80', {
-        name: name(l),
-        used: money(l, b.used),
-        limit: money(l, b.amount),
-        pct: b.pct.toLocaleString(l),
-        forecast: forecast(l),
-      }),
+      body:
+        u && whole.get(u.id) === false
+          ? t(l, n.level === 100 ? 'costBudget.body100State' : 'costBudget.body80State', { name: name(l) })
+          : t(l, n.level === 100 ? 'costBudget.body100' : 'costBudget.body80', {
+              name: name(l),
+              used: money(l, b.used),
+              limit: money(l, b.amount),
+              pct: (b.pct ?? 0).toLocaleString(l),
+              forecast: forecast(l),
+            }),
     }),
     link,
     recipients: uniqueUsers(recipients),

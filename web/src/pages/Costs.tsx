@@ -113,7 +113,7 @@ export function CostsPage() {
           {money(r, r.lastMonth)}
         </Text>
       </SimpleGrid>
-      {scope !== 'platform' && r.budgetPct !== null && <BudgetBar pct={r.budgetPct} state={r.budgetState} />}
+      {scope !== 'platform' && r.budgetState !== null && <BudgetBar pct={r.budgetPct} state={r.budgetState} />}
     </Stack>
   );
   return (
