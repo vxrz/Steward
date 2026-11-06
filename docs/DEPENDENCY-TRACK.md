@@ -59,6 +59,10 @@ checks:
 
 The check reads a project at most every 5 minutes. A typical use is the example monitor _New critical vulnerabilities_: one check per production project with `maxCritical: 0`.
 
+## Version watch
+
+The [version watch](APPLICATIONS.md#version-watch) asks Dependency-Track first (by default) for the newest version of a stack entry of a component that names a project: `GET /api/v1/repository/latest?purl=…` returns what Dependency-Track's repository metadata analyzer found for the package URL (the team needs **VIEW_PORTFOLIO**). A package Dependency-Track has not analysed answers 404, and the next source is asked. The entry's dialog lists the findings in that package next to its newest version.
+
 ## Dashboard
 
 The example process _Dependency-Track – Vulnerabilities per project_ reads the whole portfolio (by default the latest version of each project) and publishes `dt.vulnerabilities` – one row per project with its open findings and policy violations, metrics `projects`, `critical`, `high`, `policyFail` – for the dashboard _Vulnerabilities_. Recommended schedule: every 6 hours.

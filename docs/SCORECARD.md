@@ -92,6 +92,7 @@ A service shows **Attention needed** when any part has the status _Attention_. A
 | **Protection need** | it is not rated: a dimension has no level, applications are not rated or must be re-rated after a scale change, or the CIA scale is not valid. _Open_ while the service has no applications                          |
 | **Tech stack**      | (only when turned on, below) a component of the service's applications runs a version past its end of life. _Open_ when one ends within the warning period                                                           |
 | **Vulnerabilities** | (only when linked, below) a component's Dependency-Track project has open **critical** findings or **failing** policy violations. _Open_ on open high findings, or when the last read failed or is older than 2 days |
+| **Up to date**      | (only when turned on, below) a tech stack entry of the service's applications is a **major release** behind the newest version. _Open_ when one is more minor releases or days behind than the version watch allows  |
 
 Details:
 
@@ -102,6 +103,8 @@ Details:
 **Tech stack** is a fifth part that is off by default: an administrator turns it on under _Applications → End of life → Count on the scorecard_ ([APPLICATIONS.md](APPLICATIONS.md#end-of-life)). Until then it is not shown and never sets _Attention needed_; the stored days record it as _nothing to judge_. It lists the components past or near their end of life, most urgent first.
 
 **Vulnerabilities** is a sixth part, read from [Dependency-Track](DEPENDENCY-TRACK.md): it considers every component of the service's applications (not archived) that links a Dependency-Track project and has been read. Without such a component it has _nothing to judge_, is not shown and never sets _Attention needed_ (the column appears as soon as one service's components are linked). It counts the projects, the open critical and high findings and the failing policy violations, and lists the components that are not OK, worst first, with links to the application and to the project in Dependency-Track's own UI.
+
+**Up to date** is a seventh part, off by default, from the [version watch](APPLICATIONS.md#version-watch): an administrator turns it on under _Applications → Version watch → Count on the scorecard_. It considers the stack entries of the components and the systems of the service's applications that have a known newest version: _Attention_ when one is a major release behind, _Open_ when one is more minor releases (default 2) or days (default 180) behind than the version watch's settings allow. It lists those entries, major first, then production. The end of life of a release cycle stays the part _Tech stack_.
 
 Archived services have no scorecard.
 
