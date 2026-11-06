@@ -539,11 +539,14 @@ function evaluate(
   eol: EolData,
   ctx: PlanCtx,
   now: number,
+  /** Ask every source (the details of an entry: what each one says), the first answer still wins */
+  all = false,
 ): Evaluated {
   const cfg = stored?.config ?? DEFAULT_WATCH_CONFIG;
   const prereleases = cfg.prereleases ?? ctx.settings.prereleases;
   const tried: VersionTry[] = [];
   let lastError: string | null = null;
+  let first: Evaluated | null = null;
   for (const c of cands) {
     if (c.skip) {
       tried.push({ source: c.source, ref: '', where: '', newest: null, checkedAt: null, note: c.skip });
@@ -585,6 +588,7 @@ function evaluate(
       continue;
     }
     tried.push({ source: c.source, ref: c.ref, where: c.where, newest: best.name, checkedAt, note });
+    if (first) continue;
     const installed = parseVersion(e.version, c.scheme) ?? parseVersion(e.version, 'loose');
     const newest = installed && installed.scheme !== best.version.scheme ? (parseVersion(best.version.raw, 'loose') ?? best.version) : best.version;
     const { lag, behind } = installed ? behindOf(installed, newest) : { lag: 'unknown' as const, behind: null };
@@ -602,7 +606,7 @@ function evaluate(
       if (newer[0]) daysBehind = daysSince(newer[0], now);
       else if (best.at) daysBehind = daysSince(best.at, now);
     }
-    return {
+    first = {
       watch: {
         source: c.source,
         ref: c.ref,
@@ -622,7 +626,9 @@ function evaluate(
       newest,
       installed,
     };
+    if (!all) return first;
   }
+  if (first) return first;
   if (!cands.length) return { watch: null, tried, newest: null, installed: null };
   return {
     watch: {
@@ -646,7 +652,7 @@ function evaluate(
 }
 
 /** The version watch of many entries at once (pages, the API, the dataset, checks): from the cache only. */
-export function watchOf(entries: WatchedEntry[], now = Date.now()): Map<string, Evaluated & { entry: WatchedEntry }> {
+export function watchOf(entries: WatchedEntry[], now = Date.now(), all = false): Map<string, Evaluated & { entry: WatchedEntry }> {
   const out = new Map<string, Evaluated & { entry: WatchedEntry }>();
   if (!entries.length) return out;
   const ctx = planCtx();
@@ -657,7 +663,7 @@ export function watchOf(entries: WatchedEntry[], now = Date.now()): Map<string, 
   });
   const rows = lookupRows(plans.flatMap((p) => p.cands.flatMap((c) => (c.lookup ? [c.lookup.key] : []))));
   const eol = eolData([...new Set(entries.map((e) => e.product))]);
-  for (const p of plans) out.set(entryKey(p.e.holderKind, p.e.holderId, p.e.product), { ...evaluate(p.e, p.stored, p.cands, rows, eol, ctx, now), entry: p.e });
+  for (const p of plans) out.set(entryKey(p.e.holderKind, p.e.holderId, p.e.product), { ...evaluate(p.e, p.stored, p.cands, rows, eol, ctx, now, all), entry: p.e });
   return out;
 }
 
@@ -899,7 +905,7 @@ export function versionEntry(ref: z.infer<typeof entryRef>): VersionEntryDetail 
   const h = holderOf(ref.holder, ref.id);
   const e = entriesOf(ref.holder, [ref.id]).find((x) => x.product === ref.product);
   if (!e) throw new HttpError(404, `The tech stack has no product ${ref.product}`, 'STACK_ENTRY_NOT_FOUND', { product: ref.product });
-  const ev = watchOf([e]).get(entryKey(e.holderKind, e.holderId, e.product))!;
+  const ev = watchOf([e], Date.now(), true).get(entryKey(e.holderKind, e.holderId, e.product))!;
   const stored = storedConfig(h, e.product);
   return {
     holder: h.kind,
