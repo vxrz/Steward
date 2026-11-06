@@ -30,6 +30,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
   - `GET /api/v1/plant/checks` lists what _Plant → Checks_ shows – kind, English message, asset, site, KPI definition, job and details – for the assets the token owner may see and the KPI definitions; filters `site`, `asset`, `kpi` (the definition's own problems and those of its instances), `kind`; paginated like the other lists.
   - `GET /api/v1/plant/export` gives the registry in the import format, as the export in the web app: everything the token owner may see, one site, the catalogues (`part=catalogue`), one profile or KPI definition; YAML (default) or JSON (`format=json`). Sites the owner may not see and their assets are never in it; it imports back unchanged and is audited (`plant.exported`, with the token id).
   - While the module is off, the plant endpoints of the public API now say so in their `404` (before: "Plant registry not found").
+- **Platform freshness checks can POST** (#233): the freshness check with `source: platform` takes `method` (`GET` default, `POST`), `headers` and a `body`, like the HTTP check – for APIs that read with POST (search endpoints, GraphQL, JSON protocols). The fields are validated (only for the platform source, a body only with POST, valid header names, none the connection sets) and shown in the monitor editor.
 
 ### Fixed
 

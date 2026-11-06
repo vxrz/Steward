@@ -394,7 +394,14 @@ async function checkFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promis
   const { platform, secrets } = platformFor(ctx.owner, c.platform);
   let r;
   try {
-    const res = await checkRequest(ctx, platform, secrets, { method: 'GET', url: c.path!, query: c.query });
+    const method = c.method ?? 'GET';
+    const res = await checkRequest(ctx, platform, secrets, {
+      method,
+      url: c.path!,
+      query: c.query,
+      headers: c.headers,
+      body: method === 'POST' ? c.body : undefined,
+    });
     if ('missing' in res) return { status: 'unknown', message: res.missing.slice(0, 500), durationMs: 0 };
     r = res;
   } catch (e) {

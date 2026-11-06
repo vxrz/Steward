@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Alert, Divider, Group, NumberInput, SegmentedControl, Select, Stack, Switch, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { HIDDEN_MONITOR_REF, type CheckDef, type CheckOf, type MonitorSummary, type Platform } from '@sm/shared';
@@ -14,6 +15,7 @@ const FORM_FIELDS = [
   'aspect',
   'assetId',
   'authMode',
+  'body',
   'condition',
   'degradedAfterMissed',
   'degradedAgeSeconds',
@@ -28,6 +30,7 @@ const FORM_FIELDS = [
   'expectedIntervalSeconds',
   'failuresBeforeDown',
   'fallbackPort',
+  'headers',
   'host',
   'id',
   'intervalSeconds',
@@ -179,6 +182,37 @@ function FreshnessFields({
         </Group>
       )}
     </>
+  );
+}
+
+/** The body of a request: JSON when it parses, else the text as it is (#233). */
+function BodyInput({ value, onChange, disabled, error }: { value: unknown; onChange: (v: unknown) => void; disabled?: boolean; error?: string }) {
+  const { t } = useTranslation('monitors');
+  const [text, setText] = useState(() => (value === undefined || value === null ? '' : typeof value === 'string' ? value : JSON.stringify(value, null, 2)));
+  return (
+    <Textarea
+      error={error}
+      data-field="body"
+      label={t('form.requestBody')}
+      description={t('form.requestBodyHint')}
+      autosize
+      minRows={2}
+      maxRows={12}
+      disabled={disabled}
+      value={text}
+      onChange={(e) => {
+        const next = e.currentTarget.value;
+        setText(next);
+        if (!next.trim()) return onChange(undefined);
+        try {
+          onChange(JSON.parse(next));
+        } catch {
+          onChange(next);
+        }
+      }}
+      classNames={{ input: 'mono' }}
+      spellCheck={false}
+    />
   );
 }
 
@@ -491,16 +525,45 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
             </>
           ) : (
             <>
-              <TextInput
-                error={err('path')}
-                data-field="path"
-                label={t('form.path')}
-                required
-                disabled={disabled}
-                value={c.path ?? ''}
-                onChange={(e) => set({ path: e.currentTarget.value })}
-                classNames={{ input: 'mono' }}
-              />
+              <Group grow align="flex-start">
+                <Select
+                  error={err('method')}
+                  data-field="method"
+                  label={t('form.method')}
+                  data={['GET', 'POST']}
+                  allowDeselect={false}
+                  disabled={disabled}
+                  value={c.method ?? 'GET'}
+                  onChange={(v) => set({ method: v === 'POST' ? 'POST' : undefined, ...(v === 'POST' ? {} : { body: undefined }) })}
+                  maw={120}
+                />
+                <TextInput
+                  error={err('path')}
+                  data-field="path"
+                  label={t('form.path')}
+                  required
+                  disabled={disabled}
+                  value={c.path ?? ''}
+                  onChange={(e) => set({ path: e.currentTarget.value })}
+                  style={{ flex: 4 }}
+                  classNames={{ input: 'mono' }}
+                />
+              </Group>
+              <div data-field="headers">
+                <Text size="sm" fw={500}>
+                  {t('form.headers')}
+                </Text>
+                <Text size="xs" c="dimmed" mb={4}>
+                  {t('form.headersHint')}
+                </Text>
+                <KeyValueEditor value={c.headers} onChange={(v) => set({ headers: v as Record<string, string> | undefined })} />
+                {err('headers') && (
+                  <Text size="xs" c="red" mt={4}>
+                    {err('headers')}
+                  </Text>
+                )}
+              </div>
+              {c.method === 'POST' && <BodyInput value={c.body} onChange={(v) => set({ body: v })} disabled={disabled} error={err('body')} />}
               <ExpressionInput
                 error={err('timestamp')}
                 data-field="timestamp"

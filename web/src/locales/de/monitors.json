@@ -303,7 +303,11 @@
     "dbNoDataHints": {
       "replication": "Wenn der Server kein Replikat hat und kein Standby ist",
       "query": "Wenn die Abfrage keine Zeile liefert"
-    }
+    },
+    "headers": "Header",
+    "headersHint": "Werden mit der Anfrage gesendet; die Anmeldung der Plattform kommt wie gewohnt hinzu.",
+    "requestBody": "Inhalt",
+    "requestBodyHint": "JSON oder Text, der unverändert gesendet wird. Nur mit POST – für APIs, die mit POST lesen (Suche, GraphQL, JSON-Protokolle)."
   },
   "detail": {
     "template": "Vorlage",

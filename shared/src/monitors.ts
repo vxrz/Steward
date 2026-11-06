@@ -163,6 +163,32 @@ const freshnessFields = {
   degradedAgeSeconds: seconds(1, 365 * 86400).optional(),
 };
 
+// ---------- requests of checks (#233) ----------
+
+/** HTTP header names (RFC 9110 token) */
+const HEADER_NAME_RE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,100}$/;
+/** Headers a check may not set: they belong to the connection or the platform's signing */
+const RESERVED_HEADERS = new Set([
+  'host',
+  'content-length',
+  'transfer-encoding',
+  'connection',
+  'te',
+  'upgrade',
+  'trailer',
+  'keep-alive',
+  'proxy-authorization',
+]);
+const MAX_BODY_CHARS = 65536;
+const bodyChars = (b: unknown): number => (b === undefined || b === null ? 0 : typeof b === 'string' ? b.length : (JSON.stringify(b) ?? '').length);
+/** Request headers of a check: valid names, none the connection sets – checked wherever a check is parsed (save, import, Check now) */
+const requestHeaders = boundedRecord(z.string().max(2000), 100).superRefine((h, ctx) => {
+  for (const name of Object.keys(h ?? {})) {
+    if (!HEADER_NAME_RE.test(name)) ctx.addIssue({ code: 'custom', message: `"${name.slice(0, 40)}" is not a valid header name` });
+    else if (RESERVED_HEADERS.has(name.toLowerCase())) ctx.addIssue({ code: 'custom', message: `the header ${name} is set by the connection` });
+  }
+});
+
 /** platform: id or name of a configured platform (names are resolved to ids when saving). */
 const platformRef = z.string().trim().min(1).max(200);
 
@@ -221,6 +247,15 @@ export const checkSchema = z.discriminatedUnion('type', [
     variables: z.array(z.string().min(1).max(200)).max(50).optional(),
     path: z.string().max(2000).optional(),
     query: boundedRecord(z.string().max(2000), 100).optional(),
+    /** platform source: GET (default) or POST – POST only for APIs that read with it (search, GraphQL, JSON RPC) */
+    method: z.enum(['GET', 'POST']).optional(),
+    /** platform source: extra request headers (the platform's own authentication is added as usual) */
+    headers: requestHeaders.optional(),
+    /** platform source, POST: the request body (JSON, or a string sent as it is) */
+    body: z
+      .unknown()
+      .refine((b) => bodyChars(b) <= MAX_BODY_CHARS, `the body may have at most ${MAX_BODY_CHARS} characters`)
+      .optional(),
     /** platform source: JSONata over the response body returning a timestamp (or a list – the newest counts) */
     timestamp: expr.optional(),
     ...freshnessFields,
@@ -574,6 +609,7 @@ export function definitionIssues(def: MonitorDefinition, opts: { template?: bool
       if (!c.path) issues.push({ path: `checks.${i}.path`, message: 'platform freshness needs the path', checkId: c.id });
       if (!c.timestamp) issues.push({ path: `checks.${i}.timestamp`, message: 'platform freshness needs the timestamp expression', checkId: c.id });
     }
+    if (c.type === 'freshness') issues.push(...requestIssues(c, i));
   });
   const seen = new Set<string>();
   def.links.forEach((l, i) => {
@@ -601,6 +637,19 @@ export function definitionIssues(def: MonitorDefinition, opts: { template?: bool
     issues.push({ path: 'aggregate.quorum', message: 'the quorum rule needs k (checks that must be up)' });
   if (!opts.template && def.parameters?.length) issues.push({ path: 'parameters', message: 'only templates have parameters' });
   return issues;
+}
+
+/** method, headers and body of a freshness check: only with the platform source, a body only with POST (#233). */
+function requestIssues(c: CheckOf<'freshness'>, i: number): DefinitionIssue[] {
+  const out: DefinitionIssue[] = [];
+  const at = (field: string, message: string) => out.push({ path: `checks.${i}.${field}`, message, checkId: c.id });
+  if (c.source !== 'platform') {
+    for (const f of ['method', 'headers', 'body'] as const) if (c[f] !== undefined) at(f, 'only the platform source sends a request of its own');
+    return out;
+  }
+  // header names and the body's size are rules of the schema
+  if (bodyChars(c.body) > 0 && (c.method ?? 'GET') !== 'POST') at('body', 'a body is only sent with POST');
+  return out;
 }
 
 /**

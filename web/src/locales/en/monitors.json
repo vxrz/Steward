@@ -303,7 +303,11 @@
     "dbNoDataHints": {
       "replication": "When the server has no replica and is no standby",
       "query": "When the query returns no row"
-    }
+    },
+    "headers": "Headers",
+    "headersHint": "Sent with the request; the platform's own authentication is added as usual.",
+    "requestBody": "Body",
+    "requestBodyHint": "JSON, or text sent as it is. Only with POST – for APIs that read with POST (search, GraphQL, JSON protocols)."
   },
   "detail": {
     "template": "template",
