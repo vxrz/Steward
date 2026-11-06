@@ -19,7 +19,7 @@ flowchart TB
 
   subgraph platforms [Managed platforms]
     ih["Siemens Insights Hub,<br/>Industrial Edge (IEM)"]
-    rest["Any REST API, Kubernetes, AWS,<br/>Snowflake, Kafka, MQTT, databases, Git hosts,<br/>Prometheus, CheckMk, Dependency-Track, Gatus,<br/>IBM Verify Privilege Vault, LLM gateways"]
+    rest["Any REST API, Kubernetes, AWS,<br/>Snowflake, Kafka, MQTT, databases, Git hosts,<br/>datacontract API, Prometheus, CheckMk, Dependency-Track, Gatus,<br/>IBM Verify Privilege Vault, LLM gateways"]
   end
 
   idp["Identity provider<br/>(OIDC, Entra ID)"]
@@ -125,6 +125,7 @@ Packaging: the same server runs as a desktop executable (a Node.js single execut
 | `cli/`, `desktop/`                                              | Command-line tools (admin, migrate, backup, db-copy, …) and the desktop launcher.                                                                                                                                                                                       |
 | `mock/`                                                         | Mock platforms and identity provider for the demo and the tests (`SM_DEMO=1`).                                                                                                                                                                                          |
 | `plant/`                                                        | The plant registry, an opt-in module (off by default): sites, ISA-95 hierarchy, buildings, assets, YAML import and export, the aggregates of its visualizations ([ADR 0007](adr/0007-plant-registry.md), [PLANT.md](PLANT.md)).                                         |
+| `datacontracts/`                                                | Data contracts (ODCS v3): versions, the JSON Schema check, breaking changes, links, drafts, tests through the datacontract CLI's API (a container of its own), the monitor check, the process step, the report section ([DATA-CONTRACTS.md](DATA-CONTRACTS.md)).        |
 
 Rules that hold across modules:
 

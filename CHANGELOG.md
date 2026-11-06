@@ -6,6 +6,24 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Data contracts (ODCS v3, #221, [docs/DATA-CONTRACTS.md](docs/DATA-CONTRACTS.md))**: what a data source promises – schema, quality rules, owner, servers – as an [Open Data Contract Standard](https://bitol-io.github.io/open-data-contract-standard/) v3 contract, under _Catalogue → Data contracts_.
+  - **Contracts with versions**: every saved YAML is kept as a version; **lint on save** against the official JSON Schema of ODCS v3.0.2 (vendored with its licence in `server/assets/odcs/`), live in the editor; **Lint with the service** runs the datacontract CLI's own lint. YAML is read within the limits of the plant import (1 MB, keys, 32 levels, aliases – a YAML bomb is refused).
+  - **Breaking changes**: the comparison of two versions marks removed fields and schema objects, changed or narrowed types, fields that become required or unique, and added or tightened quality rules; **Copy as Markdown** for a change record. Per contract, **breaking changes can require an approved change record**.
+  - **Links** to database tables (one contract can cover several tables or datasets, each linked to its schema object), datasets, applications, systems, API specifications, and the database platform that answers for each server.
+  - **Drafts** from the tables of a database schema snapshot (#222), a dataset's columns, an OpenAPI response schema or a recorded platform response (#105).
+  - **Platform kind _Data contract service_**: the datacontract CLI's API (`datacontract api`) as its own container. **Test now**, the monitor check and the process step send `POST /test` with the contract; the tested server's host and credentials come from its database platform in the vault and travel per request in the CLI's `datacontract-*` headers – never in the contract. The outbound policy applies to the service and to the tested database (Steward's own database is refused). The full report is stored as evidence, secrets masked.
+  - **Monitor check _Data contract_** (the test, or Steward's own checks without the service), **process step _Test a data contract_**, a **scorecard part _Data contracts_** and a **report section _Data contracts_**.
+  - **Steward's own checks**: no owner, not tested for N days, last test failed, columns of linked datasets and tables that no longer match the contract, lint errors.
+  - **Notifications**: a failing test notifies the contract's owning team (event `contract.failed`, through the routes or the notification policy of the schedule or trigger that ran it); opening a vendor ticket stays a person's decision.
+  - **Import and export** of contract YAML; examples in `examples/data-contracts/` (checked by `npm run validate`); the demo has a simulated data contract service and two contracts.
+  - **API**: internal routes below `/api/data-contracts`; the `/api/v1` scorecard carries the new part `contracts`. Migrations `datacontracts-001-contracts` and `datacontracts-002-scorecard` (additive: new tables, one new column of `scorecard_snapshots`). Owning teams have the new resource kind `contract`.
+
+### Changed
+
+- **Dependencies**: `ajv` 8.20.0 is now a direct dependency of the server (the JSON Schema check of data contracts); it was already installed as a dependency of Fastify.
+
 ## [0.8.0] - 2026-11-06
 
 Steward 0.8.0 completes the **plant registry** with the OT network and adds **pictures** of it, **database schemas** and a **DynamoDB freshness check**. The plant registry (opt-in, preview) now documents VLANs, IEC 62443-3-2 zones and conduits, devices and data paths, with live status only where a Steward check is linked, and draws site structures, data flows, data point lineage, KPI coverage and the OT network – animated where it shows direction, with a table for every picture. Database platforms read their schema (or take a tbls `schema.json` pushed from CI with a push token bound to one database), keep snapshots, mark breaking changes and export DBML or SQL DDL. Two security reviews found and fixed leaks of hidden datasets and monitors in live status, a runnable-statement path in the SQL export, and – older – a full URL in platform and freshness checks that skipped the outbound allow-list; see _Check before updating_ under Changed.
