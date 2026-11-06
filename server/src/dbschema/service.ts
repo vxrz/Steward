@@ -137,8 +137,17 @@ export function subjectOf(kind: DbSchemaSubjectKind, id: string): Subject {
   if (!r) throw notFound(kind, id);
   const owners = parseJson<string[]>(r.owners, []);
   if (u && !canViewCatalogue(u, { kind: 'system', id: r.id, owners })) throw notFound(kind, id);
-  // a system that is a database platform keeps its schema on the platform (without naming a platform the caller may not see)
-  const platformKind = r.platform_id ? db().get<{ kind: string }>('SELECT kind FROM platforms WHERE id = ?', r.platform_id)?.kind : undefined;
+  // a system that is a database platform keeps its schema on the platform – said only to who sees that platform: for
+  // everyone else it is a system like any other (nothing tells that a platform they may not see exists, or its kind)
+  let platformKind: string | undefined;
+  if (r.platform_id) {
+    try {
+      const p = getPlatform(r.platform_id);
+      if (!u || p.permissions.length) platformKind = p.kind;
+    } catch {
+      platformKind = undefined; // the platform is gone: a system like any other
+    }
+  }
   return {
     kind,
     id: r.id,

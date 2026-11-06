@@ -160,13 +160,19 @@ describe('tbls import', () => {
   });
 
   it('keeps the schema of a system that is a database platform on the platform', async () => {
-    const sys = await s.api('POST', '/systems', { name: 'Shop database server', kind: 'server', platformId: db.id });
+    const sys = await s.api('POST', '/systems', { name: 'Shop server', kind: 'server', platformId: db.id });
     const o = await s.api('GET', `/db-schemas/system/${sys.id}`);
     expect(o.importBlocked).toBe('systemIsPlatform');
     await expect(s.api('POST', `/db-schemas/system/${sys.id}/import`, { schema: SCHEMA })).rejects.toMatchObject({
       status: 409,
       body: { code: 'DB_SCHEMA_ON_PLATFORM' },
     });
+    // who may not see that platform sees a system like any other: nothing tells that the platform exists, or its kind
+    await s.api('PUT', `/systems/${sys.id}`, { name: 'Shop server', kind: 'server', owners: ['user:vera'] });
+    const neutral = await vera('GET', `/db-schemas/system/${sys.id}`);
+    expect(neutral).toMatchObject({ canImport: true, importBlocked: null, snapshots: [] });
+    expect(JSON.stringify(neutral)).not.toMatch(/platform|database|DB_/i);
+    await expect(vera('POST', `/db-schemas/system/${sys.id}/import/preview`, { schema: SCHEMA })).resolves.toMatchObject({ tables: 3 });
   });
 });
 
