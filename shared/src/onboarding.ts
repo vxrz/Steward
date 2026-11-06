@@ -132,6 +132,7 @@ export const MONITOR_TYPE_KINDS: Readonly<Record<string, readonly string[]>> = {
   mqtt: ['mqtt'],
   snowflake: ['snowflake'],
   database: ['database'],
+  dynamodb: ['aws'],
   'dependency-track': ['dependency-track'],
   entra: ['microsoft-graph'],
   'privilege-vault': ['privilege-vault'],

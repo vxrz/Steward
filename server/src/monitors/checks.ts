@@ -8,7 +8,7 @@ import { buildUrl, platformRequest, type HttpResult } from '../platforms/http.js
 import { findRecording, missingRecording } from '../platforms/recordings.js';
 import { assertAddressSafe, assertNetAllowed, assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
-import { BRAND, DATABASE_KIND, PVAULT_KIND, isGitPlatformKind, type PvFindingKind } from '@sm/shared';
+import { AWS_KIND, BRAND, DATABASE_KIND, PVAULT_KIND, isGitPlatformKind, type PvFindingKind } from '@sm/shared';
 import { freshnessStatus, freshnessWindowSeconds, fmtAge, statusMatcher } from './logic.js';
 import { promInstant, seriesName } from '../platforms/prometheus.js';
 import { readNamespace } from '../catalogue/kubernetes.js';
@@ -756,6 +756,30 @@ async function checkDatabase(c: CheckOf<'database'>, ctx: ExecContext): Promise<
   }
 }
 
+// ---------- DynamoDB ----------
+
+/** A DynamoDB table on an AWS platform (#233): the newest item per partition key, the write activity or the table's hygiene. */
+async function checkDynamoDb(c: CheckOf<'dynamodb'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  if (platform.kind !== AWS_KIND) return { status: 'unknown', message: `Check could not run: "${platform.name}" is not an AWS platform` };
+  const { dynamoDbCheck, dynamoDbEndpoints } = await import('../aws/dynamodb.js');
+  const { redactSecrets } = await import('../platforms/testConnection.js');
+  // the outbound policy as for the AWS access check: the base URL, and the service endpoints the check names
+  await assertOutboundAllowed(await buildUrl(platform, secrets, '/', {}), outboundContext());
+  for (const e of dynamoDbEndpoints(platform, c)) await assertOutboundAllowed(`${e}/`, outboundContext(), { platformOrigins: [e] });
+  try {
+    const r = await dynamoDbCheck(platform, secrets, c, AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)]), ctx.now());
+    return { ...redactSecrets({ ...r, message: r.message.slice(0, 1000) }, secrets), durationMs: Date.now() - t0 };
+  } catch (e) {
+    return {
+      status: 'unknown',
+      message: redactSecrets(`DynamoDB could not be read: ${(e as Error).message}`, secrets).slice(0, 1000),
+      durationMs: Date.now() - t0,
+    };
+  }
+}
+
 // ---------- Entra ID ----------
 
 /** Expiring app credentials or Microsoft 365 service health of an Entra ID tenant (v0.5.0). */
@@ -1043,6 +1067,7 @@ type Active =
   | CheckOf<'mqtt'>
   | CheckOf<'snowflake'>
   | CheckOf<'database'>
+  | CheckOf<'dynamodb'>
   | CheckOf<'dependency-track'>
   | CheckOf<'entra'>
   | CheckOf<'privilege-vault'>;
@@ -1075,6 +1100,8 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkSnowflake(c, ctx);
       case 'database':
         return await checkDatabase(c, ctx);
+      case 'dynamodb':
+        return await checkDynamoDb(c, ctx);
       case 'dependency-track':
         return await checkDtrack(c, ctx);
       case 'entra':
