@@ -37,7 +37,7 @@ What the code does today:
 
 ### Data model
 
-New table (named migration `platforms-004-identities`):
+New table (named migration `platforms-005-identities`; `platforms-004` is the Kafka Connect migration of 0.9.0):
 
 ```sql
 CREATE TABLE platform_identities (
@@ -53,7 +53,7 @@ CREATE TABLE platform_identities (
   read_only INTEGER NOT NULL DEFAULT 0,
   privileged INTEGER NOT NULL DEFAULT 0,
   operation_filter TEXT,              -- NULL = all; {preset: read|chosen, operations: [...]}
-  mcp TEXT NOT NULL DEFAULT '{"mode":"off"}', -- {mode: off|read|writes, writes?: confirm|fourEyes}
+  mcp TEXT NOT NULL DEFAULT '{"mode":"off"}', -- {mode: off|read|writes, writes?: confirm|fourEyes}; with off, writes = the mode chosen before
   credential_source TEXT,             -- NULL = vault; reserved for PAM (#205, step 4)
   config_mac TEXT,
   created_at TEXT NOT NULL, created_by TEXT NOT NULL,
@@ -66,14 +66,14 @@ CREATE UNIQUE INDEX platform_identities_default ON platform_identities(platform_
 - **Sign-in per identity.** `auth` may differ (a read identity with an API key, an admin with OAuth2; another AWS `roleArn`, `externalId`, `sessionName`). NULL inherits the platform's `config.auth`. `variables` overlays the platform's, e.g. Snowflake `user` and `role`. An identity may **not** override a variable used in the base URL, the token URL's origin or `trustedOrigins` (refused at save, `IDENTITY_VARIABLE_FIXED`): an identity cannot point at another system.
 - An operation reference in the filter is `{ specId, method, specPath, operationId? }` – the spec's own path, so a changed path prefix follows.
 - Other additive columns: `schedules.identities`, `webhook_triggers.identities` (JSON slot → identity id), `mcp_requests.identity_id`, `credentials.identity_id`, and an `identity_id` on the saved objects that read a platform in the background (access checks, backup settings and the like). JSON definitions gain an optional `identity` field: monitor checks and outputs, process connection slots. `runs.bindings` keeps its JSON column and gains `identityId`, `identityName` per slot.
-- `platforms.config.mcpGateway` keeps only `allowedPathPrefixes` (it describes the API, not a credential). `enabled` and `writes` move to the identity.
+- `platforms.config.mcpGateway` keeps only `allowedPathPrefixes` (it describes the API, not a credential). `enabled` and `writes` move to the identity. Until the routes per identity exist, the API still shows `config.mcpGateway` with `enabled` and `writes` read from the default identity.
 - `OWNED_KINDS` (`shared/src/api.ts`) gains `platform_identity`, so `resource_teams` holds identity owning teams.
 
 ### Migration: one default identity per platform
 
 - The SQL migration inserts one row per platform: id `pi_` + the platform id's random part (deterministic, so migration packages and references line up), name _Default_, `is_default = 1`, `auth = NULL`, the **ciphertext** of `platforms.secrets` copied unchanged (the vault encrypts without context, so the copy decrypts), no filter, not read-only, not privileged, and the MCP mode from `config.mcpGateway` (`enabled` → `read`, `writes` → `writes` with its approval mode; SQLite `json_extract`, a PostgreSQL variant in `pg`).
 - **The access list is not copied.** The default identity is open to everybody with `use` on the platform, which is exactly today's rule. The platform keeps its `acl`; two copies of one list would drift.
-- **A one-time step after the next unlock** (like `sealPlatformConfigs`, setting `security.platformIdentitiesMigrated`): for each platform whose seal is `ok`, seal its default identity, set `platforms.secrets = NULL`, drop `enabled`/`writes` from `config.mcpGateway`, re-seal the platform. One audit entry `platform.identities_created` (actor `system`, count, names). A platform that is not intact keeps its unsealed identity: both are refused until an administrator confirms (`confirm-config` then seals both).
+- **A one-time step after the next unlock** (like `sealPlatformConfigs`, setting `security.platformIdentitiesMigrated`): for each platform whose seal is `ok`, write its default identity from the platform row (its credentials, the MCP mode, everything else at the defaults – never the unsealed copy, which could have been changed in the database in between), seal it, set `platforms.secrets = NULL`, drop `enabled`/`writes` from `config.mcpGateway`, re-seal the platform. One transaction per platform; a platform that fails is rolled back and tried again at the next unlock (the setting is written only when none failed). One audit entry `platform.identities_created` per run (actor `system`, count, names, platforms not intact, failures). A platform that is not intact keeps its unsealed identity: both are refused until an administrator confirms (`confirm-config` then moves the credentials and seals both).
 - **Nothing changes in behaviour**: one identity, the same credentials, the same people, the same MCP mode.
 - **Additive.** No column is dropped (`platforms.secrets` stays, empty). Steward does not support downgrades ([INSTALL.md](../INSTALL.md)): going back means the pre-upgrade copy or a backup, which still has the old layout.
 
@@ -83,7 +83,7 @@ CREATE UNIQUE INDEX platform_identities_default ON platform_identities(platform_
 - **Identity seal**: `checkMac('platform_identity', id, …)` over `platform_id`, name, `is_default`, `auth`, `variables`, the secrets digest, `read_only`, `privileged`, `operation_filter`, `mcp`, `credential_source`. Binding `platform_id` stops a row (with its credentials) being moved to another platform in the database. The access list stays unsealed, as for platforms; its changes are audited.
 - **One resolver**: `getConnection(platformId, identityId?)` in `platforms/service.ts` returns `{ platform, identity, secrets }`, checks both seals, and gives the platform object with the identity's `auth` and `variables` merged in. `platformRequest`, `obtainAuthHeader`, `signerFor`, `resolveBaseUrl` keep their signatures and logic. `getSecrets(platformId)` stays as "the default identity" for the call sites not yet converted.
 - **Caches per identity**: `tokenCache` and `awsCache` keyed by `platformId:identityId`; `tokenInfo`, `renewToken`, `tokenClaims` per identity; database pools per identity (each identity is its own database account). The dispatcher and the semaphore stay per platform: TLS and the platform's capacity are shared. `invalidatePlatformCaches(platformId)` clears all identities; changing one identity clears only its entries.
-- **Masking**: error reports and the redactors mask the secrets of all identities of a platform (`getSecretsUnchecked` returns all of them), not only the one in use.
+- **Masking**: error reports and the redactors mask the secrets of all identities of a platform (`allSecretsUnchecked`), not only the one in use. `getSecretsUnchecked` stays the default identity's (names of its keys).
 
 ### Who may use an identity
 
@@ -175,7 +175,7 @@ The check sits in **one place**: `platformRequest` (next to `assertPathAllowed`,
 - **Copy specs to other platforms** (`copySpec`): copies specs only by default. Option _Also copy the operation filters_: for each identity of the source, the target identity of the same name gets the filter, or is created without credentials, closed and MCP off. It needs `manage` on the target (as now), never copies secrets and grants nobody anything.
 - **Postman export** (`export/postman.ts`): the default identity, or a chosen one; credentials stay empty variables.
 - **Git sync**: processes carry slot requirements (`identity.writes`); monitors may name an identity by name, resolved like platform names. Identities themselves are not synced (platforms are not).
-- **Migration packages / instance moves**: `platform_identities` is `MOVED` in `migration/tables.ts` (`acl` and `created_by`/`updated_by` in `USER_REFS`); `resource_teams` rows of kind `platform_identity` follow the identity mapping; secrets re-encrypted through `ENCRYPTED_COLUMNS`; the import seals identities that were intact on the source, like platforms. A package from an older version gets its default identities in staging by the same SQL migration.
+- **Migration packages / instance moves**: `platform_identities` is `MOVED` in `migration/tables.ts` (`acl` in `USER_REFS`; `created_by`/`updated_by` are history, in `HISTORY_COLUMNS`); `resource_teams` rows of kind `platform_identity` follow the identity mapping; secrets re-encrypted through `ENCRYPTED_COLUMNS`; the manifest gains `identityIntegrity` and the import seals identities that were intact on the source, like platforms. A package from an older version gets its default identities in staging by the same SQL migration; the import then moves the credentials of each platform that was intact on the source, as the one-time step does.
 
 ## UI outline
 
@@ -220,6 +220,16 @@ Each step is its own PR. Each is backward compatible: until someone adds a secon
 2. **More identities and choosing them.** Create, edit and delete identities; access lists, owning teams and `identityAccess`; slot requirements; the run dialog; schedules, triggers and sub-processes; monitors and background readers with `identity`; MCP mode per identity and the `identity` tool argument; evidence and audit with identity names; connector types carrying identity templates.
 3. **Read-only flag and operation filter.** `intent: 'read'` for Steward's own readers; the checks in `platformRequest`, the dry-run branch, non-HTTP steps and MCP; `operationFilter.ts` with presets, stale references and the _Copy specs_ option; `IDENTITY_READ_ONLY`, `IDENTITY_OPERATION_REFUSED`.
 4. **Privileged identities and PAM.** Control point `platform.privilegedIdentity`, step-up on the four places, the start approval, register links and rotation, privileged MCP rules. PAM checkout only after its own decision record.
+
+## Changed while building step 1
+
+1. The migration is `platforms-005-identities` (0.9.0 already has `platforms-004-kafka-connect`).
+2. `created_by`/`updated_by` of `platform_identities` are history columns, not `USER_REFS` (they say who did something, like every other `created_by`).
+3. The one-time step writes the default identity from the sealed platform row instead of sealing the copy the SQL migration made, runs one transaction per platform and retries failures at the next unlock (above).
+4. The MCP mode `off` may keep `writes`: 0.8.0 remembered the approval mode while the gateway was off, and turning it on again restored it.
+5. `OWNED_KINDS` gains `platform_identity` in step 2, with owning teams of identities; step 1 has no owning teams on identities.
+6. The caches key a plain platform object (from `getPlatform`) as the default identity, whose id is derived from the platform id. Step 2 (another identity can become the default) has to key it by the actual default identity, or convert the remaining callers to `getConnection` first.
+7. A platform's `integrity` is the worst of its own seal and its identities' seals; `confirm-config` seals both.
 
 ## Decided after review
 
