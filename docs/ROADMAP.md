@@ -78,6 +78,8 @@ Themes of this release (details in the CHANGELOG once released):
 2. **Platform costs** ([#226](https://github.com/vxrz/Steward/issues/226)): one cost model in FinOps FOCUS for AWS, Snowflake, Confluent Cloud, AI gateways and FOCUS file imports – showback per service, application and team, budgets and checks.
 3. **Data contracts** ([#221](https://github.com/vxrz/Steward/issues/221)): contracts in the Open Data Contract Standard (ODCS v3) with versions and breaking-change detection, drafts from API schemas, datasets and tables, tests through the datacontract API as a platform and a monitor check.
 4. **Kafka Connect and Debezium** ([#223](https://github.com/vxrz/Steward/issues/223)): connectors and tasks of an existing Kafka Connect watched like other platforms – Steward does not capture changes itself.
+5. **Version watch for the tech stack** ([#241](https://github.com/vxrz/Steward/issues/241)): the newest version of every known component from endoflife.date, Dependency-Track, package and container registries and Git releases – how far behind, end of life, a monitor check and a scorecard part.
+6. **changedetection.io** ([#242](https://github.com/vxrz/Steward/issues/242)), run separately: a platform preset, its watches as components, a check for changed or failing watches, and a webhook example that starts a process – for vendor pages without an API.
 
 ## Then – 0.10.0
 
