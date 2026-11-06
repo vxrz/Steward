@@ -19,7 +19,7 @@ flowchart TB
 
   subgraph platforms [Managed platforms]
     ih["Siemens Insights Hub,<br/>Industrial Edge (IEM)"]
-    rest["Any REST API, Kubernetes, AWS,<br/>Snowflake, Kafka, MQTT, databases, Git hosts,<br/>Prometheus, CheckMk, Dependency-Track, Gatus,<br/>IBM Verify Privilege Vault, LLM gateways"]
+    rest["Any REST API, Kubernetes, AWS,<br/>Snowflake, Kafka, MQTT, databases, Git hosts,<br/>Prometheus, CheckMk, Dependency-Track, Gatus,<br/>changedetection.io, IBM Verify Privilege Vault, LLM gateways"]
   end
 
   idp["Identity provider<br/>(OIDC, Entra ID)"]
@@ -117,6 +117,7 @@ Packaging: the same server runs as a desktop executable (a Node.js single execut
 | `export/`                                                       | Postman export of processes and platforms: collections and environments without secrets ([POSTMAN.md](POSTMAN.md)).                                                                                                                                                     |
 | `aws/`, `kafka/`, `mqtt/`, `snowflake/`, `dtrack/`, `semantic/` | Clients for the platform kinds that are not plain REST.                                                                                                                                                                                                                 |
 | `entra/`                                                        | Microsoft Graph for Entra ID: paging and throttling, access, app credentials, connection test, register import.                                                                                                                                                         |
+| `changedetection/`                                              | changedetection.io: the read-only client, the watches as components of the platform with their links, the hourly read ([CHANGEDETECTION.md](CHANGEDETECTION.md)).                                                                                                       |
 | `pvault/`                                                       | IBM Verify Privilege Vault: access source, hygiene, privileged use – metadata only ([IBM-PAM.md](IBM-PAM.md)).                                                                                                                                                          |
 | `dbms/`                                                         | Database platforms: one driver per DBMS (PostgreSQL, MariaDB/MySQL, SQL Server), read-only sessions, the statement check, catalog queries, a pool per platform, the step _Query a database_ ([ADR 0008](adr/0008-database-platforms.md), [DATABASES.md](DATABASES.md)). |
 | `ai/`                                                           | AI models through LLM gateways: one adapter per request format, the step _Ask an AI model_, limits, budgets, the usage log, its dataset and report section ([AI.md](AI.md)).                                                                                            |

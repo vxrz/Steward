@@ -161,6 +161,8 @@ Two layers apply to what Steward sends: **address safety** (always on: cloud-met
 | **MQTT brokers**, **Kafka brokers**                                                                                                                                                                                                           | under `platforms` the broker the platform names (Kafka: also brokers in the bootstrap server's domain); under `allowList` an entry                                                                                           |
 | Browser sub-resources (scripts, images, XHR of a page)                                                                                                                                                                                        | address safety only, so portals that load assets from CDNs work                                                                                                                                                              |
 
+Reads of **changedetection.io** (its watches, their history and the _Page watch_ check, [CHANGEDETECTION.md](CHANGEDETECTION.md#outbound-policy)) are checked like process steps (second row).
+
 Under **`allowList`** nothing is implicit: every destination of the second to fifth rows needs an entry, also configured platforms (built-in connector reads still work). Under **`open`** only address safety applies. Notification webhooks and e-mail that administrators set up are not checked by the policy.
 
 #### Do I need an allow-list entry?
