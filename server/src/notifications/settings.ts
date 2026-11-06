@@ -38,6 +38,7 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'access.undocumented',
     'document.review',
     'stack.eol',
+    'stack.release',
     'maintenance.announced',
     'measure.due',
     'backup.failed',

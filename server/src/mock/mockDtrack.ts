@@ -124,6 +124,38 @@ export async function mockDtrack(app: FastifyInstance): Promise<void> {
     const p = projects.find((x) => x.uuid === (req.params as { uuid: string }).uuid);
     return p ? out(p) : reply.code(404).send('The project could not be found.');
   });
+  // the repository metadata analyzer (version watch, #241): the latest version Dependency-Track knows for a package URL
+  app.get('/dtrack/api/v1/repository/latest', async (req, reply) => {
+    if (!authorized(req, reply)) return;
+    const purl = String((req.query as { purl?: string }).purl ?? '');
+    const known: Record<string, { type: string; namespace: string | null; name: string; latestVersion: string; days: number }> = {
+      'pkg:npm/react': { type: 'NPM', namespace: null, name: 'react', latestVersion: '19.2.0', days: 120 },
+      'pkg:maven/org.apache.logging.log4j/log4j-core': {
+        type: 'MAVEN',
+        namespace: 'org.apache.logging.log4j',
+        name: 'log4j-core',
+        latestVersion: '2.25.0',
+        days: 60,
+      },
+      'pkg:maven/org.springframework.boot/spring-boot': {
+        type: 'MAVEN',
+        namespace: 'org.springframework.boot',
+        name: 'spring-boot',
+        latestVersion: '4.0.1',
+        days: 25,
+      },
+    };
+    const k = known[purl.split('@')[0]!];
+    if (!k) return reply.code(404).send('The repository metadata for the specified component cannot be found.');
+    return {
+      repositoryType: k.type,
+      namespace: k.namespace,
+      name: k.name,
+      latestVersion: k.latestVersion,
+      published: Date.now() - k.days * 86_400_000,
+      lastCheck: Date.now() - 3_600_000,
+    };
+  });
   app.get('/dtrack/api/v1/metrics/project/:uuid/current', async (req, reply) => {
     if (!authorized(req, reply)) return;
     const p = projects.find((x) => x.uuid === (req.params as { uuid: string }).uuid);

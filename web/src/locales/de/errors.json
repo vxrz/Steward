@@ -936,7 +936,14 @@
     "DB_SQL_PLACEHOLDERS_missing": "Platzhalter {{word}} fehlt – nummerieren Sie die Platzhalter ab 1 ohne Lücken.",
     "DB_SQL_PLACEHOLDERS_fromOne": "Platzhalter werden ab 1 nummeriert.",
     "DB_SQL_PLACEHOLDERS_count": "Die Anweisung hat {{need}} Platzhalter, es sind aber {{given}} Parameter angegeben (Platzhalter: {{syntax}} …).",
-    "MCP_WRITES_NOT_AVAILABLE": "„{{name}}“ ist eine Datenbank-Plattform: Ihr MCP-Gateway ist nur lesend."
+    "MCP_WRITES_NOT_AVAILABLE": "„{{name}}“ ist eine Datenbank-Plattform: Ihr MCP-Gateway ist nur lesend.",
+    "STACK_ENTRY_NOT_FOUND": "Der Tech-Stack enthält dieses Produkt nicht.",
+    "VERSIONS_GIT_PLATFORM": "Wählen Sie eine GitHub-, GitLab- oder Forgejo-Plattform.",
+    "VERSIONS_OCI_PLATFORM": "Wählen Sie Plattformen der Art Container-Registry.",
+    "VERSIONS_PLATFORM": "Wählen Sie eine Container-Registry oder Git-Plattform, die Sie nutzen dürfen.",
+    "VERSIONS_NAME": "Geben Sie das Image (kleingeschrieben, z. B. library/postgres) oder das Repository (owner/repository) auf der Plattform an.",
+    "VERSIONS_PURL": "Das ist keine Package-URL (pkg:type/namespace/name).",
+    "VERSIONS_TAG_PATTERN": "Ein Tag-Muster enthält {version} genau einmal, z. B. {version}-alpine oder v{version}."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

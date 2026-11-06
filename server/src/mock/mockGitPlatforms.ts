@@ -24,6 +24,8 @@ interface Repo {
   files: Record<string, string>;
   pipeline: 'success' | 'failure' | 'running';
   release: { tag: string; days: number } | null;
+  /** Older releases and pre-releases (the version watch, #241), newest first; the latest is `release` */
+  history?: { tag: string; days: number; pre?: boolean }[];
   alerts: { severity: string }[];
   packages: { name: string; type: string; version: string }[];
   keys: { id: number; title: string; readOnly: boolean; days: number }[];
@@ -48,6 +50,12 @@ function seed(): Record<string, Repo> {
       },
       pipeline: 'success',
       release: { tag: 'v2.4.1', days: 12 },
+      history: [
+        { tag: 'v2.5.0-rc1', days: 2, pre: true },
+        { tag: 'v2.4.0', days: 40 },
+        { tag: 'v2.3.0', days: 90 },
+        { tag: 'v1.9.0', days: 300 },
+      ],
       alerts: [{ severity: 'high' }, { severity: 'medium' }, { severity: 'medium' }],
       packages: [{ name: 'shop-web', type: 'container', version: '2.4.1' }],
       keys: [
@@ -127,6 +135,10 @@ function repoOf(host: Host, owner: string, name?: string): Repo | 'secret' | nul
 }
 
 const notFound = (reply: FastifyReply) => reply.code(404).send({ message: 'Not Found' });
+/** Every release, newest first (pre-releases flagged), and the tags (#241). */
+const releasesOf = (r: Repo) =>
+  [...(r.release ? [{ ...r.release, pre: false }] : []), ...(r.history ?? []).map((h) => ({ ...h, pre: !!h.pre }))].sort((a, b) => a.days - b.days);
+const tagsOf = (r: Repo) => [...releasesOf(r).map((x) => x.tag), 'nightly'];
 const page = <T>(req: FastifyRequest, items: T[]) => {
   const q = req.query as { page?: string; per_page?: string; limit?: string };
   const size = Number(q.per_page ?? q.limit ?? 30);
@@ -200,6 +212,22 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
     const r = ghRepo(req, reply);
     if (!r) return reply;
     return r.release ? { tag_name: r.release.tag, published_at: ago(r.release.days), html_url: `${web(r)}/releases/tag/${r.release.tag}` } : notFound(reply);
+  });
+  app.get(`${G}/repos/:owner/:repo/releases`, async (req, reply) => {
+    const r = ghRepo(req, reply);
+    if (!r) return reply;
+    return page(
+      req,
+      releasesOf(r).map((x) => ({ tag_name: x.tag, published_at: ago(x.days), draft: false, prerelease: x.pre, html_url: `${web(r)}/releases/tag/${x.tag}` })),
+    );
+  });
+  app.get(`${G}/repos/:owner/:repo/tags`, async (req, reply) => {
+    const r = ghRepo(req, reply);
+    if (!r) return reply;
+    return page(
+      req,
+      tagsOf(r).map((name) => ({ name, commit: { sha: SHA[r.name] ?? '0'.repeat(40) } })),
+    );
   });
   app.get(`${G}/repos/:owner/:repo/dependabot/alerts`, async (req, reply) => {
     const r = ghRepo(req, reply);
@@ -299,10 +327,23 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
   });
   app.get(`${L}/projects/:id/releases`, async (req, reply) => {
     const r = glRepo(req, reply);
+    // GitLab has no pre-release flag: the list holds the releases (newest first, paged)
     return r
-      ? r.release
-        ? [{ tag_name: r.release.tag, released_at: ago(r.release.days), _links: { self: `${glWeb(r)}/-/releases/${r.release.tag}` } }]
-        : []
+      ? page(
+          req,
+          releasesOf(r)
+            .filter((x) => !x.pre)
+            .map((x) => ({ tag_name: x.tag, released_at: ago(x.days), upcoming_release: false, _links: { self: `${glWeb(r)}/-/releases/${x.tag}` } })),
+        )
+      : reply;
+  });
+  app.get(`${L}/projects/:id/repository/tags`, async (req, reply) => {
+    const r = glRepo(req, reply);
+    return r
+      ? page(
+          req,
+          tagsOf(r).map((name) => ({ name, commit: { id: SHA[r.name] ?? '0'.repeat(40), created_at: ago(1) } })),
+        )
       : reply;
   });
   app.get(`${L}/projects/:id/registry/repositories`, async (req, reply) => {
@@ -445,6 +486,22 @@ export async function mockGitPlatforms(app: FastifyInstance): Promise<void> {
     const r = ghRepo(req, reply);
     if (!r) return reply;
     return r.release ? { tag_name: r.release.tag, published_at: ago(r.release.days), html_url: `${fjWeb(r)}/releases/tag/${r.release.tag}` } : notFound(reply);
+  });
+  app.get(`${F}/repos/:owner/:repo/releases`, async (req, reply) => {
+    const r = ghRepo(req, reply);
+    if (!r) return reply;
+    return page(
+      req,
+      releasesOf(r).map((x) => ({ tag_name: x.tag, published_at: ago(x.days), draft: false, prerelease: x.pre })),
+    );
+  });
+  app.get(`${F}/repos/:owner/:repo/tags`, async (req, reply) => {
+    const r = ghRepo(req, reply);
+    if (!r) return reply;
+    return page(
+      req,
+      tagsOf(r).map((name) => ({ name, commit: { sha: SHA[r.name] ?? '0'.repeat(40), created: ago(1) } })),
+    );
   });
   app.get(`${F}/repos/:owner/:repo/keys`, async (req, reply) => {
     const r = ghRepo(req, reply);

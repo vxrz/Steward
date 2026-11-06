@@ -16,6 +16,7 @@ import { CriticalityBadge } from './Services';
 import { RatingBadges, levelText, useCiaScale } from '../components/catalogue/cia';
 import { useRoleLabel } from '../components/catalogue/ServiceApplications';
 import { EndOfLifeButton } from '../components/catalogue/lifecycle';
+import { VersionWatchButton } from '../components/catalogue/versions';
 import { ListPage, useStoredListView } from '../components/page/ListPage';
 
 const NOT_RATED = '__none';
@@ -73,6 +74,7 @@ export function ApplicationsPage() {
             {t('scale.link')}
           </Button>
           <EndOfLifeButton />
+          <VersionWatchButton />
           {canCreate && (
             <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
               {t('new')}

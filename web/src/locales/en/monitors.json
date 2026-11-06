@@ -379,7 +379,22 @@
     "dbSchemaFailAs": "When it fails",
     "dbSchemaNoData": "Without a snapshot",
     "dbSchemaRead": "Read the database first",
-    "dbSchemaReadHint": "Reads the schema at every check (a snapshot when it changed). Off: only the reads and imports already stored count."
+    "dbSchemaReadHint": "Reads the schema at every check (a snapshot when it changed). Off: only the reads and imports already stored count.",
+    "versionApplication": "Application",
+    "versionApplicationHint": "Its components and the systems it runs on are checked against the newest versions the version watch knows",
+    "versionChooseApplication": "Choose an application",
+    "versionNoApplication": "No application",
+    "versionEnvironment": "Environment",
+    "versionEnvironmentHint": "Only this environment (and what serves all); empty: every one",
+    "versionProducts": "Products",
+    "versionProductsHint": "Only these; empty: the whole tech stack",
+    "versionMaxMinors": "Degraded above … minor releases behind",
+    "versionMaxMinorsHint": "Default 2",
+    "versionMaxDays": "Degraded when behind for more than … days",
+    "versionMaxDaysHint": "Since the first newer release; empty: not checked",
+    "versionMajorAs": "A major release behind",
+    "versionEolAs": "Release cycle at its end of life",
+    "versionEolIgnore": "Not checked"
   },
   "detail": {
     "template": "template",
@@ -743,6 +758,10 @@
       "label": "Vulnerabilities (Dependency-Track)",
       "help": "A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation"
     },
+    "version-behind": {
+      "label": "Version behind",
+      "help": "The tech stack of an application is up to date: degraded when more minor releases or days behind than allowed, down when a major release behind or the release cycle reached its end of life (version watch)"
+    },
     "entra": {
       "label": "Entra ID (Microsoft Graph)",
       "help": "App registrations whose secrets or certificates expire within N days, or the Microsoft 365 service health"
@@ -774,6 +793,7 @@
     "monitor": "Sub-monitor",
     "snowflake": "Snowflake table fresh",
     "dependency-track": "No critical vulnerabilities",
+    "version-behind": "Tech stack up to date",
     "entra": "App credentials valid",
     "privilege-vault": "Vault hygiene",
     "database": "Database reachable",

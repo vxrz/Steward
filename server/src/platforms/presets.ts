@@ -510,6 +510,43 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'container-registry',
+    label: 'Container registry (image tags, read-only)',
+    description:
+      "A container registry with the OCI distribution API – GitHub Container Registry, Harbor, GitLab, Artifactory, Nexus, Azure, Google or Amazon registries: the version watch reads the tags of images (GET /v2/<image>/tags/list) to find newer versions of the tech stack (Applications → Version watch). Base URL: the registry itself (https://ghcr.io); variable registry: the host images name (ghcr.io); variable testImage: an image for the connection test. Anonymous for public images, or username and password (a read-only robot account or token). The registry's token flow is handled; credentials only go to the platform's own origins (add the token service under trusted origins if it has its own host). See docs/APPLICATIONS.md#version-watch.",
+    baseUrl: 'https://ghcr.io',
+    config: { auth: { type: 'none' }, variables: { registry: 'ghcr.io', testImage: '' }, http: {} },
+    secretFields: [
+      { key: 'username', label: 'Username (optional)', auth: 'basic' },
+      { key: 'password', label: 'Password or token (optional)', help: 'A read-only robot account or token: pull rights are enough', auth: 'basic' },
+    ],
+    docs: [
+      { title: 'OCI distribution specification: listing tags', url: 'https://github.com/opencontainers/distribution-spec/blob/main/spec.md#listing-tags' },
+    ],
+  },
+  {
+    kind: 'container-registry',
+    label: 'Docker Hub (image tags, read-only)',
+    description:
+      'Docker Hub for the version watch: the tags of official and other public images (docker.io/library/postgres …). No credentials needed for public images (Docker Hub limits anonymous requests); its token service auth.docker.io is a trusted origin. See docs/APPLICATIONS.md#version-watch.',
+    baseUrl: 'https://registry-1.docker.io',
+    config: {
+      auth: { type: 'none' },
+      variables: { registry: 'docker.io', testImage: 'library/alpine' },
+      http: { trustedOrigins: ['https://auth.docker.io'] },
+    },
+    secretFields: [
+      { key: 'username', label: 'Docker Hub user (optional)', auth: 'basic' },
+      {
+        key: 'password',
+        label: 'Access token (optional, read-only)',
+        help: 'A personal access token with "Public Repo Read-only" raises the request limit',
+        auth: 'basic',
+      },
+    ],
+    docs: [{ title: 'Docker Hub registry API', url: 'https://docs.docker.com/reference/api/registry/latest/' }],
+  },
+  {
     kind: 'zabbix',
     label: 'Zabbix (monitor outputs)',
     description:

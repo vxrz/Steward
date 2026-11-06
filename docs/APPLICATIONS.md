@@ -123,6 +123,78 @@ _Refresh now_ (designers and administrators, `POST /api/catalogue/lifecycle/refr
 
 The stack entries carry the state in the API (`lifecycle`: `state`, `cycle`, `eolFrom`, `eoasFrom`, `isLts`, `latest`, `daysLeft`; `null` before the first refresh), in `GET /api/v1/applications/{id}` and in process inputs; `$systems()` in expressions returns every system with its stack and end of life, also systems no application runs on. The example **End of life – Tech stack overview** (process 77) and the dashboard **End of life** list every component and system past or near its end of life: the systems of each application per environment, and systems no application runs on yet (application `–`).
 
+### Version watch
+
+For every tech stack entry – from an SBOM, a cluster's images, a repository's files or entered by hand – Steward reads the **newest version** from structured sources once a day and shows how far behind the installed one is. It only reads and reminds: no upgrades, no pull requests – [Renovate](https://docs.renovatebot.com/) or Dependabot stay the tools that change code.
+
+**Where Steward looks.** For an entry without its own setting, the sources are tried in the order of the settings; the first that answers with a version wins:
+
+| Source             | What is read                                                                                                                                                                                                                                                                                                                |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dependency-Track   | `GET /api/v1/repository/latest?purl=…`: the latest version its repository metadata analyzer knows, for components that name a Dependency-Track project ([DEPENDENCY-TRACK.md](DEPENDENCY-TRACK.md))                                                                                                                         |
+| Package registry   | by [package URL](https://github.com/package-url/purl-spec) – the SBOM's, else the product's from the product list: **npm** (`registry.npmjs.org`), **PyPI** (JSON API), **Maven Central** (`maven-metadata.xml`), **NuGet** (flat container), the **Go module proxy** (`@v/list`), **crates.io**; yanked versions left out  |
+| Container registry | the tags of an image read from a cluster or a Dockerfile (`GET /v2/<name>/tags/list`, [OCI distribution specification](https://github.com/opencontainers/distribution-spec/blob/main/spec.md#listing-tags)) on a platform of type _Container registry_ or _Docker Hub_ chosen in the settings, matched by the registry host |
+| Git platform       | releases (or tags) of a repository on GitHub, GitLab or Forgejo/Gitea: an entry's own setting, or the product's upstream repository (`pkg:github/…` of the product list) on the GitHub platform of the settings                                                                                                             |
+| endoflife.date     | the latest release of the newest release cycle ([End of life](#end-of-life))                                                                                                                                                                                                                                                |
+
+**How versions are compared.** By the ecosystem's rules: [Semantic Versioning 2.0.0](https://semver.org/) (also NuGet, Go modules, Cargo), [PEP 440](https://peps.python.org/pep-0440/) for PyPI, Maven's `ComparableVersion` order for Maven (`alpha < beta < milestone < rc < snapshot < release < sp`), numbers with dots for tags and endoflife.date. **Pre-releases** (alpha, beta, release candidates, milestones, Go pseudo-versions, GitHub releases marked as pre-release) are left out unless the settings or the entry count them. Image tags keep their shape: `nginx:1.27.3-alpine` is compared with the `-alpine` tags only (`1.28.0-alpine`), `postgres:16.4` with plain versions (`18.1`, not `18.1-alpine` or `19beta1`).
+
+**Behind by** is the first part that differs – major, else minor, else patch – and the **days** since the first release newer than the installed one came out (when the source has dates). Parts the installed version leaves out match any: `node:24-alpine` is not behind `24.11.1`. The newest version is shown as the source names it (the tag with its suffix, the release's tag).
+
+**What you see**
+
+- **Component and system**: next to a stack entry that is behind, its newest version (red a major, orange minor, blue a patch behind); it opens the entry.
+- **Tech stack of the application** (_Versions_): installed → newest, where it was found, behind by and for how many days, the end of life of the cycle, the open critical and high findings of the component's Dependency-Track project – the worst first; cards on a phone.
+- **The entry** (the badge or the details button): newest version, behind by, the release cycle's end of life, the findings in this package from Dependency-Track with their fixed version, and **what each source said** – also those after the one that won, with why a source did not apply (no package URL, blocked by the outbound policy, not read yet …).
+- **Where to look**, per entry, for whoever may change the application or system: _Automatic_, one source, or _Not watched_; the package URL, the image or repository on a platform the person may use, a **tag pattern** with `{version}` once (`{version}-alpine`, `v{version}`, `release-{version}`), releases or tags, the comparison rules and pre-releases. _Read now_ reads its sources at once. Changes are audited (`application.version_watch_changed`, `system.version_watch_changed`).
+- `GET /api/v1/applications/{id}` carries `watch` on every stack entry (`source`, `where`, `ref`, `newest`, `newestAt`, `lag`, `behind`, `daysBehind`, `checkedAt`, `error`).
+
+**Monitor check _Version behind_** ([MONITORS.md](MONITORS.md#check-types)): the stack of one application (its components and the systems it runs on), optionally one environment or some products – **down** (or degraded) when an entry is a major release behind or its cycle is past its end of life, **degraded** above `maxMinors` minor releases (default 2) or `maxDays` days behind. It judges the cache and calls nothing.
+
+```yaml
+checks:
+  - id: shop-stack
+    name: Shop tech stack up to date
+    type: version-behind
+    application: Webshop (demo)
+    environment: prod
+    maxMinors: 2
+    maxDays: 180
+    majorAs: degraded
+    eolAs: down
+```
+
+**Dataset _Component versions_** (`catalogue.versions`) for dashboards and reports: one row per stack entry – application, component or system, environment, product, installed, newest, behind, days behind, end of life, source – with a status (serious: a major behind or past its end of life; warning: further behind than the settings allow) and the metrics `entries`, `current`, `major`, `minor`, `patch`, `eol`, `unknown`. Published every hour by the job. It names every application, so only administrators and auditors see it.
+
+**Scorecard part _Up to date_** (off by default, [SCORECARD.md](SCORECARD.md#the-scorecard)): attention when an entry is a major release behind, open when further behind than allowed.
+
+**Messages**: event **New major release** (`stack.release`, [NOTIFICATIONS.md](NOTIFICATIONS.md)) to the owners of the application (else the administrators) or the people responsible for a system, once per product and major release. The newest major release known when an entry is first seen is the starting point – turning the watch on sends no flood. A cycle reaching its end of life is the event _Tech stack end of life_ above. Sent messages are audited (`application.major_release_notice_sent`, `system.major_release_notice_sent`).
+
+**Settings** (_Applications → Version watch_; status for everyone, changes by administrators, audited as `catalogue.versions_settings_changed`):
+
+| Setting                                | Default       | What it does                                                                                                                          |
+| -------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Sources                                | all, in order | Which sources are tried for entries without their own setting, and in which order (the first that answers wins)                       |
+| Read every … hours                     | 24            | How old a lookup may get; a failed one is tried again after at most 6 hours                                                           |
+| Package registries                     | public        | The address of each registry – a mirror without login works (Artifactory, Nexus); empty: not read                                     |
+| Container registries for images        | none          | Platforms of type _Container registry_ tried for images, matched by the registry host (variable `registry`, else the base URL's host) |
+| Git platform for upstream releases     | none          | A GitHub platform for the releases of a product's upstream repository                                                                 |
+| Count pre-releases                     | off           | An entry can decide for itself                                                                                                        |
+| Message the owners on a new major      | on            | The event _New major release_                                                                                                         |
+| Count on the scorecard                 | off           | The part _Up to date_                                                                                                                 |
+| Behind above … minor releases / … days | 2 / 180       | Limits for the scorecard and the dataset (monitor checks have their own)                                                              |
+
+_Read all now_ (designers and administrators, `POST /api/catalogue/versions/refresh`, audited as `catalogue.versions_refreshed`) reads every lookup at once.
+
+**Safe by design**
+
+- **Read-only, cached**: the job `version-watch` reads each lookup (one per package, image or repository – shared by every entry that needs it) once a day by default, at most 200 per run; pages, the API, checks and the dataset read only the cache. A failed read keeps the versions read before and records why.
+- **Outbound policy** as everywhere ([SECURITY-HARDENING.md](SECURITY-HARDENING.md#outbound-connections)): a registry's host must be allowed – blocked, the lookup says so and the next source answers. Allow `registry.npmjs.org`, `pypi.org`, `repo1.maven.org`, `api.nuget.org`, `proxy.golang.org` and `crates.io` (or your mirror) under _Settings → Outbound access_ to use them.
+- **No credentials to public registries**: requests carry no cookies and no authorization, follow no redirects and stop above 16 MB and after 20 seconds. Package URLs are parsed segment by segment and encoded – `..`, `/` inside a segment or control characters are refused, so an SBOM cannot point a request elsewhere. Platforms (Dependency-Track, container registries, Git) use their own credentials, only on their own origins; a registry's token service gets the platform's credentials only when it is one of the platform's origins (Docker Hub: `auth.docker.io` is a trusted origin of the preset), and only the pull right of one repository is asked for.
+- **Rights**: an entry of an application or system the reader may not see answers like a missing one; a monitor check sees the application as its owner does. A platform named in an entry's setting must be one the person may use, and is read with their rights afterwards (the platforms of the settings with the instance's).
+
+**Set up**: the demo has _Container registry (demo)_ and simulated npm, PyPI, Maven, NuGet, Go and crates.io registries. For real use, add a platform of type _Docker Hub_ or _Container registry_ (GHCR, Harbor, GitLab, Artifactory …: base URL the registry, variable `registry` the host images name, optional `testImage` for the connection test, anonymous or a read-only robot account), choose it under _Version watch_, and allow the registry hosts in the outbound policy.
+
 ### Processes: input type application
 
 A process input of type **Application** asks for an application when the run starts (schedules store it, a default can name it). The run gets the application with its components and stack, read when the run starts and kept in the run's protocol:

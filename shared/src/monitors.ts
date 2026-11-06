@@ -61,6 +61,7 @@ export const CHECK_TYPES = [
   'dynamodb',
   'db-schema',
   'dependency-track',
+  'version-behind',
   'entra',
   'privilege-vault',
   'monitor',
@@ -89,6 +90,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   'dependency-track': {
     label: 'Vulnerabilities (Dependency-Track)',
     help: 'A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation',
+  },
+  'version-behind': {
+    label: 'Version behind',
+    help: 'The tech stack of an application is up to date: degraded when more minor releases or days behind than allowed, down when a major release behind or the release cycle reached its end of life (version watch)',
   },
   'privilege-vault': {
     label: 'Vault hygiene (IBM Verify Privilege Vault)',
@@ -380,6 +385,24 @@ export const checkSchema = z.discriminatedUnion('type', [
     /** A failing policy violation counts like a critical finding (default true) */
     policyFail: z.boolean().default(true),
     failAs: z.enum(['down', 'degraded']).default('down'),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('version-behind'),
+    /** The application whose tech stack is checked: its id or name (#241) */
+    application: z.string().trim().min(1).max(200),
+    /** Only components and systems of this environment (and those of all environments); empty: every one */
+    environment: z.string().trim().max(60).optional(),
+    /** Only these products (endoflife.date ids); empty: the whole stack */
+    products: z.array(z.string().trim().min(1).max(100)).max(50).optional(),
+    /** Degraded above this many minor releases behind (default 2) */
+    maxMinors: z.number().int().min(0).max(1000).default(2),
+    /** Degraded when the first newer release came out more than this many days ago; unset: not checked */
+    maxDays: z.number().int().min(1).max(3650).optional(),
+    /** A major release behind: down (default) or degraded */
+    majorAs: z.enum(['down', 'degraded']).default('down'),
+    /** The release cycle reached its end of life: down (default), degraded, or not checked */
+    eolAs: z.enum(['down', 'degraded', 'ignore']).default('down'),
   }),
   z.object({
     ...checkBase,

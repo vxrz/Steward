@@ -1,6 +1,7 @@
 import type { CiaDimension } from './catalogue.js';
 import type { DutyLevel, DutyPeriodStatus } from './duties.js';
 import type { ReviewStatus, ServiceCriticality } from './records.js';
+import type { VersionBehind, VersionLag } from './versions.js';
 
 /**
  * Availability objectives and the service scorecard (#86).
@@ -155,8 +156,9 @@ export interface ObjectiveDetail extends ObjectiveSummary {
  * lifecycle: the tech stack's end of life (#104) – counted only when turned on (LifecycleSettings.scorecard), else "none".
  * vulnerabilities: Dependency-Track's findings and policy violations of the applications' components (#119) – "none"
  * when no component links a Dependency-Track project.
+ * upToDate: the version watch (#241) – counted only when turned on (VersionSettings.scorecard), else "none".
  */
-export const SCORECARD_PARTS = ['duties', 'availability', 'documentation', 'protection', 'lifecycle', 'vulnerabilities'] as const;
+export const SCORECARD_PARTS = ['duties', 'availability', 'documentation', 'protection', 'lifecycle', 'vulnerabilities', 'upToDate'] as const;
 export type ScorecardPart = (typeof SCORECARD_PARTS)[number];
 
 /**
@@ -358,6 +360,41 @@ export interface ScorecardVulnerabilities {
   items: ScorecardVulnerabilityItem[];
 }
 
+/** A tech stack entry that is behind the newest version (#241). */
+export interface ScorecardUpToDateItem {
+  applicationId: string;
+  applicationName: string;
+  /** The component's or system's name */
+  componentName: string;
+  holder: 'component' | 'system';
+  environment: string;
+  production: boolean;
+  product: string;
+  label: string;
+  version: string;
+  newest: string;
+  lag: VersionLag;
+  behind: VersionBehind | null;
+  daysBehind: number | null;
+}
+
+export interface ScorecardUpToDate {
+  /**
+   * attention: an entry a major release behind; pending: more minor releases or days behind than the version watch's
+   * settings allow; none: turned off, or no entry with a known newest version
+   */
+  status: ScorecardPartStatus;
+  /** The part is counted (turned on in the version watch settings) */
+  enabled: boolean;
+  /** Stack entries of the service's applications with a known newest version */
+  entries: number;
+  major: number;
+  /** Behind more than allowed, but not by a major release */
+  behind: number;
+  /** Major first, then production, then the longest behind */
+  items: ScorecardUpToDateItem[];
+}
+
 export interface ServiceScorecard {
   serviceId: string;
   serviceName: string;
@@ -371,6 +408,7 @@ export interface ServiceScorecard {
   protection: ScorecardProtection;
   lifecycle: ScorecardLifecycle;
   vulnerabilities: ScorecardVulnerabilities;
+  upToDate: ScorecardUpToDate;
 }
 
 export type ScorecardPartCounts = Record<ScorecardPartStatus, number>;

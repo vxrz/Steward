@@ -7,6 +7,7 @@ import type { SnowflakeReadout } from './snowflake.js';
 import type { DtrackLink, DtrackReadout } from './dtrack.js';
 import type { Backlink, ItemLink, ReviewStatus, ServiceCriticality } from './records.js';
 import type { SegmentMember, SystemAttributes, SystemFirewall, SystemSegmentLink } from './network.js';
+import type { StackVersion } from './versions.js';
 
 /**
  * Applications in the service catalogue (#84): what people call a platform ("Insights Hub", "Industrial Edge")
@@ -267,6 +268,8 @@ export interface StackEntry {
   setBy: string;
   /** End of life of the release cycle in use (#104); null when there is no end-of-life data for the product */
   lifecycle: StackLifecycle | null;
+  /** The newest version and how far behind this one is (#241); null when the entry is not watched */
+  watch?: StackVersion | null;
 }
 
 // ---------- end of life (#104) ----------

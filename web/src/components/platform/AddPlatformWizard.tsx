@@ -48,7 +48,7 @@ const GROUPS: { key: GroupKey; kinds: string[] }[] = [
   { key: 'monitoring', kinds: ['gatus', 'checkmk', 'prometheus', 'zabbix'] },
   { key: 'cloud', kinds: ['aws', 'kubernetes', 'snowflake', 'kafka', 'kafka-connect', 'confluent-cloud', 'microsoft-graph'] },
   { key: 'databases', kinds: ['database'] },
-  { key: 'development', kinds: ['github', 'gitlab', 'forgejo', 'dependency-track', 'endoflife-date'] },
+  { key: 'development', kinds: ['github', 'gitlab', 'forgejo', 'dependency-track', 'endoflife-date', 'container-registry'] },
   { key: 'ai', kinds: ['llm-gateway'] },
   { key: 'messaging', kinds: ['teams'] },
 ];

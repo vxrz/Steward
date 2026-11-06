@@ -24,6 +24,7 @@ import { mockPrivilegeVault } from './mockPrivilegeVault.js';
 import { mockLlmGateway } from './mockLlmGateway.js';
 import { mockDtrack } from './mockDtrack.js';
 import { mockEndoflife } from './mockEndoflife.js';
+import { mockRegistries } from './mockRegistries.js';
 import { mockUsageRoutes } from './mockUsage.js';
 
 /**
@@ -232,6 +233,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   await mockLlmGateway(app);
   await mockDtrack(app);
   await mockEndoflife(app);
+  await mockRegistries(app);
 
   app.post('/reset', async () => {
     state = seed();

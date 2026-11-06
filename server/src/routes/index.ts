@@ -37,6 +37,7 @@ import { databaseRoutes } from '../dbms/routes.js';
 import { kafkaConnectRoutes } from '../kafkaconnect/routes.js';
 import { dbSchemaRoutes } from '../dbschema/routes.js';
 import { plantRoutes } from '../plant/routes.js';
+import { versionRoutes } from '../versions/routes.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await authRoutes(app);
@@ -60,6 +61,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await reportScheduleRoutes(app);
   await recordRoutes(app);
   await catalogueRoutes(app);
+  // the version watch of the tech stack (#241)
+  await versionRoutes(app);
   await backupRoutes(app);
   await dutyRoutes(app);
   await scorecardRoutes(app);

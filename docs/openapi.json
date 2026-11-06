@@ -3959,6 +3959,7 @@
               "dynamodb",
               "db-schema",
               "dependency-track",
+              "version-behind",
               "entra",
               "privilege-vault",
               "monitor"
@@ -4385,6 +4386,7 @@
                     "dynamodb",
                     "db-schema",
                     "dependency-track",
+                    "version-behind",
                     "entra",
                     "privilege-vault",
                     "monitor"
@@ -10059,6 +10061,145 @@
                           }
                         ],
                         "description": "End of life of the release cycle in use (from endoflife.date); null: no data for the product"
+                      },
+                      "watch": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "dtrack",
+                                      "registry",
+                                      "oci",
+                                      "git",
+                                      "endoflife"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The source that answered first (dtrack, registry, oci, git, endoflife); null: none"
+                              },
+                              "ref": {
+                                "type": "string",
+                                "description": "What was looked up: a package URL, an image, a repository, the product"
+                              },
+                              "where": {
+                                "type": "string",
+                                "description": "Where: npm, PyPI …, a platform’s name, endoflife.date"
+                              },
+                              "newest": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "The newest version, as the source names it (a tag keeps its suffix)"
+                              },
+                              "newestAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "When it was published, if the source says"
+                              },
+                              "lag": {
+                                "type": "string",
+                                "enum": [
+                                  "current",
+                                  "patch",
+                                  "minor",
+                                  "major",
+                                  "unknown"
+                                ],
+                                "description": "current, patch, minor, major or unknown"
+                              },
+                              "behind": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "major": {
+                                        "type": "integer"
+                                      },
+                                      "minor": {
+                                        "type": "integer"
+                                      },
+                                      "patch": {
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "required": [
+                                      "major",
+                                      "minor",
+                                      "patch"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The first part that differs"
+                              },
+                              "daysBehind": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Days since the first release newer than the installed one"
+                              },
+                              "checkedAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "error": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Why no source answered"
+                              },
+                              "configured": {
+                                "type": "boolean",
+                                "description": "The entry has its own setting"
+                              },
+                              "prereleases": {
+                                "type": "boolean",
+                                "description": "Pre-releases count"
+                              }
+                            },
+                            "required": [
+                              "source",
+                              "ref",
+                              "where",
+                              "newest",
+                              "newestAt",
+                              "lag",
+                              "behind",
+                              "daysBehind",
+                              "checkedAt",
+                              "error",
+                              "configured",
+                              "prereleases"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The newest version from the version watch and how far behind this one is; null: not watched"
                       }
                     },
                     "required": [
@@ -10471,6 +10612,145 @@
                           }
                         ],
                         "description": "End of life of the release cycle in use (from endoflife.date); null: no data for the product"
+                      },
+                      "watch": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "dtrack",
+                                      "registry",
+                                      "oci",
+                                      "git",
+                                      "endoflife"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The source that answered first (dtrack, registry, oci, git, endoflife); null: none"
+                              },
+                              "ref": {
+                                "type": "string",
+                                "description": "What was looked up: a package URL, an image, a repository, the product"
+                              },
+                              "where": {
+                                "type": "string",
+                                "description": "Where: npm, PyPI …, a platform’s name, endoflife.date"
+                              },
+                              "newest": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "The newest version, as the source names it (a tag keeps its suffix)"
+                              },
+                              "newestAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "When it was published, if the source says"
+                              },
+                              "lag": {
+                                "type": "string",
+                                "enum": [
+                                  "current",
+                                  "patch",
+                                  "minor",
+                                  "major",
+                                  "unknown"
+                                ],
+                                "description": "current, patch, minor, major or unknown"
+                              },
+                              "behind": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "major": {
+                                        "type": "integer"
+                                      },
+                                      "minor": {
+                                        "type": "integer"
+                                      },
+                                      "patch": {
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "required": [
+                                      "major",
+                                      "minor",
+                                      "patch"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The first part that differs"
+                              },
+                              "daysBehind": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Days since the first release newer than the installed one"
+                              },
+                              "checkedAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "error": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Why no source answered"
+                              },
+                              "configured": {
+                                "type": "boolean",
+                                "description": "The entry has its own setting"
+                              },
+                              "prereleases": {
+                                "type": "boolean",
+                                "description": "Pre-releases count"
+                              }
+                            },
+                            "required": [
+                              "source",
+                              "ref",
+                              "where",
+                              "newest",
+                              "newestAt",
+                              "lag",
+                              "behind",
+                              "daysBehind",
+                              "checkedAt",
+                              "error",
+                              "configured",
+                              "prereleases"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The newest version from the version watch and how far behind this one is; null: not watched"
                       }
                     },
                     "required": [
@@ -11055,6 +11335,145 @@
                     }
                   ],
                   "description": "End of life of the release cycle in use (from endoflife.date); null: no data for the product"
+                },
+                "watch": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "dtrack",
+                                "registry",
+                                "oci",
+                                "git",
+                                "endoflife"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The source that answered first (dtrack, registry, oci, git, endoflife); null: none"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "description": "What was looked up: a package URL, an image, a repository, the product"
+                        },
+                        "where": {
+                          "type": "string",
+                          "description": "Where: npm, PyPI …, a platform’s name, endoflife.date"
+                        },
+                        "newest": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "The newest version, as the source names it (a tag keeps its suffix)"
+                        },
+                        "newestAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "When it was published, if the source says"
+                        },
+                        "lag": {
+                          "type": "string",
+                          "enum": [
+                            "current",
+                            "patch",
+                            "minor",
+                            "major",
+                            "unknown"
+                          ],
+                          "description": "current, patch, minor, major or unknown"
+                        },
+                        "behind": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "major": {
+                                  "type": "integer"
+                                },
+                                "minor": {
+                                  "type": "integer"
+                                },
+                                "patch": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "major",
+                                "minor",
+                                "patch"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The first part that differs"
+                        },
+                        "daysBehind": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Days since the first release newer than the installed one"
+                        },
+                        "checkedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Why no source answered"
+                        },
+                        "configured": {
+                          "type": "boolean",
+                          "description": "The entry has its own setting"
+                        },
+                        "prereleases": {
+                          "type": "boolean",
+                          "description": "Pre-releases count"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "ref",
+                        "where",
+                        "newest",
+                        "newestAt",
+                        "lag",
+                        "behind",
+                        "daysBehind",
+                        "checkedAt",
+                        "error",
+                        "configured",
+                        "prereleases"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The newest version from the version watch and how far behind this one is; null: not watched"
                 }
               },
               "required": [
@@ -14067,6 +14486,157 @@
             ],
             "additionalProperties": false,
             "description": "Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects"
+          },
+          "upToDate": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: a stack entry a major release behind; pending: more minor releases or days behind than the version watch allows; none: not counted (turned off) or no entry with a known newest version"
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "Counted (version watch settings)"
+              },
+              "entries": {
+                "type": "integer",
+                "description": "Stack entries with a known newest version"
+              },
+              "major": {
+                "type": "integer",
+                "description": "Entries a major release behind"
+              },
+              "behind": {
+                "type": "integer",
+                "description": "Entries behind more than allowed, not by a major release"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "applicationId": {
+                      "type": "string"
+                    },
+                    "applicationName": {
+                      "type": "string"
+                    },
+                    "componentName": {
+                      "type": "string",
+                      "description": "The component or system"
+                    },
+                    "holder": {
+                      "type": "string",
+                      "enum": [
+                        "component",
+                        "system"
+                      ]
+                    },
+                    "environment": {
+                      "type": "string"
+                    },
+                    "production": {
+                      "type": "boolean"
+                    },
+                    "product": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string",
+                      "description": "Installed"
+                    },
+                    "newest": {
+                      "type": "string",
+                      "description": "The newest version, as the source names it"
+                    },
+                    "lag": {
+                      "type": "string",
+                      "enum": [
+                        "current",
+                        "patch",
+                        "minor",
+                        "major",
+                        "unknown"
+                      ]
+                    },
+                    "behind": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "major": {
+                              "type": "integer"
+                            },
+                            "minor": {
+                              "type": "integer"
+                            },
+                            "patch": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "major",
+                            "minor",
+                            "patch"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "daysBehind": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Days since the first newer release"
+                    }
+                  },
+                  "required": [
+                    "applicationId",
+                    "applicationName",
+                    "componentName",
+                    "holder",
+                    "environment",
+                    "production",
+                    "product",
+                    "label",
+                    "version",
+                    "newest",
+                    "lag",
+                    "behind",
+                    "daysBehind"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "The entries behind more than allowed, major first"
+              }
+            },
+            "required": [
+              "status",
+              "enabled",
+              "entries",
+              "major",
+              "behind",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "Up to date: how far the tech stack of the service’s applications is behind the newest versions (version watch)"
           }
         },
         "required": [
@@ -14080,7 +14650,8 @@
           "documentation",
           "protection",
           "lifecycle",
-          "vulnerabilities"
+          "vulnerabilities",
+          "upToDate"
         ],
         "additionalProperties": false
       },
@@ -14924,6 +15495,157 @@
                   ],
                   "additionalProperties": false,
                   "description": "Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects"
+                },
+                "upToDate": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none"
+                      ],
+                      "description": "attention: a stack entry a major release behind; pending: more minor releases or days behind than the version watch allows; none: not counted (turned off) or no entry with a known newest version"
+                    },
+                    "enabled": {
+                      "type": "boolean",
+                      "description": "Counted (version watch settings)"
+                    },
+                    "entries": {
+                      "type": "integer",
+                      "description": "Stack entries with a known newest version"
+                    },
+                    "major": {
+                      "type": "integer",
+                      "description": "Entries a major release behind"
+                    },
+                    "behind": {
+                      "type": "integer",
+                      "description": "Entries behind more than allowed, not by a major release"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "applicationId": {
+                            "type": "string"
+                          },
+                          "applicationName": {
+                            "type": "string"
+                          },
+                          "componentName": {
+                            "type": "string",
+                            "description": "The component or system"
+                          },
+                          "holder": {
+                            "type": "string",
+                            "enum": [
+                              "component",
+                              "system"
+                            ]
+                          },
+                          "environment": {
+                            "type": "string"
+                          },
+                          "production": {
+                            "type": "boolean"
+                          },
+                          "product": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string",
+                            "description": "Installed"
+                          },
+                          "newest": {
+                            "type": "string",
+                            "description": "The newest version, as the source names it"
+                          },
+                          "lag": {
+                            "type": "string",
+                            "enum": [
+                              "current",
+                              "patch",
+                              "minor",
+                              "major",
+                              "unknown"
+                            ]
+                          },
+                          "behind": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "major": {
+                                    "type": "integer"
+                                  },
+                                  "minor": {
+                                    "type": "integer"
+                                  },
+                                  "patch": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "major",
+                                  "minor",
+                                  "patch"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "daysBehind": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Days since the first newer release"
+                          }
+                        },
+                        "required": [
+                          "applicationId",
+                          "applicationName",
+                          "componentName",
+                          "holder",
+                          "environment",
+                          "production",
+                          "product",
+                          "label",
+                          "version",
+                          "newest",
+                          "lag",
+                          "behind",
+                          "daysBehind"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The entries behind more than allowed, major first"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "enabled",
+                    "entries",
+                    "major",
+                    "behind",
+                    "items"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Up to date: how far the tech stack of the service’s applications is behind the newest versions (version watch)"
                 }
               },
               "required": [
@@ -14937,7 +15659,8 @@
                 "documentation",
                 "protection",
                 "lifecycle",
-                "vulnerabilities"
+                "vulnerabilities",
+                "upToDate"
               ],
               "additionalProperties": false
             }
@@ -15110,6 +15833,30 @@
                           "none"
                         ],
                         "additionalProperties": false
+                      },
+                      "upToDate": {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "integer"
+                          },
+                          "attention": {
+                            "type": "integer"
+                          },
+                          "pending": {
+                            "type": "integer"
+                          },
+                          "none": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "attention",
+                          "pending",
+                          "none"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -15118,7 +15865,8 @@
                       "documentation",
                       "protection",
                       "lifecycle",
-                      "vulnerabilities"
+                      "vulnerabilities",
+                      "upToDate"
                     ],
                     "additionalProperties": false
                   }
@@ -15299,6 +16047,30 @@
                             "none"
                           ],
                           "additionalProperties": false
+                        },
+                        "upToDate": {
+                          "type": "object",
+                          "properties": {
+                            "ok": {
+                              "type": "integer"
+                            },
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "pending": {
+                              "type": "integer"
+                            },
+                            "none": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "ok",
+                            "attention",
+                            "pending",
+                            "none"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -15307,7 +16079,8 @@
                         "documentation",
                         "protection",
                         "lifecycle",
-                        "vulnerabilities"
+                        "vulnerabilities",
+                        "upToDate"
                       ],
                       "additionalProperties": false
                     }
@@ -15527,6 +16300,35 @@
                   "hidden"
                 ],
                 "additionalProperties": false
+              },
+              "upToDate": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "integer"
+                  },
+                  "attention": {
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "type": "integer"
+                  },
+                  "none": {
+                    "type": "integer"
+                  },
+                  "hidden": {
+                    "type": "integer",
+                    "description": "Relied on documents the token owner may not read"
+                  }
+                },
+                "required": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none",
+                  "hidden"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -15535,7 +16337,8 @@
               "documentation",
               "protection",
               "lifecycle",
-              "vulnerabilities"
+              "vulnerabilities",
+              "upToDate"
             ],
             "additionalProperties": false
           }
@@ -16379,6 +17182,157 @@
             "additionalProperties": false,
             "description": "Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects"
           },
+          "upToDate": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: a stack entry a major release behind; pending: more minor releases or days behind than the version watch allows; none: not counted (turned off) or no entry with a known newest version"
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "Counted (version watch settings)"
+              },
+              "entries": {
+                "type": "integer",
+                "description": "Stack entries with a known newest version"
+              },
+              "major": {
+                "type": "integer",
+                "description": "Entries a major release behind"
+              },
+              "behind": {
+                "type": "integer",
+                "description": "Entries behind more than allowed, not by a major release"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "applicationId": {
+                      "type": "string"
+                    },
+                    "applicationName": {
+                      "type": "string"
+                    },
+                    "componentName": {
+                      "type": "string",
+                      "description": "The component or system"
+                    },
+                    "holder": {
+                      "type": "string",
+                      "enum": [
+                        "component",
+                        "system"
+                      ]
+                    },
+                    "environment": {
+                      "type": "string"
+                    },
+                    "production": {
+                      "type": "boolean"
+                    },
+                    "product": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string",
+                      "description": "Installed"
+                    },
+                    "newest": {
+                      "type": "string",
+                      "description": "The newest version, as the source names it"
+                    },
+                    "lag": {
+                      "type": "string",
+                      "enum": [
+                        "current",
+                        "patch",
+                        "minor",
+                        "major",
+                        "unknown"
+                      ]
+                    },
+                    "behind": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "major": {
+                              "type": "integer"
+                            },
+                            "minor": {
+                              "type": "integer"
+                            },
+                            "patch": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "major",
+                            "minor",
+                            "patch"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "daysBehind": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Days since the first newer release"
+                    }
+                  },
+                  "required": [
+                    "applicationId",
+                    "applicationName",
+                    "componentName",
+                    "holder",
+                    "environment",
+                    "production",
+                    "product",
+                    "label",
+                    "version",
+                    "newest",
+                    "lag",
+                    "behind",
+                    "daysBehind"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "The entries behind more than allowed, major first"
+              }
+            },
+            "required": [
+              "status",
+              "enabled",
+              "entries",
+              "major",
+              "behind",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "Up to date: how far the tech stack of the service’s applications is behind the newest versions (version watch)"
+          },
           "history": {
             "type": "array",
             "items": {
@@ -16452,6 +17406,16 @@
                         "none",
                         "hidden"
                       ]
+                    },
+                    "upToDate": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none",
+                        "hidden"
+                      ]
                     }
                   },
                   "required": [
@@ -16460,7 +17424,8 @@
                     "documentation",
                     "protection",
                     "lifecycle",
-                    "vulnerabilities"
+                    "vulnerabilities",
+                    "upToDate"
                   ],
                   "additionalProperties": false
                 }
@@ -16487,6 +17452,7 @@
           "protection",
           "lifecycle",
           "vulnerabilities",
+          "upToDate",
           "history"
         ],
         "additionalProperties": false
@@ -30741,7 +31707,7 @@
         "tags": [
           "Services"
         ],
-        "description": "Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – the optional fifth, the tech stack’s end of life (`lifecycle`, status \"none\" unless counted), and the sixth, the open findings and policy violations of the components’ Dependency-Track projects (`vulnerabilities`, status \"none\" when no component links a project), and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.",
+        "description": "Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – the optional fifth, the tech stack’s end of life (`lifecycle`, status \"none\" unless counted), the sixth, the open findings and policy violations of the components’ Dependency-Track projects (`vulnerabilities`, status \"none\" when no component links a project), the optional seventh, how far the tech stack is behind the newest versions (`upToDate`, version watch, status \"none\" unless counted), and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.",
         "responses": {
           "200": {
             "description": "OK",

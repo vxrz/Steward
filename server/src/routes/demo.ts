@@ -21,7 +21,16 @@ import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
 import { PRESETS, PRESET_SPECS } from '../platforms/presets.js';
 import { audit } from '../audit.js';
 import { createUser, findUserByName, saveTeam } from '../auth/users.js';
-import { DATABASE_KIND, KAFKA_CONNECT_KIND, LLM_GATEWAY_KIND, PVAULT_KIND, type AiGatewaySettings, type ComponentType, type Role } from '@sm/shared';
+import {
+  CONTAINER_REGISTRY_KIND,
+  DATABASE_KIND,
+  KAFKA_CONNECT_KIND,
+  LLM_GATEWAY_KIND,
+  PVAULT_KIND,
+  type AiGatewaySettings,
+  type ComponentType,
+  type Role,
+} from '@sm/shared';
 import { DEMO_DB, DEMO_DB_HOST } from '../dbms/demo.js';
 import { createDashboard, listDashboardTemplates } from '../dashboards/service.js';
 import { listSchedules, saveSchedule } from '../scheduler.js';
@@ -166,6 +175,11 @@ async function setupDemoApplications(platformByKind: Map<string, string>, actor:
   await Promise.all(reads);
   // the end of life of the stacks read from the repository and the namespace (endoflife.date demo)
   if (created) await refreshLifecycle().catch((err) => logger.warn({ err: (err as Error).message }, 'demo end-of-life data not read'));
+  // their newest versions (#241): the simulated registries
+  if (created)
+    await import('../versions/service.js')
+      .then((m) => m.refreshVersions({ force: true }))
+      .catch((err) => logger.warn({ err: (err as Error).message }, 'demo version watch not read'));
   return created;
 }
 
@@ -537,6 +551,30 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
     });
     for (const s of PRESET_SPECS['endoflife-date']!()) addSpec(e.id, s.name, s.content);
     platforms++;
+  }
+  if (!existing.has('Container registry (demo)')) {
+    // the version watch (#241): image tags from a simulated OCI registry (Docker Hub's token flow), for docker.io images
+    createPlatform({
+      name: 'Container registry (demo)',
+      kind: CONTAINER_REGISTRY_KIND,
+      environment: 'demo',
+      description:
+        'Simulated container registry (OCI distribution API with a token service) served by the built-in mock: tags of nginx, postgres, node and alpine for the version watch. A real installation uses Docker Hub, GHCR, Harbor …',
+      baseUrl: `${base}/registry`,
+      config: { auth: { type: 'none' }, variables: { registry: 'docker.io', testImage: 'library/alpine' }, http: { proxy: 'none' } },
+    });
+    platforms++;
+  }
+  // the version watch reads the simulated package registries (set once; an administrator's own choice stays)
+  const { readSetting, writeSetting } = await import('../settings.js');
+  if (readSetting<unknown>('catalogue.versions', null) === null) {
+    const registry = db().get<{ id: string }>("SELECT id FROM platforms WHERE name = 'Container registry (demo)'");
+    const { DEFAULT_VERSION_SETTINGS, PACKAGE_ECOSYSTEMS } = await import('@sm/shared');
+    writeSetting('catalogue.versions', {
+      ...DEFAULT_VERSION_SETTINGS,
+      registries: Object.fromEntries(PACKAGE_ECOSYSTEMS.map((e) => [e, `${base}/registries/${e}`])),
+      ociPlatformIds: registry ? [registry.id] : [],
+    });
   }
   if (!existing.has('Web probe (demo)')) {
     createPlatform({

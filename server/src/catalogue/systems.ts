@@ -35,6 +35,7 @@ import {
   type StackRow,
 } from './components.js';
 import { lifecycleSettings, releasesOf } from './lifecycle.js';
+import { stackWatch } from '../versions/service.js';
 import { byEnvironment, environmentValue } from './environments.js';
 import { credentialsBelongingTo, toCredential } from '../credentials/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
@@ -158,8 +159,12 @@ function stacksOf(ids?: string[]): Map<string, StackEntry[]> {
     .filter((r) => !ids || ids.includes(r.system_id!));
   const releases = releasesOf([...new Set(rows.map((r) => r.product))]);
   const { warnDays } = lifecycleSettings();
+  const watch = stackWatch(
+    'system',
+    rows.map((r) => r.system_id!),
+  );
   const out = new Map<string, StackEntry[]>();
-  for (const r of rows) out.set(r.system_id!, [...(out.get(r.system_id!) ?? []), toEntry(r, releases, warnDays)]);
+  for (const r of rows) out.set(r.system_id!, [...(out.get(r.system_id!) ?? []), toEntry(r, releases, warnDays, watch)]);
   return out;
 }
 

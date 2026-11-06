@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { allowEmailDomains, authHeaders, loginCookie, setEnv, setup, startTestServer, type TestServer } from './helpers.js';
 import { tinyPng } from './png.js';
+import { DEFAULT_VERSION_SETTINGS } from '@sm/shared';
 
 /**
  * Route permission matrix: every route the server registers, called by every role.
@@ -578,6 +579,13 @@ const EXPECT: Record<string, Access> = {
   'GET /api/catalogue/lifecycle': ALL,
   'PUT /api/catalogue/lifecycle': ADMIN,
   'POST /api/catalogue/lifecycle/refresh': DESIGN,
+  // version watch (#241): the status for everyone, settings for administrators, an entry for whoever may change its application
+  'GET /api/catalogue/versions': ALL,
+  'PUT /api/catalogue/versions': ADMIN,
+  'POST /api/catalogue/versions/refresh': DESIGN,
+  'GET /api/catalogue/versions/entry': ALL,
+  'PUT /api/catalogue/versions/entry': DESIGN,
+  'POST /api/catalogue/versions/entry/read': DESIGN,
   'POST /api/applications/:id/components': DESIGN,
   'PUT /api/applications/:id/components/:componentId': DESIGN,
   'DELETE /api/applications/:id/components/:componentId': DESIGN,
@@ -1369,6 +1377,9 @@ const bodies = (): Record<string, unknown> => ({
   'PATCH /api/applications/:id/links/:linkId': { label: 'changed', note: 'n' },
   'POST /api/applications/:id/components': { type: 'other', name: `matrix ${Math.random()}` },
   'PUT /api/catalogue/lifecycle': { platformId: null, warnDays: 90, notify: true, scorecard: false },
+  'PUT /api/catalogue/versions': DEFAULT_VERSION_SETTINGS,
+  'PUT /api/catalogue/versions/entry': { holder: 'component', id: fx.component, product: 'nodejs', config: { source: 'endoflife' } },
+  'POST /api/catalogue/versions/entry/read': { holder: 'component', id: fx.component, product: 'nodejs' },
   'PUT /api/applications/:id/components/:componentId': { type: 'other', name: 'matrix component' },
   'POST /api/applications/:id/components/:componentId/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
@@ -1624,7 +1635,14 @@ beforeAll(async () => {
   const svcLink = await a('POST', `/services/${svc.id}/links`, { url: 'https://cmdb.example.com/2', label: 'x' });
   const application = await a('POST', '/applications', { name: 'Matrix application', owners: [] });
   const appLink = await a('POST', `/applications/${application.id}/links`, { url: 'https://cmdb.example.com/3', label: 'x' });
-  const component = (await a('POST', `/applications/${application.id}/components`, { type: 'repository', name: 'matrix component' })).components[0];
+  const component = (
+    await a('POST', `/applications/${application.id}/components`, {
+      type: 'repository',
+      name: 'matrix component',
+      stack: [{ product: 'nodejs', version: '24' }],
+    })
+  ).components[0];
+  QUERY['GET /api/catalogue/versions/entry'] = `?holder=component&id=${component.id}&product=nodejs`;
   await a('PUT', `/services/${svc.id}/applications/${application.id}`, { role: 'primary' });
   const system = await a('POST', '/systems', { name: 'Matrix system', kind: 'server' });
   const systemLink = (await a('POST', `/applications/${application.id}/systems`, { systemId: system.id, environment: 'dev' })).systems[0];

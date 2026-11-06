@@ -936,7 +936,14 @@
     "DB_SQL_PLACEHOLDERS_missing": "Placeholder {{word}} is missing – number the placeholders from 1 without gaps.",
     "DB_SQL_PLACEHOLDERS_fromOne": "Placeholders are numbered from 1.",
     "DB_SQL_PLACEHOLDERS_count": "The statement has {{need}} placeholder(s), but {{given}} parameter(s) are given (placeholders: {{syntax}} …).",
-    "MCP_WRITES_NOT_AVAILABLE": "“{{name}}” is a database platform: its MCP gateway is read-only."
+    "MCP_WRITES_NOT_AVAILABLE": "“{{name}}” is a database platform: its MCP gateway is read-only.",
+    "STACK_ENTRY_NOT_FOUND": "The tech stack has no such product.",
+    "VERSIONS_GIT_PLATFORM": "Choose a GitHub, GitLab or Forgejo platform.",
+    "VERSIONS_OCI_PLATFORM": "Choose platforms of type container registry.",
+    "VERSIONS_PLATFORM": "Choose a container registry or Git platform you may use.",
+    "VERSIONS_NAME": "Name the image (lower case, e.g. library/postgres) or the repository (owner/repository) on the platform.",
+    "VERSIONS_PURL": "This is not a package URL (pkg:type/namespace/name).",
+    "VERSIONS_TAG_PATTERN": "A tag pattern has {version} once, e.g. {version}-alpine or v{version}."
   },
   "boundary": {
     "title": "Something went wrong on this page",

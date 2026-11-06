@@ -337,6 +337,11 @@
     "systemBodyEnding": "{{product}} on the system {{system}} reaches its end of life on {{date}} (in {{days}} days).",
     "systemBodyEol": "{{product}} on the system {{system}} reached its end of life on {{date}}. Plan the upgrade."
   },
+  "stackRelease": {
+    "title": "New major release: {{product}} {{newest}} ({{name}})",
+    "body": "{{product}} {{newest}} is out. The application {{name}} uses {{installed}} in: {{holders}}. Plan the upgrade (Renovate or Dependabot make the change).",
+    "systemBody": "{{product}} {{newest}} is out. The system {{name}} runs {{installed}}. Plan the upgrade."
+  },
   "facts": {
     "process": "Process",
     "source": "Started by",

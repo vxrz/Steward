@@ -29,7 +29,8 @@
     "documentation": "Documentation",
     "protection": "Protection need",
     "lifecycle": "Tech stack",
-    "vulnerabilities": "Vulnerabilities"
+    "vulnerabilities": "Vulnerabilities",
+    "upToDate": "Up to date"
   },
   "windows": {
     "h1": "1 h",
@@ -186,5 +187,13 @@
     "error": "read failed: {{error}}",
     "readAt": "last read {{date}}",
     "open": "Open in Dependency-Track"
+  },
+  "upToDate": {
+    "none": "No newest versions known for the tech stack of the service's applications (version watch).",
+    "summary": "{{entries}} tech-stack entries with a known newest version: {{major}} a major release behind, {{behind}} further behind than allowed",
+    "majorItem_one": "{{component}}: {{product}} → {{newest}} – {{count}} major release behind",
+    "majorItem_other": "{{component}}: {{product}} → {{newest}} – {{count}} major releases behind",
+    "behindItem_one": "{{component}}: {{product}} → {{newest}} – {{count}} minor release behind for {{days}} days",
+    "behindItem_other": "{{component}}: {{product}} → {{newest}} – {{count}} minor releases behind for {{days}} days"
   }
 }
