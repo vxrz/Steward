@@ -303,7 +303,28 @@
     "dbNoDataHints": {
       "replication": "Wenn der Server kein Replikat hat und kein Standby ist",
       "query": "Wenn die Abfrage keine Zeile liefert"
-    }
+    },
+    "dbSchemaOn": "Schema von",
+    "dbSchemaOnPlatform": "Einer Datenbank-Plattform",
+    "dbSchemaOnSystem": "Einem System (tbls-Importe)",
+    "dbSchemaSystem": "System",
+    "dbSchemaSystemHint": "Ein System des Servicekatalogs, dessen tbls-Schema an Steward geschickt wird",
+    "dbSchemaChooseSystem": "System wählen",
+    "dbSchemaNoSystem": "Kein System gefunden",
+    "dbSchemaMode": "Schlägt fehl bei",
+    "dbSchemaModes": {
+      "breaking": "Einer inkompatiblen Änderung",
+      "changed": "Jeder Änderung"
+    },
+    "dbSchemaModeHints": {
+      "breaking": "Eine entfernte Tabelle oder Spalte, ein engerer Typ, NOT NULL ohne Standardwert, ein entfernter Schlüssel",
+      "changed": "Jede hinzugefügte, entfernte oder geänderte Tabelle, Spalte, jeder Schlüssel und Index"
+    },
+    "dbSchemaWithin": "In den letzten (Stunden)",
+    "dbSchemaFailAs": "Wenn sie fehlschlägt",
+    "dbSchemaNoData": "Ohne Snapshot",
+    "dbSchemaRead": "Zuerst die Datenbank lesen",
+    "dbSchemaReadHint": "Liest das Schema bei jeder Prüfung (ein Snapshot, wenn es sich geändert hat). Aus: Es zählen nur die schon gespeicherten Lesevorgänge und Importe."
   },
   "detail": {
     "template": "Vorlage",
@@ -655,6 +676,10 @@
       "label": "Datenbank",
       "help": "Eine Datenbank-Plattform: die Verbindung funktioniert (und ist nur lesend), der Replikationsverzug bleibt unter einer Grenze, oder der Wert einer lesenden Abfrage wird gegen WARN- und CRIT-Stufen beurteilt"
     },
+    "db-schema": {
+      "label": "Änderungen am Datenbankschema",
+      "help": "Die Schema-Snapshots einer Datenbank-Plattform oder eines Systems: keine Änderung oder keine inkompatible Änderung in den letzten N Stunden; liest die Plattform auf Wunsch zuerst"
+    },
     "dependency-track": {
       "label": "Schwachstellen (Dependency-Track)",
       "help": "Ein Dependency-Track-Projekt hat nicht mehr offene kritische (oder hohe) Befunde als erlaubt und keinen fehlgeschlagenen Richtlinienverstoß"
@@ -687,7 +712,8 @@
     "dependency-track": "Keine kritischen Schwachstellen",
     "entra": "App-Zugangsdaten gültig",
     "privilege-vault": "Tresor-Hygiene",
-    "database": "Datenbank erreichbar"
+    "database": "Datenbank erreichbar",
+    "db-schema": "Keine inkompatible Schemaänderung"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"
