@@ -25,6 +25,7 @@ import { useNavigate } from 'react-router-dom';
 import { IconAlertTriangle, IconCheck, IconCopy, IconFilePlus, IconKey, IconLink, IconSearch, IconTransfer } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
+  dbSchemaChangesMarkdown,
   qualifiedTable,
   type DbSchemaChange,
   type DbSchemaCheck,
@@ -374,29 +375,6 @@ function TableDrawer({
 
 // ---------- changes ----------
 
-/** A change as one line of text (the change record's list, the copy as Markdown). */
-type Tx = (k: string, o?: Record<string, unknown>) => string;
-
-export function changeLine(t: Tx, c: DbSchemaChange): string {
-  const where = `${c.table}${c.column ? `.${c.column}` : ''}${c.name ? ` (${c.name})` : ''}`;
-  const values = c.before || c.after ? `: ${[c.before ?? '–', c.after ?? '–'].join(' → ')}` : '';
-  return `${where} – ${t(`schema.changeKinds.${c.kind}`)}${values}`;
-}
-
-export function changesMarkdown(t: Tx, subject: string, d: DbSchemaDiff, when: string): string {
-  const lines = [
-    `## ${t('schema.mdTitle', { name: subject })}`,
-    '',
-    t('schema.mdSummary', { when, count: d.total, breaking: d.breaking }),
-    '',
-    ...d.changes.map(
-      (c) => `- ${c.breaking ? `**${t('schema.breaking')}** (${t(`schema.reasons.${c.reason}`)}) ` : ''}\`${changeLine(t, c).replace(/`/g, "'")}\``,
-    ),
-  ];
-  if (d.total > d.changes.length) lines.push('', t('schema.mdMore', { count: d.total - d.changes.length }));
-  return lines.join('\n');
-}
-
 export function ChangesPanel({ subject, snapshot, snapshots }: { subject: SchemaSubject; snapshot: DbSchemaSnapshot; snapshots: DbSchemaSnapshotSummary[] }) {
   const { t } = useTranslation(['platforms', 'common']);
   const phone = usePhone();
@@ -418,7 +396,7 @@ export function ChangesPanel({ subject, snapshot, snapshots }: { subject: Schema
   const when = baseSnap ? `${fmtDate(baseSnap.takenAt)} → ${fmtDate(snapshot.takenAt)}` : fmtDate(snapshot.takenAt);
   // the Markdown is built from dynamic keys: a plain function of key and values
   const tx = (k: string, o?: Record<string, unknown>): string => String(t(k as never, o as never));
-  const md = diff ? changesMarkdown(tx, subject.name, diff, when) : '';
+  const md = diff ? dbSchemaChangesMarkdown(tx, subject.name, diff, when) : '';
 
   const newChangeRecord = async () => {
     if (!cr || !diff) return;

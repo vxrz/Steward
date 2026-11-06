@@ -53,7 +53,8 @@ import {
   type MonitorRow,
   type StateRow,
 } from './model.js';
-import { resolvePlatformRef } from './platforms.js';
+import { requireVisiblePlatform, resolvePlatformRef } from './platforms.js';
+import { requireVisibleSystem } from '../dbschema/check.js';
 import { checkUptimes, monitorUptime } from './stats.js';
 import { coerceParams, renderTemplate } from './templates.js';
 import { checkExpressions, parseDefinitionInput, validateTemplate } from './validation.js';
@@ -425,8 +426,9 @@ export function applyPlatformMap(definition: Record<string, unknown>, map: Recor
   return out;
 }
 
-function requirePlatformUse(id: string): void {
-  const p = getPlatform(id);
+/** The editor's "use" right on a platform; one they may not see answers like a missing one (no name, no kind). */
+function requirePlatformUse(id: string, ref: string = id, kind?: string): void {
+  const p = requireVisiblePlatform(id, ref, kind);
   if (!p.permissions.includes('use')) throw new HttpError(403, `You are not allowed to use platform "${p.name}"`, 'PLATFORM_USE_FORBIDDEN', { name: p.name });
 }
 
@@ -442,7 +444,10 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
       continue;
     }
     if ('platform' in c && c.platform) {
-      const p = resolvePlatformRef(c.platform, c.type === 'freshness' && c.source === 'insightsHub' ? 'insights-hub' : PLATFORM_KIND[c.type]);
+      const kind = c.type === 'freshness' && c.source === 'insightsHub' ? 'insights-hub' : PLATFORM_KIND[c.type];
+      const p = resolvePlatformRef(c.platform, kind);
+      // before anything below names the platform or its kind
+      requirePlatformUse(p.id, c.platform, kind);
       if (c.type === 'mqtt' && !validMqttFilter(c.topic))
         throw new HttpError(400, `Check "${c.id}": "${c.topic}" is no MQTT topic or pattern (+ and # only as whole levels, # last)`, 'CHECK_MQTT_TOPIC', {
           check: c.id,
@@ -453,8 +458,9 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
           name: p.name,
         });
       c.platform = p.id;
-      requirePlatformUse(p.id);
     }
+    // the system of a schema check: one the editor may not see answers like a missing one
+    if (c.type === 'db-schema' && c.system) requireVisibleSystem(c.name, c.system);
     if (c.type === 'monitor') {
       const sub = monitorRow(c.monitor);
       if (!sub || !permissionsOfRow(sub).includes('view'))
@@ -474,13 +480,14 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
         output: o.id,
       });
     if ('platform' in o && o.platform) {
-      const p = resolvePlatformRef(o.platform, teams ? 'teams' : PLATFORM_KIND[o.type]);
+      const kind = teams ? 'teams' : PLATFORM_KIND[o.type];
+      const p = resolvePlatformRef(o.platform, kind);
+      requirePlatformUse(p.id, o.platform, kind);
       if (teams && p.kind !== 'teams')
         throw new HttpError(400, `Output "${o.id}": a Teams card goes to a "Microsoft Teams channel" platform, not to a URL`, 'OUTPUT_TEAMS_PLATFORM', {
           output: o.id,
         });
       o.platform = p.id;
-      requirePlatformUse(p.id);
     }
     if (o.type === 'process') {
       const perms = permissionsFor(o.processId);

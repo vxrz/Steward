@@ -280,6 +280,63 @@ describe('monitor check', () => {
     expect((await preview({ system: sys.id, noData: 'up' })).status).toBe('up');
   });
 
+  it('saving or trying a check needs the editor to see its system or platform (security review of #222)', async () => {
+    const dana = await s.as('dana', PW);
+    const failure = (p: Promise<unknown>) =>
+      p.then(
+        () => {
+          throw new Error('expected a refusal');
+        },
+        (e: { status: number; body: Record<string, unknown> }) => e,
+      );
+    /** The answer without the reference it names */
+    const answer = (e: { status: number; body: Record<string, unknown> }, ref: string) => ({
+      status: e.status,
+      code: e.body.code,
+      text: String(e.body.detail ?? e.body.error).replaceAll(ref, 'REF'),
+    });
+    const team = (await s.api('POST', '/teams', { name: 'Schema owners', members: ['olivia'] })).id;
+    const hidden = (await s.api('POST', '/systems', { name: 'Hidden database', kind: 'server' })).id;
+    await s.api('PUT', `/owning-teams/system/${hidden}`, { teamIds: [team] });
+    const check = (x: Record<string, unknown>) => ({ id: 'c', name: 'Schema', type: 'db-schema', ...x });
+    const save = (x: Record<string, unknown>) => dana('POST', '/monitors', { definition: { name: 'Schema watch', checks: [check(x)] } });
+    const tryIt = (x: Record<string, unknown>, monitorId?: string) => dana('POST', '/monitors/check-preview', { check: check(x), monitorId });
+
+    // a system: missing and hidden alike, when saving and in "Check now"
+    const missing = answer(await failure(save({ system: 'sys_missing' })), 'sys_missing');
+    expect(missing).toMatchObject({ status: 400, code: 'SYSTEM_NOT_FOUND' });
+    expect(answer(await failure(save({ system: hidden })), hidden)).toEqual(missing);
+    expect(answer(await failure(tryIt({ system: hidden })), hidden)).toEqual(answer(await failure(tryIt({ system: 'sys_missing' })), 'sys_missing'));
+    // someone else's monitor dana may edit: "Check now" runs as its owner, but dana must see the system herself
+    const { monitor } = await s.api('POST', '/monitors', { definition: { name: 'Admin schema watch', checks: [check({ system: hidden })] } });
+    await s.api('PUT', `/monitors/${monitor.id}/access`, { acl: [{ subject: 'user:dana', permissions: ['view', 'edit'] }] });
+    expect(answer(await failure(tryIt({ system: hidden }, monitor.id)), hidden)).toEqual(missing);
+    expect((await s.api('POST', '/monitors/check-preview', { check: check({ system: hidden }), monitorId: monitor.id })).status).toBeTruthy();
+
+    // a database platform dana may not see: like a missing one, no name – also with read: true on someone else's monitor
+    await s.api('PUT', `/platforms/${db.id}/access`, { acl: [{ subject: 'user:olivia', permissions: ['use'] }] });
+    try {
+      const gone = answer(await failure(save({ platform: 'plat_missing' })), 'plat_missing');
+      expect(gone).toMatchObject({ status: 400, code: 'PLATFORM_NOT_FOUND' });
+      const refused = await failure(save({ platform: db.id }));
+      expect(answer(refused, db.id)).toEqual(gone);
+      expect(JSON.stringify(refused.body)).not.toContain(db.name);
+      const own = await s.api('POST', '/monitors', { definition: { name: 'Admin reads', checks: [check({ platform: db.id, read: true })] } });
+      await s.api('PUT', `/monitors/${own.monitor.id}/access`, { acl: [{ subject: 'user:dana', permissions: ['view', 'edit'] }] });
+      const before = (await s.api('GET', `/db-schemas/platform/${db.id}`)).lastRead?.at ?? null;
+      const read = await failure(tryIt({ platform: db.id, read: true }, own.monitor.id));
+      const goneThere = answer(await failure(tryIt({ platform: 'plat_missing', read: true }, own.monitor.id)), 'plat_missing');
+      expect(goneThere).toMatchObject({ status: 400, code: 'PLATFORM_NOT_FOUND' });
+      expect(answer(read, db.id)).toEqual(goneThere);
+      // nothing was read
+      expect((await s.api('GET', `/db-schemas/platform/${db.id}`)).lastRead?.at ?? null).toBe(before);
+    } finally {
+      await s.api('PUT', `/platforms/${db.id}/access`, { acl: [] });
+    }
+    // with the right, it works again
+    expect((await tryIt({ platform: db.id, read: true })).status).toBeTruthy();
+  });
+
   it('validates the check', async () => {
     expect(await preview({ mode: 'breaking' })).toMatchObject({ status: 'unknown', message: expect.stringMatching(/a database platform or a system/) });
     const { definitionIssues, monitorDefinitionSchema } = await import('@sm/shared');
@@ -310,5 +367,24 @@ describe('scheduled reads', () => {
     await s.api('DELETE', `/systems/${systemId}`);
     expect((await runSchemaJob()).removed).toBeGreaterThan(0);
     await expect(s.api('GET', `/db-schemas/system/${systemId}`)).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe('the platform’s limits', () => {
+  it('cut the schema read at the platform’s row limit, marked truncated (ADR 0008, security review of #222)', async () => {
+    const settings = (await s.api('GET', `/platforms/${db.id}`)).config.database;
+    expect(settings).toBeTruthy();
+    try {
+      await s.api('PUT', `/platforms/${db.id}/database`, { ...settings, limits: { ...settings.limits, maxRows: 3 } });
+      const r = await s.api('POST', `/db-schemas/platform/${db.id}/read`);
+      expect(r.created).toBe(true);
+      expect(r.snapshot.truncated).toBe(true);
+      expect(r.snapshot.columns).toBeLessThanOrEqual(3);
+    } finally {
+      await s.api('PUT', `/platforms/${db.id}/database`, settings);
+    }
+    const full = await s.api('POST', `/db-schemas/platform/${db.id}/read`);
+    expect(full.snapshot.truncated).toBe(false);
+    expect(full.snapshot.columns).toBeGreaterThan(3);
   });
 });

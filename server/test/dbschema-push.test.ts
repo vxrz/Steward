@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -196,6 +197,92 @@ describe('the push endpoint', () => {
     await setEnv({ SM_RATE_LIMIT_PER_MINUTE: undefined });
   });
 
+  it('refuses a missing or wrong token from the headers, before the body is read (security review of #222)', async () => {
+    // 20 MB announced, 1 KB sent and the rest never: only an answer from the headers arrives in time
+    const headOnly = (headers: Record<string, string>) =>
+      new Promise<{ status: number; body: string }>((resolve, reject) => {
+        const u = new URL(`${s.base}/api/hooks/db-schema/system/${systemId}`);
+        const req = http.request(
+          {
+            host: u.hostname,
+            port: u.port,
+            path: u.pathname,
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'content-length': String(20 * 1024 * 1024), ...headers },
+          },
+          (res) => {
+            let body = '';
+            res.on('data', (c: Buffer) => (body += c.toString()));
+            res.on('end', () => {
+              clearTimeout(timer);
+              req.destroy();
+              resolve({ status: res.statusCode!, body });
+            });
+          },
+        );
+        const timer = setTimeout(() => {
+          req.destroy();
+          reject(new Error('no answer before the body was complete'));
+        }, 5000);
+        req.on('error', (e) => {
+          clearTimeout(timer);
+          reject(e);
+        });
+        req.write('x'.repeat(1024));
+      });
+    const wrong = await headOnly({ authorization: `Bearer sdbp_${'x'.repeat(43)}` });
+    expect(wrong.status).toBe(401);
+    expect(JSON.parse(wrong.body).code).toBe('DB_SCHEMA_PUSH_TOKEN_INVALID');
+    expect((await headOnly({})).status).toBe(401);
+    const full = (await s.api('POST', '/me/tokens', { name: 'not here', scope: 'full' })).token;
+    expect(JSON.parse((await headOnly({ authorization: `Bearer ${full}` })).body).code).toBe('DB_SCHEMA_PUSH_API_TOKEN');
+    // a valid token of another target, and a valid one with the wrong content type: refused from the headers too
+    const other = await s.api('POST', `/db-schemas/system/${otherSystem}/push-tokens`, { name: 'other target' });
+    expect(said(JSON.parse((await headOnly({ authorization: `Bearer ${other.token}` })).body))).toEqual(said(JSON.parse(wrong.body)));
+    const mine = await s.api('POST', `/db-schemas/system/${systemId}/push-tokens`, { name: 'wrong type' });
+    expect((await headOnly({ authorization: `Bearer ${mine.token}`, 'content-type': 'application/x-www-form-urlencoded' })).status).toBe(415);
+    // the token still pushes a whole file
+    expect((await push('system', systemId, mine.token)).status).toBe(200);
+  });
+
+  it('stops when its creator is deactivated or may no longer manage the database (owner decision, like API tokens)', async () => {
+    const { user, temporaryPassword } = await s.api('POST', '/users', { username: 'cora-ci', roles: ['operator'] });
+    const first = await s.as('cora-ci', temporaryPassword);
+    await first('POST', '/auth/password', { current: temporaryPassword, next: 'Cora-password-123' });
+    const cora = await s.as('cora-ci', 'Cora-password-123');
+    const acl = (permissions: string[]) => s.api('PUT', `/platforms/${db.id}/access`, { acl: [{ subject: 'user:cora-ci', permissions }] });
+    try {
+      await acl(['manage']);
+      const t = await cora('POST', `/db-schemas/platform/${db.id}/push-tokens`, { name: 'cora ci' });
+      expect(t.createdBy).toBe('cora-ci');
+      expect(t.creatorInactive).toBe(false);
+      expect((await push('platform', db.id, t.token)).status).toBe(200);
+      const wrong = await push('platform', db.id, `sdbp_${'x'.repeat(43)}`);
+      const listed = async () => (await s.api('GET', `/db-schemas/platform/${db.id}/push-tokens`)).find((x: { id: string }) => x.id === t.id);
+
+      await s.api('PUT', `/users/${user.id}`, { active: false });
+      const off = await push('platform', db.id, t.token);
+      expect(off.status).toBe(401);
+      expect(said(off.json)).toEqual(said(wrong.json));
+      expect((await listed()).creatorInactive).toBe(true);
+      await s.api('PUT', `/users/${user.id}`, { active: true });
+      expect((await push('platform', db.id, t.token)).status).toBe(200);
+
+      // only "use" left: the token stops as well
+      await acl(['use']);
+      const lost = await push('platform', db.id, t.token);
+      expect(lost.status).toBe(401);
+      expect(said(lost.json)).toEqual(said(wrong.json));
+      expect((await listed()).creatorInactive).toBe(true);
+      // a token of someone who may still manage it goes on working
+      const mine = await s.api('POST', `/db-schemas/platform/${db.id}/push-tokens`, { name: 'admin ci' });
+      expect((await push('platform', db.id, mine.token)).status).toBe(200);
+      expect((await listed()).creatorInactive).toBe(true);
+    } finally {
+      await s.api('PUT', `/platforms/${db.id}/access`, { acl: [] });
+    }
+  });
+
   it('pushes for a database platform too, and its token dies with the platform', async () => {
     const t = await s.api('POST', `/db-schemas/platform/${db.id}/push-tokens`, { name: 'platform ci' });
     expect((await push('platform', db.id, t.token)).status).toBe(200);
@@ -205,5 +292,72 @@ describe('the push endpoint', () => {
     await (await import('../src/dbschema/service.js')).runSchemaJob();
     const { db: store } = await import('../src/db.js');
     expect(store().get('SELECT 1 AS x FROM db_schema_push_tokens WHERE id = ?', gone.id)).toBeUndefined();
+  });
+});
+
+describe('the history a push token cannot erase (security review of #222)', () => {
+  const tbls = (tables: string[]) =>
+    JSON.stringify({
+      name: 'shop',
+      driver: { name: 'postgres' },
+      tables: tables.map((t) => ({ name: `public.${t}`, type: 'BASE TABLE', columns: [{ name: 'id', type: 'integer', nullable: false }] })),
+    });
+
+  it('a push removes imported snapshots only, never Steward’s own reads', async () => {
+    await setEnv({ SM_RATE_LIMIT_PER_MINUTE: '10000' });
+    try {
+      await s.api('PUT', `/db-schemas/platform/${db.id}/settings`, { retention: 3, readIntervalHours: 0 });
+      const read = (await s.api('POST', `/db-schemas/platform/${db.id}/read`)).snapshot;
+      expect(read.source).toBe('read');
+      const t = await s.api('POST', `/db-schemas/platform/${db.id}/push-tokens`, { name: 'many', rateLimitPerMinute: 120 });
+      for (let i = 0; i < 8; i++) expect((await push('platform', db.id, t.token, tbls([`fake_${i}`]))).status).toBe(200);
+      const o = await s.api('GET', `/db-schemas/platform/${db.id}`);
+      expect(o.snapshots.some((x: { id: string }) => x.id === read.id)).toBe(true);
+      expect(o.snapshots).toHaveLength(3);
+      // a read prunes by the retention as before
+      await s.api('PUT', `/db-schemas/platform/${db.id}/settings`, { retention: 30, readIntervalHours: 0 });
+    } finally {
+      await setEnv({ SM_RATE_LIMIT_PER_MINUTE: undefined });
+    }
+  });
+
+  it('keeps a recorded breaking change while a monitor’s check still counts it', async () => {
+    await setEnv({ SM_RATE_LIMIT_PER_MINUTE: '10000' });
+    try {
+      const run = async (watched: boolean) => {
+        const sys = (await s.api('POST', '/systems', { name: `History ${watched ? 'watched' : 'unwatched'}`, kind: 'server' })).id;
+        await s.api('PUT', `/db-schemas/system/${sys}/settings`, { retention: 2, readIntervalHours: 0 });
+        if (watched)
+          await s.api('POST', '/monitors', {
+            definition: {
+              name: `Schema of ${sys}`,
+              checks: [{ id: 'schema', name: 'Schema', type: 'db-schema', system: sys, mode: 'breaking', withinHours: 24 }],
+            },
+          });
+        const t = await s.api('POST', `/db-schemas/system/${sys}/push-tokens`, { name: 'ci', rateLimitPerMinute: 120 });
+        expect((await push('system', sys, t.token, tbls(['a', 'b']))).status).toBe(200);
+        // b removed: breaking
+        const breaking = await push('system', sys, t.token, tbls(['a']));
+        expect(breaking.json.diff.breaking).toBe(1);
+        // then only additions, more than the retention
+        for (let i = 0; i < 5; i++)
+          expect((await push('system', sys, t.token, tbls(['a', ...Array.from({ length: i + 1 }, (_, k) => `n${k}`)]))).json.diff.breaking).toBe(0);
+        const o = await s.api('GET', `/db-schemas/system/${sys}`);
+        const check = await s.api('POST', '/monitors/check-preview', {
+          check: { id: 'c', name: 'c', type: 'db-schema', system: sys, mode: 'breaking', withinHours: 24 },
+        });
+        return { kept: o.snapshots.some((x: { id: string }) => x.id === breaking.json.snapshot.id), count: o.snapshots.length, check };
+      };
+      const watched = await run(true);
+      expect(watched.kept).toBe(true);
+      expect(watched.count).toBeLessThanOrEqual(4);
+      expect(watched.check).toMatchObject({ status: 'down', message: expect.stringMatching(/1 breaking schema change/) });
+      // no monitor counts it: the retention alone decides, as before
+      const unwatched = await run(false);
+      expect(unwatched.kept).toBe(false);
+      expect(unwatched.count).toBe(2);
+    } finally {
+      await setEnv({ SM_RATE_LIMIT_PER_MINUTE: undefined });
+    }
   });
 });

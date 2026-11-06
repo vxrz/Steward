@@ -131,6 +131,31 @@ export function safeHref(raw: string): string | null {
 
 const ESCAPABLE = /[\\`*_{}[\]()#+\-.!|~<>]/;
 
+// eslint-disable-next-line no-control-regex -- line breaks and other control characters end a line or a block
+const LINE_BREAKS = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f\u2028\u2029]+/g;
+
+/**
+ * Plain text inside a line of Markdown: on one line (line breaks and control characters as a space), every character
+ * Markdown could read as markup backslash-escaped – a name can neither start a block nor become a link or emphasis.
+ */
+export function mdText(text: string): string {
+  return text.replace(LINE_BREAKS, ' ').replace(/[\\`*_{}[\]()#+\-.!|~<>]/g, (c) => `\\${c}`);
+}
+
+/**
+ * Text as an inline code span, on one line: the fence is one backtick longer than the longest run of backticks inside
+ * (CommonMark), with a space inside when the text starts or ends with a backtick or a space, so the text comes back as
+ * it is – backticks included.
+ */
+export function mdCodeSpan(text: string): string {
+  const one = text.replace(LINE_BREAKS, ' ');
+  let longest = 0;
+  for (const m of one.matchAll(/`+/g)) longest = Math.max(longest, m[0].length);
+  const fence = '`'.repeat(longest + 1);
+  const pad = /^[ `]|[ `]$/.test(one) ? ' ' : '';
+  return `${fence}${pad}${one}${pad}${fence}`;
+}
+
 /**
  * What one parseInline call learned about its text, so that no position is
  * scanned again and again (unclosed `[`, `*` or backticks would otherwise

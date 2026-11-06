@@ -13,7 +13,8 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
 import { vault } from '../vault.js';
-import { currentUser } from '../auth/context.js';
+import { currentUser, runAs } from '../auth/context.js';
+import { findUserByName, toAuthUser } from '../auth/users.js';
 import { readCookie, SESSION_COOKIE } from '../auth/cookies.js';
 import { forbid } from '../auth/access.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
@@ -62,6 +63,7 @@ const toToken = (r: TokenRow): DbSchemaPushToken => ({
   lastUsedAt: r.last_used_at,
   lastUsedIp: r.last_used_ip,
   expired: expired(r),
+  creatorInactive: !creatorMayPush(r),
 });
 
 const secret = () => DB_SCHEMA_PUSH_TOKEN_PREFIX + crypto.randomBytes(32).toString('base64url');
@@ -211,7 +213,7 @@ const header = (h: PushRequest['headers'], name: string): string | undefined => 
 };
 
 /** One answer for every token that does not open this target: unknown, revoked, expired, of another target, another address. */
-const REFUSED: PushResponse = {
+export const REFUSED: PushResponse = {
   status: 401,
   body: { error: 'Invalid push token for this database', code: 'DB_SCHEMA_PUSH_TOKEN_INVALID' },
   headers: { 'www-authenticate': 'Bearer realm="Steward schema push"' },
@@ -223,67 +225,109 @@ export function resetPushState(): void {
   calls.clear();
 }
 
+/** What is known of a push before its body is read: the target, the headers and the caller's address. */
+export type PushHead = Omit<PushRequest, 'raw'>;
+/** A push token that opens its target, as authorizePush found it. */
+export type VerifiedPushToken = Pick<TokenRow, 'id' | 'name' | 'subject_kind' | 'subject_id'>;
+
 /**
- * POST /api/hooks/db-schema/<kind>/<id>: the push token of that target as "Authorization: Bearer sdbp_…" (nothing
- * else: an API token or a session is refused), the schema.json as it is or { schema, lint, fileName } as JSON.
+ * A push token works only while the person who created it is active and may still manage its target (the platform's
+ * manage right, or the right to change the system) – like an API token, which stops with its owner.
  */
-export function handlePush(req: PushRequest): PushResponse {
+function creatorMayPush(r: Pick<TokenRow, 'created_by' | 'subject_kind' | 'subject_id'>): boolean {
+  const u = findUserByName(r.created_by);
+  if (!u || !u.active) return false;
+  try {
+    return runAs(toAuthUser(u), () => subjectOf(r.subject_kind, r.subject_id).canImport);
+  } catch {
+    return false; // the target is gone, or the creator may no longer see it
+  }
+}
+
+/**
+ * The part of a push that needs only its headers: no session, a push token of this target (not revoked, not expired,
+ * its creator still active and allowed), an allowed address, the token's rate limit and a JSON content type. Runs in
+ * the route's onRequest hook, before the body is read – a request without a valid token is refused without reading
+ * up to 10 MB first. Every token that does not open the target gets the same 401.
+ */
+export function authorizePush(req: PushHead): { ok: true; token: VerifiedPushToken } | { ok: false; res: PushResponse } {
+  const no = (res: PushResponse) => ({ ok: false as const, res });
   // a sign-in session goes nowhere here (other cookies, of a proxy for example, do not matter)
   if (readCookie(header(req.headers, 'cookie'), SESSION_COOKIE) !== undefined)
-    return {
+    return no({
       status: 400,
       body: {
         error: 'Sign-in sessions are not accepted here – send a push token (Authorization: Bearer sdbp_…) without the session cookie',
         code: 'DB_SCHEMA_PUSH_SESSION',
       },
-    };
+    });
   const presented = /^Bearer\s+(\S+)\s*$/i.exec(header(req.headers, 'authorization') ?? '')?.[1];
-  if (!presented) return { ...REFUSED, body: { error: 'Send the push token as "Authorization: Bearer sdbp_…"', code: 'DB_SCHEMA_PUSH_TOKEN_MISSING' } };
+  if (!presented) return no({ ...REFUSED, body: { error: 'Send the push token as "Authorization: Bearer sdbp_…"', code: 'DB_SCHEMA_PUSH_TOKEN_MISSING' } });
   if (!presented.startsWith(DB_SCHEMA_PUSH_TOKEN_PREFIX))
-    return {
+    return no({
       status: 401,
       body: {
         error: 'This endpoint takes a schema push token (sdbp_…), not an API token – create one under Schema → Push from CI',
         code: 'DB_SCHEMA_PUSH_API_TOKEN',
       },
       headers: REFUSED.headers,
-    };
-  if (presented.length > 200) return REFUSED;
-  if (!vault().unlocked) return { status: 503, body: { error: 'The vault is locked – an administrator has to unlock it' }, headers: { 'retry-after': '60' } };
+    });
+  if (presented.length > 200) return no(REFUSED);
+  if (!vault().unlocked)
+    return no({ status: 503, body: { error: 'The vault is locked – an administrator has to unlock it' }, headers: { 'retry-after': '60' } });
   const r = db().get<TokenRow>('SELECT * FROM db_schema_push_tokens WHERE hash = ?', sha256(presented));
   // a token of another target answers exactly like a wrong one
-  if (!r || r.revoked_at || expired(r) || r.subject_kind !== req.kind || r.subject_id !== req.id) return REFUSED;
+  if (!r || r.revoked_at || expired(r) || r.subject_kind !== req.kind || r.subject_id !== req.id) return no(REFUSED);
+  if (!creatorMayPush(r)) {
+    logger.warn({ tokenId: r.id, createdBy: r.created_by }, 'schema push refused: the creator of the token is inactive or may no longer manage the target');
+    return no(REFUSED);
+  }
   if (!addressAllowed(parseJson<string[]>(r.allowed_cidrs, []), req.ip)) {
     logger.warn({ tokenId: r.id, ip: req.ip }, 'schema push refused: address not allowed');
-    return REFUSED;
+    return no(REFUSED);
   }
   const now = Date.now();
   const recent = (calls.get(r.id) ?? []).filter((t) => now - t < 60_000);
   if (recent.length >= r.rate_limit_per_minute) {
     calls.set(r.id, recent);
     const retry = Math.max(1, Math.ceil((60_000 - (now - recent[0]!)) / 1000));
-    return {
+    return no({
       status: 429,
       body: { error: `More than ${r.rate_limit_per_minute} pushes a minute`, code: 'DB_SCHEMA_PUSH_RATE' },
       headers: { 'retry-after': String(retry) },
-    };
+    });
   }
   recent.push(now);
   calls.set(r.id, recent);
   const ct = req.contentType ?? '';
   if (!/^(application\/([a-z0-9.+-]*\+)?json|text\/plain)\s*(;|$)/i.test(ct.trim()))
-    return { status: 415, body: { error: 'Send the schema as application/json', code: 'DB_SCHEMA_PUSH_TYPE' } };
+    return no({ status: 415, body: { error: 'Send the schema as application/json', code: 'DB_SCHEMA_PUSH_TYPE' } });
+  return { ok: true, token: { id: r.id, name: r.name, subject_kind: r.subject_kind, subject_id: r.subject_id } };
+}
+
+/** The import of a push whose token authorizePush accepted: the body read, the snapshot stored. */
+export function importPush(token: VerifiedPushToken, req: Pick<PushRequest, 'raw' | 'ip'>): PushResponse {
   const raw = (req.raw ?? Buffer.alloc(0)).toString('utf8');
   if (!raw.trim()) return { status: 400, body: { error: 'The body is empty – send the tbls schema.json', code: 'DB_SCHEMA_TBLS_INVALID' } };
-  db().run('UPDATE db_schema_push_tokens SET last_used_at = ?, last_used_ip = ? WHERE id = ?', nowIso(), req.ip, r.id);
+  db().run('UPDATE db_schema_push_tokens SET last_used_at = ?, last_used_ip = ? WHERE id = ?', nowIso(), req.ip, token.id);
   try {
-    const out = importFromPush(r.subject_kind, r.subject_id, envelope(raw), { id: r.id, name: r.name, ip: req.ip });
+    const out = importFromPush(token.subject_kind, token.subject_id, envelope(raw), { id: token.id, name: token.name, ip: req.ip });
     return { status: 200, body: { snapshot: out.snapshot, created: out.created, diff: out.diff, warnings: out.warnings } };
   } catch (e) {
     if (e instanceof HttpError) return { status: e.statusCode, body: { error: e.message, ...(e.code ? { code: e.code } : {}) } };
     if ((e as { name?: string }).name === 'ZodError') return { status: 400, body: { error: 'Not an import of a tbls schema', code: 'DB_SCHEMA_TBLS_INVALID' } };
     throw e;
   }
+}
+
+/**
+ * POST /api/hooks/db-schema/<kind>/<id>: the push token of that target as "Authorization: Bearer sdbp_…" (nothing
+ * else: an API token or a session is refused), the schema.json as it is or { schema, lint, fileName } as JSON. The
+ * route runs authorizePush before the body is read and importPush after; this is both in one.
+ */
+export function handlePush(req: PushRequest): PushResponse {
+  const a = authorizePush(req);
+  return a.ok ? importPush(a.token, req) : a.res;
 }
 
 /** `{ "schema": "<text>", "lint": … }` around the file, or the file itself. */

@@ -3,6 +3,7 @@ import { runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { CheckSetupError, platformFor } from '../monitors/platforms.js';
 import { redactSecrets } from '../platforms/testConnection.js';
+import { HttpError } from '../util.js';
 import { changesSince, hasSnapshot, newestChange, readForCheck, subjectOf } from './service.js';
 
 /**
@@ -11,6 +12,18 @@ import { changesSince, hasSnapshot, newestChange, readForCheck, subjectOf } from
  * default) or any change (mode changed) fails the check. With `read: true` the platform is read first; a test run
  * never connects and judges the stored snapshots.
  */
+
+/**
+ * Saving or trying a check that names a system: the person doing it must see the system – one they may not see answers
+ * exactly like a missing one (the running check then needs the monitor owner's view of it, see below).
+ */
+export function requireVisibleSystem(check: string, id: string): void {
+  try {
+    subjectOf('system', id);
+  } catch {
+    throw new HttpError(400, `Check "${check}": system "${id}" not found`, 'SYSTEM_NOT_FOUND', { id });
+  }
+}
 
 export const changeText = (c: DbSchemaChange): string =>
   `${c.table}${c.column ? `.${c.column}` : ''}: ${c.kind.replace(/-/g, ' ')}${c.before || c.after ? ` (${[c.before, c.after].filter((x) => x !== undefined && x !== null).join(' → ')})` : ''}`;

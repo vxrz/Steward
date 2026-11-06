@@ -26,12 +26,25 @@ const clip = (v: unknown, max: number): string => {
   const clean = s.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '');
   return clean.length > max ? clean.slice(0, max) : clean;
 };
+/**
+ * Tabs and line breaks in a name, a type or the database's name and version (a quoted identifier may hold them) are
+ * kept visible as their control pictures – ␉ ␊ ␍, ␤ for the Unicode line separators – so that every name is one
+ * line wherever it is shown or written (exports, comments, change lists) and still tells what the original held.
+ * Comments and default expressions keep their line breaks; the exports write them on one line.
+ */
+const PICTURES: Record<string, string> = { '\t': '\u2409', '\n': '\u240a', '\r': '\u240d', '\u0085': '\u2424', '\u2028': '\u2424', '\u2029': '\u2424' };
+export const visibleName = (s: string): string => s.replace(/[\t\n\r\u0085\u2028\u2029]/g, (c) => PICTURES[c]!);
+const clipName = (v: unknown, max: number): string => visibleName(clip(v, max));
 const optText = (v: unknown, max: number): string | null => {
   if (v === null || v === undefined) return null;
   const s = clip(v, max);
   return s === '' ? null : s;
 };
-const names = (v: unknown): string[] => (Array.isArray(v) ? v.map((x) => clip(x, L.nameChars)).filter(Boolean) : []);
+const optName = (v: unknown, max: number): string | null => {
+  const s = optText(v, max);
+  return s === null ? null : visibleName(s);
+};
+const names = (v: unknown): string[] => (Array.isArray(v) ? v.map((x) => clipName(x, L.nameChars)).filter(Boolean) : []);
 
 /** A table as the sources hand it over (loosely typed). */
 export interface TableInput {
@@ -62,21 +75,21 @@ export function buildDoc(input: DocInput): DbSchemaDoc {
   const seen = new Set<string>();
   const tables: DbSchemaTable[] = [];
   for (const t of input.tables) {
-    const name = clip(t.name, L.nameChars);
+    const name = clipName(t.name, L.nameChars);
     if (!name) continue;
-    const schema = optText(t.schema, L.nameChars);
+    const schema = optName(t.schema, L.nameChars);
     const key = `${schema ?? ''}\u0000${name}`;
     if (seen.has(key)) continue;
     seen.add(key);
     const colSeen = new Set<string>();
     let columns: DbSchemaColumn[] = [];
     for (const c of t.columns ?? []) {
-      const cn = clip(c.name, L.nameChars);
+      const cn = clipName(c.name, L.nameChars);
       if (!cn || colSeen.has(cn)) continue;
       colSeen.add(cn);
       columns.push({
         name: cn,
-        type: clip(c.type, L.typeChars) || 'unknown',
+        type: clipName(c.type, L.typeChars) || 'unknown',
         nullable: c.nullable !== false,
         default: optText(c.default, L.defaultChars),
         comment: optText(c.comment, L.commentChars),
@@ -89,13 +102,13 @@ export function buildDoc(input: DocInput): DbSchemaDoc {
     const pkCols = names(t.primaryKey?.columns);
     let foreignKeys: DbSchemaForeignKey[] = (t.foreignKeys ?? [])
       .map((f) => ({
-        name: optText(f.name, L.nameChars),
+        name: optName(f.name, L.nameChars),
         columns: names(f.columns),
-        refSchema: optText(f.refSchema, L.nameChars),
-        refTable: clip(f.refTable, L.nameChars),
+        refSchema: optName(f.refSchema, L.nameChars),
+        refTable: clipName(f.refTable, L.nameChars),
         refColumns: names(f.refColumns),
-        onUpdate: optText(f.onUpdate, 40)?.toUpperCase() ?? null,
-        onDelete: optText(f.onDelete, 40)?.toUpperCase() ?? null,
+        onUpdate: optName(f.onUpdate, 40)?.toUpperCase() ?? null,
+        onDelete: optName(f.onDelete, 40)?.toUpperCase() ?? null,
       }))
       .filter((f) => f.columns.length && f.refTable);
     const fkSeen = new Set<string>();
@@ -114,7 +127,7 @@ export function buildDoc(input: DocInput): DbSchemaDoc {
     const ixSeen = new Set<string>();
     let indexes: DbSchemaIndex[] = (t.indexes ?? [])
       .map((i) => ({
-        name: clip(i.name, L.nameChars),
+        name: clipName(i.name, L.nameChars),
         columns: names(i.columns),
         unique: !!i.unique || !!i.primary,
         primary: !!i.primary,
@@ -129,10 +142,10 @@ export function buildDoc(input: DocInput): DbSchemaDoc {
     tables.push({
       schema,
       name,
-      type: (clip(t.type, 40) || 'table').toLowerCase(),
+      type: (clipName(t.type, 40) || 'table').toLowerCase(),
       comment: optText(t.comment, L.commentChars),
       columns,
-      primaryKey: pkCols.length ? { name: optText(t.primaryKey?.name, L.nameChars), columns: pkCols } : null,
+      primaryKey: pkCols.length ? { name: optName(t.primaryKey?.name, L.nameChars), columns: pkCols } : null,
       foreignKeys,
       indexes,
     });
@@ -157,9 +170,9 @@ export function buildDoc(input: DocInput): DbSchemaDoc {
     format: 'steward-db-schema',
     version: 1,
     dialect: input.dialect,
-    product: optText(input.product, 80),
-    serverVersion: optText(input.serverVersion, 200),
-    database: optText(input.database, L.nameChars),
+    product: optName(input.product, 80),
+    serverVersion: optName(input.serverVersion, 200),
+    database: optName(input.database, L.nameChars),
     tables: within,
     truncated,
   };

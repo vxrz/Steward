@@ -275,13 +275,60 @@ function latestRow(kind: DbSchemaSubjectKind, id: string): SnapshotRow | undefin
   return db().get<SnapshotRow>('SELECT * FROM db_schema_snapshots WHERE subject_kind = ? AND subject_id = ? ORDER BY taken_at DESC, id DESC LIMIT 1', kind, id);
 }
 
-/** Removes the oldest snapshots beyond `keep`; returns how many. */
-function prune(kind: DbSchemaSubjectKind, id: string, keep: number): number {
-  const old = db()
-    .all<{ id: string }>('SELECT id FROM db_schema_snapshots WHERE subject_kind = ? AND subject_id = ? ORDER BY taken_at DESC, id DESC', kind, id)
-    .slice(keep);
-  for (const r of old) db().run('DELETE FROM db_schema_snapshots WHERE id = ?', r.id);
-  return old.length;
+/**
+ * How far back the db-schema checks of monitors on this platform or system look: the largest window of a check in mode
+ * "breaking" and of one in mode "changed" (as the start time; null: no such check). Templates do not run.
+ */
+function checkWindows(kind: DbSchemaSubjectKind, id: string): { breaking: string | null; changed: string | null } {
+  let breaking = 0;
+  let changed = 0;
+  const rows = db().all<{ definition: string }>('SELECT definition FROM monitors WHERE is_template = 0');
+  for (const r of rows) {
+    if (!r.definition.includes('"db-schema"')) continue;
+    const checks = parseJson<{ checks?: unknown }>(r.definition, {}).checks;
+    if (!Array.isArray(checks)) continue;
+    for (const c of checks as { type?: unknown; platform?: unknown; system?: unknown; mode?: unknown; withinHours?: unknown }[]) {
+      if (c?.type !== 'db-schema' || (kind === 'platform' ? c.platform : c.system) !== id) continue;
+      const hours = typeof c.withinHours === 'number' && c.withinHours > 0 ? c.withinHours : 24;
+      if (c.mode === 'changed') changed = Math.max(changed, hours);
+      else breaking = Math.max(breaking, hours);
+    }
+  }
+  const since = (h: number) => (h ? new Date(Date.now() - h * 3_600_000).toISOString() : null);
+  return { breaking: since(breaking), changed: since(changed) };
+}
+
+/**
+ * Removes the oldest snapshots beyond `keep`; returns how many. The newest snapshot always stays, and:
+ * - `importsOnly` (a tbls import or push): only imported snapshots are removed – Steward's own reads stay, whatever a
+ *   push token sends;
+ * - a snapshot that recorded a breaking change (or any change, for a check in mode "changed") stays while a db-schema
+ *   check of a monitor on this target still counts it – up to twice `keep` (at most the retention's maximum), so that
+ *   pushing many snapshots can neither hide such a change nor fill the database.
+ */
+function prune(kind: DbSchemaSubjectKind, id: string, keep: number, opts: { importsOnly?: boolean } = {}): number {
+  const rows = db().all<{ id: string; source: DbSchemaSource; taken_at: string; change_count: number; breaking_count: number }>(
+    'SELECT id, source, taken_at, change_count, breaking_count FROM db_schema_snapshots WHERE subject_kind = ? AND subject_id = ? ORDER BY taken_at DESC, id DESC',
+    kind,
+    id,
+  );
+  if (rows.length <= keep) return 0;
+  const w = checkWindows(kind, id);
+  const counted = (r: (typeof rows)[number]) =>
+    (!!w.breaking && Number(r.breaking_count) > 0 && r.taken_at >= w.breaking) || (!!w.changed && Number(r.change_count) > 0 && r.taken_at >= w.changed);
+  // oldest first, never the newest, only what this prune may remove
+  const removable = rows
+    .slice(1)
+    .reverse()
+    .filter((r) => !opts.importsOnly || r.source === 'tbls');
+  const plain = removable.filter((r) => !counted(r));
+  const gone = plain.slice(0, rows.length - keep);
+  // still beyond the ceiling: the oldest of the counted ones go too (the newer ones keep the check failing)
+  const ceiling = Math.max(keep, Math.min(keep * 2, L.retention.max));
+  const over = rows.length - gone.length - ceiling;
+  if (over > 0) gone.push(...removable.filter((r) => counted(r)).slice(0, over));
+  for (const r of gone) db().run('DELETE FROM db_schema_snapshots WHERE id = ?', r.id);
+  return gone.length;
 }
 
 interface StoreInput {
@@ -347,7 +394,7 @@ function store(s: Subject, x: StoreInput): StoreResult {
       diff?.total ?? 0,
       diff?.breaking ?? 0,
     );
-    const pruned = prune(s.kind, s.id, settingsOf(s.kind, s.id).retention);
+    const pruned = prune(s.kind, s.id, settingsOf(s.kind, s.id).retention, { importsOnly: x.source === 'tbls' });
     const row = db().get<SnapshotRow>(`${SELECT_SUMMARY} WHERE id = ?`, id)!;
     return { snapshot: summary(row), created: true, diff, pruned };
   });
@@ -559,7 +606,7 @@ export function compareSnapshots(kind: DbSchemaSubjectKind, id: string, fromId: 
 export function exportSnapshot(kind: DbSchemaSubjectKind, id: string, snapshotId: string | 'latest', format: DbSchemaExportFormat): ExportFile {
   const snap = getSnapshot(kind, id, snapshotId);
   const s = subjectOf(kind, id);
-  return exportSchema(snap.schema, format, snap.schema.database || s.name, snap.takenAt);
+  return exportSchema(snap.schema, format, snap.schema.database || s.name, snap.takenAt, snap.source);
 }
 
 /** The changes of the snapshots taken since `since` (for the monitor check and the public API). */
