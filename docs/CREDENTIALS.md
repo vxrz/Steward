@@ -132,6 +132,10 @@ All checks happen on the server; the API answers 404 for entries you may not see
 
 - Internal API (web UI): `GET/POST /api/credentials`, `GET/PUT/DELETE /api/credentials/:id`, `POST /api/credentials/:id/rotated|reviewed|archive|restore`, `GET /api/credentials/:id/history`, `GET /api/credentials/export.csv`, `GET /api/credentials/summary`, `POST /api/credentials/certificate/parse`, `GET/PUT /api/credentials/settings`, `GET /api/credentials/belongs-targets` (what an entry can belong to).
 
+## Identities
+
+The credentials Steward itself uses to sign in to a platform are not part of the register: they are kept in the vault, since 0.9.0 on the platform's **default identity** ([ADR 0009](adr/0009-platform-identities.md), [PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md#identities)). Nothing changes for the register: an entry links the platform as before. Linking an entry to one identity of a platform comes with several identities per platform in a later release.
+
 ## No secrets
 
 The register is documentation. To keep secrets out of it:

@@ -15,6 +15,10 @@ How Steward signs in to a platform is its **auth type** (_Platforms → a platfo
 
 The connection test, _Get a new token_ (for logins, JWTs and assumed roles) and the MCP gateway work the same for every type.
 
+## Identities
+
+Since 0.9.0 a platform's credentials belong to an **identity** under it ([ADR 0009](adr/0009-platform-identities.md)). Every platform has exactly one **default identity**, and that is all there is for now: it holds the credentials of the _Credentials_ tab and the MCP mode of the _MCP_ tab, signs in with the platform's auth type and is open to everybody with the _use_ right on the platform – exactly as before. The _Identities_ tab of a platform shows it. Updating moves each platform's credentials to its default identity at the first unlock (sealed like the platform: a change made directly in the database is refused until an administrator confirms it); a platform whose settings were changed outside Steward waits until an administrator confirms them. Tokens, assumed AWS roles and database connections are kept per identity. Several identities per platform – for example a read-only and an admin account of one system – come in a later release.
+
 ## Adding a platform
 
 _Platforms → Add platform_ opens a wizard (v0.4.0): **1** choose a connector (search, grouped by area), **2** its address and only the credentials it needs – on a connector that takes several sign-ins (Prometheus, the generic REST API) the auth type follows the fields you fill in –, **3** a **live connection test** with the plain-language diagnosis and the usual fixes inline (credentials, base URL, a sign-in page instead of the API, DNS, outbound policy, certificates), _Change the settings_ and _Test again_ until it works, **4** what's next: the matching template bundles and templates, the monitor check types and examples, access checks and the MCP gateway, one click each. _Skip the wizard_ opens the quick form.

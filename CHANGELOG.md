@@ -6,6 +6,14 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Platform identities, step 1: one default identity per platform (#228, [ADR 0009](docs/adr/0009-platform-identities.md), [docs/PLATFORM-SIGN-IN.md](docs/PLATFORM-SIGN-IN.md#identities))**: the groundwork for several sets of credentials under one platform. Nothing changes for users yet.
+  - **Default identity**: every platform has exactly one, holding its credentials and its MCP mode; it signs in with the platform's settings and is open to everybody with the _use_ right, as before. Saving credentials or the MCP gateway writes it. A new **Identities** tab on the platform page shows it read-only.
+  - **Update**: migration `platforms-005-identities` (additive: a new table, `platforms.secrets` stays and is emptied) creates the default identities; at the first unlock each intact platform's credentials and MCP mode move to its sealed default identity (audited as `platform.identities_created`). A platform whose settings were changed outside Steward stays refused until an administrator confirms them, as before.
+  - **Seals and caches**: identities are sealed like platforms and bound to their platform; key rotation, backups and migration packages cover their credentials; tokens, assumed AWS roles and database connection pools are kept per identity.
+  - **API**: `GET /api/v1/platforms` and `/platforms/{id}` list the identities with names and flags only – never credentials, sign-in settings or variables.
+
 ## [0.8.0] - 2026-11-06
 
 Steward 0.8.0 completes the **plant registry** with the OT network and adds **pictures** of it, **database schemas** and a **DynamoDB freshness check**. The plant registry (opt-in, preview) now documents VLANs, IEC 62443-3-2 zones and conduits, devices and data paths, with live status only where a Steward check is linked, and draws site structures, data flows, data point lineage, KPI coverage and the OT network – animated where it shows direction, with a table for every picture. Database platforms read their schema (or take a tbls `schema.json` pushed from CI with a push token bound to one database), keep snapshots, mark breaking changes and export DBML or SQL DDL. Two security reviews found and fixed leaks of hidden datasets and monitors in live status, a runnable-statement path in the SQL export, and – older – a full URL in platform and freshness checks that skipped the outbound allow-list; see _Check before updating_ under Changed.
