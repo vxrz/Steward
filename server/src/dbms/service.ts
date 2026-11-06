@@ -287,8 +287,8 @@ export async function runQuery(p: Platform, secrets: Record<string, string>, q: 
 /**
  * Reads the schema of a database platform: Steward's schema statements (schema-catalog.ts) one after the other on a
  * pooled connection, each in the read-only (or always rolled back) transaction of every statement, within the
- * platform's time limit per statement and DB_SCHEMA_LIMITS for the whole read; a part with more rows than kept marks
- * the schema truncated.
+ * platform's time limit per statement and DB_SCHEMA_LIMITS for the whole read. The platform's own row and size limits
+ * are ceilings for every part as well (ADR 0008); a part cut by either limit marks the schema truncated.
  */
 export async function readDatabaseSchema(
   p: Platform,
@@ -298,6 +298,11 @@ export async function readDatabaseSchema(
   const s = databaseSettings(p);
   const timeoutMs = Math.min(s.limits.timeoutSeconds ?? DB_LIMITS.timeoutSeconds.default, DB_LIMITS.timeoutSeconds.max) * 1000;
   const all = AbortSignal.any([signal, AbortSignal.timeout(DB_SCHEMA_LIMITS.readSeconds * 1000)]);
+  // the read's own limits, never above what the platform's managers set
+  const partLimits = (part: SchemaPart) => ({
+    maxRows: Math.min(SCHEMA_PART_ROWS[part], s.limits.maxRows ?? DB_LIMITS.maxRows.max),
+    maxBytes: Math.min(SCHEMA_PART_BYTES, (s.limits.maxMb ?? DB_LIMITS.maxMb.max) * 1024 * 1024),
+  });
   const t0 = Date.now();
   return withConnection(p, s, secrets, all, async (conn) => {
     const parts = {} as Record<SchemaPart, { rows: Record<string, unknown>[]; truncated: boolean }>;
@@ -307,7 +312,7 @@ export async function readDatabaseSchema(
         parts[part] = { rows: [], truncated: true };
         continue;
       }
-      const limits: RunLimits = { maxRows: SCHEMA_PART_ROWS[part], maxBytes: SCHEMA_PART_BYTES, timeoutMs, truncate: true };
+      const limits: RunLimits = { ...partLimits(part), timeoutMs, truncate: true };
       const r = await conn.run({ sql: schemaSql(part, conn.server), params: [], trusted: true }, limits, all).catch((e: unknown) => {
         throw redactDbError(e, secrets);
       });

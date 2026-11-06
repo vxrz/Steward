@@ -369,3 +369,22 @@ describe('scheduled reads', () => {
     await expect(s.api('GET', `/db-schemas/system/${systemId}`)).rejects.toMatchObject({ status: 404 });
   });
 });
+
+describe('the platform’s limits', () => {
+  it('cut the schema read at the platform’s row limit, marked truncated (ADR 0008, security review of #222)', async () => {
+    const settings = (await s.api('GET', `/platforms/${db.id}`)).config.database;
+    expect(settings).toBeTruthy();
+    try {
+      await s.api('PUT', `/platforms/${db.id}/database`, { ...settings, limits: { ...settings.limits, maxRows: 3 } });
+      const r = await s.api('POST', `/db-schemas/platform/${db.id}/read`);
+      expect(r.created).toBe(true);
+      expect(r.snapshot.truncated).toBe(true);
+      expect(r.snapshot.columns).toBeLessThanOrEqual(3);
+    } finally {
+      await s.api('PUT', `/platforms/${db.id}/database`, settings);
+    }
+    const full = await s.api('POST', `/db-schemas/platform/${db.id}/read`);
+    expect(full.snapshot.truncated).toBe(false);
+    expect(full.snapshot.columns).toBeGreaterThan(3);
+  });
+});
