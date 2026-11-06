@@ -26,7 +26,8 @@ async function networkOn(api: APIRequestContext) {
   expect(imp.ok(), await imp.text()).toBe(true);
 }
 
-const tab = (page: Page, name: string) => page.getByTestId('link-tabs').getByRole('link', { name: new RegExp(`^${name}`) });
+// a tab by (part of) its name – a count may follow it; no RegExp built from a string
+const tab = (page: Page, name: string) => page.getByTestId('link-tabs').getByRole('link', { name });
 
 test.describe('as a designer', () => {
   test.use({ storageState: authFile('dana') });
