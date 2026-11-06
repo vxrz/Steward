@@ -1629,7 +1629,11 @@ beforeAll(async () => {
   const application = await a('POST', '/applications', { name: 'Matrix application', owners: [] });
   const appLink = await a('POST', `/applications/${application.id}/links`, { url: 'https://cmdb.example.com/3', label: 'x' });
   const component = (
-    await a('POST', `/applications/${application.id}/components`, { type: 'repository', name: 'matrix component', stack: [{ product: 'nodejs', version: '24' }] })
+    await a('POST', `/applications/${application.id}/components`, {
+      type: 'repository',
+      name: 'matrix component',
+      stack: [{ product: 'nodejs', version: '24' }],
+    })
   ).components[0];
   QUERY['GET /api/catalogue/versions/entry'] = `?holder=component&id=${component.id}&product=nodejs`;
   await a('PUT', `/services/${svc.id}/applications/${application.id}`, { role: 'primary' });
