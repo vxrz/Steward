@@ -122,6 +122,10 @@
       "eol": {
         "label": "Tech stack end of life",
         "info": "A component of an application you own reaches the end of life of its release cycle soon (or reached it)"
+      },
+      "release": {
+        "label": "New major release",
+        "info": "A new major release of a product in the tech stack of an application or system you are responsible for"
       }
     },
     "measure": {

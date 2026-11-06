@@ -137,3 +137,9 @@ export const dbSchemaKeys = {
     ['db-schema', kind, id, 'compare', from, to] as const,
   pushTokens: (kind: string, id: string | null | undefined) => ['db-schema', kind, id, 'push-tokens'] as const,
 };
+
+/** The version watch of the tech stack (#241): status and settings, one entry with what each source said. */
+export const versionKeys = {
+  all: ['catalogue-versions'] as const,
+  entry: (holder: string, id: string, product: string) => ['catalogue-versions', 'entry', holder, id, product] as const,
+};

@@ -102,7 +102,7 @@ export function SystemDetailPage() {
             <FirewallNetworkPanel system={s} />
             <Stack gap="xs" data-testid="system-stack">
               <Text fw={600}>{t('components.stack')}</Text>
-              <StackBadges stack={s.stack} />
+              <StackBadges stack={s.stack} holder={{ kind: 'system', id: s.id }} />
               {s.sbom && <SbomLine sbom={s.sbom} />}
             </Stack>
             <CatalogueCredentials

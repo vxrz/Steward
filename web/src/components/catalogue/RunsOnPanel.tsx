@@ -79,7 +79,7 @@ export function RunsOnPanel({ app, onSaved }: { app: ApplicationDetail; onSaved:
                             {l.note}
                           </Text>
                         )}
-                        <StackBadges stack={l.stack} />
+                        <StackBadges stack={l.stack} holder={{ kind: 'system', id: l.systemId }} />
                       </Stack>
                       {editable && (
                         <Group gap={0} wrap="nowrap">

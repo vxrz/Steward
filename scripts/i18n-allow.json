@@ -178,7 +178,17 @@
       "Conduit {{name}}",
       "Switch",
       "Schema",
-      "DBML (dbdiagram, drawDB, ChartDB)"
+      "DBML (dbdiagram, drawDB, ChartDB)",
+      "endoflife.date",
+      "npm",
+      "PyPI",
+      "Maven Central",
+      "NuGet",
+      "crates.io",
+      "Semantic Versioning",
+      "Python (PEP 440)",
+      "Maven",
+      "Releases"
     ]
   }
 }

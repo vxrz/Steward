@@ -50,6 +50,7 @@ import { useFieldErrors } from '../common';
 import { confirmDanger } from '../confirm';
 import { fmtBytes, fmtDate, fmtNumber } from '../../format';
 import { LifecycleBadge } from './lifecycle';
+import { StackVersions, VersionBadge, VersionEntryModal } from './versions';
 import { EnvironmentBadge, EnvironmentInput, sortByEnvironment, useEnvironmentList } from './environments';
 import { CredentialEditor, type CredentialDraft } from '../credentials/CredentialEditor';
 import { platformKeys } from '../../queryKeys';
@@ -223,7 +224,7 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                     </Table.Td>
                   )}
                   <Table.Td>
-                    <StackBadges stack={c.stack} />
+                    <StackBadges stack={c.stack} holder={{ kind: 'component', id: c.id }} />
                   </Table.Td>
                   {editable && (
                     <Table.Td className="nowrap">
@@ -279,6 +280,7 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
         </div>
       )}
       {app.stack.length > 0 && <StackRollup app={app} />}
+      {app.stack.length > 0 && <StackVersions app={app} />}
       {editing && <ComponentFormModal app={app} component={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
       {peeking && <PeekModal component={peeking} onClose={() => setPeeking(null)} />}
       {drafting && <CredentialEditor initial={null} draft={drafting} onClose={() => setDrafting(null)} onSaved={() => setDrafting(null)} />}
@@ -764,9 +766,13 @@ export function SbomLine({ sbom }: { sbom: NonNullable<ApplicationComponent['sbo
   );
 }
 
-/** The stack of a component or system as end-of-life badges. */
-export function StackBadges({ stack }: { stack: StackEntry[] }) {
+/**
+ * The stack of a component or system as end-of-life badges; with the holder, the newest version next to an entry that
+ * is behind (#241), which opens the entry's version watch.
+ */
+export function StackBadges({ stack, holder }: { stack: StackEntry[]; holder?: { kind: 'component' | 'system'; id: string } }) {
   const { t } = useTranslation('applications');
+  const [open, setOpen] = useState<StackEntry | null>(null);
   if (stack.length === 0)
     return (
       <Text span size="sm" c="dimmed">
@@ -776,22 +782,27 @@ export function StackBadges({ stack }: { stack: StackEntry[] }) {
   return (
     <Group gap={4}>
       {stack.map((s) => (
-        <LifecycleBadge
-          key={s.product}
-          text={[s.label, s.version].filter(Boolean).join(' ')}
-          lifecycle={s.lifecycle}
-          variant={s.source === 'manual' ? 'outline' : 'light'}
-          extra={
-            s.source === 'sbom'
-              ? `${t('components.stackEditor.fromSbom')}: ${s.sbomRef}`
-              : s.source === 'cluster'
-                ? `${t('components.cluster.fromCluster')}: ${s.sbomRef}`
-                : s.source === 'repository'
-                  ? `${t('components.repository.fromFiles')}: ${s.sbomRef}`
-                  : t('components.stackEditor.manual')
-          }
-        />
+        <Group key={s.product} gap={2} wrap="nowrap">
+          <LifecycleBadge
+            text={[s.label, s.version].filter(Boolean).join(' ')}
+            lifecycle={s.lifecycle}
+            variant={s.source === 'manual' ? 'outline' : 'light'}
+            extra={
+              s.source === 'sbom'
+                ? `${t('components.stackEditor.fromSbom')}: ${s.sbomRef}`
+                : s.source === 'cluster'
+                  ? `${t('components.cluster.fromCluster')}: ${s.sbomRef}`
+                  : s.source === 'repository'
+                    ? `${t('components.repository.fromFiles')}: ${s.sbomRef}`
+                    : t('components.stackEditor.manual')
+            }
+          />
+          {holder && <VersionBadge entry={s} onOpen={() => setOpen(s)} />}
+        </Group>
       ))}
+      {open && holder && (
+        <VersionEntryModal holder={holder.kind} id={holder.id} product={open.product} lifecycle={open.lifecycle} onClose={() => setOpen(null)} />
+      )}
     </Group>
   );
 }
