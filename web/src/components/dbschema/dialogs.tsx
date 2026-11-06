@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, Badge, Button, Divider, FileButton, Group, List, Modal, NumberInput, Stack, Text } from '@mantine/core';
 import { IconAlertTriangle, IconDeviceFloppy, IconFileImport, IconFileText } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { DB_SCHEMA_LIMITS, type DbSchemaImportPreview, type DbSchemaSettings } from '@sm/shared';
+import { DB_SCHEMA_LIMITS, dbSchemaPushPath, type DbSchemaImportPreview, type DbSchemaSettings } from '@sm/shared';
 import { notifyError, notifyOk, post, put } from '../../api';
 import { fmtNumber } from '../../format';
 import { CopyBlock, origin } from '../monitors/dialogs';
@@ -12,14 +12,11 @@ import type { SchemaSubject } from './SchemaView';
 
 const MB = 1024 * 1024;
 
-/** The public API path of the tbls import for CI. */
-export const pushPath = (s: SchemaSubject) => `/api/v1/${s.kind === 'platform' ? 'platforms' : 'systems'}/${s.id}/schema/tbls`;
-
 export function ciCommands(s: SchemaSubject): { plain: string; lint: string } {
-  const url = `${origin()}${pushPath(s)}`;
+  const url = `${origin()}${dbSchemaPushPath(s.kind, s.id)}`;
   return {
-    plain: `tbls out -t json -o schema.json\ncurl -sS -f -X POST '${url}' \\\n  -H "Authorization: Bearer $STEWARD_TOKEN" \\\n  -H 'Content-Type: application/json' \\\n  --data-binary @schema.json`,
-    lint: `tbls lint > lint.txt || true\njq -n --rawfile schema schema.json --rawfile lint lint.txt '{schema: $schema, lint: $lint, fileName: "schema.json"}' |\n  curl -sS -f -X POST '${url}' \\\n    -H "Authorization: Bearer $STEWARD_TOKEN" \\\n    -H 'Content-Type: application/json' \\\n    --data-binary @-`,
+    plain: `tbls out -t json -o schema.json\ncurl -sS -f -X POST '${url}' \\\n  -H "Authorization: Bearer $STEWARD_PUSH_TOKEN" \\\n  -H 'Content-Type: application/json' \\\n  --data-binary @schema.json`,
+    lint: `tbls lint > lint.txt || true\njq -n --rawfile schema schema.json --rawfile lint lint.txt '{schema: $schema, lint: $lint, fileName: "schema.json"}' |\n  curl -sS -f -X POST '${url}' \\\n    -H "Authorization: Bearer $STEWARD_PUSH_TOKEN" \\\n    -H 'Content-Type: application/json' \\\n    --data-binary @-`,
   };
 }
 

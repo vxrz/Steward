@@ -1,21 +1,18 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { z } from 'zod';
-import { dbSchemaImportInput, DB_SCHEMA_LIMITS, type DbSchemaSubjectKind } from '@sm/shared';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { z } from 'zod';
+import type { DbSchemaSubjectKind } from '@sm/shared';
 import { HttpError } from '../util.js';
-import { LARGE_BODIES } from '../bodyLimits.js';
 import { notFound } from '../api/v1/helpers.js';
-import { ProblemError } from '../api/v1/problem.js';
 import { linkNext, pageArray } from '../api/v1/pagination.js';
-import { schemaOf, type Op } from '../api/v1/routes.js';
-import type { ApiPrincipal } from '../api/v1/auth.js';
+import type { Op } from '../api/v1/routes.js';
 import * as svc from './service.js';
 import { DbSchemaChangeListQuery, DbSchemaCompareQuery, DbSchemaExportQuery, DbSchemaSnapshotListQuery } from './api-schemas.js';
 
 /**
  * Database schemas in the public API (#222): the snapshots of a database platform or a system, their changes, a
  * comparison of two snapshots and the exports – read-only, with the rights of the web app (a platform or system the
- * token owner may not see answers 404). One endpoint changes data: the tbls import from CI
- * (`POST …/schema/tbls`), which needs a token with scope full and the right to import.
+ * token owner may not see answers 404). The tbls import from CI is not part of this read-only API: it takes a push
+ * token of its own (push.ts, POST /api/hooks/db-schema/<kind>/<id>).
  */
 type Get = <R>(url: string, op: Op, handler: (req: FastifyRequest, reply: FastifyReply) => Promise<R> | R) => unknown;
 
@@ -44,7 +41,7 @@ function found<T>(f: () => T, what: string): T {
 
 const idOf = (req: FastifyRequest, param: string) => String((req.params as Record<string, string>)[param] ?? '');
 
-export async function dbSchemaApiRoutes(app: FastifyInstance, get: Get): Promise<void> {
+export function dbSchemaApiRoutes(get: Get): void {
   for (const x of SUBJECTS) {
     const params = { [x.param]: `${x.label} id` };
     get(
@@ -152,79 +149,4 @@ export async function dbSchemaApiRoutes(app: FastifyInstance, get: Get): Promise
       },
     );
   }
-
-  // ---------- the tbls import (from CI): the file itself, or { schema, lint, fileName } ----------
-  const bodyLimit = LARGE_BODIES.dbSchemaImport.bytes;
-  await app.register(async (sub) => {
-    // the body is kept as text: its SHA-256 is that of the file as sent
-    sub.removeContentTypeParser(['application/json', 'text/plain']);
-    sub.addContentTypeParser(['application/json', 'text/plain'], { parseAs: 'string', bodyLimit }, (_req, body, done) => done(null, body));
-    for (const x of SUBJECTS) {
-      const url = `${x.base}/tbls`;
-      const op: Op = {
-        operationId: `import${x.label}TblsSchema`,
-        tag: 'Database schemas',
-        summary: `Import a tbls schema.json for ${x.what}`,
-        description: `The one endpoint of the API that changes data; it needs a token with scope **full** (a read token gets 403 \`token-scope\`) whose owner may import (the platform's manage right, or the right to change the system). The body is the file of \`tbls out -t json\` as it is (Content-Type application/json, at most ${DB_SCHEMA_LIMITS.importBytes / 1024 / 1024} MB) – or \`{ "schema": "<the file as text>", "lint": "<output of tbls lint>", "fileName": "schema.json" }\` to add the findings of tbls lint. The file is checked against the tbls JSON format and recorded in the audit log with its SHA-256; a schema that equals the latest snapshot adds none.`,
-        params: { [x.param]: `${x.label} id` },
-        response: { $ref: 'DbSchemaImportResult#' },
-        errors: [400, 404, 409],
-      };
-      sub.post(
-        url,
-        {
-          schema: {
-            ...schemaOf(op),
-            body: {
-              description: 'The tbls schema.json, or { schema, lint, fileName }',
-              type: 'object',
-              additionalProperties: true,
-            },
-          },
-          config: { smAuth: 'token' },
-          bodyLimit,
-          // the body is text (its hash is recorded); it is checked by the tbls parser, not by the route schema
-          validatorCompiler: () => () => true,
-        },
-        async (req) => {
-          const p = (req as unknown as { smApi: ApiPrincipal }).smApi;
-          if (p.scope !== 'full')
-            throw new ProblemError(403, {
-              type: 'token-scope',
-              title: 'Forbidden',
-              detail: 'Importing a schema changes data – use a token with scope "full" (this one is read-only)',
-            });
-          const id = z.string().min(1).max(200).parse(idOf(req, x.param));
-          // who may not import learns nothing from the body
-          found(() => svc.assertCanImport(x.kind, id), `${x.label} ${id}`);
-          const raw = typeof req.body === 'string' ? req.body : '';
-          if (!raw.trim()) throw new HttpError(400, 'The body is empty – send the tbls schema.json', 'DB_SCHEMA_TBLS_INVALID');
-          const input = envelope(raw);
-          const r = found(() => svc.importTbls(x.kind, id, input, 'api'), `${x.label} ${id}`);
-          return { snapshot: r.snapshot, created: r.created, diff: r.diff, warnings: r.warnings };
-        },
-      );
-    }
-  });
-}
-
-/** `{ "schema": "<text>", "lint": … }` around the file, or the file itself. */
-function envelope(raw: string): z.infer<typeof dbSchemaImportInput> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw.replace(/^\uFEFF/, ''));
-  } catch {
-    // not JSON: the tbls parser says so with its own message
-    return { schema: raw };
-  }
-  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && 'schema' in parsed && !('tables' in parsed)) {
-    const o = parsed as Record<string, unknown>;
-    // the schema as a JSON object instead of its text: hashed as sent in this body
-    const schema = o.schema && typeof o.schema === 'object' ? JSON.stringify(o.schema) : o.schema;
-    const r = dbSchemaImportInput.safeParse({ schema, lint: o.lint, fileName: o.fileName });
-    if (!r.success)
-      throw new HttpError(400, `Not an import of a tbls schema: ${r.error.issues[0]!.path.join('.')} ${r.error.issues[0]!.message}`, 'DB_SCHEMA_TBLS_INVALID');
-    return r.data;
-  }
-  return { schema: raw };
 }

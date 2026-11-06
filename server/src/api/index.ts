@@ -28,7 +28,7 @@ import { env } from '../config.js';
 
 type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-const DESCRIPTION = `Read-only access to the data ${BRAND.name} holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), change requests and decision records, the service catalogue, the credentials register (documentation only, never secret values), database schema snapshots and their changes, and the data model itself as an Apache Ossie semantic model. One endpoint writes: the tbls schema import for CI (\`POST …/schema/tbls\`, scope *full*).
+const DESCRIPTION = `Read-only access to the data ${BRAND.name} holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), change requests and decision records, the service catalogue, the credentials register (documentation only, never secret values), database schema snapshots and their changes, and the data model itself as an Apache Ossie semantic model.
 
 **Authentication.** Every endpoint except \`/health\` needs a personal API token: \`Authorization: Bearer smt_…\`. Create one on your profile page in the web UI (scope *read* is enough; tokens with scope *mcp* only work on the MCP endpoint). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.
 
@@ -71,7 +71,7 @@ const TAGS = [
   {
     name: 'Database schemas',
     description:
-      'Schema snapshots of database platforms and systems (Steward reads or tbls imports), their changes marked breaking or not, and exports as DBML, SQL DDL or JSON; the tbls import for CI',
+      'Schema snapshots of database platforms and systems (Steward reads or tbls imports), their changes marked breaking or not, and exports as DBML, SQL DDL or JSON',
   },
 ];
 

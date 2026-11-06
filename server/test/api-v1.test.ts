@@ -634,7 +634,7 @@ describe('every endpoint', () => {
   it('matches the OpenAPI document', async () => {
     const templates = new Set(adminCrawl.map((c) => c.template));
     // every documented GET operation (except the document itself) was exercised
-    for (const [p, item] of Object.entries<any>(doc.paths)) if (p !== '/openapi.json' && item.get) expect(templates, p).toContain(p);
+    for (const p of Object.keys(doc.paths)) if (p !== '/openapi.json') expect(templates, p).toContain(p);
     for (const c of adminCrawl) {
       expect(c.res.status, c.url).toBe(200);
       validate(c.template, c.res);
@@ -889,9 +889,8 @@ describe('OpenAPI document', () => {
     for (const [p, item] of Object.entries<any>(doc.paths)) {
       expect(p.startsWith('/')).toBe(true);
       expect(p).not.toMatch(/:|\/api\/v1/);
-      // read-only, but for the tbls import from CI (#222)
-      expect(Object.keys(item)).toEqual(p.endsWith('/schema/tbls') ? ['post'] : ['get']);
-      const op = item.get ?? item.post;
+      expect(Object.keys(item)).toEqual(['get']);
+      const op = item.get;
       expect(op.operationId).toMatch(/^[a-z][A-Za-z]+$/);
       expect(opIds.has(op.operationId)).toBe(false);
       opIds.add(op.operationId);

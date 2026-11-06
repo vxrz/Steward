@@ -111,7 +111,7 @@ Test runs of monitors use the recorded response `POST /sql/<check id>`.
 Steward keeps the **structure** of the databases it cares about – schemas, tables and views, columns with type, NULL, default and comment, primary and foreign keys, unique keys and indexes – as **snapshots**, shows **what changed** between them and which changes are **breaking**, and hands the schema to other tools as **DBML**, **SQL DDL** or **JSON** (#222). Two sources, one model:
 
 - **Steward reads a database platform** (_Platform → Schema → Read now_, a scheduled read, or the monitor check): its own catalog statements (`server/src/dbms/schema-catalog.ts`, next to the catalog queries), one after the other on a pooled connection, in the same read-only transaction as every statement ([What Steward refuses](#what-steward-refuses)), within the platform's time limit per statement and 180 s for the whole read. PostgreSQL reads `pg_catalog` (every schema but the system ones, partitions folded into their table), MariaDB/MySQL `information_schema` of the connection's database (one view per statement), SQL Server `sys.*` of the database (descriptions are the `MS_Description` extended properties). The read-only account of [below](#a-read-only-account-per-dbms) sees what it needs; on SQL Server `VIEW ANY DEFINITION` makes the metadata visible.
-- **A tbls import**: [tbls](https://github.com/k1LoW/tbls) (MIT) documents a database and writes it as JSON (`tbls out -t json`). Steward does not bundle tbls: it runs where the database is – a CI job, a job inside a separated network – and its `schema.json` is uploaded (_Import tbls_) or pushed through the API ([below](#tbls-from-ci)). This also works for a database that only has a **system** in Steward (_Systems → system → Database schema_), with no platform and no connection. The file is checked against the tbls JSON format ([`spec/tbls.schema.json_schema.json`](https://github.com/k1LoW/tbls/tree/main/spec) of tbls: the required fields and their types; viewpoints, functions and labels are ignored), and the import is audited with the file's **SHA-256** (`dbschema.imported`). The output of **`tbls lint`**, when it is sent along, becomes **checks** named by their rule (`requireColumnComment`, `columnCount`, `requireForeignKeyIndex` … – tbls prints no rule names, Steward recognises its messages; unknown ones are `tbls-lint`).
+- **A tbls import**: [tbls](https://github.com/k1LoW/tbls) (MIT) documents a database and writes it as JSON (`tbls out -t json`). Steward does not bundle tbls: it runs where the database is – a CI job, a job inside a separated network – and its `schema.json` is uploaded (_Import tbls_) or pushed from CI with a push token ([below](#tbls-from-ci)). This also works for a database that only has a **system** in Steward (_Systems → system → Database schema_), with no platform and no connection. The file is checked against the tbls JSON format ([`spec/tbls.schema.json_schema.json`](https://github.com/k1LoW/tbls/tree/main/spec) of tbls: the required fields and their types; viewpoints, functions and labels are ignored), and the import is audited with the file's **SHA-256** (`dbschema.imported`). The output of **`tbls lint`**, when it is sent along, becomes **checks** named by their rule (`requireColumnComment`, `columnCount`, `requireForeignKeyIndex` … – tbls prints no rule names, Steward recognises its messages; unknown ones are `tbls-lint`).
 
 | Limit                           | Value                                                                                   |
 | ------------------------------- | --------------------------------------------------------------------------------------- |
@@ -161,11 +161,13 @@ Steward runs none of it. The DBML or SQL file opens in editors such as [dbdiagra
 
 ### Rights
 
-Whoever sees the database platform (any right) or the system sees its schema, snapshots and changes – a platform or system someone may not see answers like one that does not exist, in the web app and the API. Reading the database needs the platform's _use_ right; importing and the settings its _manage_ right, or the right to change the system. A system that is a database platform of Steward keeps its schema on the platform (`DB_SCHEMA_ON_PLATFORM`). Audit log: `dbschema.read` (a person's read, or a scheduled or monitor read that found a change), `dbschema.imported` (with the SHA-256, the file name, `via`, the counts), `dbschema.settings_changed`.
+Whoever sees the database platform (any right) or the system sees its schema, snapshots and changes – a platform or system someone may not see answers like one that does not exist, in the web app and the API. Reading the database needs the platform's _use_ right; importing and the settings its _manage_ right, or the right to change the system. A system that is a database platform of Steward keeps its schema on the platform (`DB_SCHEMA_ON_PLATFORM`). Who may not see the database platform a system is sees that system like any other: nothing on its schema page or in the API tells that the platform exists or what kind it is. Audit log: `dbschema.read` (a person's read, or a scheduled or monitor read that found a change), `dbschema.imported` (with the SHA-256, the file name, `via`, the counts; for a push the token), `dbschema.settings_changed`, `dbschema.push_token_created`, `_rotated`, `_revoked`.
 
 ### tbls from CI
 
-Create an API token with scope **full** on the profile page of an account that may import (the platform's _manage_ right, or the right to change the system – a dedicated service account is best) and keep it as a CI secret (`STEWARD_TOKEN`). The endpoint is `POST /api/v1/platforms/{platformId}/schema/tbls` (or `/api/v1/systems/{systemId}/schema/tbls`); _Import tbls_ shows the exact URL. The body is the `schema.json` as it is, or `{ "schema": "<the file as text>", "lint": "<tbls lint output>", "fileName": "schema.json" }`. A read token gets `403` (`token-scope`); the answer names the snapshot, whether it was new, and its changes ([API.md](API.md)).
+CI pushes with a **push token**, not with a personal API token: _Schema → Push from CI → New push token_ (the platform's _manage_ right, or the right to change the system). A push token belongs to exactly one database platform or system and can do nothing but push its `schema.json` (and the output of `tbls lint`); several per database, each with a name, an optional expiry, optional allowed addresses (IP or CIDR) and a limit of pushes per minute (default 10). Steward stores only its SHA-256 and shows the secret once – keep it as a CI secret (`STEWARD_PUSH_TOKEN`). The list shows when and from where each token was last used; _Rotate_ gives a new secret (the old one stops at once), _Revoke_ ends it. Creating, rotating and revoking are audited (`dbschema.push_token_created`, `_rotated`, `_revoked`), and every push as `dbschema.imported` with the token's id and name and the file's SHA-256.
+
+The endpoint is `POST /api/hooks/db-schema/platform/{platformId}` (or `/api/hooks/db-schema/system/{systemId}`), like heartbeats and webhook triggers – the read-only API `/api/v1` does not write; _Import tbls_ and the token dialog show the exact URL. Send `Authorization: Bearer sdbp_…` and the `schema.json` as it is (`Content-Type: application/json`, at most 10 MB), or `{ "schema": "<the file as text>", "lint": "<tbls lint output>", "fileName": "schema.json" }`. The endpoint takes no API token and no sign-in session. A wrong, revoked or expired token, a token of another database and an address outside the allowed ranges all get the same `401`; more pushes than allowed `429` with `Retry-After`. The answer names the snapshot, whether it was new, and its changes.
 
 A plain shell job (any CI, a cron job next to the database):
 
@@ -176,8 +178,8 @@ set -eu
 tbls out -t json -o schema.json "$TBLS_DSN"
 tbls lint "$TBLS_DSN" > lint.txt || true   # findings make tbls exit 1
 jq -n --rawfile schema schema.json --rawfile lint lint.txt '{schema: $schema, lint: $lint, fileName: "schema.json"}' |
-  curl -sS -f -X POST "https://steward.example.com/api/v1/platforms/$STEWARD_PLATFORM/schema/tbls" \
-    -H "Authorization: Bearer $STEWARD_TOKEN" \
+  curl -sS -f -X POST "https://steward.example.com/api/hooks/db-schema/platform/$STEWARD_PLATFORM" \
+    -H "Authorization: Bearer $STEWARD_PUSH_TOKEN" \
     -H 'Content-Type: application/json' \
     --data-binary @- | jq '{created, snapshot: .snapshot.id, changes: .diff.total, breaking: .diff.breaking}'
 ```
@@ -203,11 +205,11 @@ jobs:
           tbls lint > lint.txt || true
       - name: Push it to Steward
         env:
-          STEWARD_TOKEN: ${{ secrets.STEWARD_TOKEN }}
+          STEWARD_PUSH_TOKEN: ${{ secrets.STEWARD_PUSH_TOKEN }}
         run: |
           jq -n --rawfile schema schema.json --rawfile lint lint.txt '{schema: $schema, lint: $lint, fileName: "schema.json"}' |
-            curl -sS -f -X POST "https://steward.example.com/api/v1/systems/${{ vars.STEWARD_SYSTEM }}/schema/tbls" \
-              -H "Authorization: Bearer $STEWARD_TOKEN" -H 'Content-Type: application/json' --data-binary @-
+            curl -sS -f -X POST "https://steward.example.com/api/hooks/db-schema/system/${{ vars.STEWARD_SYSTEM }}" \
+              -H "Authorization: Bearer $STEWARD_PUSH_TOKEN" -H 'Content-Type: application/json' --data-binary @-
 ```
 
 Without the lint results, `curl … --data-binary @schema.json` sends the file itself. A schema that equals the newest snapshot adds none, so the job can run on every push. To fail a pipeline on a breaking change, check `.diff.breaking` in the answer.

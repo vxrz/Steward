@@ -10,7 +10,7 @@ import { setup, startTestServer, type Client, type TestServer } from './helpers.
  * Database schemas through the API (#222): the read of the demo database platform, tbls imports for a platform and a
  * system (preview, SHA-256 in the audit log, lint findings as checks, limits), snapshots with their changes,
  * retention, exports, rights (a platform or system the caller may not see reads like a missing one), the public API
- * (read endpoints and the import from CI with a full-scope token) and the monitor check.
+ * (read endpoints only) and the monitor check. The push tokens of CI: dbschema-push.test.ts.
  */
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -251,40 +251,13 @@ describe('public API', () => {
     expect(r.text).not.toContain(db.name);
   });
 
-  it('imports from CI: the file as it is, with a full-scope token', async () => {
-    const ro = await v1(tokens.read!, `/systems/${systemId}/schema/tbls`, { method: 'POST', body: SCHEMA });
-    expect(ro.status).toBe(403);
-    expect(ro.json.type).toMatch(/#token-scope$/);
-    const r = await v1(tokens.full!, `/systems/${systemId}/schema/tbls`, { method: 'POST', body: SCHEMA });
-    expect(r.status).toBe(200);
-    expect(r.json).toMatchObject({ created: true, snapshot: { source: 'tbls', via: 'api', sha256: crypto.createHash('sha256').update(SCHEMA).digest('hex') } });
-    // the same file again: no new snapshot
-    const again = await v1(tokens.full!, `/systems/${systemId}/schema/tbls`, { method: 'POST', body: SCHEMA });
-    expect(again.json).toMatchObject({ created: false, snapshot: { id: r.json.snapshot.id } });
-    // with the lint output: { schema, lint }
-    const lint = await v1(tokens.full!, `/systems/${systemId}/schema/tbls`, {
-      method: 'POST',
-      body: JSON.stringify({ schema: SCHEMA, lint: LINT, fileName: 'ci/schema.json' }),
-    });
-    expect(lint.json).toMatchObject({ created: true, snapshot: { checks: 3, fileName: 'ci_schema.json' } });
-    const [entry] = await s.api('GET', `/audit?action=dbschema.imported&entityId=${systemId}`);
-    expect(entry.details).toMatchObject({ via: 'api', checks: 3 });
-  });
-
-  it('refuses invalid imports, and imports of a platform the token owner may not see', async () => {
-    expect((await v1(tokens.full!, `/systems/${systemId}/schema/tbls`, { method: 'POST', body: '{"tables": 1}' })).status).toBe(400);
-    expect((await v1(tokens.full!, `/systems/${systemId}/schema/tbls`, { method: 'POST', body: '' })).status).toBe(400);
-    const hidden = await v1(tokens.vera!, `/platforms/${db.id}/schema/tbls`, { method: 'POST', body: SCHEMA });
-    expect(hidden.status).toBe(404);
-    expect((await v1(tokens.vera!, `/systems/${systemId}/schema/tbls`, { method: 'POST', body: SCHEMA })).status).toBe(403);
-  });
-
   it('documents the endpoints in the OpenAPI document', async () => {
     const doc = (await v1(tokens.read!, '/openapi.json')).json;
-    expect(Object.keys(doc.paths).filter((p) => p.includes('/schema/'))).toEqual(
-      expect.arrayContaining(['/platforms/{platformId}/schema/snapshots', '/systems/{systemId}/schema/changes', '/platforms/{platformId}/schema/tbls']),
-    );
-    expect(doc.paths['/systems/{systemId}/schema/tbls'].post.operationId).toBe('importSystemTblsSchema');
+    const paths = Object.keys(doc.paths).filter((p) => p.includes('/schema/'));
+    expect(paths).toEqual(expect.arrayContaining(['/platforms/{platformId}/schema/snapshots', '/systems/{systemId}/schema/changes']));
+    // read-only: the push from CI has its own endpoint and token (dbschema-push.test.ts)
+    expect(paths.every((p) => Object.keys(doc.paths[p]).join() === 'get')).toBe(true);
+    expect((await v1(tokens.full!, `/systems/${systemId}/schema/tbls`, { method: 'POST', body: SCHEMA })).status).toBe(405);
   });
 });
 

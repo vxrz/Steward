@@ -95,13 +95,6 @@ export const DbSchemaChangeSet = z.object({
 });
 export const DbSchemaComparison = DbSchemaDiff.extend({ from: z.string(), to: z.string() });
 
-export const DbSchemaImportResult = z.object({
-  snapshot: DbSchemaSnapshot,
-  created: z.boolean().describe('false: the same schema and checks as the latest snapshot – its checkedAt moved on'),
-  diff: DbSchemaDiff.nullable(),
-  warnings: z.array(z.string()),
-});
-
 export const DB_SCHEMA_COMPONENTS: Record<string, ZodTypeAny> = {
   DbSchemaSnapshot,
   DbSchemaSnapshotDetail,
@@ -109,7 +102,6 @@ export const DB_SCHEMA_COMPONENTS: Record<string, ZodTypeAny> = {
   DbSchemaDiff,
   DbSchemaChangeSet,
   DbSchemaComparison,
-  DbSchemaImportResult,
 };
 
 export const DbSchemaSnapshotListQuery = z.object({ limit, cursor });

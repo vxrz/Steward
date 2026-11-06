@@ -124,4 +124,5 @@ export const dbSchemaKeys = {
   snapshot: (kind: string, id: string | null | undefined, snapshotId: string | null | undefined) => ['db-schema', kind, id, 'snapshot', snapshotId] as const,
   compare: (kind: string, id: string | null | undefined, from: string | null | undefined, to: string | null | undefined) =>
     ['db-schema', kind, id, 'compare', from, to] as const,
+  pushTokens: (kind: string, id: string | null | undefined) => ['db-schema', kind, id, 'push-tokens'] as const,
 };

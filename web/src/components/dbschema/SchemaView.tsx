@@ -21,6 +21,7 @@ import { fmtDate, fmtNumber, fmtRelative } from '../../format';
 import { dbSchemaKeys } from '../../queryKeys';
 import { ChangesPanel, ChecksPanel, HistoryPanel, TablesPanel } from './parts';
 import { ImportModal, SettingsModal } from './dialogs';
+import { PushTokensPanel } from './PushTokens';
 
 /**
  * The schema of a database (#222, docs/DATABASES.md#database-schemas): on a database platform (its Schema tab) and on
@@ -262,6 +263,7 @@ export function SchemaView({ subject, blockedNote }: { subject: SchemaSubject; b
           )}
         </>
       )}
+      {canImport && <PushTokensPanel subject={subject} />}
       {importing && (
         <ImportModal
           subject={subject}

@@ -102,15 +102,10 @@ export const LARGE_BODIES = {
   },
   /**
    * A tbls schema.json (#222): DB_SCHEMA_LIMITS.importBytes (10 MB) as text in the web app's JSON body, with the output
-   * of tbls lint (1 MB); the public API takes the file itself (or the same JSON)
+   * of tbls lint (1 MB); the push endpoint for CI takes the file itself (or the same JSON)
    */
   dbSchemaImport: {
-    routes: [
-      'POST /api/db-schemas/:kind/:id/import/preview',
-      'POST /api/db-schemas/:kind/:id/import',
-      'POST /api/v1/platforms/:platformId/schema/tbls',
-      'POST /api/v1/systems/:systemId/schema/tbls',
-    ],
+    routes: ['POST /api/db-schemas/:kind/:id/import/preview', 'POST /api/db-schemas/:kind/:id/import', 'POST /api/hooks/db-schema/:kind/:id'],
     bytes: jsonText(DB_SCHEMA_LIMITS.importBytes + DB_SCHEMA_LIMITS.lintBytes, 16 * KIB),
   },
 } as const satisfies Record<string, LargeBody>;

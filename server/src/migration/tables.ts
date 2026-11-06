@@ -59,6 +59,7 @@ export const NOT_MOVED: Record<string, string> = {
   schema_version: 'maintained by the migrations',
   schema_migrations: 'maintained by the migrations',
   sqlite_sequence: 'SQLite internal',
+  db_schema_push_tokens: 'push tokens of CI (#222), only their hashes: created again on the target, like API tokens',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */

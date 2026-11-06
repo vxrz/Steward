@@ -2,7 +2,8 @@ import type { NamedMigration } from '../db.js';
 
 /**
  * Database schemas (0.8.0, #222): snapshots of the schema of a database platform or a system (a read or a tbls
- * import), their changes against the snapshot before, and the settings per database (retention, scheduled reads).
+ * import), their changes against the snapshot before, the settings per database (retention, scheduled reads) and the
+ * push tokens of the tbls import from CI (hashes only).
  * Additive only; subjects are named by kind and id (platform / system), so nothing in the core tables changes.
  */
 export const DBSCHEMA_MIGRATIONS: NamedMigration[] = [
@@ -49,5 +50,29 @@ export const DBSCHEMA_MIGRATIONS: NamedMigration[] = [
         PRIMARY KEY (subject_kind, subject_id)
       );
     `,
+  },
+  {
+    name: 'dbschema-002-push-tokens',
+    sql: `
+        CREATE TABLE db_schema_push_tokens (
+          id TEXT PRIMARY KEY,
+          subject_kind TEXT NOT NULL,
+          subject_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          prefix TEXT NOT NULL,
+          hash TEXT NOT NULL UNIQUE,
+          allowed_cidrs TEXT NOT NULL DEFAULT '[]',
+          rate_limit_per_minute INTEGER NOT NULL DEFAULT 10,
+          expires_at TEXT,
+          created_at TEXT NOT NULL,
+          created_by TEXT NOT NULL,
+          rotated_at TEXT,
+          last_used_at TEXT,
+          last_used_ip TEXT,
+          revoked_at TEXT,
+          revoked_by TEXT
+        );
+        CREATE INDEX db_schema_push_tokens_subject ON db_schema_push_tokens(subject_kind, subject_id);
+      `,
   },
 ];

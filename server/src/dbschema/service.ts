@@ -378,7 +378,7 @@ async function readPlatform(s: Subject, via: string): Promise<StoreResult> {
       const r = store(s, { source: 'read', doc, checks: [], sha256: null, fileName: null, actor, via });
       db().run('UPDATE db_schema_settings SET last_read_at = ?, last_read_error = NULL WHERE subject_kind = ? AND subject_id = ?', nowIso(), s.kind, s.id);
       // a person's read is always recorded; a scheduled or monitor read when it found a change
-      if (via === 'ui' || via === 'api' || r.created)
+      if (via === 'ui' || r.created)
         audit({
           actor,
           action: 'dbschema.read',
@@ -419,7 +419,7 @@ async function readPlatform(s: Subject, via: string): Promise<StoreResult> {
 }
 
 /** "Read now" (the platform's "use" right). */
-export async function readNow(kind: DbSchemaSubjectKind, id: string, via: 'ui' | 'api' = 'ui'): Promise<StoreResult> {
+export async function readNow(kind: DbSchemaSubjectKind, id: string, via: 'ui' = 'ui'): Promise<StoreResult> {
   const s = subjectOf(kind, id);
   if (kind !== 'platform') throw new HttpError(400, 'A system has no connection to read – import its tbls schema instead', 'DB_SCHEMA_NO_READ');
   if (!s.canRead) forbid('read the schema of this platform', 'right_use');
@@ -453,30 +453,48 @@ export function previewImport(kind: DbSchemaSubjectKind, id: string, body: unkno
 }
 
 /** Imports a tbls schema.json (and optionally the output of tbls lint): a snapshot, audited with the file's SHA-256. */
-/** The caller may import for this platform or system (403/404/409 otherwise) – checked before a body is read. */
-export function assertCanImport(kind: DbSchemaSubjectKind, id: string): void {
-  requireImport(subjectOf(kind, id));
-}
-
-export function importTbls(kind: DbSchemaSubjectKind, id: string, body: unknown, via: 'ui' | 'api'): StoreResult & { warnings: string[] } {
+export function importTbls(kind: DbSchemaSubjectKind, id: string, body: unknown, via: 'ui'): StoreResult & { warnings: string[] } {
   const s = subjectOf(kind, id);
   requireImport(s);
-  const input = dbSchemaImportInput.parse(body);
+  return importInto(s, dbSchemaImportInput.parse(body), via, actorName(), {});
+}
+
+/**
+ * A push from CI (push.ts): the token was checked there and names this target; no user is signed in. Audited with the
+ * token's id and name.
+ */
+export function importFromPush(
+  kind: DbSchemaSubjectKind,
+  id: string,
+  input: DbSchemaImportInput,
+  token: { id: string; name: string; ip: string },
+): StoreResult & { warnings: string[] } {
+  const s = subjectOf(kind, id);
+  requireImport(s);
+  return importInto(s, dbSchemaImportInput.parse(input), 'push', `push token "${token.name}"`.slice(0, 120), {
+    tokenId: token.id,
+    tokenName: token.name,
+    sourceIp: token.ip,
+  });
+}
+
+function importInto(s: Subject, input: DbSchemaImportInput, via: string, actor: string, extra: Record<string, unknown>): StoreResult & { warnings: string[] } {
   const x = parseImport(input);
-  const actor = actorName();
   const fileName = input.fileName?.replace(/[\\/]/g, '_').slice(0, 255) || null;
   const r = db().tx(() => {
     const out = store(s, { source: 'tbls', doc: x.doc, checks: x.checks, sha256: x.sha256, fileName, actor, via });
     audit({
+      ...(via === 'push' ? { actor } : {}),
       action: 'dbschema.imported',
-      entityType: kind,
-      entityId: id,
-      summary: `tbls schema${fileName ? ` ${fileName}` : ''} imported for "${s.name}": ${x.doc.tables.length} tables, ${x.checks.length} lint finding(s) – ${changeLine(out)}`,
+      entityType: s.kind,
+      entityId: s.id,
+      summary: `tbls schema${fileName ? ` ${fileName}` : ''} imported for "${s.name}"${via === 'push' ? ` with ${actor}` : ''}: ${x.doc.tables.length} tables, ${x.checks.length} lint finding(s) – ${changeLine(out)}`,
       details: {
         sha256: x.sha256,
         fileName,
         bytes: Buffer.byteLength(input.schema, 'utf8'),
         via,
+        ...extra,
         snapshotId: out.snapshot.id,
         created: out.created,
         tables: x.doc.tables.length,
@@ -618,6 +636,12 @@ export async function runSchemaJob(): Promise<{ read: number; failed: number; re
     "DELETE FROM db_schema_settings WHERE subject_kind = 'platform' AND NOT EXISTS (SELECT 1 FROM platforms x WHERE x.id = db_schema_settings.subject_id)",
   );
   db().run("DELETE FROM db_schema_settings WHERE subject_kind = 'system' AND NOT EXISTS (SELECT 1 FROM systems x WHERE x.id = db_schema_settings.subject_id)");
+  db().run(
+    "DELETE FROM db_schema_push_tokens WHERE subject_kind = 'platform' AND NOT EXISTS (SELECT 1 FROM platforms x WHERE x.id = db_schema_push_tokens.subject_id)",
+  );
+  db().run(
+    "DELETE FROM db_schema_push_tokens WHERE subject_kind = 'system' AND NOT EXISTS (SELECT 1 FROM systems x WHERE x.id = db_schema_push_tokens.subject_id)",
+  );
   const due = db()
     .all<SettingsRow>("SELECT * FROM db_schema_settings WHERE subject_kind = 'platform' AND read_interval_hours > 0 ORDER BY last_read_at")
     .filter((r) => !r.last_read_at || Date.parse(r.last_read_at) + r.read_interval_hours * 3_600_000 <= Date.now())

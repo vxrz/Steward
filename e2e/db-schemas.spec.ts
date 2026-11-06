@@ -1,4 +1,4 @@
-import type { APIRequestContext, Page } from '@playwright/test';
+import { request, type APIRequestContext, type Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
 import { expectAccessible, settle } from './support/axe';
@@ -131,6 +131,54 @@ async function importAndChanges(page: Page, mobile: boolean) {
   await expect(view.getByTestId('schema-older')).toHaveCount(0);
 }
 
+/** A push token: created (shown once), it pushes from "CI", is listed with its last use, rotated and revoked. */
+async function pushTokens(page: Page, mobile: boolean, target: { kind: string; id: string }) {
+  const panel = page.getByTestId('push-tokens');
+  await expect(panel).toContainText('No push token yet');
+  await panel.getByTestId('push-token-new').click();
+  const form = page.getByTestId('push-token-form');
+  await form.getByRole('textbox', { name: 'Name' }).fill('GitHub Actions');
+  await expectAccessible(page, 'push token: new');
+  if (mobile) await expectNoHorizontalScroll(page);
+  await form.getByTestId('push-token-create').click();
+  const secret = page.getByTestId('push-token-secret');
+  await expect(secret).toContainText('only this once');
+  const token = (await secret.locator('pre').first().textContent())!.trim();
+  expect(token).toMatch(/^sdbp_/);
+  await expect(secret).toContainText(`/api/hooks/db-schema/${target.kind}/${target.id}`);
+  await expectAccessible(page, 'push token: secret');
+  if (mobile) await expectNoHorizontalScroll(page);
+  await secret.getByTestId('push-token-done').click();
+  // the push from CI
+  // the push from CI: a client of its own, without the browser's session
+  const ci = await request.newContext({ storageState: { cookies: [], origins: [] } });
+  const res = await ci.post(new URL(`/api/hooks/db-schema/${target.kind}/${target.id}`, page.url()).toString(), {
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    data: TBLS([{ name: 'id', type: 'bigint', nullable: false }]),
+  });
+  expect(res.status(), await res.text()).toBe(200);
+  await ci.dispose();
+  await page.reload();
+  await expect(page.getByTestId('push-tokens')).toContainText('GitHub Actions');
+  await expect(page.getByTestId('push-tokens')).not.toContainText('never used');
+  await expect(page.getByTestId('push-tokens')).not.toContainText(token);
+  await expectAccessible(page, 'push tokens: list');
+  if (mobile) await expectNoHorizontalScroll(page);
+  await page.getByTestId('push-token-rotate').click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: /^Rotate/ })
+    .click();
+  await expect(page.getByTestId('push-token-secret')).toBeVisible();
+  await page.getByTestId('push-token-done').click();
+  await page.getByTestId('push-token-revoke').click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: /^Revoke/ })
+    .click();
+  await expect(page.getByTestId('push-tokens')).toContainText('No push token yet');
+}
+
 async function exportsAndSettings(page: Page, api: APIRequestContext, dbId: string) {
   const view = page.getByTestId('schema-view');
   await view.getByTestId('schema-export').click();
@@ -184,6 +232,7 @@ test('the Schema tab: read, tables, import, changes, history, exports, settings 
   const db = await schemaTab(page, api, false);
   await importAndChanges(page, false);
   await exportsAndSettings(page, api, db.id);
+  await pushTokens(page, false, { kind: 'platform', id: db.id });
   await systemSchema(page, api, false);
   await monitorCheck(page, db);
   await api.delete(`/api/platforms/${db.id}`);
@@ -194,5 +243,7 @@ test('database schemas on a phone @mobile', async ({ page, apiAs }) => {
   const db = await schemaTab(page, api, true);
   await importAndChanges(page, true);
   await systemSchema(page, api, true);
+  await page.goto(`/platforms/${db.id}?tab=schema`);
+  await pushTokens(page, true, { kind: 'platform', id: db.id });
   await api.delete(`/api/platforms/${db.id}`);
 });

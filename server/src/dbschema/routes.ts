@@ -5,6 +5,7 @@ import { LARGE_BODIES } from '../bodyLimits.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { contentDisposition } from '../records/attachments.js';
 import * as svc from './service.js';
+import { createPushToken, handlePush, listPushTokens, revokePushToken, rotatePushToken } from './push.js';
 
 /**
  * Database schemas (0.8.0, #222, docs/DATABASES.md#database-schemas) in the internal API. `:kind` is platform or
@@ -17,11 +18,14 @@ import * as svc from './service.js';
  *   GET  /api/db-schemas/:kind/:id/snapshots/:snapshotId            a snapshot with its schema, checks and changes (or "latest")
  *   GET  /api/db-schemas/:kind/:id/snapshots/:snapshotId/export     DBML, SQL DDL or JSON
  *   GET  /api/db-schemas/:kind/:id/compare?from=&to=                the changes between two snapshots
+ *   GET|POST /api/db-schemas/:kind/:id/push-tokens, POST …/:tokenId/rotate, DELETE …/:tokenId   push tokens for CI
+ *   POST /api/hooks/db-schema/:kind/:id                             the push from CI (its push token only, push.ts)
  */
 
 const subject = (req: FastifyRequest) =>
   z.object({ kind: z.enum(DB_SCHEMA_SUBJECTS), id: z.string().min(1).max(100), snapshotId: z.string().min(1).max(100).optional() }).parse(req.params);
 const imports = { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.dbSchemaImport.bytes };
+const tokenId = (req: FastifyRequest) => z.object({ tokenId: z.string().min(1).max(100) }).parse(req.params).tokenId;
 
 export async function dbSchemaRoutes(app: FastifyInstance): Promise<void> {
   app.get('/db-schemas/:kind/:id', async (req) => {
@@ -61,5 +65,49 @@ export async function dbSchemaRoutes(app: FastifyInstance): Promise<void> {
     const s = subject(req);
     const q = z.object({ from: z.string().min(1).max(100), to: z.string().min(1).max(100) }).parse(req.query);
     return svc.compareSnapshots(s.kind, s.id, q.from, q.to);
+  });
+
+  // ---------- push tokens for CI ----------
+  app.get('/db-schemas/:kind/:id/push-tokens', async (req) => {
+    const s = subject(req);
+    return listPushTokens(s.kind, s.id);
+  });
+  app.post('/db-schemas/:kind/:id/push-tokens', async (req) => {
+    const s = subject(req);
+    return createPushToken(s.kind, s.id, req.body);
+  });
+  app.post('/db-schemas/:kind/:id/push-tokens/:tokenId/rotate', async (req) => {
+    const s = subject(req);
+    return rotatePushToken(s.kind, s.id, tokenId(req));
+  });
+  app.delete('/db-schemas/:kind/:id/push-tokens/:tokenId', async (req, reply) => {
+    const s = subject(req);
+    revokePushToken(s.kind, s.id, tokenId(req));
+    return reply.code(204).send();
+  });
+
+  // ---------- the push from CI: machine to machine, its push token only (like heartbeats and webhook triggers) ----------
+  await app.register(async (hooks) => {
+    // the body as bytes: its SHA-256 is that of the file as sent
+    hooks.removeAllContentTypeParsers();
+    hooks.addContentTypeParser('*', { parseAs: 'buffer', bodyLimit: LARGE_BODIES.dbSchemaImport.bytes }, (_req, body, done) => done(null, body));
+    hooks.post(
+      '/hooks/db-schema/:kind/:id',
+      { config: { rateLimit: ROUTE_LIMITS.webhook }, bodyLimit: LARGE_BODIES.dbSchemaImport.bytes },
+      async (req, reply) => {
+        const p = req.params as { kind?: string; id?: string };
+        const res = handlePush({
+          kind: String(p.kind ?? ''),
+          id: String(p.id ?? ''),
+          raw: Buffer.isBuffer(req.body) ? req.body : undefined,
+          contentType: req.headers['content-type'],
+          headers: req.headers,
+          ip: req.ip,
+        });
+        reply.header('cache-control', 'no-store');
+        if (res.headers) reply.headers(res.headers);
+        return reply.code(res.status).send(res.body);
+      },
+    );
   });
 }

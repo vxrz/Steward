@@ -269,3 +269,55 @@ export interface DbSchemaImportPreview {
 }
 
 export const qualifiedTable = (t: Pick<DbSchemaTable, 'schema' | 'name'>): string => (t.schema ? `${t.schema}.${t.name}` : t.name);
+
+// ---------- push tokens (tbls from CI) ----------
+
+/**
+ * A push token (#222): bound to one database platform or system, it can do nothing but push a tbls schema.json (and
+ * the output of tbls lint) for it – POST /api/hooks/db-schema/<kind>/<id> with "Authorization: Bearer sdbp_…". Stored
+ * as a SHA-256 hash only; the secret is shown once, when it is created or rotated.
+ */
+export const DB_SCHEMA_PUSH_TOKEN_PREFIX = 'sdbp_';
+export const DB_SCHEMA_PUSH_LIMITS = {
+  tokensPerTarget: 20,
+  nameChars: 100,
+  cidrs: 20,
+  expiresInDays: 730,
+  rateLimitPerMinute: { default: 10, max: 120 },
+} as const;
+
+export interface DbSchemaPushToken {
+  id: string;
+  name: string;
+  /** The first characters of the secret, to tell tokens apart */
+  prefix: string;
+  allowedCidrs: string[];
+  rateLimitPerMinute: number;
+  expiresAt: string | null;
+  createdAt: string;
+  createdBy: string;
+  rotatedAt: string | null;
+  lastUsedAt: string | null;
+  lastUsedIp: string | null;
+  /** expired: past expiresAt */
+  expired: boolean;
+}
+
+/** A token as it is created or rotated: with its secret, this once. */
+export interface DbSchemaPushTokenCreated extends DbSchemaPushToken {
+  token: string;
+  /** The path to push to (below the server's base path) */
+  path: string;
+}
+
+export const dbSchemaPushTokenInput = z
+  .object({
+    name: z.string().trim().min(1).max(DB_SCHEMA_PUSH_LIMITS.nameChars),
+    expiresInDays: z.number().int().min(1).max(DB_SCHEMA_PUSH_LIMITS.expiresInDays).optional(),
+    allowedCidrs: z.array(z.string().trim().min(1).max(64)).max(DB_SCHEMA_PUSH_LIMITS.cidrs).default([]),
+    rateLimitPerMinute: z.number().int().min(1).max(DB_SCHEMA_PUSH_LIMITS.rateLimitPerMinute.max).default(DB_SCHEMA_PUSH_LIMITS.rateLimitPerMinute.default),
+  })
+  .strict();
+export type DbSchemaPushTokenInput = z.input<typeof dbSchemaPushTokenInput>;
+
+export const dbSchemaPushPath = (kind: DbSchemaSubjectKind, id: string): string => `/api/hooks/db-schema/${kind}/${encodeURIComponent(id)}`;

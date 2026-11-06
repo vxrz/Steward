@@ -163,5 +163,5 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
   // ---------- plant registry (opt-in module, #218) ----------
   plantApiRoutes(get);
   // ---------- database schemas (#222) ----------
-  await dbSchemaApiRoutes(app, get);
+  dbSchemaApiRoutes(get);
 }
