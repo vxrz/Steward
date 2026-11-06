@@ -9,7 +9,7 @@ import { HttpError } from '../util.js';
 import { SpanKind, SpanStatusCode, injectTraceHeaders, withSpan } from '../telemetry.js';
 import { logger } from '../log.js';
 import { emit } from '../events.js';
-import { assertOutboundAllowed, assertRedirectAllowed, guardedLookup } from './outbound.js';
+import { assertOutboundAllowed, assertRedirectAllowed, assertRedirectBodyClean, guardedLookup, sameDestination } from './outbound.js';
 import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
 import { JWT_ALGS, certificateThumbprints, clientAssertion, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
 import { where as originAndPath } from './answers.js';
@@ -778,7 +778,8 @@ const MAX_REDIRECTS = 5;
  * handling only strips `Authorization`, not custom-named credential headers.
  * Every redirect target goes through the outbound policy (0.9.0): the platform's
  * own origins and redirects that stay on an origin already sent to pass, any
- * other host must be allowed like a first request.
+ * other host must be allowed like a first request. A 307/308 to such another
+ * host is refused when the body it would send again carries a credential.
  */
 async function followRedirects(
   p: Platform,
@@ -794,12 +795,25 @@ async function followRedirects(
   let sawHttps = /^https:/i.test(url);
   const leakValues = secretValues(secrets);
   const sent: string[] = [];
+  let lastStatus = 0;
+  // credentials obtained for this request (an OAuth token, a Basic header): not in the platform's stored secrets
+  const obtained: string[] = [];
   for (let hop = 0; ; hop++) {
     // paths the kind never calls (v0.5.0): a redirect cannot lead there either
     assertPathAllowed(p.kind, url);
     const hopTrusted = await credentialsAllowed(p, secrets, url);
-    // the outbound policy on every redirect hop (0.9.0, #243), with the platform's own origins allowed as for the first request
-    if (hop > 0) await assertRedirectHop(p, url, sent, hopTrusted);
+    if (hop > 0) {
+      // the outbound policy on every redirect hop (0.9.0, #243), with the platform's own origins allowed as for the first request
+      await assertRedirectHop(p, url, sent, hopTrusted);
+      // a 307/308 sends the body again: not with a credential in it to a host outside the platform's own origins
+      if (!hopTrusted && body !== undefined && body !== null && !sameDestination(url, sent))
+        assertRedirectBodyClean(body, [...secretValues(secrets), ...obtained], {
+          from: sent[sent.length - 1]!,
+          to: url,
+          status: lastStatus,
+          platformName: p.name,
+        });
+    }
     sent.push(url);
     // AWS SigV4: only requests to the platform's own origins are signed
     let sign: HttpRequest['sign'];
@@ -816,6 +830,7 @@ async function followRedirects(
       }
       const auth = await obtainAuthHeader(p, secrets, signal);
       if (auth && !headers[auth[0]]) headers[auth[0]] = auth[1];
+      if (auth) obtained.push(auth[1], auth[1].replace(/^(Bearer|Basic|Token)\s+/i, ''));
       sign = await signerFor(p, secrets, signal, req.aws);
       if (p.config.auth?.type === 'apiKey' && p.config.auth.apiKeyIn === 'query' && hop === 0 && initialQuery) {
         /* the initial url already carries the query api key (buildUrl) */
@@ -853,6 +868,7 @@ async function followRedirects(
       return res;
     }
     if (/^https:/i.test(url)) sawHttps = true;
+    lastStatus = res.status;
     // 301/302/303 turn the request into a bodyless GET; 307/308 preserve method and body.
     if (res.status === 303 || ((res.status === 301 || res.status === 302) && method !== 'GET' && method !== 'HEAD')) {
       method = 'GET';

@@ -283,6 +283,71 @@ function staysWhereSent(target: URL, sent: string[]): boolean {
   });
 }
 
+/** Whether a redirect target stays where the request already went (staysWhereSent) – for callers that keep a body there. */
+export function sameDestination(target: string, sent: string[]): boolean {
+  const u = originOf(target) ? new URL(target) : null;
+  return !!u && staysWhereSent(u, sent);
+}
+
+/**
+ * The parts of a webhook URL that carry its credential (a Teams Workflows signature `sig=…`, a Slack-style
+ * `/services/T…/B…/<token>` path): the URL itself, query values of 8+ characters and path segments of 16+ characters.
+ */
+export function urlSecrets(url: string): string[] {
+  const out = [url];
+  try {
+    const u = new URL(url);
+    for (const v of u.searchParams.values()) if (v.length >= 8) out.push(v);
+    for (const seg of u.pathname.split('/')) if (seg.length >= 16) out.push(decodeURIComponent(seg));
+  } catch {
+    /* not a URL: the string itself */
+  }
+  return out;
+}
+
+/** A request body as the text that is sent (or a superset of it): what the redirect body check searches. */
+function bodyText(body: unknown): string {
+  if (body === undefined || body === null) return '';
+  if (typeof body === 'string') return body;
+  if (Buffer.isBuffer(body)) return body.toString('utf8');
+  if (body instanceof URLSearchParams) return body.toString();
+  try {
+    return JSON.stringify(body) ?? '';
+  } catch {
+    return String(body);
+  }
+}
+
+/**
+ * A 307/308 redirect sends the request body again, to the redirect target (0.9.0, #243). When the target is not where
+ * the credentials may go (the platform's own origins) and not where the request already went, the body must not carry
+ * one of the credentials – in clear text or a simple encoding (secretEncodings). Throws a 403 that is not retried,
+ * before anything is sent there.
+ */
+export function assertRedirectBodyClean(body: unknown, values: string[], hop: { from: string; to: string; status: number; platformName?: string }): void {
+  const text = bodyText(body);
+  if (!text || !values.length) return;
+  const leaks = values.some((v) => typeof v === 'string' && secretEncodings(v).some((enc) => text.includes(enc)));
+  if (!leaks) return;
+  const from = originOf(hop.from) ?? 'the server';
+  const to = originOf(hop.to) ?? hop.to.slice(0, 120);
+  logger.warn(
+    { from, to, status: hop.status, platform: hop.platformName },
+    'redirect refused: it would send a credential in the request body to another origin',
+  );
+  const whose = hop.platformName ? `a credential of platform "${hop.platformName}"` : 'a credential';
+  throw Object.assign(
+    new HttpError(
+      403,
+      `Blocked: ${from} redirected (HTTP ${hop.status}) to ${to}, which would receive the request body again – and the body contains ${whose}. ` +
+        `Nothing was sent there.${hop.platformName ? ` If ${to} belongs to the platform, add it to its trusted origins.` : ''}`,
+      'REDIRECT_BODY_SECRET',
+      { from, to, status: hop.status },
+    ),
+    { retryable: false },
+  );
+}
+
 /**
  * The outbound policy for a redirect hop (0.9.0, #243): every redirect target is checked with the same rules as the
  * first request, not only the first URL. `sent`: the URLs of this request sent so far (the first one first) – a
@@ -323,14 +388,16 @@ const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
  * fetch for a request to one URL without a platform (a monitor's webhook output, an OpenAPI import by URL): follows up
  * to `maxRedirects` redirects itself and checks every target with assertRedirectAllowed (0.9.0, #243), as fetch's own
  * `redirect: 'follow'` would not. The caller checks the first URL. 301/302 of a POST and every 303 continue as a GET
- * without body, 307/308 keep method and body (as fetch does).
+ * without body, 307/308 keep method and body (as fetch does) – but not to another origin when the body contains one of
+ * `bodySecrets` (assertRedirectBodyClean).
  */
 export async function fetchCheckingRedirects(
   url: string,
   init: { method?: string; headers?: Record<string, string>; body?: string; dispatcher?: Dispatcher; signal?: AbortSignal },
   ctx: OutboundContext,
-  maxRedirects = 5,
+  opts: { maxRedirects?: number; bodySecrets?: string[] } = {},
 ): Promise<Awaited<ReturnType<typeof fetch>>> {
+  const maxRedirects = opts.maxRedirects ?? 5;
   let method = init.method ?? 'GET';
   let body = init.body;
   const sent: string[] = [];
@@ -352,6 +419,8 @@ export async function fetchCheckingRedirects(
       method = 'GET';
       body = undefined;
     }
+    // 307/308 send the body again: not with a credential in it to another origin
+    if (body !== undefined && !sameDestination(next, sent)) assertRedirectBodyClean(body, opts.bodySecrets ?? [], { from: url, to: next, status: res.status });
     url = next;
   }
 }

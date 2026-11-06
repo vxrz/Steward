@@ -347,6 +347,7 @@
     "GIT_BLOCKED": "Blocked by the outbound policy: {{detail}}",
     "OUTBOUND_REDIRECT_BLOCKED": "Blocked by the outbound policy: {{from}} redirected to {{to}}, which is not allowed. An administrator can allow it under Settings → Outbound access.",
     "PLATFORM_REDIRECT_BLOCKED": "Blocked by the outbound policy: {{from}} redirected to {{to}}, which is not allowed. An administrator can allow it under Settings → Outbound access, or add it to the trusted origins of platform “{{platform}}” (its credentials are then sent there too).",
+    "REDIRECT_BODY_SECRET": "Blocked: {{from}} redirected (HTTP {{status}}) to {{to}}, which would receive the request body again – and the body contains a credential. Nothing was sent there. If the host belongs to the platform, add it to its trusted origins.",
     "GIT_UNREACHABLE": "The Git host is not reachable: {{detail}}",
     "GIT_REDIRECT": "The Git host answered with a redirect (HTTP {{status}}). Redirects are not followed – check the repository and API URL.",
     "GIT_BAD_RESPONSE": "The Git host sent an unexpected answer.",

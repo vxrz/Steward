@@ -1,5 +1,5 @@
 import { EnvHttpProxyAgent } from 'undici';
-import { assertNetAllowed, assertOutboundAllowed, fetchCheckingRedirects, guardedLookup } from '../platforms/outbound.js';
+import { assertNetAllowed, assertOutboundAllowed, fetchCheckingRedirects, guardedLookup, urlSecrets } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { BRAND, MONITOR_STATUS_CODE, fillPlaceholders, type CauseRef, type MonitorStatus, type OutputDef, type UserInfo } from '@sm/shared';
 import { db } from '../db.js';
@@ -9,7 +9,7 @@ import { findUserByName, listUsers, toAuthUser } from '../auth/users.js';
 import { matches } from '../auth/permissions.js';
 import { notify } from '../notifications/service.js';
 import { permissionsFor } from '../processes/service.js';
-import { platformRequest } from '../platforms/http.js';
+import { platformRequest, secretValues } from '../platforms/http.js';
 import { startRun } from '../engine/runner.js';
 import { evalExpr } from '../engine/expr.js';
 import { platformFor } from './platforms.js';
@@ -320,7 +320,7 @@ function teamsMessage(m: LoadedMonitor, e: OutEvent): OutgoingMessage {
   };
 }
 
-async function postTo(url: string, body: unknown): Promise<void> {
+async function postTo(url: string, body: unknown, bodySecrets: string[] = []): Promise<void> {
   await assertOutboundAllowed(url, outboundContext());
   // redirects are followed with the outbound policy on every hop (0.9.0)
   const res = await fetchCheckingRedirects(
@@ -333,6 +333,7 @@ async function postTo(url: string, body: unknown): Promise<void> {
       signal: AbortSignal.timeout(15000),
     },
     outboundContext(),
+    { bodySecrets },
   );
   await res.text().catch(() => '');
   if (!res.ok) throw new Error(`HTTP ${res.status} from the webhook`);
@@ -363,7 +364,8 @@ async function sendTeamsCards(o: Extract<OutputDef, { type: 'webhook' }>, m: Loa
   const { platform, secrets } = platformFor(m.owner, o.platform ?? '');
   if (platform.kind !== 'teams') throw new Error(`Platform "${platform.name}" is not a Microsoft Teams channel`);
   if (!secrets.webhookUrl) throw new Error(`Platform "${platform.name}" has no credential "webhookUrl" (the Teams Workflows URL)`);
-  for (const e of events.slice(0, TEAMS_MAX_CARDS)) await postTo(secrets.webhookUrl, teamsCard(teamsMessage(m, e)));
+  for (const e of events.slice(0, TEAMS_MAX_CARDS))
+    await postTo(secrets.webhookUrl, teamsCard(teamsMessage(m, e)), [...urlSecrets(secrets.webhookUrl), ...secretValues(secrets)]);
 }
 
 async function sendGatus(o: Extract<OutputDef, { type: 'gatus' }>, m: LoadedMonitor, events: OutEvent[]): Promise<void> {

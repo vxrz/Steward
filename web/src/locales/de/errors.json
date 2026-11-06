@@ -347,6 +347,7 @@
     "GIT_BLOCKED": "Durch die Regeln für ausgehende Verbindungen blockiert: {{detail}}",
     "OUTBOUND_REDIRECT_BLOCKED": "Durch die Regeln für ausgehende Verbindungen blockiert: {{from}} hat auf {{to}} weitergeleitet, und dieses Ziel ist nicht erlaubt. Ein Administrator kann es unter Einstellungen → Ausgehender Zugriff erlauben.",
     "PLATFORM_REDIRECT_BLOCKED": "Durch die Regeln für ausgehende Verbindungen blockiert: {{from}} hat auf {{to}} weitergeleitet, und dieses Ziel ist nicht erlaubt. Ein Administrator kann es unter Einstellungen → Ausgehender Zugriff erlauben, oder Sie tragen es bei den vertrauenswürdigen Origins der Plattform „{{platform}}“ ein (dann erhält es auch deren Zugangsdaten).",
+    "REDIRECT_BODY_SECRET": "Blockiert: {{from}} hat (HTTP {{status}}) auf {{to}} weitergeleitet, und dieses Ziel würde den Inhalt der Anfrage erneut erhalten – darin steht ein Zugangsdatum. Es wurde nichts dorthin gesendet. Gehört der Host zur Plattform, tragen Sie ihn bei deren vertrauenswürdigen Origins ein.",
     "GIT_UNREACHABLE": "Der Git-Host ist nicht erreichbar: {{detail}}",
     "GIT_REDIRECT": "Der Git-Host hat mit einer Weiterleitung geantwortet (HTTP {{status}}). Weiterleitungen werden nicht verfolgt – prüfen Sie Repository- und API-URL.",
     "GIT_BAD_RESPONSE": "Der Git-Host hat unerwartet geantwortet.",
