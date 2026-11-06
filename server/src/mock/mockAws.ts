@@ -275,7 +275,8 @@ function scope(req: FastifyRequest): { service: string; region: string } | strin
       .filter((h) => h !== 'host' && h !== 'x-amz-date')
       .map((h) => [h, String(req.headers[h] ?? '')]),
   );
-  const again = { method: req.method, url: `http://${req.headers.host}${req.url}`, headers, body: typeof req.body === 'string' ? req.body : '' };
+  // the URL as the client signed it: under SM_BASE_PATH, req.url has the prefix stripped for routing
+  const again = { method: req.method, url: `http://${req.headers.host}${req.originalUrl}`, headers, body: typeof req.body === 'string' ? req.body : '' };
   signRequest(again, { region: m[3]!, service: m[4]!, credentials: { accessKeyId: DEMO_AWS.accessKeyId, secretAccessKey: DEMO_AWS.secretAccessKey }, now });
   return again.headers.authorization === auth
     ? { service: m[4]!, region: m[3]! }

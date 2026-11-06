@@ -1,6 +1,6 @@
 import { request, type APIRequestContext, type Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
-import { authFile } from './support/env';
+import { authFile, baseURL } from './support/env';
 import { expectAccessible, settle } from './support/axe';
 import { chooseOption, expectNoHorizontalScroll, json, uniq } from './support/helpers';
 
@@ -152,7 +152,7 @@ async function pushTokens(page: Page, mobile: boolean, target: { kind: string; i
   // the push from CI
   // the push from CI: a client of its own, without the browser's session
   const ci = await request.newContext({ storageState: { cookies: [], origins: [] } });
-  const res = await ci.post(new URL(`/api/hooks/db-schema/${target.kind}/${target.id}`, page.url()).toString(), {
+  const res = await ci.post(`${baseURL()}/api/hooks/db-schema/${target.kind}/${target.id}`, {
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
     data: TBLS([{ name: 'id', type: 'bigint', nullable: false }]),
   });
