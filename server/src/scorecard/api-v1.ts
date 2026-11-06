@@ -61,6 +61,7 @@ const mapCard = (c: ServiceScorecard) => ({
   vulnerabilities: c.vulnerabilities,
   upToDate: c.upToDate,
   costs: c.costs,
+  contracts: c.contracts,
 });
 
 function found<T>(f: () => T, what: string): T {
@@ -89,7 +90,7 @@ export function scorecardApiRoutes(get: Get): void {
       tag: 'Services',
       summary: 'The service scorecard',
       description:
-        'Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – the optional fifth, the tech stack’s end of life (`lifecycle`, status "none" unless counted), the sixth, the open findings and policy violations of the components’ Dependency-Track projects (`vulnerabilities`, status "none" when no component links a project), the optional seventh, how far the tech stack is behind the newest versions (`upToDate`, version watch, status "none" unless counted), and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.',
+        'Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – the optional fifth, the tech stack’s end of life (`lifecycle`, status "none" unless counted), the sixth, the open findings and policy violations of the components’ Dependency-Track projects (`vulnerabilities`, status "none" when no component links a project), the optional seventh, how far the tech stack is behind the newest versions (`upToDate`, version watch, status "none" unless counted), the eighth, the month’s costs against the service’s monthly cost budget (`costs`, status "none" without a budget), the ninth, the data contracts linked to its applications or their systems (`contracts`, status "none" when none is linked), and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.',
       response: { $ref: 'ScorecardEntry#' },
     },
     async () => {

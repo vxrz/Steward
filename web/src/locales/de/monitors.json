@@ -446,7 +446,26 @@
         "team": "Team",
         "platform": "Plattform"
       }
-    }
+    },
+    "contract": "Datenvertrag",
+    "contractHint": "Die Prüfung läuft mit den Rechten des Monitor-Eigentümers: Er muss den Vertrag sehen (und für Tests ihn testen sowie Dienst und Datenbank nutzen dürfen)",
+    "chooseContract": "Datenvertrag wählen",
+    "noContract": "Kein Datenvertrag, den Sie sehen dürfen",
+    "contractMode": "Was geprüft wird",
+    "contractModes": {
+      "test": "Der Test (Datenvertragsdienst)",
+      "findings": "Stewards eigene Prüfungen"
+    },
+    "contractModeHints": {
+      "test": "Führt den Test des Vertrags aus; der vollständige Bericht wird beim Vertrag gespeichert",
+      "findings": "Kein Eigentümer, länger nicht getestet, letzter Test fehlgeschlagen, Spalten, die nicht mehr passen – ohne den Dienst"
+    },
+    "contractTestedWithin": "Nicht getestet seit (Tagen)",
+    "contractFailAs": "Ein fehlgeschlagener Test",
+    "contractErrorAs": "Ein Befund vom Typ Fehler",
+    "contractWarningAs": "Ein Test mit Warnungen",
+    "contractWarningFindingAs": "Ein Befund vom Typ Warnung",
+    "contractTestHint": "Ein Test liest Daten: Er erhält mindestens eine Minute, unabhängig vom Zeitlimit oben (höchstens 300 s). Ein Testlauf des Monitors (aufgezeichnete Antworten) ruft den Dienst nicht auf – er bewertet den zuletzt gespeicherten Lauf."
   },
   "detail": {
     "template": "Vorlage",
@@ -833,6 +852,10 @@
     "cost": {
       "label": "Kostenänderung",
       "help": "Die Kosten eines Service, einer Anwendung, eines Teams oder einer Plattform: um mehr als einen Prozentsatz oder einen Betrag gestiegen gegenüber dem Monat davor"
+    },
+    "data-contract": {
+      "label": "Datenvertrag",
+      "help": "Ein ODCS-Datenvertrag: Sein Test über den Datenvertragsdienst besteht (Warnungen stufen herab), oder Stewards eigene Prüfungen – Eigentümer, letzter Test, Spalten verknüpfter Datensätze und Tabellen – finden nichts"
     }
   },
   "newCheck": {
@@ -860,7 +883,8 @@
     "dynamodb": "DynamoDB-Tabelle aktuell",
     "db-schema": "Keine inkompatible Schemaänderung",
     "page-watch": "Herstellerseiten überwacht",
-    "cost": "Kosten steigen nicht"
+    "cost": "Kosten steigen nicht",
+    "data-contract": "Datenvertrag eingehalten"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"

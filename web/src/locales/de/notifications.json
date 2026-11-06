@@ -169,6 +169,12 @@
         "label": "Kostenbudget",
         "info": "Das Monatsbudget für Kosten eines Service, einer Anwendung oder eines Teams, die Ihnen gehören, hat 80 % oder 100 % erreicht"
       }
+    },
+    "contract": {
+      "failed": {
+        "label": "Test eines Datenvertrags fehlgeschlagen",
+        "info": "Ein Test eines Datenvertrags Ihres Teams ist fehlgeschlagen (die Mitglieder und der Kanal des Eigentümer-Teams)"
+      }
     }
   }
 }

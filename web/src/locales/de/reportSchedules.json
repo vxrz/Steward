@@ -66,6 +66,10 @@
     "costs": {
       "title": "Kosten",
       "hint": "Kosten des Zeitraums je Service gegenüber dem Zeitraum davor, mit den Budgets (Showback; was Sie sehen dürfen)"
+    },
+    "contracts": {
+      "title": "Datenverträge",
+      "hint": "Die Tests des Berichtszeitraums je Vertrag (bestanden, Warnungen, fehlgeschlagen), der letzte Test, Stewards Befunde und die gespeicherten Versionen – die Verträge, die der Eigentümer sehen darf"
     }
   },
   "runNow": "Jetzt erstellen",

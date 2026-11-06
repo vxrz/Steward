@@ -10,6 +10,7 @@ import {
   HIDDEN_MONITOR_REF,
   type CheckDef,
   type CheckOf,
+  type DataContractSummary,
   type DynamoDbMode,
   type MonitorSummary,
   type Platform,
@@ -24,6 +25,7 @@ import { fmtDate, fmtRelative } from '../../format';
 import { checkTypeHelp, checkTypeLabel } from './status';
 import { PageWatchFields } from './PageWatchFields';
 import { CostCheckFields } from '../costs/CostCheckFields';
+import { dataContractKeys } from '../../queryKeys';
 
 type Patch = (p: Partial<CheckDef>) => void;
 
@@ -40,6 +42,7 @@ const FORM_FIELDS = [
   'authMode',
   'body',
   'condition',
+  'contract',
   'degradedAfterMissed',
   'degradedAgeSeconds',
   'degradedMs',
@@ -237,6 +240,76 @@ function VersionBehindFields({ c, set, disabled, err }: { c: CheckOf<'version-be
           onChange={(v) => set({ eolAs: (v as 'down' | 'degraded' | 'ignore') ?? 'down' } as Partial<CheckDef>)}
         />
       </Group>
+    </>
+  );
+}
+
+/** A data contract (#221): its test through the data contract service, or Steward's own findings. */
+function DataContractFields({ c, set, disabled, err }: { c: CheckOf<'data-contract'>; set: Patch; disabled?: boolean; err: FieldError }) {
+  const { t } = useTranslation('monitors');
+  const contracts = useQuery({ queryKey: dataContractKeys.list, queryFn: () => get<DataContractSummary[]>('/data-contracts') });
+  const list = contracts.data ?? [];
+  const mode = c.mode ?? 'test';
+  return (
+    <>
+      <Select
+        label={t('form.contract')}
+        description={t('form.contractHint')}
+        required
+        error={err('contract')}
+        data-field="contract"
+        searchable
+        disabled={disabled}
+        data={list.map((x) => ({ value: x.id, label: `${x.name} (${x.key})` }))}
+        value={list.some((x) => x.id === c.contract) ? c.contract : null}
+        placeholder={c.contract && !list.some((x) => x.id === c.contract) ? c.contract : t('form.chooseContract')}
+        onChange={(v) => set({ contract: v ?? '' } as Partial<CheckDef>)}
+        nothingFoundMessage={t('form.noContract')}
+      />
+      <Group grow align="flex-start">
+        <Select
+          data-field="mode"
+          label={t('form.contractMode')}
+          description={t(`form.contractModeHints.${mode}`)}
+          allowDeselect={false}
+          disabled={disabled}
+          data={(['test', 'findings'] as const).map((m) => ({ value: m, label: t(`form.contractModes.${m}`) }))}
+          value={mode}
+          onChange={(v) => set({ mode: v === 'findings' ? 'findings' : 'test' } as Partial<CheckDef>)}
+        />
+        {mode === 'findings' && (
+          <NumberInput
+            data-field="testedWithinDays"
+            label={t('form.contractTestedWithin')}
+            min={1}
+            max={365}
+            disabled={disabled}
+            value={c.testedWithinDays ?? 7}
+            onChange={(v) => set({ testedWithinDays: num(v) ?? 7 } as Partial<CheckDef>)}
+          />
+        )}
+      </Group>
+      <Group grow align="flex-start">
+        <Select
+          data-field="failAs"
+          label={t(mode === 'test' ? 'form.contractFailAs' : 'form.contractErrorAs')}
+          allowDeselect={false}
+          disabled={disabled}
+          data={(['down', 'degraded'] as const).map((v) => ({ value: v, label: t(`status.${v}`) }))}
+          value={c.failAs ?? 'down'}
+          onChange={(v) => set({ failAs: (v as 'down' | 'degraded') ?? 'down' } as Partial<CheckDef>)}
+        />
+        <Select
+          data-field="warningAs"
+          label={t(mode === 'test' ? 'form.contractWarningAs' : 'form.contractWarningFindingAs')}
+          allowDeselect={false}
+          disabled={disabled}
+          data={(['degraded', 'up'] as const).map((v) => ({ value: v, label: t(`status.${v}`) }))}
+          value={c.warningAs ?? 'degraded'}
+          onChange={(v) => set({ warningAs: (v as 'degraded' | 'up') ?? 'degraded' } as Partial<CheckDef>)}
+        />
+      </Group>
+      {mode === 'test' && <Hint>{t('form.contractTestHint')}</Hint>}
     </>
   );
 }
@@ -1920,6 +1993,7 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
       {c.type === 'db-schema' && <DbSchemaFields c={c} set={set} platforms={platforms} disabled={disabled} err={err} />}
       {c.type === 'version-behind' && <VersionBehindFields c={c} set={set} disabled={disabled} err={err} />}
       {c.type === 'cost' && <CostCheckFields c={c} set={set} disabled={disabled} err={err} />}
+      {c.type === 'data-contract' && <DataContractFields c={c} set={set} disabled={disabled} err={err} />}
       {c.type === 'gatus' && (
         <>
           <PlatformSelect

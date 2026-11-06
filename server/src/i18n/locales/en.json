@@ -435,5 +435,9 @@
     "application": "Application “{{name}}”",
     "team": "Team “{{name}}”",
     "noForecast": "not yet known"
+  },
+  "contractFailed": {
+    "title": "Data contract test failed: {{name}}",
+    "body": "The test of “{{name}}” (version {{version}}, server {{server}}) ended with “{{result}}”: {{headline}}"
   }
 }

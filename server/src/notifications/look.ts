@@ -287,6 +287,7 @@ const BAD_EVENTS = new Set([
   'access.undocumented',
   'backup.failed',
   'platform.failing',
+  'contract.failed',
 ]);
 const WARN_EVENTS = new Set([
   'task.assigned',

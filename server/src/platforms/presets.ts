@@ -730,6 +730,27 @@ export const PRESETS: PlatformPreset[] = [
       },
     ],
   },
+  // Data contracts (0.9.0, #221, docs/DATA-CONTRACTS.md): the datacontract CLI's API as its own container
+  {
+    kind: 'datacontract',
+    label: 'Data contract service (datacontract CLI API)',
+    description:
+      'The datacontract CLI run as a web service ("datacontract api", MIT, https://cli.datacontract.com) – its own container next to Steward. Steward sends the ODCS contracts saved under Catalogue → Data contracts to POST /test, with the credentials of the tested server from its vault in the CLI\'s datacontract-* headers (per request, never in the contract), and stores the test run as evidence; POST /lint checks a contract with the CLI\'s own lint. Start the service with DATACONTRACT_CLI_API_KEY and enter the same key here (sent as x-api-key). The tested server is a database platform of Steward linked to the contract. Compose example and network rules: docs/DATA-CONTRACTS.md.',
+    baseUrl: 'http://datacontract:4242',
+    config: {
+      auth: { type: 'apiKey', apiKeyIn: 'header', apiKeyName: 'x-api-key' },
+      variables: {},
+      // a test reads the data: it can take minutes
+      http: { timeoutMs: 300_000 },
+      testPath: '/openapi.json',
+    },
+    secretFields: [{ key: 'apiKey', label: 'API key', help: 'The value of DATACONTRACT_CLI_API_KEY of the service (sent as x-api-key)', auth: 'apiKey' }],
+    docs: [
+      { title: 'datacontract CLI: API', url: 'https://cli.datacontract.com/#api' },
+      { title: 'datacontract CLI: test', url: 'https://cli.datacontract.com/#test' },
+      { title: 'Open Data Contract Standard (ODCS) v3', url: 'https://bitol-io.github.io/open-data-contract-standard/' },
+    ],
+  },
   {
     kind: 'generic',
     label: 'Generic REST API',

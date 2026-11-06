@@ -32,6 +32,7 @@ import '../duties/report-section.js';
 import '../scorecard/report-section.js';
 import '../ai/report-section.js';
 import '../costs/report-section.js';
+import '../datacontracts/report-section.js';
 import { me } from '../auth/access.js';
 import { memberships } from '../auth/policy.js';
 

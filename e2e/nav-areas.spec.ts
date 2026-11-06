@@ -33,6 +33,7 @@ const CATALOGUE = [
   'Applications',
   'Systems',
   'Platforms',
+  'Data contracts',
   'Credentials',
   'Documents',
   'Ticket references',

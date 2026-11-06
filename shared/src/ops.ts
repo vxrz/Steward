@@ -29,6 +29,7 @@ export const NOTIFICATION_EVENTS = [
   'platform.failing',
   'ai.budget',
   'cost.budget',
+  'contract.failed',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -61,6 +62,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'platform.failing': 'The periodic connection test of a platform you manage started failing',
   'ai.budget': 'An AI token budget reached 80 % or is used up (administrators; the gateway’s managers, the process owner)',
   'cost.budget': 'The monthly cost budget of a service, application or team you own reached 80 % or 100 %',
+  'contract.failed': 'A test of a data contract your team owns failed (the owning team’s members and channel)',
 };
 
 export interface AppNotification {

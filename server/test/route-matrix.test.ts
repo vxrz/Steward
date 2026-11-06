@@ -283,6 +283,28 @@ const EXPECT: Record<string, Access> = {
   'POST /api/costs/platform/:id/push-tokens/:tokenId/rotate': ADMIN,
   'DELETE /api/costs/platform/:id/push-tokens/:tokenId': ADMIN,
   'POST /api/hooks/costs/:platformId': HOOK,
+  // data contracts (#221), here the demo's "Shop orders" (no owning team): everyone who works in Steward sees and checks
+  // them, operators test them, designers create and change them
+  'GET /api/data-contracts': ALL,
+  'POST /api/data-contracts': DESIGN,
+  'POST /api/data-contracts/check': ALL,
+  'POST /api/data-contracts/draft': ALL,
+  'POST /api/data-contracts/import': DESIGN,
+  'GET /api/data-contracts/:id': ALL,
+  'DELETE /api/data-contracts/:id': DESIGN,
+  'PUT /api/data-contracts/:id/settings': DESIGN,
+  'POST /api/data-contracts/:id/check': ALL,
+  'GET /api/data-contracts/:id/versions': ALL,
+  'POST /api/data-contracts/:id/versions': DESIGN,
+  'GET /api/data-contracts/:id/versions/:version': ALL,
+  'GET /api/data-contracts/:id/compare': ALL,
+  'GET /api/data-contracts/:id/export': ALL,
+  'POST /api/data-contracts/:id/links': DESIGN,
+  'DELETE /api/data-contracts/:id/links/:linkId': DESIGN,
+  'POST /api/data-contracts/:id/test': RUN,
+  'POST /api/data-contracts/:id/service-lint': ALL,
+  'GET /api/data-contracts/:id/runs': ALL,
+  'GET /api/data-contracts/:id/runs/:runId': ALL,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
@@ -1244,6 +1266,8 @@ function fill(url: string): string {
       .replace(/:specId/g, fx.spec!)
       .replace(/:docId/g, fx.doc!)
       .replace(/:processId/g, fx.process!)
+      // a test run of the demo's data contract (#221)
+      .replace(/^\/api\/data-contracts\/:id\/runs\/:runId/, `/api/data-contracts/${fx.contract}/runs/${fx.contractRun}`)
       .replace(/:runId/g, fx.run!)
       .replace(/:stepId/g, fx.step!)
       .replace(/:nodeId/g, fx.node!)
@@ -1341,6 +1365,7 @@ function fill(url: string): string {
           notifications: 'notification',
           'sync-sources': 'syncSource',
           'sync-updates': 'syncUpdate',
+          'data-contracts': 'contract',
         };
         return seg(map[prefix] ?? '', `none_${prefix}`);
       })
@@ -1768,6 +1793,11 @@ beforeAll(async () => {
   });
   const sysSnap = (await a('POST', `/db-schemas/system/${system.id}/import`, { schema: tbls })).snapshot.id;
   QUERY['GET /api/db-schemas/:kind/:id/compare'] = `?from=${dbSnap}&to=${dbSnap}`;
+  // data contracts (#221): the demo's orders contract and its first test run
+  const contract = (await a('GET', '/data-contracts')).find((c: { key: string }) => c.key === 'shop-orders');
+  fx.contract = contract.id;
+  fx.contractRun = contract.lastRun.id;
+  QUERY['GET /api/data-contracts/:id/compare'] = '?from=1&to=1';
   QUERY['GET /api/v1/platforms/:platformId/schema/compare'] = `?from=${dbSnap}&to=${dbSnap}`;
   QUERY['GET /api/v1/systems/:systemId/schema/compare'] = `?from=${sysSnap}&to=${sysSnap}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;

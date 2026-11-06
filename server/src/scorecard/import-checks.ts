@@ -60,6 +60,8 @@ export function scorecardRowProblems(table: string, r: Record<string, unknown>):
     for (const part of ['lifecycle', 'vulnerabilities', 'up_to_date', 'costs'])
       if (r[part] !== undefined && r[part] !== null && !oneOf(SCORECARD_PART_STATUSES, r[part]))
         p.push(`${part} "${String(r[part]).slice(0, 20)}" is not a status`);
+    // data contracts (#221): no value in packages of older versions, never null (the column is NOT NULL)
+    if (r.contracts !== undefined && !oneOf(SCORECARD_PART_STATUSES, r.contracts)) p.push(`contracts "${String(r.contracts).slice(0, 20)}" is not a status`);
     if (!flag(r.attention)) p.push('attention is not 0 or 1');
     if (!jsonArray(r.document_ids, (x) => typeof x === 'string' && x.length <= 200)) p.push('document_ids is not a list of ids');
     if (!jsonArray(r.owners, (x) => typeof x === 'string' && x.length <= 130)) p.push('owners is not a list of subjects');

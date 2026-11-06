@@ -24,6 +24,7 @@ import { mockPrivilegeVault } from './mockPrivilegeVault.js';
 import { mockLlmGateway } from './mockLlmGateway.js';
 import { mockDtrack } from './mockDtrack.js';
 import { mockChangedetection } from './mockChangedetection.js';
+import { mockDataContract } from './mockDataContract.js';
 import { mockEndoflife } from './mockEndoflife.js';
 import { mockRegistries } from './mockRegistries.js';
 import { mockUsageRoutes } from './mockUsage.js';
@@ -234,6 +235,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   await mockLlmGateway(app);
   await mockDtrack(app);
   await mockChangedetection(app);
+  await mockDataContract(app);
   await mockEndoflife(app);
   await mockRegistries(app);
 

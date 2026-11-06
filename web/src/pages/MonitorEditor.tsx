@@ -105,6 +105,7 @@ const TRYABLE = new Set<CheckType>([
   'dynamodb',
   'db-schema',
   'cost',
+  'data-contract',
   'dependency-track',
   'version-behind',
   'entra',

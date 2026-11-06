@@ -31,7 +31,8 @@
     "lifecycle": "Tech-Stack",
     "vulnerabilities": "Schwachstellen",
     "upToDate": "Aktualität",
-    "costs": "Kosten"
+    "costs": "Kosten",
+    "contracts": "Datenverträge"
   },
   "windows": {
     "h1": "1 Std.",
@@ -203,5 +204,19 @@
     "summaryAmounts": "Dieser Monat bisher: {{used}} von {{budget}} {{currency}} ({{pct}} %)",
     "forecast": "Prognose für den Monat: {{pct}} % des Budgets",
     "open": "Kosten anzeigen"
+  },
+  "contracts": {
+    "none": "Mit den Anwendungen des Services und ihren Systemen ist kein Datenvertrag verknüpft.",
+    "summary_one": "{{count}} Vertrag: {{failed}} mit Fehlern, {{untested}} nie getestet",
+    "summary_other": "{{count}} Verträge: {{failed}} mit Fehlern, {{untested}} nie getestet",
+    "results": {
+      "passed": "letzter Test bestanden",
+      "warning": "letzter Test mit Warnungen",
+      "failed": "letzter Test fehlgeschlagen",
+      "error": "letzter Test konnte nicht laufen"
+    },
+    "never": "nie getestet",
+    "findings_one": "{{count}} Befund",
+    "findings_other": "{{count}} Befunde"
   }
 }

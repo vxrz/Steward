@@ -155,6 +155,12 @@ export const HISTORY_COLUMNS: string[] = [
   'db_schema_settings.updated_by',
   // links of changedetection.io watches (#242)
   'cd_watches.linked_by',
+  // data contracts, their versions, links and test runs (#221)
+  'data_contracts.created_by',
+  'data_contracts.updated_by',
+  'data_contract_versions.created_by',
+  'data_contract_links.created_by',
+  'data_contract_runs.actor',
   'plant_profiles.created_by',
   'plant_profiles.updated_by',
   'plant_kpis.created_by',

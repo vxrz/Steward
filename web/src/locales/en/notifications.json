@@ -169,6 +169,12 @@
         "label": "Cost budget",
         "info": "The monthly cost budget of a service, application or team you own reached 80 % or 100 %"
       }
+    },
+    "contract": {
+      "failed": {
+        "label": "Data contract test failed",
+        "info": "A test of a data contract your team owns failed (the owning team’s members and channel)"
+      }
     }
   }
 }

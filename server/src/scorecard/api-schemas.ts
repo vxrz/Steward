@@ -276,6 +276,28 @@ export const ScorecardServiceEntry = z.object({
       budget: z.string().nullable().describe('Decimal; null when the token owner may not see the service’s costs'),
     })
     .describe('Costs: the month’s costs against the service’s monthly cost budget (docs/COSTS.md)'),
+  contracts: z
+    .object({
+      status: partStatus().describe(
+        'attention: a linked data contract whose last test failed or with an error finding (columns missing in the source); pending: a contract never tested or with other findings; none: no data contract is linked to the service’s applications or their systems',
+      ),
+      contracts: z.number().int().describe('Linked data contracts the token owner may see'),
+      failed: z.number().int().describe('Contracts whose last test failed or with an error finding'),
+      untested: z.number().int().describe('Contracts never tested'),
+      items: z
+        .array(
+          z.object({
+            contractId: z.string(),
+            name: z.string(),
+            result: z.enum(['passed', 'warning', 'failed', 'error']).nullable().describe('The last test (dry runs left out); null: never tested'),
+            testedAt: ts().nullable(),
+            findings: z.number().int().describe('Steward’s own findings (no owner, not tested, columns, lint)'),
+            errors: z.number().int().describe('Of them errors'),
+          }),
+        )
+        .describe('The contracts that are not ok, worst first'),
+    })
+    .describe('Data contracts (ODCS v3) linked to the service’s applications or their systems: their last test and Steward’s own findings'),
 });
 
 const PartCounts = z.object({ ok: z.number().int(), attention: z.number().int(), pending: z.number().int(), none: z.number().int() });
@@ -293,6 +315,7 @@ const RollupGroup = z.object({
     vulnerabilities: PartCounts,
     upToDate: PartCounts,
     costs: PartCounts,
+    contracts: PartCounts,
   }),
 });
 
@@ -317,6 +340,7 @@ export const ScorecardTrendEntry = z.object({
     vulnerabilities: TrendCounts,
     upToDate: TrendCounts,
     costs: TrendCounts,
+    contracts: TrendCounts,
   }),
 });
 
@@ -335,6 +359,7 @@ export const ServiceScorecardEntry = ScorecardServiceEntry.extend({
           vulnerabilities: HistoryPart,
           upToDate: HistoryPart,
           costs: HistoryPart,
+          contracts: HistoryPart,
         }),
       }),
     )

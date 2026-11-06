@@ -31,7 +31,8 @@
     "lifecycle": "Tech stack",
     "vulnerabilities": "Vulnerabilities",
     "upToDate": "Up to date",
-    "costs": "Costs"
+    "costs": "Costs",
+    "contracts": "Data contracts"
   },
   "windows": {
     "h1": "1 h",
@@ -203,5 +204,19 @@
     "summaryAmounts": "This month so far: {{used}} of {{budget}} {{currency}} ({{pct}} %)",
     "forecast": "Forecast for the month: {{pct}} % of the budget",
     "open": "Show the costs"
+  },
+  "contracts": {
+    "none": "No data contract is linked to the service's applications or their systems.",
+    "summary_one": "{{count}} contract: {{failed}} failing, {{untested}} never tested",
+    "summary_other": "{{count}} contracts: {{failed}} failing, {{untested}} never tested",
+    "results": {
+      "passed": "last test passed",
+      "warning": "last test with warnings",
+      "failed": "last test failed",
+      "error": "last test could not run"
+    },
+    "never": "never tested",
+    "findings_one": "{{count}} finding",
+    "findings_other": "{{count}} findings"
   }
 }

@@ -38,6 +38,7 @@ import { databaseRoutes } from '../dbms/routes.js';
 import { kafkaConnectRoutes } from '../kafkaconnect/routes.js';
 import { dbSchemaRoutes } from '../dbschema/routes.js';
 import { costRoutes } from '../costs/routes.js';
+import { dataContractRoutes } from '../datacontracts/routes.js';
 import { plantRoutes } from '../plant/routes.js';
 import { versionRoutes } from '../versions/routes.js';
 
@@ -82,6 +83,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // database schemas (#222): snapshots, changes, tbls import, export
   await dbSchemaRoutes(app);
   await costRoutes(app);
+  // data contracts (#221): ODCS v3 versions, links, tests through the data contract service
+  await dataContractRoutes(app);
   await migrationRoutes(app);
   await onboardingRoutes(app);
   await duplicateRoutes(app);

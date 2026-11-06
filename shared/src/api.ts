@@ -296,6 +296,7 @@ export const OWNED_KINDS = [
   'dashboard',
   'ticket',
   'site',
+  'contract',
 ] as const;
 export type OwnedKind = (typeof OWNED_KINDS)[number];
 

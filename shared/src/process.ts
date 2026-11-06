@@ -47,6 +47,7 @@ export const NODE_TYPES = [
   'publish',
   'accessChange',
   'ai',
+  'contractTest',
   'subprocess',
   'wait',
   'fail',
@@ -70,6 +71,7 @@ export const STEP_TYPES = [
   'publish',
   'accessChange',
   'ai',
+  'contractTest',
   'subprocess',
   'wait',
   'fail',
@@ -423,6 +425,22 @@ export interface AiContextSource {
   /** The most characters this source sends (default AI_LIMITS.contextChars.default); more is cut off */
   maxChars?: number;
 }
+/**
+ * Test a data contract (0.9.0, #221, docs/DATA-CONTRACTS.md): runs the contract's test through its data contract
+ * service, with the rights of the run's actor; the test run with its full report is stored with the contract
+ * (evidence). Dry runs test too (a test only reads); test runs never call the service.
+ */
+export interface ContractTestConfig {
+  type: 'contractTest';
+  /** Template: the data contract – Steward's id (dct_…) or its ODCS id */
+  contract: string;
+  /** Template: the ODCS server to test (default: the contract's setting, else its only server) */
+  server?: string;
+  /** A test that does not pass (failed or error) fails the run (or its "error" port takes over); otherwise the step is marked failed and the run goes on */
+  failRun?: boolean;
+  /** A test with warnings fails the step too (default: it passes) */
+  failOnWarning?: boolean;
+}
 export interface AiConfig {
   type: 'ai';
   /** Connection slot of an LLM gateway platform */
@@ -666,6 +684,13 @@ const shapes = {
     maxInputTokens: z.number().int().min(1).max(AI_LIMITS.contextTokens).optional(),
     sampleAnswer: z.string().max(AI_LIMITS.sampleChars).optional(),
   },
+  contractTest: {
+    type: z.literal('contractTest'),
+    contract: z.string().trim().min(1).max(200),
+    server: z.string().trim().max(200).optional(),
+    failRun: z.boolean().optional(),
+    failOnWarning: z.boolean().optional(),
+  },
   subprocess: {
     type: z.literal('subprocess'),
     process: z.string().min(1),
@@ -697,6 +722,7 @@ export type BrowserStep = Base & BrowserConfig;
 export type PublishStep = Base & PublishConfig;
 export type AccessChangeStep = Base & AccessChangeConfig;
 export type AiStep = Base & AiConfig;
+export type ContractTestStep = Base & ContractTestConfig;
 export type SubprocessStep = Base & SubprocessConfig;
 export type WaitStep = Base & WaitConfig;
 export type FailStep = Base & FailConfig;
@@ -715,6 +741,7 @@ export type Step =
   | PublishStep
   | AccessChangeStep
   | AiStep
+  | ContractTestStep
   | SubprocessStep
   | WaitStep
   | FailStep;
@@ -735,6 +762,7 @@ export const stepSchema: z.ZodType<Step> = z.lazy(() =>
     z.object({ ...baseFields, ...shapes.publish }),
     z.object({ ...baseFields, ...shapes.accessChange }),
     z.object({ ...baseFields, ...shapes.ai }),
+    z.object({ ...baseFields, ...shapes.contractTest }),
     z.object({ ...baseFields, ...shapes.subprocess }),
     z.object({ ...baseFields, ...shapes.wait }),
     z.object({ ...baseFields, ...shapes.fail }),
@@ -760,6 +788,7 @@ export type NodeConfig =
   | PublishConfig
   | AccessChangeConfig
   | AiConfig
+  | ContractTestConfig
   | SubprocessConfig
   | WaitConfig
   | FailConfig
@@ -784,6 +813,7 @@ export const nodeSchema = z.discriminatedUnion('type', [
   z.object({ ...baseFields, ...pos, ...shapes.publish }),
   z.object({ ...baseFields, ...pos, ...shapes.accessChange }),
   z.object({ ...baseFields, ...pos, ...shapes.ai }),
+  z.object({ ...baseFields, ...pos, ...shapes.contractTest }),
   z.object({ ...baseFields, ...pos, ...shapes.subprocess }),
   z.object({ ...baseFields, ...pos, ...shapes.wait }),
   z.object({ ...baseFields, ...pos, ...shapes.fail }),
@@ -826,6 +856,7 @@ export function nodePorts(n: Pick<FlowNode, 'type'> & { mode?: string }): PortDe
     case 'query':
     case 'browser':
     case 'ai':
+    case 'contractTest':
     case 'subprocess':
       return [
         { id: 'out', label: '' },

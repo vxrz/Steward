@@ -84,16 +84,17 @@ Each part has its own status. There is **no weighting** and no score:
 
 A service shows **Attention needed** when any part has the status _Attention_. A new service – no applications, no documents, no duties or objectives yet – starts neutral (_Open_ or _Nothing to judge_): it needs attention once there is something to judge.
 
-| Part                | Attention when …                                                                                                                                                                                                     |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Duties**          | a **mandatory** duty was not met in its last closed period (missed or failed). _Open_ while a current period is still due ([DUTIES.md](DUTIES.md))                                                                   |
-| **Availability**    | an objective is below target, or has had no data for more than 24 hours. _Open_ when one has no data for a shorter time                                                                                              |
-| **Documentation**   | no living document is released, a review is overdue, or an expected document is missing ([RECORDS.md](RECORDS.md)). _Open_ for a new service without applications and documents                                      |
-| **Protection need** | it is not rated: a dimension has no level, applications are not rated or must be re-rated after a scale change, or the CIA scale is not valid. _Open_ while the service has no applications                          |
-| **Tech stack**      | (only when turned on, below) a component of the service's applications runs a version past its end of life. _Open_ when one ends within the warning period                                                           |
-| **Vulnerabilities** | (only when linked, below) a component's Dependency-Track project has open **critical** findings or **failing** policy violations. _Open_ on open high findings, or when the last read failed or is older than 2 days |
-| **Up to date**      | (only when turned on, below) a tech stack entry of the service's applications is a **major release** behind the newest version. _Open_ when one is more minor releases or days behind than the version watch allows  |
-| **Costs**           | (only with a budget, below) this month's costs reached the service's monthly cost budget. _Open_ at 80 % of it, or when the month's forecast is above it                                                             |
+| Part                | Attention when …                                                                                                                                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Duties**          | a **mandatory** duty was not met in its last closed period (missed or failed). _Open_ while a current period is still due ([DUTIES.md](DUTIES.md))                                                                                   |
+| **Availability**    | an objective is below target, or has had no data for more than 24 hours. _Open_ when one has no data for a shorter time                                                                                                              |
+| **Documentation**   | no living document is released, a review is overdue, or an expected document is missing ([RECORDS.md](RECORDS.md)). _Open_ for a new service without applications and documents                                                      |
+| **Protection need** | it is not rated: a dimension has no level, applications are not rated or must be re-rated after a scale change, or the CIA scale is not valid. _Open_ while the service has no applications                                          |
+| **Tech stack**      | (only when turned on, below) a component of the service's applications runs a version past its end of life. _Open_ when one ends within the warning period                                                                           |
+| **Vulnerabilities** | (only when linked, below) a component's Dependency-Track project has open **critical** findings or **failing** policy violations. _Open_ on open high findings, or when the last read failed or is older than 2 days                 |
+| **Up to date**      | (only when turned on, below) a tech stack entry of the service's applications is a **major release** behind the newest version. _Open_ when one is more minor releases or days behind than the version watch allows                  |
+| **Costs**           | (only with a budget, below) this month's costs reached the service's monthly cost budget. _Open_ at 80 % of it, or when the month's forecast is above it                                                                             |
+| **Data contracts**  | (only when linked, below) a data contract linked to the service's applications or their systems failed its last test or has an error finding (columns missing in the source). _Open_ when one was never tested or has other findings |
 
 Details:
 
@@ -108,6 +109,8 @@ Details:
 **Up to date** is a seventh part, off by default, from the [version watch](APPLICATIONS.md#version-watch): an administrator turns it on under _Applications → Version watch → Count on the scorecard_. It considers the stack entries of the components and the systems of the service's applications that have a known newest version: _Attention_ when one is a major release behind, _Open_ when one is more minor releases (default 2) or days (default 180) behind than the version watch's settings allow. It lists those entries, major first, then production. The end of life of a release cycle stays the part _Tech stack_.
 
 **Costs** is an eighth part (0.9.0, [COSTS.md](COSTS.md#budgets)): the service's monthly cost budget against the month so far and its forecast. Without a budget it has _nothing to judge_ and is not shown. The amounts appear only for readers who may see the service's costs; everyone else sees the percentages.
+
+**Data contracts** is a ninth part ([DATA-CONTRACTS.md](DATA-CONTRACTS.md#monitors-processes-scorecard-and-reports)): the ODCS contracts linked to the service's applications or to their systems, as the reader may see them – each with its last test (dry runs left out) and Steward's own findings. Without a linked contract it has _nothing to judge_ and is not shown.
 
 Archived services have no scorecard.
 

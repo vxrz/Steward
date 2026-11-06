@@ -66,6 +66,10 @@
     "costs": {
       "title": "Costs",
       "hint": "Costs of the period per service against the period before, with the budgets (showback; what you may see)"
+    },
+    "contracts": {
+      "title": "Data contracts",
+      "hint": "The tests of the report period per contract (passed, warnings, failed), the last test, Steward’s findings and the versions saved – the contracts the owner may see"
     }
   },
   "runNow": "Generate now",

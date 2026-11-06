@@ -22,6 +22,7 @@ import {
   type ScorecardLifecycleItem,
   type ScorecardVulnerabilities,
   type ScorecardCosts,
+  type ScorecardContracts,
   type ScorecardVulnerabilityItem,
   type ScorecardUpToDate,
   type ScorecardUpToDateItem,
@@ -66,6 +67,7 @@ import { isWellBehind, versionSettings, watchOf, type WatchedEntry } from '../ve
 import { applicationEntries } from '../versions/check.js';
 import { scopeInfo as costScopeInfo } from '../costs/access.js';
 import { budgetOf as costBudgetOf } from '../costs/query.js';
+import { contractStates, contractsLinkedTo, type ContractState } from '../datacontracts/service.js';
 
 /**
  * The service scorecard (#86): per service its parts, each with its own status – no weighting.
@@ -633,6 +635,46 @@ function vulnerabilitiesPart(d: Data, serviceId: string, ctx: Map<string, Dtrack
   return { status, projects, critical, high, policyFail, stale, items };
 }
 
+// ---------- data contracts (#221) ----------
+
+interface ContractCtx {
+  /** contract ids per application (linked to it or to one of its systems) */
+  byApp: Map<string, string[]>;
+  states: Map<string, ContractState>;
+}
+
+/** The data contracts linked to the members' applications or their systems, with their states as `viewer` may see them. */
+function contractCtx(d: Data, viewer: AuthUser | null): ContractCtx {
+  const apps = [...new Set([...d.members.values()].flat())];
+  const byApp = new Map<string, string[]>();
+  if (!apps.length) return { byApp, states: new Map() };
+  const direct = contractsLinkedTo('application', apps);
+  const systemsOf = new Map<string, string[]>();
+  for (const r of db().all<{ application_id: string; system_id: string }>(
+    `SELECT DISTINCT application_id, system_id FROM application_systems WHERE application_id IN (${apps.map(() => '?').join(', ')})`,
+    ...apps,
+  ))
+    systemsOf.set(r.application_id, [...(systemsOf.get(r.application_id) ?? []), r.system_id]);
+  const viaSystem = contractsLinkedTo('system', [...new Set([...systemsOf.values()].flat())]);
+  for (const a of apps) byApp.set(a, [...new Set([...(direct.get(a) ?? []), ...(systemsOf.get(a) ?? []).flatMap((s) => viaSystem.get(s) ?? [])])]);
+  return { byApp, states: contractStates([...byApp.values()].flat(), viewer) };
+}
+
+/** Attention: a last test that failed or an error finding; pending: never tested or other findings. */
+function contractsPart(d: Data, serviceId: string, ctx: ContractCtx): ScorecardContracts {
+  const ids = [...new Set((d.members.get(serviceId) ?? []).flatMap((a) => ctx.byApp.get(a) ?? []))];
+  const states = ids.map((id) => ctx.states.get(id)).filter((x): x is ContractState => !!x);
+  const bad = (s: ContractState) => s.result === 'failed' || s.result === 'error' || s.errors > 0;
+  const items = states
+    .filter((s) => bad(s) || !s.result || s.findings > 0 || s.result === 'warning')
+    .map((s) => ({ contractId: s.id, name: s.name, result: s.result, testedAt: s.testedAt, findings: s.findings, errors: s.errors }))
+    .sort((a, b) => Number(bad(ctx.states.get(b.contractId)!)) - Number(bad(ctx.states.get(a.contractId)!)) || a.name.localeCompare(b.name));
+  const failed = states.filter(bad).length;
+  const untested = states.filter((s) => !s.result).length;
+  const status: ScorecardPartStatus = !states.length ? 'none' : failed ? 'attention' : items.length ? 'pending' : 'ok';
+  return { status, contracts: states.length, failed, untested, items };
+}
+
 // ---------- scorecards ----------
 
 /**
@@ -668,6 +710,7 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
   const lc = lifecycleCtx(d);
   const vc = vulnerabilityCtx(d);
   const uc = upToDateCtx(d, now);
+  const cc = contractCtx(d, viewer);
   return d.services.map((s) => {
     const duties = dutiesPart(d, s.id);
     const availability = availabilityPart(d, s.id, oc);
@@ -677,13 +720,16 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
     const vulnerabilities = vulnerabilitiesPart(d, s.id, vc, now);
     const upToDate = upToDatePart(d, s.id, uc);
     const costs = costsPart(s.id, viewer, now);
+    const contracts = contractsPart(d, s.id, cc);
     return {
       card: {
         serviceId: s.id,
         serviceName: s.name,
         owners: parseJson<string[]>(s.owners, []),
         criticality: (s.criticality as ServiceCriticality | null) ?? null,
-        attention: [duties, availability, documentation, protection, lifecycle, vulnerabilities, upToDate, costs].some((p) => p.status === 'attention'),
+        attention: [duties, availability, documentation, protection, lifecycle, vulnerabilities, upToDate, costs, contracts].some(
+          (p) => p.status === 'attention',
+        ),
         duties,
         availability,
         documentation,
@@ -692,6 +738,7 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
         vulnerabilities,
         upToDate,
         costs,
+        contracts,
       },
       documentIds: ids,
     };
@@ -747,6 +794,7 @@ export interface SnapshotRow {
   vulnerabilities?: ScorecardPartStatus;
   up_to_date?: ScorecardPartStatus;
   costs?: ScorecardPartStatus | null;
+  contracts?: ScorecardPartStatus;
   document_ids: string;
   details: string;
   updated_at: string;
@@ -779,6 +827,7 @@ function pointOf(r: SnapshotRow, readable: boolean): ServiceScorecardHistoryPoin
     vulnerabilities: r.vulnerabilities ?? 'none',
     upToDate: r.up_to_date ?? 'none',
     costs: r.costs ?? 'none',
+    contracts: r.contracts ?? 'none',
   };
   return { day: r.day, attention: SCORECARD_PARTS.some((p) => parts[p] === 'attention'), parts };
 }

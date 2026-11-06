@@ -63,6 +63,7 @@ export const CHECK_TYPES = [
   'dynamodb',
   'db-schema',
   'cost',
+  'data-contract',
   'dependency-track',
   'version-behind',
   'entra',
@@ -91,6 +92,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
     help: 'Connectors and their tasks are RUNNING, a task failed for N minutes, the consumer lag of a sink connector, a Debezium connector whose topics got no message for N minutes',
   },
   mqtt: { label: 'MQTT topics', help: 'Messages on an MQTT topic within N minutes, devices (topics of a pattern) that went silent, connected clients' },
+  'data-contract': {
+    label: 'Data contract',
+    help: 'An ODCS data contract: its test through the data contract service passes (warnings degrade), or Steward’s own checks – owner, last test, columns of linked datasets and tables – find nothing',
+  },
   'dependency-track': {
     label: 'Vulnerabilities (Dependency-Track)',
     help: 'A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation',
@@ -585,6 +590,20 @@ export const checkSchema = z.discriminatedUnion('type', [
     failAs: z.enum(['down', 'degraded']).default('degraded'),
     /** Status without costs in the periods (default unknown) */
     noData: z.enum(['unknown', 'up']).default('unknown'),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('data-contract'),
+    /** The data contract (its id, #221) */
+    contract: z.string().trim().min(1).max(100),
+    /** test: run its test through the data contract service; findings: Steward's own checks, without the service */
+    mode: z.enum(['test', 'findings']).default('test'),
+    /** findings: a contract not tested within this many days counts as a warning (default 7) */
+    testedWithinDays: z.number().int().min(1).max(365).default(7),
+    /** Status of a failed test or an error finding (default down) */
+    failAs: z.enum(['down', 'degraded']).default('down'),
+    /** Status of a test with warnings or a warning finding (default degraded) */
+    warningAs: z.enum(['degraded', 'up']).default('degraded'),
   }),
   z.object({
     ...checkBase,

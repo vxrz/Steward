@@ -28,6 +28,7 @@ const CODED_AREAS = [
   'duplicate/',
   'plant/',
   'dbschema/',
+  'datacontracts/',
   'routes/reports.ts',
   'routes/report-schedules.ts',
 ];

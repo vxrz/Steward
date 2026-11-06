@@ -1,0 +1,61 @@
+# A data contract of the demo shop database (invented): Catalogue → Data contracts → Import YAML (docs/DATA-CONTRACTS.md)
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bitol-io/open-data-contract-standard/main/schema/odcs-json-schema-v3.0.2.json
+apiVersion: v3.0.2
+kind: DataContract
+id: shop-orders
+name: Shop orders
+version: 1.0.0
+status: active
+domain: sales
+description:
+  purpose: Orders of the web shop for invoicing and the sales dashboards
+  usage: Read-only; one row per order
+  limitations: Orders of the last two years
+servers:
+  - server: production
+    type: postgresql
+    host: postgres.demo.invalid
+    port: 5432
+    database: shop
+    schema: public
+schema:
+  - name: orders
+    physicalName: public.orders
+    physicalType: table
+    description: One order of a customer
+    properties:
+      - name: id
+        logicalType: integer
+        physicalType: bigint
+        primaryKey: true
+        primaryKeyPosition: 1
+        required: true
+        unique: true
+      - name: customer_id
+        logicalType: integer
+        physicalType: integer
+        required: true
+      - name: status
+        logicalType: string
+        physicalType: character varying(20)
+        required: true
+        logicalTypeOptions:
+          maxLength: 20
+      - name: total
+        logicalType: number
+        physicalType: numeric(12,2)
+        quality:
+          - rule: nullValues
+            mustBeLessThan: 5
+            unit: percent
+      - name: ordered_at
+        logicalType: date
+        physicalType: timestamp with time zone
+        required: true
+team:
+  - username: dana
+    role: owner
+slaProperties:
+  - property: latency
+    value: 4
+    unit: h

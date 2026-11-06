@@ -89,6 +89,15 @@
       "secretHelp": {
         "apiKey": "Settings → API in changedetection.io (with \"Require API key\" on)"
       }
+    },
+    "data-contract-service-datacontract-cli-api": {
+      "description": "The datacontract CLI run as a web service (\"datacontract api\", MIT, https://cli.datacontract.com) – its own container next to Steward. Steward sends the ODCS contracts saved under Catalogue → Data contracts to POST /test, with the credentials of the tested server from its vault in the CLI's datacontract-* headers (per request, never in the contract), and stores the test run as evidence; POST /lint checks a contract with the CLI's own lint. Start the service with DATACONTRACT_CLI_API_KEY and enter the same key here (sent as x-api-key). The tested server is a database platform of Steward linked to the contract. Compose example and network rules: docs/DATA-CONTRACTS.md.",
+      "secrets": {
+        "apiKey": "API key"
+      },
+      "secretHelp": {
+        "apiKey": "The value of DATACONTRACT_CLI_API_KEY of the service (sent as x-api-key)"
+      }
     }
   },
   "title": "Platforms",

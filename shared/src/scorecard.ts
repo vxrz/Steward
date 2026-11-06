@@ -157,9 +157,21 @@ export interface ObjectiveDetail extends ObjectiveSummary {
  * vulnerabilities: Dependency-Track's findings and policy violations of the applications' components (#119) – "none"
  * when no component links a Dependency-Track project.
  * upToDate: the version watch (#241) – counted only when turned on (VersionSettings.scorecard), else "none".
+ * costs: the month's costs of the service against its monthly cost budget (#226) – "none" without a budget.
+ * contracts: the data contracts linked to the service's applications or their systems (#221) – their last test and
+ * Steward's own findings; "none" when no contract is linked.
  */
-/* costs: the month's costs of the service against its monthly cost budget (#226) – "none" without a budget. */
-export const SCORECARD_PARTS = ['duties', 'availability', 'documentation', 'protection', 'lifecycle', 'vulnerabilities', 'upToDate', 'costs'] as const;
+export const SCORECARD_PARTS = [
+  'duties',
+  'availability',
+  'documentation',
+  'protection',
+  'lifecycle',
+  'vulnerabilities',
+  'upToDate',
+  'costs',
+  'contracts',
+] as const;
 export type ScorecardPart = (typeof SCORECARD_PARTS)[number];
 
 /**
@@ -412,6 +424,31 @@ export interface ScorecardCosts {
   budget: string | null;
 }
 
+export interface ScorecardContractItem {
+  contractId: string;
+  name: string;
+  /** The last test (dry runs left out); null: never tested */
+  result: 'passed' | 'warning' | 'failed' | 'error' | null;
+  testedAt: string | null;
+  /** Steward's own findings, and how many of them are errors */
+  findings: number;
+  errors: number;
+}
+
+export interface ScorecardContracts {
+  /**
+   * attention: a linked contract whose last test failed, or with an error finding (columns missing in the source);
+   * pending: a contract never tested or with other findings (no owner, not tested for 7 days, lint); none: no data
+   * contract is linked to the service's applications or their systems
+   */
+  status: ScorecardPartStatus;
+  contracts: number;
+  failed: number;
+  untested: number;
+  /** The contracts that are not ok, worst first */
+  items: ScorecardContractItem[];
+}
+
 export interface ServiceScorecard {
   serviceId: string;
   serviceName: string;
@@ -427,6 +464,7 @@ export interface ServiceScorecard {
   vulnerabilities: ScorecardVulnerabilities;
   upToDate: ScorecardUpToDate;
   costs: ScorecardCosts;
+  contracts: ScorecardContracts;
 }
 
 export type ScorecardPartCounts = Record<ScorecardPartStatus, number>;

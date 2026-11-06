@@ -446,7 +446,26 @@
         "team": "Team",
         "platform": "Platform"
       }
-    }
+    },
+    "contract": "Data contract",
+    "contractHint": "The check runs with the monitor owner's rights: they must see the contract (and, for tests, may test it and use its service and database)",
+    "chooseContract": "Choose a data contract",
+    "noContract": "No data contract you may see",
+    "contractMode": "What is checked",
+    "contractModes": {
+      "test": "The test (data contract service)",
+      "findings": "Steward's own checks"
+    },
+    "contractModeHints": {
+      "test": "Runs the contract's test; the full report is stored with the contract",
+      "findings": "No owner, not tested recently, last test failed, columns that no longer match – without the service"
+    },
+    "contractTestedWithin": "Not tested for (days)",
+    "contractFailAs": "A failed test",
+    "contractErrorAs": "An error finding",
+    "contractWarningAs": "A test with warnings",
+    "contractWarningFindingAs": "A warning finding",
+    "contractTestHint": "A test reads data: it gets at least a minute, whatever the time limit above says (at most 300 s). A test run of the monitor (recorded responses) does not call the service – it judges the last stored run."
   },
   "detail": {
     "template": "template",
@@ -833,6 +852,10 @@
     "cost": {
       "label": "Cost change",
       "help": "The costs of a service, application, team or platform: up by more than a percentage or an amount compared with the month before"
+    },
+    "data-contract": {
+      "label": "Data contract",
+      "help": "An ODCS data contract: its test through the data contract service passes (warnings degrade), or Steward’s own checks – owner, last test, columns of linked datasets and tables – find nothing"
     }
   },
   "newCheck": {
@@ -860,7 +883,8 @@
     "dynamodb": "DynamoDB table fresh",
     "db-schema": "No breaking schema change",
     "page-watch": "Vendor pages watched",
-    "cost": "Costs not rising"
+    "cost": "Costs not rising",
+    "data-contract": "Data contract holds"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}"
