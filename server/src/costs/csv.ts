@@ -13,11 +13,8 @@ export interface CsvLimits {
   cellChars: number;
 }
 
-export class CsvError extends HttpError {
-  constructor(message: string, line: number) {
-    super(400, `${message} (line ${line})`, 'COST_IMPORT_CSV', { line, message });
-  }
-}
+/** 400 COST_IMPORT_CSV with the line where the row starts. */
+export const csvError = (message: string, line: number): HttpError => new HttpError(400, `${message} (line ${line})`, 'COST_IMPORT_CSV', { line, message });
 
 /** The separator of a file: the one of comma, semicolon and tab that occurs most often in its first line (outside quotes). */
 export function separatorOf(text: string): string {
@@ -47,8 +44,8 @@ export function readCsv(raw: string, limits: CsvLimits, onRow: (cells: string[],
   let rowLine = 1;
   let index = -1;
   const pushCell = () => {
-    if (cell.length > limits.cellChars) throw new CsvError(`A cell has more than ${limits.cellChars} characters`, rowLine);
-    if (row.length >= limits.columns) throw new CsvError(`A row has more than ${limits.columns} columns`, rowLine);
+    if (cell.length > limits.cellChars) throw csvError(`A cell has more than ${limits.cellChars} characters`, rowLine);
+    if (row.length >= limits.columns) throw csvError(`A row has more than ${limits.columns} columns`, rowLine);
     row.push(cell);
     cell = '';
     afterQuote = false;
@@ -57,7 +54,7 @@ export function readCsv(raw: string, limits: CsvLimits, onRow: (cells: string[],
     pushCell();
     const empty = row.length === 1 && row[0] === '';
     if (!empty) {
-      if (index >= limits.rows) throw new CsvError(`The file has more than ${limits.rows} rows`, rowLine);
+      if (index >= limits.rows) throw csvError(`The file has more than ${limits.rows} rows`, rowLine);
       onRow(row, rowLine, index);
       index++;
     }
@@ -77,7 +74,7 @@ export function readCsv(raw: string, limits: CsvLimits, onRow: (cells: string[],
       } else {
         if (c === '\n' || (c === '\r' && text[i + 1] !== '\n')) line++;
         cell += c;
-        if (cell.length > limits.cellChars) throw new CsvError(`A cell has more than ${limits.cellChars} characters`, rowLine);
+        if (cell.length > limits.cellChars) throw csvError(`A cell has more than ${limits.cellChars} characters`, rowLine);
       }
       continue;
     }
@@ -89,15 +86,15 @@ export function readCsv(raw: string, limits: CsvLimits, onRow: (cells: string[],
       line++;
       rowLine = line;
     } else if (c === '"') {
-      if (cell.length || afterQuote) throw new CsvError('A quote inside an unquoted cell', rowLine);
+      if (cell.length || afterQuote) throw csvError('A quote inside an unquoted cell', rowLine);
       quoted = true;
     } else {
-      if (afterQuote) throw new CsvError('Text after the closing quote of a cell', rowLine);
+      if (afterQuote) throw csvError('Text after the closing quote of a cell', rowLine);
       cell += c;
-      if (cell.length > limits.cellChars) throw new CsvError(`A cell has more than ${limits.cellChars} characters`, rowLine);
+      if (cell.length > limits.cellChars) throw csvError(`A cell has more than ${limits.cellChars} characters`, rowLine);
     }
   }
-  if (quoted) throw new CsvError('A quoted cell is not closed', rowLine);
+  if (quoted) throw csvError('A quoted cell is not closed', rowLine);
   if (cell.length || row.length || afterQuote) pushRow();
   return Math.max(0, index);
 }

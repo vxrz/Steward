@@ -109,7 +109,7 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   },
   cost: {
     label: 'Cost change',
-    help: 'The costs of a service, application, team or platform (#226): up by more than a percentage or an amount compared with the month before',
+    help: 'The costs of a service, application, team or platform: up by more than a percentage or an amount compared with the month before',
   },
   entra: {
     label: 'Entra ID (Microsoft Graph)',

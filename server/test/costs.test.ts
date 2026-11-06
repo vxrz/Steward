@@ -295,7 +295,8 @@ describe('push from CI', () => {
       headers: { 'content-type': 'text/csv', authorization: `Bearer ${t.token}` },
       body: 'x'.repeat(26 * 1024 * 1024),
     });
-    expect(big.status).toBe(413);
+    // the token is checked first; a file above 25 MB is refused
+    expect(big.status).toBe(400);
     (await import('../src/costs/push.js')).resetCostPushState();
     const ok = await push(t.token, csv('2'), {}, platform, '?fileName=ci.csv&mode=add');
     expect(ok.status).toBe(200);

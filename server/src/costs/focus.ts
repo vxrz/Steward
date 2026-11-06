@@ -1,5 +1,5 @@
 import { COST_LIMITS, FOCUS_COLUMNS, FOCUS_REQUIRED, fromMicros, toMicros, type CostImportPreview, type FocusColumn } from '@sm/shared';
-import { sha256 } from '../util.js';
+import { HttpError, sha256 } from '../util.js';
 import { readCsv } from './csv.js';
 import type { CostLine } from './store.js';
 
@@ -27,16 +27,6 @@ export interface ParsedFocus {
   periodStart: string | null;
   periodEnd: string | null;
   warnings: string[];
-}
-
-export class FocusError extends Error {
-  constructor(
-    message: string,
-    readonly code: string,
-    readonly params: Record<string, string | number> = {},
-  ) {
-    super(message);
-  }
 }
 
 /** An ISO 8601 date or date-time (UTC when no offset is given) → ISO string; null when it is not one. */
@@ -80,11 +70,11 @@ const nextMonth = (iso: string) => {
   return d.toISOString();
 };
 
-/** Reads a FOCUS CSV file into cost lines (summed per day and dimension). Throws FocusError or CsvError. */
+/** Reads a FOCUS CSV file into cost lines (summed per day and dimension). Throws HttpError 400 (COST_IMPORT_…). */
 export function parseFocus(csv: string): ParsedFocus {
   const bytes = Buffer.byteLength(csv, 'utf8');
   if (bytes > COST_LIMITS.importBytes)
-    throw new FocusError(`The file has more than ${COST_LIMITS.importBytes / 1024 / 1024} MB`, 'COST_IMPORT_TOO_LARGE', {
+    throw new HttpError(400, `The file has more than ${COST_LIMITS.importBytes / 1024 / 1024} MB`, 'COST_IMPORT_TOO_LARGE', {
       maxMb: COST_LIMITS.importBytes / 1024 / 1024,
     });
   let index: Partial<Record<FocusColumn, number>> = {};
@@ -109,7 +99,7 @@ export function parseFocus(csv: string): ParsedFocus {
       index = Object.fromEntries(found) as Partial<Record<FocusColumn, number>>;
       const missing = FOCUS_REQUIRED.filter((c) => index[c] === undefined);
       if (missing.length)
-        throw new FocusError(`Not a FOCUS file: the column(s) ${missing.join(', ')} are missing`, 'COST_IMPORT_COLUMNS', { missing: missing.join(', ') });
+        throw new HttpError(400, `Not a FOCUS file: the column(s) ${missing.join(', ')} are missing`, 'COST_IMPORT_COLUMNS', { missing: missing.join(', ') });
       return;
     }
     const get = (c: FocusColumn) => {
@@ -173,7 +163,7 @@ export function parseFocus(csv: string): ParsedFocus {
     if (!first || cps < first) first = cps;
     if (!last || cpe > last) last = cpe;
   });
-  if (index.BilledCost === undefined) throw new FocusError('The file is empty', 'COST_IMPORT_EMPTY');
+  if (index.BilledCost === undefined) throw new HttpError(400, 'The file is empty', 'COST_IMPORT_EMPTY');
   if (skipped > 10) warnings.push(`… ${skipped - 10} more rows left out`);
   if (badTags) warnings.push(`${badTags} row(s) with Tags that are not a JSON object: their tags are left out`);
   const found = FOCUS_COLUMNS.filter((c) => index[c] !== undefined);

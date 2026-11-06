@@ -173,13 +173,13 @@ describe('reports, the dataset and /api/v1', () => {
   it('publishes the dataset "Costs" for administrators and auditors', async () => {
     const { publishCostsDataset } = await import('../src/costs/dataset.js');
     expect(publishCostsDataset(true)).toBe(true);
-    const ds = await s.api('GET', '/datasets/costs');
+    const ds = await s.api('GET', '/datasets/costs.overview');
     expect(ds.rows.some((r: { Kind: string; Name: string }) => r.Kind === 'platform' && r.Name === 'AWS (demo)')).toBe(true);
     expect(ds.metrics.thisMonth).toBeGreaterThan(0);
     const audrey = await s.as('audrey', PW);
-    expect((await audrey('GET', '/datasets/costs')).rows.length).toBeGreaterThan(0);
+    expect((await audrey('GET', '/datasets/costs.overview')).rows.length).toBeGreaterThan(0);
     const vera = await s.as('vera', PW);
-    await expect(vera('GET', '/datasets/costs')).rejects.toMatchObject({ status: 404 });
+    await expect(vera('GET', '/datasets/costs.overview')).rejects.toMatchObject({ status: 404 });
   });
 
   it("serves /api/v1/costs with the token owner's rights", async () => {

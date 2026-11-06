@@ -32,7 +32,7 @@ export type CostGranularity = (typeof COST_GRANULARITIES)[number];
 export const COST_BUDGET_WARN_PCT = 80;
 
 /** The built-in dataset "Costs" (administrators and auditors, like the AI usage). */
-export const COSTS_DATASET = 'costs';
+export const COSTS_DATASET = 'costs.overview';
 
 export const COST_LIMITS = {
   /** Months shown (complete months before the current one) */

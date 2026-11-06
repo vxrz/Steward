@@ -110,16 +110,13 @@ export const LARGE_BODIES = {
   },
   /**
    * A FOCUS cost file (#226): COST_LIMITS.importBytes (25 MB) of CSV as text in the web app's JSON body; the push
-   * endpoint for CI takes the file itself and keeps to COST_PUSH_BODY_LIMIT (the file limit), below this one
+   * endpoint for CI takes the file itself (only after its push token was checked; above 25 MB it is refused)
    */
   costImport: {
     routes: ['POST /api/costs/platform/:id/imports/preview', 'POST /api/costs/platform/:id/imports', 'POST /api/hooks/costs/:platformId'],
     bytes: jsonText(COST_LIMITS.importBytes, 16 * KIB),
   },
 } as const satisfies Record<string, LargeBody>;
-
-/** The FOCUS push from CI (#226): the file itself, so its own limit is the file limit (listed under costImport). */
-export const COST_PUSH_BODY_LIMIT = COST_LIMITS.importBytes + 16 * KIB;
 
 /** The answer to a body above the route's limit: 413 BODY_TOO_LARGE (or _KIB below 1 MB), with the limit. */
 export function bodyTooLarge(limit: number | undefined): HttpError {

@@ -11,13 +11,15 @@ import { tagKeyOf } from './store.js';
  * mocks answer like the real APIs (Cost Explorer, USAGE_IN_CURRENCY_DAILY, the Costs API).
  */
 export async function setupCostDemo(actor: string): Promise<number> {
-  const rows = db().all<{ id: string; kind: string }>(
-    `SELECT id, kind FROM platforms WHERE name LIKE '%(demo)' AND kind IN (?, ?, ?, ?) ORDER BY name`,
-    AWS_KIND,
-    SNOWFLAKE_KIND,
-    CONFLUENT_KIND,
-    LLM_GATEWAY_KIND,
-  );
+  const rows = db()
+    .all<{ id: string; name: string; kind: string }>(
+      `SELECT id, name, kind FROM platforms WHERE kind IN (?, ?, ?, ?) ORDER BY name`,
+      AWS_KIND,
+      SNOWFLAKE_KIND,
+      CONFLUENT_KIND,
+      LLM_GATEWAY_KIND,
+    )
+    .filter((p) => p.name.endsWith('(demo)'));
   let read = 0;
   for (const p of rows) {
     if (db().get('SELECT platform_id FROM cost_sources WHERE platform_id = ? AND enabled = 1', p.id)) continue;

@@ -4,9 +4,9 @@ import { publishDataset } from '../dashboards/datasets.js';
 import { overview } from './query.js';
 
 /**
- * The built-in dataset "Costs" (`costs`, docs/COSTS.md#dashboards-and-the-api): one row per service, application, team
+ * The built-in dataset "Costs" (`costs.overview`, docs/COSTS.md#dashboards-and-the-api): one row per service, application, team
  * and platform and currency with this month so far, the last month, the forecast, the change and the budget – for
- * dashboards and /api/v1/datasets/costs. Its rows name every scope, so administrators and auditors see it (like the
+ * dashboards and /api/v1/datasets/costs.overview. Its rows name every scope, so administrators and auditors see it (like the
  * AI usage, dashboards/builtin.ts); everybody else reads costs with their own rights on the costs pages and through
  * /api/v1/costs. Published by the job "costs" at most hourly. Metrics: thisMonth, lastMonth and forecast of the platforms
  * (they do not overlap) in the currency with the highest costs.

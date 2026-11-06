@@ -89,7 +89,7 @@ async function source(page: Page, api: APIRequestContext, mobile: boolean) {
   await expect(page.getByRole('heading', { name: p.name, level: 1 })).toBeVisible();
   await expect(page.getByText('No costs here yet')).toBeVisible();
   await page.getByTestId('tab-source').click();
-  await expect(page).toHaveURL(new RegExp(`/costs/platform/${p.id}/source$`));
+  await expect(page).toHaveURL((u) => u.pathname.endsWith(`/costs/platform/${p.id}/source`));
   const card = page.getByTestId('cost-import');
   await expect(card.getByText('No file imported yet')).toBeVisible();
   await expectAccessible(page, 'costs: source (empty)');
@@ -132,7 +132,7 @@ test('costs: overview, an application with chart and budget, a platform source w
   // the way from a service, application or platform to its costs
   await page.goto(`/platforms/${p.id}`);
   await page.getByTestId('open-costs').click();
-  await expect(page).toHaveURL(new RegExp(`/costs/platform/${p.id}$`));
+  await expect(page).toHaveURL((u) => u.pathname.endsWith(`/costs/platform/${p.id}`));
   // the cost settings (administrators)
   await page.goto('/costs');
   await page.getByTestId('cost-settings').click();

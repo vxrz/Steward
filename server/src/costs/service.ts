@@ -19,7 +19,7 @@ import { audit } from '../audit.js';
 import { currentActor } from '../auth/context.js';
 import { HttpError, newId, nowIso } from '../util.js';
 import { requireScope } from './access.js';
-import { FocusError, parseFocus, summarize, type ParsedFocus } from './focus.js';
+import { parseFocus, summarize, type ParsedFocus } from './focus.js';
 import { ingest, mapper, remap, tagKeyOf, type IngestResult } from './store.js';
 
 /**
@@ -190,12 +190,7 @@ export function listImports(platformId: string): CostImport[] {
 }
 
 function parsed(csv: string): ParsedFocus {
-  try {
-    return parseFocus(csv);
-  } catch (e) {
-    if (e instanceof FocusError) throw new HttpError(400, e.message, e.code, e.params);
-    throw e;
-  }
+  return parseFocus(csv);
 }
 
 /** Lines of earlier imports on this platform in the file's days (what mode "replace" removes). */
