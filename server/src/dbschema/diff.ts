@@ -40,75 +40,84 @@ interface TypeInfo {
   unsigned?: boolean;
 }
 
-const INT_RANK: Record<string, number> = {
-  tinyint: 1,
-  int1: 1,
-  smallint: 2,
-  int2: 2,
-  smallserial: 2,
-  mediumint: 3,
-  int3: 3,
-  integer: 4,
-  int: 4,
-  int4: 4,
-  serial: 4,
-  bigint: 5,
-  int8: 5,
-  bigserial: 5,
-};
+/** The type tables are Maps: a type called constructor or toString is a type like any other, not Object.prototype's. */
+const INT_RANK = new Map<string, number>(
+  Object.entries({
+    tinyint: 1,
+    int1: 1,
+    smallint: 2,
+    int2: 2,
+    smallserial: 2,
+    mediumint: 3,
+    int3: 3,
+    integer: 4,
+    int: 4,
+    int4: 4,
+    serial: 4,
+    bigint: 5,
+    int8: 5,
+    bigserial: 5,
+  }),
+);
 const INT_CANON = ['', 'tinyint', 'smallint', 'mediumint', 'integer', 'bigint'];
 
 /** Text types: unicode, and the length when no length is given (Infinity: unbounded). */
-const TEXT: Record<string, { unicode: boolean; size: number }> = {
-  varchar: { unicode: false, size: Infinity },
-  'character varying': { unicode: false, size: Infinity },
-  char: { unicode: false, size: 1 },
-  character: { unicode: false, size: 1 },
-  bpchar: { unicode: false, size: Infinity },
-  nvarchar: { unicode: true, size: 1 },
-  'national character varying': { unicode: true, size: 1 },
-  nchar: { unicode: true, size: 1 },
-  'national character': { unicode: true, size: 1 },
-  text: { unicode: false, size: Infinity },
-  ntext: { unicode: true, size: Infinity },
-  citext: { unicode: false, size: Infinity },
-  tinytext: { unicode: false, size: 255 },
-  mediumtext: { unicode: false, size: 16_777_215 },
-  longtext: { unicode: false, size: 4_294_967_295 },
-  string: { unicode: true, size: Infinity },
-  varchar2: { unicode: false, size: Infinity },
-  nvarchar2: { unicode: true, size: Infinity },
-  clob: { unicode: false, size: Infinity },
-  nclob: { unicode: true, size: Infinity },
-};
-const BINARY: Record<string, number> = {
-  bytea: Infinity,
-  varbinary: Infinity,
-  binary: 1,
-  blob: 65_535,
-  tinyblob: 255,
-  mediumblob: 16_777_215,
-  longblob: 4_294_967_295,
-  image: Infinity,
-  bytes: Infinity,
-};
-const ALIAS: Record<string, string> = {
-  bool: 'boolean',
-  bit: 'boolean',
-  float4: 'real',
-  float8: 'double precision',
-  double: 'double precision',
-  decimal: 'numeric',
-  dec: 'numeric',
-  'timestamp without time zone': 'timestamp',
-  'timestamp with time zone': 'timestamptz',
-  datetime: 'timestamp',
-  datetime2: 'timestamp',
-  smalldatetime: 'timestamp',
-  datetimeoffset: 'timestamptz',
-  'time without time zone': 'time',
-  'time with time zone': 'timetz',
-};
+const TEXT = new Map<string, { unicode: boolean; size: number }>(
+  Object.entries({
+    varchar: { unicode: false, size: Infinity },
+    'character varying': { unicode: false, size: Infinity },
+    char: { unicode: false, size: 1 },
+    character: { unicode: false, size: 1 },
+    bpchar: { unicode: false, size: Infinity },
+    nvarchar: { unicode: true, size: 1 },
+    'national character varying': { unicode: true, size: 1 },
+    nchar: { unicode: true, size: 1 },
+    'national character': { unicode: true, size: 1 },
+    text: { unicode: false, size: Infinity },
+    ntext: { unicode: true, size: Infinity },
+    citext: { unicode: false, size: Infinity },
+    tinytext: { unicode: false, size: 255 },
+    mediumtext: { unicode: false, size: 16_777_215 },
+    longtext: { unicode: false, size: 4_294_967_295 },
+    string: { unicode: true, size: Infinity },
+    varchar2: { unicode: false, size: Infinity },
+    nvarchar2: { unicode: true, size: Infinity },
+    clob: { unicode: false, size: Infinity },
+    nclob: { unicode: true, size: Infinity },
+  }),
+);
+const BINARY = new Map<string, number>(
+  Object.entries({
+    bytea: Infinity,
+    varbinary: Infinity,
+    binary: 1,
+    blob: 65_535,
+    tinyblob: 255,
+    mediumblob: 16_777_215,
+    longblob: 4_294_967_295,
+    image: Infinity,
+    bytes: Infinity,
+  }),
+);
+const ALIAS = new Map<string, string>(
+  Object.entries({
+    bool: 'boolean',
+    bit: 'boolean',
+    float4: 'real',
+    float8: 'double precision',
+    double: 'double precision',
+    decimal: 'numeric',
+    dec: 'numeric',
+    'timestamp without time zone': 'timestamp',
+    'timestamp with time zone': 'timestamptz',
+    datetime: 'timestamp',
+    datetime2: 'timestamp',
+    smalldatetime: 'timestamp',
+    datetimeoffset: 'timestamptz',
+    'time without time zone': 'time',
+    'time with time zone': 'timetz',
+  }),
+);
 
 /** "varchar(120) character set utf8mb4 collate x" → base "varchar", args [120]. */
 function split(raw: string): { base: string; args: string[]; unsigned: boolean; suffix: string } {
@@ -144,22 +153,23 @@ export function typeInfo(raw: string, dialect: DbSchemaDialect = 'other'): TypeI
   const { base: b0, args, unsigned } = split(raw);
   const array = b0.endsWith('[]');
   const b1 = array ? b0.slice(0, -2).trim() : b0;
-  const base = ALIAS[b1] ?? b1;
+  const base = ALIAS.get(b1) ?? b1;
   if (array) return { family: 'other', canon: `${typeInfo(b1, dialect).canon}[]` };
-  if (base in INT_RANK) {
+  const rank = INT_RANK.get(base);
+  if (rank !== undefined) {
     // tinyint(1) is MySQL's boolean; display widths (int(11)) mean nothing
-    const rank = INT_RANK[base]!;
     return { family: 'int', canon: `${INT_CANON[rank]}${unsigned ? ' unsigned' : ''}`, size: rank, unsigned };
   }
-  if (base in TEXT) {
-    const t = TEXT[base]!;
+  const t = TEXT.get(base);
+  if (t) {
     // MariaDB/MySQL "text" holds 65,535 bytes; elsewhere it is unbounded
     const dflt = base === 'text' && dialect === 'mysql' ? 65_535 : t.size;
     const size = num(args[0]) ?? dflt;
     return { family: 'text', canon: `${t.unicode ? 'n' : ''}text(${size})`, size, unicode: t.unicode };
   }
-  if (base in BINARY) {
-    const size = num(args[0]) ?? BINARY[base]!;
+  const binary = BINARY.get(base);
+  if (binary !== undefined) {
+    const size = num(args[0]) ?? binary;
     return { family: 'binary', canon: `binary(${size})`, size };
   }
   if (base === 'numeric' || base === 'number') {

@@ -47,6 +47,12 @@ describe('data types', () => {
     expect(typeInfo('nvarchar(max)')).toMatchObject({ family: 'text', size: Infinity, unicode: true });
     expect(typeInfo('text', 'mysql').size).toBe(65_535);
     expect(typeInfo('integer[]').family).toBe('other');
+    // names of Object.prototype are types like any other (security review of #222)
+    expect(typeInfo('constructor')).toEqual({ family: 'other', canon: 'constructor' });
+    expect(typeInfo('toString')).toEqual({ family: 'other', canon: 'tostring' });
+    expect(compareTypes('toString', 'hasOwnProperty')).toBe('changed');
+    expect(compareTypes('constructor', 'constructor')).toBe('same');
+    expect(compareTypes('__proto__', 'integer')).toBe('changed');
   });
 
   it('tells widened from narrowed and changed', () => {
