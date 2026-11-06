@@ -95,7 +95,8 @@ export async function previewCheck(input: { monitorId?: string; check: unknown; 
   const c: CheckDef = { ...parsed.data };
   if (!isActive(c)) throw new HttpError(409, 'This check type is evaluated from reports, not by a call', 'CHECK_PREVIEW_UNSUPPORTED', { type: c.type });
   if ('platform' in c && c.platform) {
-    const kind = c.type === 'gatus' ? 'gatus' : c.type === 'freshness' && c.source === 'insightsHub' ? 'insights-hub' : undefined;
+    const kind =
+      c.type === 'gatus' ? 'gatus' : c.type === 'freshness' && c.source === 'insightsHub' ? 'insights-hub' : c.type === 'dynamodb' ? 'aws' : undefined;
     (c as { platform: string }).platform = resolvePlatformRef(c.platform, kind).id;
   }
   const started = Date.now();

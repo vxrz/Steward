@@ -69,6 +69,7 @@ export function publishDirtyDatasets(): number {
       };
     });
     const count = (s: MonitorStatus) => out.filter((r) => r.Status === s).length;
+    const values = (def.checks ?? []).flatMap((c) => checkMetrics(c, parseJson<{ value?: unknown } | null>(rows.get(c.id)?.last_result, null)?.value));
     try {
       publishDataset({
         key: `monitor.${m.key}`,
@@ -79,7 +80,14 @@ export function publishDirtyDatasets(): number {
         dryRun: false,
         columns: ['Check', 'Type', 'Status', 'Uptime 24 h (%)', 'Last check (UTC)', 'Message', 'Likely caused by'],
         rows: out,
-        metrics: { checks: out.length, up: count('up'), degraded: count('degraded'), down: count('down'), uptime24h: monitorUptime(id).h24 ?? 0 },
+        metrics: {
+          ...Object.fromEntries(values),
+          checks: out.length,
+          up: count('up'),
+          degraded: count('degraded'),
+          down: count('down'),
+          uptime24h: monitorUptime(id).h24 ?? 0,
+        },
       });
       n++;
     } catch (err) {
@@ -88,6 +96,27 @@ export function publishDirtyDatasets(): number {
   }
   publishOverview();
   return n + 1;
+}
+
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Numbers of a check's last value as dataset metrics, for trends and KPI widgets (#145): DynamoDB checks (#233) give
+ * `<check>.ageSeconds` (the oldest of their partition keys, or the newest write), `<check>.ageSeconds.<key>` per
+ * partition key, `<check>.writes`, `<check>.itemCount` and `<check>.tableSizeBytes`.
+ */
+export function checkMetrics(c: { id: string; type: string }, value: unknown): [string, number][] {
+  if (c.type !== 'dynamodb' || !value || typeof value !== 'object') return [];
+  const v = value as Record<string, unknown>;
+  const out: [string, number][] = [];
+  const add = (name: string, n: unknown) => {
+    if (typeof n === 'number' && Number.isFinite(n) && !UNSAFE_KEYS.has(name)) out.push([name, n]);
+  };
+  for (const k of ['ageSeconds', 'writes', 'itemCount', 'tableSizeBytes']) add(`${c.id}.${k}`, v[k]);
+  if (Array.isArray(v.keys))
+    for (const k of v.keys.slice(0, 50) as { key?: unknown; ageSeconds?: unknown }[])
+      if (typeof k?.key === 'string') add(`${c.id}.ageSeconds.${k.key.slice(0, 100)}`, k.ageSeconds);
+  return out;
 }
 
 function publishOverview(): void {

@@ -111,6 +111,29 @@ A process `http` step on an AWS platform can call any AWS API Steward has no con
 
 The request goes to `https://ec2.eu-central-1.amazonaws.com/` (an AWS platform with another base URL, such as LocalStack, receives it at its base URL), signed for `ec2` in `eu-central-1` with the platform's keys or role. The outbound policy treats that endpoint as the platform's own origin **only** because the step names the service; a step without `aws` cannot reach other `amazonaws.com` hosts through the platform. The role needs the actions the step calls (here `ec2:DescribeInstances`).
 
+### DynamoDB monitor checks
+
+The monitor check **DynamoDB table** ([MONITORS.md](MONITORS.md#dynamodb-tables)) reads a table of the account: the newest item per partition key (`Query`), the write activity (CloudWatch `GetMetricData`) or the table's hygiene (`Describe…`). It is signed for `dynamodb` and `monitoring` in the check's region and goes to `dynamodb.<region>.amazonaws.com` and `monitoring.<region>.amazonaws.com` (an AWS platform with another base URL receives it there). The outbound policy treats these endpoints as the platform's own origin only for the check, as for process steps. Add these read-only statements to the role's policy – only for the tables the monitors read, and their indexes:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "StewardDynamoDbFreshness",
+      "Effect": "Allow",
+      "Action": ["dynamodb:Query", "dynamodb:DescribeTable", "dynamodb:DescribeContinuousBackups", "dynamodb:DescribeTimeToLive"],
+      "Resource": ["arn:aws:dynamodb:eu-central-1:123456789012:table/crm-contacts", "arn:aws:dynamodb:eu-central-1:123456789012:table/crm-contacts/index/*"]
+    },
+    { "Sid": "StewardDynamoDbWrites", "Effect": "Allow", "Action": "cloudwatch:GetMetricData", "Resource": "*" }
+  ]
+}
+```
+
+`cloudwatch:GetMetricData` supports no resource-level permissions (resource `*`); it only reads metrics. The check never needs `dynamodb:Scan`, `dynamodb:GetItem`, `dynamodb:BatchGetItem`, `dynamodb:PartiQLSelect` or any write action – leave them out. A `Query` returns only the key and the time attribute (`ProjectionExpression`); to keep even that narrower, a condition on `dynamodb:Attributes` with `dynamodb:Select: SPECIFIC_ATTRIBUTES` can limit the role to those attributes. Leave out the statements of a mode you do not use (only `dynamodb:Query` for _newest item_, only `cloudwatch:GetMetricData` for _write activity_).
+
+API references: DynamoDB [`Query`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html), [`DescribeTable`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DescribeTable.html), [`DescribeContinuousBackups`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DescribeContinuousBackups.html), [`DescribeTimeToLive`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DescribeTimeToLive.html) (AWS JSON 1.0, `X-Amz-Target: DynamoDB_20120810.<Action>`); CloudWatch [`GetMetricData`](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_GetMetricData.html) in the AWS JSON 1.0 protocol (`X-Amz-Target: GraniteServiceVersion20100801.GetMetricData`, timestamps as epoch seconds); the [DynamoDB metrics](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/metrics-dimensions.html) (`ConsumedWriteCapacityUnits`, dimension `TableName`).
+
 ## Components of an application
 
 An application component of type **Cloud account** names the AWS platform; its **name is the value of the tag** – `shop` for `application=shop`. Without a platform, a cloud account stays a plain entry as before.
@@ -120,6 +143,8 @@ Steward then shows, every 6 hours or on _Read now_:
 - **Resources**: every resource with the tag in the regions read, with service, type, name and region (S3 buckets have none), counted per service. Resources that came or went are recorded in the application's history (`application.aws_resources_changed`).
 - **Costs**: unblended costs per month for the tag, the current month so far and the last month on the component, six months in the readout (also for processes). Costs are read at most once a day, also on _Read now_.
 - **IAM users** that carry the tag: each access key with its status, age and last use (date and service). Active keys older than 90 days are marked. _Add to the credentials register_ opens a new credential with the key's id, creation date and user, belonging to the component – review it and save; the secret part of a key is never read (AWS does not give it out after creation).
+
+Each DynamoDB table among the resources links to a new monitor with a [DynamoDB check](#dynamodb-monitor-checks) for it (for people who may create monitors).
 
 When the account cannot be read, the component keeps the last readout and says why; a region that fails is named while the others are read.
 
@@ -142,4 +167,4 @@ The dashboard [Cloud costs and keys](../examples/dashboards/63-cloud-costs-and-k
 
 ## Demo
 
-The demo has _AWS (demo)_, an account `123456789012` with resources tagged `application=shop` and `application=crm` in `eu-central-1` and `eu-west-1`, six months of costs and three IAM users. The mock checks the signature of every request. The sample applications _Webshop (demo)_ and _CRM (demo)_ have the cloud accounts `shop` and `crm`, so the templates above have data, and the access check _Platform access (demo) – AWS IAM users_ reads the IAM users.
+The demo has _AWS (demo)_, an account `123456789012` with resources tagged `application=shop` and `application=crm` in `eu-central-1` and `eu-west-1`, six months of costs and three IAM users. Its DynamoDB table `crm-contacts` (index `by-segment-updated`: `segment`, `updatedAt`) answers `Query`, the `Describe…` calls and CloudWatch `GetMetricData`; the example monitor _CRM contacts (DynamoDB)_ reads it in all three modes (the segment `partner` is stale on purpose). The mock checks the signature of every request. The sample applications _Webshop (demo)_ and _CRM (demo)_ have the cloud accounts `shop` and `crm`, so the templates above have data, and the access check _Platform access (demo) – AWS IAM users_ reads the IAM users.

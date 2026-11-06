@@ -12,6 +12,9 @@ import { unescapeXml as unescape, xmlAll, xmlOne } from '../platforms/xml.js';
  *   ce       GetCostAndUsage                      costs per month and service, per application tag
  *   iam      ListUsers, ListAccessKeys,           users and the age and last use of their access keys
  *            GetAccessKeyLastUsed
+ *   dynamodb Query, DescribeTable,                the DynamoDB monitor check (#233, aws/dynamodb.ts)
+ *            DescribeContinuousBackups, DescribeTimeToLive
+ *   monitoring GetMetricData (CloudWatch)         its write activity
  */
 
 export const IAM_REGION = 'us-east-1';
@@ -77,19 +80,22 @@ export class AwsClient {
     private readonly signal?: AbortSignal,
   ) {}
 
-  /** A JSON 1.1 API call (X-Amz-Target), e.g. tagging or Cost Explorer. */
-  async json<T>(service: string, region: string, target: string, body: unknown): Promise<T> {
+  /**
+   * A JSON API call (X-Amz-Target): AWS JSON 1.1 (tagging, Cost Explorer) or 1.0 (DynamoDB, CloudWatch). `maxBytes`
+   * limits the answer (default 16 MB).
+   */
+  async json<T>(service: string, region: string, target: string, body: unknown, o: { version?: '1.0' | '1.1'; maxBytes?: number } = {}): Promise<T> {
     const r = await platformRequest(
       this.p,
       this.secrets,
       {
         method: 'POST',
         url: `${endpointFor(this.p, service, region)}/`,
-        headers: { 'content-type': 'application/x-amz-json-1.1', 'x-amz-target': target },
+        headers: { 'content-type': `application/x-amz-json-${o.version ?? '1.1'}`, 'x-amz-target': target },
         body: JSON.stringify(body),
         bodyType: 'text',
         aws: { service, region },
-        maxResponseBytes: 16 * 1024 * 1024,
+        maxResponseBytes: o.maxBytes ?? 16 * 1024 * 1024,
       },
       this.signal,
     );

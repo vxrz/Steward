@@ -329,6 +329,7 @@ const PLATFORM_KIND: Partial<Record<string, string>> = {
   mqtt: 'mqtt',
   snowflake: 'snowflake',
   database: 'database',
+  dynamodb: 'aws',
   'dependency-track': 'dependency-track',
   entra: 'microsoft-graph',
   'privilege-vault': 'privilege-vault',

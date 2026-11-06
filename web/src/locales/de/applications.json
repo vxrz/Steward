@@ -386,7 +386,9 @@
       "used": "zuletzt genutzt {{date}} ({{service}})",
       "neverUsed": "nie genutzt",
       "registerKey": "Den Zugriffsschlüssel {{id}} ins Zugangsdatenregister aufnehmen",
-      "keyDescription": "Zugriffsschlüssel des IAM-Benutzers {{user}} im AWS-Konto {{account}}"
+      "keyDescription": "Zugriffsschlüssel des IAM-Benutzers {{user}} im AWS-Konto {{account}}",
+      "dynamoDbTables": "DynamoDB-Tabellen – Aktualität überwachen:",
+      "watchTable": "Aktualität von {{table}} in einem neuen Monitor überwachen"
     },
     "snowflake": {
       "platform": "Snowflake-Konto",
