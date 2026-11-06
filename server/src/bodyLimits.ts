@@ -15,7 +15,7 @@
  * The route permission matrix test checks that only the routes named in LARGE_BODIES accept more than
  * the default, so a new route stays at 1 MB unless it is added here.
  */
-import { COMPONENT_LIMITS, PLANT_LIMITS, RECORDING_LIMITS, REPORT_LOGO_MAX_BYTES } from '@sm/shared';
+import { COMPONENT_LIMITS, DB_SCHEMA_LIMITS, PLANT_LIMITS, RECORDING_LIMITS, REPORT_LOGO_MAX_BYTES } from '@sm/shared';
 import { LIMITS as CATALOGUE_LIMITS } from './compliance/controls.js';
 import { MONITOR_IMPORT_LIMITS } from './monitors/model.js';
 import { IMPORT_LIMITS as RECORD_IMPORT_LIMITS } from './records/markdown-io.js';
@@ -99,6 +99,19 @@ export const LARGE_BODIES = {
       'POST /api/systems/:id/sbom',
     ],
     bytes: jsonText(COMPONENT_LIMITS.sbomBytes, 16 * KIB),
+  },
+  /**
+   * A tbls schema.json (#222): DB_SCHEMA_LIMITS.importBytes (10 MB) as text in the web app's JSON body, with the output
+   * of tbls lint (1 MB); the public API takes the file itself (or the same JSON)
+   */
+  dbSchemaImport: {
+    routes: [
+      'POST /api/db-schemas/:kind/:id/import/preview',
+      'POST /api/db-schemas/:kind/:id/import',
+      'POST /api/v1/platforms/:platformId/schema/tbls',
+      'POST /api/v1/systems/:systemId/schema/tbls',
+    ],
+    bytes: jsonText(DB_SCHEMA_LIMITS.importBytes + DB_SCHEMA_LIMITS.lintBytes, 16 * KIB),
   },
 } as const satisfies Record<string, LargeBody>;
 

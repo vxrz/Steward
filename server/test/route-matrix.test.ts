@@ -248,6 +248,16 @@ const EXPECT: Record<string, Access> = {
   'GET /api/platforms/:id/ai/usage': USE,
   // database platforms (#203): the connection, with the platform's manage right
   'PUT /api/platforms/:id/database': ADMIN,
+  // database schemas (#222), here of the demo database platform: whoever sees it sees its schema, "use" reads it,
+  // "manage" imports and changes the settings
+  'GET /api/db-schemas/:kind/:id': USE,
+  'POST /api/db-schemas/:kind/:id/read': USE,
+  'PUT /api/db-schemas/:kind/:id/settings': ADMIN,
+  'POST /api/db-schemas/:kind/:id/import/preview': ADMIN,
+  'POST /api/db-schemas/:kind/:id/import': ADMIN,
+  'GET /api/db-schemas/:kind/:id/snapshots/:snapshotId': USE,
+  'GET /api/db-schemas/:kind/:id/snapshots/:snapshotId/export': USE,
+  'GET /api/db-schemas/:kind/:id/compare': USE,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
@@ -742,6 +752,20 @@ const EXPECT: Record<string, Access> = {
   // the checks of the assets the token owner may see, the export of what they may see (#219)
   'GET /api/v1/plant/checks': PLANT,
   'GET /api/v1/plant/export': PLANT,
+  // database schemas (#222): of the demo database platform (who sees it) and of the matrix system (everyone);
+  // the tbls import needs a full-scope token – the read tokens of the matrix are refused
+  'GET /api/v1/platforms/:platformId/schema/snapshots': USE,
+  'GET /api/v1/platforms/:platformId/schema/snapshots/:snapshotId': USE,
+  'GET /api/v1/platforms/:platformId/schema/snapshots/:snapshotId/export': USE,
+  'GET /api/v1/platforms/:platformId/schema/changes': USE,
+  'GET /api/v1/platforms/:platformId/schema/compare': USE,
+  'POST /api/v1/platforms/:platformId/schema/tbls': ADMIN,
+  'GET /api/v1/systems/:systemId/schema/snapshots': ALL,
+  'GET /api/v1/systems/:systemId/schema/snapshots/:snapshotId': ALL,
+  'GET /api/v1/systems/:systemId/schema/snapshots/:snapshotId/export': ALL,
+  'GET /api/v1/systems/:systemId/schema/changes': ALL,
+  'GET /api/v1/systems/:systemId/schema/compare': ALL,
+  'POST /api/v1/systems/:systemId/schema/tbls': DESIGN,
   'GET /api/v1/environments': ALL,
   'GET /api/v1/maintenance-windows': ALL,
   'GET /api/v1/measures': ALL,
@@ -1117,115 +1141,122 @@ let routes: { method: string; url: string; bodyLimit?: number }[] = [];
 /** Fills the path parameters of a route with fixture ids. */
 function fill(url: string): string {
   const seg = (name: string, fallback: string) => fx[name] ?? fallback;
-  return url
-    .replace(/\*/g, 'nothing-here')
-    .replace(/\/api\/platform-types\/:kind/, `/api/platform-types/${fx.platformKind}`)
-    .replace(/\/api\/owning-teams\/:kind\/:id/, `/api/owning-teams/process/${fx.process}`)
-    .replace(/\/api\/duplicates\/:kind\/:id/, `/api/duplicates/process/${fx.process}`)
-    .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : fx.platform!)
-    .replace(/:specId/g, fx.spec!)
-    .replace(/:docId/g, fx.doc!)
-    .replace(/:processId/g, fx.process!)
-    .replace(/:runId/g, fx.run!)
-    .replace(/:stepId/g, fx.step!)
-    .replace(/:nodeId/g, fx.node!)
-    .replace(/:taskId/g, 'tsk_none')
-    .replace(/:triggerId/g, fx.trigger!)
-    .replace(/:scheduleId/g, fx.schedule!)
-    .replace(/:datasetKey/g, fx.dataset!)
-    .replace(/:key/g, fx.dataset!)
-    .replace(/:dashboardId/g, fx.dashboard!)
-    .replace(/:userId/g, fx.user!)
-    .replace(/:credentialId/g, fx.credential!)
-    .replace(/:ticketId/g, fx.ticket!)
-    .replace(/:monitorId/g, fx.monitor!)
-    .replace(/:recordId/g, fx.record!)
-    .replace(/:serviceId/g, fx.service!)
-    .replace(/:applicationId/g, fx.application!)
-    .replace(/:componentId/g, fx.component!)
-    .replace(/:systemLinkId/g, fx.systemLink!)
-    .replace(/:segmentLinkId/g, 'ssg_none')
-    .replace(/:systemId/g, fx.system!)
-    .replace(/:dutyId/g, fx.duty!)
-    .replace(/:skipId/g, fx.dutySkip!)
-    .replace(/:objectiveId/g, fx.objective!)
-    .replace(/:accessChangeId/g, fx.accessChange!)
-    .replace(/:accessCheckId/g, fx.accessCheck!)
-    .replace(/:reviewId/g, fx.personReview!)
-    .replace(/:requestId/g, 'mrq_none')
-    .replace(/:pageId/g, fx.statusPage!)
-    .replace(/:snapshotId/g, fx.snapshot!)
-    .replace(/:findingId/g, fx.finding!)
-    .replace(/:catalogueId/g, fx.catalogue!)
-    .replace(/:controlId/g, fx.control!)
-    .replace(/:packId/g, fx.pack!)
-    .replace(/:version/g, '1')
-    .replace(/:edition/g, '1.0')
-    .replace(/:checkId/g, fx.check!)
-    .replace(/:wid/g, fx.maintenance!)
-    .replace(/:file/g, fx.monitorExample!)
-    .replace(/:attId/g, 'att_none')
-    .replace(/:evidenceId/g, 'tev_none')
-    .replace(/:siteId/g, fx.site!)
-    .replace(/:assetId/g, fx.asset!)
-    .replace(/:nodeId/g, fx.plantNode!)
-    .replace(/:buildingId/g, fx.building!)
-    .replace(/:profileId/g, 'matrix-profile')
-    .replace(/:pointId/g, 'matrix_point')
-    .replace(/:kpiId/g, 'matrix-kpi')
-    .replace(
-      /:linkId/g,
-      url.startsWith('/api/services')
-        ? fx.serviceLink!
-        : url.startsWith('/api/applications')
-          ? fx.applicationLink!
-          : url.startsWith('/api/plant/sites')
-            ? fx.siteLink!
-            : url.startsWith('/api/plant/assets')
-              ? fx.assetLink!
-              : fx.recordLink!,
-    )
-    .replace(/:measureId/g, fx.measure!)
-    .replace(/^\/api\/records\/:id\/(measures|timeline)/, (_m, rest: string) => `/api/records/${fx.review}/${rest}`)
-    .replace(/:id/g, () => {
-      const prefix = url.split('/')[2]!;
-      const map: Record<string, string> = {
-        platforms: 'platform',
-        processes: 'process',
-        runs: 'run',
-        artifacts: 'artifact',
-        tasks: 'task',
-        schedules: 'schedule',
-        dashboards: 'dashboard',
-        monitors: 'monitor',
-        'monitor-gateways': 'gateway',
-        triggers: 'trigger',
-        hooks: url.includes('/hooks/monitor/') ? 'monitor' : 'trigger',
-        records: 'record',
-        'record-types': 'recordType',
-        credentials: 'credential',
-        'ticket-references': 'ticket',
-        services: 'service',
-        applications: 'application',
-        systems: 'system',
-        'maintenance-windows': 'catalogueMaintenance',
-        duties: 'duty',
-        objectives: 'objective',
-        scorecard: url.includes('/rules/') ? 'scorecardRule' : 'service',
-        'report-schedules': 'reportSchedule',
-        reports: 'report',
-        users: 'user',
-        teams: 'team',
-        me: 'token',
-        tokens: 'token',
-        sso: 'sso',
-        auth: 'sso',
-        notifications: 'notification',
-        'sync-sources': 'syncSource',
-        'sync-updates': 'syncUpdate',
-      };
-      return seg(map[prefix] ?? '', `none_${prefix}`);
-    });
+  return (
+    url
+      .replace(/\*/g, 'nothing-here')
+      .replace(/\/api\/platform-types\/:kind/, `/api/platform-types/${fx.platformKind}`)
+      .replace(/\/api\/owning-teams\/:kind\/:id/, `/api/owning-teams/process/${fx.process}`)
+      .replace(/\/api\/duplicates\/:kind\/:id/, `/api/duplicates/process/${fx.process}`)
+      // database schemas (#222): the demo database platform, the newest snapshot
+      .replace(/\/api\/db-schemas\/:kind\/:id/, `/api/db-schemas/platform/${fx.dbPlatform}`)
+      .replace(/\/schema\/snapshots\/:snapshotId/, '/schema/snapshots/latest')
+      .replace(/\/api\/db-schemas\/([^/]+)\/([^/]+)\/snapshots\/:snapshotId/, '/api/db-schemas/$1/$2/snapshots/latest')
+      .replace(/:platformId\/schema/, `${fx.dbPlatform}/schema`)
+      .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : fx.platform!)
+      .replace(/:specId/g, fx.spec!)
+      .replace(/:docId/g, fx.doc!)
+      .replace(/:processId/g, fx.process!)
+      .replace(/:runId/g, fx.run!)
+      .replace(/:stepId/g, fx.step!)
+      .replace(/:nodeId/g, fx.node!)
+      .replace(/:taskId/g, 'tsk_none')
+      .replace(/:triggerId/g, fx.trigger!)
+      .replace(/:scheduleId/g, fx.schedule!)
+      .replace(/:datasetKey/g, fx.dataset!)
+      .replace(/:key/g, fx.dataset!)
+      .replace(/:dashboardId/g, fx.dashboard!)
+      .replace(/:userId/g, fx.user!)
+      .replace(/:credentialId/g, fx.credential!)
+      .replace(/:ticketId/g, fx.ticket!)
+      .replace(/:monitorId/g, fx.monitor!)
+      .replace(/:recordId/g, fx.record!)
+      .replace(/:serviceId/g, fx.service!)
+      .replace(/:applicationId/g, fx.application!)
+      .replace(/:componentId/g, fx.component!)
+      .replace(/:systemLinkId/g, fx.systemLink!)
+      .replace(/:segmentLinkId/g, 'ssg_none')
+      .replace(/:systemId/g, fx.system!)
+      .replace(/:dutyId/g, fx.duty!)
+      .replace(/:skipId/g, fx.dutySkip!)
+      .replace(/:objectiveId/g, fx.objective!)
+      .replace(/:accessChangeId/g, fx.accessChange!)
+      .replace(/:accessCheckId/g, fx.accessCheck!)
+      .replace(/:reviewId/g, fx.personReview!)
+      .replace(/:requestId/g, 'mrq_none')
+      .replace(/:pageId/g, fx.statusPage!)
+      .replace(/:snapshotId/g, fx.snapshot!)
+      .replace(/:findingId/g, fx.finding!)
+      .replace(/:catalogueId/g, fx.catalogue!)
+      .replace(/:controlId/g, fx.control!)
+      .replace(/:packId/g, fx.pack!)
+      .replace(/:version/g, '1')
+      .replace(/:edition/g, '1.0')
+      .replace(/:checkId/g, fx.check!)
+      .replace(/:wid/g, fx.maintenance!)
+      .replace(/:file/g, fx.monitorExample!)
+      .replace(/:attId/g, 'att_none')
+      .replace(/:evidenceId/g, 'tev_none')
+      .replace(/:siteId/g, fx.site!)
+      .replace(/:assetId/g, fx.asset!)
+      .replace(/:nodeId/g, fx.plantNode!)
+      .replace(/:buildingId/g, fx.building!)
+      .replace(/:profileId/g, 'matrix-profile')
+      .replace(/:pointId/g, 'matrix_point')
+      .replace(/:kpiId/g, 'matrix-kpi')
+      .replace(
+        /:linkId/g,
+        url.startsWith('/api/services')
+          ? fx.serviceLink!
+          : url.startsWith('/api/applications')
+            ? fx.applicationLink!
+            : url.startsWith('/api/plant/sites')
+              ? fx.siteLink!
+              : url.startsWith('/api/plant/assets')
+                ? fx.assetLink!
+                : fx.recordLink!,
+      )
+      .replace(/:measureId/g, fx.measure!)
+      .replace(/^\/api\/records\/:id\/(measures|timeline)/, (_m, rest: string) => `/api/records/${fx.review}/${rest}`)
+      .replace(/:id/g, () => {
+        const prefix = url.split('/')[2]!;
+        const map: Record<string, string> = {
+          platforms: 'platform',
+          processes: 'process',
+          runs: 'run',
+          artifacts: 'artifact',
+          tasks: 'task',
+          schedules: 'schedule',
+          dashboards: 'dashboard',
+          monitors: 'monitor',
+          'monitor-gateways': 'gateway',
+          triggers: 'trigger',
+          hooks: url.includes('/hooks/monitor/') ? 'monitor' : 'trigger',
+          records: 'record',
+          'record-types': 'recordType',
+          credentials: 'credential',
+          'ticket-references': 'ticket',
+          services: 'service',
+          applications: 'application',
+          systems: 'system',
+          'maintenance-windows': 'catalogueMaintenance',
+          duties: 'duty',
+          objectives: 'objective',
+          scorecard: url.includes('/rules/') ? 'scorecardRule' : 'service',
+          'report-schedules': 'reportSchedule',
+          reports: 'report',
+          users: 'user',
+          teams: 'team',
+          me: 'token',
+          tokens: 'token',
+          sso: 'sso',
+          auth: 'sso',
+          notifications: 'notification',
+          'sync-sources': 'syncSource',
+          'sync-updates': 'syncUpdate',
+        };
+        return seg(map[prefix] ?? '', `none_${prefix}`);
+      })
+  );
 }
 
 /** Query strings some routes need. */
@@ -1625,6 +1656,17 @@ beforeAll(async () => {
     assetLink,
   };
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
+  // database schemas (#222): a read of the demo database platform, a tbls import for the matrix system
+  fx.dbPlatform = platforms.find((p: { kind: string }) => p.kind === 'database').id;
+  const dbSnap = (await a('POST', `/db-schemas/platform/${fx.dbPlatform}/read`)).snapshot.id;
+  const tbls = JSON.stringify({
+    name: 'matrix',
+    tables: [{ name: 'public.t', type: 'BASE TABLE', columns: [{ name: 'id', type: 'integer', nullable: false }] }],
+  });
+  const sysSnap = (await a('POST', `/db-schemas/system/${system.id}/import`, { schema: tbls })).snapshot.id;
+  QUERY['GET /api/db-schemas/:kind/:id/compare'] = `?from=${dbSnap}&to=${dbSnap}`;
+  QUERY['GET /api/v1/platforms/:platformId/schema/compare'] = `?from=${dbSnap}&to=${dbSnap}`;
+  QUERY['GET /api/v1/systems/:systemId/schema/compare'] = `?from=${sysSnap}&to=${sysSnap}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;
   const vaultPlatform = (await a('GET', '/platforms')).find((p: { kind: string }) => p.kind === 'privilege-vault').id;
   QUERY['GET /api/credentials/vault-secrets'] = `?platformId=${vaultPlatform}&q=`;

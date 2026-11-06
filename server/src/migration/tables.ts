@@ -137,6 +137,9 @@ export const HISTORY_COLUMNS: string[] = [
   'plant_assets.updated_by',
   'plant_asset_images.updated_by',
   'plant_imports.created_by',
+  // database schema snapshots and their settings (#222)
+  'db_schema_snapshots.actor',
+  'db_schema_settings.updated_by',
   'plant_profiles.created_by',
   'plant_profiles.updated_by',
   'plant_kpis.created_by',
@@ -244,6 +247,11 @@ export const NOT_PEOPLE_COLUMNS: string[] = [
   'monitor_checks.caused_by',
   'monitor_history.caused_by',
   'notifications.user_id',
+  // a database platform or system (#222), not a person
+  'db_schema_snapshots.subject_kind',
+  'db_schema_snapshots.subject_id',
+  'db_schema_settings.subject_kind',
+  'db_schema_settings.subject_id',
 ];
 
 /** Tables whose automation is paused after the import: an administrator reviews and turns them on again. */
