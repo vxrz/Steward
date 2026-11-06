@@ -65,9 +65,10 @@ jobs:
       - name: Install scripts – only the reviewed ones (package.json "allowScripts")
         run: node scripts/install-scripts.mjs --check --run
       - name: Install Chromium for Playwright
+        # the browser only: the runner image has the system libraries (--with-deps spent 10-12 minutes on fonts, see ui-tests.yml)
         # a hanging install fails here instead of using up the whole job time
         timeout-minutes: 15
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       - name: Typecheck
         run: npm run typecheck
       - name: Validate example processes and dashboards
@@ -134,7 +135,7 @@ jobs:
       - name: Install Chromium for Playwright
         # a hanging install fails here instead of using up the whole job time
         timeout-minutes: 15
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       - name: Tests on PostgreSQL
         run: npm run test:pg
 
