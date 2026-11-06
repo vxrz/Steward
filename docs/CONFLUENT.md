@@ -54,6 +54,10 @@ Every list is read page by page (`metadata.next`, at most 50 pages of 100); a ne
 
 _Compliance → Person reviews → New_: name the colleague's e-mail address and choose the Confluent check with the others. Their bindings and ACLs appear next to the rights from the other platforms; the decisions and the removal check work the same ([COMPLIANCE.md](COMPLIANCE.md)). Removing a binding stays a manual step in Confluent Cloud – Steward only reads.
 
+## Costs
+
+The same platform reads the organisation's costs (0.9.0, [COSTS.md](COSTS.md#sources)) from the **Costs API** `GET /billing/v1/costs` – daily lines per cluster, connector and product in US dollars, at most one month per request, complete after 72 hours – once a day when turned on under _Costs → the platform → Source_. The Cloud API key's service account needs the **OrganizationAdmin** or **BillingAdmin** role for it. A cluster's costs belong to the Kafka platform whose variable `confluentClusterId` is the cluster id (`lkc-…`) and so to the application of its topics; other lines stay on the Confluent platform.
+
 ## Demo and tests
 
-`server/src/mock/mockConfluent.ts` simulates the endpoints at `/mock/confluent` (Cloud API key `CLOUDKEY`) and the Kafka REST API of the cluster `lkc-demo1` at `/mock/confluent/kafka-rest` (key `CLUSTERKEY`), two items per page. Tests: `server/test/confluent.test.ts`.
+`server/src/mock/mockConfluent.ts` simulates the endpoints at `/mock/confluent` (Cloud API key `CLOUDKEY`, also the Costs API; the demo platform _Confluent Cloud (demo)_) and the Kafka REST API of the cluster `lkc-demo1` at `/mock/confluent/kafka-rest` (key `CLUSTERKEY`), two items per page. Tests: `server/test/confluent.test.ts`.
