@@ -290,6 +290,41 @@ describe('the SQL migration and the one-time step after unlock', () => {
   });
 });
 
+describe('migration packages', () => {
+  it('converts the platforms of a package from an older version that were intact on the source, and seals new-layout identities', async () => {
+    const { sealImported } = await import('../src/migration/import.js');
+    const a = await apiKeyPlatform('Package intact', 'package-key-aaaa');
+    const b = await apiKeyPlatform('Package changed', 'package-key-bbbb');
+    const d = await db();
+    const all = d.all<{ id: string }>('SELECT id FROM platforms').map((r) => r.id);
+    // an older package: old layout, no identityIntegrity in its manifest
+    await toOldLayout();
+    sealImported(Object.fromEntries(all.map((id) => [id, id === b.id ? 'mismatch' : 'ok'])), undefined);
+    const secretsOf = (id: string) => d.get<{ secrets: string | null }>('SELECT secrets FROM platforms WHERE id = ?', id)!.secrets;
+    expect(secretsOf(a.id)).toBeNull();
+    expect((await s.api('GET', `/platforms/${a.id}`)).integrity).toBe('ok');
+    lastAuth = undefined;
+    expect((await s.api('POST', `/platforms/${a.id}/test`)).ok).toBe(true);
+    expect(lastAuth).toBe('package-key-aaaa');
+    // changed on the source: unsealed, old layout, refused until an administrator confirms
+    expect(secretsOf(b.id)).not.toBeNull();
+    expect((await s.api('GET', `/platforms/${b.id}`)).integrity).toBe('unsealed');
+    await s.api('POST', `/platforms/${b.id}/confirm-config`);
+    // a package of this version: identities sealed when they were intact on the source, the others not
+    const ia = `pi_${a.id.slice(3)}`;
+    const ib = `pi_${b.id.slice(3)}`;
+    sealImported(
+      Object.fromEntries(all.map((id) => [id, 'ok'])),
+      Object.fromEntries(d.all<{ id: string }>('SELECT id FROM platform_identities').map((r) => [r.id, r.id === ib ? 'mismatch' : 'ok'])),
+    );
+    expect(d.get<{ config_mac: string | null }>('SELECT config_mac FROM platform_identities WHERE id = ?', ia)!.config_mac).toBeTruthy();
+    expect(d.get<{ config_mac: string | null }>('SELECT config_mac FROM platform_identities WHERE id = ?', ib)!.config_mac).toBeNull();
+    await expect(s.api('POST', `/platforms/${b.id}/test`)).rejects.toMatchObject({ status: 409 });
+    await s.api('POST', `/platforms/${b.id}/confirm-config`);
+    expect((await s.api('POST', `/platforms/${b.id}/test`)).ok).toBe(true);
+  });
+});
+
 describe('the resolver getConnection()', () => {
   it('gives the platform with its default identity merged in, checks both seals', async () => {
     const { getConnection, getPlatform, getSecrets } = await import('../src/platforms/service.js');

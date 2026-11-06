@@ -1302,23 +1302,7 @@ function copyIntoTarget(
       d.run('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value', k, JSON.stringify(v));
     }
     // ---- configuration integrity: what was intact on the source is sealed with this vault's key ----
-    for (const [id, state] of Object.entries(m.platformIntegrity)) {
-      if (state === 'ok') sealPlatform(id);
-      else d.run('UPDATE platforms SET config_mac = NULL WHERE id = ?', id);
-    }
-    // identities (0.9.0, ADR 0009): sealed when intact on the source. A package of an older version has the old layout
-    // (credentials on the platform row, identities made by the SQL migration in staging): an intact platform's move to
-    // its default identity now, exactly as the one-time step after an update; the others wait for an administrator.
-    for (const [id, state] of Object.entries(m.platformIntegrity)) {
-      const row = d.get<{ secrets: string | null; config: string }>('SELECT secrets, config FROM platforms WHERE id = ?', id);
-      if (!row) continue;
-      const legacy = !m.identityIntegrity || row.secrets !== null || hasLegacyGateway(row.config);
-      for (const i of d.all<{ id: string }>('SELECT id FROM platform_identities WHERE platform_id = ?', id)) {
-        if (state === 'ok' && !legacy && m.identityIntegrity?.[i.id] === 'ok') sealIdentity(i.id);
-        else d.run('UPDATE platform_identities SET config_mac = NULL WHERE id = ?', i.id);
-      }
-      if (state === 'ok' && legacy) moveToDefaultIdentity(id);
-    }
+    sealImported(m.platformIntegrity, m.identityIntegrity);
     // ---- the imported history, unchanged ----
     for (const e of history.entries()) {
       d.run(
@@ -1378,4 +1362,28 @@ function copyIntoTarget(
     { label: UNFINISHED_RUNS_LABEL, count: unfinished },
   ].filter((p) => p.count > 0);
   return { importId, counts, historyEntries: history.count, temporaryPasswords, paused };
+}
+
+/**
+ * Configuration integrity after an import: platforms (and, 0.9.0, their identities) that were intact on the source are
+ * sealed with this vault's key, the others stay unsealed for an administrator. A package of an older version has the
+ * old layout (credentials on the platform row, identities made by the SQL migration in staging): an intact platform's
+ * credentials move to its default identity now, exactly as the one-time step after an update does (ADR 0009).
+ */
+export function sealImported(platformIntegrity: Manifest['platformIntegrity'], identityIntegrity: Manifest['identityIntegrity']): void {
+  const d = db();
+  for (const [id, state] of Object.entries(platformIntegrity)) {
+    if (state === 'ok') sealPlatform(id);
+    else d.run('UPDATE platforms SET config_mac = NULL WHERE id = ?', id);
+  }
+  for (const [id, state] of Object.entries(platformIntegrity)) {
+    const row = d.get<{ secrets: string | null; config: string }>('SELECT secrets, config FROM platforms WHERE id = ?', id);
+    if (!row) continue;
+    const legacy = !identityIntegrity || row.secrets !== null || hasLegacyGateway(row.config);
+    for (const i of d.all<{ id: string }>('SELECT id FROM platform_identities WHERE platform_id = ?', id)) {
+      if (state === 'ok' && !legacy && identityIntegrity?.[i.id] === 'ok') sealIdentity(i.id);
+      else d.run('UPDATE platform_identities SET config_mac = NULL WHERE id = ?', i.id);
+    }
+    if (state === 'ok' && legacy) moveToDefaultIdentity(id);
+  }
 }
