@@ -149,7 +149,10 @@ export interface PlantVlanValues {
   managedBy: string;
   /** Where its access rules are kept (a firewall, a document, a URL) */
   rulesAt: string;
-  /** Other sites it reaches (site ids) */
+  /**
+   * Other sites it reaches (site ids). A view lists only the sites the reader may see; a save keeps the ones the
+   * caller may not see.
+   */
   sites: string[];
   /** Where it is (a building, a rack, free text) */
   location: string;

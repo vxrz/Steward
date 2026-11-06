@@ -218,7 +218,23 @@ function siteData(siteId: string): SiteData {
 
 const source = (r: { import_id: string | null; not_in_source: number }) => ({ importId: r.import_id, notInSource: !!r.not_in_source });
 
-function vlanView(r: VlanRow, d: SiteData, rights: Map<string, PlantPermission[]>): PlantVlanView {
+/** The sites besides its own that a VLAN reaches, as far as the reader may see them (a hidden site reads like none). */
+const seenSites = (sites: string[], rights: Map<string, PlantPermission[]>) => sites.filter((s) => rights.get(s)?.includes('view'));
+
+/**
+ * The other sites a save sends, with the ones of `before` the caller may not see kept in their place (they cannot
+ * name or remove them); sites that no longer exist are left out.
+ */
+export function withHiddenSites(input: string[], before: string[] | null, rights: Map<string, PlantPermission[]>): string[] {
+  const out = [...input];
+  (before ?? []).forEach((s, i) => {
+    if (!rights.has(s) || rights.get(s)!.includes('view') || out.includes(s)) return;
+    out.splice(Math.min(i, out.length), 0, s);
+  });
+  return out;
+}
+
+function vlanView(r: VlanRow, d: SiteData, rights: Map<string, PlantPermission[]>, names: Map<string, string>): PlantVlanView {
   const v = vlanValuesOf(r);
   let segment: PlantVlanView['segment'] = null;
   let segmentHint: PlantVlanView['segmentHint'] = null;
@@ -238,17 +254,14 @@ function vlanView(r: VlanRow, d: SiteData, rights: Map<string, PlantPermission[]
       if (vidDiffers || diff.onlyVlan.length || diff.onlySegment.length) segmentHint = { vidDiffers, ...diff };
     }
   }
-  const names = new Map(
-    db()
-      .all<SiteRow>('SELECT id, name FROM plant_sites')
-      .map((s) => [s.id, s.name]),
-  );
+  const sites = seenSites(v.sites, rights);
   return {
     ...v,
+    sites,
     ...source(r),
     segment,
     segmentHint,
-    otherSites: v.sites.filter((s) => rights.get(s)?.includes('view')).map((s) => ({ id: s, name: names.get(s) ?? s })),
+    otherSites: sites.map((s) => ({ id: s, name: names.get(s) ?? s })),
     zones: d.zones.filter((z) => z.vlans.includes(v.id)).map((z) => z.id),
     deviceCount: d.devices.filter((x) => x.vlan_id === v.id).length,
   };
@@ -355,7 +368,9 @@ const emptyCounts = (): Record<LiveState, number> => ({ online: 0, offline: 0, u
 /** The OT network of a site, with everything a diagram needs: zones, conduits, VLANs, devices, data paths and hosts. */
 export function siteNetwork(siteId: string): PlantSiteNetwork {
   const d = siteData(siteId);
-  const rights = siteRights(db().all<SiteRow>('SELECT id, acl FROM plant_sites'));
+  const siteRows = db().all<SiteRow>('SELECT id, name, acl FROM plant_sites');
+  const rights = siteRights(siteRows);
+  const names = new Map(siteRows.map((s) => [s.id, s.name]));
   const ctx = liveContext();
   const vlanValues = new Map(d.vlans.map((r) => [r.id, vlanValuesOf(r)]));
   const assetName = new Map(d.assets.map((a) => [a.id, a.name]));
@@ -385,7 +400,7 @@ export function siteNetwork(siteId: string): PlantSiteNetwork {
   return {
     site: { id: d.site.id, code: d.site.code, name: d.site.name, names: parseJson(d.site.names, {}) },
     canManage: d.perms.includes('manage'),
-    vlans: d.vlans.map((r) => vlanView(r, d, rights)),
+    vlans: d.vlans.map((r) => vlanView(r, d, rights, names)),
     zones: d.zoneRows.map((r) => zoneView(r, d)),
     conduits: d.conduits.map((r) => conduitView(siteId, r)),
     devices,
@@ -440,7 +455,8 @@ export function updateVlan(siteId: string, vlanId: string, input: z.infer<typeof
   const cur = vlanRowOf(siteId, vlanId);
   if (!cur) throw notFound('vlan', vlanId);
   const before = vlanValuesOf(cur);
-  const v: PlantVlanValues = { id: vlanId, ...input };
+  const rights = siteRights(db().all<SiteRow>('SELECT id, acl FROM plant_sites'));
+  const v: PlantVlanValues = { id: vlanId, ...input, sites: withHiddenSites(input.sites, before.sites, rights) };
   invalid([...vlanProblems(v, siteId), ...refProblems(v, before)]);
   const changes = changedKeys(before, v);
   if (!changes.length) return siteNetwork(siteId);

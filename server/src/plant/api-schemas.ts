@@ -486,7 +486,7 @@ const Vlan = z.object({
   restricted: z.boolean(),
   managedBy: z.string(),
   rulesAt: z.string().describe('Where its access rules are kept'),
-  sites: z.array(z.string()).describe('Other sites it reaches'),
+  sites: z.array(z.string()).describe('Other sites it reaches (those the token owner may see)'),
   location: z.string(),
   segmentId: z.string().nullable().describe('The Steward network segment (system id) it is linked to'),
   notes: z.string(),

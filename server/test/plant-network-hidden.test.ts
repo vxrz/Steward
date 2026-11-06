@@ -281,3 +281,48 @@ describe('a monitor the reader may not see', () => {
     }
   });
 });
+
+describe('the other sites of a VLAN', () => {
+  it('name only the sites the reader may see – in the network, the public API and the export – and a save keeps the others', async () => {
+    await s.api('POST', '/plant/sites/riverside/vlans', { id: 'v-x', name: 'X', sites: ['hillcrest'] });
+    await s.api('PUT', '/plant/sites/hillcrest/access', { acl: [{ subject: 'role:admin', permissions: ['view', 'manage'] }] });
+    try {
+      expect((await status(users.vera!('GET', '/plant/sites/hillcrest'))).status).toBe(404);
+      for (const who of ['vera', 'dana', 'pia']) {
+        const v = (await users[who]!('GET', '/plant/sites/riverside/network')).vlans.find((x: { id: string }) => x.id === 'v-x');
+        expect([v.sites, v.otherSites], who).toEqual([[], []]);
+      }
+      const t = await users.vera!('POST', '/me/tokens', { name: 'ot', scope: 'read' });
+      const v1 = await (await fetch(`${s.base}/api/v1/plant/sites/riverside/network`, { headers: { authorization: `Bearer ${t.token}` } })).json();
+      expect(v1.vlans.find((x: { id: string }) => x.id === 'v-x').sites).toEqual([]);
+      const y: string = await users.dana!('GET', '/plant/export?site=riverside');
+      expect(y.includes('hillcrest')).toBe(false);
+      // the administrator still sees it
+      expect((await s.api('GET', '/plant/sites/riverside/network')).vlans.find((x: { id: string }) => x.id === 'v-x').sites).toEqual(['hillcrest']);
+      // dana saves the VLAN as she reads it, and imports her export: the hidden site stays
+      const v = (await users.dana!('GET', '/plant/sites/riverside/network')).vlans.find((x: { id: string }) => x.id === 'v-x');
+      await users.dana!('PUT', '/plant/sites/riverside/vlans/v-x', {
+        name: 'X renamed',
+        vid: v.vid,
+        type: v.type,
+        owner: v.owner,
+        description: v.description,
+        subnets: v.subnets,
+        restricted: v.restricted,
+        managedBy: v.managedBy,
+        rulesAt: v.rulesAt,
+        sites: v.sites,
+        location: v.location,
+        segmentId: v.segmentId,
+        notes: v.notes,
+      });
+      const vx = async () => (await s.api('GET', '/plant/sites/riverside/network')).vlans.find((x: { id: string }) => x.id === 'v-x');
+      expect(await vx()).toMatchObject({ name: 'X renamed', sites: ['hillcrest'] });
+      await users.dana!('POST', '/plant/import', { files: [{ name: 'round.plant.yaml', content: y }], mode: 'update' });
+      expect(await vx()).toMatchObject({ name: 'X', sites: ['hillcrest'] });
+    } finally {
+      await s.api('PUT', '/plant/sites/hillcrest/access', { acl: [] });
+      await s.api('DELETE', '/plant/sites/riverside/vlans/v-x');
+    }
+  });
+});

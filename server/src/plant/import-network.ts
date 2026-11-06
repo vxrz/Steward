@@ -18,8 +18,9 @@ import { db } from '../db.js';
 import type { AssetRow, SiteRow } from './model.js';
 import type { AssetNetworkFile, OtNetworkFile, PlantFile, StatusCheckFile } from './format.js';
 import { clean, pushWrite, type Origin, type Write } from './import-data.js';
-import { refProblems } from './network.js';
+import { refProblems, withHiddenSites } from './network.js';
 import { checkVisible, liveContext, withStoredHiddenChecks } from './live.js';
+import { siteRights } from './access.js';
 import {
   assetChecksInput,
   assetChecksProblems,
@@ -537,6 +538,7 @@ export function computeNetwork(c: NetContext): void {
     write: (site, v, pos) => upsertVlan(site, v, pos, c.meta),
     adopt: adoptSql('plant_vlans', 'site_id'),
     refs: true,
+    keep: (v, before) => ({ ...v, sites: withHiddenSites(v.sites, before?.sites ?? null, c.rights) }),
   });
   plannedRecords<PlantZoneValues, ZoneRow>({
     planned: p.zones,
@@ -737,6 +739,7 @@ const checkOut = (c: PlantStatusCheck) =>
 
 /** The OT network of a site in the file format (null: it has none). */
 export function otNetworkOut(siteId: string): Record<string, unknown> | null {
+  const rights = siteRights(db().all<SiteRow>('SELECT id, acl FROM plant_sites'));
   const vlans = db().all<VlanRow>('SELECT * FROM plant_vlans WHERE site_id = ? ORDER BY position, id', siteId).map(vlanValuesOf);
   const zones = db().all<ZoneRow>('SELECT * FROM plant_zones WHERE site_id = ? ORDER BY position, id', siteId).map(zoneValuesOf);
   const conduits = db().all<ConduitRow>('SELECT * FROM plant_conduits WHERE site_id = ? ORDER BY position, id', siteId).map(conduitValuesOf);
@@ -763,7 +766,8 @@ export function otNetworkOut(siteId: string): Record<string, unknown> | null {
           restricted: v.restricted,
           managed_by: v.managedBy,
           rules_at: v.rulesAt,
-          sites: v.sites,
+          // the other sites as far as the exporter may see them (an import keeps the others)
+          sites: v.sites.filter((x) => rights.get(x)?.includes('view')),
           location: v.location,
           segment: v.segmentId,
           notes: v.notes,
