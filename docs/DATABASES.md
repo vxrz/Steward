@@ -177,6 +177,8 @@ CI pushes with a **push token**, not with a personal API token: _Schema → Push
 
 The endpoint is `POST /api/hooks/db-schema/platform/{platformId}` (or `/api/hooks/db-schema/system/{systemId}`), like heartbeats and webhook triggers – the read-only API `/api/v1` does not write; _Import tbls_ and the token dialog show the exact URL. Send `Authorization: Bearer sdbp_…` and the `schema.json` as it is (`Content-Type: application/json`, at most 10 MB), or `{ "schema": "<the file as text>", "lint": "<tbls lint output>", "fileName": "schema.json" }`. The endpoint takes no API token and no sign-in session. The token is checked from the headers before the body is read: a request without a valid token is refused without Steward reading up to 10 MB first. A wrong, revoked or expired token, a token of another database, a token whose creator is inactive or may no longer manage the database and an address outside the allowed ranges all get the same `401`; more pushes than allowed `429` with `Retry-After`. The answer names the snapshot, whether it was new, and its changes.
 
+The allowed addresses are checked against the address Steward sees. Behind a reverse proxy with `SM_TRUST_PROXY` ([CONFIGURATION.md](CONFIGURATION.md)) that is the address the proxy forwards (`X-Forwarded-For`), so the ranges are only as strong as that setting: trust only your own proxy (its address, or a hop count – then only a peer on loopback or a private network may forward), never any peer.
+
 A plain shell job (any CI, a cron job next to the database):
 
 ```sh

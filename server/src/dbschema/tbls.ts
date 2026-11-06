@@ -10,7 +10,8 @@ import { buildDoc, type TableInput } from './model.js';
  * mapped to Steward's schema model. The output of `tbls lint` becomes checks named by their rule.
  *
  * tbls itself is not part of Steward: it runs where the database is (a CI job, a job in a separated network) and its
- * file is uploaded or pushed (POST /api/v1/…/schema/tbls).
+ * file is uploaded (POST /api/db-schemas/:kind/:id/import) or pushed from CI with a push token
+ * (POST /api/hooks/db-schema/:kind/:id, push.ts).
  */
 
 const L = DB_SCHEMA_LIMITS;
