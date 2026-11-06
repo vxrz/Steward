@@ -258,6 +258,35 @@ describe('version watch', () => {
     expect(audit[0]).toMatchObject({ actor: 'system', entityId: app.id });
   });
 
+  it('the monitor check "Version behind": thresholds per check, the application as the owner sees it', async () => {
+    const preview = (check: Record<string, unknown>, as: Client = s.api) =>
+      as('POST', '/monitors/check-preview', { check: { id: 'v', name: 'Versions', type: 'version-behind', application: 'Shop (versions)', ...check } });
+    // React, Django, Spring Boot … a major behind; Node.js 24 past its end of life
+    let r = await preview({});
+    expect(r.status).toBe('down');
+    expect(r.message).toMatch(/stack entries of "Shop \(versions\)"/);
+    // only nginx (its cycle 1.27 is past its end of life in the demo data: down, unless ignored)
+    r = await preview({ products: ['nginx'] });
+    expect(r.status).toBe('down');
+    expect(r.message).toContain('end of life');
+    // one minor release behind: up with the default limit (2), degraded with 0
+    r = await preview({ products: ['nginx'], eolAs: 'ignore' });
+    expect(r.status).toBe('up');
+    r = await preview({ products: ['nginx'], eolAs: 'ignore', maxMinors: 0 });
+    expect(r).toMatchObject({ status: 'degraded' });
+    expect(r.message).toContain('nginx 1.27.3 → 1.28.0-alpine (1 minor releases behind');
+    // a major release behind counts as degraded when asked; days behind
+    r = await preview({ products: ['react'], majorAs: 'degraded' });
+    expect(r.status).toBe('degraded');
+    r = await preview({ products: ['dotnet'], maxDays: 1 });
+    expect(r.status).toBe('up');
+    // end of life: down, or ignored
+    r = await preview({ products: ['nodejs'], eolAs: 'ignore', majorAs: 'degraded' });
+    expect(r.status).toBe('degraded');
+    expect(await code(preview({ application: 'Payments (versions)' }, dana))).toBe('APPLICATION_NOT_FOUND');
+    expect(await code(preview({ application: 'nope' }))).toBe('APPLICATION_NOT_FOUND');
+  });
+
   it('removes the settings of entries that left the stack, and lookups nobody needs', async () => {
     const { runVersionJob } = await import('../src/versions/service.js');
     const { db } = await import('../src/db.js');

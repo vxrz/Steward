@@ -369,7 +369,22 @@
     "dbSchemaFailAs": "Wenn sie fehlschlägt",
     "dbSchemaNoData": "Ohne Snapshot",
     "dbSchemaRead": "Zuerst die Datenbank lesen",
-    "dbSchemaReadHint": "Liest das Schema bei jeder Prüfung (ein Snapshot, wenn es sich geändert hat). Aus: Es zählen nur die schon gespeicherten Lesevorgänge und Importe."
+    "dbSchemaReadHint": "Liest das Schema bei jeder Prüfung (ein Snapshot, wenn es sich geändert hat). Aus: Es zählen nur die schon gespeicherten Lesevorgänge und Importe.",
+    "versionApplication": "Anwendung",
+    "versionApplicationHint": "Ihre Komponenten und die Systeme, auf denen sie läuft, werden mit den neuesten Versionen der Versionsüberwachung verglichen",
+    "versionChooseApplication": "Anwendung wählen",
+    "versionNoApplication": "Keine Anwendung",
+    "versionEnvironment": "Umgebung",
+    "versionEnvironmentHint": "Nur diese Umgebung (und was allen dient); leer: alle",
+    "versionProducts": "Produkte",
+    "versionProductsHint": "Nur diese; leer: der ganze Tech-Stack",
+    "versionMaxMinors": "Eingeschränkt ab mehr als … Minor-Versionen Rückstand",
+    "versionMaxMinorsHint": "Standard 2",
+    "versionMaxDays": "Eingeschränkt ab mehr als … Tagen Rückstand",
+    "versionMaxDaysHint": "Seit der ersten neueren Version; leer: nicht geprüft",
+    "versionMajorAs": "Eine Hauptversion zurück",
+    "versionEolAs": "Release-Zyklus am Supportende",
+    "versionEolIgnore": "Nicht geprüft"
   },
   "detail": {
     "template": "Vorlage",
@@ -729,6 +744,10 @@
       "label": "Schwachstellen (Dependency-Track)",
       "help": "Ein Dependency-Track-Projekt hat nicht mehr offene kritische (oder hohe) Befunde als erlaubt und keinen fehlgeschlagenen Richtlinienverstoß"
     },
+    "version-behind": {
+      "label": "Versionsrückstand",
+      "help": "Der Tech-Stack einer Anwendung ist aktuell: eingeschränkt bei mehr Minor-Versionen oder Tagen Rückstand als erlaubt, ausgefallen bei einer Hauptversion Rückstand oder wenn der Release-Zyklus sein Supportende erreicht hat (Versionsüberwachung)"
+    },
     "entra": {
       "label": "Entra ID (über Microsoft Graph)",
       "help": "App-Registrierungen, deren Geheimnisse oder Zertifikate innerhalb von N Tagen ablaufen, oder der Dienststatus von Microsoft 365"
@@ -759,6 +778,7 @@
     "monitor": "Untermonitor",
     "snowflake": "Snowflake-Tabelle aktuell",
     "dependency-track": "Keine kritischen Schwachstellen",
+    "version-behind": "Tech-Stack aktuell",
     "entra": "App-Zugangsdaten gültig",
     "privilege-vault": "Tresor-Hygiene",
     "database": "Datenbank erreichbar",

@@ -104,6 +104,7 @@ const TRYABLE = new Set<CheckType>([
   'dynamodb',
   'db-schema',
   'dependency-track',
+  'version-behind',
   'entra',
   'privilege-vault',
 ]);

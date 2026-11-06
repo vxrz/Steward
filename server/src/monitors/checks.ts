@@ -792,6 +792,15 @@ async function checkDbSchema(c: CheckOf<'db-schema'>, ctx: ExecContext): Promise
   return { ...(await dbSchemaCheck(c, ctx)), durationMs: Date.now() - t0 };
 }
 
+// ---------- version watch ----------
+
+/** The tech stack of an application against the newest versions (#241): from the version watch's cache, no call. */
+async function checkVersionBehind(c: CheckOf<'version-behind'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { versionBehindCheck } = await import('../versions/check.js');
+  return { ...versionBehindCheck(c, ctx), durationMs: Date.now() - t0 };
+}
+
 // ---------- Entra ID ----------
 
 /** Expiring app credentials or Microsoft 365 service health of an Entra ID tenant (v0.5.0). */
@@ -1082,6 +1091,7 @@ type Active =
   | CheckOf<'dynamodb'>
   | CheckOf<'db-schema'>
   | CheckOf<'dependency-track'>
+  | CheckOf<'version-behind'>
   | CheckOf<'entra'>
   | CheckOf<'privilege-vault'>;
 
@@ -1119,6 +1129,8 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkDbSchema(c, ctx);
       case 'dependency-track':
         return await checkDtrack(c, ctx);
+      case 'version-behind':
+        return await checkVersionBehind(c, ctx);
       case 'entra':
         return await checkEntra(c, ctx);
       case 'privilege-vault':
