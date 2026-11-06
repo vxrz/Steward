@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/vxrz/Steward/blob/main/docs/plant/plant-registry-1.schema.json",
   "title": "Steward plant registry, format 1",
-  "description": "Sites of an enterprise with their ISA-95 (IEC 62264) hierarchy – area, work center, work unit –, the buildings (IEC 81346 location aspect) and the assets in them; device profiles with their interfaces and data points (OPC UA IEC 62541, Modbus, IEC 61131-3, UCUM), KPI definitions (ISO 22400-2) and the assignments of assets. See docs/PLANT.md.",
+  "description": "Sites of an enterprise with their ISA-95 (IEC 62264) hierarchy – area, work center, work unit –, the buildings (IEC 81346 location aspect) and the assets in them; device profiles with their interfaces and data points (OPC UA IEC 62541, Modbus, IEC 61131-3, UCUM), KPI definitions (ISO 22400-2) and the assignments of assets; the OT network – IEEE 802.1Q VLANs, IEC 62443-3-2 zones and conduits, devices and data paths of assets. See docs/PLANT.md.",
   "type": "object",
   "properties": {
     "$schema": {
@@ -81,6 +81,30 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/Assignment"
+      }
+    },
+    "ot_network": {
+      "description": "The OT network of one site (a file per site)",
+      "$ref": "#/$defs/OtNetwork"
+    },
+    "ot_networks": {
+      "description": "The OT networks of sites",
+      "maxItems": 500,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/OtNetwork"
+      }
+    },
+    "asset_network": {
+      "description": "The OT network of one asset",
+      "$ref": "#/$defs/AssetNetwork"
+    },
+    "asset_networks": {
+      "description": "The OT networks of assets",
+      "maxItems": 50000,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/AssetNetwork"
       }
     }
   },
@@ -2568,6 +2592,1089 @@
       ],
       "additionalProperties": false,
       "description": "What an asset’s interfaces deliver: its device profile, endpoints, overrides, publications and KPI instances"
+    },
+    "OtNetwork": {
+      "type": "object",
+      "properties": {
+        "site": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "The site"
+        },
+        "vlans": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Vlan"
+          }
+        },
+        "zones": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Zone"
+          }
+        },
+        "conduits": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Conduit"
+          }
+        }
+      },
+      "required": [
+        "site"
+      ],
+      "additionalProperties": false,
+      "description": "The OT network of a site: VLANs, zones and conduits"
+    },
+    "Vlan": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Name in the installation’s default language"
+        },
+        "vid": {
+          "description": "IEEE 802.1Q VLAN identifier (VID), 1–4094",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4094
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type": {
+          "description": "What it is for: production, management, iot …",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 60
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "subnets": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "cidr": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 50,
+                "description": "CIDR notation, IPv4 or IPv6: 10.20.30.0/24, 2001:db8:30::/48"
+              },
+              "gateway": {
+                "description": "IPv4 or IPv6 address",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 45
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ranges": {
+                "description": "Address ranges: blocked, dynamic (DHCP) or static",
+                "maxItems": 64,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "start": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 45
+                    },
+                    "end": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 45
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "blocked",
+                        "dynamic",
+                        "static"
+                      ]
+                    },
+                    "notes": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "start",
+                    "end",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "cidr"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "restricted": {
+          "description": "Access to it is restricted (an rVLAN behind a firewall)",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "managed_by": {
+          "description": "Who manages it",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rules_at": {
+          "description": "Where its access rules are kept",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sites": {
+          "description": "Other sites it reaches",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+            "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+          }
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "segment": {
+          "description": "The Steward network segment (system id) it is linked to",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "An IEEE 802.1Q VLAN of a site with its subnets and ranges"
+    },
+    "Zone": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Name in the installation’s default language"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "criticality": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vlans": {
+          "description": "The VLANs in the zone (ids of VLANs of the site)",
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+            "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+          }
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sl_t": {
+          "description": "IEC 62443-3-2 target security level (SL-T 1–4); leave it out until a risk assessment sets it",
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "const": 1
+                },
+                {
+                  "type": "number",
+                  "const": 2
+                },
+                {
+                  "type": "number",
+                  "const": 3
+                },
+                {
+                  "type": "number",
+                  "const": 4
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "risk_assessment": {
+          "description": "The risk assessment that set SL-T (needed with sl_t)",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "assessed_at": {
+          "description": "A date: YYYY-MM-DD",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "An IEC 62443-3-2 zone"
+    },
+    "Conduit": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Name in the installation’s default language"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "zones": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+              "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+            },
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+              "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "The two zones it connects"
+        },
+        "direction": {
+          "description": "a_to_b (first to second zone), b_to_a or both (default)",
+          "type": "string",
+          "enum": [
+            "a_to_b",
+            "b_to_a",
+            "both"
+          ]
+        },
+        "protocols": {
+          "description": "Protocols and ports: opc-ua tcp/4840, https tcp/443",
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "controls": {
+          "description": "Its controls: firewall, data diode, jump host",
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "zones"
+      ],
+      "additionalProperties": false,
+      "description": "An IEC 62443-3-2 conduit between two zones"
+    },
+    "AssetNetwork": {
+      "type": "object",
+      "properties": {
+        "asset": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "The asset"
+        },
+        "site": {
+          "description": "The asset’s site (optional; checked when given)",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$"
+        },
+        "checks": {
+          "description": "Linked checks: the live status (online, offline, unknown) comes only from them",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StatusCheck"
+          }
+        },
+        "devices": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Device"
+          }
+        },
+        "data_paths": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DataPath"
+          }
+        }
+      },
+      "required": [
+        "asset"
+      ],
+      "additionalProperties": false,
+      "description": "The OT network of an asset: its devices, data paths and live-status checks"
+    },
+    "StatusCheck": {
+      "type": "object",
+      "properties": {
+        "monitor": {
+          "description": "A Steward monitor (key or id) whose status tells it",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "check": {
+          "description": "One check of the monitor (id or key; empty: the whole monitor)",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dataset": {
+          "description": "A Steward dataset (key) whose freshness tells it",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "column": {
+          "description": "Only rows whose column has value (a dataset per device or asset)",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 120
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "value": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "time_column": {
+          "description": "The column with the time of the last value (empty: when the dataset was written)",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 120
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_age_minutes": {
+          "description": "Older is offline (empty: the dataset’s own freshness)",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 525600
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "A check that tells the live status: a monitor (or one of its checks) or the freshness of a dataset"
+    },
+    "Device": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "hostname": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 253
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 253
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "purpose": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mac": {
+          "description": "MAC address (EUI-48): AC-DE-48-00-00-80, ac:de:48:00:00:80 or acde.4800.0080",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 20
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "serial": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vlan": {
+          "description": "A VLAN of the asset’s site",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+              "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "address_type": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "dynamic",
+                "reserved",
+                "static"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "address": {
+          "description": "IPv4 or IPv6 address",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 45
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "switch": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "switch_port": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "wall_outlet": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cmdb_port": {
+          "description": "The port’s name in the CMDB",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "description": "active (default), planned, inactive or retired",
+          "type": "string",
+          "enum": [
+            "planned",
+            "active",
+            "inactive",
+            "retired"
+          ]
+        },
+        "flags": {
+          "description": "snake_case flags: device_ordered, port_ordered, address_ordered …",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "confidence": {
+          "description": "How sure the documentation is",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "monitoring": {
+          "description": "The monitoring that watches it (text)",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "checks": {
+          "description": "Linked checks: the live status (online, offline, unknown) comes only from them",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StatusCheck"
+          }
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "A device of an asset: its network identity"
+    },
+    "DataPath": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "What data"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "devices": {
+          "description": "Devices of the asset it covers",
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+            "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+          }
+        },
+        "collector": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "application",
+                    "platform",
+                    "process",
+                    "job"
+                  ],
+                  "description": "application, platform, process (a Steward item) or job (elsewhere, by name)"
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "description": "Its id (the name of a job)"
+                },
+                "host": {
+                  "description": "The Steward system it runs on",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transfers": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "protocol": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "push",
+                  "pull"
+                ]
+              },
+              "peer_kind": {
+                "description": "device (of the asset), system (a Steward system) or other (default)",
+                "type": "string",
+                "enum": [
+                  "device",
+                  "system",
+                  "other"
+                ]
+              },
+              "peer": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "port": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "notes": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "protocol",
+              "mode"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "destinations": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "description": "system, dataset or other (default)",
+                "type": "string",
+                "enum": [
+                  "system",
+                  "dataset",
+                  "other"
+                ]
+              },
+              "ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "path": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "notes": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "ref"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "subject"
+      ],
+      "additionalProperties": false,
+      "description": "What data leaves an asset, who collects it, how it is transferred and where it ends up"
     }
   }
 }

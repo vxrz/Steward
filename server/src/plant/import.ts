@@ -33,6 +33,7 @@ import { fieldDefs, fieldProblems, isDate, isHttpUrl, plantSettings, requirePlan
 import { issueMessages, plantFileSchema, SCHEMA_ID, type AreaFile, type AssetFile, type PlantFile, type SiteFile } from './format.js';
 import { assignmentOut, computeData, dataPlanEmpty, emptyDataPlan, kpiOut, profileOut, planData, pushWrite, type DataPlan, type Write } from './import-data.js';
 import { allAssignments, allKpis, allProfiles } from './data-model.js';
+import { assetNetworksOut, computeNetwork, emptyNetPlan, netPlanEmpty, otNetworkOut, planNetwork, type NetPlan } from './import-network.js';
 import {
   assetValuesOf,
   buildingProblem,
@@ -191,6 +192,8 @@ interface Plan {
   assets: Map<string, PlannedAsset>;
   /** Device profiles, KPI definitions and assignments (#219, import-data.ts) */
   data: DataPlan;
+  /** The OT network of sites and assets (#220, import-network.ts) */
+  net: NetPlan;
 }
 
 const key = (siteId: string, id: string) => `${siteId}/${id}`;
@@ -244,7 +247,15 @@ function assetFromFile(a: AssetFile): PlannedAsset['values'] {
 }
 
 function plan(parsed: Parsed[], problems: PlantImportProblem[]): Plan {
-  const p: Plan = { enterprise: null, sites: new Map(), nodes: new Map(), buildings: new Map(), assets: new Map(), data: emptyDataPlan() };
+  const p: Plan = {
+    enterprise: null,
+    sites: new Map(),
+    nodes: new Map(),
+    buildings: new Map(),
+    assets: new Map(),
+    data: emptyDataPlan(),
+    net: emptyNetPlan(),
+  };
   const twice = (o: Origin, what: string, first: Origin) =>
     problems.push({ ...o, message: `${what} is defined twice (also in ${first.file} at ${first.path})` });
   const addAsset = (a: AssetFile, siteId: string | null, o: Origin) => {
@@ -319,6 +330,7 @@ function plan(parsed: Parsed[], problems: PlantImportProblem[]): Plan {
     }
     (f.file.assets ?? []).forEach((a, i) => addAsset(a, null, { file: f.name, path: `assets[${i}]` }));
     planData(p.data, f.file, f.name, problems);
+    planNetwork(p.net, f.file, f.name, problems);
   }
   return p;
 }
@@ -813,7 +825,11 @@ function compute(input: ImportInput, importId: string): Computed {
         // a site keeps the records people added by hand: then it stays, marked
         const kept = [...s.assets.values()].some((a) => a.site_id === r.id && !removing.assets.has(a.id) && !p.assets.has(a.id) && postSite.get(a.id) === r.id);
         const movedIn = [...afterAssets.values()].some((x) => x.after.siteId === r.id);
-        const hand = kept || movedIn || [...postIndex(r.id).nodes.values()].length > 0 || postIndex(r.id).buildings.size > 0;
+        // OT network records added by hand (#220) keep their site, too
+        const handNet = ['plant_vlans', 'plant_zones', 'plant_conduits'].some(
+          (t) => !!db().get(`SELECT 1 FROM ${t} WHERE site_id = ? AND (import_id IS NULL OR import_id <> ?)`, r.id, prevId),
+        );
+        const hand = kept || movedIn || handNet || [...postIndex(r.id).nodes.values()].length > 0 || postIndex(r.id).buildings.size > 0;
         if (missing === 'remove' && hand && fromPrev(r)) {
           warnings.push({
             file: '(files)',
@@ -924,6 +940,27 @@ function compute(input: ImportInput, importId: string): Computed {
     fileSites: new Set(p.sites.keys()),
     needManage,
   });
+  // ---- the OT network of sites and assets (#220)
+  computeNetwork({
+    plan: p.net,
+    mode,
+    missing,
+    prevId,
+    importId,
+    meta,
+    writes,
+    problems,
+    warnings,
+    rights: s.rights,
+    sites: s.sites,
+    storedAssets: s.assets,
+    postSites: new Set([...postSites.keys()].filter((id) => !removing.sites.has(id))),
+    removedSites: removing.sites,
+    postSite,
+    removedAssets: removing.assets,
+    fileSites: new Set(p.sites.keys()),
+    needManage,
+  });
 
   // what the file would change in sites the caller may not see is not shown (it cannot be imported anyway)
   const changes: PlantChange[] = writes.filter((w) => !hiddenSite(w.siteId)).map(({ apply: _a, ...c }) => c);
@@ -933,12 +970,12 @@ function compute(input: ImportInput, importId: string): Computed {
     counts[c.action]++;
     (byKind[c.kind] ??= emptyCounts())[c.action]++;
   }
-  const empty = !p.sites.size && !p.nodes.size && !p.buildings.size && !p.assets.size && dataPlanEmpty(p.data);
+  const empty = !p.sites.size && !p.nodes.size && !p.buildings.size && !p.assets.size && dataPlanEmpty(p.data) && netPlanEmpty(p.net);
   if (empty && mode !== 'replace' && !problems.length)
     problems.push({
       file: '(files)',
       path: '(document)',
-      message: 'The files hold no records (sites, hierarchy, buildings, assets, device profiles, KPI definitions or assignments)',
+      message: 'The files hold no records (sites, hierarchy, buildings, assets, device profiles, KPI definitions, assignments or OT networks)',
     });
   const preview: PlantImportPreview = {
     ok: problems.length === 0,
@@ -981,7 +1018,23 @@ export function applyImport(input: ImportInput): PlantImportResult {
   db().tx(() => {
     // removals last: what stays may still name them while it is written
     for (const w of writes) if (w.action !== 'remove') w.apply();
-    const order: PlantChangeKind[] = ['assignment', 'asset', 'work_unit', 'work_center', 'area', 'building', 'site', 'kpi', 'profile'];
+    const order: PlantChangeKind[] = [
+      'data_path',
+      'device',
+      'asset_checks',
+      'conduit',
+      'zone',
+      'vlan',
+      'assignment',
+      'asset',
+      'work_unit',
+      'work_center',
+      'area',
+      'building',
+      'site',
+      'kpi',
+      'profile',
+    ];
     for (const kind of order) for (const w of writes) if (w.action === 'remove' && w.kind === kind) w.apply();
     db().run(
       'INSERT INTO plant_imports (id, created_at, created_by, mode, missing, replaces, files, sha256, counts, sites) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -1001,7 +1054,10 @@ export function applyImport(input: ImportInput): PlantImportResult {
       writes
         .filter((w) => w.action === action)
         .slice(0, 200)
-        .map((w) => `${w.kind}:${w.siteId === w.id || !w.siteId || w.kind === 'assignment' ? w.id : `${w.siteId}/${w.id}`}`);
+        .map(
+          (w) =>
+            `${w.kind}:${w.siteId === w.id || !w.siteId || ['assignment', 'device', 'data_path', 'asset_checks'].includes(w.kind) ? w.id : `${w.siteId}/${w.id}`}`,
+        );
     audit({
       action: 'plant.imported',
       entityType: 'plant_import',
@@ -1059,7 +1115,21 @@ function toSummary(r: ImportRow, records: number): PlantImportSummary {
 
 function recordCounts(): Map<string, number> {
   const out = new Map<string, number>();
-  for (const t of ['plant_sites', 'plant_nodes', 'plant_buildings', 'plant_assets', 'plant_profiles', 'plant_kpis', 'plant_assignments'])
+  for (const t of [
+    'plant_sites',
+    'plant_nodes',
+    'plant_buildings',
+    'plant_assets',
+    'plant_profiles',
+    'plant_kpis',
+    'plant_assignments',
+    'plant_vlans',
+    'plant_zones',
+    'plant_conduits',
+    'plant_devices',
+    'plant_data_paths',
+    'plant_asset_checks',
+  ])
     for (const r of db().all<{ import_id: string; n: number }>(`SELECT import_id, COUNT(*) AS n FROM ${t} WHERE import_id IS NOT NULL GROUP BY import_id`))
       out.set(r.import_id, (out.get(r.import_id) ?? 0) + Number(r.n));
   return out;
@@ -1276,6 +1346,9 @@ export function exportYaml(
   const assigned = assets.filter((a) => assignments.has(a.id)).map((a) => assignmentOut(a.id, assignments.get(a.id)!));
   const profiles = siteId ? [] : [...allProfiles().values()];
   const kpis = siteId ? [] : [...allKpis().values()];
+  // part 3 (#220): the OT network of the sites and of their assets
+  const networks = chosen.map((x) => otNetworkOut(x.id)).filter((x): x is Record<string, unknown> => !!x);
+  const assetNetworks = assetNetworksOut(assets.map((a) => a.id));
   const doc = {
     version: PLANT_FORMAT_VERSION,
     ...(enterprise ? { enterprise: { name: enterprise } } : {}),
@@ -1283,6 +1356,8 @@ export function exportYaml(
     ...(profiles.length ? { device_profiles: profiles.map(profileOut) } : {}),
     ...(kpis.length ? { kpi_definitions: kpis.map(kpiOut) } : {}),
     ...(assigned.length ? { assignments: assigned } : {}),
+    ...(networks.length ? (siteId ? { ot_network: networks[0] } : { ot_networks: networks }) : {}),
+    ...(assetNetworks.length ? { asset_networks: assetNetworks } : {}),
   };
   const content = render(doc);
   audit({
@@ -1296,6 +1371,8 @@ export function exportYaml(
       profiles: profiles.length,
       kpis: kpis.length,
       assignments: assigned.length,
+      otNetworks: networks.length,
+      assetNetworks: assetNetworks.length,
       format,
       ...via,
       sha256: sha256(content),
