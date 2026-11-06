@@ -62,6 +62,10 @@
     "ai": {
       "title": "Nutzung von KI-Modellen",
       "hint": "Aufrufe und Tokens pro Gateway, Modell und Prozess, abgelehnte und fehlgeschlagene Aufrufe, die Budgets – ein monatlicher Zeitplan ist der monatliche KI-Bericht"
+    },
+    "contracts": {
+      "title": "Datenverträge",
+      "hint": "Die Tests des Berichtszeitraums je Vertrag (bestanden, Warnungen, fehlgeschlagen), der letzte Test, Stewards Befunde und die gespeicherten Versionen – die Verträge, die der Eigentümer sehen darf"
     }
   },
   "runNow": "Jetzt erstellen",

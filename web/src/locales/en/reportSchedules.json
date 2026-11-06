@@ -62,6 +62,10 @@
     "ai": {
       "title": "AI usage",
       "hint": "Calls and tokens per gateway, model and process, refused and failed calls, the budgets – a monthly schedule is the monthly AI report"
+    },
+    "contracts": {
+      "title": "Data contracts",
+      "hint": "The tests of the report period per contract (passed, warnings, failed), the last test, Steward’s findings and the versions saved – the contracts the owner may see"
     }
   },
   "runNow": "Generate now",

@@ -446,6 +446,27 @@
           "help": "Wird in Probeläufen statt des Modells verwendet und in Testläufen ohne aufgezeichnete Antwort"
         }
       }
+    },
+    "contractTest": {
+      "label": "Datenvertrag testen",
+      "description": "Testet einen Datenvertrag (Katalog → Datenverträge) über seinen Datenvertragsdienst: Der Vertrag geht an die datacontract CLI, die Zugangsdaten des getesteten Servers werden aus dem Tresor mit der Anfrage gesendet. Der Testlauf mit seinem vollständigen Bericht wird als Nachweis beim Vertrag gespeichert; ein fehlgeschlagener Test benachrichtigt das Eigentümer-Team des Vertrags. Läuft mit Ihren Rechten (Testrecht am Vertrag, Nutzungsrecht am Dienst und an der getesteten Datenbank). Läuft auch in Probeläufen (er liest nur); Testläufe rufen den Dienst nie auf. Ein nicht bestandener Test markiert den Schritt als fehlgeschlagen und die Ausführung läuft weiter – außer „Ein fehlgeschlagener Test lässt die Ausführung fehlschlagen“ ist aktiv; „Fehler“ behandelt einen Test, der nicht laufen konnte.",
+      "fields": {
+        "contract": {
+          "label": "Datenvertrag",
+          "help": "Stewards ID (dct_…) oder die ODCS-ID des Vertrags"
+        },
+        "server": {
+          "label": "Server",
+          "help": "Der zu testende Server des Vertrags; leer: die Einstellung des Vertrags oder sein einziger Server"
+        },
+        "failOnWarning": {
+          "label": "Warnungen lassen den Schritt fehlschlagen"
+        },
+        "failRun": {
+          "label": "Ein fehlgeschlagener Test lässt die Ausführung fehlschlagen",
+          "help": "Sonst wird der Schritt als fehlgeschlagen markiert und die Ausführung läuft weiter"
+        }
+      }
     }
   },
   "commonFields": {
@@ -513,7 +534,9 @@
     "ai": "{{model}}",
     "aiJson": "{{model}} → JSON",
     "noModel": "kein Modell gewählt",
-    "queryCatalog": "Katalog: {{catalog}}"
+    "queryCatalog": "Katalog: {{catalog}}",
+    "contractTest": "{{contract}} testen",
+    "noContract": "Kein Vertrag gewählt"
   },
   "options": {
     "select": "Auswahl",

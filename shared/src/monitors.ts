@@ -59,6 +59,7 @@ export const CHECK_TYPES = [
   'database',
   'dynamodb',
   'db-schema',
+  'data-contract',
   'dependency-track',
   'entra',
   'privilege-vault',
@@ -81,6 +82,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   kubernetes: { label: 'Kubernetes deployments', help: 'Deployments of a namespace are ready (e.g. 3/3) and no pod is crash-looping' },
   kafka: { label: 'Kafka topic', help: 'New messages on a topic within N minutes, the lag of a consumer group, a group that is stuck, the schema version' },
   mqtt: { label: 'MQTT topics', help: 'Messages on an MQTT topic within N minutes, devices (topics of a pattern) that went silent, connected clients' },
+  'data-contract': {
+    label: 'Data contract',
+    help: 'An ODCS data contract: its test through the data contract service passes (warnings degrade), or Steward’s own checks – owner, last test, columns of linked datasets and tables – find nothing',
+  },
   'dependency-track': {
     label: 'Vulnerabilities (Dependency-Track)',
     help: 'A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation',
@@ -495,6 +500,20 @@ export const checkSchema = z.discriminatedUnion('type', [
     failAs: z.enum(['down', 'degraded']).optional(),
     /** Status while there is no snapshot yet (default unknown) */
     noData: z.enum(['unknown', 'up', 'down']).default('unknown'),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('data-contract'),
+    /** The data contract (its id, #221) */
+    contract: z.string().trim().min(1).max(100),
+    /** test: run its test through the data contract service; findings: Steward's own checks, without the service */
+    mode: z.enum(['test', 'findings']).default('test'),
+    /** findings: a contract not tested within this many days counts as a warning (default 7) */
+    testedWithinDays: z.number().int().min(1).max(365).default(7),
+    /** Status of a failed test or an error finding (default down) */
+    failAs: z.enum(['down', 'degraded']).default('down'),
+    /** Status of a test with warnings or a warning finding (default degraded) */
+    warningAs: z.enum(['degraded', 'up']).default('degraded'),
   }),
   z.object({
     ...checkBase,

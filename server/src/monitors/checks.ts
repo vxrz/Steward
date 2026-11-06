@@ -786,6 +786,13 @@ async function checkDynamoDb(c: CheckOf<'dynamodb'>, ctx: ExecContext): Promise<
 // ---------- database schemas ----------
 
 /** Schema changes of a database platform or a system (#222): stored snapshots, optionally read first. */
+/** The monitor check "Data contract" (#221): datacontracts/check.ts. */
+async function checkDataContract(c: CheckOf<'data-contract'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { dataContractCheck } = await import('../datacontracts/check.js');
+  return { ...(await dataContractCheck(c, ctx)), durationMs: Date.now() - t0 };
+}
+
 async function checkDbSchema(c: CheckOf<'db-schema'>, ctx: ExecContext): Promise<RawResult> {
   const t0 = Date.now();
   const { dbSchemaCheck } = await import('../dbschema/check.js');
@@ -1081,6 +1088,7 @@ type Active =
   | CheckOf<'database'>
   | CheckOf<'dynamodb'>
   | CheckOf<'db-schema'>
+  | CheckOf<'data-contract'>
   | CheckOf<'dependency-track'>
   | CheckOf<'entra'>
   | CheckOf<'privilege-vault'>;
@@ -1117,6 +1125,8 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkDynamoDb(c, ctx);
       case 'db-schema':
         return await checkDbSchema(c, ctx);
+      case 'data-contract':
+        return await checkDataContract(c, ctx);
       case 'dependency-track':
         return await checkDtrack(c, ctx);
       case 'entra':

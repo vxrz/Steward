@@ -51,7 +51,7 @@ import { monitorKeys, platformKeys, processKeys, scheduleKeys } from '../queryKe
 import { DuplicateActionIcon, useDuplicate } from '../components/duplicate/DuplicateButton';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
-const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties', 'scorecard', 'ai'];
+const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties', 'scorecard', 'ai', 'contracts'];
 
 type Draft = Pick<
   ReportSchedule,
@@ -387,6 +387,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     duties: { levels: null, serviceIds: null },
     scorecard: { serviceIds: null },
     ai: { platformIds: null },
+    contracts: { contractIds: null },
   };
   const save = async () => {
     setBusy(true);

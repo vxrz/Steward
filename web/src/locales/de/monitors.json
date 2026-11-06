@@ -369,7 +369,26 @@
     "dbSchemaFailAs": "Wenn sie fehlschlägt",
     "dbSchemaNoData": "Ohne Snapshot",
     "dbSchemaRead": "Zuerst die Datenbank lesen",
-    "dbSchemaReadHint": "Liest das Schema bei jeder Prüfung (ein Snapshot, wenn es sich geändert hat). Aus: Es zählen nur die schon gespeicherten Lesevorgänge und Importe."
+    "dbSchemaReadHint": "Liest das Schema bei jeder Prüfung (ein Snapshot, wenn es sich geändert hat). Aus: Es zählen nur die schon gespeicherten Lesevorgänge und Importe.",
+    "contract": "Datenvertrag",
+    "contractHint": "Die Prüfung läuft mit den Rechten des Monitor-Eigentümers: Er muss den Vertrag sehen (und für Tests ihn testen sowie Dienst und Datenbank nutzen dürfen)",
+    "chooseContract": "Datenvertrag wählen",
+    "noContract": "Kein Datenvertrag, den Sie sehen dürfen",
+    "contractMode": "Was geprüft wird",
+    "contractModes": {
+      "test": "Der Test (Datenvertragsdienst)",
+      "findings": "Stewards eigene Prüfungen"
+    },
+    "contractModeHints": {
+      "test": "Führt den Test des Vertrags aus; der vollständige Bericht wird beim Vertrag gespeichert",
+      "findings": "Kein Eigentümer, länger nicht getestet, letzter Test fehlgeschlagen, Spalten, die nicht mehr passen – ohne den Dienst"
+    },
+    "contractTestedWithin": "Nicht getestet seit (Tagen)",
+    "contractFailAs": "Ein fehlgeschlagener Test",
+    "contractErrorAs": "Ein Befund vom Typ Fehler",
+    "contractWarningAs": "Ein Test mit Warnungen",
+    "contractWarningFindingAs": "Ein Befund vom Typ Warnung",
+    "contractTestHint": "Ein Test liest Daten: Er erhält mindestens eine Minute, unabhängig vom Zeitlimit oben (höchstens 300 s). Ein Testlauf des Monitors (aufgezeichnete Antworten) ruft den Dienst nicht auf – er bewertet den zuletzt gespeicherten Lauf."
   },
   "detail": {
     "template": "Vorlage",
@@ -740,6 +759,10 @@
     "dynamodb": {
       "label": "DynamoDB-Tabelle",
       "help": "Eine DynamoDB-Tabelle auf einer AWS-Plattform: das neueste Element je Partitionsschlüssel ist aktuell genug, die Tabelle wurde im Zeitfenster beschrieben (CloudWatch), oder ihr Status, die Point-in-Time-Wiederherstellung und die Gültigkeitsdauer (TTL)"
+    },
+    "data-contract": {
+      "label": "Datenvertrag",
+      "help": "Ein ODCS-Datenvertrag: Sein Test über den Datenvertragsdienst besteht (Warnungen stufen herab), oder Stewards eigene Prüfungen – Eigentümer, letzter Test, Spalten verknüpfter Datensätze und Tabellen – finden nichts"
     }
   },
   "newCheck": {
@@ -763,7 +786,8 @@
     "privilege-vault": "Tresor-Hygiene",
     "database": "Datenbank erreichbar",
     "dynamodb": "DynamoDB-Tabelle aktuell",
-    "db-schema": "Keine inkompatible Schemaänderung"
+    "db-schema": "Keine inkompatible Schemaänderung",
+    "data-contract": "Datenvertrag eingehalten"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"

@@ -137,3 +137,16 @@ export const dbSchemaKeys = {
     ['db-schema', kind, id, 'compare', from, to] as const,
   pushTokens: (kind: string, id: string | null | undefined) => ['db-schema', kind, id, 'push-tokens'] as const,
 };
+
+/** Data contracts (#221): the list, one contract, its versions, comparisons and test runs. */
+export const dataContractKeys = {
+  all: ['data-contracts'] as const,
+  list: ['data-contracts', 'list'] as const,
+  detail: (id: string | null | undefined) => ['data-contracts', 'detail', id] as const,
+  versions: (id: string | null | undefined) => ['data-contracts', 'detail', id, 'versions'] as const,
+  version: (id: string | null | undefined, v: number | null | undefined) => ['data-contracts', 'detail', id, 'version', v] as const,
+  compare: (id: string | null | undefined, from: number | null | undefined, to: number | null | undefined) =>
+    ['data-contracts', 'detail', id, 'compare', from, to] as const,
+  runs: (id: string | null | undefined) => ['data-contracts', 'detail', id, 'runs'] as const,
+  run: (id: string | null | undefined, runId: string | null | undefined) => ['data-contracts', 'detail', id, 'run', runId] as const,
+};

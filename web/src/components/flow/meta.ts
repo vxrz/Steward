@@ -17,6 +17,7 @@ import {
   IconUserShield,
   IconSparkles,
   IconDatabase,
+  IconContract,
 } from '@tabler/icons-react';
 import { STEP_META, type FlowNode, type NodeType } from '@sm/shared';
 import i18n from '../../i18n';
@@ -38,6 +39,7 @@ export const NODE_ICONS: Record<NodeType, typeof IconApi> = {
   publish: IconChartBar,
   accessChange: IconUserShield,
   ai: IconSparkles,
+  contractTest: IconContract,
   wait: IconClock,
   fail: IconX,
   note: IconNote,
@@ -88,6 +90,8 @@ export function nodeSummary(n: FlowNode): string {
       return n.model
         ? i18n.t(n.answer === 'json' ? 'editor:summary.aiJson' : 'editor:summary.ai', { model: short(n.model, 36) })
         : i18n.t('editor:summary.noModel');
+    case 'contractTest':
+      return n.contract ? i18n.t('editor:summary.contractTest', { contract: short(n.contract, 40) }) : i18n.t('editor:summary.noContract');
     case 'subprocess':
       return n.process
         ? i18n.t(n.version ? 'editor:summary.subprocessVersion' : 'editor:summary.subprocess', { process: n.process, version: n.version })

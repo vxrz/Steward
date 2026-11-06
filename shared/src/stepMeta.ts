@@ -428,6 +428,34 @@ export const STEP_META: Record<NodeType, StepMeta> = {
     ],
     defaults: () => ({ connection: '', model: '', prompt: 'Summarise the following in three sentences:\n\n{{ data }}', context: [], answer: 'text' }),
   },
+  contractTest: {
+    type: 'contractTest',
+    label: 'Test a data contract',
+    category: 'Evidence',
+    color: 'lime',
+    description:
+      "Tests a data contract (Catalogue → Data contracts) through its data contract service: the contract goes to the datacontract CLI, the credentials of the tested server are sent from the vault with the request. The test run with its full report is stored with the contract as evidence; a failed test notifies the contract's owning team. Runs with your rights (the contract's test right, the use right on the service and the tested database). Runs in dry runs too (it only reads); test runs never call the service. A test that does not pass marks the step failed and the run goes on – unless “A failed test fails the run” is on; “error” handles a test that could not run.",
+    fields: [
+      {
+        key: 'contract',
+        label: 'Data contract',
+        kind: 'template',
+        required: true,
+        placeholder: 'shop-orders',
+        help: "Steward's id (dct_…) or the contract's ODCS id",
+      },
+      {
+        key: 'server',
+        label: 'Server',
+        kind: 'template',
+        placeholder: 'production',
+        help: "The contract's server to test; empty: the contract's setting, or its only server",
+      },
+      { key: 'failOnWarning', label: 'Warnings fail the step', kind: 'boolean' },
+      { key: 'failRun', label: 'A failed test fails the run', kind: 'boolean', help: 'Otherwise the step is marked failed and the run goes on' },
+    ],
+    defaults: () => ({ contract: '' }),
+  },
   subprocess: {
     type: 'subprocess',
     label: 'Run sub-process',

@@ -369,7 +369,26 @@
     "dbSchemaFailAs": "When it fails",
     "dbSchemaNoData": "Without a snapshot",
     "dbSchemaRead": "Read the database first",
-    "dbSchemaReadHint": "Reads the schema at every check (a snapshot when it changed). Off: only the reads and imports already stored count."
+    "dbSchemaReadHint": "Reads the schema at every check (a snapshot when it changed). Off: only the reads and imports already stored count.",
+    "contract": "Data contract",
+    "contractHint": "The check runs with the monitor owner's rights: they must see the contract (and, for tests, may test it and use its service and database)",
+    "chooseContract": "Choose a data contract",
+    "noContract": "No data contract you may see",
+    "contractMode": "What is checked",
+    "contractModes": {
+      "test": "The test (data contract service)",
+      "findings": "Steward's own checks"
+    },
+    "contractModeHints": {
+      "test": "Runs the contract's test; the full report is stored with the contract",
+      "findings": "No owner, not tested recently, last test failed, columns that no longer match – without the service"
+    },
+    "contractTestedWithin": "Not tested for (days)",
+    "contractFailAs": "A failed test",
+    "contractErrorAs": "An error finding",
+    "contractWarningAs": "A test with warnings",
+    "contractWarningFindingAs": "A warning finding",
+    "contractTestHint": "A test reads data: it gets at least a minute, whatever the time limit above says (at most 300 s). A test run of the monitor (recorded responses) does not call the service – it judges the last stored run."
   },
   "detail": {
     "template": "template",
@@ -740,6 +759,10 @@
     "dynamodb": {
       "label": "DynamoDB table",
       "help": "A DynamoDB table on an AWS platform: the newest item per partition key is recent enough, the table had writes within the window (CloudWatch), or its status, point-in-time recovery and time to live"
+    },
+    "data-contract": {
+      "label": "Data contract",
+      "help": "An ODCS data contract: its test through the data contract service passes (warnings degrade), or Steward’s own checks – owner, last test, columns of linked datasets and tables – find nothing"
     }
   },
   "newCheck": {
@@ -763,7 +786,8 @@
     "privilege-vault": "Vault hygiene",
     "database": "Database reachable",
     "dynamodb": "DynamoDB table fresh",
-    "db-schema": "No breaking schema change"
+    "db-schema": "No breaking schema change",
+    "data-contract": "Data contract holds"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}"
