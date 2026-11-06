@@ -67,25 +67,23 @@ export interface TestOptions {
   timeoutMs?: number;
 }
 
-const refuse = (status: number, message: string, code: string, params?: Record<string, string | number>) => new HttpError(status, message, code, params);
-
 function usable(id: string, kind: string, what: string): Platform {
   let p: Platform;
   try {
     p = getPlatform(id);
   } catch {
-    throw refuse(400, `${what} ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
+    throw new HttpError(400, `${what} ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
   }
-  if (currentUser() && !p.permissions.length) throw refuse(400, `${what} ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
+  if (currentUser() && !p.permissions.length) throw new HttpError(400, `${what} ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
   if (p.kind !== kind)
-    throw refuse(
+    throw new HttpError(
       400,
       `"${p.name}" is not a ${kind === DATABASE_KIND ? 'database platform' : 'data contract service'}`,
       kind === DATABASE_KIND ? 'DATA_CONTRACT_LINK_NOT_DATABASE' : 'DATA_CONTRACT_NOT_A_SERVICE',
       { name: p.name },
     );
   if (currentUser() && !p.permissions.includes('use'))
-    throw refuse(403, `You are not allowed to use platform "${p.name}"`, 'PLATFORM_USE_FORBIDDEN', { name: p.name });
+    throw new HttpError(403, `You are not allowed to use platform "${p.name}"`, 'PLATFORM_USE_FORBIDDEN', { name: p.name });
   return p;
 }
 
@@ -103,23 +101,26 @@ interface Target {
 function prepare(contractId: string, opts: Pick<TestOptions, 'server'>): Target {
   const { row, perms } = visibleContract(contractId);
   requirePermission(perms, 'test', 'test this data contract');
-  if (!row.service_platform_id) throw refuse(409, 'No data contract service is set for this contract', 'DATA_CONTRACT_NO_SERVICE');
+  if (!row.service_platform_id) throw new HttpError(409, 'No data contract service is set for this contract', 'DATA_CONTRACT_NO_SERVICE');
   const service = usable(row.service_platform_id, DATA_CONTRACT_SERVICE_KIND, 'Data contract service');
   const { facts, yaml, version } = currentDoc(row);
   const server = opts.server || row.test_server || (facts.servers.length === 1 ? facts.servers[0]!.server : '');
-  if (!server) throw refuse(409, 'Choose the server to test: the contract names several (or none)', 'DATA_CONTRACT_SERVER_REQUIRED');
+  if (!server) throw new HttpError(409, 'Choose the server to test: the contract names several (or none)', 'DATA_CONTRACT_SERVER_REQUIRED');
   const def = facts.servers.find((s) => s.server === server);
-  if (!def) throw refuse(400, `"${server}" is not a server of the contract`, 'DATA_CONTRACT_LINK_SERVER', { server });
+  if (!def) throw new HttpError(400, `"${server}" is not a server of the contract`, 'DATA_CONTRACT_LINK_SERVER', { server });
   const dialect = DATA_CONTRACT_SERVER_DIALECTS[def.type];
   if (!dialect)
-    throw refuse(409, `Servers of type ${def.type} cannot be tested by Steward yet`, 'DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED', { server, type: def.type });
+    throw new HttpError(409, `Servers of type ${def.type} cannot be tested by Steward yet`, 'DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED', {
+      server,
+      type: def.type,
+    });
   const link = db().get<{ target_id: string }>(
     "SELECT target_id FROM data_contract_links WHERE contract_id = ? AND kind = 'server' AND detail = ?",
     row.id,
     server,
   );
   if (!link)
-    throw refuse(
+    throw new HttpError(
       409,
       `Server "${server}" is not linked to a database platform – link it, so the test gets its credentials`,
       'DATA_CONTRACT_SERVER_NOT_LINKED',
@@ -130,7 +131,7 @@ function prepare(contractId: string, opts: Pick<TestOptions, 'server'>): Target 
   const database = usable(link.target_id, DATABASE_KIND, 'Database platform');
   const settings = databaseSettings(database);
   if (settings.dialect !== dialect)
-    throw refuse(400, `Server "${server}" (type ${def.type}) cannot be answered by "${database.name}"`, 'DATA_CONTRACT_SERVER_TYPE', {
+    throw new HttpError(400, `Server "${server}" (type ${def.type}) cannot be answered by "${database.name}"`, 'DATA_CONTRACT_SERVER_TYPE', {
       server,
       type: def.type,
       name: database.name,
@@ -203,7 +204,7 @@ function storedReport(report: unknown, secrets: Record<string, string>): { text:
  * linked server, missing rights) throws; a test the service refused or could not finish is stored as result "error".
  */
 export async function runContractTest(contractId: string, opts: TestOptions): Promise<DataContractRun> {
-  if (!vault().unlocked) throw refuse(503, 'The vault is locked', 'VAULT_LOCKED');
+  if (!vault().unlocked) throw new HttpError(503, 'The vault is locked', 'VAULT_LOCKED');
   const x = prepare(contractId, opts);
   const serviceSecrets = getSecrets(x.service.id);
   const dbSecrets = getSecrets(x.database.id);
@@ -345,7 +346,7 @@ function pruneRuns(contractId: string): void {
 /** The CLI's own lint of a text (no data source is contacted, no credentials are sent). */
 export async function lintWithService(contractId: string, yaml?: string): Promise<DataContractLintFinding[]> {
   const { row } = visibleContract(contractId);
-  if (!row.service_platform_id) throw refuse(409, 'No data contract service is set for this contract', 'DATA_CONTRACT_NO_SERVICE');
+  if (!row.service_platform_id) throw new HttpError(409, 'No data contract service is set for this contract', 'DATA_CONTRACT_NO_SERVICE');
   const service = usable(row.service_platform_id, DATA_CONTRACT_SERVICE_KIND, 'Data contract service');
   const secrets = getSecrets(service.id);
   await serviceUrl(service, secrets, '/lint');
@@ -366,7 +367,7 @@ export async function lintWithService(contractId: string, yaml?: string): Promis
     AbortSignal.timeout(60_000),
   );
   if (!res.ok || !res.body || typeof res.body !== 'object')
-    throw refuse(502, `The data contract service answered HTTP ${res.status}`, 'DATA_CONTRACT_SERVICE_FAILED', { status: res.status });
+    throw new HttpError(502, `The data contract service answered HTTP ${res.status}`, 'DATA_CONTRACT_SERVICE_FAILED', { status: res.status });
   const checks = Array.isArray((res.body as Obj).checks) ? ((res.body as Obj).checks as Obj[]) : [];
   return redactSecrets(
     checks
@@ -434,7 +435,7 @@ function teamMember(u: UserInfo, teams: Set<string>): boolean {
 /** For the monitor check and the process step: a test with the rights of `username` (a monitor owner, a run's actor). */
 export async function runContractTestAs(username: string, contractId: string, opts: TestOptions): Promise<DataContractRun> {
   const u = listUsers().find((x) => x.username.toLowerCase() === username.toLowerCase());
-  if (!u || !u.active) throw refuse(403, `${username} is missing or deactivated`, 'DATA_CONTRACT_ACTOR_INACTIVE', { user: username });
+  if (!u || !u.active) throw new HttpError(403, `${username} is missing or deactivated`, 'DATA_CONTRACT_ACTOR_INACTIVE', { user: username });
   return runAs(toAuthUser(u), () => runContractTest(contractId, opts));
 }
 

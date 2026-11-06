@@ -39,7 +39,7 @@ export async function seedContractDemo(base: string): Promise<number> {
   }
   const shop = db().get<{ id: string }>("SELECT id FROM platforms WHERE name = 'Shop database (demo)' AND kind = ?", DATABASE_KIND)?.id;
   if (!shop || db().get("SELECT 1 FROM data_contracts WHERE contract_key IN ('shop-orders', 'shop-customers')")) return 0;
-  const app = db().get<{ id: string }>("SELECT id FROM applications WHERE name LIKE '%hop%' ORDER BY name LIMIT 1")?.id;
+  const app = db().get<{ id: string }>("SELECT id FROM applications WHERE lower(name) LIKE lower('%shop%') ORDER BY name LIMIT 1")?.id;
   const made = [example('shop-orders.odcs.yaml'), example('shop-customers.odcs.yaml')].map((yaml, i) =>
     createContract({
       yaml,

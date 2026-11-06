@@ -233,8 +233,6 @@ function toLink(l: LinkRow, u: AuthUser | null): DataContractLink {
   };
 }
 
-const badLink = (message: string, code: string, params?: Record<string, string>) => new HttpError(400, message, code, params);
-
 /**
  * Checks a new link: the caller must see the target (a hidden one answers like a missing one), the schema object must
  * be one of the contract's, and a server link needs the "use" right on the database platform – its credentials are
@@ -243,7 +241,7 @@ const badLink = (message: string, code: string, params?: Record<string, string>)
 function checkLink(input: DataContractLinkInput, facts: DataContractFacts, u: AuthUser): Omit<LinkRow, 'id' | 'contract_id' | 'created_at' | 'created_by'> {
   const schema = input.schema?.trim() || null;
   if (schema && !facts.schemas.some((s) => s.name === schema))
-    throw badLink(`"${schema}" is not a schema object of the contract`, 'DATA_CONTRACT_LINK_SCHEMA', { schema });
+    throw new HttpError(400, `"${schema}" is not a schema object of the contract`, 'DATA_CONTRACT_LINK_SCHEMA', { schema });
   const base = {
     kind: input.kind,
     target_id: input.targetId,
@@ -251,7 +249,8 @@ function checkLink(input: DataContractLinkInput, facts: DataContractFacts, u: Au
     detail: input.detail?.trim() || null,
     schema_name: schema,
   };
-  const missing = () => badLink(`${input.kind} "${input.targetId}" not found`, 'DATA_CONTRACT_LINK_TARGET', { kind: input.kind, id: input.targetId });
+  const missing = () =>
+    new HttpError(400, `${input.kind} "${input.targetId}" not found`, 'DATA_CONTRACT_LINK_TARGET', { kind: input.kind, id: input.targetId });
   switch (input.kind) {
     case 'application':
     case 'system':
@@ -264,7 +263,7 @@ function checkLink(input: DataContractLinkInput, facts: DataContractFacts, u: Au
     }
     case 'table': {
       const kind = input.targetKind === 'system' ? 'system' : 'platform';
-      if (!base.detail) throw badLink('Name the table (schema.table)', 'DATA_CONTRACT_LINK_TABLE');
+      if (!base.detail) throw new HttpError(400, 'Name the table (schema.table)', 'DATA_CONTRACT_LINK_TABLE');
       try {
         schemaSubjectOf(kind, input.targetId);
       } catch {
@@ -275,17 +274,21 @@ function checkLink(input: DataContractLinkInput, facts: DataContractFacts, u: Au
     case 'server': {
       const server = base.detail;
       if (!server || !facts.servers.some((s) => s.server === server))
-        throw badLink(`"${server ?? ''}" is not a server of the contract`, 'DATA_CONTRACT_LINK_SERVER', { server: server ?? '' });
+        throw new HttpError(400, `"${server ?? ''}" is not a server of the contract`, 'DATA_CONTRACT_LINK_SERVER', { server: server ?? '' });
       const p = platformVisible(input.targetId, u);
       if (!p) throw missing();
-      if (p.kind !== DATABASE_KIND) throw badLink(`"${p.name}" is not a database platform`, 'DATA_CONTRACT_LINK_NOT_DATABASE', { name: p.name });
+      if (p.kind !== DATABASE_KIND) throw new HttpError(400, `"${p.name}" is not a database platform`, 'DATA_CONTRACT_LINK_NOT_DATABASE', { name: p.name });
       if (!p.permissions.includes('use'))
         throw new HttpError(403, `You are not allowed to use platform "${p.name}"`, 'PLATFORM_USE_FORBIDDEN', { name: p.name });
       const type = facts.servers.find((s) => s.server === server)!.type;
       const dialect = DATA_CONTRACT_SERVER_DIALECTS[type];
       const has = (p.config.database as { dialect?: string } | undefined)?.dialect;
       if (!dialect || (has && has !== dialect))
-        throw badLink(`Server "${server}" (type ${type}) cannot be answered by "${p.name}"`, 'DATA_CONTRACT_SERVER_TYPE', { server, type, name: p.name });
+        throw new HttpError(400, `Server "${server}" (type ${type}) cannot be answered by "${p.name}"`, 'DATA_CONTRACT_SERVER_TYPE', {
+          server,
+          type,
+          name: p.name,
+        });
       return base;
     }
   }
