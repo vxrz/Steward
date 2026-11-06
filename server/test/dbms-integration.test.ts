@@ -98,6 +98,10 @@ async function pgTarget(url: string): Promise<Target> {
     `CREATE TABLE order_lines (order_id int NOT NULL REFERENCES orders(id) ON DELETE CASCADE, line smallint NOT NULL, qty int NOT NULL DEFAULT 1, PRIMARY KEY (order_id, line))`,
     `CREATE INDEX order_lines_qty ON order_lines (qty)`,
     `CREATE VIEW big_orders AS SELECT id, total FROM orders WHERE total > 100`,
+    // names and texts anyone with CREATE may write (security review of #222): visible in the snapshot, never run by an export
+    `CREATE VIEW "v\nDROP TABLE orders;\n--" AS SELECT 1 AS x`,
+    `COMMENT ON COLUMN customers.email IS E'\\\\''); DROP TABLE orders; -- '`,
+    `CREATE INDEX customers_lower_email ON customers (lower(email))`,
   ])
     await c.query(sql);
   // Steward refuses its own database server as a platform (npm run test:pg uses one server for both): the platforms
@@ -550,6 +554,13 @@ for (const dialect of ['postgresql', 'mysql', 'sqlserver'] as DbDialect[]) {
         headers: { authorization: `Bearer ${(await s.api('POST', '/me/tokens', { name: `ddl ${dialect}`, scope: 'read' })).token}` },
       }).then((x) => x.text());
       expect(ddl).toContain(dialect === 'mysql' ? 'CREATE TABLE `' : dialect === 'sqlserver' ? 'CREATE TABLE [' : 'CREATE TABLE "');
+      if (dialect === 'postgresql') {
+        expect(table('v\u240aDROP TABLE orders;\u240a--').type).toBe('view');
+        expect(ddl).not.toMatch(/^\s*DROP/m);
+        expect(ddl).toContain(`COMMENT ON COLUMN "public"."customers"."email" IS E'\\\\''); DROP TABLE orders; -- ';`);
+        // an expression index: its definition from PostgreSQL itself
+        expect(ddl).toMatch(/^CREATE INDEX customers_lower_email ON public\.customers USING btree \(lower\(/m);
+      }
       expect(JSON.stringify(snap)).not.toContain(RO_PW);
       expect(await t.count()).toBe(before);
     });
