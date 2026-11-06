@@ -5,6 +5,7 @@ import { lifecycleOf, lifecycleSettings, releasesOf } from '../catalogue/lifecyc
 import { productLabel } from '../catalogue/components.js';
 import { applicationEntries } from './check.js';
 import { allEntries, isWellBehind, versionSettings, watchOf, type WatchedEntry } from './service.js';
+import { currentUser, runAs } from '../auth/context.js';
 
 /**
  * The built-in dataset "Component versions" (`catalogue.versions`, #241): one row per tech stack entry – of the
@@ -31,14 +32,18 @@ const behindText = (lag: string, b: { major: number; minor: number; patch: numbe
           ? 'up to date'
           : '–';
 
-/** Publishes the dataset (at most hourly unless forced). Returns whether it did. */
+/**
+ * Publishes the dataset (at most hourly unless forced). Returns whether it did. It is read by administrators and
+ * auditors: every entry and platform, also when "Refresh now" of a designer publishes it (no reader's view).
+ */
 export function publishVersionDataset(force = false, now = Date.now()): boolean {
+  if (currentUser()) return runAs(null, () => publishVersionDataset(force, now));
   if (!force && now - lastPublished < 3_600_000) return false;
   const apps = db().all<{ id: string; name: string }>('SELECT id, name FROM applications WHERE archived = 0 ORDER BY name');
   const entries: { app: string; e: WatchedEntry }[] = [];
   const seenSystems = new Set<string>();
   for (const a of apps)
-    for (const e of applicationEntries(a.id)) {
+    for (const e of applicationEntries(a.id, null)) {
       entries.push({ app: a.name, e });
       if (e.holderKind === 'system') seenSystems.add(e.holderId);
     }

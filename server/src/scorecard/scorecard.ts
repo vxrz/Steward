@@ -453,12 +453,25 @@ interface LifecycleCtx {
   warnDays: number;
 }
 
-function lifecycleCtx(d: Data): LifecycleCtx {
+/** Whether `viewer` may see the holder of a stack entry: a system has its own visibility (no viewer: the snapshot, all). */
+function holderVisible(viewer: AuthUser | null): (r: Pick<AppStackRow, 'holder_kind' | 'holder_id' | 'holder_owners'>) => boolean {
+  const seen = new Map<string, boolean>();
+  return (r) => {
+    if (!viewer || r.holder_kind === 'component') return true;
+    if (!seen.has(r.holder_id))
+      seen.set(r.holder_id, canViewCatalogue(viewer, { kind: 'system', id: r.holder_id, owners: parseJson<string[]>(r.holder_owners, []) }));
+    return seen.get(r.holder_id)!;
+  };
+}
+
+function lifecycleCtx(d: Data, viewer: AuthUser | null): LifecycleCtx {
   const s = lifecycleSettings();
   const entries = new Map<string, AppStackRow[]>();
   if (!s.scorecard) return { enabled: false, entries, releases: new Map(), warnDays: s.warnDays, environments: [] };
   const apps = new Set([...d.members.values()].flat());
-  for (const r of appStackRows()) if (apps.has(r.application_id)) entries.set(r.application_id, [...(entries.get(r.application_id) ?? []), r]);
+  // systems the viewer may not see are neither named nor counted
+  const visible = holderVisible(viewer);
+  for (const r of appStackRows()) if (apps.has(r.application_id) && visible(r)) entries.set(r.application_id, [...(entries.get(r.application_id) ?? []), r]);
   const products = [...new Set([...entries.values()].flat().map((e) => e.product))];
   return {
     enabled: true,
@@ -522,11 +535,12 @@ interface UpToDateCtx {
   settings: ReturnType<typeof versionSettings>;
 }
 
-function upToDateCtx(d: Data, now: number): UpToDateCtx {
+function upToDateCtx(d: Data, viewer: AuthUser | null, now: number): UpToDateCtx {
   const settings = versionSettings();
   const entries = new Map<string, { e: WatchedEntry; w: StackVersion }[]>();
   if (!settings.scorecard) return { enabled: false, entries, environments: [], settings };
-  const all = [...new Set([...d.members.values()].flat())].flatMap((id) => applicationEntries(id));
+  // systems the viewer may not see are neither named nor counted
+  const all = [...new Set([...d.members.values()].flat())].flatMap((id) => applicationEntries(id, viewer));
   for (const { entry, watch } of watchOf(all, now).values())
     if (watch?.newest) entries.set(entry.applicationId, [...(entries.get(entry.applicationId) ?? []), { e: entry, w: watch }]);
   return { enabled: true, entries, environments: environmentList(), settings };
@@ -708,9 +722,9 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
   const oc: ObjCtx = { cache: readingCache(now), facts: sampleFacts(), platforms: platformLookup(), viewer };
   const docs = docCtx(d, viewer);
   const needs = protectionNeeds(d.services.map((s) => s.id));
-  const lc = lifecycleCtx(d);
+  const lc = lifecycleCtx(d, viewer);
   const vc = vulnerabilityCtx(d);
-  const uc = upToDateCtx(d, now);
+  const uc = upToDateCtx(d, viewer, now);
   const cc = contractCtx(d, viewer);
   return d.services.map((s) => {
     const duties = dutiesPart(d, s.id);
