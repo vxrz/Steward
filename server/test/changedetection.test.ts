@@ -172,7 +172,8 @@ describe('changedetection.io platform', () => {
 
   it('reads the snapshot times of a watch, not the snapshots', async () => {
     const h = await s.api('GET', `/changedetection/${cd}/watches/${TERMS}/history`);
-    expect(h).toMatchObject({ uuid: TERMS, count: 3, diffUrl: expect.stringMatching(new RegExp(`/diff/${TERMS}$`)) });
+    expect(h).toMatchObject({ uuid: TERMS, count: 3, diffUrl: expect.stringContaining(`/diff/${TERMS}`) });
+    expect(h.diffUrl.endsWith(`/diff/${TERMS}`)).toBe(true);
     expect(h.snapshots).toHaveLength(3);
     expect(Date.parse(h.snapshots[0])).toBeGreaterThan(Date.parse(h.snapshots[1]));
     expect(JSON.stringify(h)).not.toContain('/datastore/');
