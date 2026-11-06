@@ -46,6 +46,9 @@ export const platformKeys = {
   recordings: (id: string | null | undefined) => ['platform-recordings', id] as const,
   /** LLM gateways (0.6.0): budgets, use and the latest calls; refreshed with the platform (prefix ['platform', id]) */
   aiUsage: (id: string | null | undefined) => ['platform', id, 'ai-usage'] as const,
+  /** Kafka Connect (0.9.0): the connectors Steward last read; a connector's configuration (read on request, never cached) */
+  kafkaConnect: (id: string | null | undefined) => ['platform', id, 'kafka-connect'] as const,
+  kafkaConnectConfig: (id: string | null | undefined, name: string) => ['platform', id, 'kafka-connect', 'config', name] as const,
 };
 
 /** AI models (0.6.0): every budget (administrators and auditors) */

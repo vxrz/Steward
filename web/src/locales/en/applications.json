@@ -365,7 +365,13 @@
       "peekAgain": "Read again",
       "peekEmpty": "The topic has no messages",
       "peekLine": "Partition {{partition}}, offset {{offset}}, {{date}}, key {{key}}",
-      "truncated": "cut off"
+      "truncated": "cut off",
+      "connectors": "Connectors:",
+      "connectorTypes": {
+        "source": "source",
+        "sink": "sink",
+        "unknown": "connector"
+      }
     },
     "aws": {
       "platform": "AWS account",

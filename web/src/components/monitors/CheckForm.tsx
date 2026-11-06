@@ -1011,29 +1011,27 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
             value={c.maxLag ?? ''}
             onChange={(v) => set({ maxLag: num(v) })}
           />
-          <Group grow align="flex-start">
-            <NumberInput
-              error={err('quietMinutes')}
-              data-field="quietMinutes"
-              label={t('form.connectQuiet')}
-              description={t('form.connectQuietHint')}
-              min={1}
-              disabled={disabled}
-              value={c.quietMinutes ?? ''}
-              onChange={(v) => set({ quietMinutes: num(v) })}
-            />
-            <Select
-              label={t('form.quietAs')}
-              data={[
-                { value: 'down', label: t('status.down') },
-                { value: 'degraded', label: t('status.degraded') },
-              ]}
-              value={c.quietAs ?? 'degraded'}
-              allowDeselect={false}
-              disabled={disabled || c.quietMinutes === undefined}
-              onChange={(v) => v && set({ quietAs: v as 'down' | 'degraded' })}
-            />
-          </Group>
+          <NumberInput
+            error={err('quietMinutes')}
+            data-field="quietMinutes"
+            label={t('form.connectQuiet')}
+            description={t('form.connectQuietHint')}
+            min={1}
+            disabled={disabled}
+            value={c.quietMinutes ?? ''}
+            onChange={(v) => set({ quietMinutes: num(v) })}
+          />
+          <Select
+            label={t('form.quietAs')}
+            data={[
+              { value: 'down', label: t('status.down') },
+              { value: 'degraded', label: t('status.degraded') },
+            ]}
+            value={c.quietAs ?? 'degraded'}
+            allowDeselect={false}
+            disabled={disabled || c.quietMinutes === undefined}
+            onChange={(v) => v && set({ quietAs: v as 'down' | 'degraded' })}
+          />
         </>
       )}
       {c.type === 'dependency-track' && (

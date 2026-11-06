@@ -660,14 +660,37 @@ function DynamoDbTables({ platformId, resources }: { platformId: string; resourc
 }
 
 /** What Steward last read from a Kafka topic (#112): newest message, partitions, settings, consumer lag, schema. */
+/** The Kafka Connect connectors that read or write a topic (#223), of Kafka Connect platforms the reader may see. */
+function TopicConnectors({ component: c }: { component: ApplicationComponent }) {
+  const { t } = useTranslation('applications');
+  if (!c.connectors?.length) return null;
+  return (
+    <Text size="xs" c="dimmed" data-testid="topic-connectors">
+      {t('components.topic.connectors')}{' '}
+      {c.connectors.map((x, i) => (
+        <span key={`${x.platformId}/${x.connector}`}>
+          {i > 0 && ', '}
+          <Anchor component={Link} to={`/platforms/${x.platformId}?tab=connectors`} size="xs" title={x.platformName}>
+            {x.connector}
+          </Anchor>{' '}
+          ({t(`components.topic.connectorTypes.${x.type}`)}, {x.state})
+        </span>
+      ))}
+    </Text>
+  );
+}
+
 function TopicLine({ component: c }: { component: ApplicationComponent }) {
   const { t } = useTranslation('applications');
   const r = c.topic;
   if (!r)
     return (
-      <Text size="xs" c="dimmed">
-        {t('components.topic.notRead')}
-      </Text>
+      <>
+        <Text size="xs" c="dimmed">
+          {t('components.topic.notRead')}
+        </Text>
+        <TopicConnectors component={c} />
+      </>
     );
   const retention = r.configs['retention.ms'];
   const days = retention && Number(retention) > 0 ? Math.round(Number(retention) / 86_400_000) : null;
@@ -699,6 +722,7 @@ function TopicLine({ component: c }: { component: ApplicationComponent }) {
           {t('components.topic.schema', { subject: r.schema.subject, version: r.schema.version, type: r.schema.type })}
         </Text>
       )}
+      <TopicConnectors component={c} />
     </Stack>
   );
 }
