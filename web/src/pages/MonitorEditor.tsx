@@ -98,6 +98,7 @@ const TRYABLE = new Set<CheckType>([
   'kubernetes',
   'git',
   'kafka',
+  'kafka-connect',
   'mqtt',
   'snowflake',
   'database',

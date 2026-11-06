@@ -1,6 +1,7 @@
 import type { ImageProductRule, NamespaceReadout } from './kubernetes.js';
 import type { RepositoryReadout } from './git.js';
 import type { TopicReadout } from './kafka.js';
+import type { TopicConnectorRef } from './kafkaConnect.js';
 import type { AwsReadout } from './aws.js';
 import type { SnowflakeReadout } from './snowflake.js';
 import type { DtrackLink, DtrackReadout } from './dtrack.js';
@@ -341,6 +342,8 @@ export interface ApplicationComponent {
   repository?: RepositoryReadout | null;
   /** Kafka topic (#112): what Steward last read from its Kafka platform */
   topic?: TopicReadout | null;
+  /** Kafka topic (#223): the Kafka Connect connectors that use it, of Kafka Connect platforms the reader may see */
+  connectors?: TopicConnectorRef[];
   /** Cloud account on an AWS platform (#116): resources with the application tag, costs, IAM keys */
   aws?: AwsReadout | null;
   /** Snowflake database (#115): tables, freshness, failing tasks, warehouse credits */

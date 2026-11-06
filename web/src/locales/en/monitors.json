@@ -223,6 +223,16 @@
     "kafkaStuck": "Stuck after (minutes without a commit)",
     "kafkaSchema": "Expected schema version",
     "kafkaSchemaHint": "Of <topic>-value in the Schema Registry; empty: not checked",
+    "connectConnector": "Connector",
+    "connectConnectorHint": "Empty: every connector of the cluster",
+    "connectNotRunningAs": "When a connector or task failed",
+    "connectPausedAs": "When one is paused or stopped",
+    "connectFailedMinutes": "Failed task alarms after (minutes)",
+    "connectFailedMinutesHint": "Empty: at once; before that, degraded",
+    "connectMaxLag": "Most lag of a sink (messages)",
+    "connectMaxLagHint": "Read on the Kafka platform of the cluster; empty: not checked",
+    "connectQuiet": "Debezium topics quiet after (minutes)",
+    "connectQuietHint": "No message on any topic of a Debezium connector; empty: not checked",
     "mqttTopic": "Topic or pattern",
     "mqttTopicHint": "+ one level, # the rest, e.g. plant/+/status",
     "mqttMode": "What must arrive",
@@ -705,6 +715,10 @@
       "label": "Kafka topic",
       "help": "New messages on a topic within N minutes, the lag of a consumer group, a group that is stuck, the schema version"
     },
+    "kafka-connect": {
+      "label": "Kafka Connect connectors",
+      "help": "Connectors and their tasks are RUNNING, a task failed for N minutes, the consumer lag of a sink connector, a Debezium connector whose topics got no message for N minutes"
+    },
     "mqtt": {
       "label": "MQTT topics",
       "help": "Messages on an MQTT topic within N minutes, devices (topics of a pattern) that went silent, connected clients"
@@ -755,6 +769,7 @@
     "kubernetes": "Kubernetes deployments",
     "git": "Repository pipeline",
     "kafka": "Kafka topic",
+    "kafka-connect": "Connectors running",
     "mqtt": "MQTT topics",
     "monitor": "Sub-monitor",
     "snowflake": "Snowflake table fresh",

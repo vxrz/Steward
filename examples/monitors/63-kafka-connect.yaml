@@ -1,0 +1,44 @@
+# Kafka Connect (#223): the connectors of a cluster run, a sink keeps up and a Debezium connector delivers changes.
+# "platform: Kafka Connect" finds your Kafka Connect platform when it is the only one (or the only one whose name starts
+# with "Kafka Connect"); on import you choose it otherwise. Lag and the Debezium topics are read on the Kafka platform
+# the Kafka Connect platform names in its variable kafkaPlatform. Steward only reads: it never restarts, pauses or
+# resumes a connector. Replace the connector names and the limits. See docs/KAFKA.md#kafka-connect-and-debezium.
+kind: monitor
+key: kafka-connect-shop
+name: Kafka Connect – shop connectors
+description: Every connector and task runs, the archive sink keeps up and the change data capture of the shop database delivers.
+tags: [kafka, kafka-connect, debezium]
+intervalSeconds: 300
+aggregate: { rule: worst }
+checks:
+  - id: connectors
+    name: All connectors running
+    type: kafka-connect
+    platform: Kafka Connect
+    notRunningAs: down
+    pausedAs: degraded
+    failedMinutes: 10
+    x: 0
+    y: 0
+  - id: archive
+    name: orders-archive keeps up
+    type: kafka-connect
+    platform: Kafka Connect
+    connector: orders-archive
+    failedMinutes: 10
+    maxLag: 10000
+    x: 260
+    y: 0
+  - id: cdc
+    name: shop-cdc delivers changes (30 min)
+    type: kafka-connect
+    platform: Kafka Connect
+    connector: shop-cdc
+    quietMinutes: 30
+    quietAs: degraded
+    critical: false
+    x: 520
+    y: 0
+links:
+  - { from: connectors, to: archive }
+  - { from: connectors, to: cdc }

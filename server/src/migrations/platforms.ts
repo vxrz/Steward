@@ -2,6 +2,8 @@ import type { NamedMigration } from '../db.js';
 
 /**
  * Platforms and their API specifications.
+ * - platforms-004: what Steward last read from a Kafka Connect cluster (0.9.0, #223, kafkaconnect/service.ts): connectors,
+ *   tasks and plugins – never a connector configuration.
  * - platforms-003: the periodic connection test of a platform (v0.4.0, platforms/health.ts): off by default.
  * - platforms-002: recorded responses for test runs (#105).
  * - platforms-001: the path prefix of an API specification (the path of its server URL, editable per spec). NULL for
@@ -49,6 +51,19 @@ export const PLATFORM_MIGRATIONS: NamedMigration[] = [
         notified_at TEXT,
         updated_by TEXT,
         updated_at TEXT
+      );
+    `,
+  },
+  {
+    // Kafka Connect (0.9.0, #223): the last readout per platform (no configuration) and the Kafka platform it was linked to
+    name: 'platforms-004-kafka-connect',
+    sql: `
+      CREATE TABLE kafka_connect_readouts (
+        platform_id TEXT PRIMARY KEY REFERENCES platforms(id) ON DELETE CASCADE,
+        kafka_platform_id TEXT,
+        readout TEXT NOT NULL,
+        read_at TEXT NOT NULL,
+        read_by TEXT NOT NULL
       );
     `,
   },

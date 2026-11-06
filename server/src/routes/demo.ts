@@ -12,6 +12,7 @@ import { DEMO_CHECKMK } from '../mock/mockCheckmk.js';
 import { DEMO_KUBERNETES } from '../mock/mockKubernetes.js';
 import { DEMO_GIT_PLATFORMS } from '../mock/mockGitPlatforms.js';
 import { DEMO_KAFKA } from '../mock/mockKafka.js';
+import { DEMO_KAFKA_CONNECT } from '../mock/mockKafkaConnect.js';
 import { DEMO_MQTT, startMqttSimulator } from '../mock/mockMqtt.js';
 import { DEMO_KAFKA_BOOTSTRAP } from '../kafka/client.js';
 import { DEMO_GATUS } from '../mock/mockGatus.js';
@@ -20,7 +21,7 @@ import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
 import { PRESETS, PRESET_SPECS } from '../platforms/presets.js';
 import { audit } from '../audit.js';
 import { createUser, findUserByName, saveTeam } from '../auth/users.js';
-import { DATABASE_KIND, LLM_GATEWAY_KIND, PVAULT_KIND, type AiGatewaySettings, type ComponentType, type Role } from '@sm/shared';
+import { DATABASE_KIND, KAFKA_CONNECT_KIND, LLM_GATEWAY_KIND, PVAULT_KIND, type AiGatewaySettings, type ComponentType, type Role } from '@sm/shared';
 import { DEMO_DB, DEMO_DB_HOST } from '../dbms/demo.js';
 import { createDashboard, listDashboardTemplates } from '../dashboards/service.js';
 import { listSchedules, saveSchedule } from '../scheduler.js';
@@ -325,6 +326,25 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
       },
       secrets: { ...DEMO_KAFKA },
     });
+    platforms++;
+  }
+  if (!existing.has('Kafka Connect (demo)')) {
+    // Kafka Connect (#223): a Debezium PostgreSQL source of the shop database and a sink of the topic orders, one task failed
+    const preset = PRESETS.find((x) => x.kind === KAFKA_CONNECT_KIND)!;
+    const kc = createPlatform({
+      name: 'Kafka Connect (demo)',
+      kind: KAFKA_CONNECT_KIND,
+      environment: 'demo',
+      description:
+        'Simulated Kafka Connect REST API served by the built-in mock: the Debezium connector shop-cdc reads the shop database, the sink orders-archive reads the topic orders (one task failed). Read-only. See docs/KAFKA.md.',
+      baseUrl: `${base}/kafka-connect`,
+      config: { auth: { type: 'basic' }, variables: { kafkaPlatform: 'Kafka (demo)' }, http: { proxy: 'none' }, testPath: preset.config.testPath },
+      secrets: { ...DEMO_KAFKA_CONNECT },
+    });
+    for (const sp of PRESET_SPECS[KAFKA_CONNECT_KIND]!()) addSpec(kc.id, sp.name, sp.content);
+    await import('../kafkaconnect/service.js')
+      .then((m) => m.refreshConnect(kc.id, currentActor()))
+      .catch((err) => logger.warn({ err: (err as Error).message }, 'demo Kafka Connect not read'));
     platforms++;
   }
   if (!existing.has('MQTT (demo)')) {

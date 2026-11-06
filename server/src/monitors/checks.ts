@@ -1084,6 +1084,7 @@ type Active =
   | CheckOf<'kubernetes'>
   | CheckOf<'git'>
   | CheckOf<'kafka'>
+  | CheckOf<'kafka-connect'>
   | CheckOf<'mqtt'>
   | CheckOf<'snowflake'>
   | CheckOf<'database'>
@@ -1133,6 +1134,9 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkPrivilegeVault(c, ctx);
       case 'kafka':
         return await checkKafka(c, ctx);
+      case 'kafka-connect':
+        // Kafka Connect (0.9.0, #223): connectors and tasks, a sink's lag, a Debezium connector's topics
+        return await (await import('../kafkaconnect/check.js')).checkKafkaConnect(c, ctx);
       case 'mqtt':
         return await checkMqtt(c, ctx);
     }

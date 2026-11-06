@@ -54,6 +54,7 @@ export const CHECK_TYPES = [
   'kubernetes',
   'git',
   'kafka',
+  'kafka-connect',
   'mqtt',
   'snowflake',
   'database',
@@ -80,6 +81,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   checkmk: { label: 'CheckMk host or service', help: 'Current state of a host or service in CheckMk (OK, WARN, CRIT, UNKNOWN)' },
   kubernetes: { label: 'Kubernetes deployments', help: 'Deployments of a namespace are ready (e.g. 3/3) and no pod is crash-looping' },
   kafka: { label: 'Kafka topic', help: 'New messages on a topic within N minutes, the lag of a consumer group, a group that is stuck, the schema version' },
+  'kafka-connect': {
+    label: 'Kafka Connect connectors',
+    help: 'Connectors and their tasks are RUNNING, a task failed for N minutes, the consumer lag of a sink connector, a Debezium connector whose topics got no message for N minutes',
+  },
   mqtt: { label: 'MQTT topics', help: 'Messages on an MQTT topic within N minutes, devices (topics of a pattern) that went silent, connected clients' },
   'dependency-track': {
     label: 'Vulnerabilities (Dependency-Track)',
@@ -511,6 +516,25 @@ export const checkSchema = z.discriminatedUnion('type', [
     stuckMinutes: z.number().int().min(1).max(10080).default(15),
     /** degraded when the latest schema version of <topic>-value is another one */
     schemaVersion: z.number().int().min(1).optional(),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('kafka-connect'),
+    /** A Kafka Connect platform (#223) */
+    platform: platformRef,
+    /** One connector; empty: every connector of the cluster */
+    connector: z.string().trim().max(255).optional(),
+    /** Status of a connector or task that is FAILED, UNASSIGNED or RESTARTING (default down) */
+    notRunningAs: z.enum(['down', 'degraded']).default('down'),
+    /** Status of a PAUSED or STOPPED connector or task (default degraded) */
+    pausedAs: z.enum(['up', 'degraded', 'down']).default('degraded'),
+    /** A failed task counts as notRunningAs only once it has failed for this many minutes (degraded before) */
+    failedMinutes: z.number().int().min(1).max(10080).optional(),
+    /** Sink connectors: degraded above this consumer lag, read on the linked Kafka platform */
+    maxLag: z.number().int().min(0).optional(),
+    /** Debezium source connectors: quietAs when none of its topics got a message for this many minutes */
+    quietMinutes: z.number().int().min(1).max(43200).optional(),
+    quietAs: z.enum(['down', 'degraded']).default('degraded'),
   }),
   z.object({
     ...checkBase,

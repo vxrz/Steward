@@ -19,6 +19,7 @@ import {
   type NamespaceReadout,
   type RepositoryReadout,
   type TopicReadout,
+  type TopicConnectorRef,
   type AwsReadout,
   type SnowflakeReadout,
   type DtrackReadout,
@@ -34,6 +35,7 @@ import {
   REPOSITORY_PATH_RE,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { topicConnectors } from '../kafkaconnect/service.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
@@ -308,7 +310,14 @@ export function componentsOf(appId: string): ApplicationComponent[] {
     .all<ComponentRow>('SELECT * FROM application_components WHERE application_id = ?', appId)
     .sort((a, b) => typeOrder(a.type) - typeOrder(b.type) || a.name.localeCompare(b.name) || rankOf(a.environment) - rankOf(b.environment));
   const stacks = stackOf(appId);
-  return rows.map((r) => toComponent(r, stacks.get(r.id) ?? []));
+  // Kafka topics (#223): the Kafka Connect connectors that use them, per Kafka platform
+  const connectors = new Map<string, Map<string, TopicConnectorRef[]>>();
+  for (const r of rows)
+    if (r.type === 'kafka-topic' && r.platform_id && !connectors.has(r.platform_id)) connectors.set(r.platform_id, topicConnectors(r.platform_id));
+  return rows.map((r) => {
+    const c = toComponent(r, stacks.get(r.id) ?? []);
+    return r.type === 'kafka-topic' && r.platform_id ? { ...c, connectors: connectors.get(r.platform_id)?.get(r.name) ?? [] } : c;
+  });
 }
 
 /** Number of components per application. */

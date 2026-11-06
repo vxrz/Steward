@@ -9,6 +9,7 @@ import { mockPrometheus } from './mockPrometheus.js';
 import { mockKubernetes } from './mockKubernetes.js';
 import { mockGitPlatforms } from './mockGitPlatforms.js';
 import { mockSchemaRegistry } from './mockKafka.js';
+import { mockKafkaConnect } from './mockKafkaConnect.js';
 import { mockMqtt } from './mockMqtt.js';
 import { mockGatus } from './mockGatus.js';
 import { iotTimeseries, mockIotRoutes } from './mockIot.js';
@@ -217,6 +218,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   await mockKubernetes(app);
   await mockGitPlatforms(app);
   await mockSchemaRegistry(app);
+  await mockKafkaConnect(app);
   await mockMqtt(app);
   await mockIotRoutes(app);
   await mockZabbix(app);

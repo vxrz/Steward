@@ -946,6 +946,94 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
           />
         </>
       )}
+      {c.type === 'kafka-connect' && (
+        <>
+          <PlatformSelect
+            value={c.platform}
+            onChange={(v) => set({ platform: v })}
+            platforms={platforms}
+            kind="kafka-connect"
+            disabled={disabled}
+            error={err('platform')}
+          />
+          <TextInput
+            error={err('connector')}
+            data-field="connector"
+            label={t('form.connectConnector')}
+            description={t('form.connectConnectorHint')}
+            disabled={disabled}
+            value={c.connector ?? ''}
+            onChange={(e) => set({ connector: e.currentTarget.value || undefined })}
+            classNames={{ input: 'mono' }}
+          />
+          <Group grow align="flex-start">
+            <Select
+              label={t('form.connectNotRunningAs')}
+              data={[
+                { value: 'down', label: t('status.down') },
+                { value: 'degraded', label: t('status.degraded') },
+              ]}
+              value={c.notRunningAs ?? 'down'}
+              allowDeselect={false}
+              disabled={disabled}
+              onChange={(v) => v && set({ notRunningAs: v as 'down' | 'degraded' })}
+            />
+            <Select
+              label={t('form.connectPausedAs')}
+              data={[
+                { value: 'up', label: t('status.up') },
+                { value: 'degraded', label: t('status.degraded') },
+                { value: 'down', label: t('status.down') },
+              ]}
+              value={c.pausedAs ?? 'degraded'}
+              allowDeselect={false}
+              disabled={disabled}
+              onChange={(v) => v && set({ pausedAs: v as 'up' | 'down' | 'degraded' })}
+            />
+          </Group>
+          <NumberInput
+            error={err('failedMinutes')}
+            data-field="failedMinutes"
+            label={t('form.connectFailedMinutes')}
+            description={t('form.connectFailedMinutesHint')}
+            min={1}
+            disabled={disabled}
+            value={c.failedMinutes ?? ''}
+            onChange={(v) => set({ failedMinutes: num(v) })}
+          />
+          <NumberInput
+            error={err('maxLag')}
+            data-field="maxLag"
+            label={t('form.connectMaxLag')}
+            description={t('form.connectMaxLagHint')}
+            min={0}
+            disabled={disabled}
+            value={c.maxLag ?? ''}
+            onChange={(v) => set({ maxLag: num(v) })}
+          />
+          <NumberInput
+            error={err('quietMinutes')}
+            data-field="quietMinutes"
+            label={t('form.connectQuiet')}
+            description={t('form.connectQuietHint')}
+            min={1}
+            disabled={disabled}
+            value={c.quietMinutes ?? ''}
+            onChange={(v) => set({ quietMinutes: num(v) })}
+          />
+          <Select
+            label={t('form.quietAs')}
+            data={[
+              { value: 'down', label: t('status.down') },
+              { value: 'degraded', label: t('status.degraded') },
+            ]}
+            value={c.quietAs ?? 'degraded'}
+            allowDeselect={false}
+            disabled={disabled || c.quietMinutes === undefined}
+            onChange={(v) => v && set({ quietAs: v as 'down' | 'degraded' })}
+          />
+        </>
+      )}
       {c.type === 'dependency-track' && (
         <>
           <PlatformSelect

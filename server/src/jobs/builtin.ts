@@ -38,6 +38,8 @@ export function registerBuiltInJobs(): void {
   every5('kubernetes', 30 * MINUTE, () => import('../catalogue/kubernetes.js').then((m) => m.runKubernetesJob()));
   every5('repositories', 30 * MINUTE, () => import('../catalogue/repositories.js').then((m) => m.runRepositoryJob()));
   every5('kafka', 30 * MINUTE, () => import('../kafka/service.js').then((m) => m.runKafkaJob()));
+  // Kafka Connect platforms (#223): connectors, tasks and plugins every hour
+  every5('kafka-connect', 15 * MINUTE, () => import('../kafkaconnect/service.js').then((m) => m.runKafkaConnectJob()));
   every5('aws', 30 * MINUTE, () => import('../aws/service.js').then((m) => m.runAwsJob()));
   every5('snowflake', 30 * MINUTE, () => import('../snowflake/service.js').then((m) => m.runSnowflakeJob()));
   every5('dependency-track', 30 * MINUTE, () => import('../dtrack/service.js').then((m) => m.runDtrackJob()));

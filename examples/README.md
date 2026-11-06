@@ -1,6 +1,6 @@
 # Example library: service management & housekeeping
 
-Ready-to-use procedures, dashboards and monitors for **Siemens Insights Hub**, **Industrial Edge Management**, **Gatus**, **CheckMk**, **Prometheus**, **Kubernetes**, the Git hosts **GitHub, GitLab and Forgejo**, **Kafka**, **Dependency-Track**, **Snowflake**, **AWS**, **MQTT**, **IBM Verify Privilege Vault** and the service catalogue (applications, tech stacks, end of life).
+Ready-to-use procedures, dashboards and monitors for **Siemens Insights Hub**, **Industrial Edge Management**, **Gatus**, **CheckMk**, **Prometheus**, **Kubernetes**, the Git hosts **GitHub, GitLab and Forgejo**, **Kafka** and **Kafka Connect**, **Dependency-Track**, **Snowflake**, **AWS**, **MQTT**, **IBM Verify Privilege Vault** and the service catalogue (applications, tech stacks, end of life).
 
 - **Processes** (`processes/*.yaml`) appear in the app under **Processes → From template**. The gallery shows which platforms a template needs, when to run it and which dashboards it feeds (see [Template metadata](#template-metadata)).
 - **Dashboards** (`dashboards/*.yaml`) appear under **Dashboards → From template**.
@@ -250,5 +250,6 @@ monitors:
 | 57  | TCP service (template)                  | A TCP port answers; one monitor per service from a form or CSV (check type `tcp`)                                                            |
 | 58  | Entra ID app credentials                | App secrets and certificates ending within 30 days, Microsoft 365 service health (check type `entra`)                                        |
 | 59  | Vault hygiene                           | Failed heartbeats, rotation, owners and checkout/approval of privileged secrets in IBM Verify Privilege Vault (check type `privilege-vault`) |
+| 63  | Kafka Connect – shop connectors         | Connectors and tasks running, a failed task after 10 minutes, a sink's lag, a quiet Debezium connector (check type `kafka-connect`)          |
 
 The monitors name their platform generically (`platform: Snowflake`, `platform: GitHub`, …): on import Steward takes the only platform of that kind, or the only one whose name starts with it, and otherwise asks which platform to use. Replace the objects (tables, namespaces, topics, hosts) with your own.

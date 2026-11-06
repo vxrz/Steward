@@ -9,6 +9,7 @@ Steward checks the Kafka topics an application owns – service-level checks, no
 | The topics of applications against your standards                                         | the example process _Kafka – Topic standards_ and the dashboard **Kafka topics**   |
 | A schema change with a compatibility check and an approval                                | the example process _Kafka – Schema change review_                                 |
 | A few recent messages for troubleshooting                                                 | _Peek_ on a topic component (off by default)                                       |
+| Connectors and tasks of Kafka Connect (also Debezium), and what they read and write       | platforms of kind **Kafka Connect** – see [below](#kafka-connect-and-debezium)     |
 
 Works with Confluent Cloud and Confluent Platform, Apache Kafka, Redpanda, Amazon MSK (SASL/SCRAM) and Azure Event Hubs (Kafka endpoint). Steward connects with a pure-JavaScript Kafka client (`@platformatic/kafka`); nothing to install.
 
@@ -93,6 +94,71 @@ For troubleshooting, a platform manager can read the newest messages of a topic:
 - **Sensitive fields hidden**: JSON fields whose names look like secrets or personal data (password, token, key, e-mail, phone, IBAN, card, name, address, birth date …) become `***`; e-mail addresses, IBANs and card numbers in text are masked too. Binary messages (e.g. Avro) are shown as their size only.
 - **Audited**: every read is recorded as `kafka.messages_read` with the topic and the offsets read.
 
+## Kafka Connect and Debezium
+
+Where Kafka Connect runs – for example with [Debezium](https://debezium.io/documentation/reference/stable/connectors/index.html) for change data capture – Steward watches it like the other platforms (0.9.0, #223). It **does not** run connectors or capture changes itself, and it **never writes**: no connector is created, changed, restarted, paused, resumed or deleted. A restart may come later as a manual step with four-eyes approval.
+
+### Connect a cluster
+
+_Platforms → New → Kafka Connect (connectors, read-only)_:
+
+| Setting                                                            | Value                                                                                                                                                                         |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base URL                                                           | the [Kafka Connect REST API](https://kafka.apache.org/documentation/#connect_rest) of one worker or its load balancer, e.g. `https://connect.example.com:8083`                |
+| Variable **kafkaPlatform**                                         | the name or id of the **Kafka platform** of the cluster – for the topic components, a sink's lag and a Debezium connector's topics                                            |
+| Credentials **username** / **password**                            | basic sign-in (the REST extension `BasicAuthSecurityRestExtension`, or a proxy in front)                                                                                      |
+| Credential **token**                                               | a bearer token (a proxy or gateway in front of the REST API)                                                                                                                  |
+| Credentials **tlsCertificate** / **tlsKey** (**tlsKeyPassphrase**) | a client certificate for **mutual TLS** (PEM); a private CA under the platform's HTTP settings – see [PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md#client-certificate-mutual-tls) |
+
+The account only needs to read (`GET`) – Steward sends nothing else to a Kafka Connect platform, whatever asks: processes, the explorer, the MCP gateway and monitors get `403 PLATFORM_METHOD_DENIED` for `POST`, `PUT`, `PATCH` and `DELETE`. The base URL goes through the outbound policy like every platform; redirects are not followed.
+
+### What Steward reads
+
+The platform page opens on **Connectors**, read every hour and with _Read now_ (who may use the platform):
+
+- **Connectors** with **type** (source or sink), **class** (`connector.class`), the **version** of its plugin, **state**, the worker it runs on and the **topics** it uses – the active topics Kafka Connect tracks (`GET /connectors/{name}/topics`, Kafka 2.5 and newer), else a sink's `topics`.
+- **Tasks** per connector with state and worker; a **failed** task (or connector) with its **error trace**, shortened to 12 lines and 2,000 characters, and since when Steward has seen it failed.
+- The installed **connector plugins** with class, type and version.
+- A sink's **consumer group**: `connect-<name>`, or `consumer.override.group.id`.
+
+Requests: `GET /`, `GET /connectors?expand=status&expand=info` (one request per connector on Kafka Connect before 2.3), `GET /connectors/{name}/topics`, `GET /connector-plugins`. The readout is kept per platform without any configuration (`kafka_connect_readouts`); connectors that appear or disappear are recorded in the platform's history (`platform.connectors_changed`).
+
+### Configurations and secrets
+
+Connector configurations hold credentials. **Every answer of a Kafka Connect platform** – to the readout, the explorer, process steps, the MCP gateway and recorded responses – has its secret-looking values removed before Steward uses, shows, logs or stores it (`shared/src/kafkaConnect.ts`):
+
+- **By key**: a fixed list compared with the words of the key – `password`, `passwd`, `pwd`, `secret`, `token`, `credential(s)`, `passphrase`, `apikey` / `api.key`, `private.key`, `user.info` (as in `basic.auth.user.info`), `jaas` and `sasl.jaas.config`, and keys ending in `key` or `pass` (`ssl.key`, `aws.secret.access.key`). `key.converter` or `primary.key.mode` are kept.
+- **By value**: private keys (`-----BEGIN …`), JSON Web Tokens and long random-looking strings (32 characters or more of Base64 or hexadecimal) become `***`; passwords in URLs (`jdbc:postgresql://user:***@host/db`) and in `key=value` pairs (`;password=***`) are masked.
+- **Kept**: configuration provider references such as `${file:/opt/connect/secrets.properties:db.password}` ([KIP-297](https://kafka.apache.org/documentation/#connect_configproviders)) – they name where a secret is, not the secret. Use them: then Kafka Connect itself never returns the value.
+- **Error traces** lose the secret values of the same answer's configurations and everything that looks like a credential (URLs with user info, `password=…`, tokens, keys, e-mail and IP addresses).
+
+_Configuration_ on a connector reads its configuration **now** – it is never stored or cached – for who may use the platform, and records the read in the audit log (`kafka_connect.config_read`, the connector and the number of keys, no values). These are heuristics: when a connector keeps a secret under a key the rules do not know, put it into a configuration provider.
+
+### Links: topics, databases, systems
+
+- **Kafka topics**: a connector's topics link to the **Kafka topic components** of applications on the linked Kafka platform (same topic name); the topic component on the application page lists the connectors that read or write it.
+- **Debezium source connectors** (class `io.debezium.connector.<dbms>.…`) link to the **database platform** and the **system** they read. The rule:
+  1. From the configuration: the DBMS from the class (`postgresql`, `mysql`, `mariadb`, `sqlserver`, `oracle`, `db2`, …), the host `database.hostname`, the port `database.port` (else the DBMS's default), the databases `database.dbname` (PostgreSQL, Oracle, Db2), `database.names` (SQL Server) or `database.include.list` (MySQL, MariaDB).
+  2. **Database platform**: one whose connection (_Platform → Database_) has the same dialect (MariaDB and MySQL are one), the same host (case-insensitive, without a trailing dot) and port, and – when the connector names databases – one of them as its database. Several: the first by name.
+  3. **System**: the system that _is_ that database platform (#129); else a system named like the host, or like its first label (`shop-db` for `shop-db.example.internal`).
+- **Only what you may see**: a database platform, system, Kafka platform or application you may not see is not named – it reads like no match.
+
+### Monitor check
+
+```yaml
+checks:
+  - { id: connectors, name: Connectors run, type: kafka-connect, platform: Kafka Connect (prod) }
+  - { id: archive, name: Archive sink, type: kafka-connect, platform: Kafka Connect (prod), connector: orders-archive, failedMinutes: 10, maxLag: 10000 }
+  - { id: cdc, name: CDC delivers, type: kafka-connect, platform: Kafka Connect (prod), connector: shop-cdc, quietMinutes: 30 }
+```
+
+- `connector`: one connector; empty: every connector of the cluster.
+- A connector or task **FAILED**: `notRunningAs` (default **down**); with `failedMinutes`, a failed task is **degraded** until it has failed that long. **UNASSIGNED** or **RESTARTING** (a rebalance): degraded. **PAUSED** or **STOPPED**: `pausedAs` (default degraded; `up` for connectors paused on purpose).
+- `maxLag`: a **sink connector's** consumer lag on its topics, read on the linked Kafka platform – **degraded** above. Needs the variable `kafkaPlatform` and a Kafka platform the monitor's owner may use; otherwise the message says so and the status is unaffected.
+- `quietMinutes`: a **Debezium source connector** none of whose topics got a message for that long – `quietAs` (default degraded). Brokers before Kafka 3.0: when the end offsets stopped moving, from the second window on.
+
+The message says what it saw: `Kafka Connect: orders-archive RUNNING (1/2 tasks) – orders-archive task 1 FAILED for 25 minutes`. An example: [`examples/monitors/63-kafka-connect.yaml`](../examples/monitors/63-kafka-connect.yaml).
+
 ## Demo and tests
 
-Demo mode adds **Kafka (demo)**, a simulated cluster (`server/src/mock/mockKafka.ts`; reached only in demo mode, bootstrap `kafka.demo.invalid:9092`) with the topics `orders` (a consumer group that keeps up and one that is stuck), `payments` (no message for 3 hours) and `shop-events` (compacted), and a Schema Registry. Peek is on in the demo. Tests: `server/test/kafka.test.ts`, `server/test/kafka-prefix.test.ts` (topics by prefix) and the example runs in `server/test/examples.test.ts`.
+Demo mode adds **Kafka (demo)**, a simulated cluster (`server/src/mock/mockKafka.ts`; reached only in demo mode, bootstrap `kafka.demo.invalid:9092`) with the topics `orders` (a consumer group that keeps up and one that is stuck), `payments` (no message for 3 hours) and `shop-events` (compacted), and a Schema Registry. Peek is on in the demo. **Kafka Connect (demo)** (`server/src/mock/mockKafkaConnect.ts`) has the Debezium PostgreSQL source `shop-cdc` of the demo database (topics `shop.public.orders` and `shop.public.customers`) and the sink `orders-archive` of `orders`, one of whose tasks failed. Tests: `server/test/kafka.test.ts`, `server/test/kafka-prefix.test.ts` (topics by prefix), `server/test/kafka-connect.test.ts` (Kafka Connect) and the example runs in `server/test/examples.test.ts`.

@@ -66,6 +66,20 @@
       "secretHelp": {
         "username": "Ein nur lesendes Login (docs/DATABASES.md): db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION"
       }
+    },
+    "kafka-connect-connectors-read-only": {
+      "description": "Ein Kafka-Connect-Cluster über seine REST-API, nur lesend (auch mit Debezium für Change Data Capture): Steward liest die Connectoren mit Typ, Klasse, Version, Zustand und Topics, ihre Tasks mit Zustand, Worker und dem Fehler eines fehlgeschlagenen Tasks sowie die installierten Plugins; Monitore prüfen, dass Connectoren und Tasks laufen, einen seit N Minuten fehlgeschlagenen Task, den Rückstand eines Sink-Connectors und Debezium-Connectoren, deren Topics keine Nachricht bekamen. Steward legt nie einen Connector an, startet, pausiert oder setzt ihn fort – ändernde Anfragen werden für diese Art abgelehnt –, und jede gelesene Konfiguration wird ohne geheim aussehende Werte gezeigt und nie gespeichert. Basis-URL: die REST-API (https://connect.example.com:8083); Variable kafkaPlatform: Name oder ID der zugehörigen Kafka-Plattform (für Topics und Rückstand). Anmeldung: Basic (username/password), ein Bearer-Token oder ein Client-Zertifikat (tlsCertificate/tlsKey, mutual TLS). Siehe docs/KAFKA.md.",
+      "secrets": {
+        "username": "Benutzername (Basic)",
+        "password": "Passwort (Basic)",
+        "token": "Bearer-Token",
+        "tlsCertificate": "Client-Zertifikat (PEM, mutual TLS)",
+        "tlsKey": "Privater Schlüssel des Client-Zertifikats (PEM)",
+        "tlsKeyPassphrase": "Passphrase des privaten Schlüssels (optional)"
+      },
+      "secretHelp": {
+        "username": "Ein Benutzer der REST-API, der Connectoren lesen darf (docs/KAFKA.md)"
+      }
     }
   },
   "title": "Plattformen",
@@ -186,7 +200,8 @@
       "mcp": "MCP",
       "recordings": "Aufgezeichnete Antworten",
       "ai": "KI-Modelle",
-      "aiUsage": "KI-Nutzung"
+      "aiUsage": "KI-Nutzung",
+      "connectors": "Connectoren"
     },
     "deleteText": "Damit wird <b>{{name}}</b> einschließlich gespeicherter Zugangsdaten, API-Spezifikationen und Dokumente gelöscht. Prozesse und Zeitpläne, die sie verwenden, schlagen fehl, bis eine andere Plattform gewählt wird. Das Audit-Log bleibt erhalten.",
     "typeToConfirm": "Zur Bestätigung „{{name}}“ eingeben"
@@ -973,5 +988,58 @@
       "secretHelp": "Hinterlegen Sie es als Geheimnis des CI-Jobs (STEWARD_PUSH_TOKEN) und schicken Sie mit einem dieser Befehle.",
       "done": "Fertig"
     }
+  },
+  "connect": {
+    "title": "Connectoren",
+    "help": "Was Steward zuletzt über die REST-API von Kafka Connect gelesen hat, nur lesend: Connectoren, ihre Tasks und die installierten Plugins. Stündlich gelesen und mit „Jetzt lesen“. Steward startet, pausiert oder setzt nie einen Connector fort.",
+    "readNow": "Jetzt lesen",
+    "readFailed": "Kafka Connect konnte nicht gelesen werden",
+    "read": "Gelesen {{when}}",
+    "worker": "Kafka Connect {{version}}",
+    "kafkaPlatform": "Kafka-Plattform:",
+    "kafkaPlatformMissing": "Die Variable kafkaPlatform nennt keine Kafka-Plattform, die Sie sehen dürfen – Topics und Rückstand lassen sich nicht verknüpfen.",
+    "kafkaPlatformNone": "Keine Kafka-Plattform verknüpft (Variable kafkaPlatform) – Topics werden nicht mit Topic-Komponenten verknüpft.",
+    "readError": "Das letzte Lesen schlug fehl ({{when}}) – die Connectoren sind vom Lesen davor",
+    "empty": "Noch nicht gelesen",
+    "emptyHint": "„Jetzt lesen“ liest die Connectoren, Tasks und Plugins des Clusters.",
+    "emptyRead": "Keine Connectoren",
+    "emptyReadHint": "Der Cluster hat keinen Connector, oder das Konto darf sie nicht auflisten.",
+    "who": "Wer die Plattform nutzen darf, liest sie.",
+    "summary_one": "{{count}} Connector, {{running}} laufen",
+    "summary_other": "{{count}} Connectoren, {{running}} laufen",
+    "failedTasks_one": "{{count}} Task fehlgeschlagen",
+    "failedTasks_other": "{{count}} Tasks fehlgeschlagen",
+    "plugins_one": "{{count}} installiertes Plugin",
+    "plugins_other": "{{count}} installierte Plugins",
+    "pluginClass": "Klasse",
+    "type": "Typ",
+    "version": "Version",
+    "types": {
+      "source": "Quelle",
+      "sink": "Senke",
+      "unknown": "Unbekannt"
+    },
+    "config": "Konfiguration",
+    "configOf": "Konfiguration von {{name}}",
+    "configTitle": "Konfiguration von {{name}}",
+    "configHint": "Jetzt aus Kafka Connect gelesen und nicht gespeichert. Werte, die geheim aussehen (Passwörter, Tokens, Schlüssel, Zugangsdaten, sasl.jaas.config …), sind entfernt; das Lesen steht im Audit-Log.",
+    "key": "Schlüssel",
+    "value": "Wert",
+    "removed": "entfernt",
+    "tasks_one": "{{count}} Task",
+    "tasks_other": "{{count}} Tasks",
+    "task": "Task {{id}} {{state}}",
+    "reads": "Liest",
+    "writes": "Schreibt",
+    "group": "Consumer-Gruppe",
+    "capture": "Erfasst {{dbms}} auf {{host}}:{{port}}",
+    "noDatabase": "Keine Datenbank-Plattform und kein System passt (oder Sie dürfen sie nicht sehen)",
+    "showErrors_one": "Fehler anzeigen",
+    "showErrors_other": "{{count}} Fehler anzeigen",
+    "hideErrors": "Fehler ausblenden",
+    "connectorError": "Connector",
+    "taskError": "Task {{id}}",
+    "failedSince": "fehlgeschlagen {{when}}",
+    "traceHint": "Gekürzt; Werte, die geheim aussehen, sind entfernt."
   }
 }
