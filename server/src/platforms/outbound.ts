@@ -578,6 +578,12 @@ export interface SecretBinding {
   values: string[];
   /** Whether this platform's secrets may be sent to the given URL (origin check). */
   allowed: (url: string) => Promise<boolean> | boolean;
+  /**
+   * The binding is not the one the request is sent with (0.9.0): its secrets may not be in the request at all, wherever
+   * it goes – a platform's credentials only travel in requests through its own connection. `slot`: its connection in
+   * the process, `sender`: the connection the request is sent with (null: none, e.g. a browser step without one).
+   */
+  foreign?: { slot: string; sender: string | null };
 }
 
 /** Flatten a request into text the scanner searches (URL, header names+values, body). */
@@ -596,10 +602,24 @@ export async function assertNoSecretLeak(url: string, headers: Record<string, st
   if (!bindings.length) return;
   const haystack = requestText(url, headers, body);
   for (const b of bindings) {
-    if (await b.allowed(url)) continue;
+    if (!b.foreign && (await b.allowed(url))) continue;
     for (const value of b.values) {
       for (const enc of secretEncodings(value)) {
         if (haystack.includes(enc)) {
+          if (b.foreign) {
+            const { slot, sender } = b.foreign;
+            logger.warn({ platform: b.platformName, slot, sender, origin: originOf(url) }, "blocked a request that carried another connection's secret");
+            throw Object.assign(
+              new HttpError(
+                403,
+                `Blocked: this request ${sender ? `on connection "${sender}"` : 'without a connection'} contains a credential of connection "${slot}" (platform "${b.platformName}"). ` +
+                  `A platform's credentials may only be used in requests sent through its own connection – send the request on connection "${slot}".`,
+                'SECRET_OTHER_SLOT',
+                { slot, sender: sender ?? '', platform: b.platformName },
+              ),
+              { retryable: false },
+            );
+          }
           logger.warn({ platform: b.platformName, origin: originOf(url) }, 'blocked a request that would have leaked a platform secret to another origin');
           throw new HttpError(
             403,
