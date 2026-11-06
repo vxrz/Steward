@@ -294,3 +294,70 @@ describe('the push endpoint', () => {
     expect(store().get('SELECT 1 AS x FROM db_schema_push_tokens WHERE id = ?', gone.id)).toBeUndefined();
   });
 });
+
+describe('the history a push token cannot erase (security review of #222)', () => {
+  const tbls = (tables: string[]) =>
+    JSON.stringify({
+      name: 'shop',
+      driver: { name: 'postgres' },
+      tables: tables.map((t) => ({ name: `public.${t}`, type: 'BASE TABLE', columns: [{ name: 'id', type: 'integer', nullable: false }] })),
+    });
+
+  it('a push removes imported snapshots only, never Steward’s own reads', async () => {
+    await setEnv({ SM_RATE_LIMIT_PER_MINUTE: '10000' });
+    try {
+      await s.api('PUT', `/db-schemas/platform/${db.id}/settings`, { retention: 3, readIntervalHours: 0 });
+      const read = (await s.api('POST', `/db-schemas/platform/${db.id}/read`)).snapshot;
+      expect(read.source).toBe('read');
+      const t = await s.api('POST', `/db-schemas/platform/${db.id}/push-tokens`, { name: 'many', rateLimitPerMinute: 120 });
+      for (let i = 0; i < 8; i++) expect((await push('platform', db.id, t.token, tbls([`fake_${i}`]))).status).toBe(200);
+      const o = await s.api('GET', `/db-schemas/platform/${db.id}`);
+      expect(o.snapshots.some((x: { id: string }) => x.id === read.id)).toBe(true);
+      expect(o.snapshots).toHaveLength(3);
+      // a read prunes by the retention as before
+      await s.api('PUT', `/db-schemas/platform/${db.id}/settings`, { retention: 30, readIntervalHours: 0 });
+    } finally {
+      await setEnv({ SM_RATE_LIMIT_PER_MINUTE: undefined });
+    }
+  });
+
+  it('keeps a recorded breaking change while a monitor’s check still counts it', async () => {
+    await setEnv({ SM_RATE_LIMIT_PER_MINUTE: '10000' });
+    try {
+      const run = async (watched: boolean) => {
+        const sys = (await s.api('POST', '/systems', { name: `History ${watched ? 'watched' : 'unwatched'}`, kind: 'server' })).id;
+        await s.api('PUT', `/db-schemas/system/${sys}/settings`, { retention: 2, readIntervalHours: 0 });
+        if (watched)
+          await s.api('POST', '/monitors', {
+            definition: {
+              name: `Schema of ${sys}`,
+              checks: [{ id: 'schema', name: 'Schema', type: 'db-schema', system: sys, mode: 'breaking', withinHours: 24 }],
+            },
+          });
+        const t = await s.api('POST', `/db-schemas/system/${sys}/push-tokens`, { name: 'ci', rateLimitPerMinute: 120 });
+        expect((await push('system', sys, t.token, tbls(['a', 'b']))).status).toBe(200);
+        // b removed: breaking
+        const breaking = await push('system', sys, t.token, tbls(['a']));
+        expect(breaking.json.diff.breaking).toBe(1);
+        // then only additions, more than the retention
+        for (let i = 0; i < 5; i++)
+          expect((await push('system', sys, t.token, tbls(['a', ...Array.from({ length: i + 1 }, (_, k) => `n${k}`)]))).json.diff.breaking).toBe(0);
+        const o = await s.api('GET', `/db-schemas/system/${sys}`);
+        const check = await s.api('POST', '/monitors/check-preview', {
+          check: { id: 'c', name: 'c', type: 'db-schema', system: sys, mode: 'breaking', withinHours: 24 },
+        });
+        return { kept: o.snapshots.some((x: { id: string }) => x.id === breaking.json.snapshot.id), count: o.snapshots.length, check };
+      };
+      const watched = await run(true);
+      expect(watched.kept).toBe(true);
+      expect(watched.count).toBeLessThanOrEqual(4);
+      expect(watched.check).toMatchObject({ status: 'down', message: expect.stringMatching(/1 breaking schema change/) });
+      // no monitor counts it: the retention alone decides, as before
+      const unwatched = await run(false);
+      expect(unwatched.kept).toBe(false);
+      expect(unwatched.count).toBe(2);
+    } finally {
+      await setEnv({ SM_RATE_LIMIT_PER_MINUTE: undefined });
+    }
+  });
+});
