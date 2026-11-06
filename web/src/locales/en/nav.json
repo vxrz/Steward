@@ -38,7 +38,8 @@
     "plantKpis": "KPI definitions",
     "plantExplore": "Explore data",
     "plantChecks": "Checks",
-    "plantImport": "Import"
+    "plantImport": "Import",
+    "dataContracts": "Data contracts"
   },
   "serverUnreachable": "Cannot reach the {{brand}} server: {{error}}",
   "pageNotFound": "Page not found",
@@ -142,7 +143,8 @@
       "site": "Site",
       "asset": "Asset",
       "profile": "Device profile",
-      "kpi": "KPI definition"
+      "kpi": "KPI definition",
+      "contract": "Data contract"
     }
   },
   "groups": {

@@ -82,6 +82,9 @@ const SystemsPage = page(() => import('./pages/Systems'), 'SystemsPage');
 const MaintenancePage = page(() => import('./pages/Maintenance'), 'MaintenancePage');
 const SystemDetailPage = page(() => import('./pages/SystemDetail'), 'SystemDetailPage');
 const SystemSchemaPage = page(() => import('./pages/SystemSchema'), 'SystemSchemaPage');
+const DataContractsPage = page(() => import('./pages/DataContracts'), 'DataContractsPage');
+const DataContractNewPage = page(() => import('./pages/DataContractNew'), 'DataContractNewPage');
+const DataContractDetailPage = page(() => import('./pages/DataContractDetail'), 'DataContractDetailPage');
 const ApplicationDetailPage = page(() => import('./pages/ApplicationDetail'), 'ApplicationDetailPage');
 const DutiesPage = page(() => import('./pages/Duties'), 'DutiesPage');
 const DutyDetailPage = page(() => import('./pages/DutyDetail'), 'DutyDetailPage');
@@ -365,6 +368,10 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/systems" element={<SystemsPage />} />
                     <Route path="/systems/:id" element={<SystemDetailPage />} />
                     <Route path="/systems/:id/schema" element={<SystemSchemaPage />} />
+                    <Route path="/data-contracts" element={<DataContractsPage />} />
+                    <Route path="/data-contracts/new" element={<DataContractNewPage />} />
+                    <Route path="/data-contracts/:id" element={<DataContractDetailPage />} />
+                    <Route path="/data-contracts/:id/:tab" element={<DataContractDetailPage />} />
                     <Route path="/maintenance" element={<MaintenancePage />} />
                     <Route path="/status-pages" element={<StatusPagesPage />} />
                     <Route path="/status-pages/:id" element={<StatusPageViewPage />} />

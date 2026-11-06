@@ -30,6 +30,7 @@ import {
   IconReportAnalytics,
   IconRobot,
   IconServer,
+  IconContract,
   IconServer2,
   IconSettings,
   IconShieldCheck,
@@ -62,6 +63,7 @@ export type NavKey =
   | 'gitUpdates'
   | 'monitors'
   | 'platforms'
+  | 'dataContracts'
   | 'records'
   | 'services'
   | 'applications'
@@ -149,6 +151,7 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/applications', key: 'applications', icon: IconApps },
       { to: '/systems', key: 'systems', icon: IconServer2 },
       { to: '/platforms', key: 'platforms', icon: IconServer },
+      { to: '/data-contracts', key: 'dataContracts', icon: IconContract },
       { to: '/credentials', key: 'credentials', icon: IconKey, when: credentialsRegister },
       { to: '/records', key: 'records', icon: IconFileCertificate },
       { to: '/tickets', key: 'tickets', icon: IconTicket },
