@@ -28,6 +28,18 @@ const mapPlatform = (p: ReturnType<typeof platforms.getPlatform>) => ({
   baseUrl: safeBaseUrl(p.baseUrl ?? ''),
   authType: p.config?.auth?.type ?? 'none',
   permissions: p.permissions,
+  // names and flags only (ADR 0009) – never credentials, sign-in settings or variables
+  identities: (p.identities ?? []).map((i) => ({
+    id: i.id,
+    name: i.name,
+    description: i.description,
+    default: i.default,
+    readOnly: i.readOnly,
+    privileged: i.privileged,
+    mcp: i.mcp,
+    operationFilter: i.operationFilter,
+    mayUse: i.mayUse,
+  })),
   createdAt: p.createdAt,
   updatedAt: p.updatedAt,
 });

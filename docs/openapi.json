@@ -2464,6 +2464,128 @@
             },
             "description": "What the token owner may do with this platform"
           },
+          "identities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "default": {
+                  "type": "boolean",
+                  "description": "Requests that name no identity use the default identity; every platform has exactly one"
+                },
+                "readOnly": {
+                  "type": "boolean"
+                },
+                "privileged": {
+                  "type": "boolean"
+                },
+                "mcp": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "off",
+                        "read",
+                        "writes"
+                      ]
+                    },
+                    "writes": {
+                      "type": "string",
+                      "enum": [
+                        "confirm",
+                        "fourEyes"
+                      ],
+                      "description": "How changing calls are approved (with mode \"writes\"; with \"off\" the mode chosen before)"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Access for MCP clients through the platform gateway"
+                },
+                "operationFilter": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "preset": {
+                          "type": "string",
+                          "enum": [
+                            "read",
+                            "chosen"
+                          ]
+                        },
+                        "operations": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "specId": {
+                                "type": "string"
+                              },
+                              "method": {
+                                "type": "string"
+                              },
+                              "specPath": {
+                                "type": "string"
+                              },
+                              "operationId": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "specId",
+                              "method",
+                              "specPath"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "preset",
+                        "operations"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The operations the identity may call; null: all"
+                },
+                "mayUse": {
+                  "type": "boolean",
+                  "description": "Whether the token owner may use this identity"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "description",
+                "default",
+                "readOnly",
+                "privileged",
+                "mcp",
+                "operationFilter",
+                "mayUse"
+              ],
+              "additionalProperties": false,
+              "description": "One set of credentials of a platform (ADR 0009) – names and flags only. Credentials, sign-in settings and variables are never part of the API."
+            },
+            "description": "Its identities, the default first (names and flags only)"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -2484,6 +2606,7 @@
           "baseUrl",
           "authType",
           "permissions",
+          "identities",
           "createdAt",
           "updatedAt"
         ],
@@ -2501,10 +2624,144 @@
             "permissions": [
               "use"
             ],
+            "identities": [
+              {
+                "id": "pi_2bV9xLq0aYc1",
+                "name": "Default",
+                "description": "",
+                "default": true,
+                "readOnly": false,
+                "privileged": false,
+                "mcp": {
+                  "mode": "read"
+                },
+                "operationFilter": null,
+                "mayUse": true
+              }
+            ],
             "createdAt": "2026-09-01T08:15:00.000Z",
             "updatedAt": "2026-10-01T10:00:00.000Z"
           }
         ]
+      },
+      "PlatformIdentity": {
+        "title": "PlatformIdentity",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "default": {
+            "type": "boolean",
+            "description": "Requests that name no identity use the default identity; every platform has exactly one"
+          },
+          "readOnly": {
+            "type": "boolean"
+          },
+          "privileged": {
+            "type": "boolean"
+          },
+          "mcp": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "read",
+                  "writes"
+                ]
+              },
+              "writes": {
+                "type": "string",
+                "enum": [
+                  "confirm",
+                  "fourEyes"
+                ],
+                "description": "How changing calls are approved (with mode \"writes\"; with \"off\" the mode chosen before)"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "additionalProperties": false,
+            "description": "Access for MCP clients through the platform gateway"
+          },
+          "operationFilter": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "preset": {
+                    "type": "string",
+                    "enum": [
+                      "read",
+                      "chosen"
+                    ]
+                  },
+                  "operations": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "specId": {
+                          "type": "string"
+                        },
+                        "method": {
+                          "type": "string"
+                        },
+                        "specPath": {
+                          "type": "string"
+                        },
+                        "operationId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "specId",
+                        "method",
+                        "specPath"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "preset",
+                  "operations"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The operations the identity may call; null: all"
+          },
+          "mayUse": {
+            "type": "boolean",
+            "description": "Whether the token owner may use this identity"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "default",
+          "readOnly",
+          "privileged",
+          "mcp",
+          "operationFilter",
+          "mayUse"
+        ],
+        "additionalProperties": false,
+        "description": "One set of credentials of a platform (ADR 0009) – names and flags only. Credentials, sign-in settings and variables are never part of the API."
       },
       "Trigger": {
         "title": "Trigger",
