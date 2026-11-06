@@ -83,6 +83,63 @@ const MY_PRIVILEGES = `SELECT GRANTEE AS grantee, PRIVILEGE_TYPE AS privilege, '
   UNION ALL SELECT GRANTEE, PRIVILEGE_TYPE, 'table', TABLE_SCHEMA, TABLE_NAME, IS_GRANTABLE FROM information_schema.TABLE_PRIVILEGES WHERE TABLE_SCHEMA = DATABASE()
   ORDER BY 1, 3, 4, 5, 2`;
 
+/**
+ * MariaDB: information_schema lists other accounts' privileges only for a reader with SELECT on the whole `mysql`
+ * database, so the least-privilege role (SELECT on mysql.user, mysql.db and mysql.tables_priv, docs/DATABASES.md)
+ * reads the grant tables directly. Same columns and the same `'user'@'host'` grantee as information_schema.
+ */
+const MARIA_GRANTEE = `CONCAT('''', REPLACE(User, '''', ''''''), '''@''', REPLACE(Host, '''', ''''''), '''')`;
+/** Privilege columns of mysql.user and mysql.db (MariaDB 10.4 and later) and the privilege they stand for. */
+const MARIA_COMMON: [string, string][] = [
+  ['Select_priv', 'SELECT'],
+  ['Insert_priv', 'INSERT'],
+  ['Update_priv', 'UPDATE'],
+  ['Delete_priv', 'DELETE'],
+  ['Create_priv', 'CREATE'],
+  ['Drop_priv', 'DROP'],
+  ['References_priv', 'REFERENCES'],
+  ['Index_priv', 'INDEX'],
+  ['Alter_priv', 'ALTER'],
+  ['Create_tmp_table_priv', 'CREATE TEMPORARY TABLES'],
+  ['Lock_tables_priv', 'LOCK TABLES'],
+  ['Create_view_priv', 'CREATE VIEW'],
+  ['Show_view_priv', 'SHOW VIEW'],
+  ['Create_routine_priv', 'CREATE ROUTINE'],
+  ['Alter_routine_priv', 'ALTER ROUTINE'],
+  ['Execute_priv', 'EXECUTE'],
+  ['Event_priv', 'EVENT'],
+  ['Trigger_priv', 'TRIGGER'],
+];
+const MARIA_GLOBAL_ONLY: [string, string][] = [
+  ['Reload_priv', 'RELOAD'],
+  ['Shutdown_priv', 'SHUTDOWN'],
+  ['Process_priv', 'PROCESS'],
+  ['File_priv', 'FILE'],
+  ['Show_db_priv', 'SHOW DATABASES'],
+  ['Super_priv', 'SUPER'],
+  ['Repl_slave_priv', 'REPLICATION SLAVE'],
+  ['Repl_client_priv', 'REPLICATION CLIENT'],
+  ['Create_user_priv', 'CREATE USER'],
+  ['Create_tablespace_priv', 'CREATE TABLESPACE'],
+];
+/** Table privileges are a SET column of mysql.tables_priv. */
+const MARIA_TABLE = ['Select', 'Insert', 'Update', 'Delete', 'Create', 'Drop', 'References', 'Index', 'Alter', 'Create View', 'Show view', 'Trigger'];
+const MARIA_PRIVILEGES =
+  [
+    ...[...MARIA_COMMON, ...MARIA_GLOBAL_ONLY].map(
+      ([col, priv]) =>
+        `SELECT ${MARIA_GRANTEE} AS grantee, '${priv}' AS privilege, 'global' AS object_type, NULL AS schema_name, NULL AS object_name, IF(Grant_priv = 'Y', 'YES', 'NO') AS grantable FROM mysql.user WHERE ${col} = 'Y'`,
+    ),
+    ...MARIA_COMMON.map(
+      ([col, priv]) =>
+        `SELECT ${MARIA_GRANTEE}, '${priv}', 'schema', Db, NULL, IF(Grant_priv = 'Y', 'YES', 'NO') FROM mysql.db WHERE Db = DATABASE() AND ${col} = 'Y'`,
+    ),
+    ...MARIA_TABLE.map(
+      (priv) =>
+        `SELECT ${MARIA_GRANTEE}, '${priv.toUpperCase()}', 'table', Db, Table_name, IF(FIND_IN_SET('Grant', Table_priv) > 0, 'YES', 'NO') FROM mysql.tables_priv WHERE Db = DATABASE() AND FIND_IN_SET('${priv}', Table_priv) > 0`,
+    ),
+  ].join('\n  UNION ALL ') + '\n  ORDER BY 1, 3, 4, 5, 2';
+
 export const CATALOG: Record<DbCatalog, CatalogDef> = {
   status: {
     sql: {
@@ -243,7 +300,7 @@ FROM (
 ) x LEFT JOIN pg_roles g ON g.oid = x.grantee LEFT JOIN pg_roles gr ON gr.oid = x.grantor
 ORDER BY 1, 3, 4, 5, 2`,
       mysql: MY_PRIVILEGES,
-      mariadb: MY_PRIVILEGES,
+      mariadb: MARIA_PRIVILEGES,
       sqlserver: `SELECT pr.name AS grantee, pe.permission_name AS privilege, LOWER(pe.class_desc) AS object_type,
   CASE pe.class WHEN 1 THEN OBJECT_SCHEMA_NAME(pe.major_id) WHEN 3 THEN SCHEMA_NAME(pe.major_id) END AS schema_name,
   CASE pe.class WHEN 1 THEN OBJECT_NAME(pe.major_id) WHEN 0 THEN DB_NAME() END AS object_name,
