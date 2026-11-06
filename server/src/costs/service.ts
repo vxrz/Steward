@@ -20,7 +20,7 @@ import { currentActor } from '../auth/context.js';
 import { HttpError, newId, nowIso } from '../util.js';
 import { requireScope } from './access.js';
 import { FocusError, parseFocus, summarize, type ParsedFocus } from './focus.js';
-import { ingest, mapper, remap, type IngestResult } from './store.js';
+import { ingest, mapper, remap, tagKeyOf, type IngestResult } from './store.js';
 
 /**
  * Cost sources per platform and FOCUS file imports (#226, docs/COSTS.md#sources). Who may manage a platform sets how
@@ -68,7 +68,7 @@ export function getSource(platformId: string): CostSourceSettings {
     platformKind: p.kind,
     source: sourceOfKind(p.kind),
     enabled: !!r?.enabled,
-    tagKey: r?.tag_key ?? 'application',
+    tagKey: tagKeyOf(platformId),
     creditPrice: r?.credit_price ?? null,
     creditCurrency: r?.credit_currency ?? null,
     currency: r?.currency ?? null,
@@ -137,7 +137,7 @@ export function setSource(platformId: string, body: unknown): CostSourceSettings
 export function noteRead(platformId: string, r: { error: string | null; note?: string | null; at?: string }): void {
   const at = r.at ?? nowIso();
   db().run(
-    `INSERT INTO cost_sources (platform_id, enabled, tag_key, last_read_at, last_read_error, last_read_note, updated_at, updated_by) VALUES (?, 1, 'application', ?, ?, ?, ?, 'system')
+    `INSERT INTO cost_sources (platform_id, enabled, tag_key, last_read_at, last_read_error, last_read_note, updated_at, updated_by) VALUES (?, 0, 'application', ?, ?, ?, ?, 'system')
      ON CONFLICT (platform_id) DO UPDATE SET last_read_at = excluded.last_read_at, last_read_error = excluded.last_read_error,
        last_read_note = COALESCE(excluded.last_read_note, cost_sources.last_read_note)`,
     platformId,

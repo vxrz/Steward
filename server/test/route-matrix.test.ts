@@ -272,6 +272,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/costs/:scope/:id': RECON_READ,
   'GET /api/costs/platform/:id/source': RECON_READ,
   'PUT /api/costs/platform/:id/source': ADMIN,
+  'POST /api/costs/platform/:id/read': ADMIN,
   'GET /api/costs/platform/:id/imports': RECON_READ,
   'POST /api/costs/platform/:id/imports/preview': ADMIN,
   'POST /api/costs/platform/:id/imports': ADMIN,

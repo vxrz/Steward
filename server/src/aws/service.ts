@@ -1,4 +1,14 @@
-import { AWS_KIND, AWS_LIMITS, AWS_REGION_RE, type AwsCostMonth, type AwsIamUser, type AwsReadout, type AwsResource, type Platform } from '@sm/shared';
+import {
+  AWS_KIND,
+  AWS_LIMITS,
+  AWS_REGION_RE,
+  COST_LIMITS,
+  type AwsCostMonth,
+  type AwsIamUser,
+  type AwsReadout,
+  type AwsResource,
+  type Platform,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { vault } from '../vault.js';
@@ -38,6 +48,8 @@ interface IamData {
 interface CostsData {
   byTag: { month: string; tag: string; amount: number; unit: string }[];
   byService: { month: string; service: string; amount: number; unit: string }[];
+  /** Per month, tag value and service (0.9.0, #226); missing in a cache written before */
+  lines?: { month: string; tag: string; service: string; amount: string; unit: string }[];
 }
 
 /** Regions (variable regions, comma-separated; default the platform's region) and the tag key (variable tagKey). */
@@ -125,15 +137,43 @@ async function readResources(c: AwsClient, regions: string[], tagKey: string): P
   return { account, regions, items, warnings };
 }
 
+/** 12 months and the current one so far: the readout shows the last AWS_LIMITS.costMonths, the cost model all (#226). */
 function costWindow(now: number): { start: string; end: string } {
   const d = new Date(now);
-  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - (AWS_LIMITS.costMonths - 1), 1));
+  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - COST_LIMITS.months, 1));
   // End is exclusive: tomorrow (UTC) includes today so far
   const end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1));
   return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * The account's costs: from the cache when read within AWS_LIMITS.costHours, else read now (one request series) – and
+ * then written into the cost model (#226, costs/sources.ts), so the component readout and the costs pages show the
+ * same figures.
+ */
+async function accountCosts(client: AwsClient, tagKey: string, actor: string, now: number, maxAgeMs = AWS_LIMITS.costHours * 3_600_000) {
+  return accountPart(client, 'costs', maxAgeMs, now, async () => {
+    const data = (await client.costs({ ...costWindow(now), tagKey })) as CostsData;
+    try {
+      const { ingestAws } = await import('../costs/sources.js');
+      ingestAws(client.p, data.lines ?? [], tagKey, actor, now);
+    } catch (err) {
+      logger.warn({ err, platform: client.p.id }, 'AWS costs not written into the cost model');
+    }
+    return data;
+  });
+}
+
+/** The cost job (#226): the account's costs once a day (Cost Explorer charges per request), also without components. */
+export async function readAwsCosts(platformId: string, actor: string, now = Date.now()): Promise<{ error: string | null; readAt: string | null }> {
+  const { platform, secrets } = platformFor(actor, platformId);
+  if (platform.kind !== AWS_KIND) throw new Error(`"${platform.name}" is not an AWS account`);
+  const { tagKey } = accountSettings(platform);
+  const r = await accountCosts(new AwsClient(platform, secrets), tagKey, actor, now);
+  return { error: r.error, readAt: r.readAt };
+}
 
 /** Reads the cloud-account component now (the shared account reads only when stale, or with `force`). */
 export async function refreshAwsComponent(componentId: string, actor: string, o: { now?: number; force?: boolean } = {}): Promise<AwsReadout> {
@@ -157,18 +197,14 @@ export async function refreshAwsComponent(componentId: string, actor: string, o:
     if (!res.data) throw new Error(res.error ?? 'nothing read');
     const iam = await accountPart(client, 'iam', fresh, now, async () => ({ users: (await client.iamUsers()).map(toUser) }) satisfies IamData);
     // costs: once a day even on "Read now" – Cost Explorer charges every request
-    const costs = await accountPart(
-      client,
-      'costs',
-      AWS_LIMITS.costHours * 3_600_000,
-      now,
-      () => client.costs({ ...costWindow(now), tagKey }) as Promise<CostsData>,
-    );
+    const costs = await accountCosts(client, tagKey, actor, now);
     const mine = res.data.items.filter((r) => r.tags[tagKey] === c.name);
     const services: Record<string, number> = {};
     for (const r of mine) services[r.service] = (services[r.service] ?? 0) + 1;
+    const first = new Date(now);
+    const oldest = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() - (AWS_LIMITS.costMonths - 1), 1)).toISOString().slice(0, 7);
     const months: AwsCostMonth[] = (costs.data?.byTag ?? [])
-      .filter((x) => x.tag === c.name)
+      .filter((x) => x.tag === c.name && x.month >= oldest)
       .map((x) => ({ month: x.month, amount: round2(x.amount), currency: x.unit }));
     readout = {
       readAt: at,

@@ -61,6 +61,8 @@ export function registerBuiltInJobs(): void {
     const { env } = await import('../config.js');
     return import('../ai/dataset.js').then((m) => m.runAiUsageJob(env.SM_AI_USAGE_RETENTION_DAYS));
   });
+  // platform costs (#226): AWS, Snowflake and Confluent once a day, AI gateways hourly; budgets and their notices
+  every5('costs', 20 * MINUTE, () => import('../costs/jobs.js').then((m) => m.runCostsJob()));
   // assurance policy: requests to loosen it that no second administrator approved within 7 days expire (auth/assurance.ts)
   every5('assurance-policy-changes', MINUTE, () => import('../auth/assurance.js').then((m) => m.expirePolicyChanges()));
 

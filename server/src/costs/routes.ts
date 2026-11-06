@@ -7,6 +7,7 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
 import { costSettings, setCostSettings } from './access.js';
 import { overview, scopeDetail } from './query.js';
 import { getSource, importFromUi, listImports, previewImport, setSource } from './service.js';
+import { readNow } from './sources.js';
 import {
   authorizePush,
   createPushToken,
@@ -27,6 +28,7 @@ import {
  *   GET  /api/costs/:scope/:id                                        one scope: 12 months, this month, trend, forecast, budget
  *   GET|PUT /api/costs/settings                                       hide amounts from viewers, default currency (PUT: administrators)
  *   GET|PUT /api/costs/platform/:id/source                            how a platform's costs are read (PUT: its manage right)
+ *   POST /api/costs/platform/:id/read                                 read a connector's costs now (its manage right)
  *   GET  /api/costs/platform/:id/imports, POST …/imports/preview | …/imports    FOCUS files
  *   GET|POST /api/costs/platform/:id/push-tokens, POST …/:tokenId/rotate, DELETE …/:tokenId   push tokens for CI
  *   POST /api/hooks/costs/:platformId                                 the push from CI (its push token only, push.ts)
@@ -52,6 +54,7 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
   // ---------- sources and FOCUS imports ----------
   app.get('/costs/platform/:id/source', async (req) => getSource(platformParam(req)));
   app.put('/costs/platform/:id/source', async (req) => setSource(platformParam(req), req.body));
+  app.post('/costs/platform/:id/read', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => readNow(platformParam(req)));
   app.get('/costs/platform/:id/imports', async (req) => listImports(platformParam(req)));
   app.post('/costs/platform/:id/imports/preview', imports, async (req) => previewImport(platformParam(req), req.body));
   app.post('/costs/platform/:id/imports', imports, async (req) => {

@@ -70,6 +70,18 @@ type MapInput = Pick<CostLine, 'tags' | 'resourceId' | 'subAccountId'>;
 const lower = (s: string) => s.trim().toLowerCase();
 
 /**
+ * The tag that names the application: the cost source's setting; without one, an AWS account's variable tagKey (the
+ * tag its components use) or "application".
+ */
+export function tagKeyOf(platformId: string): string {
+  const own = db().get<{ tag_key: string }>('SELECT tag_key FROM cost_sources WHERE platform_id = ?', platformId)?.tag_key;
+  if (own) return own;
+  const p = db().get<{ config: string }>('SELECT config FROM platforms WHERE id = ?', platformId);
+  const v = parseJson<{ variables?: Record<string, unknown> }>(p?.config, {}).variables ?? {};
+  return String(v.tagKey ?? '').trim() || 'application';
+}
+
+/**
  * How the lines of a source platform are linked (docs/COSTS.md#mapping):
  *   1. Confluent Cloud: the cluster (ResourceId lkc-…) or, failing that, the environment (SubAccountId env-…) names the
  *      Kafka platform whose variable confluentClusterId (confluentEnvironmentId) matches – the cost belongs to that
@@ -80,7 +92,7 @@ const lower = (s: string) => s.trim().toLowerCase();
  *   4. Otherwise the line stays unassigned – shown per platform as "unassigned".
  */
 export function mapper(sourcePlatformId: string, source: CostSource): (l: MapInput) => Link {
-  const tagKey = db().get<{ tag_key: string }>('SELECT tag_key FROM cost_sources WHERE platform_id = ?', sourcePlatformId)?.tag_key || 'application';
+  const tagKey = tagKeyOf(sourcePlatformId);
   const own = new Map(
     db()
       .all<{ platform_id: string; application_id: string }>(
