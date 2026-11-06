@@ -220,6 +220,9 @@ export const mysqlDriver: DbDriver = {
     signal.addEventListener('abort', onAbort, { once: true });
     try {
       await new Promise<void>((resolve, reject) => conn.connect((e) => (e ? reject(e) : resolve())));
+      // the server's own default collation for utf8mb4 (MariaDB 11.4: utf8mb4_uca1400_ai_ci, MySQL 8: utf8mb4_0900_ai_ci):
+      // the driver's default (utf8mb4_unicode_ci) makes literals clash with strings the server builds, e.g. JSON_VALUE
+      await exec(conn, 'SET NAMES utf8mb4');
       await exec(conn, 'SET SESSION TRANSACTION READ ONLY');
     } catch (e) {
       usable = false;
