@@ -6,7 +6,7 @@ import { DB_SCHEMA_LIMITS, type DbSchemaDoc } from '@sm/shared';
 import { buildDoc, contentHash, type TableInput } from '../src/dbschema/model.js';
 import { compareTypes, diffSchemas, typeInfo } from '../src/dbschema/diff.js';
 import { lintRule, parseTbls, parseTblsLint } from '../src/dbschema/tbls.js';
-import { exportSchema, toDbml, toDdl } from '../src/dbschema/export.js';
+import { exportSchema, literalFor, safeExpression, safeType, toDbml, toDdl } from '../src/dbschema/export.js';
 import { assembleSchema, mssqlType, SCHEMA_PARTS, SCHEMA_SQL } from '../src/dbms/schema-catalog.js';
 import { demoSchemaRows } from '../src/dbms/demo-schema.js';
 
@@ -370,6 +370,311 @@ describe('exports', () => {
     expect(exportSchema(d(), 'sql', 'Shop / prod', '2026-11-06T10:00:00Z')).toMatchObject({ fileName: 'Shop-prod-2026-11-06.sql' });
     const json = exportSchema(d(), 'json', 'x', '2026-11-06T10:00:00Z');
     expect(JSON.parse(json.body)).toMatchObject({ format: 'steward-db-schema', version: 1, tables: expect.any(Array) });
+  });
+});
+
+/**
+ * The statements of a DDL file as a client splits them: comments (--, /*…*\/ and # on MariaDB/MySQL), string literals
+ * ('…' with '' – and \ escapes where the server reads them), quoted identifiers ("…", `…` on MariaDB/MySQL, […] on SQL
+ * Server) are skipped (Q in the result), every ; outside them ends a statement. What the security review found (#222): a name, type,
+ * default, comment or index definition of the snapshot ending a statement and starting its own.
+ */
+function statementsOf(ddl: string, dialect: 'postgresql' | 'mysql' | 'sqlserver' | 'standard', backslashEscapes = dialect === 'mysql'): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let i = 0;
+  const skipQuoted = (close: string, escapes: boolean) => {
+    let j = i + 1;
+    for (; j < ddl.length; j++) {
+      if (escapes && ddl[j] === '\\') {
+        j++;
+        continue;
+      }
+      if (ddl[j] === close) {
+        if (ddl[j + 1] === close) {
+          j++;
+          continue;
+        }
+        break;
+      }
+    }
+    if (j >= ddl.length) throw new Error(`unclosed ${close} at ${i}: ${ddl.slice(i, i + 60)}`);
+    // what is quoted is a name or a text: only the code around it counts
+    cur += 'Q';
+    i = j + 1;
+  };
+  while (i < ddl.length) {
+    const ch = ddl[i]!;
+    if ((ch === '-' && ddl[i + 1] === '-') || (ch === '#' && dialect === 'mysql')) {
+      const end = ddl.indexOf('\n', i);
+      i = end < 0 ? ddl.length : end + 1;
+      cur += ' ';
+    } else if (ch === '/' && ddl[i + 1] === '*') {
+      const end = ddl.indexOf('*/', i + 2);
+      if (end < 0) throw new Error('unclosed comment');
+      i = end + 2;
+    } else if (ch === "'") skipQuoted("'", backslashEscapes || (dialect === 'postgresql' && /[Ee]$/.test(cur)));
+    else if (ch === '"') skipQuoted('"', dialect === 'mysql' && backslashEscapes);
+    else if (ch === '`' && dialect === 'mysql') skipQuoted('`', false);
+    else if (ch === '[' && dialect === 'sqlserver') skipQuoted(']', false);
+    else if (ch === '$' && dialect === 'postgresql' && ddl[i + 1] === '$') {
+      const end = ddl.indexOf('$$', i + 2);
+      if (end < 0) throw new Error('unclosed $$');
+      cur += 'Q';
+      i = end + 2;
+    } else if (ch === ';') {
+      if (cur.trim()) out.push(cur.trim());
+      cur = '';
+      i++;
+    } else {
+      cur += ch;
+      i++;
+    }
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+const OWN_STATEMENT = /^(CREATE TABLE |CREATE (UNIQUE )?INDEX |ALTER TABLE \S+ ADD (CONSTRAINT \S+ )?FOREIGN KEY |COMMENT ON (TABLE|COLUMN) )/;
+const onlyOwnStatements = (ddl: string, dialect: Parameters<typeof statementsOf>[1], backslashEscapes?: boolean) => {
+  const st = statementsOf(ddl, dialect, backslashEscapes);
+  expect(st.filter((x) => !OWN_STATEMENT.test(x))).toEqual([]);
+  expect(st.join('\n')).not.toMatch(/\b(DROP|DELETE|GRANT|INSERT)\b/i);
+  return st;
+};
+
+describe('exports write nothing that runs (security review of #222)', () => {
+  it('keeps line breaks in names visible, on one line', () => {
+    const d = buildDoc({
+      dialect: 'postgresql',
+      database: 'shop\nx',
+      tables: [{ schema: 'public', name: 'v\nDROP TABLE public.orders;\r\n--', type: 'view', columns: [{ name: 'a\tb', type: 'integer ' }] }],
+    });
+    expect(d.tables[0]!.name).toBe('v␊DROP TABLE public.orders;␍␊--');
+    expect(d.tables[0]!.columns[0]).toMatchObject({ name: 'a␉b', type: 'integer␤' });
+    expect(d.database).toBe('shop␊x');
+    const ddl = toDdl(d);
+    expect(ddl.split('\n').filter((l) => l && !l.startsWith('--'))).toEqual([]);
+    onlyOwnStatements(ddl, 'postgresql');
+  });
+
+  it('a PostgreSQL view, a SQL Server type and a comment with a carriage return (PoC)', () => {
+    const read = buildDoc({
+      dialect: 'postgresql',
+      database: 'shop',
+      tables: [
+        { schema: 'public', name: 'v\nDROP TABLE public.orders;\n--', type: 'view', columns: [{ name: 'x', type: 'integer' }] },
+        { schema: 'public', name: 'orders', type: 'table', columns: [{ name: 'id', type: 'integer' }] },
+      ],
+    });
+    onlyOwnStatements(toDdl(read), 'postgresql');
+    const ms = buildDoc({
+      dialect: 'sqlserver',
+      database: 'shop',
+      tables: [
+        {
+          schema: 'dbo',
+          name: 't',
+          type: 'table',
+          columns: [
+            { name: 'c', type: 'int); DROP TABLE dbo.orders; --', comment: 'x\rDROP TABLE y; --' },
+            { name: 'd', type: 'int' },
+          ],
+        },
+      ],
+    });
+    const out = toDdl(ms);
+    onlyOwnStatements(out, 'sqlserver');
+    expect(out).toContain('-- column dbo.t.c left out: its type is not a plain type name: int); DROP TABLE dbo.orders; --');
+    expect(out).toContain('CREATE TABLE [dbo].[t] (\n  [d] int\n);');
+    expect(out).toContain('-- t.c: x DROP TABLE y; --');
+  });
+
+  it('a tbls file: database name, version, type, default and index definition (PoC)', () => {
+    const tbls = JSON.stringify({
+      name: 'shop\nDROP DATABASE prod; --',
+      driver: { name: 'postgres', database_version: '16\nGRANT ALL ON ALL TABLES IN SCHEMA public TO PUBLIC;' },
+      tables: [
+        {
+          name: 'public.t',
+          type: 'BASE TABLE',
+          columns: [
+            { name: 'c', type: 'int, evil int); DROP TABLE x; --', nullable: true, default: '0; DELETE FROM users; --' },
+            { name: 'd', type: 'integer', nullable: true, default: '0; DELETE FROM users; --' },
+            { name: 'e', type: 'integer', nullable: true, default: "$$'$$; DROP TABLE x; --'" },
+            { name: 'f', type: 'integer', nullable: true, default: '0 `; DROP TABLE x; --`' },
+            { name: 'g', type: 'text', nullable: true, default: "E'\\''; DROP TABLE x; --'" },
+          ],
+          indexes: [{ name: 'i', def: 'CREATE INDEX i ON t (c); DROP TABLE users', table: 'public.t', columns: [] }],
+        },
+      ],
+    });
+    const p = parseTbls(tbls);
+    for (const ddl of [toDdl(p.doc), exportSchema(p.doc, 'sql', 'x', '2026-11-06T00:00:00Z', 'tbls').body]) {
+      onlyOwnStatements(ddl, 'postgresql');
+      expect(ddl).toContain('CREATE TABLE "public"."t" (\n  "d" integer,\n  "e" integer,\n  "f" integer,\n  "g" text\n);');
+      expect(ddl).toContain('-- default of public.t.d left out: it is not a plain expression: 0; DELETE FROM users; --');
+      expect(ddl).toContain('-- index i: an expression index without its definition');
+      expect(ddl.split('\n')[0]).toBe('-- shop␊DROP DATABASE prod; -- (postgres 16␊GRANT ALL ON ALL TABLES IN SCHEMA public TO PUBLIC;) – exported by Steward');
+    }
+    const dbml = toDbml(p.doc);
+    expect(dbml.split('\n').filter((l) => /^\s*(DROP|GRANT)/.test(l))).toEqual([]);
+    expect(dbml.split('\n')[0]).toMatch(/^\/\/ shop␊DROP DATABASE/);
+  });
+
+  it('copies index definitions from Steward’s own PostgreSQL read only', () => {
+    const d = buildDoc({
+      dialect: 'postgresql',
+      tables: [
+        {
+          schema: 'public',
+          name: 't',
+          columns: [{ name: 'c', type: 'text' }],
+          indexes: [
+            { name: 'lower_c', columns: [], definition: 'CREATE INDEX lower_c ON public.t USING btree (lower(c))' },
+            { name: 'two', columns: [], definition: 'CREATE INDEX two ON public.t USING btree (c);\nDROP TABLE users' },
+          ],
+        },
+      ],
+    });
+    const read = exportSchema(d, 'sql', 'x', '2026-11-06T00:00:00Z', 'read').body;
+    expect(read).toContain('CREATE INDEX lower_c ON public.t USING btree (lower(c));');
+    expect(read).toContain('-- index two: an expression index without its definition');
+    onlyOwnStatements(read, 'postgresql');
+    expect(exportSchema(d, 'sql', 'x', '2026-11-06T00:00:00Z', 'tbls').body).not.toContain('CREATE INDEX lower_c');
+    expect(exportSchema({ ...d, dialect: 'mysql' }, 'sql', 'x', '2026-11-06T00:00:00Z', 'read').body).not.toContain('CREATE INDEX lower_c');
+  });
+
+  it('quotes names and literals for each dialect', () => {
+    const tricky = (dialect: DbSchemaDoc['dialect']) =>
+      buildDoc({
+        dialect,
+        tables: [
+          {
+            schema: 's"`]',
+            name: 'a"b`c]d',
+            comment: "\\'); DROP TABLE users; -- ",
+            columns: [
+              { name: 'x"; DROP TABLE y; --', type: 'int', comment: "\\'); DROP TABLE users; -- " },
+              { name: 'y`; DROP TABLE y; --', type: 'varchar(40)', default: "x'; DROP TABLE users; --" },
+              { name: 'z]; DROP TABLE y; --', type: 'int', comment: 'line\nbreak\r end' },
+            ],
+            primaryKey: { name: 'p"`]', columns: ['x"; DROP TABLE y; --'] },
+            indexes: [{ name: 'i"`]', columns: ['z]; DROP TABLE y; --'] }],
+            foreignKeys: [{ name: 'f"`]', columns: ['x"; DROP TABLE y; --'], refSchema: 's"`]', refTable: 'r"`]', refColumns: ['id"`]'] }],
+          },
+        ],
+      });
+    const pg = toDdl(tricky('postgresql'));
+    onlyOwnStatements(pg, 'postgresql');
+    // standard_conforming_strings off: a backslash would escape the quote – E'…' escapes it under either setting
+    onlyOwnStatements(pg, 'postgresql', true);
+    expect(pg).toContain(`COMMENT ON TABLE "s""\`]"."a""b\`c]d" IS E'\\\\''); DROP TABLE users; -- ';`);
+    expect(pg).toContain(`IS 'line break end';`);
+    const my = toDdl(tricky('mysql'));
+    onlyOwnStatements(my, 'mysql');
+    onlyOwnStatements(my, 'mysql', false);
+    expect(my).toContain("`x\"; DROP TABLE y; --` int COMMENT '\\\\''); DROP TABLE users; -- '");
+    expect(my).toContain('CREATE TABLE `s"``]`.`a"b``c]d` (');
+    const ms = toDdl(tricky('sqlserver'));
+    onlyOwnStatements(ms, 'sqlserver');
+    expect(ms).toContain('CREATE TABLE [s"`]]].[a"b`c]]d] (');
+    const std = toDdl(tricky('other'));
+    onlyOwnStatements(std, 'standard');
+    expect(literalFor('mysql')("a\\'b")).toBe("'a\\\\''b'");
+    expect(literalFor('postgresql')("a'b")).toBe("'a''b'");
+    expect(literalFor('sqlserver')("a\\'b\nc")).toBe("'a\\''b c'");
+  });
+
+  it('a MariaDB/MySQL comment ending in a backslash and a literal default (PoC)', () => {
+    const d = buildDoc({
+      dialect: 'mysql',
+      database: 'shop',
+      tables: [
+        {
+          schema: 'shop',
+          name: 't',
+          type: 'table',
+          columns: [
+            { name: 'a', type: 'int', comment: "\\'); DROP TABLE users; -- " },
+            { name: 'b', type: 'varchar(40)', default: "x'; DROP TABLE users; --" },
+            { name: 'c', type: 'int', default: '0 # x' },
+          ],
+        },
+      ],
+    });
+    const out = toDdl(d);
+    onlyOwnStatements(out, 'mysql');
+    expect(out).toContain('-- default of shop.t.b left out');
+    expect(out).toContain('-- default of shop.t.c left out');
+  });
+
+  it('keeps the types and defaults databases write', () => {
+    for (const t of [
+      'integer',
+      'varchar(120)',
+      'numeric(10,2)',
+      'numeric(10, 2)',
+      'timestamp(3) with time zone',
+      'timestamp without time zone',
+      'character varying(20)[]',
+      'integer[][]',
+      'double precision',
+      'nvarchar(max)',
+      'int(11) unsigned zerofill',
+      "enum('a','b''c')",
+      "set('x', 'y')",
+      '"char"',
+      'public.citext',
+      'geometry(Point,4326)',
+      'interval day to second(3)',
+      'bit varying(8)',
+    ])
+      expect(safeType(t), t).toBe(true);
+    for (const t of [
+      'int); DROP TABLE x; --',
+      'int, evil int',
+      "enum('a\\')",
+      'int\n',
+      'int -- x',
+      'USER-DEFINED',
+      'a"b',
+      'int /* x */',
+      'int;',
+      'varchar(10) (20)',
+    ])
+      expect(safeType(t), t).toBe(false);
+    for (const [v, dialect] of [
+      ["nextval('customers_id_seq'::regclass)", 'postgresql'],
+      ['nextval(\'"MySeq"\'::regclass)', 'postgresql'],
+      ["'rye'::character varying", 'postgresql'],
+      ["'it''s; fine -- really'", 'postgresql'],
+      ['now()', 'postgresql'],
+      ['GENERATED ALWAYS AS IDENTITY', 'postgresql'],
+      ['((0))', 'sqlserver'],
+      ['(getdate())', 'sqlserver'],
+      ["(N'n/a')", 'sqlserver'],
+      ['([a]+[b])', 'sqlserver'],
+      ['CURRENT_TIMESTAMP', 'mysql'],
+      ['AUTO_INCREMENT', 'mysql'],
+      ['`x`', 'mysql'],
+    ] as const)
+      expect(safeExpression(v, dialect), v).toBe(true);
+    for (const [v, dialect] of [
+      ['0; DELETE FROM users', 'postgresql'],
+      ['0 -- x', 'postgresql'],
+      ['0 /* x */', 'postgresql'],
+      ["E'\\''", 'postgresql'],
+      ['$$x$$', 'postgresql'],
+      ['0 `;`', 'postgresql'],
+      ['(0', 'postgresql'],
+      ['0)', 'postgresql'],
+      ["'open", 'postgresql'],
+      ['0\n', 'postgresql'],
+      ['0 # x', 'mysql'],
+      ["'a\\'", 'mysql'],
+      ['[x;', 'sqlserver'],
+    ] as const)
+      expect(safeExpression(v, dialect), v).toBe(false);
   });
 });
 

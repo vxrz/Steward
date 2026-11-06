@@ -559,7 +559,7 @@ export function compareSnapshots(kind: DbSchemaSubjectKind, id: string, fromId: 
 export function exportSnapshot(kind: DbSchemaSubjectKind, id: string, snapshotId: string | 'latest', format: DbSchemaExportFormat): ExportFile {
   const snap = getSnapshot(kind, id, snapshotId);
   const s = subjectOf(kind, id);
-  return exportSchema(snap.schema, format, snap.schema.database || s.name, snap.takenAt);
+  return exportSchema(snap.schema, format, snap.schema.database || s.name, snap.takenAt, snap.source);
 }
 
 /** The changes of the snapshots taken since `since` (for the monitor check and the public API). */

@@ -157,7 +157,15 @@ _Export_ (and `GET …/schema/snapshots/{snapshotId}/export?format=` in the API)
 - **SQL DDL** in the dialect of the source (`CREATE TABLE`, constraints, indexes, comments, then the foreign keys as `ALTER TABLE`); databases Steward does not speak (a tbls import of BigQuery, Snowflake …) get standard SQL. Views appear as a comment: a snapshot keeps their columns, not their definition;
 - **JSON**: Steward's schema model (`"format": "steward-db-schema"`).
 
-Steward runs none of it. The DBML or SQL file opens in editors such as [dbdiagram.io](https://dbdiagram.io), [drawDB](https://github.com/drawdb-io/drawdb) or [ChartDB](https://github.com/chartdb/chartdb); [Azimutt](https://github.com/azimuttapp/azimutt) (self-hosted) suits exploring very large databases. Steward bundles no editor: drawDB and ChartDB are AGPL-3.0 applications of their own. Such a tool can be registered as an application in the service catalogue, with a link on the database platform.
+Steward runs none of it – but the DDL is meant to be run elsewhere, and what it holds comes from the database or a tbls file, written by anyone who may create a table there or holds a push token. So nothing of a snapshot can end a statement or a comment in it:
+
+- names are quoted for the dialect (PostgreSQL and standard SQL `"…"` with `""`, MariaDB/MySQL `` `…` `` with doubled backticks, SQL Server `[…]` with `]]`); tabs and line breaks in a name (a quoted identifier may hold them) are kept as their control pictures `␉ ␊ ␍` – in the snapshot, on the page and in every export – so a name is always one line and still shows what it held;
+- texts (comments) are string literals of the dialect on one line; MariaDB/MySQL also escape `\`, PostgreSQL writes a text with a `\` as `E'…'` (safe whatever `standard_conforming_strings` says);
+- every comment line (`--`, DBML's `//`) is one line;
+- a data type or a default is written only when it is a plain type name (`varchar(120)`, `timestamp(3) with time zone`, `enum('a','b')`, `integer[]` …) or a plain expression (quotes and brackets balanced; no `;`, comment, `$` or `\`); otherwise the file says so in a comment above the table and leaves the column or the default out;
+- an index without columns (an expression index) is written from its definition only for Steward's own read of PostgreSQL (`pg_get_indexdef`), never from a tbls file.
+
+Read a DDL file before running it all the same, as any SQL from somewhere else. The DBML or SQL file opens in editors such as [dbdiagram.io](https://dbdiagram.io), [drawDB](https://github.com/drawdb-io/drawdb) or [ChartDB](https://github.com/chartdb/chartdb); [Azimutt](https://github.com/azimuttapp/azimutt) (self-hosted) suits exploring very large databases. Steward bundles no editor: drawDB and ChartDB are AGPL-3.0 applications of their own. Such a tool can be registered as an application in the service catalogue, with a link on the database platform.
 
 ### Rights
 
