@@ -115,4 +115,7 @@ export const plantKeys = {
   assignment: (assetId: string | null | undefined) => ['plant', 'assignment', assetId] as const,
   checks: ['plant', 'checks'] as const,
   explore: (q: string) => ['plant', 'explore', q] as const,
+  // part 3 (#220): the OT network of a site, of an asset
+  network: (siteId: string | null | undefined) => ['plant', 'network', siteId] as const,
+  assetNetwork: (assetId: string | null | undefined) => ['plant', 'assetNetwork', assetId] as const,
 };
