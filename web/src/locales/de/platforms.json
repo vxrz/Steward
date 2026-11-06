@@ -66,6 +66,15 @@
       "secretHelp": {
         "username": "Ein nur lesendes Login (docs/DATABASES.md): db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION"
       }
+    },
+    "data-contract-service-datacontract-cli-api": {
+      "description": "Die datacontract CLI als Webdienst („datacontract api“, MIT, https://cli.datacontract.com) – ein eigener Container neben Steward. Steward sendet die unter Katalog → Datenverträge gespeicherten ODCS-Verträge an POST /test, mit den Zugangsdaten des getesteten Servers aus seinem Tresor in den datacontract-*-Headern der CLI (je Anfrage, nie im Vertrag), und speichert den Testlauf als Nachweis; POST /lint prüft einen Vertrag mit der eigenen Prüfung der CLI. Starten Sie den Dienst mit DATACONTRACT_CLI_API_KEY und tragen Sie denselben Schlüssel hier ein (gesendet als x-api-key). Der getestete Server ist eine mit dem Vertrag verknüpfte Datenbank-Plattform von Steward. Compose-Beispiel und Netzwerkregeln: docs/DATA-CONTRACTS.md.",
+      "secrets": {
+        "apiKey": "API-Schlüssel"
+      },
+      "secretHelp": {
+        "apiKey": "Der Wert von DATACONTRACT_CLI_API_KEY des Dienstes (gesendet als x-api-key)"
+      }
     }
   },
   "title": "Plattformen",

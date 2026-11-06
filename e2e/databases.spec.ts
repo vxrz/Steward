@@ -21,7 +21,7 @@ async function wizard(page: Page, api: APIRequestContext, mobile: boolean) {
   await page.getByRole('button', { name: 'Add platform' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add a platform' });
   await expect(dialog.getByRole('region', { name: 'Databases' })).toBeVisible();
-  await expect(dialog.getByRole('region', { name: 'Databases' }).getByTestId('wizard-connector')).toHaveCount(3);
+  await expect(dialog.getByRole('region', { name: 'Databases' }).getByTestId('wizard-connector')).toHaveCount(4);
   await dialog.getByRole('region', { name: 'Databases' }).getByTestId('wizard-connector').filter({ hasText: 'PostgreSQL (read-only)' }).click();
   await dialog.getByRole('textbox', { name: 'Name' }).first().fill(name);
   const conn = dialog.getByTestId('wizard-database');
