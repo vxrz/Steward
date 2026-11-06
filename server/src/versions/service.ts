@@ -779,6 +779,7 @@ export async function refreshVersionsNow(): Promise<VersionWatchStatus> {
   me();
   if (!canRefresh()) forbid('refresh the version watch', 'createApplications');
   const r = await refreshVersions({ force: true });
+  (await import('./dataset.js')).publishVersionDataset(true);
   audit({
     action: 'catalogue.versions_refreshed',
     entityType: 'settings',
@@ -801,6 +802,9 @@ export async function runVersionJob(now = Date.now()): Promise<void> {
   } catch (err) {
     logger.warn({ err }, 'version watch messages failed');
   }
+  // the dataset "Component versions" (at most hourly)
+  const { publishVersionDataset } = await import('./dataset.js');
+  publishVersionDataset(false, now);
 }
 
 // ---------- status, one entry ----------

@@ -307,6 +307,27 @@ describe('version watch', () => {
     await s.api('PUT', '/catalogue/versions', before.settings);
   });
 
+  it('the dataset "Component versions": a row per entry, for administrators and auditors', async () => {
+    const audrey = await s.as('audrey', PW);
+    const ds = await audrey('GET', '/datasets/catalogue.versions');
+    expect(ds.metrics.entries).toBeGreaterThanOrEqual(10);
+    expect(ds.metrics.major).toBeGreaterThanOrEqual(5);
+    const row = ds.rows.find((r: any) => r.Product === 'React' && r.Application === 'Shop (versions)');
+    expect(row).toMatchObject({
+      Component: 'web',
+      Kind: 'component',
+      Installed: '18.3.1',
+      Newest: '19.2.0',
+      Behind: '1 major',
+      Source: 'npm',
+      _status: 'serious',
+    });
+    expect(ds.rows.find((r: any) => r.Product === 'nginx')).toMatchObject({ Newest: '1.28.0-alpine', Behind: '1 minor', 'End of life': 'eol' });
+    // it names every application: not for everyone
+    expect(await status(vera('GET', '/datasets/catalogue.versions'))).not.toBe(200);
+    expect((await vera('GET', '/datasets')).map((d: any) => d.key)).not.toContain('catalogue.versions');
+  });
+
   it('removes the settings of entries that left the stack, and lookups nobody needs', async () => {
     const { runVersionJob } = await import('../src/versions/service.js');
     const { db } = await import('../src/db.js');

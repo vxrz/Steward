@@ -217,3 +217,6 @@ export function isTagPattern(p: string): boolean {
   for (const ch of rest) if (!/[A-Za-z0-9._+-]/.test(ch)) return false;
   return true;
 }
+
+/** The built-in dataset "Component versions" (dashboards, reports): one row per tech stack entry. */
+export const COMPONENT_VERSIONS_DATASET = 'catalogue.versions';
