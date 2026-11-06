@@ -1,5 +1,6 @@
 import type { AssetStatus, PlantLevel, Translations } from './plant.js';
 import type { PlantAssetBrief, PlantCheck, PlantCheckCode, PlantDirection, PlantProtocol } from './plantData.js';
+import type { LiveState } from './plantNetwork.js';
 
 /**
  * Visualizations of the plant registry (#230): the structure of a site, the data flow of an asset, the lineage of a
@@ -93,7 +94,23 @@ export interface PlantStructure {
  * Kinds of a graph node. The asset flow: asset → interface → collector → target → KPI job → dataset → dashboard; the
  * lineage of a data point: point → asset (or site, when many) → target → KPI definition → dataset → dashboard.
  */
-export const PLANT_FLOW_NODE_KINDS = ['asset', 'point', 'site', 'interface', 'collector', 'target', 'kpi', 'dataset', 'dashboard'] as const;
+export const PLANT_FLOW_NODE_KINDS = [
+  'asset',
+  'point',
+  'site',
+  'interface',
+  'collector',
+  'target',
+  'kpi',
+  'dataset',
+  'dashboard',
+  // the OT network (#220): IEC 62443-3-2 zones and conduits, IEEE 802.1Q VLANs, hosts (Steward systems), other parties
+  'zone',
+  'vlan',
+  'conduit',
+  'host',
+  'peer',
+] as const;
 export type PlantFlowNodeKind = (typeof PLANT_FLOW_NODE_KINDS)[number];
 
 export interface PlantFlowNode {
@@ -118,6 +135,16 @@ export interface PlantFlowNode {
   count?: { total: number; delivering: number };
   /** Lineage: KPI instances of this definition on the assets drawn */
   instances?: number;
+  /** The area (a group node: a zone, a VLAN) it is drawn in */
+  parent?: string;
+  /** An area drawn around the nodes that name it as their parent */
+  group?: boolean;
+  /** Short facts shown beside the name (a VID, a criticality, SL-T) */
+  tags?: string[];
+  /** What hovering or focusing it shows (an asset's devices, a VLAN's subnets) */
+  info?: { label: string; value: string }[];
+  /** A small node (an empty VLAN, a party outside the zones) */
+  small?: boolean;
 }
 
 export interface PlantFlowEdge {
@@ -136,17 +163,31 @@ export interface PlantFlowEdge {
   problem: boolean;
   /** A KPI's result rather than data points */
   result: boolean;
+  /** OT network: data paths that take the way */
+  paths?: number;
+  /** What the way carries, in words (protocol and port) */
+  label?: string;
+  /** Traffic goes both ways (a conduit): arrows at both ends, no direction to animate */
+  both?: boolean;
+  /** A conduit between two zones (drawn as a wide pipe) */
+  conduit?: boolean;
+  /** The way crosses from one zone into another without a documented conduit */
+  noConduit?: boolean;
+  /** Live status of where the data comes from (#220: an offline asset colours its way) */
+  live?: LiveState | null;
 }
 
 /** A way through the graph that hovering highlights: a data point (asset flow) or an asset (lineage). */
 export interface PlantFlowPath {
   id: string;
-  kind: 'point' | 'asset';
+  kind: 'point' | 'asset' | 'path';
   label: string;
   detail: string;
   /** Data points: delivered, or why not */
   delivers: boolean;
   reason: 'interface_inactive' | 'unavailable' | null;
+  /** A data path of the OT network: the live status of its asset (null: nothing watches it) */
+  live?: LiveState | null;
   nodes: string[];
   edges: string[];
 }
@@ -160,6 +201,11 @@ export interface PlantFlowGraph {
   grouped: boolean;
   /** Why the graph is empty: no assignment, no profile, no asset delivers it */
   empty: 'no_assignment' | 'no_profile' | 'no_assets' | null;
+}
+
+/** GET /api/plant/sites/:siteId/network/placement: which VLANs of the site the hosts of its data paths are in (their network segments). */
+export interface PlantHostPlacement {
+  hosts: { id: string; vlans: string[] }[];
 }
 
 // ---------- 4. KPI coverage ----------

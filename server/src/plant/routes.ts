@@ -16,7 +16,7 @@ import { seedPlantDemo } from './demo.js';
 import * as cat from './catalogue.js';
 import { assignmentInput, deleteAssignment, getAssignment, putAssignment } from './assignments.js';
 import * as net from './network.js';
-import { assetFlow, coverage, overview, pointLineage, siteStructure } from './views.js';
+import { assetFlow, coverage, hostPlacement, overview, pointLineage, siteStructure } from './views.js';
 import './links.js';
 
 /**
@@ -219,6 +219,7 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     ),
   );
   app.get('/plant/sites/:siteId/structure', async (req) => siteStructure(p(req).siteId!));
+  app.get('/plant/sites/:siteId/network/placement', async (req) => hostPlacement(p(req).siteId!));
   app.get('/plant/assets/:assetId/flow', async (req) => assetFlow(p(req).assetId!));
   app.get('/plant/profiles/:profileId/points/:pointId/lineage', async (req) => pointLineage(p(req).profileId!, p(req).pointId!));
 

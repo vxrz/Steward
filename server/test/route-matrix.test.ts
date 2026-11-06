@@ -915,6 +915,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/plant/views/overview': PLANT,
   'GET /api/plant/views/coverage': PLANT,
   'GET /api/plant/sites/:siteId/structure': PLANT,
+  'GET /api/plant/sites/:siteId/network/placement': PLANT,
   'GET /api/plant/assets/:assetId/flow': PLANT,
   'GET /api/plant/profiles/:profileId/points/:pointId/lineage': PLANT,
   'GET /api/plant/checks': PLANT,

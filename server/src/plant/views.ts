@@ -12,6 +12,7 @@ import {
   type PlantFlowGraph,
   type PlantFlowNode,
   type PlantFlowPath,
+  type PlantHostPlacement,
   type PlantKpiValues,
   type PlantLive,
   type PlantLiveState,
@@ -37,6 +38,7 @@ import { visibleAsset, visibleSite } from './service.js';
 import { briefOf, kpiNotFound, pointNotFound, profileNotFound } from './catalogue.js';
 import { allAssignments, allKpis, allProfiles, assignmentRowOf, assignmentValuesOf, pointsOf, profileRowOf, profileValuesOf } from './data-model.js';
 import { assignmentChecks, deliveries, inputGaps } from './checks.js';
+import { siteNetwork } from './network.js';
 
 /**
  * The plant registry's visualizations (#230), read-only aggregates for the web app: a site's structure, an asset's data
@@ -679,4 +681,37 @@ export function pointLineage(profileId: string, pointId: string): PlantFlowGraph
     }
   }
   return g.graph('assets', grouped, null);
+}
+
+// ---------- 5. the OT network: where the hosts are ----------
+
+/**
+ * Which VLANs of a site the hosts of its data paths are in (#220 data, for the diagram of #230): a host is a Steward
+ * system, a system is in network segments (the catalogue), a VLAN is linked to a segment. Only hosts and segments the
+ * caller may see count – a hidden one places nothing.
+ */
+export function hostPlacement(siteId: string): PlantHostPlacement {
+  const n = siteNetwork(siteId);
+  const vlansOfSegment = new Map<string, string[]>();
+  for (const v of n.vlans) if (v.segmentId) vlansOfSegment.set(v.segmentId, [...(vlansOfSegment.get(v.segmentId) ?? []), v.id]);
+  const hosts = n.hosts.filter((h) => h.visible);
+  if (!hosts.length || !vlansOfSegment.size) return { hosts: [] };
+  const wanted = new Set(hosts.map((h) => h.id));
+  const segmentVisible = new Map<string, boolean>();
+  const visibleSegment = (id: string) => {
+    if (!segmentVisible.has(id)) segmentVisible.set(id, !!resolveTarget('system', id));
+    return segmentVisible.get(id)!;
+  };
+  const out = new Map<string, Set<string>>();
+  for (const r of db().all<{ system_id: string; segment_id: string }>('SELECT system_id, segment_id FROM system_segments')) {
+    if (!wanted.has(r.system_id) || !vlansOfSegment.has(r.segment_id) || !visibleSegment(r.segment_id)) continue;
+    const set = out.get(r.system_id) ?? new Set<string>();
+    for (const v of vlansOfSegment.get(r.segment_id)!) set.add(v);
+    out.set(r.system_id, set);
+  }
+  return {
+    hosts: [...out]
+      .map(([id, vlans]) => ({ id, vlans: n.vlans.filter((v) => vlans.has(v.id)).map((v) => v.id) }))
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+  };
 }
