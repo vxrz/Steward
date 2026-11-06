@@ -190,7 +190,7 @@ interface ApiRelease {
   eoasFrom?: unknown;
   isEol?: unknown;
   eolFrom?: unknown;
-  latest?: { name?: unknown } | null;
+  latest?: { name?: unknown; date?: unknown } | null;
 }
 
 const day = (v: unknown): string | null => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
@@ -233,8 +233,8 @@ export function refreshLifecycle(products = usedProducts()): Promise<{ refreshed
                 const cycle = text(x.name, 60);
                 if (!cycle) continue;
                 db().run(
-                  `INSERT INTO eol_releases (product, cycle, label, release_date, is_lts, eoas_from, eol_from, is_eol, latest)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+                  `INSERT INTO eol_releases (product, cycle, label, release_date, is_lts, eoas_from, eol_from, is_eol, latest, latest_date)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
                   product,
                   cycle,
                   text(x.label, 120),
@@ -244,6 +244,8 @@ export function refreshLifecycle(products = usedProducts()): Promise<{ refreshed
                   day(x.eolFrom),
                   x.isEol === true ? 1 : 0,
                   text(x.latest?.name, 60) || null,
+                  // the version watch (#241): when the cycle's latest release came out
+                  day(x.latest?.date),
                 );
               }
             });

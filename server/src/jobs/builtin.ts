@@ -34,6 +34,8 @@ export function registerBuiltInJobs(): void {
   });
   // end of life of the tech stacks: daily refresh from endoflife.date and messages to application owners
   every5('end-of-life', 15 * MINUTE, () => import('../catalogue/lifecycle.js').then((m) => m.runLifecycleJob()));
+  // version watch of the tech stacks (#241): due lookups (once a day per source by default) and "new major release" messages
+  every5('version-watch', 20 * MINUTE, () => import('../versions/service.js').then((m) => m.runVersionJob()));
   // Kubernetes namespaces, repositories, Kafka topics, AWS accounts, Snowflake, Dependency-Track of applications (every few hours)
   every5('kubernetes', 30 * MINUTE, () => import('../catalogue/kubernetes.js').then((m) => m.runKubernetesJob()));
   every5('repositories', 30 * MINUTE, () => import('../catalogue/repositories.js').then((m) => m.runRepositoryJob()));

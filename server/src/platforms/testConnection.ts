@@ -1,4 +1,4 @@
-import { DATABASE_KIND, LLM_GATEWAY_KIND, PVAULT_KIND, type Platform } from '@sm/shared';
+import { CONTAINER_REGISTRY_KIND, DATABASE_KIND, LLM_GATEWAY_KIND, PVAULT_KIND, type Platform } from '@sm/shared';
 import { audit } from '../audit.js';
 import { buildUrl, platformRequest, secretValues, tokenInfo } from './http.js';
 import { judgeHttpTest } from './connectionTest.js';
@@ -82,7 +82,7 @@ export async function runConnectionTest(p: Platform, secrets: Record<string, str
     }
   }
   // Kafka (#112) and MQTT (#113) are no HTTP APIs: their test connects to the cluster or broker; AWS (#116) asks STS who it is
-  if (p.kind === 'kafka' || p.kind === 'mqtt' || p.kind === 'aws' || p.kind === 'snowflake' || p.kind === PVAULT_KIND) {
+  if (p.kind === 'kafka' || p.kind === 'mqtt' || p.kind === 'aws' || p.kind === 'snowflake' || p.kind === PVAULT_KIND || p.kind === CONTAINER_REGISTRY_KIND) {
     const t0 = Date.now();
     try {
       let checks: { name: string; ok: boolean; message: string }[] | undefined;
@@ -96,7 +96,10 @@ export async function runConnectionTest(p: Platform, secrets: Record<string, str
               : p.kind === PVAULT_KIND
                 ? // IBM Verify Privilege Vault (#205): signs in, then every read Steward makes, naming missing permissions
                   await (await import('../pvault/service.js')).testPrivilegeVault(p, secrets).then((r) => ((checks = r.checks), r.message))
-                : await (await import('../mqtt/listener.js')).testMqtt(p, secrets);
+                : p.kind === CONTAINER_REGISTRY_KIND
+                  ? // container registries (#241): the token flow and the tags of a test image
+                    await (await import('../versions/sources.js')).testRegistry(p, secrets)
+                  : await (await import('../mqtt/listener.js')).testMqtt(p, secrets);
       // AWS: every part Steward reads, with what is missing (the test passes when STS works)
       return done(
         {

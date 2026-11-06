@@ -337,6 +337,11 @@
     "systemBodyEnding": "{{product}} auf dem System {{system}} erreicht am {{date}} sein Supportende (in {{days}} Tagen).",
     "systemBodyEol": "{{product}} auf dem System {{system}} hat am {{date}} sein Supportende erreicht. Planen Sie das Upgrade."
   },
+  "stackRelease": {
+    "title": "Neue Hauptversion: {{product}} {{newest}} ({{name}})",
+    "body": "{{product}} {{newest}} ist erschienen. Die Anwendung {{name}} verwendet {{installed}} in: {{holders}}. Planen Sie das Upgrade (Renovate oder Dependabot nehmen die Änderung vor).",
+    "systemBody": "{{product}} {{newest}} ist erschienen. Auf dem System {{name}} läuft {{installed}}. Planen Sie das Upgrade."
+  },
   "facts": {
     "process": "Prozess",
     "source": "Gestartet von",
