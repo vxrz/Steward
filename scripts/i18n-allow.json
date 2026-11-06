@@ -167,7 +167,9 @@
       "PostgreSQL",
       "MariaDB / MySQL",
       "SQL Server",
-      "Parameter {{n}}"
+      "Parameter {{n}}",
+      "Schema",
+      "DBML (dbdiagram, drawDB, ChartDB)"
     ]
   }
 }

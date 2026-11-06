@@ -101,6 +101,7 @@ const TRYABLE = new Set<CheckType>([
   'mqtt',
   'snowflake',
   'database',
+  'db-schema',
   'dependency-track',
   'entra',
   'privilege-vault',
