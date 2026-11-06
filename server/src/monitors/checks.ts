@@ -9,7 +9,7 @@ import { findRecording, missingRecording } from '../platforms/recordings.js';
 import { assertNetAllowed, assertOutboundAllowed, assertRedirectAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { HttpError } from '../util.js';
-import { AWS_KIND, BRAND, DATABASE_KIND, PVAULT_KIND, isGitPlatformKind, type PvFindingKind } from '@sm/shared';
+import { AWS_KIND, BRAND, CHANGEDETECTION_KIND, DATABASE_KIND, PVAULT_KIND, isGitPlatformKind, type PvFindingKind } from '@sm/shared';
 import { freshnessStatus, freshnessWindowSeconds, fmtAge, statusMatcher } from './logic.js';
 import { promInstant, seriesName } from '../platforms/prometheus.js';
 import { readNamespace } from '../catalogue/kubernetes.js';
@@ -875,6 +875,81 @@ async function checkDtrack(c: CheckOf<'dependency-track'>, ctx: ExecContext): Pr
   };
 }
 
+// ---------- changedetection.io ----------
+
+/** The watch list of a platform, read at most once a minute (several checks of one instance share it). */
+const pageWatchSeen = new Map<string, { at: number; read: Awaited<ReturnType<import('../changedetection/client.js').CdClient['watches']>> }>();
+
+/** Watches of changedetection.io (#242): changed within N hours, failing, not checked for too long, paused. Metadata only. */
+async function checkPageWatch(c: CheckOf<'page-watch'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  if (platform.kind !== CHANGEDETECTION_KIND)
+    return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a changedetection.io platform` };
+  let read;
+  try {
+    const seen = pageWatchSeen.get(platform.id);
+    if (seen && ctx.now() - seen.at < 60_000 && ctx.now() >= seen.at) read = seen.read;
+    else {
+      const { CdClient } = await import('../changedetection/client.js');
+      read = await new CdClient(platform, secrets, AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)])).watches();
+      pageWatchSeen.set(platform.id, { at: ctx.now(), read });
+    }
+  } catch (e) {
+    return { status: 'unknown', message: `changedetection.io could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
+  }
+  const ms = Date.now() - t0;
+  const tag = c.tag?.trim().toLowerCase();
+  const watch = c.watch?.trim().toLowerCase();
+  const scope = watch
+    ? read.watches.filter((w) => w.uuid === watch)
+    : tag
+      ? read.watches.filter((w) => w.tags.some((x) => x.toLowerCase() === tag))
+      : read.watches;
+  const where = watch ? (scope[0] ? `"${scope[0].title}"` : `watch ${watch}`) : tag ? `tag "${c.tag}"` : 'all watches';
+  if (!scope.length)
+    return {
+      status: 'unknown',
+      message: watch
+        ? `changedetection.io has no watch ${watch}`
+        : tag
+          ? `changedetection.io has no watch with the tag "${c.tag}"`
+          : 'changedetection.io has no watches',
+      durationMs: ms,
+    };
+  const now = ctx.now();
+  const paused = scope.filter((w) => w.paused);
+  const active = scope.filter((w) => !w.paused);
+  const failing = active.filter((w) => w.lastError);
+  const stale = c.maxCheckAgeHours
+    ? active.filter((w) => !w.lastError && (!w.lastCheckedAt || now - Date.parse(w.lastCheckedAt) > c.maxCheckAgeHours! * 3_600_000))
+    : [];
+  const changed = scope.filter((w) => w.lastChangedAt && now - Date.parse(w.lastChangedAt) <= c.changedWithinHours * 3_600_000);
+  const value = { watches: scope.length, failing: failing.length, stale: stale.length, changed: changed.length, paused: paused.length };
+  const names = (list: typeof scope, extra?: (w: (typeof scope)[number]) => string) =>
+    list
+      .slice(0, 3)
+      .map((w) => `${w.title}${extra ? ` (${extra(w)})` : ''}`)
+      .join('; ') + (list.length > 3 ? ` and ${list.length - 3} more` : '');
+  const problems: string[] = [];
+  if (failing.length) problems.push(`${failing.length} failing: ${names(failing, (w) => (w.lastError ?? '').slice(0, 120))}`);
+  if (stale.length)
+    problems.push(
+      `${stale.length} not checked for more than ${c.maxCheckAgeHours} h: ${names(stale, (w) => (w.lastCheckedAt ? `last ${fmtAge((now - Date.parse(w.lastCheckedAt)) / 1000)} ago` : 'never'))}`,
+    );
+  const changes = changed.length
+    ? `${changed.length} changed in the last ${c.changedWithinHours} h: ${names(changed, (w) => `${fmtAge((now - Date.parse(w.lastChangedAt!)) / 1000)} ago`)}`
+    : `no change in the last ${c.changedWithinHours} h`;
+  const pausedText = paused.length ? `${paused.length} paused` : '';
+  const head = `changedetection.io: ${where}`;
+  const join = (...parts: string[]) => `${head} – ${parts.filter(Boolean).join('; ')}`.slice(0, 1000);
+  if (problems.length) return { status: c.failingAs, message: join(...problems, changes, pausedText), durationMs: ms, value };
+  if (paused.length && c.pausedAs === 'degraded')
+    return { status: 'degraded', message: join(`${pausedText} (they notice no change): ${names(paused)}`, changes), durationMs: ms, value };
+  if (changed.length && c.changedAs === 'degraded') return { status: 'degraded', message: join(changes, pausedText), durationMs: ms, value };
+  return { status: 'up', message: join(watch ? '' : `${active.length} without errors`, changes, pausedText), durationMs: ms, value };
+}
+
 // ---------- IBM Verify Privilege Vault ----------
 
 /** What a vault's hygiene was, read at most every 10 minutes per check (permissions are one call per secret). */
@@ -1102,7 +1177,8 @@ type Active =
   | CheckOf<'dependency-track'>
   | CheckOf<'version-behind'>
   | CheckOf<'entra'>
-  | CheckOf<'privilege-vault'>;
+  | CheckOf<'privilege-vault'>
+  | CheckOf<'page-watch'>;
 
 /** Runs an active check; heartbeat and sub-monitor checks are evaluated by the engine from stored state. */
 export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawResult> {
@@ -1144,6 +1220,8 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkEntra(c, ctx);
       case 'privilege-vault':
         return await checkPrivilegeVault(c, ctx);
+      case 'page-watch':
+        return await checkPageWatch(c, ctx);
       case 'kafka':
         return await checkKafka(c, ctx);
       case 'kafka-connect':

@@ -73,7 +73,8 @@
     "rightsOfYou": "Ausführungen laufen mit Ihren Rechten (Sie sind der Eigentümer). Das Secret wird nach dem Speichern einmal angezeigt; es wird verschlüsselt gespeichert und lässt sich jederzeit erneuern.",
     "create": "Anlegen und Secret anzeigen",
     "messages": "Nachrichten",
-    "messagesHint": "Jede fehlgeschlagene Prüfung jedes Laufs benachrichtigt. Für einen Absender, der oft aufruft, hält „Bei Änderung“ den Lärm gering."
+    "messagesHint": "Jede fehlgeschlagene Prüfung jedes Laufs benachrichtigt. Für einen Absender, der oft aufruft, hält „Bei Änderung“ den Lärm gering.",
+    "mapExample": "Zuordnen: {{name}}"
   },
   "secret": {
     "title": "Secret von „{{name}}“",
@@ -85,7 +86,10 @@
     "curlHmac": "Mit curl testen (HMAC-Signatur)",
     "gatus": "Gatus: benutzerdefinierter Alarmierungsanbieter (config.yaml)",
     "hostsHint": "Läuft Gatus auf einem anderen Rechner, muss der Hostname der URL in <c>{{name}}</c> stehen. Mehr unter <a>Gatus custom alerts</a> und in {{doc}}.",
-    "stored": "Ich habe das Secret gespeichert"
+    "stored": "Ich habe das Secret gespeichert",
+    "senderUrl": "{{name}}: Benachrichtigungs-URL",
+    "senderBody": "{{name}}: Inhalt der Benachrichtigung",
+    "senderDocs": "Fügen Sie beides in {{name}} ein (bei einer Überwachung oder einem Tag → Notifications, Format Plain Text). Die URL enthält das Geheimnis; ihr Hostname muss in SM_ALLOWED_HOSTS stehen. Mehr in {{doc}}."
   },
   "test": {
     "action": "Testaufruf senden",

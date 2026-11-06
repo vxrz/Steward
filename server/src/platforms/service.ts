@@ -20,6 +20,7 @@ import { parseYaml, SPEC_YAML } from '../yaml-safe.js';
 import { invalidatePlatformCaches, resolveBaseUrl } from './http.js';
 import { derivePathPrefix, literalBasePath, pathPrefixProblem, withPrefix } from './pathPrefix.js';
 import { deleteSource as deleteGatusSource } from '../gatus/metrics.js';
+import { deleteWatchesOf } from '../changedetection/store.js';
 import { platformIntegrity, requireIntact, sealPlatform } from './integrity.js';
 import { paramSchema, requestBodyInfo, resolveRef, successStatuses } from './openapi.js';
 import { currentUser } from '../auth/context.js';
@@ -347,6 +348,8 @@ export function deletePlatform(id: string): void {
     forgetOwningTeams('platform', id);
     // Gatus metrics mode: the source with its samples, aggregates, transitions and endpoints
     deleteGatusSource(id);
+    // changedetection.io: its watches and their links (#242)
+    deleteWatchesOf(id);
     audit({ action: 'platform.deleted', entityType: 'platform', entityId: id, summary: `Platform "${p.name}" deleted` });
   });
   for (const d of docs) if (d.filename) fs.rmSync(docPath(d.id, d.filename), { force: true });

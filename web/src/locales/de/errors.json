@@ -943,7 +943,10 @@
     "VERSIONS_PLATFORM": "Wählen Sie eine Container-Registry oder Git-Plattform, die Sie nutzen dürfen.",
     "VERSIONS_NAME": "Geben Sie das Image (kleingeschrieben, z. B. library/postgres) oder das Repository (owner/repository) auf der Plattform an.",
     "VERSIONS_PURL": "Das ist keine Package-URL (pkg:type/namespace/name).",
-    "VERSIONS_TAG_PATTERN": "Ein Tag-Muster enthält {version} genau einmal, z. B. {version}-alpine oder v{version}."
+    "VERSIONS_TAG_PATTERN": "Ein Tag-Muster enthält {version} genau einmal, z. B. {version}-alpine oder v{version}.",
+    "PAGE_WATCH_NOT_FOUND": "changedetection.io hat keine solche Überwachung.",
+    "CHANGEDETECTION_PLATFORM_REQUIRED": "Seitenüberwachungen gibt es nur für changedetection.io-Plattformen.",
+    "CHANGEDETECTION_READ_FAILED": "changedetection.io konnte nicht gelesen werden: {{message}}"
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

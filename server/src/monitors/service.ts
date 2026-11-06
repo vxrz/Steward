@@ -337,6 +337,7 @@ const PLATFORM_KIND: Partial<Record<string, string>> = {
   'dependency-track': 'dependency-track',
   entra: 'microsoft-graph',
   'privilege-vault': 'privilege-vault',
+  'page-watch': 'changedetection',
   zabbix: 'zabbix',
 };
 

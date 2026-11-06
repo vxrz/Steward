@@ -1651,7 +1651,7 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
   };
   const doRequest = async (url: string, q: Record<string, unknown>) => {
     // paths the kind never calls (a vault's values): refused in a test run too, before a recorded answer is looked up
-    if (ctx.recorded) assertPathAllowed(b.platform.kind, await buildUrl(b.platform, b.secrets, url, q));
+    if (ctx.recorded) assertPathAllowed(b.platform.kind, await buildUrl(b.platform, b.secrets, url, q), step.method);
     if (ctx.recorded) return replay(url, q);
     const target = await buildUrl(b.platform, b.secrets, url, q);
     // the AWS endpoint the step names is the platform's own origin for this call – only then, not every amazonaws.com host

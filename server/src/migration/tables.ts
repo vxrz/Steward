@@ -97,6 +97,8 @@ export const USER_REFS: UserRef[] = [
   { table: 'monitors', column: 'definition', kind: 'monitorDefinition' },
   { table: 'monitor_gateways', column: 'owner', kind: 'username' },
   { table: 'gatus_sources', column: 'owner', kind: 'username' },
+  // changedetection.io (#242): the background read runs as the person who read the watches last
+  { table: 'cd_reads', column: 'read_by', kind: 'username' },
   { table: 'access_checks', column: 'owner', kind: 'username' },
   { table: 'webhook_triggers', column: 'owner', kind: 'username' },
   { table: 'report_schedules', column: 'owner', kind: 'username' },
@@ -143,6 +145,8 @@ export const HISTORY_COLUMNS: string[] = [
   // database schema snapshots and their settings (#222)
   'db_schema_snapshots.actor',
   'db_schema_settings.updated_by',
+  // links of changedetection.io watches (#242)
+  'cd_watches.linked_by',
   'plant_profiles.created_by',
   'plant_profiles.updated_by',
   'plant_kpis.created_by',

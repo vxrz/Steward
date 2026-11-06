@@ -25,9 +25,10 @@ import {
   IconDatabase,
   IconSchema,
   IconArrowsExchange,
+  IconFileDiff,
 } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { DATABASE_KIND, KAFKA_CONNECT_KIND, LLM_GATEWAY_KIND, type AclEntry, type Platform } from '@sm/shared';
+import { CHANGEDETECTION_KIND, DATABASE_KIND, KAFKA_CONNECT_KIND, LLM_GATEWAY_KIND, type AclEntry, type Platform } from '@sm/shared';
 import { apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
 import { AccessEditor } from '../components/AccessEditor';
 import { OwningTeams } from '../components/OwningTeams';
@@ -42,6 +43,7 @@ import { SpecsTab } from '../components/platform/SpecsTab';
 import { DocsTab } from '../components/platform/DocsTab';
 import { ExplorerTab, type ExplorerPreset } from '../components/platform/ExplorerTab';
 import { GatusMetricsTab } from '../components/platform/GatusMetricsTab';
+import { WatchesTab } from '../components/platform/WatchesTab';
 import { RecordingsTab } from '../components/platform/RecordingsTab';
 import { AiModelsTab } from '../components/platform/AiModelsTab';
 import { AiUsageTab } from '../components/platform/AiUsageTab';
@@ -107,7 +109,9 @@ export function PlatformDetailPage() {
   const isDatabase = p.kind === DATABASE_KIND;
   // a Kafka Connect platform (0.9.0) opens on its connectors
   const isConnect = p.kind === KAFKA_CONNECT_KIND;
-  const activeTab = tab ?? (isDatabase ? 'database' : isConnect ? 'connectors' : 'settings');
+  // changedetection.io (#242) opens on its watches, the components of the platform
+  const isChangedetection = p.kind === CHANGEDETECTION_KIND;
+  const activeTab = tab ?? (isDatabase ? 'database' : isConnect ? 'connectors' : isChangedetection ? 'watches' : 'settings');
   const canManage = p.permissions.includes('manage');
   const canUse = p.permissions.includes('use');
   // who sees the platform may export it for Postman (#204): its settings without the secrets
@@ -338,6 +342,11 @@ export function PlatformDetailPage() {
               {t('detail.tabs.connectors')}
             </Tabs.Tab>
           )}
+          {isChangedetection && (
+            <Tabs.Tab value="watches" leftSection={<IconFileDiff size={16} />} data-testid="platform-tab-watches">
+              {t('detail.tabs.watches')}
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="settings" leftSection={<IconSettings size={16} />}>
             {t('detail.tabs.settings')}
           </Tabs.Tab>
@@ -431,6 +440,11 @@ export function PlatformDetailPage() {
         <Tabs.Panel value="recordings">
           <RecordingsTab platform={p} readOnly={!canManage} />
         </Tabs.Panel>
+        {isChangedetection && (
+          <Tabs.Panel value="watches">
+            <WatchesTab platform={p} />
+          </Tabs.Panel>
+        )}
         {p.kind === 'gatus' && (
           <Tabs.Panel value="metrics">
             <GatusMetricsTab platform={p} />

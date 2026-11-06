@@ -13,6 +13,7 @@ import { boundedRecord } from './zodLimits.js';
 import { DB_LIMITS } from './database.js';
 import { tagInput } from './tags.js';
 import { AWS_REGION_RE } from './aws.js';
+import { PAGE_WATCH_LIMITS, PAGE_WATCH_UUID_RE } from './changedetection.js';
 
 // ---------- statuses ----------
 
@@ -64,6 +65,7 @@ export const CHECK_TYPES = [
   'version-behind',
   'entra',
   'privilege-vault',
+  'page-watch',
   'monitor',
 ] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
@@ -98,6 +100,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   'privilege-vault': {
     label: 'Vault hygiene (IBM Verify Privilege Vault)',
     help: 'Secrets of IBM Verify Privilege Vault: failed heartbeats, passwords not rotated or expired, automatic changing off, no owner, privileged secrets without checkout or approval',
+  },
+  'page-watch': {
+    label: 'Page watch (changedetection.io)',
+    help: 'Watches of changedetection.io: a page changed within the last N hours (informational or degraded), a watch whose last check failed or that was not checked for too long',
   },
   snowflake: {
     label: 'Snowflake',
@@ -421,6 +427,30 @@ export const checkSchema = z.discriminatedUnion('type', [
     maxFindings: z.number().int().min(0).max(100000).default(0),
     /** Status with more findings: degraded (default) or down; a finding on a privileged secret always counts */
     failAs: z.enum(['down', 'degraded']).default('degraded'),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('page-watch'),
+    /** A changedetection.io platform (#242) */
+    platform: platformRef,
+    /** One watch (its UUID); empty: the watches with the tag, or all watches */
+    watch: z
+      .string()
+      .trim()
+      .refine((v) => !v || PAGE_WATCH_UUID_RE.test(v), 'the UUID of a watch in changedetection.io')
+      .optional(),
+    /** The watches with this tag (its name in changedetection.io, case does not matter); ignored with a watch */
+    tag: z.string().trim().max(PAGE_WATCH_LIMITS.tag).optional(),
+    /** A change within this many hours is reported (default 24) … */
+    changedWithinHours: z.number().int().min(1).max(8760).default(24),
+    /** … as information (up, the default) or as degraded */
+    changedAs: z.enum(['up', 'degraded']).default('up'),
+    /** Status of a watch whose last check failed (fetch error, filter not found …) or that was not checked for too long */
+    failingAs: z.enum(['down', 'degraded']).default('degraded'),
+    /** Not checked for this many hours counts as failing (optional: an instance or watch that stopped checking) */
+    maxCheckAgeHours: z.number().int().min(1).max(8760).optional(),
+    /** Paused watches: left out (default), or degraded (a paused watch notices nothing) */
+    pausedAs: z.enum(['ignore', 'degraded']).default('ignore'),
   }),
   z.object({
     ...checkBase,

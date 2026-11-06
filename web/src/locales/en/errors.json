@@ -943,7 +943,10 @@
     "VERSIONS_PLATFORM": "Choose a container registry or Git platform you may use.",
     "VERSIONS_NAME": "Name the image (lower case, e.g. library/postgres) or the repository (owner/repository) on the platform.",
     "VERSIONS_PURL": "This is not a package URL (pkg:type/namespace/name).",
-    "VERSIONS_TAG_PATTERN": "A tag pattern has {version} once, e.g. {version}-alpine or v{version}."
+    "VERSIONS_TAG_PATTERN": "A tag pattern has {version} once, e.g. {version}-alpine or v{version}.",
+    "PAGE_WATCH_NOT_FOUND": "changedetection.io has no such watch.",
+    "CHANGEDETECTION_PLATFORM_REQUIRED": "Page watches are only available for changedetection.io platforms.",
+    "CHANGEDETECTION_READ_FAILED": "changedetection.io could not be read: {{message}}"
   },
   "boundary": {
     "title": "Something went wrong on this page",

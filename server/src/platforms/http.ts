@@ -13,7 +13,7 @@ import { assertOutboundAllowed, assertRedirectAllowed, assertRedirectBodyClean, 
 import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
 import { JWT_ALGS, certificateThumbprints, clientAssertion, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
 import { where as originAndPath } from './answers.js';
-import { assertMethodAllowed, assertPathAllowed, stripValues } from './deniedPaths.js';
+import { assertPathAllowed, stripValues } from './deniedPaths.js';
 
 export interface HttpRequest {
   method: string;
@@ -829,8 +829,9 @@ async function followRedirects(
   // credentials obtained for this request (an OAuth token, a Basic header): not in the platform's stored secrets
   const obtained: string[] = [];
   for (let hop = 0; ; hop++) {
-    // paths the kind never calls (v0.5.0): a redirect cannot lead there either
-    assertPathAllowed(p.kind, url);
+    // paths the kind never calls (v0.5.0): a redirect cannot lead there either – checked with the method this hop is
+    // sent with (a 307/308 keeps a changing method, which a read-only kind refuses)
+    assertPathAllowed(p.kind, url, method);
     const hopTrusted = await credentialsAllowed(p, secrets, url);
     if (hop > 0) {
       // the outbound policy on every redirect hop (0.9.0, #243), with the platform's own origins allowed as for the first request
@@ -944,9 +945,9 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
     query[p.config.auth.apiKeyName || 'api_key'] = secrets.apiKey ?? '';
   }
   const url = await buildUrl(p, secrets, req.url, query);
-  // paths the kind never calls, e.g. a vault's secret values (v0.5.0, deniedPaths.ts); kinds that are only read (0.9.0)
-  assertPathAllowed(p.kind, url);
-  assertMethodAllowed(p.kind, req.method);
+  // paths the kind never calls, e.g. a vault's secret values (v0.5.0, deniedPaths.ts); kinds that are only read
+  // (0.9.0: Kafka Connect #223, changedetection.io #242) refuse every method but GET/HEAD
+  assertPathAllowed(p.kind, url, req.method);
   if (!trusted && /^https?:\/\//i.test(req.url)) await assertAbsoluteAllowed(url);
   if (!trusted) {
     let host = '';

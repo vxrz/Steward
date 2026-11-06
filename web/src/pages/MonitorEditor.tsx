@@ -108,6 +108,7 @@ const TRYABLE = new Set<CheckType>([
   'version-behind',
   'entra',
   'privilege-vault',
+  'page-watch',
 ]);
 
 /**

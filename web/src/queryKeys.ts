@@ -49,6 +49,9 @@ export const platformKeys = {
   /** Kafka Connect (0.9.0): the connectors Steward last read; a connector's configuration (read on request, never cached) */
   kafkaConnect: (id: string | null | undefined) => ['platform', id, 'kafka-connect'] as const,
   kafkaConnectConfig: (id: string | null | undefined, name: string) => ['platform', id, 'kafka-connect', 'config', name] as const,
+  /** changedetection.io (0.9.0): the watches as components of the platform (prefix ['platform', id]) */
+  watches: (id: string | null | undefined) => ['platform', id, 'watches'] as const,
+  watchHistory: (id: string | null | undefined, uuid: string) => ['platform', id, 'watches', uuid, 'history'] as const,
 };
 
 /** AI models (0.6.0): every budget (administrators and auditors) */

@@ -22,6 +22,7 @@ import {
   IconSchema,
   IconArrowsExchange,
   IconArrowBigUpLines,
+  IconFileDiff,
 } from '@tabler/icons-react';
 import type { CheckDef, CheckType } from '@sm/shared';
 import i18n from '../../i18n';
@@ -49,6 +50,7 @@ export const CHECK_ICONS: Record<CheckType, typeof IconApi> = {
   'version-behind': IconArrowBigUpLines,
   entra: IconUserShield,
   'privilege-vault': IconLock,
+  'page-watch': IconFileDiff,
   monitor: IconHierarchy2,
 };
 
@@ -76,6 +78,7 @@ const DEFAULT_NAMES: Record<CheckType, string> = {
   'version-behind': 'Tech stack up to date',
   entra: 'App credentials valid',
   'privilege-vault': 'Vault hygiene',
+  'page-watch': 'Vendor pages watched',
   monitor: 'Sub-monitor',
 };
 
@@ -165,6 +168,8 @@ export function newCheck(type: CheckType, id: string): CheckDef {
         maxFindings: 0,
         failAs: 'degraded',
       } as CheckDef;
+    case 'page-watch':
+      return { ...base, name, type, platform: '', changedWithinHours: 24, changedAs: 'up', failingAs: 'degraded', pausedAs: 'ignore' } as CheckDef;
     case 'monitor':
       return { ...base, name, type, monitor: '' } as CheckDef;
   }

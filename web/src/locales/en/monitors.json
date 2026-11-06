@@ -394,7 +394,30 @@
     "versionMaxDaysHint": "Since the first newer release; empty: not checked",
     "versionMajorAs": "A major release behind",
     "versionEolAs": "Release cycle at its end of life",
-    "versionEolIgnore": "Not checked"
+    "versionEolIgnore": "Not checked",
+    "pageWatchScope": "Which watches",
+    "pageWatchScopeWatch": "One watch",
+    "pageWatchScopeTag": "With a tag",
+    "pageWatchScopeAll": "All watches",
+    "pageWatchWatch": "Watch",
+    "pageWatchWatchHint": "As Steward last read them from changedetection.io",
+    "pageWatchNoWatch": "No such watch",
+    "pageWatchUuid": "UUID of the watch",
+    "pageWatchUuidHint": "The UUID of the watch in changedetection.io (in the address of its edit page: /edit/<UUID>)",
+    "pageWatchNotRead": "Steward has not read the watches of this platform yet: read them on its Watches tab to pick one, or enter the UUID.",
+    "pageWatchUuidInvalid": "Not a UUID",
+    "pageWatchTag": "Tag",
+    "pageWatchTagHint": "The name of the tag in changedetection.io; case does not matter",
+    "pageWatchChangedWithin": "Changed within (hours)",
+    "pageWatchChangedAs": "A change counts as",
+    "pageWatchInformational": "Information",
+    "pageWatchFailingAs": "A failing watch counts as",
+    "pageWatchFailingAsHint": "Its last check failed (fetch error, filter not found) or it was not checked in time",
+    "pageWatchMaxCheckAge": "Not checked for (hours)",
+    "pageWatchMaxCheckAgeHint": "Counts as failing; empty: not looked at",
+    "pageWatchPausedAs": "Paused watches",
+    "pageWatchPausedIgnore": "Left out",
+    "pageWatchChangedAsHint": "Information: the check stays OK and names the change"
   },
   "detail": {
     "template": "template",
@@ -773,6 +796,10 @@
     "dynamodb": {
       "label": "DynamoDB table",
       "help": "A DynamoDB table on an AWS platform: the newest item per partition key is recent enough, the table had writes within the window (CloudWatch), or its status, point-in-time recovery and time to live"
+    },
+    "page-watch": {
+      "label": "Page watch (changedetection.io)",
+      "help": "Watches of changedetection.io: a page changed within the last N hours (informational or degraded), a watch whose last check failed or that was not checked for too long"
     }
   },
   "newCheck": {
@@ -798,7 +825,8 @@
     "privilege-vault": "Vault hygiene",
     "database": "Database reachable",
     "dynamodb": "DynamoDB table fresh",
-    "db-schema": "No breaking schema change"
+    "db-schema": "No breaking schema change",
+    "page-watch": "Vendor pages watched"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}"

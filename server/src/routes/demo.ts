@@ -22,6 +22,7 @@ import { PRESETS, PRESET_SPECS } from '../platforms/presets.js';
 import { audit } from '../audit.js';
 import { createUser, findUserByName, saveTeam } from '../auth/users.js';
 import {
+  CHANGEDETECTION_KIND,
   CONTAINER_REGISTRY_KIND,
   DATABASE_KIND,
   KAFKA_CONNECT_KIND,
@@ -45,6 +46,7 @@ import { refreshLifecycle } from '../catalogue/lifecycle.js';
 import { currentActor } from '../auth/context.js';
 import { DEMO_AWS } from '../mock/mockAws.js';
 import { DEMO_DTRACK } from '../mock/mockDtrack.js';
+import { DEMO_CHANGEDETECTION } from '../mock/mockChangedetection.js';
 import { DEMO_SNOWFLAKE, setSnowflakePublicKey } from '../mock/mockSnowflake.js';
 import { DEMO_GRAPH } from '../mock/mockGraph.js';
 import { seedPlantDemo } from '../plant/demo.js';
@@ -181,6 +183,25 @@ async function setupDemoApplications(platformByKind: Map<string, string>, actor:
       .then((m) => m.refreshVersions({ force: true }))
       .catch((err) => logger.warn({ err: (err as Error).message }, 'demo version watch not read'));
   return created;
+}
+
+/** Reads the demo changedetection.io once and links three watches (#242); the background job reads it again every hour. */
+async function setupChangedetectionDemo(platformId: string | undefined, actor: string): Promise<void> {
+  if (!platformId || db().get('SELECT 1 FROM cd_reads WHERE platform_id = ?', platformId)) return;
+  try {
+    const { refreshWatches, setWatchLink } = await import('../changedetection/service.js');
+    await refreshWatches(platformId, actor);
+    const app = (name: string) => db().get<{ id: string }>('SELECT id FROM applications WHERE name = ?', name)?.id ?? null;
+    const links: [string, string | null, string][] = [
+      ['7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e01', app('Webshop (demo)'), 'Zentrova Cloud'],
+      ['7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e02', app('Webshop (demo)'), 'Zentrova Cloud'],
+      ['7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e06', app('CRM (demo)'), 'Mailbrook'],
+      ['7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e04', null, 'Paylumen'],
+    ];
+    for (const [uuid, applicationId, vendor] of links) setWatchLink(platformId, uuid, { ...(applicationId ? { applicationId } : {}), vendor }, actor);
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'demo page watches not read');
+  }
 }
 
 export async function setupDemo(opts: { applications?: boolean } = {}): Promise<{
@@ -399,6 +420,26 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
       },
       secrets: { apiKey: DEMO_DTRACK.apiKey },
     });
+    platforms++;
+  }
+  if (!existing.has('changedetection.io (demo)')) {
+    // changedetection.io (#242): vendor terms, pricing, release notes, a failing status page and a paused watch
+    const cd = createPlatform({
+      name: 'changedetection.io (demo)',
+      kind: CHANGEDETECTION_KIND,
+      environment: 'demo',
+      description:
+        'Simulated changedetection.io served by the built-in mock: six watches of invented vendor pages – terms, pricing, release notes, a failing status page, a paused one. See docs/CHANGEDETECTION.md.',
+      baseUrl: `${base}/changedetection`,
+      config: {
+        auth: { type: 'apiKey', apiKeyIn: 'header', apiKeyName: 'x-api-key' },
+        variables: { uiUrl: '' },
+        http: { proxy: 'none' },
+        testPath: '/api/v1/systeminfo',
+      },
+      secrets: { apiKey: DEMO_CHANGEDETECTION.apiKey },
+    });
+    for (const sp of PRESET_SPECS[CHANGEDETECTION_KIND]!()) addSpec(cd.id, sp.name, sp.content);
     platforms++;
   }
   if (!existing.has('IBM Verify Privilege Vault (demo)')) {
@@ -655,6 +696,8 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
   );
   // ---- sample applications (components read once, end-of-life data), unless switched off ----
   const applications = opts.applications === false ? 0 : await setupDemoApplications(platformByKind, currentActor());
+  // ---- the watches of the simulated changedetection.io, read once and linked to the sample applications and vendors ----
+  await setupChangedetectionDemo(platformByKind.get(CHANGEDETECTION_KIND), currentActor());
 
   const scheduleNames = new Set(listSchedules().map((x) => x.name));
   let schedules = 0;

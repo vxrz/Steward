@@ -394,7 +394,30 @@
     "versionMaxDaysHint": "Seit der ersten neueren Version; leer: nicht geprüft",
     "versionMajorAs": "Eine Hauptversion zurück",
     "versionEolAs": "Release-Zyklus am Supportende",
-    "versionEolIgnore": "Nicht geprüft"
+    "versionEolIgnore": "Nicht geprüft",
+    "pageWatchScope": "Welche Überwachungen",
+    "pageWatchScopeWatch": "Eine Überwachung",
+    "pageWatchScopeTag": "Mit einem Tag",
+    "pageWatchScopeAll": "Alle Überwachungen",
+    "pageWatchWatch": "Überwachung",
+    "pageWatchWatchHint": "So, wie Steward sie zuletzt aus changedetection.io gelesen hat",
+    "pageWatchNoWatch": "Keine solche Überwachung",
+    "pageWatchUuid": "UUID der Überwachung",
+    "pageWatchUuidHint": "Die UUID der Überwachung in changedetection.io (in der Adresse ihrer Bearbeitungsseite: /edit/<UUID>)",
+    "pageWatchNotRead": "Steward hat die Überwachungen dieser Plattform noch nicht gelesen: Lesen Sie sie im Reiter „Überwachungen“, um eine auszuwählen, oder geben Sie die UUID ein.",
+    "pageWatchUuidInvalid": "Keine UUID",
+    "pageWatchTag": "Tag",
+    "pageWatchTagHint": "Der Name des Tags in changedetection.io; Groß- und Kleinschreibung spielen keine Rolle",
+    "pageWatchChangedWithin": "Geändert innerhalb von (Stunden)",
+    "pageWatchChangedAs": "Eine Änderung gilt als",
+    "pageWatchInformational": "Information",
+    "pageWatchFailingAs": "Eine fehlerhafte Überwachung gilt als",
+    "pageWatchFailingAsHint": "Ihre letzte Prüfung schlug fehl (Abruffehler, Filter nicht gefunden) oder sie wurde nicht rechtzeitig geprüft",
+    "pageWatchMaxCheckAge": "Nicht geprüft seit (Stunden)",
+    "pageWatchMaxCheckAgeHint": "Gilt als fehlerhaft; leer: wird nicht beachtet",
+    "pageWatchPausedAs": "Pausierte Überwachungen",
+    "pageWatchPausedIgnore": "Nicht berücksichtigt",
+    "pageWatchChangedAsHint": "Information: Die Prüfung bleibt OK und nennt die Änderung"
   },
   "detail": {
     "template": "Vorlage",
@@ -773,6 +796,10 @@
     "dynamodb": {
       "label": "DynamoDB-Tabelle",
       "help": "Eine DynamoDB-Tabelle auf einer AWS-Plattform: das neueste Element je Partitionsschlüssel ist aktuell genug, die Tabelle wurde im Zeitfenster beschrieben (CloudWatch), oder ihr Status, die Point-in-Time-Wiederherstellung und die Gültigkeitsdauer (TTL)"
+    },
+    "page-watch": {
+      "label": "Seitenüberwachung (changedetection.io)",
+      "help": "Überwachungen von changedetection.io: eine Seite hat sich in den letzten N Stunden geändert (zur Information oder beeinträchtigt), eine Überwachung, deren letzte Prüfung fehlschlug oder die zu lange nicht geprüft wurde"
     }
   },
   "newCheck": {
@@ -798,7 +825,8 @@
     "privilege-vault": "Tresor-Hygiene",
     "database": "Datenbank erreichbar",
     "dynamodb": "DynamoDB-Tabelle aktuell",
-    "db-schema": "Keine inkompatible Schemaänderung"
+    "db-schema": "Keine inkompatible Schemaänderung",
+    "page-watch": "Herstellerseiten überwacht"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"
