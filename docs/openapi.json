@@ -3957,6 +3957,7 @@
               "database",
               "dynamodb",
               "db-schema",
+              "data-contract",
               "dependency-track",
               "entra",
               "privilege-vault",
@@ -4382,6 +4383,7 @@
                     "database",
                     "dynamodb",
                     "db-schema",
+                    "data-contract",
                     "dependency-track",
                     "entra",
                     "privilege-vault",
@@ -14065,6 +14067,104 @@
             ],
             "additionalProperties": false,
             "description": "Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects"
+          },
+          "contracts": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: a linked data contract whose last test failed or with an error finding (columns missing in the source); pending: a contract never tested or with other findings; none: no data contract is linked to the service’s applications or their systems"
+              },
+              "contracts": {
+                "type": "integer",
+                "description": "Linked data contracts the token owner may see"
+              },
+              "failed": {
+                "type": "integer",
+                "description": "Contracts whose last test failed or with an error finding"
+              },
+              "untested": {
+                "type": "integer",
+                "description": "Contracts never tested"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "result": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "passed",
+                            "warning",
+                            "failed",
+                            "error"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The last test (dry runs left out); null: never tested"
+                    },
+                    "testedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    "findings": {
+                      "type": "integer",
+                      "description": "Steward’s own findings (no owner, not tested, columns, lint)"
+                    },
+                    "errors": {
+                      "type": "integer",
+                      "description": "Of them errors"
+                    }
+                  },
+                  "required": [
+                    "contractId",
+                    "name",
+                    "result",
+                    "testedAt",
+                    "findings",
+                    "errors"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "The contracts that are not ok, worst first"
+              }
+            },
+            "required": [
+              "status",
+              "contracts",
+              "failed",
+              "untested",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "Data contracts (ODCS v3) linked to the service’s applications or their systems: their last test and Steward’s own findings"
           }
         },
         "required": [
@@ -14078,7 +14178,8 @@
           "documentation",
           "protection",
           "lifecycle",
-          "vulnerabilities"
+          "vulnerabilities",
+          "contracts"
         ],
         "additionalProperties": false
       },
@@ -14922,6 +15023,104 @@
                   ],
                   "additionalProperties": false,
                   "description": "Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects"
+                },
+                "contracts": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none"
+                      ],
+                      "description": "attention: a linked data contract whose last test failed or with an error finding (columns missing in the source); pending: a contract never tested or with other findings; none: no data contract is linked to the service’s applications or their systems"
+                    },
+                    "contracts": {
+                      "type": "integer",
+                      "description": "Linked data contracts the token owner may see"
+                    },
+                    "failed": {
+                      "type": "integer",
+                      "description": "Contracts whose last test failed or with an error finding"
+                    },
+                    "untested": {
+                      "type": "integer",
+                      "description": "Contracts never tested"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "contractId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "result": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "passed",
+                                  "warning",
+                                  "failed",
+                                  "error"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The last test (dry runs left out); null: never tested"
+                          },
+                          "testedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "ISO 8601 timestamp (UTC)"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "findings": {
+                            "type": "integer",
+                            "description": "Steward’s own findings (no owner, not tested, columns, lint)"
+                          },
+                          "errors": {
+                            "type": "integer",
+                            "description": "Of them errors"
+                          }
+                        },
+                        "required": [
+                          "contractId",
+                          "name",
+                          "result",
+                          "testedAt",
+                          "findings",
+                          "errors"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The contracts that are not ok, worst first"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "contracts",
+                    "failed",
+                    "untested",
+                    "items"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Data contracts (ODCS v3) linked to the service’s applications or their systems: their last test and Steward’s own findings"
                 }
               },
               "required": [
@@ -14935,7 +15134,8 @@
                 "documentation",
                 "protection",
                 "lifecycle",
-                "vulnerabilities"
+                "vulnerabilities",
+                "contracts"
               ],
               "additionalProperties": false
             }
@@ -15108,6 +15308,30 @@
                           "none"
                         ],
                         "additionalProperties": false
+                      },
+                      "contracts": {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "integer"
+                          },
+                          "attention": {
+                            "type": "integer"
+                          },
+                          "pending": {
+                            "type": "integer"
+                          },
+                          "none": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "attention",
+                          "pending",
+                          "none"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -15116,7 +15340,8 @@
                       "documentation",
                       "protection",
                       "lifecycle",
-                      "vulnerabilities"
+                      "vulnerabilities",
+                      "contracts"
                     ],
                     "additionalProperties": false
                   }
@@ -15297,6 +15522,30 @@
                             "none"
                           ],
                           "additionalProperties": false
+                        },
+                        "contracts": {
+                          "type": "object",
+                          "properties": {
+                            "ok": {
+                              "type": "integer"
+                            },
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "pending": {
+                              "type": "integer"
+                            },
+                            "none": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "ok",
+                            "attention",
+                            "pending",
+                            "none"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -15305,7 +15554,8 @@
                         "documentation",
                         "protection",
                         "lifecycle",
-                        "vulnerabilities"
+                        "vulnerabilities",
+                        "contracts"
                       ],
                       "additionalProperties": false
                     }
@@ -15525,6 +15775,35 @@
                   "hidden"
                 ],
                 "additionalProperties": false
+              },
+              "contracts": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "integer"
+                  },
+                  "attention": {
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "type": "integer"
+                  },
+                  "none": {
+                    "type": "integer"
+                  },
+                  "hidden": {
+                    "type": "integer",
+                    "description": "Relied on documents the token owner may not read"
+                  }
+                },
+                "required": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none",
+                  "hidden"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -15533,7 +15812,8 @@
               "documentation",
               "protection",
               "lifecycle",
-              "vulnerabilities"
+              "vulnerabilities",
+              "contracts"
             ],
             "additionalProperties": false
           }
@@ -16377,6 +16657,104 @@
             "additionalProperties": false,
             "description": "Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects"
           },
+          "contracts": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: a linked data contract whose last test failed or with an error finding (columns missing in the source); pending: a contract never tested or with other findings; none: no data contract is linked to the service’s applications or their systems"
+              },
+              "contracts": {
+                "type": "integer",
+                "description": "Linked data contracts the token owner may see"
+              },
+              "failed": {
+                "type": "integer",
+                "description": "Contracts whose last test failed or with an error finding"
+              },
+              "untested": {
+                "type": "integer",
+                "description": "Contracts never tested"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "result": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "passed",
+                            "warning",
+                            "failed",
+                            "error"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The last test (dry runs left out); null: never tested"
+                    },
+                    "testedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    "findings": {
+                      "type": "integer",
+                      "description": "Steward’s own findings (no owner, not tested, columns, lint)"
+                    },
+                    "errors": {
+                      "type": "integer",
+                      "description": "Of them errors"
+                    }
+                  },
+                  "required": [
+                    "contractId",
+                    "name",
+                    "result",
+                    "testedAt",
+                    "findings",
+                    "errors"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "The contracts that are not ok, worst first"
+              }
+            },
+            "required": [
+              "status",
+              "contracts",
+              "failed",
+              "untested",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "Data contracts (ODCS v3) linked to the service’s applications or their systems: their last test and Steward’s own findings"
+          },
           "history": {
             "type": "array",
             "items": {
@@ -16450,6 +16828,16 @@
                         "none",
                         "hidden"
                       ]
+                    },
+                    "contracts": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none",
+                        "hidden"
+                      ]
                     }
                   },
                   "required": [
@@ -16458,7 +16846,8 @@
                     "documentation",
                     "protection",
                     "lifecycle",
-                    "vulnerabilities"
+                    "vulnerabilities",
+                    "contracts"
                   ],
                   "additionalProperties": false
                 }
@@ -16485,6 +16874,7 @@
           "protection",
           "lifecycle",
           "vulnerabilities",
+          "contracts",
           "history"
         ],
         "additionalProperties": false
@@ -30739,7 +31129,7 @@
         "tags": [
           "Services"
         ],
-        "description": "Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – the optional fifth, the tech stack’s end of life (`lifecycle`, status \"none\" unless counted), and the sixth, the open findings and policy violations of the components’ Dependency-Track projects (`vulnerabilities`, status \"none\" when no component links a project), and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.",
+        "description": "Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – the optional fifth, the tech stack’s end of life (`lifecycle`, status \"none\" unless counted), and the sixth, the open findings and policy violations of the components’ Dependency-Track projects (`vulnerabilities`, status \"none\" when no component links a project), the seventh, the data contracts linked to its applications or their systems (`contracts`, status \"none\" when none is linked), and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.",
         "responses": {
           "200": {
             "description": "OK",

@@ -208,6 +208,33 @@ function PartDetails({ card: c, part }: { card: ServiceScorecardDetail; part: Sc
       </Stack>
     );
   }
+  if (part === 'contracts') {
+    const k = c.contracts;
+    if (!k?.contracts)
+      return (
+        <Text size="xs" c="dimmed">
+          {t('contracts.none')}
+        </Text>
+      );
+    return (
+      <Stack gap={2}>
+        <Text size="xs">{t('contracts.summary', { count: k.contracts, failed: k.failed, untested: k.untested })}</Text>
+        {k.items.length > 0 && (
+          <List size="xs" spacing={0} data-testid="contract-items">
+            {k.items.slice(0, 10).map((i) => (
+              <List.Item key={i.contractId}>
+                <Anchor component={Link} to={`/data-contracts/${i.contractId}`} size="xs">
+                  {i.name}
+                </Anchor>{' '}
+                {i.result ? t(`contracts.results.${i.result}`) : t('contracts.never')}
+                {i.findings ? ` – ${t('contracts.findings', { count: i.findings })}` : ''}
+              </List.Item>
+            ))}
+          </List>
+        )}
+      </Stack>
+    );
+  }
   const p = c.protection;
   if (!p.applications && p.dimensions.every((x) => !x.override))
     return (

@@ -29,7 +29,8 @@
     "documentation": "Documentation",
     "protection": "Protection need",
     "lifecycle": "Tech stack",
-    "vulnerabilities": "Vulnerabilities"
+    "vulnerabilities": "Vulnerabilities",
+    "contracts": "Data contracts"
   },
   "windows": {
     "h1": "1 h",
@@ -186,5 +187,19 @@
     "error": "read failed: {{error}}",
     "readAt": "last read {{date}}",
     "open": "Open in Dependency-Track"
+  },
+  "contracts": {
+    "none": "No data contract is linked to the service's applications or their systems.",
+    "summary_one": "{{count}} contract: {{failed}} failing, {{untested}} never tested",
+    "summary_other": "{{count}} contracts: {{failed}} failing, {{untested}} never tested",
+    "results": {
+      "passed": "last test passed",
+      "warning": "last test with warnings",
+      "failed": "last test failed",
+      "error": "last test could not run"
+    },
+    "never": "never tested",
+    "findings_one": "{{count}} finding",
+    "findings_other": "{{count}} findings"
   }
 }

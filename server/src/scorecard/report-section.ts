@@ -53,6 +53,7 @@ const en = {
     protection: 'Protection need',
     lifecycle: 'Tech stack',
     vulnerabilities: 'Vulnerabilities',
+    contracts: 'Data contracts',
   } as Record<ScorecardPart, string>,
   statuses: { ok: 'OK', attention: 'Attention', pending: 'Open', none: '–', hidden: 'Hidden' } as Record<ScorecardPartStatus | 'hidden', string>,
   objectiveStatuses: { met: 'Met', below: 'Below target', noData: 'No data' } as Record<ObjectiveStatus, string>,
@@ -91,6 +92,7 @@ const de: Texts = {
     protection: 'Schutzbedarf',
     lifecycle: 'Tech-Stack',
     vulnerabilities: 'Schwachstellen',
+    contracts: 'Datenverträge',
   },
   statuses: { ok: 'OK', attention: 'Handlungsbedarf', pending: 'Offen', none: '–', hidden: 'Verborgen' },
   objectiveStatuses: { met: 'Erfüllt', below: 'Unterschritten', noData: 'Keine Daten' },
@@ -153,6 +155,7 @@ function build(c: ScorecardConfig, ctx: { from: number; to: number; now: number 
         protection: card.protection.status,
         lifecycle: card.lifecycle.status,
         vulnerabilities: card.vulnerabilities.status,
+        contracts: card.contracts.status,
       },
     }));
   }
@@ -222,8 +225,9 @@ registerReportSection<ScorecardConfig, ScorecardSectionData>({
     w.paragraph(d.asOf ? fill(x.asOfSnapshot, { day: d.asOf }) : x.asOfLive, { tone: 'muted', size: 7.4 });
     const attention = d.services.filter((s) => s.attention).length;
     // the tech stack part only when it is counted (it is off by default; reports made before 0.2.3 have no value), the
-    // vulnerabilities only when a service's components link Dependency-Track (older reports have no value)
-    const optional: ScorecardPart[] = ['lifecycle', 'vulnerabilities'];
+    // vulnerabilities only when a service's components link Dependency-Track (older reports have no value), data
+    // contracts only when one is linked to a service's applications or systems (#221)
+    const optional: ScorecardPart[] = ['lifecycle', 'vulnerabilities', 'contracts'];
     const parts = SCORECARD_PARTS.filter((p) => !optional.includes(p) || d.services.some((s) => (s.parts[p] ?? 'none') !== 'none'));
     w.stats([
       { label: x.services, value: String(d.services.length), tone: 'default' as Tone },

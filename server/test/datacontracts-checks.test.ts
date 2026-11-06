@@ -121,4 +121,21 @@ describe('monitors, processes and reports', () => {
       ).status,
     ).toBe(400);
   });
+
+  it('the scorecard part "Data contracts" judges the contracts linked to a service’s applications and their systems', async () => {
+    const svc = await dana('POST', '/services', { name: 'Contract shop', owners: [] });
+    const app = await dana('POST', '/applications', { name: 'Contract shop app', owners: [] });
+    await dana('PUT', `/services/${svc.id}/applications/${app.id}`, { role: 'primary' });
+    const part = async () => (await dana('GET', `/scorecard/services/${svc.id}`)).contracts;
+    expect(await part()).toEqual({ status: 'none', contracts: 0, failed: 0, untested: 0, items: [] });
+    // through a system of the application: the customers contract, whose last test failed
+    const sys = await dana('POST', '/systems', { name: 'Contract shop database', kind: 'server' });
+    await dana('POST', `/applications/${app.id}/systems`, { systemId: sys.id });
+    await s.api('POST', `/data-contracts/${customers.id}/links`, { kind: 'system', targetId: sys.id });
+    const p = await part();
+    expect(p).toMatchObject({ status: 'attention', contracts: 1, failed: 1 });
+    expect(p.items[0]).toMatchObject({ contractId: customers.id, result: 'failed' });
+    const card = await dana('GET', `/scorecard/services/${svc.id}`);
+    expect(card.attention).toBe(true);
+  });
 });

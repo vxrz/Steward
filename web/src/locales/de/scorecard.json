@@ -29,7 +29,8 @@
     "documentation": "Dokumentation",
     "protection": "Schutzbedarf",
     "lifecycle": "Tech-Stack",
-    "vulnerabilities": "Schwachstellen"
+    "vulnerabilities": "Schwachstellen",
+    "contracts": "Datenverträge"
   },
   "windows": {
     "h1": "1 Std.",
@@ -186,5 +187,19 @@
     "error": "Abfrage fehlgeschlagen: {{error}}",
     "readAt": "zuletzt gelesen am {{date}}",
     "open": "In Dependency-Track öffnen"
+  },
+  "contracts": {
+    "none": "Mit den Anwendungen des Services und ihren Systemen ist kein Datenvertrag verknüpft.",
+    "summary_one": "{{count}} Vertrag: {{failed}} mit Fehlern, {{untested}} nie getestet",
+    "summary_other": "{{count}} Verträge: {{failed}} mit Fehlern, {{untested}} nie getestet",
+    "results": {
+      "passed": "letzter Test bestanden",
+      "warning": "letzter Test mit Warnungen",
+      "failed": "letzter Test fehlgeschlagen",
+      "error": "letzter Test konnte nicht laufen"
+    },
+    "never": "nie getestet",
+    "findings_one": "{{count}} Befund",
+    "findings_other": "{{count}} Befunde"
   }
 }

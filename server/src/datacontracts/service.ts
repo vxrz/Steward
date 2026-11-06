@@ -874,5 +874,35 @@ export function contractsLinkedTo(kind: 'application' | 'system', ids: string[])
   return out;
 }
 
+/** What the scorecard needs of a contract: its last real test and Steward's own findings. */
+export interface ContractState {
+  id: string;
+  name: string;
+  result: DataContractResult | null;
+  testedAt: string | null;
+  findings: number;
+  errors: number;
+}
+
+/** The states of these contracts, those `viewer` may see (null: every contract – the daily snapshot). */
+export function contractStates(ids: string[], viewer: AuthUser | null): Map<string, ContractState> {
+  const out = new Map<string, ContractState>();
+  for (const id of new Set(ids)) {
+    const r = contractRow(id);
+    if (!r || (viewer && !permissionsOf(r, viewer).includes('view'))) continue;
+    const last = lastRun(r.id, { realOnly: true });
+    const f = findingsOf(r, currentDoc(r).doc, linkRows(r.id));
+    out.set(id, {
+      id,
+      name: r.name,
+      result: last?.result ?? null,
+      testedAt: last?.started_at ?? null,
+      findings: f.length,
+      errors: f.filter((x) => x.severity === 'error').length,
+    });
+  }
+  return out;
+}
+
 export { linkRows };
 export type { LinkRow };

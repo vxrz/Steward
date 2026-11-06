@@ -83,4 +83,9 @@ export const DATA_CONTRACT_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX data_contract_runs_contract ON data_contract_runs(contract_id, started_at);
     `,
   },
+  {
+    // the scorecard part "Data contracts" (#221); "none" for the days stored before it existed
+    name: 'datacontracts-002-scorecard',
+    sql: `ALTER TABLE scorecard_snapshots ADD COLUMN contracts TEXT NOT NULL DEFAULT 'none';`,
+  },
 ];

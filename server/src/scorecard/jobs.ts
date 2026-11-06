@@ -67,8 +67,8 @@ export function snapshotScorecards(now = Date.now(), force = false): number | nu
     db().run('DELETE FROM scorecard_snapshots WHERE day = ?', day);
     for (const { card: c, documentIds } of cards) {
       db().run(
-        `INSERT INTO scorecard_snapshots (day, service_id, service_name, owners, attention, duties, availability, documentation, protection, lifecycle, vulnerabilities, document_ids, details, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO scorecard_snapshots (day, service_id, service_name, owners, attention, duties, availability, documentation, protection, lifecycle, vulnerabilities, contracts, document_ids, details, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         day,
         c.serviceId,
         c.serviceName,
@@ -80,6 +80,7 @@ export function snapshotScorecards(now = Date.now(), force = false): number | nu
         c.protection.status,
         c.lifecycle.status,
         c.vulnerabilities.status,
+        c.contracts.status,
         JSON.stringify(documentIds),
         JSON.stringify({
           duties: { mandatory: c.duties.mandatory, recommended: c.duties.recommended, optional: c.duties.optional },
@@ -99,6 +100,7 @@ export function snapshotScorecards(now = Date.now(), force = false): number | nu
             policyFail: c.vulnerabilities.policyFail,
             stale: c.vulnerabilities.stale,
           },
+          contracts: { contracts: c.contracts.contracts, failed: c.contracts.failed, untested: c.contracts.untested },
         }),
         iso(now),
       );
