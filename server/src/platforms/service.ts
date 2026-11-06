@@ -66,6 +66,16 @@ function defaultConfig(): PlatformConfig {
 
 const decryptSecrets = (blob: string | null): Record<string, string> => (blob ? vault().decrypt<Record<string, string>>(blob) : {});
 
+/** Names of stored credentials; none when the blob cannot be read (changed in the database: the seal says so). */
+function secretNames(blob: string | null): string[] {
+  try {
+    return Object.keys(decryptSecrets(blob));
+  } catch (e) {
+    if (!vault().unlocked) throw e; // locked: answered as before (423)
+    return []; // undecryptable: the identity's integrity is "mismatch" and it is refused
+  }
+}
+
 /** The worst of several integrity states (a platform is intact only when it and its identities are). */
 function worst(states: Platform['integrity'][]): Platform['integrity'] {
   for (const s of ['mismatch', 'unsealed', 'locked'] as const) if (states.includes(s)) return s;
@@ -83,7 +93,7 @@ function toPlatform(r: PlatformRow, idents: IdentityRow[]): Platform {
   const cfg = { ...rest, ...(mcpGateway ? { mcpGateway } : {}) } as PlatformConfig;
   const identities: PlatformIdentity[] = idents.map((i) =>
     toIdentity(i, {
-      secretKeys: Object.keys(decryptSecrets(i.secrets)),
+      secretKeys: secretNames(i.secrets),
       integrity: identityIntegrity(i),
       // step 1: the default identity is open to everybody with "use" on the platform (ADR 0009); there are no others yet
       mayUse: (Number(i.is_default) === 1 || i.is_default === true) && permissions.includes('use'),
@@ -100,7 +110,7 @@ function toPlatform(r: PlatformRow, idents: IdentityRow[]): Platform {
     baseUrl: r.base_url,
     environment: r.environment,
     config: cfg,
-    secretKeys: def ? (identities.find((i) => i.id === def.id)?.secretKeys ?? []) : Object.keys(decryptSecrets(r.secrets)),
+    secretKeys: def ? (identities.find((i) => i.id === def.id)?.secretKeys ?? []) : secretNames(r.secrets),
     // changed outside the application: the platform row, one of its identities, or its default identity missing
     integrity: own === 'locked' ? own : worst([own, ...identities.map((i) => i.integrity), def ? 'ok' : 'unsealed']),
     identities,

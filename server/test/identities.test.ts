@@ -373,6 +373,16 @@ describe('the resolver getConnection()', () => {
       d.run(`UPDATE platform_identities SET mcp = '{"mode":"off"}' WHERE id = ?`, iid);
     }
     expect(getConnection(p.id).identity.integrity).toBe('ok');
+    // credentials that cannot be read (garbage written in the database): shown as changed outside, refused, no error
+    const good = d.get<{ secrets: string }>('SELECT secrets FROM platform_identities WHERE id = ?', iid)!.secrets;
+    d.run("UPDATE platform_identities SET secrets = 'not-a-vault-blob' WHERE id = ?", iid);
+    try {
+      const shown = await s.api('GET', `/platforms/${p.id}`);
+      expect(shown).toMatchObject({ integrity: 'mismatch', secretKeys: [] });
+      await expect(s.api('POST', `/platforms/${p.id}/test`)).rejects.toMatchObject({ status: 409 });
+    } finally {
+      d.run('UPDATE platform_identities SET secrets = ? WHERE id = ?', good, iid);
+    }
   });
 
   it('saving credentials and the MCP gateway writes the default identity, audited without values', async () => {
