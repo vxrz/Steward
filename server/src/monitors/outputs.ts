@@ -1,5 +1,5 @@
-import { EnvHttpProxyAgent, fetch } from 'undici';
-import { assertNetAllowed, assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
+import { EnvHttpProxyAgent } from 'undici';
+import { assertNetAllowed, assertOutboundAllowed, fetchCheckingRedirects, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { BRAND, MONITOR_STATUS_CODE, fillPlaceholders, type CauseRef, type MonitorStatus, type OutputDef, type UserInfo } from '@sm/shared';
 import { db } from '../db.js';
@@ -322,13 +322,18 @@ function teamsMessage(m: LoadedMonitor, e: OutEvent): OutgoingMessage {
 
 async function postTo(url: string, body: unknown): Promise<void> {
   await assertOutboundAllowed(url, outboundContext());
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'user-agent': BRAND.slug },
-    body: JSON.stringify(body),
-    dispatcher: proxy,
-    signal: AbortSignal.timeout(15000),
-  });
+  // redirects are followed with the outbound policy on every hop (0.9.0)
+  const res = await fetchCheckingRedirects(
+    url,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'user-agent': BRAND.slug },
+      body: JSON.stringify(body),
+      dispatcher: proxy,
+      signal: AbortSignal.timeout(15000),
+    },
+    outboundContext(),
+  );
   await res.text().catch(() => '');
   if (!res.ok) throw new Error(`HTTP ${res.status} from the webhook`);
 }

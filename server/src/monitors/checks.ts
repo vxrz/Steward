@@ -6,8 +6,9 @@ import type { CheckOf, MonitorStatus, Platform } from '@sm/shared';
 import { evalExpr } from '../engine/expr.js';
 import { buildUrl, credentialsAllowed, platformRequest, type HttpResult } from '../platforms/http.js';
 import { findRecording, missingRecording } from '../platforms/recordings.js';
-import { assertAddressSafe, assertNetAllowed, assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
+import { assertNetAllowed, assertOutboundAllowed, assertRedirectAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
+import { HttpError } from '../util.js';
 import { AWS_KIND, BRAND, DATABASE_KIND, PVAULT_KIND, isGitPlatformKind, type PvFindingKind } from '@sm/shared';
 import { freshnessStatus, freshnessWindowSeconds, fmtAge, statusMatcher } from './logic.js';
 import { promInstant, seriesName } from '../platforms/prometheus.js';
@@ -249,7 +250,9 @@ async function monitorFetch(c: CheckOf<'http'>, signal: AbortSignal): Promise<Aw
   let method = c.method;
   let body: string | undefined = c.method === 'POST' ? (c.body ?? '') : undefined;
   const initialOrigin = new URL(c.url).origin;
+  const sent: string[] = [];
   for (let hop = 0; ; hop++) {
+    sent.push(url);
     const sameOrigin = new URL(url).origin === initialOrigin;
     const headers: Record<string, string> = { 'user-agent': `${BRAND.slug}-monitor` };
     if (sameOrigin) for (const [k, v] of Object.entries(c.headers ?? {})) headers[k] = v;
@@ -262,7 +265,9 @@ async function monitorFetch(c: CheckOf<'http'>, signal: AbortSignal): Promise<Aw
     } catch {
       return res;
     }
-    await assertAddressSafe(next.toString());
+    await res.body?.cancel().catch(() => undefined); // a redirect's body is not read: a failed cancel changes nothing
+    // the outbound policy on every hop (0.9.0, #243): a redirect that leaves the hosts already sent to must be allowed
+    await assertRedirectAllowed(next.toString(), sent, outboundContext());
     if (res.status === 303 || ((res.status === 301 || res.status === 302) && method !== 'GET' && method !== 'HEAD')) {
       method = 'GET';
       body = undefined;
@@ -283,6 +288,9 @@ async function checkHttp(c: CheckOf<'http'>, ctx: ExecContext): Promise<RawResul
   try {
     res = await monitorFetch(c, AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)]));
   } catch (e) {
+    // a redirect the outbound policy refuses: not allowed, as for the first URL
+    if (e instanceof HttpError && e.code === 'OUTBOUND_REDIRECT_BLOCKED')
+      return { status: 'unknown', message: `Target not allowed: ${e.message}`.slice(0, 300), durationMs: Date.now() - t0 };
     const err = e as Error & { cause?: Error & { code?: string } };
     const timedOut = err.name === 'TimeoutError' || err.name === 'AbortError';
     return {
