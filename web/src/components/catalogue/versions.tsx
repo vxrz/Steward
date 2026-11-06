@@ -214,9 +214,9 @@ export function StackVersions({ app }: { app: ApplicationDetail }) {
       </Text>
     );
   return (
-    <Stack gap={6} mt="sm" data-testid="stack-versions">
+    <Stack gap={6} data-testid="stack-versions">
       <Group justify="space-between" gap="xs">
-        <Text fw={600} size="sm" id="versions-title">
+        <Text fw={600} id="versions-title">
           {t('versions.title')}
         </Text>
         <Group gap={4}>

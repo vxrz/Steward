@@ -20,6 +20,7 @@ import { DutiesPanel } from '../components/duties/DutiesPanel';
 import { useRoleLabel } from '../components/catalogue/ServiceApplications';
 import { ComponentsPanel } from '../components/catalogue/ComponentsPanel';
 import { RunsOnPanel } from '../components/catalogue/RunsOnPanel';
+import { StackVersions } from '../components/catalogue/versions';
 import { CatalogueCredentials } from '../components/catalogue/CatalogueCredentials';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { OwningTeams } from '../components/OwningTeams';
@@ -114,6 +115,7 @@ export function ApplicationDetailPage() {
             )}
             <RatingPanel app={a} onSaved={refresh} />
             <ComponentsPanel app={a} onSaved={refresh} />
+            {a.stack.length > 0 && <StackVersions app={a} />}
             <RunsOnPanel app={a} onSaved={refresh} />
             <IntegrationsPanel app={a} onSaved={refresh} />
             <Stack gap="xs" data-testid="application-services">

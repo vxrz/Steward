@@ -5,7 +5,7 @@ import { assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { platformRequest, resolveBaseUrl, secretValues, type HttpResult } from '../platforms/http.js';
 import { where } from '../platforms/answers.js';
-import { purlText, registryUrl, type Purl } from './purl.js';
+import { purlText, registryUrl, trimSlashes, type Purl } from './purl.js';
 
 /**
  * Reading versions for the version watch (#241) – read-only, every answer bounded in size and time:
@@ -304,7 +304,7 @@ export function nextPage(link: string, base: string, path: string): string | nul
   } catch {
     return null;
   }
-  const prefix = b.pathname.replace(/\/+$/, '');
+  const prefix = trimSlashes(b.pathname);
   if (u.origin !== b.origin || u.pathname !== `${prefix}${path}`) return null;
   return `${path}${u.search}`;
 }

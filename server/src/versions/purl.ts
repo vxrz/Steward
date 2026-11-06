@@ -87,6 +87,13 @@ export function purlLabel(p: Purl): string {
   return `pkg:${p.type}/${[...p.namespace, p.name].join('/')}`.slice(0, MAX);
 }
 
+/** Trailing "/" removed – a loop, not a regular expression (no backtracking on long input). */
+export function trimSlashes(s: string): string {
+  let end = s.length;
+  while (end > 0 && s[end - 1] === '/') end--;
+  return s.slice(0, end);
+}
+
 export const isEcosystem = (t: string): t is PackageEcosystem => (PACKAGE_ECOSYSTEMS as readonly string[]).includes(t);
 
 /** Go module proxy: upper-case letters become "!" and the lower-case letter (golang.org/ref/mod#goproxy-protocol). */
@@ -98,7 +105,7 @@ function goEscape(s: string): string {
 
 /** The address of a package's version list on its registry (base: the public registry or a mirror), or null when the purl does not fit. */
 export function registryUrl(p: Purl, base: string = DEFAULT_REGISTRY_URLS[p.type as PackageEcosystem] ?? ''): string | null {
-  const b = base.replace(/\/+$/, '');
+  const b = trimSlashes(base);
   if (!b || !isEcosystem(p.type)) return null;
   const enc = encodeURIComponent;
   switch (p.type) {
@@ -107,7 +114,8 @@ export function registryUrl(p: Purl, base: string = DEFAULT_REGISTRY_URLS[p.type
       const scope = p.namespace[0];
       const full = scope ? `${scope.startsWith('@') ? scope : `@${scope}`}/${p.name}` : p.name;
       // a scoped name keeps its "@", the slash is encoded: @angular%2Fcore
-      return `${b}/${enc(full).replace(/^%40/, '@')}`;
+      const e = enc(full);
+      return `${b}/${e.startsWith('%40') ? `@${e.slice(3)}` : e}`;
     }
     case 'pypi':
       return p.namespace.length ? null : `${b}/pypi/${enc(p.name)}/json`;

@@ -50,7 +50,7 @@ import { useFieldErrors } from '../common';
 import { confirmDanger } from '../confirm';
 import { fmtBytes, fmtDate, fmtNumber } from '../../format';
 import { LifecycleBadge } from './lifecycle';
-import { StackVersions, VersionBadge, VersionEntryModal } from './versions';
+import { VersionBadge, VersionEntryModal } from './versions';
 import { EnvironmentBadge, EnvironmentInput, sortByEnvironment, useEnvironmentList } from './environments';
 import { CredentialEditor, type CredentialDraft } from '../credentials/CredentialEditor';
 import { platformKeys } from '../../queryKeys';
@@ -280,7 +280,6 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
         </div>
       )}
       {app.stack.length > 0 && <StackRollup app={app} />}
-      {app.stack.length > 0 && <StackVersions app={app} />}
       {editing && <ComponentFormModal app={app} component={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
       {peeking && <PeekModal component={peeking} onClose={() => setPeeking(null)} />}
       {drafting && <CredentialEditor initial={null} draft={drafting} onClose={() => setDrafting(null)} onSaved={() => setDrafting(null)} />}
