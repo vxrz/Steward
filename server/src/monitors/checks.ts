@@ -6,7 +6,15 @@ import type { CheckOf, MonitorStatus, Platform } from '@sm/shared';
 import { evalExpr } from '../engine/expr.js';
 import { buildUrl, credentialsAllowed, platformRequest, type HttpResult } from '../platforms/http.js';
 import { findRecording, missingRecording } from '../platforms/recordings.js';
-import { assertNetAllowed, assertOutboundAllowed, assertRedirectAllowed, guardedLookup } from '../platforms/outbound.js';
+import {
+  assertNetAllowed,
+  assertOutboundAllowed,
+  assertRedirectAllowed,
+  assertRedirectBodyClean,
+  egressSecretValues,
+  guardedLookup,
+  sameDestination,
+} from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { HttpError } from '../util.js';
 import { AWS_KIND, BRAND, CHANGEDETECTION_KIND, DATABASE_KIND, PVAULT_KIND, isGitPlatformKind, type PvFindingKind } from '@sm/shared';
@@ -272,6 +280,9 @@ async function monitorFetch(c: CheckOf<'http'>, signal: AbortSignal): Promise<Aw
       method = 'GET';
       body = undefined;
     }
+    // 307/308 send the body again (0.9.0, the #243 rule): not with one of the check's header values (its credentials) to another origin
+    if (body && !sameDestination(next.toString(), sent))
+      assertRedirectBodyClean(body, egressSecretValues(c.headers ?? {}), { from: url, to: next.toString(), status: res.status });
     url = next.toString();
   }
 }
@@ -288,8 +299,8 @@ async function checkHttp(c: CheckOf<'http'>, ctx: ExecContext): Promise<RawResul
   try {
     res = await monitorFetch(c, AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)]));
   } catch (e) {
-    // a redirect the outbound policy refuses: not allowed, as for the first URL
-    if (e instanceof HttpError && e.code === 'OUTBOUND_REDIRECT_BLOCKED')
+    // a redirect the outbound policy refuses, or a 307/308 that would send a credential again: not allowed, as for the first URL
+    if (e instanceof HttpError && e.statusCode === 403)
       return { status: 'unknown', message: `Target not allowed: ${e.message}`.slice(0, 300), durationMs: Date.now() - t0 };
     const err = e as Error & { cause?: Error & { code?: string } };
     const timedOut = err.name === 'TimeoutError' || err.name === 'AbortError';

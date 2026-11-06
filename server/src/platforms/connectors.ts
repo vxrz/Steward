@@ -170,7 +170,15 @@ export async function fetchSpec(platformId: string, url: string): Promise<string
     if (!res.ok) throw new HttpError(400, `Download failed: HTTP ${res.status}`);
     return typeof res.body === 'string' ? res.body : JSON.stringify(res.body);
   }
-  if (!/^https:\/\//i.test(url) && !/^http:\/\/(127\.0\.0\.1|localhost)/i.test(url)) throw new HttpError(400, 'Only https URLs are allowed');
+  // plain http only to this machine – the host itself, not a prefix of it (http://localhost.example.com is another host)
+  let target: URL;
+  try {
+    target = new URL(url);
+  } catch {
+    throw new HttpError(400, 'Invalid specification URL');
+  }
+  const loopbackHost = target.hostname === '127.0.0.1' || target.hostname === 'localhost';
+  if (target.protocol !== 'https:' && !(target.protocol === 'http:' && loopbackHost)) throw new HttpError(400, 'Only https URLs are allowed');
   const ctx: OutboundContext = { platforms: () => listPlatforms(), resolveOrigin: (pl) => resolveBaseUrl(pl, getSecrets(pl.id)) };
   await assertOutboundAllowed(url, ctx);
   // redirects are followed with the outbound policy on every hop (0.9.0)
