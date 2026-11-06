@@ -272,9 +272,10 @@ function fromRecording(input: { platformId: string; recordingId: string }): Data
 function fromDataset(input: { dataset: string }): DataContractDraft {
   const d = getDataset(input.dataset);
   const warnings: string[] = [];
-  const rows = d.rows.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => k !== '_source' && k !== '__proto__')));
-  // the dataset's own column list decides what is in it; values only guess the types
-  for (const r of rows) for (const c of d.columns) if (!(c in r)) r[c] = null;
+  // the dataset's own column list decides what is in it; values only guess the types (built as entries: column names
+  // come from a process – never assigned as properties)
+  const names = d.columns.filter((c) => c !== '_source' && c !== '__proto__' && c !== 'constructor' && c !== 'prototype');
+  const rows = d.rows.map((r) => Object.fromEntries(names.map((c) => [c, Object.hasOwn(r, c) ? (r as Record<string, unknown>)[c] : null])));
   const doc = fromValues(
     d.title || d.key,
     `The dataset ${d.key} of process ${d.processName} (drafted from its columns and rows)`,

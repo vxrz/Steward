@@ -197,7 +197,8 @@ describe('links', () => {
     // an admin may link it; dana sees the link without the system's name
     await s.api('POST', `/data-contracts/${c.id}/links`, { kind: 'system', targetId: hidden });
     const seen = await dana('GET', `/data-contracts/${c.id}`);
-    expect(seen.links.find((l: { kind: string }) => l.kind === 'system')).toMatchObject({ name: null, detail: null });
+    expect(seen.links.find((l: { kind: string }) => l.kind === 'system')).toMatchObject({ name: null, detail: null, targetId: '' });
+    expect(JSON.stringify(seen)).not.toContain(hidden);
     expect(JSON.stringify(seen)).not.toContain('Hidden warehouse');
     // a schema object the contract does not have
     expect(

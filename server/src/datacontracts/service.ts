@@ -218,13 +218,14 @@ function targetName(l: Pick<LinkRow, 'kind' | 'target_id' | 'target_kind' | 'det
 
 function toLink(l: LinkRow, u: AuthUser | null): DataContractLink {
   const name = targetName(l, u);
+  // what a hidden target is stays hidden: no id, table, operation or server name – only that a link exists
+  const hidden = name === null && !!u;
   return {
     id: l.id,
     kind: l.kind,
-    targetId: l.target_id,
-    targetKind: l.target_kind,
-    // what a hidden target is called stays hidden: no table, operation or server name either
-    detail: name === null && u ? null : l.detail,
+    targetId: hidden ? '' : l.target_id,
+    targetKind: hidden ? null : l.target_kind,
+    detail: hidden ? null : l.detail,
     schema: l.schema_name,
     name,
     createdAt: l.created_at,

@@ -67,7 +67,7 @@ What a contract describes, and which database platform answers for its servers â
 | API specification | an OpenAPI specification of a platform, optionally one operation                                         | documentation                                     |
 | Server            | the **database platform** that answers for one of the contract's servers                                 | [tests](#testing): its host and credentials       |
 
-A link can be made only to what the person may see (a hidden target answers like a missing one); a server link also needs the **use** right on the database platform, because the tests send its credentials. Later readers who may not see a target see that a link exists, without its name or detail.
+A link can be made only to what the person may see (a hidden target answers like a missing one); a server link also needs the **use** right on the database platform, because the tests send its credentials. Later readers who may not see a target see that a link exists, without its name, id or detail.
 
 ## Drafts
 
@@ -194,6 +194,8 @@ The service connects to the tested databases itself: **restrict its egress** (as
 
 - **Credentials never in contracts, reports or logs:** they are read from the vault for one request and sent in headers; contracts never carry them (the ODCS v3.2 `${VAR}` references are not resolved by Steward), stored reports and summaries are masked with every secret of the service and the database platform, the audit log records the result and the report's hash only, and errors of the service are masked the same way. Redirects of the service are not followed.
 - **Outbound policy:** the service's URL and the tested database are checked before each test; Steward's own database is refused under every policy.
+- **Reports show results, sometimes values:** a check's reason can name a value or a count from the data. Whoever may see a contract sees its test reports â€“ give a contract the owning team of its data.
+- **The service may fetch what a contract names:** besides the tested database, the CLI can resolve URLs a contract names (for example `authoritativeDefinitions`). Restrict its egress as above.
 - **What callers may not see** stays hidden: hidden contracts answer 404; links to hidden targets show neither name nor detail; a hidden service platform is not named; monitor checks and steps refuse a hidden contract like a missing one; the report section and the scorecard count only visible contracts.
 - **Untrusted YAML:** size, key, depth and alias limits before and while parsing; the JSON Schema check uses only Steward's vendored schema; nothing compiles a regular expression from a contract (patterns are data); property names from drafts are built as entries (`__proto__` dropped).
 
