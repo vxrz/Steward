@@ -201,7 +201,7 @@ The OT network follows its site ([Permissions](#permissions)): who **sees the si
 
 ## Visualizations
 
-Since 0.8.0 (#230) the registry draws what it **documents**: how a site is structured, where an asset's data goes, which assets deliver a data point and which KPIs are covered. The pictures are documentation, not monitoring:
+Since 0.8.0 (#230) the registry draws what it **documents**: how a site is structured, where an asset's data goes, which assets deliver a data point, which KPIs are covered and how data crosses the site's OT network. The pictures are documentation, not monitoring:
 
 - **Live status only where it is real.** Colour, "failing" marks and status words come only from Steward items that are linked to the part: a **monitor** the asset links to (its status: _Up, Degraded, Down, Maintenance, Blocked_), the **dataset** a KPI instance names (its freshness: _Fresh, Due, Stale_) and the **plant checks** ([Checks](#checks)). A part without such a link is drawn neutral. A linked item without data – a dataset that has no rows yet, or one the reader may not see – says **No data**, never OK. Every view has a small legend that says which parts have live status.
 - **Motion means direction.** The edges of a graph move in the direction of the documented flow; a path that is highlighted moves faster; a node whose live status changes pulses once. With the system setting _reduce motion_ (`prefers-reduced-motion`) nothing moves and arrows show the direction; the switch **Animation off** does the same for whoever wants it (remembered in the browser).
@@ -243,13 +243,25 @@ _Plant → Explore data → KPI coverage_ and the KPI page (**Coverage**): asset
 
 The **KPI coverage** in per cent is the jobs set up of all the KPIs the assets could have (has + problem over has + problem + could). Filters: site, area, device profile (and a KPI, from the KPI page) – part of the address. Pointing at a cell explains it; a click opens the asset (its data flow, or its overview where a job is to be added or a check is shown). Phones show a list per asset. One answer holds at most 20,000 cells (at most 2,000 assets); the totals count every asset that matches.
 
+### OT network diagram
+
+![The OT network of Riverside Works: the zone Production cells with its VLANs and the milling centres on them, the conduit to the DMZ and the data paths across it](images/plant/ot-network.png)
+
+_OT network → **Diagram**_ (also from a site's **Structure** and its OT network card), drawn from part 3 ([Part 3: OT network](#part-3-ot-network)):
+
+- **Zones** after IEC 62443-3-2 are areas, with their criticality and SL-T (or _SL-T open_) on the border; the **VLANs** (IEEE 802.1Q) in a zone are areas inside it, with their VID; the **assets** sit on the VLAN of their first device. **Conduits** connect the zones as wide pipes in their direction (both ways: arrows at both ends, nothing moves).
+- **Data paths** run from where the data comes from (what the collector pulls from – a device is its asset –, else the asset), over the **collector** and the parties it pushes to, to the **destinations**; the edges carry the protocol, port and push or pull. A **host** (a Steward system named by a data path) is placed on the VLAN whose **network segment** it is a member of – so a way into another zone runs **through the conduit** between the two zones; one without a documented conduit is dashed in orange and says so. Collectors, hosts, datasets and other parties outside every zone stand beside the zones.
+- **Devices and VLANs on hover or focus**: the panel beside the picture shows an asset's devices (address, VLAN, state, live status), a VLAN's subnets, segment and who manages it, a zone's VLANs, owner and risk assessment, a conduit's protocols and controls.
+- **Live status only from #220's linked checks**: an asset is online, offline or _no data_ from the checks linked to it and its devices (monitors – Gatus, CheckMk, the MQTT silent-device and Kafka checks – and dataset freshness). Its data paths are coloured by it: green and moving when online, red and still when offline. An asset nothing watches is drawn neutral (documentation only), with the direction of its paths only. Hosts, collectors and other parties have no live status here.
+- The table lists every zone, VLAN, conduit, asset and party with what it is in, its details and its status in words, and every data path with its way. Assets without devices and data paths are not drawn (the page says how many).
+
 ### Site overview tiles
 
 ![Two site cards with their assets by status, KPI coverage and open checks](images/plant/site-tiles.png)
 
 _Plant → Sites_: every site's card (and a column of the table) shows its assets by status as a small bar, its **KPI coverage**, its **open checks** and – where assets link to monitors – their states, with links into the structure and the coverage matrix.
 
-The views read their data again every minute (live status may change; the documentation rarely does). Their internal routes are `GET /api/plant/views/overview`, `GET /api/plant/views/coverage?site=&area=&profile=&kpi=`, `GET /api/plant/sites/:siteId/structure`, `GET /api/plant/assets/:assetId/flow` and `GET /api/plant/profiles/:profileId/points/:pointId/lineage` – with the rights of the pages they picture.
+The views read their data again every minute (live status may change; the documentation rarely does). Their internal routes are `GET /api/plant/views/overview`, `GET /api/plant/views/coverage?site=&area=&profile=&kpi=`, `GET /api/plant/sites/:siteId/structure`, `GET /api/plant/assets/:assetId/flow`, `GET /api/plant/profiles/:profileId/points/:pointId/lineage` and `GET /api/plant/sites/:siteId/network/placement` (which VLANs the hosts of the site's data paths are in, through the segments they are members of – hidden hosts and segments place nothing; the diagram draws the rest from `GET /api/plant/sites/:siteId/network`) – with the rights of the pages they picture.
 
 ## YAML import and export
 
@@ -498,7 +510,7 @@ A site or asset that you may not see answers `404`, as if it did not exist; a li
 
 ## API
 
-The internal API (the web app) is under `/api/plant/…`: `sites`, `sites/:siteId` with `nodes`, `buildings`, `links` and `access`, `hierarchy`, `assets`, `assets/:assetId` with `image` and `links`, `import/preview`, `import`, `imports`, `export`, `schema`, `config`; since 0.7.0 `assets/:assetId/assignment` (`GET`, `PUT`, `DELETE`), `profiles`, `profiles/:profileId` with `points/:pointId` and `duplicate`, `kpis`, `kpis/:kpiId` with `duplicate`, `explore/points?q=` and `checks`; `assets` also takes `profile` and `dataPoint`; since 0.8.0 the [visualizations](#visualizations) `views/overview`, `views/coverage`, `sites/:siteId/structure`, `assets/:assetId/flow` and `profiles/:profileId/points/:pointId/lineage`, and the OT network `sites/:siteId/network` (the whole OT network of a site with every asset's live status and the systems the data paths name – one answer for a diagram), `sites/:siteId/vlans[/:vlanId[/segment]]`, `sites/:siteId/zones[/:zoneId]`, `sites/:siteId/conduits[/:conduitId]`, `assets/:assetId/network`, `assets/:assetId/devices[/:deviceId]`, `assets/:assetId/paths[/:pathId]` and `assets/:assetId/checks`; the switch and settings are `GET`/`PUT /api/settings/plant`.
+The internal API (the web app) is under `/api/plant/…`: `sites`, `sites/:siteId` with `nodes`, `buildings`, `links` and `access`, `hierarchy`, `assets`, `assets/:assetId` with `image` and `links`, `import/preview`, `import`, `imports`, `export`, `schema`, `config`; since 0.7.0 `assets/:assetId/assignment` (`GET`, `PUT`, `DELETE`), `profiles`, `profiles/:profileId` with `points/:pointId` and `duplicate`, `kpis`, `kpis/:kpiId` with `duplicate`, `explore/points?q=` and `checks`; `assets` also takes `profile` and `dataPoint`; since 0.8.0 the [visualizations](#visualizations) `views/overview`, `views/coverage`, `sites/:siteId/structure`, `assets/:assetId/flow`, `profiles/:profileId/points/:pointId/lineage` and `sites/:siteId/network/placement`, and the OT network `sites/:siteId/network` (the whole OT network of a site with every asset's live status and the systems the data paths name – one answer for a diagram), `sites/:siteId/vlans[/:vlanId[/segment]]`, `sites/:siteId/zones[/:zoneId]`, `sites/:siteId/conduits[/:conduitId]`, `assets/:assetId/network`, `assets/:assetId/devices[/:deviceId]`, `assets/:assetId/paths[/:pathId]` and `assets/:assetId/checks`; the switch and settings are `GET`/`PUT /api/settings/plant`.
 
 The public, read-only API ([API.md](API.md), tag _Plant_):
 
