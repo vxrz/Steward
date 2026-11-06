@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.6.0 (November 2026)._
+_Last reviewed for 0.7.0 (November 2026)._
 
 ## What Steward is for
 
@@ -15,12 +15,13 @@ Guiding principles:
 3. **People stay in charge.** Automation – schedules, webhooks, AI assistants – proposes and prepares; people approve writes (four-eyes where it matters).
 4. **Small footprint.** One process, one database, no cluster; integrations through open standards (OIDC, OpenAPI, OpenTelemetry, Prometheus, MCP, RFC 9457).
 
-## Where it stands (0.6)
+## Where it stands (0.7)
 
 | Area                | Today                                                                                                                                                                                                                                                                  |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Procedures          | Versioned graph flows with dry runs, approvals and selections, four-eyes, manual steps, browser steps, sub-process runs; durable runs that resume after a restart without repeating finished steps; schedules and webhook triggers with one notification policy.       |
 | Platforms           | Any REST API with OpenAPI import, connector types, recorded responses, contract checks; key-pair JWT and AWS request signing; Kubernetes, Prometheus, CheckMk, Git hosts, Kafka, MQTT, Snowflake, AWS, Dependency-Track, Gatus.                                        |
+| Databases           | **PostgreSQL, MariaDB/MySQL and SQL Server** (0.7.0), read-only in three layers (read-only account, read-only session, statement check): a query step, catalog queries for access reviews and account hygiene, a monitor check, datasets.                              |
 | Service catalogue   | Applications, systems, environments, components and tech stack with end-of-life data, CIA rating and protection needs, credentials register, service duties, documents and records with typed links, ticket references (ServiceNow, vendor tickets).                   |
 | Operations          | Monitor graphs with root-cause links, **maintenance windows** (0.2.5), **incident reviews** (0.2.5), availability objectives and the service scorecard, **service status pages** (0.2.10), notifications by e-mail, Teams and webhooks, daily summaries.               |
 | Compliance          | Control catalogues (including a company's own, proposed by an AI assistant and reviewed by people), mappings, coverage, person access reviews, evidence packs that verify offline.                                                                                     |
@@ -45,6 +46,7 @@ Steward stays a tool for procedures and their evidence. These are **out of scope
 - **No incident management or ticketing.** Incident reviews document what happened to a service; tickets stay in ServiceNow or the vendor's tool and are referenced, not managed.
 - **No horizontal scaling of one installation.** One active process per database ([ADR 0002](adr/0002-single-active-instance-with-lease-lock.md)); several teams share an installation through owning teams.
 - **No configuration drift detection against baselines.** Change records document requested changes; they do not describe the allowed state of a platform.
+- **No FinOps suite.** Platform costs (#226) are showback for what a team runs; invoices, chargeback between departments and commitment or rightsizing optimisation stay in a FinOps tool.
 
 ## 0.4.0 – robust to run, easy to start
 
@@ -61,16 +63,19 @@ Themes of this release (details in the CHANGELOG once released):
 
 - **0.5.0:** audit-proof firewall changes ([#208](https://github.com/vxrz/Steward/issues/208)), Microsoft Graph / Entra ID ([#202](https://github.com/vxrz/Steward/issues/202)), the Postman export ([#204](https://github.com/vxrz/Steward/issues/204)), IBM Verify Privilege Vault ([#205](https://github.com/vxrz/Steward/issues/205)) and the assurance policy ([#210](https://github.com/vxrz/Steward/issues/210)).
 - **0.6.0:** AI models through LLM gateways ([#216](https://github.com/vxrz/Steward/issues/216)) and part 1 of the plant registry ([#218](https://github.com/vxrz/Steward/issues/218), [ADR 0007](adr/0007-plant-registry.md)).
+- **0.7.0:** plant registry part 2 – device profiles, data points and KPI definitions ([#219](https://github.com/vxrz/Steward/issues/219)) – and direct SQL database platforms ([#203](https://github.com/vxrz/Steward/issues/203), [ADR 0008](adr/0008-database-platforms.md)).
 
-## Next – 0.7.0 to 0.9.0
+## Next – 0.8.0 and after
 
 In this order:
 
-1. **0.7.0 – plant registry part 2** ([#219](https://github.com/vxrz/Steward/issues/219)): device profiles with interfaces (OPC UA, Modbus/TCP, file transfer, …) and data points, their assignment to assets, KPI definitions and KPI instances linked to the datasets that show them.
-2. **0.8.0 – plant registry part 3** ([#220](https://github.com/vxrz/Steward/issues/220)): the OT network – devices of an asset, VLANs (optionally linked to network segments), zones and conduits after **IEC 62443-3-2**, data paths – and live status from what Steward already reads.
-3. **Direct SQL databases** ([#203](https://github.com/vxrz/Steward/issues/203)): PostgreSQL, MariaDB/MySQL and SQL Server first, Oracle later; read-only by default, for grant reviews, account hygiene, monitor checks and datasets. The first platform kind that is not HTTP, so a decision record comes first. With it: **database schemas** ([#222](https://github.com/vxrz/Steward/issues/222)) – snapshots and changes, a [tbls](https://github.com/k1LoW/tbls) import for databases Steward does not reach, DBML and SQL export, then a table diagram.
-4. **Data contracts** ([#221](https://github.com/vxrz/Steward/issues/221)) after #203: contracts in the Open Data Contract Standard (ODCS v3) with versions and breaking-change detection, drafts from API schemas, datasets and tables, tests through the datacontract API as a platform and a monitor check.
-5. **Postman import** (rest of [#204](https://github.com/vxrz/Steward/issues/204)): requests and sign-in from a collection.
+1. **0.8.0 – plant registry part 3** ([#220](https://github.com/vxrz/Steward/issues/220)): the OT network – devices of an asset, VLANs (optionally linked to network segments), zones and conduits after **IEC 62443-3-2**, data paths – and live status from what Steward already reads.
+2. **0.8.0 – plant registry visualizations** ([#230](https://github.com/vxrz/Steward/issues/230)): site structure, the data flow of an asset, data point lineage, KPI coverage and the OT network, animated and accessible; live status only where a Steward check is linked, documentation otherwise.
+3. **0.8.0 – database schemas, step 1** ([#222](https://github.com/vxrz/Steward/issues/222)): snapshots and a change history of the connected databases, a [tbls](https://github.com/k1LoW/tbls) `schema.json` import for databases Steward does not reach, changes as monitor checks and change records, DBML and SQL export; a table diagram later.
+4. **Platform identities** ([#228](https://github.com/vxrz/Steward/issues/228)): several credentials per platform, each with its own access list, MCP mode, read-only flag and optional operation filter.
+5. **Platform costs** ([#226](https://github.com/vxrz/Steward/issues/226)): one cost model in FinOps FOCUS for AWS, Snowflake, Confluent Cloud, AI gateways and FOCUS file imports – showback per service, application and team, budgets and checks.
+6. **Data contracts** ([#221](https://github.com/vxrz/Steward/issues/221)): contracts in the Open Data Contract Standard (ODCS v3) with versions and breaking-change detection, drafts from API schemas, datasets and tables, tests through the datacontract API as a platform and a monitor check.
+7. **Postman import** (rest of [#204](https://github.com/vxrz/Steward/issues/204)): requests and sign-in from a collection.
 
 ## Later
 

@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-06
+
+Steward 0.7.0 brings part 2 of the **plant registry** and direct **SQL database platforms**. The plant registry (opt-in, preview) now documents device profiles with their interfaces and data points (OPC UA, Modbus/TCP, MQTT, file transfer), which asset delivers what and where it is published, KPI definitions after ISO 22400-2 and their instances, and checks for KPIs whose inputs are missing; the public API serves the whole registry, its checks and an export in the import format. Database platforms connect to PostgreSQL, MariaDB/MySQL and SQL Server, read-only in three layers, for access reviews with generated REVOKE statements, account hygiene, monitor checks and datasets. The database migration `plant-002-data-points` only adds tables. The SQL Server driver brings `@azure/msal-node` 6.0.1 with an advisory that does not apply to Steward's SQL logins; it is accepted until 2026-11-30 and the fixed version follows in a patch.
+
 ### Added
 
 - **Plant registry, part 2: data points and KPIs (preview, #219, [docs/PLANT.md](docs/PLANT.md#device-profiles-data-points-and-kpis), [ADR 0007 – Part 2](docs/adr/0007-plant-registry.md#part-2-data-points-and-kpis-070))**: what each asset's interfaces deliver and which KPIs are computed from it.
@@ -841,7 +845,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/vxrz/steward/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/vxrz/steward/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/vxrz/steward/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/vxrz/steward/compare/v0.4.0...v0.5.0
