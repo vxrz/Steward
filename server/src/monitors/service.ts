@@ -327,6 +327,7 @@ const PLATFORM_KIND: Partial<Record<string, string>> = {
   prometheus: 'prometheus',
   kubernetes: 'kubernetes',
   kafka: 'kafka',
+  'kafka-connect': 'kafka-connect',
   mqtt: 'mqtt',
   snowflake: 'snowflake',
   database: 'database',

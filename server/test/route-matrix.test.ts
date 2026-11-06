@@ -284,6 +284,10 @@ const EXPECT: Record<string, Access> = {
   'POST /api/platforms/:id/token/renew': ADMIN,
   // Kafka peek (#112): platform managers only, and only where the platform allows it
   'POST /api/platforms/:id/kafka/peek': ADMIN,
+  // Kafka Connect (#223): the readout for who sees the platform, "Read now" and a connector's configuration (audited) for who may use it
+  'GET /api/platforms/:id/kafka-connect': USE,
+  'POST /api/platforms/:id/kafka-connect/read': USE,
+  'GET /api/platforms/:id/kafka-connect/connectors/:name/config': USE,
   'GET /api/platforms/:id/specs': USE,
   'POST /api/platforms/:id/specs': ADMIN,
   'DELETE /api/platforms/:id/specs/:specId': ADMIN,
@@ -1185,6 +1189,9 @@ function fill(url: string): string {
       .replace(/\/schema\/snapshots\/:snapshotId/, '/schema/snapshots/latest')
       .replace(/\/api\/db-schemas\/([^/]+)\/([^/]+)\/snapshots\/:snapshotId/, '/api/db-schemas/$1/$2/snapshots/latest')
       .replace(/:platformId\/schema/, `${fx.dbPlatform}/schema`)
+      // Kafka Connect (#223): the demo cluster and its Debezium connector
+      .replace(/\/api\/platforms\/:id\/kafka-connect/, `/api/platforms/${fx.connectPlatform}/kafka-connect`)
+      .replace(/:name\/config/, 'shop-cdc/config')
       .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : fx.platform!)
       .replace(/:specId/g, fx.spec!)
       .replace(/:docId/g, fx.doc!)
@@ -1691,6 +1698,7 @@ beforeAll(async () => {
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
   // database schemas (#222): a read of the demo database platform, a tbls import for the matrix system
   fx.dbPlatform = platforms.find((p: { kind: string }) => p.kind === 'database').id;
+  fx.connectPlatform = platforms.find((p: { kind: string }) => p.kind === 'kafka-connect').id;
   const dbSnap = (await a('POST', `/db-schemas/platform/${fx.dbPlatform}/read`)).snapshot.id;
   const tbls = JSON.stringify({
     name: 'matrix',

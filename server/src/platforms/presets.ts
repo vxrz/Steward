@@ -4,6 +4,7 @@ import { forgejoSpec, githubSpec, gitlabSpec } from './gitSpecs.js';
 import { prometheusSpec } from './prometheusSpec.js';
 import { graphSpec } from './graphSpec.js';
 import { pvaultSpec } from './pvaultSpec.js';
+import { kafkaConnectSpec } from './kafkaConnectSpec.js';
 import { readAsset } from '../reports/pdf/assets.js';
 
 /**
@@ -357,6 +358,32 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'kafka-connect',
+    label: 'Kafka Connect (connectors, read-only)',
+    description:
+      'A Kafka Connect cluster through its REST API, read-only (also with Debezium for change data capture): Steward reads the connectors with type, class, version, state and topics, their tasks with state, worker and the error of a failed task, and the installed plugins; monitors check that connectors and tasks run, a task that failed for N minutes, the lag of a sink connector and Debezium connectors whose topics got no message. Steward never creates, restarts, pauses or resumes a connector – changing requests are refused for this kind –, and every configuration it reads has its secret-looking values removed and is never stored. Base URL: the REST API (https://connect.example.com:8083); variable kafkaPlatform: the name or id of its Kafka platform (for topics and lag). Sign-in: basic (username/password), a bearer token, or a client certificate (tlsCertificate/tlsKey, mutual TLS). See docs/KAFKA.md.',
+    baseUrl: 'https://connect.example.com:8083',
+    config: {
+      auth: { type: 'none' },
+      variables: { kafkaPlatform: '' },
+      http: {},
+      testPath: '/connectors',
+    },
+    secretFields: [
+      { key: 'username', label: 'User name (basic)', auth: 'basic', help: 'A user of the REST API that may read connectors (docs/KAFKA.md)' },
+      { key: 'password', label: 'Password (basic)', auth: 'basic' },
+      { key: 'token', label: 'Bearer token', auth: 'bearer' },
+      { key: 'tlsCertificate', label: 'Client certificate (PEM, mutual TLS)' },
+      { key: 'tlsKey', label: 'Private key of the client certificate (PEM)' },
+      { key: 'tlsKeyPassphrase', label: 'Passphrase of the private key (optional)' },
+    ],
+    docs: [
+      { title: 'Kafka Connect REST API', url: 'https://kafka.apache.org/documentation/#connect_rest' },
+      { title: 'Debezium connectors', url: 'https://debezium.io/documentation/reference/stable/connectors/index.html' },
+      { title: 'Kafka Connect: externalizing secrets (KIP-297)', url: 'https://kafka.apache.org/documentation/#connect_configproviders' },
+    ],
+  },
+  {
     kind: 'confluent-cloud',
     label: 'Confluent Cloud API (access reviews)',
     description:
@@ -683,4 +710,6 @@ export const PRESET_SPECS: Record<string, () => { name: string; content: string 
   'microsoft-graph': () => [{ name: 'Microsoft Graph (Entra ID read endpoints)', content: JSON.stringify(graphSpec(), null, 2) }],
   // metadata only, no value endpoint (#205); the value endpoints are refused for the kind (deniedPaths.ts)
   'privilege-vault': () => [{ name: 'IBM Verify Privilege Vault REST API (metadata)', content: JSON.stringify(pvaultSpec(), null, 2) }],
+  // the read endpoints (0.9.0, #223); changing ones are refused for the kind (deniedPaths.ts)
+  'kafka-connect': () => [{ name: 'Kafka Connect REST API (read endpoints)', content: JSON.stringify(kafkaConnectSpec(), null, 2) }],
 };

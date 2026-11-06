@@ -34,6 +34,7 @@ import { postmanExportRoutes } from '../export/routes.js';
 import { assuranceRoutes } from './assurance.js';
 import { aiRoutes } from '../ai/routes.js';
 import { databaseRoutes } from '../dbms/routes.js';
+import { kafkaConnectRoutes } from '../kafkaconnect/routes.js';
 import { dbSchemaRoutes } from '../dbschema/routes.js';
 import { plantRoutes } from '../plant/routes.js';
 
@@ -69,6 +70,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await assuranceRoutes(app);
   await aiRoutes(app);
   await databaseRoutes(app);
+  // Kafka Connect platforms (#223): connectors, tasks, plugins – read-only
+  await kafkaConnectRoutes(app);
   // database schemas (#222): snapshots, changes, tbls import, export
   await dbSchemaRoutes(app);
   await migrationRoutes(app);

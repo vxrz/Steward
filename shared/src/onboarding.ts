@@ -129,6 +129,7 @@ export const MONITOR_TYPE_KINDS: Readonly<Record<string, readonly string[]>> = {
   kubernetes: ['kubernetes'],
   git: GIT_PLATFORM_KINDS,
   kafka: ['kafka'],
+  'kafka-connect': ['kafka-connect'],
   mqtt: ['mqtt'],
   snowflake: ['snowflake'],
   database: ['database'],

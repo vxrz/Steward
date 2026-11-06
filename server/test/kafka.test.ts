@@ -41,7 +41,7 @@ describe('Kafka platforms', () => {
       { host: '::1', port: 9094 },
     ]);
     const t = await s.api('POST', `/platforms/${kafkaId}/test`, {});
-    expect(t).toMatchObject({ ok: true, message: 'Connection works – 3 topics, Schema Registry with 2 subjects' });
+    expect(t).toMatchObject({ ok: true, message: 'Connection works – 5 topics, Schema Registry with 2 subjects' });
   });
 });
 
@@ -73,6 +73,8 @@ describe('Kafka topics of an application', () => {
     // the group with the most lag first; partitions without a commit count fully
     expect(t.groups).toEqual([
       { group: 'billing', state: 'Stable', lag: 1100 + 1130 + 1093, partitions: 3 },
+      // the sink connector of Kafka Connect (demo, #223)
+      { group: 'connect-orders-archive', state: 'Stable', lag: 50 + 80 + 5, partitions: 3 },
       { group: 'order-service', state: 'Stable', lag: 1 + 0 + 5, partitions: 3 },
     ]);
     mock.registerSchema(

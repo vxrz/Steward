@@ -20,6 +20,7 @@ import {
   IconDatabase,
   IconTable,
   IconSchema,
+  IconArrowsExchange,
 } from '@tabler/icons-react';
 import type { CheckDef, CheckType } from '@sm/shared';
 import i18n from '../../i18n';
@@ -37,6 +38,7 @@ export const CHECK_ICONS: Record<CheckType, typeof IconApi> = {
   kubernetes: IconBox,
   git: IconGitBranch,
   kafka: IconTopologyStar3,
+  'kafka-connect': IconArrowsExchange,
   mqtt: IconAntenna,
   snowflake: IconSnowflake,
   database: IconDatabase,
@@ -62,6 +64,7 @@ const DEFAULT_NAMES: Record<CheckType, string> = {
   kubernetes: 'Kubernetes deployments',
   git: 'Repository pipeline',
   kafka: 'Kafka topic',
+  'kafka-connect': 'Connectors running',
   mqtt: 'MQTT topics',
   snowflake: 'Snowflake table fresh',
   database: 'Database reachable',
@@ -113,6 +116,8 @@ export function newCheck(type: CheckType, id: string): CheckDef {
       return { ...base, name, type, platform: '', repository: '', failedAs: 'down' } as CheckDef;
     case 'kafka':
       return { ...base, name, type, platform: '', topic: '', messagesWithinMinutes: 15, quietAs: 'down', stuckMinutes: 15 } as CheckDef;
+    case 'kafka-connect':
+      return { ...base, name, type, platform: '', notRunningAs: 'down', pausedAs: 'degraded', failedMinutes: 10, quietAs: 'degraded' } as CheckDef;
     case 'mqtt':
       return { ...base, name, type, platform: '', topic: '', mode: 'any', withinMinutes: 15, quietAs: 'down' } as CheckDef;
     case 'snowflake':
