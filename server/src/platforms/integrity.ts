@@ -1,4 +1,4 @@
-import { BRAND } from '@sm/shared';
+import { BRAND, type PlatformConfirmReview } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { checkMac, configMac, type IntegrityState } from '../integrity.js';
@@ -6,7 +6,7 @@ import { readSetting, writeSetting } from '../settings.js';
 import { vault } from '../vault.js';
 import { logger } from '../log.js';
 import { HttpError, canonicalJson, nowIso, parseJson, sha256 } from '../util.js';
-import { DEFAULT_IDENTITY_NAME, configWithoutMcpMode, defaultIdentityId, hasLegacyGateway, mcpFromGateway, type IdentityRow } from './identities.js';
+import { DEFAULT_IDENTITY_NAME, configWithoutMcpMode, defaultIdentityId, hasLegacyGateway, mcpFromGateway, parseMcp, type IdentityRow } from './identities.js';
 
 /** The columns of a platform that are authenticated (everything that decides where and how requests go). */
 export interface SealedPlatformRow {
@@ -100,29 +100,125 @@ export function requirePlatformIntact(id: string): void {
   if (i) requireIdentityIntact(i, r.name);
 }
 
-/** An administrator has reviewed the current settings: seal them again – the platform and its identities. */
+/** An identity's sign-in settings for a review: the type and the URL it signs in at (origin and path, no query). */
+function signInOf(auth: string | null): PlatformConfirmReview['identities'][number]['signIn'] {
+  if (!auth) return null;
+  const a = parseJson<{ type?: unknown; tokenUrl?: unknown; request?: { url?: unknown } } | null>(auth, null);
+  const type = typeof a?.type === 'string' ? a.type.slice(0, 40) : 'unknown';
+  const raw = typeof a?.tokenUrl === 'string' ? a.tokenUrl : typeof a?.request?.url === 'string' ? a.request.url : '';
+  let url: string | null = raw ? raw.slice(0, 200) : null;
+  try {
+    const u = new URL(raw);
+    url = `${u.origin}${u.pathname}`;
+  } catch {
+    /* a template or no URL: shown as stored (cut) */
+  }
+  return { type, url };
+}
+
+/**
+ * What an administrator confirms (0.9.0): per identity its MCP mode, the names of its credentials and the settings an
+ * identity cannot have in this release – variables, its own sign-in, flags, an operation filter, a credential source.
+ * Step 1 (ADR 0009) has only the default identity and none of these: confirming resets them to the platform's, and
+ * removes every other identity (rows that only a change in the database can have made).
+ */
+export function confirmReview(id: string): PlatformConfirmReview {
+  const r = db().get<SealedPlatformRow>('SELECT id, name, kind, base_url, environment, config, secrets, config_mac FROM platforms WHERE id = ?', id);
+  if (!r) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
+  const rows = db().all<IdentityRow>('SELECT * FROM platform_identities WHERE platform_id = ? ORDER BY is_default DESC, lower(name), id', id);
+  const identities = rows.map((i) => {
+    const isDefault = Number(i.is_default) === 1 || i.is_default === true;
+    const vars = parseJson<Record<string, unknown>>(i.variables, {});
+    const variables = Object.fromEntries(
+      Object.entries(vars && typeof vars === 'object' && !Array.isArray(vars) ? vars : {})
+        .slice(0, 50)
+        .map(([k, v]) => [k.slice(0, 100), typeof v === 'string' ? v.slice(0, 200) : JSON.stringify(v ?? null).slice(0, 200)]),
+    );
+    const flags = [
+      ...(Number(i.read_only) === 1 || i.read_only === true ? ['readOnly'] : []),
+      ...(Number(i.privileged) === 1 || i.privileged === true ? ['privileged'] : []),
+      ...(i.operation_filter ? ['operationFilter'] : []),
+      ...(i.credential_source ? ['credentialSource'] : []),
+    ];
+    let secretKeys: string[];
+    try {
+      secretKeys = i.secrets ? Object.keys(vault().decrypt(i.secrets) as Record<string, unknown>).sort() : [];
+    } catch {
+      secretKeys = []; // an unreadable blob: it holds no usable credential
+    }
+    const signIn = signInOf(i.auth);
+    const changed = Object.keys(variables).length > 0 || !!signIn || flags.length > 0;
+    return {
+      id: i.id,
+      name: i.name,
+      default: isDefault,
+      integrity: identityIntegrity(i),
+      mcp: parseMcp(i.mcp),
+      secretKeys,
+      variables,
+      signIn,
+      flags,
+      action: (!isDefault ? 'remove' : changed ? 'reset' : 'keep') as 'keep' | 'reset' | 'remove',
+    };
+  });
+  return { baseUrl: r.base_url, integrity: platformIntegrity(r), identities };
+}
+
+/**
+ * An administrator has reviewed the current settings: seal them again – the platform and its default identity. What
+ * the platform page does not show is not sealed unseen (0.9.0): the default identity's variables, sign-in, flags,
+ * operation filter and credential source go back to the platform's (step 1 has none of them), and every other identity
+ * is removed (confirmReview lists both; the audit entry records them).
+ */
 export function confirmPlatformConfig(id: string): void {
   const r = db().get<SealedPlatformRow>('SELECT id, name, kind, base_url, environment, config, secrets, config_mac FROM platforms WHERE id = ?', id);
   if (!r) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
   const before = platformIntegrity(r);
-  const identitiesBefore = Object.fromEntries(
-    db()
-      .all<SealedIdentityRow>(`SELECT ${IDENTITY_SEALED_COLUMNS}, config_mac FROM platform_identities WHERE platform_id = ?`, id)
-      .map((i) => [i.id, identityIntegrity(i)]),
-  );
+  const review = confirmReview(id);
+  const identitiesBefore = Object.fromEntries(review.identities.map((i) => [i.id, i.integrity]));
   db().tx(() => {
+    const removed = review.identities.filter((i) => i.action === 'remove');
+    for (const i of removed) db().run('DELETE FROM platform_identities WHERE id = ? AND platform_id = ?', i.id, id);
+    const def = review.identities.find((i) => i.default);
     // a platform that was not intact at the one-time step still has the old layout: the confirmed settings move now
-    if (r.secrets !== null || hasLegacyGateway(r.config) || !Object.keys(identitiesBefore).length) moveToDefaultIdentity(id);
+    if (r.secrets !== null || hasLegacyGateway(r.config) || !def) moveToDefaultIdentity(id);
     else {
-      for (const iid of Object.keys(identitiesBefore)) sealIdentity(iid);
+      db().run(
+        'UPDATE platform_identities SET auth = NULL, variables = ?, mcp = ?, read_only = 0, privileged = 0, operation_filter = NULL, credential_source = NULL WHERE id = ?',
+        '{}',
+        JSON.stringify(def.mcp),
+        def.id,
+      );
+      sealIdentity(def.id);
       sealPlatform(id);
     }
+    const reset = review.identities.filter((i) => i.action === 'reset');
     audit({
       action: 'platform.config_confirmed',
       entityType: 'platform',
       entityId: id,
-      summary: `Connection settings of "${r.name}" confirmed by an administrator (were: ${before})`,
-      details: { baseUrl: r.base_url, kind: r.kind, config: parseJson(r.config, null), previousState: before, identities: identitiesBefore },
+      summary:
+        `Connection settings of "${r.name}" confirmed by an administrator (were: ${before})` +
+        (reset.length ? ` – settings of the default identity reset to the platform's` : '') +
+        (removed.length ? ` – ${removed.length} other identit${removed.length === 1 ? 'y' : 'ies'} removed` : ''),
+      details: {
+        baseUrl: r.base_url,
+        kind: r.kind,
+        config: parseJson(r.config, null),
+        previousState: before,
+        identities: identitiesBefore,
+        // what the administrator saw in the dialog – MCP mode, credential names, and what was reset or removed (no values of credentials)
+        reviewed: review.identities.map((i) => ({
+          name: i.name,
+          default: i.default,
+          mcp: i.mcp,
+          secretKeys: i.secretKeys,
+          variables: i.variables,
+          signIn: i.signIn,
+          flags: i.flags,
+          action: i.action,
+        })),
+      },
     });
   });
 }

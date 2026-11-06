@@ -490,7 +490,17 @@
     "confirm": "Einstellungen geprüft – bestätigen",
     "confirmQuestion": "Die aktuellen Verbindungseinstellungen (Basis-URL {{url}}) bestätigen? Prüfen Sie vorher die Einstellungen und das Audit-Log.",
     "confirmed": "Einstellungen bestätigt",
-    "askAdmin": "Bitten Sie einen Administrator, die Einstellungen zu prüfen und zu bestätigen."
+    "askAdmin": "Bitten Sie einen Administrator, die Einstellungen zu prüfen und zu bestätigen.",
+    "review": {
+      "identity": "Identität „{{name}}“",
+      "mcp": "MCP-Clients: {{mode}}",
+      "credentials": "Gespeicherte Zugangsdaten: {{keys}}",
+      "reset": "Steward 0.9.0 verwendet diese Einstellungen einer Identität nicht – sie werden beim Bestätigen auf die der Plattform zurückgesetzt:",
+      "variables": "Variablen: {{vars}}",
+      "signIn": "Eigene Anmeldung: {{type}} bei {{url}}",
+      "flags": "Merkmale: {{flags}}",
+      "remove": "In Steward 0.9.0 gibt es nur die Standard-Identität – diese Identität wird beim Bestätigen entfernt."
+    }
   },
   "recordings": {
     "title": "Aufgezeichnete Antworten",

@@ -67,3 +67,86 @@ test('the Identities tab on a phone @mobile', async ({ page, apiAs }) => {
   await expectNoHorizontalScroll(page);
   await expectAccessible(page, 'platform identities (phone)');
 });
+
+/**
+ * Settings changed outside Steward (0.9.0): the confirmation dialog shows what the platform page does not – each
+ * identity's MCP mode and credential names, the settings that confirming resets and the identities it removes. The
+ * changed state cannot be made from a browser: the platform and the review are answered by the test.
+ */
+async function withChangedSettings(page: import('@playwright/test').Page, api: import('@playwright/test').APIRequestContext, id: string) {
+  const platform = await json(await api.get(`/api/platforms/${id}`));
+  const review = {
+    baseUrl: platform.baseUrl,
+    integrity: 'mismatch',
+    identities: [
+      {
+        id: platform.identities[0].id,
+        name: 'Default',
+        default: true,
+        integrity: 'mismatch',
+        mcp: { mode: 'read' },
+        secretKeys: platform.secretKeys,
+        variables: { port: '8443', region: 'eu-west' },
+        signIn: { type: 'token_request', url: 'https://login.example.net/token' },
+        flags: ['privileged'],
+        action: 'reset',
+      },
+      {
+        id: 'pi_planted',
+        name: 'Planted',
+        default: false,
+        integrity: 'unsealed',
+        mcp: { mode: 'off' },
+        secretKeys: [],
+        variables: {},
+        signIn: null,
+        flags: [],
+        action: 'remove',
+      },
+    ],
+  };
+  const confirmed: string[] = [];
+  await page.route(`**/api/platforms/${id}`, async (route) => {
+    if (route.request().method() !== 'GET') return route.continue();
+    await route.fulfill({ json: { ...platform, integrity: 'mismatch' } });
+  });
+  await page.route(`**/api/platforms/${id}/confirm-config`, async (route) => {
+    if (route.request().method() === 'GET') return route.fulfill({ json: review });
+    confirmed.push(route.request().method());
+    return route.fulfill({ json: platform });
+  });
+  return confirmed;
+}
+
+test('confirming changed settings lists what is reset and removed', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const id = await platformId(api, 'insights-hub');
+  const confirmed = await withChangedSettings(page, api, id);
+  await page.goto(`/platforms/${id}`);
+  await expect(page.getByText('Connection settings changed outside Steward')).toBeVisible();
+  await page.getByRole('button', { name: 'I reviewed the settings – confirm' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Identity “Default”');
+  await expect(dialog).toContainText('MCP clients: Read only');
+  await expect(dialog).toContainText('they go back to the platform’s when you confirm');
+  await expect(dialog).toContainText('Variables: port = 8443, region = eu-west');
+  await expect(dialog).toContainText('Its own sign-in: token_request at https://login.example.net/token');
+  await expect(dialog).toContainText('Flags: privileged');
+  await expect(dialog.getByTestId('confirm-identity-remove')).toContainText('this identity is removed when you confirm');
+  await expectAccessible(page, 'confirm changed platform settings');
+  await dialog.getByTestId('confirm-dialog-confirm').click();
+  await expect(page.getByText('Settings confirmed')).toBeVisible();
+  expect(confirmed).toEqual(['POST']);
+});
+
+test('the confirmation of changed settings on a phone @mobile', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const id = await platformId(api, 'insights-hub');
+  await withChangedSettings(page, api, id);
+  await page.goto(`/platforms/${id}`);
+  await page.getByRole('button', { name: 'I reviewed the settings – confirm' }).click();
+  await expect(page.getByRole('dialog')).toContainText('Variables: port = 8443, region = eu-west');
+  await expectNoHorizontalScroll(page);
+  await expectAccessible(page, 'confirm changed platform settings (phone)');
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+});

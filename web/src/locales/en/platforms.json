@@ -490,7 +490,17 @@
     "confirm": "I reviewed the settings – confirm",
     "confirmQuestion": "Confirm the current connection settings (base URL {{url}})? Check the settings and the audit log first.",
     "confirmed": "Settings confirmed",
-    "askAdmin": "Ask an administrator to review and confirm the settings."
+    "askAdmin": "Ask an administrator to review and confirm the settings.",
+    "review": {
+      "identity": "Identity “{{name}}”",
+      "mcp": "MCP clients: {{mode}}",
+      "credentials": "Stored credentials: {{keys}}",
+      "reset": "Steward 0.9.0 does not use these settings of an identity – they go back to the platform’s when you confirm:",
+      "variables": "Variables: {{vars}}",
+      "signIn": "Its own sign-in: {{type}} at {{url}}",
+      "flags": "Flags: {{flags}}",
+      "remove": "Only the default identity exists in Steward 0.9.0 – this identity is removed when you confirm."
+    }
   },
   "recordings": {
     "title": "Recorded responses",

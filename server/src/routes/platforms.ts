@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { audit } from '../audit.js';
-import { confirmPlatformConfig } from '../platforms/integrity.js';
+import { confirmPlatformConfig, confirmReview } from '../platforms/integrity.js';
 import { HttpError } from '../util.js';
 import * as platforms from '../platforms/service.js';
 import * as connectors from '../platforms/connectors.js';
@@ -115,6 +115,12 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
   // Connection settings changed outside the application (configuration integrity): an administrator reviews and confirms them.
+  // what the confirmation seals and what it resets or removes (0.9.0): the identities' settings the platform page does not show
+  app.get('/platforms/:id/confirm-config', { config: { access: ACCESS.admin } }, async (req) => {
+    requireCapability(me(), 'createPlatforms', 'confirm platform settings');
+    requirePlatform(params(req).id!, 'manage', 'confirm the settings of this platform');
+    return confirmReview(params(req).id!);
+  });
   app.post('/platforms/:id/confirm-config', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'createPlatforms', 'confirm platform settings');
     requirePlatform(params(req).id!, 'manage', 'confirm the settings of this platform');

@@ -156,12 +156,77 @@ export function toIdentity(r: IdentityRow, extra: { secretKeys: string[]; integr
   };
 }
 
-/** The identity's sign-in settings and variables merged into the platform's (NULL auth: the platform's). */
-export function mergedAuthAndVariables<A, V extends Record<string, string>>(platform: { auth: A; variables: V }, r: IdentityRow): { auth: A; variables: V } {
+/**
+ * The variable names a template uses ({{ vars.port }}, vars['port'], vars["port"]) – read with string functions, no
+ * regular expression built from input.
+ */
+export function templateVariableNames(text: string): string[] {
+  const out = new Set<string>();
+  let i = text.indexOf('vars');
+  while (i >= 0) {
+    const before = i > 0 ? text[i - 1]! : ' ';
+    let j = i + 4;
+    if (!/[A-Za-z0-9_$.]/.test(before)) {
+      while (text[j] === ' ') j++;
+      if (text[j] === '.') {
+        j++;
+        while (text[j] === ' ') j++;
+        let end = j;
+        while (end < text.length && /[A-Za-z0-9_$]/.test(text[end]!)) end++;
+        if (end > j) out.add(text.slice(j, end));
+      } else if (text[j] === '[') {
+        j++;
+        while (text[j] === ' ') j++;
+        const quote = text[j];
+        if (quote === "'" || quote === '"' || quote === '`') {
+          const end = text.indexOf(quote, j + 1);
+          if (end > j) out.add(text.slice(j + 1, end));
+        }
+      }
+    }
+    i = text.indexOf('vars', i + 4);
+  }
+  return [...out];
+}
+
+/** Where a platform's requests and credentials go: its base URL, the token URLs of its sign-in, its trusted origins and portal. */
+interface FixedSources {
+  baseUrl: string;
+  auth?: { tokenUrl?: string; request?: { url?: string }; refresh?: { request?: { url?: string } } } | null;
+  http?: { trustedOrigins?: string[] };
+  portalUrl?: string;
+}
+
+/**
+ * The variables an identity may not override (ADR 0009, IDENTITY_VARIABLE_FIXED): those used in the base URL, the token
+ * URL of the platform's or the identity's sign-in, the trusted origins or the portal URL – an identity cannot point at
+ * another system.
+ */
+export function fixedVariables(platform: FixedSources, identityAuth?: FixedSources['auth']): Set<string> {
+  const texts = [platform.baseUrl, platform.portalUrl ?? '', ...(platform.http?.trustedOrigins ?? [])];
+  for (const a of [platform.auth, identityAuth]) if (a) texts.push(a.tokenUrl ?? '', a.request?.url ?? '', a.refresh?.request?.url ?? '');
+  return new Set(texts.flatMap((t) => (typeof t === 'string' ? templateVariableNames(t) : [])));
+}
+
+/**
+ * The identity's sign-in settings and variables merged into the platform's (NULL auth: the platform's). Variables an
+ * identity may not override (fixedVariables) are dropped at use time too, not only at save (0.9.0): a row changed in the
+ * database and sealed cannot move the base URL or a token URL.
+ */
+export function mergedAuthAndVariables<A, V extends Record<string, string>>(
+  platform: { auth: A; variables: V; baseUrl?: string; http?: { trustedOrigins?: string[] }; portalUrl?: string },
+  r: IdentityRow,
+): { auth: A; variables: V } {
   const auth = r.auth ? parseJson<A | null>(r.auth, null) : null;
   const vars = parseJson<Record<string, unknown>>(r.variables, {});
+  const fixed = fixedVariables(
+    { baseUrl: platform.baseUrl ?? '', auth: platform.auth as FixedSources['auth'], http: platform.http, portalUrl: platform.portalUrl },
+    auth as FixedSources['auth'],
+  );
   const overlay = Object.fromEntries(
-    Object.entries(vars).filter(([k, v]) => typeof v === 'string' && k !== '__proto__' && k !== 'constructor' && k !== 'prototype'),
+    Object.entries(vars && typeof vars === 'object' && !Array.isArray(vars) ? vars : {}).filter(
+      ([k, v]) => typeof v === 'string' && k !== '__proto__' && k !== 'constructor' && k !== 'prototype' && !fixed.has(k),
+    ),
   ) as Record<string, string>;
   return { auth: auth ?? platform.auth, variables: { ...platform.variables, ...overlay } };
 }

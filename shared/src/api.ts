@@ -646,6 +646,33 @@ export interface PlatformIdentity {
   updatedAt: string;
 }
 
+/**
+ * What an administrator confirms for a platform whose settings were changed outside Steward (0.9.0,
+ * GET /platforms/:id/confirm-config): per identity what the platform page does not show. In this release a platform has
+ * only its default identity, which cannot have variables, its own sign-in, flags, an operation filter or a credential
+ * source: confirming resets them (action "reset") and removes every other identity (action "remove").
+ */
+export interface PlatformConfirmReview {
+  baseUrl: string;
+  integrity: 'ok' | 'unsealed' | 'mismatch' | 'locked';
+  identities: {
+    id: string;
+    name: string;
+    default: boolean;
+    integrity: 'ok' | 'unsealed' | 'mismatch' | 'locked';
+    mcp: IdentityMcp;
+    /** Names of its stored credentials (never values) */
+    secretKeys: string[];
+    /** Variables set on the identity (they would override the platform's) */
+    variables: Record<string, string>;
+    /** Its own sign-in settings: the type and where it signs in (origin and path) */
+    signIn: { type: string; url: string | null } | null;
+    /** Set flags: readOnly, privileged, operationFilter, credentialSource */
+    flags: string[];
+    action: 'keep' | 'reset' | 'remove';
+  }[];
+}
+
 export interface Platform {
   id: string;
   name: string;

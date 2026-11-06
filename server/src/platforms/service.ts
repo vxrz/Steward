@@ -195,7 +195,8 @@ export function getConnection(platformId: string, identityId?: string): Connecti
   requireIdentityIntact(i, r.name);
   const p = toPlatform(r, identityRows(platformId));
   const identity = p.identities!.find((x) => x.id === i.id)!;
-  const merged = mergedAuthAndVariables(p.config, i);
+  // the variables used where requests go (base URL, token URLs, trusted origins) stay the platform's (IDENTITY_VARIABLE_FIXED)
+  const merged = mergedAuthAndVariables({ ...p.config, baseUrl: p.baseUrl }, i);
   return {
     platform: { ...p, config: { ...p.config, auth: merged.auth, variables: merged.variables }, identityId: i.id, identityName: i.name },
     identity,
