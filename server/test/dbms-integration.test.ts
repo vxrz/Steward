@@ -184,6 +184,8 @@ async function mysqlTarget(url: string): Promise<Target> {
     `CREATE USER '${rw}'@'%' IDENTIFIED BY '${RW_PW}'`,
     `CREATE ROLE ${writer}`,
     `GRANT SELECT ON ${database}.* TO '${ro}'@'%'`,
+    // MariaDB shows the ON DELETE / ON UPDATE rules of foreign keys only with a privilege beyond SELECT (#222)
+    `GRANT SHOW VIEW ON ${database}.* TO '${ro}'@'%'`,
     ...catalogGrants,
     `GRANT SELECT, INSERT, UPDATE, EXECUTE ON ${database}.* TO '${rw}'@'%'`,
     `GRANT INSERT ON ${database}.orders TO ${writer}`,

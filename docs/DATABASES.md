@@ -261,6 +261,8 @@ GRANT SELECT ON mysql.tables_priv TO 'steward_reader'@'10.0.%';
 GRANT REPLICA MONITOR ON *.* TO 'steward_reader'@'10.0.%';
 -- tables of the database (catalog query "tables" and own SQL)
 GRANT SELECT ON shop.* TO 'steward_reader'@'10.0.%';
+-- database schemas: MariaDB hides the ON DELETE / ON UPDATE rules of foreign keys from an account with SELECT only
+GRANT SHOW VIEW ON shop.* TO 'steward_reader'@'10.0.%';
 ```
 
 ### MySQL
@@ -274,6 +276,8 @@ GRANT SELECT ON mysql.tables_priv TO 'steward_reader'@'10.0.%';
 -- SHOW REPLICA STATUS
 GRANT REPLICATION CLIENT ON *.* TO 'steward_reader'@'10.0.%';
 GRANT SELECT ON shop.* TO 'steward_reader'@'10.0.%';
+-- database schemas: the view definitions and, on some versions, the rules of foreign keys
+GRANT SHOW VIEW ON shop.* TO 'steward_reader'@'10.0.%';
 ```
 
 `SELECT` on `mysql.user` shows the password hashes (`authentication_string`) to the account; Steward never selects that column. Where that is not acceptable, leave the grant out: the catalog query `accounts` then fails with the missing privilege, the others keep working.
