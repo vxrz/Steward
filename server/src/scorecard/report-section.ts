@@ -9,7 +9,7 @@ import { listObjectiveViews, rowTargets } from './objectives.js';
 
 /**
  * "Service scorecard" section of scheduled summary reports (#86): per service the parts of the scorecard –
- * duties, availability, documentation, protection need, tech stack (when counted), vulnerabilities (when linked) – each with its own status and "attention needed"; the trend
+ * duties, availability, documentation, protection need, tech stack (when counted), vulnerabilities (when linked), up to date (when counted) – each with its own status and "attention needed"; the trend
  * of the stored daily snapshots over the report period; and the availability objectives with their status at the end
  * of the period and the breaches that started in it. Collected with the rights of the schedule's owner (documents
  * they may not read do not count).
@@ -24,7 +24,7 @@ const MAX_ROWS = 400;
 const en = {
   title: 'Service scorecard',
   intro:
-    'Per service, each part with its own status – no weighting. Attention needed: a mandatory duty not met (last closed period or now), an availability objective below target, no released document, a review overdue or an expected document missing, the protection need not rated, a component past its end of life (when counted), or open critical findings or failing policy violations in Dependency-Track.',
+    'Per service, each part with its own status – no weighting. Attention needed: a mandatory duty not met (last closed period or now), an availability objective below target, no released document, a review overdue or an expected document missing, the protection need not rated, a component past its end of life or a major release behind (when counted), or open critical findings or failing policy violations in Dependency-Track.',
   asOfSnapshot: 'As stored on {day} (the last day of the report period).',
   asOfLive: 'As computed when the report was made.',
   services: 'Services',
@@ -53,6 +53,7 @@ const en = {
     protection: 'Protection need',
     lifecycle: 'Tech stack',
     vulnerabilities: 'Vulnerabilities',
+    upToDate: 'Up to date',
   } as Record<ScorecardPart, string>,
   statuses: { ok: 'OK', attention: 'Attention', pending: 'Open', none: '–', hidden: 'Hidden' } as Record<ScorecardPartStatus | 'hidden', string>,
   objectiveStatuses: { met: 'Met', below: 'Below target', noData: 'No data' } as Record<ObjectiveStatus, string>,
@@ -62,7 +63,7 @@ type Texts = typeof en;
 const de: Texts = {
   title: 'Service-Scorecard',
   intro:
-    'Je Service jeder Teil mit seinem eigenen Status – ohne Gewichtung. Handlungsbedarf: eine verpflichtende Pflicht nicht erfüllt (letzter abgeschlossener Zeitraum oder jetzt), ein Verfügbarkeitsziel unterschritten, kein freigegebenes Dokument, eine Überprüfung überfällig oder ein erwartetes Dokument fehlt, der Schutzbedarf ist nicht bewertet, eine Komponente hat ihr Lebensende überschritten (wenn gezählt) oder Dependency-Track meldet offene kritische Schwachstellen oder fehlgeschlagene Richtlinienverstöße.',
+    'Je Service jeder Teil mit seinem eigenen Status – ohne Gewichtung. Handlungsbedarf: eine verpflichtende Pflicht nicht erfüllt (letzter abgeschlossener Zeitraum oder jetzt), ein Verfügbarkeitsziel unterschritten, kein freigegebenes Dokument, eine Überprüfung überfällig oder ein erwartetes Dokument fehlt, der Schutzbedarf ist nicht bewertet, eine Komponente hat ihr Lebensende überschritten oder liegt eine Hauptversion zurück (wenn gezählt) oder Dependency-Track meldet offene kritische Schwachstellen oder fehlgeschlagene Richtlinienverstöße.',
   asOfSnapshot: 'Stand vom {day} (letzter Tag des Berichtszeitraums).',
   asOfLive: 'Stand bei der Erstellung des Berichts.',
   services: 'Services',
@@ -91,6 +92,7 @@ const de: Texts = {
     protection: 'Schutzbedarf',
     lifecycle: 'Tech-Stack',
     vulnerabilities: 'Schwachstellen',
+    upToDate: 'Aktualität',
   },
   statuses: { ok: 'OK', attention: 'Handlungsbedarf', pending: 'Offen', none: '–', hidden: 'Verborgen' },
   objectiveStatuses: { met: 'Erfüllt', below: 'Unterschritten', noData: 'Keine Daten' },
@@ -153,6 +155,7 @@ function build(c: ScorecardConfig, ctx: { from: number; to: number; now: number 
         protection: card.protection.status,
         lifecycle: card.lifecycle.status,
         vulnerabilities: card.vulnerabilities.status,
+        upToDate: card.upToDate.status,
       },
     }));
   }
@@ -223,7 +226,7 @@ registerReportSection<ScorecardConfig, ScorecardSectionData>({
     const attention = d.services.filter((s) => s.attention).length;
     // the tech stack part only when it is counted (it is off by default; reports made before 0.2.3 have no value), the
     // vulnerabilities only when a service's components link Dependency-Track (older reports have no value)
-    const optional: ScorecardPart[] = ['lifecycle', 'vulnerabilities'];
+    const optional: ScorecardPart[] = ['lifecycle', 'vulnerabilities', 'upToDate'];
     const parts = SCORECARD_PARTS.filter((p) => !optional.includes(p) || d.services.some((s) => (s.parts[p] ?? 'none') !== 'none'));
     w.stats([
       { label: x.services, value: String(d.services.length), tone: 'default' as Tone },

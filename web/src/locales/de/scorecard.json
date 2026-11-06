@@ -29,7 +29,8 @@
     "documentation": "Dokumentation",
     "protection": "Schutzbedarf",
     "lifecycle": "Tech-Stack",
-    "vulnerabilities": "Schwachstellen"
+    "vulnerabilities": "Schwachstellen",
+    "upToDate": "Aktualität"
   },
   "windows": {
     "h1": "1 Std.",
@@ -186,5 +187,13 @@
     "error": "Abfrage fehlgeschlagen: {{error}}",
     "readAt": "zuletzt gelesen am {{date}}",
     "open": "In Dependency-Track öffnen"
+  },
+  "upToDate": {
+    "none": "Für den Tech-Stack der Anwendungen des Service sind keine neuesten Versionen bekannt (Versionsüberwachung).",
+    "summary": "{{entries}} Tech-Stack-Einträge mit bekannter neuester Version: {{major}} eine Hauptversion zurück, {{behind}} weiter zurück als erlaubt",
+    "majorItem_one": "{{component}}: {{product}} → {{newest}} – {{count}} Hauptversion zurück",
+    "majorItem_other": "{{component}}: {{product}} → {{newest}} – {{count}} Hauptversionen zurück",
+    "behindItem_one": "{{component}}: {{product}} → {{newest}} – {{count}} Minor-Version zurück seit {{days}} Tagen",
+    "behindItem_other": "{{component}}: {{product}} → {{newest}} – {{count}} Minor-Versionen zurück seit {{days}} Tagen"
   }
 }

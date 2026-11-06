@@ -108,4 +108,9 @@ export const SCORECARD_MIGRATIONS: NamedMigration[] = [
     name: 'scorecard-004-vulnerabilities',
     sql: `ALTER TABLE scorecard_snapshots ADD COLUMN vulnerabilities TEXT NOT NULL DEFAULT 'none';`,
   },
+  {
+    // #241: the part "Up to date" (version watch), counted when turned on
+    name: 'scorecard-005-up-to-date',
+    sql: `ALTER TABLE scorecard_snapshots ADD COLUMN up_to_date TEXT NOT NULL DEFAULT 'none';`,
+  },
 ];

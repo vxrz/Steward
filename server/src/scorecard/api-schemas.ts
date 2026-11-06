@@ -9,6 +9,7 @@ import {
   OBJECTIVE_WINDOWS,
   REVIEW_STATUSES,
   SCORECARD_PART_STATUSES,
+  VERSION_LAGS,
 } from '@sm/shared';
 
 /** Response and query schemas of the availability objective and scorecard endpoints of the public API (#86). */
@@ -233,6 +234,36 @@ export const ScorecardServiceEntry = z.object({
         .describe('The components that are not ok, worst first'),
     })
     .describe('Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects'),
+  upToDate: z
+    .object({
+      status: partStatus().describe(
+        'attention: a stack entry a major release behind; pending: more minor releases or days behind than the version watch allows; none: not counted (turned off) or no entry with a known newest version',
+      ),
+      enabled: z.boolean().describe('Counted (version watch settings)'),
+      entries: z.number().int().describe('Stack entries with a known newest version'),
+      major: z.number().int().describe('Entries a major release behind'),
+      behind: z.number().int().describe('Entries behind more than allowed, not by a major release'),
+      items: z
+        .array(
+          z.object({
+            applicationId: z.string(),
+            applicationName: z.string(),
+            componentName: z.string().describe('The component or system'),
+            holder: z.enum(['component', 'system']),
+            environment: z.string(),
+            production: z.boolean(),
+            product: z.string(),
+            label: z.string(),
+            version: z.string().describe('Installed'),
+            newest: z.string().describe('The newest version, as the source names it'),
+            lag: z.enum(VERSION_LAGS),
+            behind: z.object({ major: z.number().int(), minor: z.number().int(), patch: z.number().int() }).nullable(),
+            daysBehind: z.number().int().nullable().describe('Days since the first newer release'),
+          }),
+        )
+        .describe('The entries behind more than allowed, major first'),
+    })
+    .describe('Up to date: how far the tech stack of the service’s applications is behind the newest versions (version watch)'),
 });
 
 const PartCounts = z.object({ ok: z.number().int(), attention: z.number().int(), pending: z.number().int(), none: z.number().int() });
@@ -248,6 +279,7 @@ const RollupGroup = z.object({
     protection: PartCounts,
     lifecycle: PartCounts,
     vulnerabilities: PartCounts,
+    upToDate: PartCounts,
   }),
 });
 
@@ -270,6 +302,7 @@ export const ScorecardTrendEntry = z.object({
     protection: TrendCounts,
     lifecycle: TrendCounts,
     vulnerabilities: TrendCounts,
+    upToDate: TrendCounts,
   }),
 });
 
@@ -286,6 +319,7 @@ export const ServiceScorecardEntry = ScorecardServiceEntry.extend({
           protection: HistoryPart,
           lifecycle: HistoryPart,
           vulnerabilities: HistoryPart,
+          upToDate: HistoryPart,
         }),
       }),
     )

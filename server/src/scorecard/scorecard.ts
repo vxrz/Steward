@@ -22,6 +22,9 @@ import {
   type ScorecardLifecycleItem,
   type ScorecardVulnerabilities,
   type ScorecardVulnerabilityItem,
+  type ScorecardUpToDate,
+  type ScorecardUpToDateItem,
+  type StackVersion,
   SCORECARD_LIMITS,
   type DtrackReadout,
   type ScorecardProtection,
@@ -58,6 +61,8 @@ import { ruleRows, ruleValid } from './rules.js';
 import { appStackRows, lifecycleOf, lifecycleSettings, releasesOf, type AppStackRow } from '../catalogue/lifecycle.js';
 import { environmentList } from '../catalogue/environments.js';
 import { productLabel } from '../catalogue/components.js';
+import { isWellBehind, versionSettings, watchOf, type WatchedEntry } from '../versions/service.js';
+import { applicationEntries } from '../versions/check.js';
 
 /**
  * The service scorecard (#86): per service its parts, each with its own status – no weighting.
@@ -73,6 +78,8 @@ import { productLabel } from '../catalogue/components.js';
  *   - Protection need (#84): attention when it is not rated – no applications, a dimension without a level,
  *     applications not rated or not counted (re-rating after a scale change), or the stored scale is not valid.
  *   - Tech stack (#104, optional): attention when a component is past its end of life.
+ *   - Up to date (#241, optional): attention when a stack entry is a major release behind, pending when more minor
+ *     releases or days behind than the version watch's settings allow.
  *   - Vulnerabilities (#119): from the Dependency-Track readouts of the applications' components – attention on open
  *     critical findings or failing policy violations; pending on open high findings, a failed or a stale read.
  *
@@ -500,6 +507,63 @@ function lifecyclePart(d: Data, serviceId: string, ctx: LifecycleCtx, now: numbe
   return { status: !entries ? 'none' : eol ? 'attention' : ending ? 'pending' : 'ok', enabled: true, entries, eol, ending, items };
 }
 
+// ---------- up to date (version watch, #241) ----------
+
+interface UpToDateCtx {
+  enabled: boolean;
+  /** Entries with a known newest version, per application */
+  entries: Map<string, { e: WatchedEntry; w: StackVersion }[]>;
+  environments: CatalogueEnvironment[];
+  settings: ReturnType<typeof versionSettings>;
+}
+
+function upToDateCtx(d: Data, now: number): UpToDateCtx {
+  const settings = versionSettings();
+  const entries = new Map<string, { e: WatchedEntry; w: StackVersion }[]>();
+  if (!settings.scorecard) return { enabled: false, entries, environments: [], settings };
+  const all = [...new Set([...d.members.values()].flat())].flatMap((id) => applicationEntries(id));
+  for (const { entry, watch } of watchOf(all, now).values())
+    if (watch?.newest) entries.set(entry.applicationId, [...(entries.get(entry.applicationId) ?? []), { e: entry, w: watch }]);
+  return { enabled: true, entries, environments: environmentList(), settings };
+}
+
+/** Attention when an entry is a major release behind; pending when more minor releases or days behind than allowed. */
+function upToDatePart(d: Data, serviceId: string, ctx: UpToDateCtx): ScorecardUpToDate {
+  if (!ctx.enabled) return { status: 'none', enabled: false, entries: 0, major: 0, behind: 0, items: [] };
+  const items: ScorecardUpToDateItem[] = [];
+  let entries = 0;
+  for (const appId of d.members.get(serviceId) ?? [])
+    for (const { e, w } of ctx.entries.get(appId) ?? []) {
+      entries++;
+      if (!isWellBehind(w, ctx.settings)) continue;
+      items.push({
+        applicationId: appId,
+        applicationName: d.appNames.get(appId) ?? appId,
+        componentName: e.holderName,
+        holder: e.holderKind,
+        environment: e.environment,
+        production: isProductionEnvironment(ctx.environments, e.environment),
+        product: e.product,
+        label: productLabel(e.product),
+        version: e.version,
+        newest: w.newest!,
+        lag: w.lag,
+        behind: w.behind,
+        daysBehind: w.daysBehind,
+      });
+    }
+  items.sort(
+    (a, b) =>
+      Number(b.lag === 'major') - Number(a.lag === 'major') ||
+      Number(b.production) - Number(a.production) ||
+      (b.behind?.major ?? 0) - (a.behind?.major ?? 0) ||
+      (b.daysBehind ?? 0) - (a.daysBehind ?? 0),
+  );
+  const major = items.filter((i) => i.lag === 'major').length;
+  const behind = items.length - major;
+  return { status: !entries ? 'none' : major ? 'attention' : behind ? 'pending' : 'ok', enabled: true, entries, major, behind, items };
+}
+
 // ---------- vulnerabilities (Dependency-Track, #119) ----------
 
 interface DtrackComponentRow {
@@ -586,6 +650,7 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
   const needs = protectionNeeds(d.services.map((s) => s.id));
   const lc = lifecycleCtx(d);
   const vc = vulnerabilityCtx(d);
+  const uc = upToDateCtx(d, now);
   return d.services.map((s) => {
     const duties = dutiesPart(d, s.id);
     const availability = availabilityPart(d, s.id, oc);
@@ -593,19 +658,21 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
     const protection = protectionPart(needs.get(s.id)!, (d.members.get(s.id) ?? []).length);
     const lifecycle = lifecyclePart(d, s.id, lc, now);
     const vulnerabilities = vulnerabilitiesPart(d, s.id, vc, now);
+    const upToDate = upToDatePart(d, s.id, uc);
     return {
       card: {
         serviceId: s.id,
         serviceName: s.name,
         owners: parseJson<string[]>(s.owners, []),
         criticality: (s.criticality as ServiceCriticality | null) ?? null,
-        attention: [duties, availability, documentation, protection, lifecycle, vulnerabilities].some((p) => p.status === 'attention'),
+        attention: [duties, availability, documentation, protection, lifecycle, vulnerabilities, upToDate].some((p) => p.status === 'attention'),
         duties,
         availability,
         documentation,
         protection,
         lifecycle,
         vulnerabilities,
+        upToDate,
       },
       documentIds: ids,
     };
@@ -659,6 +726,7 @@ export interface SnapshotRow {
   protection: ScorecardPartStatus;
   lifecycle?: ScorecardPartStatus;
   vulnerabilities?: ScorecardPartStatus;
+  up_to_date?: ScorecardPartStatus;
   document_ids: string;
   details: string;
   updated_at: string;
@@ -689,6 +757,7 @@ function pointOf(r: SnapshotRow, readable: boolean): ServiceScorecardHistoryPoin
     protection: r.protection,
     lifecycle: r.lifecycle ?? 'none',
     vulnerabilities: r.vulnerabilities ?? 'none',
+    upToDate: r.up_to_date ?? 'none',
   };
   return { day: r.day, attention: SCORECARD_PARTS.some((p) => parts[p] === 'attention'), parts };
 }

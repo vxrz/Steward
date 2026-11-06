@@ -287,6 +287,26 @@ describe('version watch', () => {
     expect(await code(preview({ application: 'nope' }))).toBe('APPLICATION_NOT_FOUND');
   });
 
+  it('the scorecard part "Up to date": counted when turned on, snapshots keep it', async () => {
+    const svc = await s.api('POST', '/services', { name: 'Shop service (versions)', owners: [] });
+    await s.api('PUT', `/services/${svc.id}/applications/${app.id}`, { role: 'primary' });
+    const card = async () => (await vera('GET', '/scorecard')).services.find((c: any) => c.serviceId === svc.id);
+    expect((await card()).upToDate).toEqual({ status: 'none', enabled: false, entries: 0, major: 0, behind: 0, items: [] });
+    const before = await s.api('GET', '/catalogue/versions');
+    await s.api('PUT', '/catalogue/versions', { ...before.settings, scorecard: true });
+    const u = (await card()).upToDate;
+    expect(u).toMatchObject({ status: 'attention', enabled: true });
+    expect(u.entries).toBeGreaterThanOrEqual(8);
+    expect(u.items[0]).toMatchObject({ lag: 'major', applicationName: 'Shop (versions)' });
+    expect(u.items.map((i: any) => i.product)).toEqual(expect.arrayContaining(['react', 'django', 'postgresql']));
+    expect((await card()).attention).toBe(true);
+    const { snapshotScorecards } = await import('../src/scorecard/jobs.js');
+    const { db } = await import('../src/db.js');
+    snapshotScorecards(Date.now(), true);
+    expect(db().get<any>('SELECT up_to_date FROM scorecard_snapshots WHERE service_id = ? ORDER BY day DESC', svc.id)).toEqual({ up_to_date: 'attention' });
+    await s.api('PUT', '/catalogue/versions', before.settings);
+  });
+
   it('removes the settings of entries that left the stack, and lookups nobody needs', async () => {
     const { runVersionJob } = await import('../src/versions/service.js');
     const { db } = await import('../src/db.js');
