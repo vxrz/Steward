@@ -282,8 +282,9 @@ function latestRow(kind: DbSchemaSubjectKind, id: string): SnapshotRow | undefin
 function checkWindows(kind: DbSchemaSubjectKind, id: string): { breaking: string | null; changed: string | null } {
   let breaking = 0;
   let changed = 0;
-  const rows = db().all<{ definition: string }>("SELECT definition FROM monitors WHERE is_template = 0 AND definition LIKE '%db-schema%'");
+  const rows = db().all<{ definition: string }>('SELECT definition FROM monitors WHERE is_template = 0');
   for (const r of rows) {
+    if (!r.definition.includes('"db-schema"')) continue;
     const checks = parseJson<{ checks?: unknown }>(r.definition, {}).checks;
     if (!Array.isArray(checks)) continue;
     for (const c of checks as { type?: unknown; platform?: unknown; system?: unknown; mode?: unknown; withinHours?: unknown }[]) {
