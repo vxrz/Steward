@@ -15,6 +15,7 @@ import { plantJsonSchema } from './format.js';
 import { seedPlantDemo } from './demo.js';
 import * as cat from './catalogue.js';
 import { assignmentInput, deleteAssignment, getAssignment, putAssignment } from './assignments.js';
+import { assetFlow, coverage, overview, pointLineage, siteStructure } from './views.js';
 import './links.js';
 
 /**
@@ -27,6 +28,7 @@ import './links.js';
  *   …       /api/plant/assets[/:assetId[/image|/links|/assignment]]
  *   …       /api/plant/profiles[/:profileId[/points/:pointId]], /api/plant/kpis[/:kpiId]   the catalogues of part 2 (#219)
  *   GET     /api/plant/explore/points, /api/plant/checks
+ *   GET     /api/plant/views/overview | /views/coverage, …/structure, …/flow, …/lineage   the visualizations (#230)
  *   POST    /api/plant/import/preview | /api/plant/import, GET /api/plant/imports, GET /api/plant/export
  */
 
@@ -168,6 +170,24 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   // which assets deliver a data point (by text across the profiles); every check of what the caller may see
   app.get('/plant/explore/points', async (req) => cat.explorePoints(z.object({ q: z.string().max(200).default('') }).parse(req.query).q));
   app.get('/plant/checks', async () => cat.listChecks());
+
+  // ---------- visualizations (#230): read-only aggregates, the same rights as the pages they picture ----------
+  app.get('/plant/views/overview', async () => overview());
+  app.get('/plant/views/coverage', async (req) =>
+    coverage(
+      z
+        .object({
+          site: z.string().max(100).optional(),
+          area: z.string().max(100).optional(),
+          profile: z.string().max(100).optional(),
+          kpi: z.string().max(100).optional(),
+        })
+        .parse(req.query),
+    ),
+  );
+  app.get('/plant/sites/:siteId/structure', async (req) => siteStructure(p(req).siteId!));
+  app.get('/plant/assets/:assetId/flow', async (req) => assetFlow(p(req).assetId!));
+  app.get('/plant/profiles/:profileId/points/:pointId/lineage', async (req) => pointLineage(p(req).profileId!, p(req).pointId!));
 
   // ---------- import and export ----------
   app.post('/plant/import/preview', imports, async (req) => previewImport(importInput.parse(req.body)));

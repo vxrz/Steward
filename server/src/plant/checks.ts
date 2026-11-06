@@ -46,7 +46,7 @@ export function deliveries(a: PlantAssignmentValues, profile: PlantProfileValues
 }
 
 /** The data point inputs of a KPI definition an asset with this assignment does not deliver (empty: it delivers all). */
-function inputGaps(
+export function inputGaps(
   def: PlantKpiValues,
   a: PlantAssignmentValues,
   profile: PlantProfileValues | undefined,
