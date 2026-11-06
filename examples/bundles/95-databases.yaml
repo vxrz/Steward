@@ -1,0 +1,21 @@
+# steward-min-version: 0.7.0
+name: Databases (access review, account hygiene, sizes)
+description: |
+  The quarterly access review of roles and grants (four-eyes, generated REVOKE statements run by a person, documented
+  revocations), the daily account hygiene check (superusers, default accounts, expired and old passwords) and the
+  daily table sizes, with the "Databases" dashboard and, optionally, the database monitor (connection, replication lag,
+  PostgreSQL lock waits). The same templates serve PostgreSQL, MariaDB/MySQL and SQL Server; the database connection
+  stays read-only (docs/DATABASES.md).
+tags: [access-review, governance, database]
+platforms:
+  - key: db
+    label: Database
+    kinds: [database]
+processes:
+  - template: 67-database-account-hygiene
+  - template: 66-database-access-review
+  - template: 68-database-table-sizes
+dashboards: [88-databases]
+monitors:
+  - file: 60-database.yaml
+    optional: true

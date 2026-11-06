@@ -137,3 +137,49 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Tests on PostgreSQL
         run: npm run test:pg
+
+  test-databases:
+    # Database platforms (#203) against real servers: MariaDB 11.4 (LTS) and SQL Server 2022 as service containers
+    # (images pinned by digest); PostgreSQL runs in test-postgres. The test creates its own database and accounts.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mariadb:
+        image: mariadb:11.4.12@sha256:4f1d8d202fcf7bcb3902f63af09f9c1a050c2922a89652f22abaec0d4f015e83
+        env:
+          MARIADB_ROOT_PASSWORD: steward-ci-root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04@sha256:4402d880dd4c34bfa7d8705e56a86cd6c88da80a1f6bbbe741f999e76264a090
+        env:
+          ACCEPT_EULA: 'Y'
+          MSSQL_SA_PASSWORD: Steward-ci-sa-1
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Steward-ci-sa-1 -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      SM_TEST_MYSQL_URL: mysql://root:steward-ci-root@127.0.0.1:3306/
+      SM_TEST_MSSQL_URL: mssql://sa:Steward-ci-sa-1@127.0.0.1:1433/
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies (install scripts off)
+        run: npm ci --ignore-scripts
+      - name: Database platforms against MariaDB and SQL Server
+        working-directory: server
+        run: npx vitest run test/dbms-integration.test.ts

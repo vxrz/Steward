@@ -100,6 +100,7 @@ const TRYABLE = new Set<CheckType>([
   'kafka',
   'mqtt',
   'snowflake',
+  'database',
   'dependency-track',
   'entra',
   'privilege-vault',

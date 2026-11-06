@@ -59,6 +59,47 @@
         }
       }
     },
+    "query": {
+      "label": "Query a database",
+      "description": "Runs one read-only statement on a database platform: your SELECT (or WITH … SELECT) with bound parameters, or a catalog query of Steward for the platform's DBMS (accounts, role members, privileges, replication, tables). Always in a transaction that is rolled back, with time, row and size limits. Runs in dry runs too; test runs use the recorded response POST /sql/<step id>. Connect \"error\" to handle a refused or failed query.",
+      "fields": {
+        "connection": {
+          "label": "Database connection"
+        },
+        "catalog": {
+          "label": "Catalog query",
+          "help": "Instead of SQL: Steward runs the statement for the platform's DBMS and returns the same columns everywhere"
+        },
+        "sql": {
+          "label": "SQL statement",
+          "help": "One SELECT or WITH … SELECT. Placeholders: $1 (PostgreSQL), ? (MariaDB/MySQL), @p1 (SQL Server) – values never go into the text"
+        },
+        "params": {
+          "label": "Parameters",
+          "help": "One value per placeholder, in order; templates allowed"
+        },
+        "dialect": {
+          "label": "Written for",
+          "help": "The step refuses a platform of another DBMS; empty: any"
+        },
+        "maxRows": {
+          "label": "Most rows",
+          "help": "Default and ceiling: the platform's limit (1,000 unless set)"
+        },
+        "maxMb": {
+          "label": "Largest result (MB)",
+          "help": "Default and ceiling: the platform's limit (5 MB unless set)"
+        },
+        "timeoutSeconds": {
+          "label": "Time limit (seconds)",
+          "help": "Default and ceiling: the platform's limit (30 s unless set)"
+        },
+        "onLimit": {
+          "label": "More rows than allowed",
+          "help": "fail (default): the step fails; truncate: the first rows are kept and the result is marked truncated"
+        }
+      }
+    },
     "set": {
       "label": "Set variables",
       "description": "Compute values with JSONata expressions and store them in vars.<name>.",
@@ -471,7 +512,8 @@
     "noProcess": "no process chosen",
     "ai": "{{model}}",
     "aiJson": "{{model}} → JSON",
-    "noModel": "no model chosen"
+    "noModel": "no model chosen",
+    "queryCatalog": "catalog: {{catalog}}"
   },
   "options": {
     "select": "select",
@@ -490,7 +532,17 @@
     "modify": "modify",
     "onboarding": "onboarding",
     "offboarding": "offboarding",
-    "manual": "manual"
+    "manual": "manual",
+    "status": "status",
+    "accounts": "accounts",
+    "role-members": "role members",
+    "privileges": "privileges",
+    "replication": "replication",
+    "tables": "tables",
+    "postgresql": "PostgreSQL",
+    "mysql": "MariaDB / MySQL",
+    "sqlserver": "SQL Server",
+    "truncate": "truncate"
   },
   "palette": {
     "search": "Search nodes",
@@ -855,7 +907,10 @@
     "aiUnknownVariable": "{{name}} is not a context source of this step",
     "aiUnusedContext": "Context \"{{name}}\" is not used in the prompt and is not sent",
     "aiSchemaMissing": "A JSON answer needs a JSON Schema",
-    "aiSchemaInvalid": "The answer's JSON Schema cannot be used: {{problem}}"
+    "aiSchemaInvalid": "The answer's JSON Schema cannot be used: {{problem}}",
+    "querySqlOrCatalog": "Give either the SQL statement or a catalog query",
+    "queryCatalogParams": "Catalog queries take no parameters",
+    "queryRefused": "The statement is refused: {{problem}}"
   },
   "diff": {
     "none": "No differences.",
@@ -1084,5 +1139,25 @@
     "maxChars": "At most (characters)",
     "maxCharsHint": "Default {{value}}; more is cut off",
     "addContext": "Add context source"
+  },
+  "query": {
+    "mode": "Statement",
+    "modes": {
+      "catalog": "Catalog query",
+      "sql": "Own SQL"
+    },
+    "catalogHint": "Steward runs its statement for the platform's DBMS (PostgreSQL, MariaDB, MySQL or SQL Server) and returns the same columns everywhere – the right choice for templates.",
+    "sqlHint": "One SELECT or WITH … SELECT, read-only. Values go into parameters, never into the text.",
+    "refusedFor": "Refused for {{dbms}}: {{reason}}",
+    "placeholders": "Placeholders: {{placeholders}}",
+    "paramLabel": "Parameter {{n}}",
+    "removeParam": "Remove parameter",
+    "removeParamNamed": "Remove parameter {{n}}",
+    "addParam": "Add parameter",
+    "previewLine_one": "{{shown}} of {{count}} row",
+    "previewLine_other": "{{shown}} of {{count}} rows",
+    "truncated": "truncated (onLimit: truncate)",
+    "moreColumns_one": "{{count}} more column",
+    "moreColumns_other": "{{count}} more columns"
   }
 }

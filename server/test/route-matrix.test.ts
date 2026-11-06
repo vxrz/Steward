@@ -246,6 +246,8 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/platforms/:id/ai': ADMIN,
   'POST /api/platforms/:id/ai/discover': ADMIN,
   'GET /api/platforms/:id/ai/usage': USE,
+  // database platforms (#203): the connection, with the platform's manage right
+  'PUT /api/platforms/:id/database': ADMIN,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
@@ -731,6 +733,15 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/plant/sites/:siteId': PLANT,
   'GET /api/v1/plant/assets': PLANT,
   'GET /api/v1/plant/assets/:assetId': PLANT,
+  // part 2 (#219): the catalogues are the installation's (everyone who sees the registry), an assignment follows its site
+  'GET /api/v1/plant/assets/:assetId/assignment': PLANT,
+  'GET /api/v1/plant/profiles': PLANT,
+  'GET /api/v1/plant/profiles/:profileId': PLANT,
+  'GET /api/v1/plant/kpis': PLANT,
+  'GET /api/v1/plant/kpis/:kpiId': PLANT,
+  // the checks of the assets the token owner may see, the export of what they may see (#219)
+  'GET /api/v1/plant/checks': PLANT,
+  'GET /api/v1/plant/export': PLANT,
   'GET /api/v1/environments': ALL,
   'GET /api/v1/maintenance-windows': ALL,
   'GET /api/v1/measures': ALL,
@@ -840,6 +851,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/duplicates/:kind/:id/source': ALL,
   // whoever manages the asset's site
   'POST /api/plant/assets/:assetId/duplicate': DESIGN,
+  // device profiles and KPI definitions (#219): who may add sites manages the catalogues
+  'POST /api/plant/profiles/:profileId/duplicate': DESIGN,
+  'POST /api/plant/kpis/:kpiId/duplicate': DESIGN,
 
   // ---- the plant registry (#218, on in these fixtures): its switch is the administrators'; rights per site ----
   'GET /api/settings/plant': ADMIN,
@@ -878,6 +892,23 @@ const EXPECT: Record<string, Access> = {
   'POST /api/plant/import': DESIGN,
   'GET /api/plant/imports': PLANT,
   'GET /api/plant/export': PLANT,
+  // part 2 (#219): device profiles and KPI definitions (catalogues of the installation), an asset's assignment
+  'GET /api/plant/profiles': PLANT,
+  'POST /api/plant/profiles': DESIGN,
+  'GET /api/plant/profiles/:profileId': PLANT,
+  'PUT /api/plant/profiles/:profileId': DESIGN,
+  'DELETE /api/plant/profiles/:profileId': DESIGN,
+  'GET /api/plant/profiles/:profileId/points/:pointId': PLANT,
+  'GET /api/plant/kpis': PLANT,
+  'POST /api/plant/kpis': DESIGN,
+  'GET /api/plant/kpis/:kpiId': PLANT,
+  'PUT /api/plant/kpis/:kpiId': DESIGN,
+  'DELETE /api/plant/kpis/:kpiId': DESIGN,
+  'GET /api/plant/assets/:assetId/assignment': PLANT,
+  'PUT /api/plant/assets/:assetId/assignment': DESIGN,
+  'DELETE /api/plant/assets/:assetId/assignment': DESIGN,
+  'GET /api/plant/explore/points': PLANT,
+  'GET /api/plant/checks': PLANT,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
@@ -1139,6 +1170,9 @@ function fill(url: string): string {
     .replace(/:assetId/g, fx.asset!)
     .replace(/:nodeId/g, fx.plantNode!)
     .replace(/:buildingId/g, fx.building!)
+    .replace(/:profileId/g, 'matrix-profile')
+    .replace(/:pointId/g, 'matrix_point')
+    .replace(/:kpiId/g, 'matrix-kpi')
     .replace(
       /:linkId/g,
       url.startsWith('/api/services')
@@ -1283,6 +1317,13 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/plant/assets/:assetId/links': { url: 'https://cmdb.example.com/9', label: 'x' },
   'PATCH /api/plant/assets/:assetId/links/:linkId': { note: 'x' },
   'POST /api/plant/import/preview': { files: [{ name: 'm.yaml', content: 'version: 1\nsites: []\n' }], mode: 'add' },
+  'POST /api/plant/profiles': { id: 'matrix-new-profile', name: 'New profile' },
+  'PUT /api/plant/profiles/:profileId': { name: 'Matrix profile' },
+  'POST /api/plant/kpis': { id: 'matrix-new-kpi', name: 'New KPI' },
+  'PUT /api/plant/kpis/:kpiId': { name: 'Matrix KPI' },
+  'PUT /api/plant/assets/:assetId/assignment': { profileId: 'matrix-profile' },
+  'POST /api/plant/profiles/:profileId/duplicate': { name: 'Matrix profile copy', key: 'matrix-profile-copy' },
+  'POST /api/plant/kpis/:kpiId/duplicate': { name: 'Matrix KPI copy', key: 'matrix-kpi-copy' },
   'POST /api/plant/import': { files: [{ name: 'm.yaml', content: 'version: 1\nsite:\n  id: matrix-site\n  name: Matrix site\n' }], mode: 'update' },
   'PUT /api/systems/:id': { name: 'Matrix system', kind: 'server' },
   'POST /api/systems/:id/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
@@ -1362,6 +1403,7 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/mcp-server': { enabled: true },
   'PUT /api/platforms/:id/mcp-gateway': { enabled: true },
   'PUT /api/platforms/:id/ai': { models: [] },
+  'PUT /api/platforms/:id/database': { dialect: 'postgresql', host: 'db.example.com', database: 'shop' },
   'PUT /api/ai/budgets': { scope: 'installation', scopeId: '', tokensPerDay: 100, tokensPerMonth: null },
   'POST /api/settings/notifications/test': { channel: 'email', to: 'it@example.com' },
   'PUT /api/settings/notifications/look': { name: 'Matrix' },
@@ -1471,6 +1513,14 @@ beforeAll(async () => {
   await a('POST', '/plant/sites/matrix-site/buildings', { id: 'matrix-building', name: 'Matrix building' });
   await a('POST', '/plant/sites/matrix-site/nodes', { id: 'matrix-area', level: 'area', name: 'Matrix area' });
   await a('POST', '/plant/assets', { id: 'matrix-asset', siteId: 'matrix-site', name: 'Matrix asset', areaId: 'matrix-area' });
+  // part 2 (#219): a device profile with one data point, a KPI definition, the asset's assignment
+  await a('POST', '/plant/profiles', {
+    id: 'matrix-profile',
+    name: 'Matrix profile',
+    interfaces: [{ id: 'opc', protocol: 'opc_ua', groups: [{ name: 'State', dataPoints: [{ id: 'matrix_point', name: 'Point', address: 'ns=2;s=X' }] }] }],
+  });
+  await a('POST', '/plant/kpis', { id: 'matrix-kpi', name: 'Matrix KPI', inputs: [{ profile: 'matrix-profile', dataPoints: ['matrix_point'] }] });
+  await a('PUT', '/plant/assets/matrix-asset/assignment', { profileId: 'matrix-profile', interfaces: [{ interface: 'opc' }] });
   await a('PUT', '/plant/assets/matrix-asset/image', { contentBase64: tinyPng().toString('base64') });
   const siteLink = (await a('POST', '/plant/sites/matrix-site/links', { url: 'https://cmdb.example.com/4', label: 'x' })).id;
   const assetLink = (await a('POST', '/plant/assets/matrix-asset/links', { url: 'https://cmdb.example.com/5', label: 'x' })).id;

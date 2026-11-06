@@ -1,5 +1,6 @@
 import type { AclEntry, AccessReason } from './api.js';
 import type { Backlink, ItemLink } from './records.js';
+import type { PlantCheck } from './plantData.js';
 
 /**
  * Plant registry (#217, #218): an opt-in module, off by default (Settings → Modules). The sites of the enterprise
@@ -292,6 +293,8 @@ export interface PlantConfig {
   canCreateSites: boolean;
   /** The signed-in person may manage at least one site (import, new asset) */
   canManageSome: boolean;
+  /** The signed-in person may add and change device profiles and KPI definitions (#219) */
+  canManageCatalogue: boolean;
 }
 
 /** GET /api/plant/hierarchy: the sites with their trees and buildings (pickers and filters). */
@@ -313,13 +316,14 @@ export type PlantImportMode = (typeof PLANT_IMPORT_MODES)[number];
 export const PLANT_MISSING = ['remove', 'mark'] as const;
 export type PlantMissing = (typeof PLANT_MISSING)[number];
 
-export type PlantChangeKind = 'site' | 'area' | 'work_center' | 'work_unit' | 'building' | 'asset';
+/** Kinds of records an import writes; device profiles, KPI definitions and assignments since part 2 (#219). */
+export type PlantChangeKind = 'site' | 'area' | 'work_center' | 'work_unit' | 'building' | 'asset' | 'profile' | 'kpi' | 'assignment';
 export type PlantChangeAction = 'add' | 'change' | 'remove' | 'mark' | 'unchanged' | 'skip';
 
 export interface PlantChange {
   kind: PlantChangeKind;
   action: PlantChangeAction;
-  /** The site of the record (sites: their own id) */
+  /** The site of the record (sites: their own id; profiles and KPI definitions: empty, they belong to no site) */
   siteId: string;
   id: string;
   name: string;
@@ -353,6 +357,8 @@ export interface PlantImportPreview {
   counts: PlantCounts;
   /** Counts per kind */
   byKind: Partial<Record<PlantChangeKind, PlantCounts>>;
+  /** What Steward checks in the records of the files once imported (they do not stop the import, #219) */
+  checks: PlantCheck[];
 }
 
 export interface PlantImportSummary {

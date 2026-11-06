@@ -1,0 +1,29 @@
+name: Databases
+description: Accounts, grants, table sizes and connections of a database platform – fed by "Database – Account hygiene" (daily), "Database – Access review" (quarterly), "Database – Table sizes" (daily) and "PostgreSQL – Connections per database".
+refreshSeconds: 300
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **Databases** – read by Steward's read-only query steps (catalog queries for PostgreSQL, MariaDB/MySQL and SQL Server). Opening this page never connects to a database.
+      Monitors watch the connection, the replication lag and query values live with the check type "Database".
+  - { id: accounts, type: kpi, title: Can sign in, dataset: database.accounts, metric: canLogin, width: 3 }
+  - { id: superusers, type: kpi, title: Superusers, dataset: database.accounts, metric: superusers, goodWhen: down, width: 3 }
+  - { id: defaults, type: kpi, title: Defaults, dataset: database.accounts, metric: defaultLogins, goodWhen: down, width: 3 }
+  - { id: expired, type: kpi, title: Expired, dataset: database.accounts, metric: expired, goodWhen: down, width: 3 }
+  - { id: oldPasswords, type: kpi, title: Old passwords, dataset: database.accounts, metric: oldPasswords, goodWhen: down, width: 3 }
+  - { id: public, type: kpi, title: Grants to PUBLIC, dataset: database.access, metric: public, goodWhen: down, width: 3 }
+  - { id: accountStatus, type: status, title: Accounts by state, dataset: database.accounts, width: 6 }
+  - { id: accountTrend, type: trend, title: Account findings, dataset: database.accounts, metrics: [superusers, defaultLogins, expired], days: 90, width: 12 }
+  - { id: accountProblems, type: table, title: Accounts needing attention, dataset: database.accounts, problemsOnly: true, width: 12 }
+  - { id: access, type: table, title: Grants (latest access review), dataset: database.access, width: 12 }
+  - { id: size, type: kpi, title: Size (MB), dataset: database.tables, metric: sizeMb, width: 3 }
+  - { id: tableCount, type: kpi, title: Tables, dataset: database.tables, metric: tables, width: 3 }
+  - { id: connections, type: kpi, title: Connections, dataset: database.connections, metric: connections, width: 3 }
+  - { id: idleTx, type: kpi, title: Idle in transaction, dataset: database.connections, metric: idleInTransaction, goodWhen: down, width: 3 }
+  - { id: sizeTrend, type: trend, title: Size, dataset: database.tables, metrics: [sizeMb], days: 90, width: 6 }
+  - { id: connTrend, type: trend, title: Connections, dataset: database.connections, metrics: [connections, active], days: 14, width: 6 }
+  - { id: tables, type: table, title: Tables, dataset: database.tables, width: 12 }
+  - { id: checks, type: checks, title: Latest hygiene checks, process: database-account-hygiene, width: 6 }
+  - { id: fresh, type: freshness, title: Data freshness, width: 6 }

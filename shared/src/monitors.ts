@@ -10,6 +10,7 @@ import { notifyPolicySchema } from './notifyPolicy.js';
 import { z } from 'zod';
 import type { AclEntry } from './api.js';
 import { boundedRecord } from './zodLimits.js';
+import { DB_LIMITS } from './database.js';
 import { tagInput } from './tags.js';
 
 // ---------- statuses ----------
@@ -54,6 +55,7 @@ export const CHECK_TYPES = [
   'kafka',
   'mqtt',
   'snowflake',
+  'database',
   'dependency-track',
   'entra',
   'privilege-vault',
@@ -87,6 +89,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   snowflake: {
     label: 'Snowflake',
     help: 'A Snowflake table changed recently enough, no task of a database failed, or a warehouse stayed within its credits',
+  },
+  database: {
+    label: 'Database',
+    help: 'A database platform: the connection works (and is read-only), replication lag stays below a limit, or the value of a read-only query is judged against WARN and CRIT levels',
   },
   entra: {
     label: 'Entra ID (Microsoft Graph)',
@@ -345,6 +351,29 @@ export const checkSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     ...checkBase,
+    type: z.literal('database'),
+    platform: platformRef,
+    /**
+     * connection: connects and reads the server version (degraded when the account can write); replication: the largest
+     * replication lag in seconds (catalog query "replication"); query: the first column of the first row of a read-only
+     * statement, compared with warn and crit (#203)
+     */
+    mode: z.enum(['connection', 'replication', 'query']).default('connection'),
+    sql: z.string().trim().max(DB_LIMITS.sqlChars).optional(),
+    params: z
+      .array(z.union([z.string().max(DB_LIMITS.paramChars), z.number(), z.boolean()]))
+      .max(DB_LIMITS.params)
+      .optional(),
+    /** above: a value at or above the level is bad (default); below: at or below */
+    direction: z.enum(['above', 'below']).default('above'),
+    warn: z.number().finite().optional(),
+    crit: z.number().finite().optional(),
+    /** Status when the query returns no row, or replication has no replica (default unknown) */
+    noData: z.enum(['unknown', 'up', 'down']).default('unknown'),
+    unit: z.string().max(20).optional(),
+  }),
+  z.object({
+    ...checkBase,
     type: z.literal('kafka'),
     platform: platformRef,
     /** The topic (#112) */
@@ -537,6 +566,10 @@ export function definitionIssues(def: MonitorDefinition, opts: { template?: bool
       if (!c.aspect) issues.push({ path: `checks.${i}.aspect`, message: 'Insights Hub freshness needs the aspect', checkId: c.id });
       if (!c.variables?.length) issues.push({ path: `checks.${i}.variables`, message: 'Insights Hub freshness needs at least one variable', checkId: c.id });
     }
+    if (c.type === 'database' && c.mode === 'query' && !c.sql)
+      issues.push({ path: `checks.${i}.sql`, message: 'query mode needs the SQL statement', checkId: c.id });
+    if (c.type === 'database' && c.mode !== 'connection' && c.crit === undefined)
+      issues.push({ path: `checks.${i}.crit`, message: `${c.mode} mode needs the CRIT level`, checkId: c.id });
     if (c.type === 'freshness' && c.source === 'platform') {
       if (!c.path) issues.push({ path: `checks.${i}.path`, message: 'platform freshness needs the path', checkId: c.id });
       if (!c.timestamp) issues.push({ path: `checks.${i}.timestamp`, message: 'platform freshness needs the timestamp expression', checkId: c.id });

@@ -3954,6 +3954,7 @@
               "kafka",
               "mqtt",
               "snowflake",
+              "database",
               "dependency-track",
               "entra",
               "privilege-vault",
@@ -4376,6 +4377,7 @@
                     "kafka",
                     "mqtt",
                     "snowflake",
+                    "database",
                     "dependency-track",
                     "entra",
                     "privilege-vault",
@@ -16483,6 +16485,115 @@
         ],
         "additionalProperties": false
       },
+      "PlantCheckEntry": {
+        "title": "PlantCheckEntry",
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "profile_unknown",
+              "interface_unknown",
+              "point_unknown",
+              "kpi_unknown",
+              "kpi_no_profile",
+              "kpi_other_profile",
+              "kpi_point_unknown",
+              "kpi_point_unavailable",
+              "kpi_interface_inactive",
+              "param_unknown",
+              "param_type",
+              "param_range",
+              "param_required",
+              "param_twice",
+              "ratio_no_denominator",
+              "ratio_no_numerator",
+              "ratio_column_unknown",
+              "input_profile_unknown",
+              "input_point_unknown"
+            ],
+            "description": "What is wrong (the check’s code, e.g. kpi_interface_inactive)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Plain English text"
+          },
+          "on": {
+            "type": "string",
+            "enum": [
+              "asset",
+              "kpi"
+            ],
+            "description": "The record the problem is on: an asset (its assignment or a KPI instance) or a KPI definition"
+          },
+          "asset": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The asset (null: a problem of a KPI definition)"
+          },
+          "siteId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The asset’s site"
+          },
+          "kpiId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The KPI definition: the one with the problem, or the definition of the KPI instance"
+          },
+          "job": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The KPI instance (job) the problem is on"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number"
+              ]
+            },
+            "description": "The values the message names (data point, parameter, profile …)"
+          }
+        },
+        "required": [
+          "kind",
+          "message",
+          "on",
+          "asset",
+          "siteId",
+          "kpiId",
+          "job",
+          "details"
+        ],
+        "additionalProperties": false
+      },
       "PlantSiteEntry": {
         "title": "PlantSiteEntry",
         "type": "object",
@@ -18567,6 +18678,2097 @@
           "links",
           "createdAt",
           "createdBy",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "PlantProfileEntry": {
+        "title": "PlantProfileEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "manufacturer": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "description": "Firmware or product version the profile describes"
+          },
+          "category": {
+            "type": "string"
+          },
+          "protocols": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "opc_ua",
+                "modbus_tcp",
+                "mqtt",
+                "http",
+                "smb",
+                "webdav",
+                "sftp",
+                "ftp",
+                "other"
+              ]
+            }
+          },
+          "interfaceCount": {
+            "type": "integer"
+          },
+          "dataPointCount": {
+            "type": "integer"
+          },
+          "assetCount": {
+            "type": "integer",
+            "description": "Assets with this profile in sites the token owner may see"
+          },
+          "importId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The last import that wrote the record (null: entered in Steward)"
+          },
+          "notInSource": {
+            "type": "boolean",
+            "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "manufacturer",
+          "model",
+          "version",
+          "category",
+          "protocols",
+          "interfaceCount",
+          "dataPointCount",
+          "assetCount",
+          "importId",
+          "notInSource",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "PlantProfileDetailEntry": {
+        "title": "PlantProfileDetailEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "manufacturer": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "description": "Firmware or product version the profile describes"
+          },
+          "category": {
+            "type": "string"
+          },
+          "protocols": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "opc_ua",
+                "modbus_tcp",
+                "mqtt",
+                "http",
+                "smb",
+                "webdav",
+                "sftp",
+                "ftp",
+                "other"
+              ]
+            }
+          },
+          "interfaceCount": {
+            "type": "integer"
+          },
+          "dataPointCount": {
+            "type": "integer"
+          },
+          "assetCount": {
+            "type": "integer",
+            "description": "Assets with this profile in sites the token owner may see"
+          },
+          "importId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The last import that wrote the record (null: entered in Steward)"
+          },
+          "notInSource": {
+            "type": "boolean",
+            "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "description": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "interfaces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "protocol": {
+                  "type": "string",
+                  "enum": [
+                    "opc_ua",
+                    "modbus_tcp",
+                    "mqtt",
+                    "http",
+                    "smb",
+                    "webdav",
+                    "sftp",
+                    "ftp",
+                    "other"
+                  ]
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "read",
+                    "write",
+                    "read_write"
+                  ]
+                },
+                "description": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "defaultPort": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "authentication": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "username_password",
+                    "certificate",
+                    "token",
+                    "other"
+                  ]
+                },
+                "client": {
+                  "type": "string",
+                  "description": "The client it needs"
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "groups": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Empty: data points without a group"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "dataPoints": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "Stable id, unique in the profile"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "dataType": {
+                              "type": "string",
+                              "description": "OPC UA built-in type (IEC 62541) or IEC 61131-3 type; [] for an array; or empty"
+                            },
+                            "unit": {
+                              "type": "string",
+                              "description": "UCUM code (kW.h, Cel, /min), or empty"
+                            },
+                            "address": {
+                              "type": "string",
+                              "description": "OPC UA NodeId, Modbus <table>:<address>[,<count>], a topic, a file path …"
+                            },
+                            "access": {
+                              "type": "string",
+                              "enum": [
+                                "read",
+                                "write",
+                                "read_write"
+                              ]
+                            },
+                            "updateRateMs": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "Typical update rate in milliseconds"
+                            },
+                            "enumValues": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "notes": {
+                              "type": "string"
+                            },
+                            "publications": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "target": {
+                                    "type": "string",
+                                    "description": "The system it is published to"
+                                  },
+                                  "path": {
+                                    "type": "string",
+                                    "description": "Where there: a path, an aspect, a topic"
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "description": "Its name there: a variable, a tag"
+                                  }
+                                },
+                                "required": [
+                                  "target",
+                                  "path",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "description": "Where it is usually published"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "description",
+                            "dataType",
+                            "unit",
+                            "address",
+                            "access",
+                            "updateRateMs",
+                            "enumValues",
+                            "notes",
+                            "publications"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "description",
+                      "dataPoints"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "fileSets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "format": {
+                        "type": "string"
+                      },
+                      "direction": {
+                        "type": "string",
+                        "enum": [
+                          "read",
+                          "write",
+                          "read_write"
+                        ]
+                      },
+                      "pathPattern": {
+                        "type": "string"
+                      },
+                      "producedPer": {
+                        "type": "string"
+                      },
+                      "retention": {
+                        "type": "string"
+                      },
+                      "encoding": {
+                        "type": "string"
+                      },
+                      "notes": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "description",
+                      "format",
+                      "direction",
+                      "pathPattern",
+                      "producedPer",
+                      "retention",
+                      "encoding",
+                      "notes"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "protocol",
+                "direction",
+                "description",
+                "version",
+                "defaultPort",
+                "authentication",
+                "client",
+                "notes",
+                "groups",
+                "fileSets"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "planned",
+                    "commissioning",
+                    "operational",
+                    "maintenance",
+                    "out_of_service",
+                    "decommissioned"
+                  ]
+                },
+                "siteId": {
+                  "type": "string"
+                },
+                "site": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "names": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "description": "Translations of the name, keyed by language code"
+                    },
+                    "code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "names",
+                    "code"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "status",
+                "siteId",
+                "site"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Assets with this profile (that the token owner may see)"
+          },
+          "kpis": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "names": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Translations of the name, keyed by language code"
+                },
+                "dataPoints": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "names",
+                "dataPoints"
+              ],
+              "additionalProperties": false
+            },
+            "description": "KPI definitions that read its data points"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "manufacturer",
+          "model",
+          "version",
+          "category",
+          "protocols",
+          "interfaceCount",
+          "dataPointCount",
+          "assetCount",
+          "importId",
+          "notInSource",
+          "updatedAt",
+          "description",
+          "notes",
+          "interfaces",
+          "assets",
+          "kpis",
+          "createdAt",
+          "createdBy",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "PlantKpiEntry": {
+        "title": "PlantKpiEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "names": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Translations of the name, keyed by language code"
+          },
+          "category": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "trend": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "higher_is_better",
+                  "lower_is_better",
+                  "none"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The device profiles its inputs read"
+          },
+          "parameterCount": {
+            "type": "integer"
+          },
+          "columnCount": {
+            "type": "integer"
+          },
+          "instanceCount": {
+            "type": "integer",
+            "description": "KPI instances on assets the token owner may see"
+          },
+          "problemCount": {
+            "type": "integer",
+            "description": "Problems of the definition (a ratio without its denominator …)"
+          },
+          "importId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The last import that wrote the record (null: entered in Steward)"
+          },
+          "notInSource": {
+            "type": "boolean",
+            "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "names",
+          "category",
+          "unit",
+          "trend",
+          "profiles",
+          "parameterCount",
+          "columnCount",
+          "instanceCount",
+          "problemCount",
+          "importId",
+          "notInSource",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "PlantKpiDetailEntry": {
+        "title": "PlantKpiDetailEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "names": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Translations of the name, keyed by language code"
+          },
+          "category": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "trend": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "higher_is_better",
+                  "lower_is_better",
+                  "none"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The device profiles its inputs read"
+          },
+          "parameterCount": {
+            "type": "integer"
+          },
+          "columnCount": {
+            "type": "integer"
+          },
+          "instanceCount": {
+            "type": "integer",
+            "description": "KPI instances on assets the token owner may see"
+          },
+          "problemCount": {
+            "type": "integer",
+            "description": "Problems of the definition (a ratio without its denominator …)"
+          },
+          "importId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The last import that wrote the record (null: entered in Steward)"
+          },
+          "notInSource": {
+            "type": "boolean",
+            "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "type": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "formula": {
+            "type": "string",
+            "description": "ISO 22400-2: formula"
+          },
+          "rangeMin": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "rangeMax": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "timing": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "real_time",
+                  "periodic",
+                  "on_demand"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "audience": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "operator",
+                "supervisor",
+                "management"
+              ]
+            }
+          },
+          "methodology": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "discrete",
+                  "batch",
+                  "continuous"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strategy": {
+            "type": "string"
+          },
+          "implementation": {
+            "type": "string"
+          },
+          "dynamicColumns": {
+            "type": "boolean"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "data_point",
+                    "other"
+                  ]
+                },
+                "profile": {
+                  "type": "string"
+                },
+                "dataPoints": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "profile",
+                "dataPoints",
+                "notes"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "aliases": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "number",
+                    "integer",
+                    "string",
+                    "boolean"
+                  ]
+                },
+                "default": {
+                  "type": [
+                    "null",
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "min": {
+                  "type": [
+                    "null",
+                    "number"
+                  ]
+                },
+                "max": {
+                  "type": [
+                    "null",
+                    "number"
+                  ]
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "aliases",
+                "type",
+                "default",
+                "required",
+                "min",
+                "max",
+                "unit",
+                "description"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "sum",
+                    "ratio",
+                    "ignore"
+                  ],
+                  "description": "sum: summed over a period; ratio: numerator / denominator × scale; ignore: not combined"
+                },
+                "scope": {
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "numerator": {
+                  "type": "string"
+                },
+                "denominator": {
+                  "type": "string"
+                },
+                "scale": {
+                  "type": [
+                    "null",
+                    "number"
+                  ]
+                },
+                "description": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "kind",
+                "scope",
+                "unit",
+                "numerator",
+                "denominator",
+                "scale",
+                "description"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "computation": {
+            "type": "object",
+            "properties": {
+              "summary": {
+                "type": "string"
+              },
+              "diagram": {
+                "type": "string"
+              },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "does": {
+                      "type": "string"
+                    },
+                    "why": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "does",
+                    "why"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "identities": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "relation": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "relation",
+                    "note"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "limits": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "summary",
+              "diagram",
+              "steps",
+              "identities",
+              "limits"
+            ],
+            "additionalProperties": false
+          },
+          "notes": {
+            "type": "string"
+          },
+          "profileNames": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "profile_unknown",
+                    "interface_unknown",
+                    "point_unknown",
+                    "kpi_unknown",
+                    "kpi_no_profile",
+                    "kpi_other_profile",
+                    "kpi_point_unknown",
+                    "kpi_point_unavailable",
+                    "kpi_interface_inactive",
+                    "param_unknown",
+                    "param_type",
+                    "param_range",
+                    "param_required",
+                    "param_twice",
+                    "ratio_no_denominator",
+                    "ratio_no_numerator",
+                    "ratio_column_unknown",
+                    "input_profile_unknown",
+                    "input_point_unknown"
+                  ]
+                },
+                "subject": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "asset",
+                        "kpi"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "siteId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                },
+                "job": {
+                  "type": "string",
+                  "description": "The KPI instance (job) the problem is on"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "params": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": [
+                      "string",
+                      "number"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "code",
+                "subject",
+                "message",
+                "params"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "instances": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "asset": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "planned",
+                        "commissioning",
+                        "operational",
+                        "maintenance",
+                        "out_of_service",
+                        "decommissioned"
+                      ]
+                    },
+                    "siteId": {
+                      "type": "string"
+                    },
+                    "site": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "names": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Translations of the name, keyed by language code"
+                        },
+                        "code": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "names",
+                        "code"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "status",
+                    "siteId",
+                    "site"
+                  ],
+                  "additionalProperties": false
+                },
+                "job": {
+                  "type": "string"
+                },
+                "active": {
+                  "type": "boolean"
+                },
+                "problems": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "asset",
+                "job",
+                "active",
+                "problems"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "planned",
+                    "commissioning",
+                    "operational",
+                    "maintenance",
+                    "out_of_service",
+                    "decommissioned"
+                  ]
+                },
+                "siteId": {
+                  "type": "string"
+                },
+                "site": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "names": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "description": "Translations of the name, keyed by language code"
+                    },
+                    "code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "names",
+                    "code"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "status",
+                "siteId",
+                "site"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Assets that deliver every input but have no instance"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "names",
+          "category",
+          "unit",
+          "trend",
+          "profiles",
+          "parameterCount",
+          "columnCount",
+          "instanceCount",
+          "problemCount",
+          "importId",
+          "notInSource",
+          "updatedAt",
+          "type",
+          "description",
+          "formula",
+          "rangeMin",
+          "rangeMax",
+          "timing",
+          "audience",
+          "methodology",
+          "strategy",
+          "implementation",
+          "dynamicColumns",
+          "inputs",
+          "parameters",
+          "columns",
+          "computation",
+          "notes",
+          "profileNames",
+          "checks",
+          "instances",
+          "candidates",
+          "createdAt",
+          "createdBy",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "PlantAssignmentEntry": {
+        "title": "PlantAssignmentEntry",
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "planned",
+                  "commissioning",
+                  "operational",
+                  "maintenance",
+                  "out_of_service",
+                  "decommissioned"
+                ]
+              },
+              "siteId": {
+                "type": "string"
+              },
+              "site": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "names": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Translations of the name, keyed by language code"
+                  },
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "names",
+                  "code"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "status",
+              "siteId",
+              "site"
+            ],
+            "additionalProperties": false
+          },
+          "assignment": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "profileId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "firmware": {
+                    "type": "string"
+                  },
+                  "interfaces": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "interface": {
+                          "type": "string"
+                        },
+                        "active": {
+                          "type": "boolean"
+                        },
+                        "endpoint": {
+                          "type": "string"
+                        },
+                        "notes": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "interface",
+                        "active",
+                        "endpoint",
+                        "notes"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "overrides": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "dataPoint": {
+                          "type": "string"
+                        },
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "address": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "unit": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "dataType": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "updateRateMs": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "notes": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "dataPoint",
+                        "available",
+                        "address",
+                        "unit",
+                        "dataType",
+                        "updateRateMs",
+                        "notes"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "publications": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "target": {
+                          "type": "string",
+                          "description": "The system it is published to"
+                        },
+                        "path": {
+                          "type": "string",
+                          "description": "Where there: a path, an aspect, a topic"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Its name there: a variable, a tag"
+                        },
+                        "dataPoint": {
+                          "type": "string"
+                        },
+                        "publishedBy": {
+                          "type": "string"
+                        },
+                        "notes": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target",
+                        "path",
+                        "name",
+                        "dataPoint",
+                        "publishedBy",
+                        "notes"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "kpis": {
+                    "type": "array",
+                    "items": {},
+                    "description": "See kpis on the top level"
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "profileId",
+                  "firmware",
+                  "interfaces",
+                  "overrides",
+                  "publications",
+                  "kpis",
+                  "notes"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null: the asset has no assignment"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "manufacturer": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "string"
+                  },
+                  "category": {
+                    "type": "string"
+                  },
+                  "interfaces": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "protocol": {
+                          "type": "string",
+                          "enum": [
+                            "opc_ua",
+                            "modbus_tcp",
+                            "mqtt",
+                            "http",
+                            "smb",
+                            "webdav",
+                            "sftp",
+                            "ftp",
+                            "other"
+                          ]
+                        },
+                        "direction": {
+                          "type": "string",
+                          "enum": [
+                            "read",
+                            "write",
+                            "read_write"
+                          ]
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "string"
+                        },
+                        "defaultPort": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "authentication": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "username_password",
+                            "certificate",
+                            "token",
+                            "other"
+                          ]
+                        },
+                        "client": {
+                          "type": "string",
+                          "description": "The client it needs"
+                        },
+                        "notes": {
+                          "type": "string"
+                        },
+                        "groups": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "description": "Empty: data points without a group"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "dataPoints": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "description": "Stable id, unique in the profile"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "description": {
+                                      "type": "string"
+                                    },
+                                    "dataType": {
+                                      "type": "string",
+                                      "description": "OPC UA built-in type (IEC 62541) or IEC 61131-3 type; [] for an array; or empty"
+                                    },
+                                    "unit": {
+                                      "type": "string",
+                                      "description": "UCUM code (kW.h, Cel, /min), or empty"
+                                    },
+                                    "address": {
+                                      "type": "string",
+                                      "description": "OPC UA NodeId, Modbus <table>:<address>[,<count>], a topic, a file path …"
+                                    },
+                                    "access": {
+                                      "type": "string",
+                                      "enum": [
+                                        "read",
+                                        "write",
+                                        "read_write"
+                                      ]
+                                    },
+                                    "updateRateMs": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ],
+                                      "description": "Typical update rate in milliseconds"
+                                    },
+                                    "enumValues": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "notes": {
+                                      "type": "string"
+                                    },
+                                    "publications": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "target": {
+                                            "type": "string",
+                                            "description": "The system it is published to"
+                                          },
+                                          "path": {
+                                            "type": "string",
+                                            "description": "Where there: a path, an aspect, a topic"
+                                          },
+                                          "name": {
+                                            "type": "string",
+                                            "description": "Its name there: a variable, a tag"
+                                          }
+                                        },
+                                        "required": [
+                                          "target",
+                                          "path",
+                                          "name"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "description": "Where it is usually published"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "description",
+                                    "dataType",
+                                    "unit",
+                                    "address",
+                                    "access",
+                                    "updateRateMs",
+                                    "enumValues",
+                                    "notes",
+                                    "publications"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "description",
+                              "dataPoints"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "fileSets": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "format": {
+                                "type": "string"
+                              },
+                              "direction": {
+                                "type": "string",
+                                "enum": [
+                                  "read",
+                                  "write",
+                                  "read_write"
+                                ]
+                              },
+                              "pathPattern": {
+                                "type": "string"
+                              },
+                              "producedPer": {
+                                "type": "string"
+                              },
+                              "retention": {
+                                "type": "string"
+                              },
+                              "encoding": {
+                                "type": "string"
+                              },
+                              "notes": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "description",
+                              "format",
+                              "direction",
+                              "pathPattern",
+                              "producedPer",
+                              "retention",
+                              "encoding",
+                              "notes"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "protocol",
+                        "direction",
+                        "description",
+                        "version",
+                        "defaultPort",
+                        "authentication",
+                        "client",
+                        "notes",
+                        "groups",
+                        "fileSets"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "manufacturer",
+                  "model",
+                  "version",
+                  "category",
+                  "interfaces"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kpis": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kpi": {
+                  "type": "string"
+                },
+                "job": {
+                  "type": "string"
+                },
+                "active": {
+                  "type": "boolean"
+                },
+                "params": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": [
+                      "null",
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  }
+                },
+                "dashboard": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "dataset": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "definition": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "names": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Translations of the name, keyed by language code"
+                        },
+                        "category": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "names",
+                        "category"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "kpi",
+                "job",
+                "active",
+                "params",
+                "dashboard",
+                "dataset",
+                "notes",
+                "definition"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "profile_unknown",
+                    "interface_unknown",
+                    "point_unknown",
+                    "kpi_unknown",
+                    "kpi_no_profile",
+                    "kpi_other_profile",
+                    "kpi_point_unknown",
+                    "kpi_point_unavailable",
+                    "kpi_interface_inactive",
+                    "param_unknown",
+                    "param_type",
+                    "param_range",
+                    "param_required",
+                    "param_twice",
+                    "ratio_no_denominator",
+                    "ratio_no_numerator",
+                    "ratio_column_unknown",
+                    "input_profile_unknown",
+                    "input_point_unknown"
+                  ]
+                },
+                "subject": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "asset",
+                        "kpi"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "siteId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                },
+                "job": {
+                  "type": "string",
+                  "description": "The KPI instance (job) the problem is on"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "params": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": [
+                      "string",
+                      "number"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "code",
+                "subject",
+                "message",
+                "params"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "possibleKpis": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "names": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Translations of the name, keyed by language code"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "instantiated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "names",
+                "category",
+                "instantiated"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "importId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The last import that wrote the record (null: entered in Steward)"
+          },
+          "notInSource": {
+            "type": "boolean",
+            "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "asset",
+          "assignment",
+          "profile",
+          "kpis",
+          "checks",
+          "possibleKpis",
+          "importId",
+          "notInSource",
+          "updatedAt",
           "updatedBy"
         ],
         "additionalProperties": false
@@ -26244,6 +28446,26 @@
             "name": "ref",
             "required": false,
             "description": "An external reference: system:id, or only the id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "description": "Only assets with this device profile (id)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "in": "query",
+            "name": "dataPoint",
+            "required": false,
+            "description": "With profile: only assets that deliver this data point of it"
           }
         ],
         "responses": {
@@ -26366,6 +28588,670 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/assets/{assetId}/assignment": {
+      "get": {
+        "operationId": "getPlantAssetAssignment",
+        "summary": "Get what an asset delivers: its device profile, interfaces, KPI instances and checks",
+        "tags": [
+          "Plant"
+        ],
+        "description": "The asset's device profile and controller firmware, per interface whether it is set up and where (endpoint), data points that differ on this asset, where its data points are published, its KPI instances (job, parameters, dashboard or dataset), what Steward checks and the KPI definitions it can have. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "description": "Asset id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantAssignmentEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/profiles": {
+      "get": {
+        "operationId": "listPlantProfiles",
+        "summary": "List device profiles",
+        "tags": [
+          "Plant"
+        ],
+        "description": "The device profiles of the installation (a catalogue: controllers and devices with their interfaces and data points), ordered by name. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of device profiles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of device profiles",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlantProfileEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/profiles/{profileId}": {
+      "get": {
+        "operationId": "getPlantProfile",
+        "summary": "Get a device profile with its interfaces and data points",
+        "tags": [
+          "Plant"
+        ],
+        "description": "Interfaces (protocol, direction, port, authentication, the client they need) with their data point groups and data points (data type, UCUM unit, address, access, update rate), file sets, the assets with this profile and the KPI definitions that read it. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "profileId",
+            "required": true,
+            "description": "Device profile id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantProfileDetailEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/kpis": {
+      "get": {
+        "operationId": "listPlantKpis",
+        "summary": "List KPI definitions",
+        "tags": [
+          "Plant"
+        ],
+        "description": "The KPI definitions of the installation (a catalogue), ordered by name, with their category, unit, ISO 22400-2 trend and counts. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of KPI definitions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of KPI definitions",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlantKpiEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/kpis/{kpiId}": {
+      "get": {
+        "operationId": "getPlantKpi",
+        "summary": "Get a KPI definition",
+        "tags": [
+          "Plant"
+        ],
+        "description": "Inputs, parameters (type, default, aliases, range), result columns (sum, ratio, ignore), the computation and its limits, the ISO 22400-2 attributes, its problems, the assets with an instance and those that could have one. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "kpiId",
+            "required": true,
+            "description": "KPI definition id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantKpiDetailEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/checks": {
+      "get": {
+        "operationId": "listPlantChecks",
+        "summary": "List the problems Steward finds in the plant data",
+        "tags": [
+          "Plant"
+        ],
+        "description": "What Plant → Checks shows: KPI instances whose inputs the asset does not deliver, parameters outside their definition, references to profiles, interfaces or data points that do not exist, ratios without their denominator … First the problems of the assets the token owner may see (by asset name), then those of the KPI definitions (by name). Filter by site, asset, KPI definition (its own problems and those of its instances) or kind. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "site",
+            "required": false,
+            "description": "Only problems of assets of this site (id)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "asset",
+            "required": false,
+            "description": "Only problems of this asset (id)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "kpi",
+            "required": false,
+            "description": "Only problems of this KPI definition and of its KPI instances (id)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "profile_unknown",
+                "interface_unknown",
+                "point_unknown",
+                "kpi_unknown",
+                "kpi_no_profile",
+                "kpi_other_profile",
+                "kpi_point_unknown",
+                "kpi_point_unavailable",
+                "kpi_interface_inactive",
+                "param_unknown",
+                "param_type",
+                "param_range",
+                "param_required",
+                "param_twice",
+                "ratio_no_denominator",
+                "ratio_no_numerator",
+                "ratio_column_unknown",
+                "input_profile_unknown",
+                "input_point_unknown"
+              ]
+            },
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "description": "Only problems of this kind"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of problems",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of problems",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlantCheckEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/export": {
+      "get": {
+        "operationId": "exportPlantRegistry",
+        "summary": "Export the plant registry in the import format",
+        "tags": [
+          "Plant"
+        ],
+        "description": "The registry as a document of format 1 (docs/PLANT.md, JSON Schema docs/plant/plant-registry-1.schema.json), the same as Plant → Import → Export: every site the token owner may see with the device profiles, KPI definitions and the assignments of their assets; one site (`site`, with the assignments of its assets); the catalogues only (`part=catalogue`); one device profile (`profile`) or one KPI definition (`kpi`). Sites the token owner may not see and their assets are never in it; the catalogues belong to the installation. YAML by default, JSON with `format=json`; both import back unchanged. Recorded in the audit log with the token. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "site",
+            "required": false,
+            "description": "One site (`site:`) with the assignments of its assets"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "catalogue"
+              ]
+            },
+            "in": "query",
+            "name": "part",
+            "required": false,
+            "description": "`catalogue`: the device profiles and KPI definitions only"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "description": "One device profile (`device_profile:`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "kpi",
+            "required": false,
+            "description": "One KPI definition (`kpi_definition:`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "yaml",
+                "json"
+              ],
+              "default": "yaml"
+            },
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "description": "yaml (default) or json: the same document"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/yaml": {
+                "schema": {
+                  "type": "string",
+                  "description": "The document as YAML (format 1)"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "description": "The same document as JSON"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

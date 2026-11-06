@@ -1,4 +1,4 @@
-import { LLM_GATEWAY_KIND, PVAULT_KIND, type Platform } from '@sm/shared';
+import { DATABASE_KIND, LLM_GATEWAY_KIND, PVAULT_KIND, type Platform } from '@sm/shared';
 import { audit } from '../audit.js';
 import { buildUrl, platformRequest, secretValues, tokenInfo } from './http.js';
 import { judgeHttpTest } from './connectionTest.js';
@@ -51,19 +51,23 @@ export async function runConnectionTest(p: Platform, secrets: Record<string, str
   };
   const testPath = p.config.testPath || '/';
   // Microsoft Graph (v0.5.0): the sign-in, the admin consent and every part Steward reads, with what is missing;
-  // LLM gateways (0.6.0): the model list and one minimal request per model that is set up
-  if (p.kind === 'microsoft-graph' || p.kind === LLM_GATEWAY_KIND) {
+  // LLM gateways (0.6.0): the model list and one minimal request per model that is set up;
+  // database platforms (0.7.0): sign-in, the read-only session, whether the account can write, the catalog queries
+  if (p.kind === 'microsoft-graph' || p.kind === LLM_GATEWAY_KIND || p.kind === DATABASE_KIND) {
     const t0 = Date.now();
     try {
       const r =
         p.kind === LLM_GATEWAY_KIND
           ? await (await import('../ai/gateway.js')).testGateway(p, secrets)
-          : await (await import('../entra/service.js')).testGraph(p, secrets);
+          : p.kind === DATABASE_KIND
+            ? await (await import('../dbms/service.js')).testDatabase(p, secrets)
+            : await (await import('../entra/service.js')).testGraph(p, secrets);
       const message = redactSecrets(r.message, secrets);
       return done(
         {
           ok: r.ok,
-          status: r.ok ? 200 : 0,
+          // a database answers no HTTP status: the UI shows none
+          status: r.ok && p.kind !== DATABASE_KIND ? 200 : 0,
           durationMs: Date.now() - t0,
           message,
           body: null,

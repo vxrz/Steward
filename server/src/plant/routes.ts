@@ -13,6 +13,8 @@ import * as svc from './service.js';
 import { applyImport, exportYaml, importInput, listImports, previewImport } from './import.js';
 import { plantJsonSchema } from './format.js';
 import { seedPlantDemo } from './demo.js';
+import * as cat from './catalogue.js';
+import { assignmentInput, deleteAssignment, getAssignment, putAssignment } from './assignments.js';
 import './links.js';
 
 /**
@@ -22,7 +24,9 @@ import './links.js';
  *   GET|PUT /api/settings/plant                          the switch and the settings (administrators)
  *   GET     /api/plant/config | /schema | /hierarchy     what the pages need; the JSON Schema of the import format
  *   …       /api/plant/sites[/:siteId[/nodes|/buildings|/links|/access]]
- *   …       /api/plant/assets[/:assetId[/image|/links]]
+ *   …       /api/plant/assets[/:assetId[/image|/links|/assignment]]
+ *   …       /api/plant/profiles[/:profileId[/points/:pointId]], /api/plant/kpis[/:kpiId]   the catalogues of part 2 (#219)
+ *   GET     /api/plant/explore/points, /api/plant/checks
  *   POST    /api/plant/import/preview | /api/plant/import, GET /api/plant/imports, GET /api/plant/export
  */
 
@@ -37,6 +41,8 @@ const assetQuery = z.object({
   tag: z.string().max(100).optional(),
   q: z.string().max(200).optional(),
   ref: z.string().max(300).optional(),
+  profile: z.string().max(100).optional(),
+  dataPoint: z.string().max(120).optional(),
 });
 
 export async function plantRoutes(app: FastifyInstance): Promise<void> {
@@ -136,15 +142,49 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     return reply.type(img.mime).send(img.data);
   });
 
+  // ---------- an asset's assignment: profile, interfaces, overrides, publications, KPI instances (#219) ----------
+  app.get('/plant/assets/:assetId/assignment', async (req) => getAssignment(p(req).assetId!));
+  app.put('/plant/assets/:assetId/assignment', async (req) => putAssignment(p(req).assetId!, assignmentInput.parse(req.body)));
+  app.delete('/plant/assets/:assetId/assignment', async (req) => deleteAssignment(p(req).assetId!));
+
+  // ---------- device profiles and KPI definitions: catalogues of the installation (#219) ----------
+  app.get('/plant/profiles', async () => cat.listProfiles());
+  app.post('/plant/profiles', async (req) => cat.createProfile(cat.profileInput.parse(req.body)));
+  app.get('/plant/profiles/:profileId', async (req) => cat.getProfile(p(req).profileId!));
+  app.put('/plant/profiles/:profileId', async (req) => cat.updateProfile(p(req).profileId!, cat.profileUpdate.parse(req.body)));
+  app.delete('/plant/profiles/:profileId', async (req) => {
+    cat.deleteProfile(p(req).profileId!);
+    return { ok: true };
+  });
+  app.get('/plant/profiles/:profileId/points/:pointId', async (req) => cat.getDataPoint(p(req).profileId!, p(req).pointId!));
+  app.get('/plant/kpis', async () => cat.listKpis());
+  app.post('/plant/kpis', async (req) => cat.createKpi(cat.kpiInput.parse(req.body)));
+  app.get('/plant/kpis/:kpiId', async (req) => cat.getKpi(p(req).kpiId!));
+  app.put('/plant/kpis/:kpiId', async (req) => cat.updateKpi(p(req).kpiId!, cat.kpiUpdate.parse(req.body)));
+  app.delete('/plant/kpis/:kpiId', async (req) => {
+    cat.deleteKpi(p(req).kpiId!);
+    return { ok: true };
+  });
+  // which assets deliver a data point (by text across the profiles); every check of what the caller may see
+  app.get('/plant/explore/points', async (req) => cat.explorePoints(z.object({ q: z.string().max(200).default('') }).parse(req.query).q));
+  app.get('/plant/checks', async () => cat.listChecks());
+
   // ---------- import and export ----------
   app.post('/plant/import/preview', imports, async (req) => previewImport(importInput.parse(req.body)));
   app.post('/plant/import', imports, async (req) => applyImport(importInput.parse(req.body)));
   app.get('/plant/imports', async () => listImports());
   app.get('/plant/export', async (req, reply) => {
-    const q = z.object({ site: z.string().max(100).optional() }).parse(req.query);
-    const x = exportYaml(q.site);
+    const q = z
+      .object({
+        site: z.string().max(100).optional(),
+        profile: z.string().max(100).optional(),
+        kpi: z.string().max(100).optional(),
+        part: z.enum(['all', 'catalogue']).optional(),
+      })
+      .parse(req.query);
+    const x = exportYaml(q);
     reply.header('content-disposition', `attachment; filename="${x.filename}"`);
     reply.header('cache-control', 'no-store');
-    return reply.type('application/yaml; charset=utf-8').send(x.content);
+    return reply.type(x.contentType).send(x.content);
   });
 }

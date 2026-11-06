@@ -58,7 +58,9 @@ describe('SQL translation', () => {
       p.includes(`${path.sep}database${path.sep}`) ||
       p.endsWith(`${path.sep}db.ts`) ||
       p.includes(`${path.sep}migrations${path.sep}`) ||
-      p.endsWith('db-copy.ts');
+      p.endsWith('db-copy.ts') ||
+      // database platforms (0.7.0): SQL for the managed databases' own dialects, never run on Steward's database
+      p.includes(`${path.sep}dbms${path.sep}`);
     const rules: [RegExp, string][] = [
       [/\bINSERT\s+OR\s+(IGNORE|REPLACE)\b/, 'use INSERT … ON CONFLICT … DO NOTHING / DO UPDATE'],
       [/\bPRAGMA\b/, 'PRAGMAs are SQLite-only (add a Db method)'],

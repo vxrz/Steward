@@ -1,0 +1,59 @@
+# steward-min-version: 0.7.0
+name: "PostgreSQL – Connections per database (own SQL)"
+description: |
+  An example of a query step with its own SQL: the client connections of a
+  PostgreSQL server per database and state, from pg_stat_activity, published
+  as a dataset with the total as a metric. The statement names PostgreSQL
+  (`dialect: postgresql`), so the step refuses a platform of another DBMS; the
+  backend type is a bound parameter ($1), never part of the text.
+
+  Recommended schedule: every 15 minutes (`*/15 * * * *`). Publishes
+  `database.connections` for the "Databases" dashboard. The account needs
+  pg_read_all_stats (or pg_monitor) to see other users' sessions
+  (docs/DATABASES.md).
+recommendedSchedule: "*/15 * * * *"
+tags: [database, postgresql, capacity]
+connections:
+  - slot: db
+    kind: database
+    description: PostgreSQL database platform (read-only)
+inputs:
+  - name: maxConnections
+    label: Warn above this many client connections (0 = no limit)
+    type: number
+    default: 0
+steps:
+  - id: connections
+    type: query
+    name: Connections (pg_stat_activity)
+    connection: db
+    dialect: postgresql
+    sql: >-
+      SELECT datname AS database, state, count(*) AS connections
+      FROM pg_stat_activity WHERE backend_type = $1 AND datname IS NOT NULL
+      GROUP BY datname, state ORDER BY datname, state
+    params: ["client backend"]
+    saveAs: connections
+  - id: limit
+    type: check
+    name: Connections below the limit
+    severity: warning
+    when: "inputs.maxConnections > 0"
+    condition: "$sum(vars.connections.rows.connections) <= inputs.maxConnections"
+    message: "{{ $sum(vars.connections.rows.connections) }} client connections (at most {{ inputs.maxConnections }})"
+    value: "$sum(vars.connections.rows.connections)"
+  - id: publish
+    type: publish
+    name: Publish the connections
+    dataset: database.connections
+    title: Database connections
+    rows: vars.connections.rows
+    key: "database & '|' & (state ? state : 'unknown')"
+    columns:
+      - { label: Database, value: database }
+      - { label: State, value: "state ? state : 'unknown'" }
+      - { label: Connections, value: connections }
+    metrics:
+      connections: "$sum(vars.connections.rows.connections)"
+      active: "$sum(vars.connections.rows[state = 'active'].connections)"
+      idleInTransaction: "$sum(vars.connections.rows[state = 'idle in transaction'].connections)"

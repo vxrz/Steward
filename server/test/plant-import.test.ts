@@ -21,6 +21,7 @@ const PW = 'Plant-password-1';
 
 type Doc = {
   version: number;
+  assignments?: { asset: string }[];
   sites: {
     id: string;
     name: string;
@@ -68,7 +69,13 @@ afterAll(async () => {
 describe('round trip', () => {
   it('the example enterprise is imported with its hierarchy, buildings and assets', async () => {
     const [imp] = await s.api('GET', '/plant/imports');
-    expect(imp).toMatchObject({ mode: 'add', counts: { add: 37, change: 0, remove: 0 }, files: [{ name: 'brightwater.plant.yaml' }], records: 37 });
+    // part 1's enterprise (37 records) and part 2's profiles, KPI definitions and assignments (9, #219)
+    expect(imp).toMatchObject({
+      mode: 'add',
+      counts: { add: 46, change: 0, remove: 0 },
+      files: [{ name: 'brightwater.plant.yaml' }, { name: 'brightwater-data-points.plant.yaml' }],
+      records: 46,
+    });
     const site = await s.api('GET', '/plant/sites/riverside');
     expect(site).toMatchObject({ code: 'RVS', names: { de: 'Werk Riverside' }, geo: { lat: 52.3512, lon: 9.0531, zoom: 16 }, importId: demoImport });
     expect(site.areas.map((a: { id: string }) => a.id)).toEqual(['rvs-machining', 'rvs-assembly', 'rvs-utilities']);
@@ -96,7 +103,7 @@ describe('round trip', () => {
       missing: 'remove',
     });
     expect(preview.problems).toEqual([]);
-    expect(preview.counts).toEqual({ add: 0, change: 0, remove: 0, mark: 0, unchanged: 37, skip: 0 });
+    expect(preview.counts).toEqual({ add: 0, change: 0, remove: 0, mark: 0, unchanged: 46, skip: 0 });
     await s.api('POST', '/plant/import', { files: [file('tree.yaml', first)], mode: 'replace', replaces: demoImport, missing: 'remove' });
     expect(body(await exportYaml())).toBe(body(first));
     // one site: its own file (site:)
@@ -104,7 +111,8 @@ describe('round trip', () => {
     expect(one.site.id).toBe('hillcrest');
     expect(one.sites).toBeUndefined();
     const again = await s.api('POST', '/plant/import/preview', { files: [file('hillcrest.yaml', one)], mode: 'update' });
-    expect(again.counts).toMatchObject({ add: 0, change: 0, unchanged: 1 + 2 + 2 + 2 + 3 + 4 });
+    // the site, its buildings, areas, work centers, work units, assets – and the assignment of one asset (#219)
+    expect(again.counts).toMatchObject({ add: 0, change: 0, unchanged: 1 + 2 + 2 + 2 + 3 + 4 + 1 });
   });
 
   it('the published JSON Schema is the one the import checks', async () => {
@@ -130,7 +138,7 @@ describe('modes', () => {
     riverside(d).assets![0]!.name = 'Renamed';
     riverside(d).assets!.push({ id: 'rvs-new-01', name: 'New machine', location: { area: 'rvs-utilities' } });
     const p = await s.api('POST', '/plant/import/preview', { files: [file('a.yaml', d)], mode: 'add' });
-    expect(p.counts).toMatchObject({ add: 1, change: 0, skip: 37 });
+    expect(p.counts).toMatchObject({ add: 1, change: 0, skip: 46 });
     expect(p.changes.find((c: { id: string }) => c.id === 'rvs-new-01')).toMatchObject({ kind: 'asset', action: 'add', siteId: 'riverside' });
     await s.api('POST', '/plant/import', { files: [file('a.yaml', d)], mode: 'add' });
     expect((await s.api('GET', `/plant/assets/${String(riverside(tree).assets![0]!.id)}`)).name).not.toBe('Renamed');
@@ -183,6 +191,8 @@ describe('modes', () => {
     machining.work_centers = machining.work_centers!.filter((w) => w.id !== 'rvs-mill-line-2');
     r.assets = r.assets!.filter((x) => x.id !== 'rvs-mill-03' && x.id !== 'rvs-mill-01');
     r.assets.find((x) => x.id === 'rvs-mill-01-meter')!.parent = null;
+    // its assignment goes with it (#219)
+    d.assignments = d.assignments!.filter((x) => x.asset !== 'rvs-mill-01');
     // a machine added by hand in the cell that goes
     await s.api('POST', '/plant/assets', { id: 'rvs-hand-01', siteId: 'riverside', name: 'Hand-made', workUnitId: 'rvs-mill-line-2-cell-1' });
     const req = { files: [file('tree.yaml', d)], mode: 'replace', replaces: current, missing: 'remove' };

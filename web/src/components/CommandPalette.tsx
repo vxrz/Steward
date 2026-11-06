@@ -39,6 +39,8 @@ import {
   type Icon,
   IconBuildingFactory2,
   IconEngine,
+  IconCpu,
+  IconGauge,
 } from '@tabler/icons-react';
 import type {
   ApplicationSummary,
@@ -81,6 +83,8 @@ const RECENT_ICONS: Record<RecentKind, Icon> = {
   credential: IconKey,
   site: IconBuildingFactory2,
   asset: IconEngine,
+  profile: IconCpu,
+  kpi: IconGauge,
 };
 
 interface TestResult {

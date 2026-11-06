@@ -34,6 +34,10 @@
     "systemStatus": "System status",
     "plantSites": "Sites",
     "plantAssets": "Assets",
+    "plantProfiles": "Device profiles",
+    "plantKpis": "KPI definitions",
+    "plantExplore": "Explore data",
+    "plantChecks": "Checks",
     "plantImport": "Import"
   },
   "serverUnreachable": "Cannot reach the {{brand}} server: {{error}}",
@@ -136,7 +140,9 @@
       "statusPage": "Status page",
       "credential": "Credential entry",
       "site": "Site",
-      "asset": "Asset"
+      "asset": "Asset",
+      "profile": "Device profile",
+      "kpi": "KPI definition"
     }
   },
   "groups": {

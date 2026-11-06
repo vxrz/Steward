@@ -1,0 +1,58 @@
+# steward-min-version: 0.7.0
+name: "Database – Table sizes (dataset)"
+description: |
+  Publishes the tables and views of a database with their estimated rows and
+  size on disk, read with Steward's catalog query "tables" – the same template
+  for PostgreSQL, MariaDB/MySQL and SQL Server. The dataset's history shows
+  how the database grows; a check warns when a table passes a size.
+
+  Recommended schedule: daily (`35 6 * * *`). Publishes `database.tables` (one
+  row per table) for the "Databases" dashboard. The row counts are the DBMS's
+  estimates (statistics), not counts. Needs a database platform
+  (docs/DATABASES.md, read-only role).
+recommendedSchedule: "35 6 * * *"
+tags: [database, capacity]
+connections:
+  - slot: db
+    kind: database
+    description: Database platform (PostgreSQL, MariaDB/MySQL or SQL Server; read-only)
+inputs:
+  - name: maxTableGb
+    label: Warn when a table is larger than (GB, 0 = no limit)
+    type: number
+    default: 0
+steps:
+  - id: tables
+    type: query
+    name: Tables (catalog query)
+    connection: db
+    catalog: tables
+    maxRows: 5000
+    saveAs: tables
+  - id: big
+    type: check
+    name: No table above the size limit
+    severity: warning
+    when: "inputs.maxTableGb > 0"
+    condition: "$count(vars.tables.rows[bytes > $inputs.maxTableGb * 1073741824]) = 0"
+    message: "{{ $count(vars.tables.rows[bytes > $inputs.maxTableGb * 1073741824]) }} table(s) larger than {{ inputs.maxTableGb }} GB"
+    items: "vars.tables.rows[bytes > $inputs.maxTableGb * 1073741824].(schema & '.' & name)"
+  - id: publish
+    type: publish
+    name: Publish the tables
+    dataset: database.tables
+    title: Database tables
+    rows: vars.tables.rows
+    key: "schema & '.' & name"
+    columns:
+      - { label: Schema, value: schema }
+      - { label: Name, value: name }
+      - { label: Type, value: type }
+      - { label: Rows (estimate), value: "rows != null ? rows : '–'" }
+      - { label: Size (MB), value: "bytes != null ? $round(bytes / 1048576, 1) : '–'" }
+    status: "$inputs.maxTableGb > 0 and bytes > $inputs.maxTableGb * 1073741824 ? 'warning' : 'good'"
+    metrics:
+      tables: "$count(vars.tables.rows[type = 'table'])"
+      views: "$count(vars.tables.rows[type != 'table'])"
+      sizeMb: "$round($sum(vars.tables.rows[bytes != null].bytes) / 1048576, 1)"
+      rows: "$sum(vars.tables.rows[rows != null].rows)"

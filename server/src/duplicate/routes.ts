@@ -28,6 +28,8 @@ const ROUTES: Record<DuplicateKind, { path: string; param: string }> = {
   'status-page': { path: '/status-pages/:pageId/duplicate', param: 'pageId' },
   system: { path: '/systems/:id/duplicate', param: 'id' },
   asset: { path: '/plant/assets/:assetId/duplicate', param: 'assetId' },
+  'device-profile': { path: '/plant/profiles/:profileId/duplicate', param: 'profileId' },
+  'kpi-definition': { path: '/plant/kpis/:kpiId/duplicate', param: 'kpiId' },
 };
 
 const param = (req: FastifyRequest, name: string) => String((req.params as Record<string, string>)[name] ?? '');

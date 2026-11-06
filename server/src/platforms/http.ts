@@ -108,7 +108,14 @@ export async function renewToken(p: Platform, secrets: Record<string, string>, s
   return info;
 }
 
+const invalidationListeners: ((platformId: string) => void)[] = [];
+/** Called whenever a platform's settings or credentials change or it is deleted (database connection pools, 0.7.0). */
+export function onPlatformInvalidated(fn: (platformId: string) => void): void {
+  invalidationListeners.push(fn);
+}
+
 export function invalidatePlatformCaches(platformId: string): void {
+  for (const fn of invalidationListeners) fn(platformId);
   tokenCache.delete(platformId);
   awsCache.delete(platformId);
   const d = dispatcherCache.get(platformId);

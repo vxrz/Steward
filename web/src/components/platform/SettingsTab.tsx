@@ -21,7 +21,7 @@ import {
 import { IconDeviceFloppy } from '@tabler/icons-react';
 import YAML from 'yaml';
 import { useTranslation } from 'react-i18next';
-import { unsentCredentials, type AuthConfig, type AuthType, type HttpOptions, type Platform, type PlatformConfig } from '@sm/shared';
+import { DATABASE_KIND, unsentCredentials, type AuthConfig, type AuthType, type HttpOptions, type Platform, type PlatformConfig } from '@sm/shared';
 import { notifyError, notifyOk, put } from '../../api';
 import { EnvironmentInput } from '../catalogue/environments';
 import { Hint, KeyValueEditor } from '../common';
@@ -127,6 +127,8 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
     }
   };
 
+  // a database platform (0.7.0) has no base URL, HTTP sign-in or HTTP settings: its connection is under Database
+  const httpKind = platform.kind !== DATABASE_KIND;
   return (
     <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <Stack>
@@ -144,27 +146,31 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
               onChange={setKind}
             />
             <EnvironmentInput label={t('settings.environment')} value={environment} onChange={setEnvironment} />
-            <TextInput
-              label={t('settings.baseUrl')}
-              classNames={{ input: 'mono' }}
-              description={t('settings.baseUrlHint', { example: '{{ vars.region }}' })}
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.currentTarget.value)}
-            />
-            <TextInput
-              label={t('settings.testPath')}
-              description={t('settings.testPathHint')}
-              classNames={{ input: 'mono' }}
-              value={cfg.testPath ?? ''}
-              onChange={(e) => setCfg({ ...cfg, testPath: e.currentTarget.value || undefined })}
-            />
-            <TextInput
-              label={t('settings.portalUrl')}
-              description={t('settings.portalUrlHint')}
-              classNames={{ input: 'mono' }}
-              value={cfg.portalUrl ?? ''}
-              onChange={(e) => setCfg({ ...cfg, portalUrl: e.currentTarget.value || undefined })}
-            />
+            {httpKind && (
+              <>
+                <TextInput
+                  label={t('settings.baseUrl')}
+                  classNames={{ input: 'mono' }}
+                  description={t('settings.baseUrlHint', { example: '{{ vars.region }}' })}
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.currentTarget.value)}
+                />
+                <TextInput
+                  label={t('settings.testPath')}
+                  description={t('settings.testPathHint')}
+                  classNames={{ input: 'mono' }}
+                  value={cfg.testPath ?? ''}
+                  onChange={(e) => setCfg({ ...cfg, testPath: e.currentTarget.value || undefined })}
+                />
+                <TextInput
+                  label={t('settings.portalUrl')}
+                  description={t('settings.portalUrlHint')}
+                  classNames={{ input: 'mono' }}
+                  value={cfg.portalUrl ?? ''}
+                  onChange={(e) => setCfg({ ...cfg, portalUrl: e.currentTarget.value || undefined })}
+                />
+              </>
+            )}
           </SimpleGrid>
           <Textarea
             label={t('settings.description')}
@@ -176,384 +182,394 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
           />
         </Paper>
 
-        <Paper withBorder p="md">
-          <Title order={5}>{t('settings.variables')}</Title>
-          <Hint>
-            {t('settings.variablesHint', { url: '{{ vars.tenant }}', conn: 'conn.<slot>.vars.tenant', pvar: "$pvar('<slot>', 'tenant', 'default')" })}
-          </Hint>
-          <Stack mt="sm">
-            <KeyValueEditor value={cfg.variables} onChange={(v) => setCfg({ ...cfg, variables: toStringMap(v) })} addLabel={t('settings.addVariable')} />
-          </Stack>
-        </Paper>
+        {httpKind && (
+          <>
+            <Paper withBorder p="md">
+              <Title order={5}>{t('settings.variables')}</Title>
+              <Hint>
+                {t('settings.variablesHint', { url: '{{ vars.tenant }}', conn: 'conn.<slot>.vars.tenant', pvar: "$pvar('<slot>', 'tenant', 'default')" })}
+              </Hint>
+              <Stack mt="sm">
+                <KeyValueEditor value={cfg.variables} onChange={(v) => setCfg({ ...cfg, variables: toStringMap(v) })} addLabel={t('settings.addVariable')} />
+              </Stack>
+            </Paper>
 
-        <Paper withBorder p="md">
-          <Title order={5} mb="sm">
-            {t('settings.authentication')}
-          </Title>
-          <Stack>
-            <Select
-              label={t('settings.type')}
-              data={AUTH_OPTIONS.map((a) => ({ value: a, label: t(`settings.authOptions.${a}`) }))}
-              value={auth.type}
-              allowDeselect={false}
-              onChange={(v) => setAuth({ type: (v as AuthType) ?? 'none' })}
-            />
-            {unsent && (
-              <Alert color="orange" variant="light" data-testid="platform-unsent-credentials">
-                <Text size="sm">{t('settings.unsentCredentials', { keys: unsent.keys.join(', '), type: t(`settings.authOptions.${unsent.suggest}`) })}</Text>
-                {!readOnly && (
-                  <Button size="xs" variant="light" color="orange" mt="xs" onClick={() => setAuth({ type: unsent.suggest })}>
-                    {t('settings.switchAuth', { type: t(`settings.authOptions.${unsent.suggest}`) })}
-                  </Button>
-                )}
-              </Alert>
-            )}
-            {auth.type === 'bearer' && (
-              <TextInput
-                label={t('settings.bearerHeader')}
-                description={t('settings.bearerHeaderHint')}
-                classNames={{ input: 'mono' }}
-                placeholder={kind === 'gitlab' ? 'PRIVATE-TOKEN' : 'Authorization'}
-                value={auth.headerName ?? ''}
-                onChange={(e) => setAuth({ headerName: e.currentTarget.value || undefined })}
-              />
-            )}
-            {needed.length > 0 && (
-              <Alert color={missing.length ? 'orange' : 'gray'} variant="light">
-                <Text size="sm">
-                  {t('settings.needsSecrets')}{' '}
-                  {needed.map((k) => (
-                    <code key={k}>{k} </code>
-                  ))}
-                  {missing.length > 0 ? ` – ${t('settings.missingSecrets', { keys: missing.join(', ') })}` : ` – ${t('settings.allStored')}`}
-                </Text>
-              </Alert>
-            )}
-            {auth.type === 'apiKey' && (
-              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+            <Paper withBorder p="md">
+              <Title order={5} mb="sm">
+                {t('settings.authentication')}
+              </Title>
+              <Stack>
                 <Select
-                  label={t('settings.apiKeyIn')}
-                  data={[
-                    { value: 'header', label: t('settings.inHeader') },
-                    { value: 'query', label: t('settings.inQuery') },
-                  ]}
-                  value={auth.apiKeyIn ?? 'header'}
+                  label={t('settings.type')}
+                  data={AUTH_OPTIONS.map((a) => ({ value: a, label: t(`settings.authOptions.${a}`) }))}
+                  value={auth.type}
                   allowDeselect={false}
-                  onChange={(v) => setAuth({ apiKeyIn: (v as 'header' | 'query') ?? 'header' })}
+                  onChange={(v) => setAuth({ type: (v as AuthType) ?? 'none' })}
                 />
-                <TextInput
-                  label={auth.apiKeyIn === 'query' ? t('settings.queryParam') : t('settings.headerName')}
-                  placeholder={auth.apiKeyIn === 'query' ? 'api_key' : 'x-api-key'}
-                  value={auth.apiKeyName ?? ''}
-                  onChange={(e) => setAuth({ apiKeyName: e.currentTarget.value })}
-                />
-              </SimpleGrid>
-            )}
-            {auth.type === 'oauth2_client_credentials' && (
-              <>
-                <TextInput
-                  label={t('settings.tokenUrl')}
-                  classNames={{ input: 'mono' }}
-                  description={t('settings.tokenUrlHint', { example: 'https://{{ vars.tenant }}.piam.{{ vars.region }}.mindsphere.io/oauth/token' })}
-                  value={auth.tokenUrl ?? ''}
-                  onChange={(e) => setAuth({ tokenUrl: e.currentTarget.value })}
-                />
-                <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                  <TextInput label={t('settings.scope')} value={auth.scope ?? ''} onChange={(e) => setAuth({ scope: e.currentTarget.value || undefined })} />
-                  <Select
-                    label={t('settings.clientAuth')}
-                    data={[
-                      { value: 'basic', label: t('settings.clientAuthBasic') },
-                      { value: 'body', label: t('settings.clientAuthBody') },
-                      { value: 'assertion', label: t('settings.clientAuthAssertion') },
-                    ]}
-                    value={auth.clientAuth ?? 'basic'}
-                    allowDeselect={false}
-                    onChange={(v) => setAuth({ clientAuth: (v as 'basic' | 'body' | 'assertion') ?? 'basic' })}
-                  />
-                </SimpleGrid>
-                <div>
-                  <Text size="sm" fw={500} mb={4}>
-                    {t('settings.extraParams')}
-                  </Text>
-                  <KeyValueEditor value={auth.extraParams} onChange={(v) => setAuth({ extraParams: v ? toStringMap(v) : undefined })} />
-                </div>
-              </>
-            )}
-            {auth.type === 'jwt' && (
-              <>
-                <Hint>{t('settings.jwtHint', { fingerprint: '{{ publicKeyFingerprint }}', vars: '{{ vars.x }}' })}</Hint>
-                <SimpleGrid cols={{ base: 1, sm: 3 }}>
-                  <Select
-                    label={t('settings.jwtAlg')}
-                    data={['RS256', 'RS384', 'RS512', 'PS256', 'ES256', 'ES384']}
-                    value={auth.jwt?.alg ?? 'RS256'}
-                    allowDeselect={false}
-                    onChange={(v) => setJwt({ alg: (v as NonNullable<AuthConfig['jwt']>['alg']) ?? 'RS256' })}
-                  />
-                  <NumberInput
-                    label={t('settings.jwtLifetime')}
-                    min={30}
-                    max={3600}
-                    value={auth.jwt?.lifetimeSeconds ?? 3600}
-                    onChange={(v) => setJwt({ lifetimeSeconds: num(v) })}
-                  />
-                  <Select
-                    label={t('settings.jwtMode')}
-                    data={[
-                      { value: 'token', label: t('settings.jwtModeToken') },
-                      { value: 'exchange', label: t('settings.jwtModeExchange') },
-                    ]}
-                    value={auth.jwt?.mode ?? 'token'}
-                    allowDeselect={false}
-                    onChange={(v) => setJwt({ mode: (v as 'token' | 'exchange') ?? 'token' })}
-                  />
-                </SimpleGrid>
-                <div>
-                  <Text size="sm" fw={500} mb={4}>
-                    {t('settings.jwtClaims')}
-                  </Text>
-                  <KeyValueEditor value={auth.jwt?.claims} onChange={(v) => setJwt({ claims: v ? toStringMap(v) : undefined })} />
-                </div>
-                {auth.jwt?.mode === 'exchange' ? (
-                  <TextInput
-                    label={t('settings.tokenUrl')}
-                    classNames={{ input: 'mono' }}
-                    value={auth.tokenUrl ?? ''}
-                    onChange={(e) => setAuth({ tokenUrl: e.currentTarget.value })}
-                  />
-                ) : (
-                  <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                    <TextInput
-                      label={t('settings.headerName')}
-                      placeholder="Authorization"
-                      value={auth.headerName ?? ''}
-                      onChange={(e) => setAuth({ headerName: e.currentTarget.value || undefined })}
-                    />
-                    <TextInput
-                      label={t('settings.headerValue')}
-                      classNames={{ input: 'mono' }}
-                      placeholder="Bearer {{ token }}"
-                      value={auth.headerValue ?? ''}
-                      onChange={(e) => setAuth({ headerValue: e.currentTarget.value || undefined })}
-                    />
-                  </SimpleGrid>
+                {unsent && (
+                  <Alert color="orange" variant="light" data-testid="platform-unsent-credentials">
+                    <Text size="sm">
+                      {t('settings.unsentCredentials', { keys: unsent.keys.join(', '), type: t(`settings.authOptions.${unsent.suggest}`) })}
+                    </Text>
+                    {!readOnly && (
+                      <Button size="xs" variant="light" color="orange" mt="xs" onClick={() => setAuth({ type: unsent.suggest })}>
+                        {t('settings.switchAuth', { type: t(`settings.authOptions.${unsent.suggest}`) })}
+                      </Button>
+                    )}
+                  </Alert>
                 )}
-              </>
-            )}
-            {auth.type === 'aws_sigv4' && (
-              <>
-                <Hint>{t('settings.awsHint')}</Hint>
-                <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                {auth.type === 'bearer' && (
                   <TextInput
-                    label={t('settings.awsRegion')}
+                    label={t('settings.bearerHeader')}
+                    description={t('settings.bearerHeaderHint')}
                     classNames={{ input: 'mono' }}
-                    placeholder="eu-central-1"
-                    required
-                    value={auth.aws?.region ?? ''}
-                    onChange={(e) => setAws({ region: e.currentTarget.value.trim() })}
-                  />
-                  <TextInput
-                    label={t('settings.awsService')}
-                    classNames={{ input: 'mono' }}
-                    placeholder="s3"
-                    required
-                    value={auth.aws?.service ?? ''}
-                    onChange={(e) => setAws({ service: e.currentTarget.value.trim() })}
-                  />
-                  <TextInput
-                    label={t('settings.awsRoleArn')}
-                    description={t('settings.awsRoleArnHint')}
-                    classNames={{ input: 'mono' }}
-                    placeholder="arn:aws:iam::123456789012:role/steward-read"
-                    value={auth.aws?.roleArn ?? ''}
-                    onChange={(e) => setAws({ roleArn: e.currentTarget.value.trim() || undefined })}
-                  />
-                  <TextInput
-                    label={t('settings.awsExternalId')}
-                    classNames={{ input: 'mono' }}
-                    value={auth.aws?.externalId ?? ''}
-                    onChange={(e) => setAws({ externalId: e.currentTarget.value.trim() || undefined })}
-                  />
-                </SimpleGrid>
-              </>
-            )}
-            {auth.type === 'token_request' && (
-              <>
-                <Hint>{t('settings.tokenRequestHint', { secrets: '{{ secrets.x }}', vars: '{{ vars.x }}' })}</Hint>
-                <SimpleGrid cols={{ base: 1, sm: 3 }}>
-                  <Select
-                    label={t('settings.method')}
-                    data={['POST', 'GET', 'PUT']}
-                    value={auth.request?.method ?? 'POST'}
-                    allowDeselect={false}
-                    onChange={(v) => setReq({ method: (v as 'POST' | 'GET' | 'PUT') ?? 'POST' })}
-                  />
-                  <TextInput
-                    label={t('settings.loginUrl')}
-                    classNames={{ input: 'mono' }}
-                    description={t('settings.loginUrlHint')}
-                    value={auth.request?.url ?? ''}
-                    onChange={(e) => setReq({ url: e.currentTarget.value })}
-                    style={{ gridColumn: 'span 2' }}
-                  />
-                </SimpleGrid>
-                <div>
-                  <Text size="sm" fw={500} mb={4}>
-                    {t('settings.loginHeaders')}
-                  </Text>
-                  <KeyValueEditor value={auth.request?.headers} onChange={(v) => setReq({ headers: v ? toStringMap(v) : undefined })} />
-                </div>
-                <Textarea
-                  label={t('settings.loginBody')}
-                  classNames={{ input: 'mono' }}
-                  autosize
-                  minRows={3}
-                  value={bodyText}
-                  error={bodyError}
-                  onChange={(e) => {
-                    setBodyText(e.currentTarget.value);
-                    setBodyError(null);
-                  }}
-                />
-                <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                  <Select
-                    label={t('settings.bodyEncoding')}
-                    data={['json', 'form']}
-                    value={auth.request?.bodyType ?? 'json'}
-                    allowDeselect={false}
-                    onChange={(v) => setReq({ bodyType: (v as 'json' | 'form') ?? 'json' })}
-                  />
-                  <TextInput
-                    label={t('settings.tokenPath')}
-                    classNames={{ input: 'mono' }}
-                    placeholder="access_token"
-                    value={auth.tokenPath ?? ''}
-                    onChange={(e) => setAuth({ tokenPath: e.currentTarget.value })}
-                  />
-                  <TextInput
-                    label={t('settings.expiresInPath')}
-                    classNames={{ input: 'mono' }}
-                    placeholder="expires_in"
-                    value={auth.expiresInPath ?? ''}
-                    onChange={(e) => setAuth({ expiresInPath: e.currentTarget.value || undefined })}
-                  />
-                  <TextInput
-                    label={t('settings.headerName')}
-                    placeholder="Authorization"
+                    placeholder={kind === 'gitlab' ? 'PRIVATE-TOKEN' : 'Authorization'}
                     value={auth.headerName ?? ''}
                     onChange={(e) => setAuth({ headerName: e.currentTarget.value || undefined })}
                   />
+                )}
+                {needed.length > 0 && (
+                  <Alert color={missing.length ? 'orange' : 'gray'} variant="light">
+                    <Text size="sm">
+                      {t('settings.needsSecrets')}{' '}
+                      {needed.map((k) => (
+                        <code key={k}>{k} </code>
+                      ))}
+                      {missing.length > 0 ? ` – ${t('settings.missingSecrets', { keys: missing.join(', ') })}` : ` – ${t('settings.allStored')}`}
+                    </Text>
+                  </Alert>
+                )}
+                {auth.type === 'apiKey' && (
+                  <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                    <Select
+                      label={t('settings.apiKeyIn')}
+                      data={[
+                        { value: 'header', label: t('settings.inHeader') },
+                        { value: 'query', label: t('settings.inQuery') },
+                      ]}
+                      value={auth.apiKeyIn ?? 'header'}
+                      allowDeselect={false}
+                      onChange={(v) => setAuth({ apiKeyIn: (v as 'header' | 'query') ?? 'header' })}
+                    />
+                    <TextInput
+                      label={auth.apiKeyIn === 'query' ? t('settings.queryParam') : t('settings.headerName')}
+                      placeholder={auth.apiKeyIn === 'query' ? 'api_key' : 'x-api-key'}
+                      value={auth.apiKeyName ?? ''}
+                      onChange={(e) => setAuth({ apiKeyName: e.currentTarget.value })}
+                    />
+                  </SimpleGrid>
+                )}
+                {auth.type === 'oauth2_client_credentials' && (
+                  <>
+                    <TextInput
+                      label={t('settings.tokenUrl')}
+                      classNames={{ input: 'mono' }}
+                      description={t('settings.tokenUrlHint', { example: 'https://{{ vars.tenant }}.piam.{{ vars.region }}.mindsphere.io/oauth/token' })}
+                      value={auth.tokenUrl ?? ''}
+                      onChange={(e) => setAuth({ tokenUrl: e.currentTarget.value })}
+                    />
+                    <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                      <TextInput
+                        label={t('settings.scope')}
+                        value={auth.scope ?? ''}
+                        onChange={(e) => setAuth({ scope: e.currentTarget.value || undefined })}
+                      />
+                      <Select
+                        label={t('settings.clientAuth')}
+                        data={[
+                          { value: 'basic', label: t('settings.clientAuthBasic') },
+                          { value: 'body', label: t('settings.clientAuthBody') },
+                          { value: 'assertion', label: t('settings.clientAuthAssertion') },
+                        ]}
+                        value={auth.clientAuth ?? 'basic'}
+                        allowDeselect={false}
+                        onChange={(v) => setAuth({ clientAuth: (v as 'basic' | 'body' | 'assertion') ?? 'basic' })}
+                      />
+                    </SimpleGrid>
+                    <div>
+                      <Text size="sm" fw={500} mb={4}>
+                        {t('settings.extraParams')}
+                      </Text>
+                      <KeyValueEditor value={auth.extraParams} onChange={(v) => setAuth({ extraParams: v ? toStringMap(v) : undefined })} />
+                    </div>
+                  </>
+                )}
+                {auth.type === 'jwt' && (
+                  <>
+                    <Hint>{t('settings.jwtHint', { fingerprint: '{{ publicKeyFingerprint }}', vars: '{{ vars.x }}' })}</Hint>
+                    <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                      <Select
+                        label={t('settings.jwtAlg')}
+                        data={['RS256', 'RS384', 'RS512', 'PS256', 'ES256', 'ES384']}
+                        value={auth.jwt?.alg ?? 'RS256'}
+                        allowDeselect={false}
+                        onChange={(v) => setJwt({ alg: (v as NonNullable<AuthConfig['jwt']>['alg']) ?? 'RS256' })}
+                      />
+                      <NumberInput
+                        label={t('settings.jwtLifetime')}
+                        min={30}
+                        max={3600}
+                        value={auth.jwt?.lifetimeSeconds ?? 3600}
+                        onChange={(v) => setJwt({ lifetimeSeconds: num(v) })}
+                      />
+                      <Select
+                        label={t('settings.jwtMode')}
+                        data={[
+                          { value: 'token', label: t('settings.jwtModeToken') },
+                          { value: 'exchange', label: t('settings.jwtModeExchange') },
+                        ]}
+                        value={auth.jwt?.mode ?? 'token'}
+                        allowDeselect={false}
+                        onChange={(v) => setJwt({ mode: (v as 'token' | 'exchange') ?? 'token' })}
+                      />
+                    </SimpleGrid>
+                    <div>
+                      <Text size="sm" fw={500} mb={4}>
+                        {t('settings.jwtClaims')}
+                      </Text>
+                      <KeyValueEditor value={auth.jwt?.claims} onChange={(v) => setJwt({ claims: v ? toStringMap(v) : undefined })} />
+                    </div>
+                    {auth.jwt?.mode === 'exchange' ? (
+                      <TextInput
+                        label={t('settings.tokenUrl')}
+                        classNames={{ input: 'mono' }}
+                        value={auth.tokenUrl ?? ''}
+                        onChange={(e) => setAuth({ tokenUrl: e.currentTarget.value })}
+                      />
+                    ) : (
+                      <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                        <TextInput
+                          label={t('settings.headerName')}
+                          placeholder="Authorization"
+                          value={auth.headerName ?? ''}
+                          onChange={(e) => setAuth({ headerName: e.currentTarget.value || undefined })}
+                        />
+                        <TextInput
+                          label={t('settings.headerValue')}
+                          classNames={{ input: 'mono' }}
+                          placeholder="Bearer {{ token }}"
+                          value={auth.headerValue ?? ''}
+                          onChange={(e) => setAuth({ headerValue: e.currentTarget.value || undefined })}
+                        />
+                      </SimpleGrid>
+                    )}
+                  </>
+                )}
+                {auth.type === 'aws_sigv4' && (
+                  <>
+                    <Hint>{t('settings.awsHint')}</Hint>
+                    <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                      <TextInput
+                        label={t('settings.awsRegion')}
+                        classNames={{ input: 'mono' }}
+                        placeholder="eu-central-1"
+                        required
+                        value={auth.aws?.region ?? ''}
+                        onChange={(e) => setAws({ region: e.currentTarget.value.trim() })}
+                      />
+                      <TextInput
+                        label={t('settings.awsService')}
+                        classNames={{ input: 'mono' }}
+                        placeholder="s3"
+                        required
+                        value={auth.aws?.service ?? ''}
+                        onChange={(e) => setAws({ service: e.currentTarget.value.trim() })}
+                      />
+                      <TextInput
+                        label={t('settings.awsRoleArn')}
+                        description={t('settings.awsRoleArnHint')}
+                        classNames={{ input: 'mono' }}
+                        placeholder="arn:aws:iam::123456789012:role/steward-read"
+                        value={auth.aws?.roleArn ?? ''}
+                        onChange={(e) => setAws({ roleArn: e.currentTarget.value.trim() || undefined })}
+                      />
+                      <TextInput
+                        label={t('settings.awsExternalId')}
+                        classNames={{ input: 'mono' }}
+                        value={auth.aws?.externalId ?? ''}
+                        onChange={(e) => setAws({ externalId: e.currentTarget.value.trim() || undefined })}
+                      />
+                    </SimpleGrid>
+                  </>
+                )}
+                {auth.type === 'token_request' && (
+                  <>
+                    <Hint>{t('settings.tokenRequestHint', { secrets: '{{ secrets.x }}', vars: '{{ vars.x }}' })}</Hint>
+                    <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                      <Select
+                        label={t('settings.method')}
+                        data={['POST', 'GET', 'PUT']}
+                        value={auth.request?.method ?? 'POST'}
+                        allowDeselect={false}
+                        onChange={(v) => setReq({ method: (v as 'POST' | 'GET' | 'PUT') ?? 'POST' })}
+                      />
+                      <TextInput
+                        label={t('settings.loginUrl')}
+                        classNames={{ input: 'mono' }}
+                        description={t('settings.loginUrlHint')}
+                        value={auth.request?.url ?? ''}
+                        onChange={(e) => setReq({ url: e.currentTarget.value })}
+                        style={{ gridColumn: 'span 2' }}
+                      />
+                    </SimpleGrid>
+                    <div>
+                      <Text size="sm" fw={500} mb={4}>
+                        {t('settings.loginHeaders')}
+                      </Text>
+                      <KeyValueEditor value={auth.request?.headers} onChange={(v) => setReq({ headers: v ? toStringMap(v) : undefined })} />
+                    </div>
+                    <Textarea
+                      label={t('settings.loginBody')}
+                      classNames={{ input: 'mono' }}
+                      autosize
+                      minRows={3}
+                      value={bodyText}
+                      error={bodyError}
+                      onChange={(e) => {
+                        setBodyText(e.currentTarget.value);
+                        setBodyError(null);
+                      }}
+                    />
+                    <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                      <Select
+                        label={t('settings.bodyEncoding')}
+                        data={['json', 'form']}
+                        value={auth.request?.bodyType ?? 'json'}
+                        allowDeselect={false}
+                        onChange={(v) => setReq({ bodyType: (v as 'json' | 'form') ?? 'json' })}
+                      />
+                      <TextInput
+                        label={t('settings.tokenPath')}
+                        classNames={{ input: 'mono' }}
+                        placeholder="access_token"
+                        value={auth.tokenPath ?? ''}
+                        onChange={(e) => setAuth({ tokenPath: e.currentTarget.value })}
+                      />
+                      <TextInput
+                        label={t('settings.expiresInPath')}
+                        classNames={{ input: 'mono' }}
+                        placeholder="expires_in"
+                        value={auth.expiresInPath ?? ''}
+                        onChange={(e) => setAuth({ expiresInPath: e.currentTarget.value || undefined })}
+                      />
+                      <TextInput
+                        label={t('settings.headerName')}
+                        placeholder="Authorization"
+                        value={auth.headerName ?? ''}
+                        onChange={(e) => setAuth({ headerName: e.currentTarget.value || undefined })}
+                      />
+                      <TextInput
+                        label={t('settings.headerValue')}
+                        classNames={{ input: 'mono' }}
+                        placeholder="Bearer {{ token }}"
+                        value={auth.headerValue ?? ''}
+                        onChange={(e) => setAuth({ headerValue: e.currentTarget.value || undefined })}
+                      />
+                    </SimpleGrid>
+                  </>
+                )}
+              </Stack>
+            </Paper>
+
+            <Paper withBorder p="md">
+              <Title order={5} mb="sm">
+                {t('settings.http')}
+              </Title>
+              <Stack>
+                <Switch
+                  label={t('settings.insecureTls')}
+                  description={t('settings.insecureTlsHint')}
+                  checked={!!http.insecureTls}
+                  onChange={(e) => setHttp({ insecureTls: e.currentTarget.checked })}
+                />
+                <Textarea
+                  label={t('settings.caPem')}
+                  classNames={{ input: 'mono' }}
+                  autosize
+                  minRows={2}
+                  maxRows={8}
+                  placeholder="-----BEGIN CERTIFICATE-----"
+                  value={http.caPem ?? ''}
+                  onChange={(e) => setHttp({ caPem: e.currentTarget.value || undefined })}
+                />
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <TextInput
-                    label={t('settings.headerValue')}
+                    label={t('settings.proxy')}
+                    description={t('settings.proxyHint')}
                     classNames={{ input: 'mono' }}
-                    placeholder="Bearer {{ token }}"
-                    value={auth.headerValue ?? ''}
-                    onChange={(e) => setAuth({ headerValue: e.currentTarget.value || undefined })}
+                    value={http.proxy ?? ''}
+                    onChange={(e) => setHttp({ proxy: e.currentTarget.value || undefined })}
+                  />
+                  <NumberInput
+                    label={t('settings.timeout')}
+                    placeholder="60000"
+                    min={1000}
+                    value={http.timeoutMs ?? ''}
+                    onChange={(v) => setHttp({ timeoutMs: typeof v === 'number' ? v : undefined })}
                   />
                 </SimpleGrid>
-              </>
-            )}
-          </Stack>
-        </Paper>
-
-        <Paper withBorder p="md">
-          <Title order={5} mb="sm">
-            {t('settings.http')}
-          </Title>
-          <Stack>
-            <Switch
-              label={t('settings.insecureTls')}
-              description={t('settings.insecureTlsHint')}
-              checked={!!http.insecureTls}
-              onChange={(e) => setHttp({ insecureTls: e.currentTarget.checked })}
-            />
-            <Textarea
-              label={t('settings.caPem')}
-              classNames={{ input: 'mono' }}
-              autosize
-              minRows={2}
-              maxRows={8}
-              placeholder="-----BEGIN CERTIFICATE-----"
-              value={http.caPem ?? ''}
-              onChange={(e) => setHttp({ caPem: e.currentTarget.value || undefined })}
-            />
-            <SimpleGrid cols={{ base: 1, sm: 2 }}>
-              <TextInput
-                label={t('settings.proxy')}
-                description={t('settings.proxyHint')}
-                classNames={{ input: 'mono' }}
-                value={http.proxy ?? ''}
-                onChange={(e) => setHttp({ proxy: e.currentTarget.value || undefined })}
-              />
-              <NumberInput
-                label={t('settings.timeout')}
-                placeholder="60000"
-                min={1000}
-                value={http.timeoutMs ?? ''}
-                onChange={(v) => setHttp({ timeoutMs: typeof v === 'number' ? v : undefined })}
-              />
-            </SimpleGrid>
-            <div>
-              <Text size="sm" fw={500} mb={4}>
-                {t('settings.defaultHeaders')}
-              </Text>
-              <KeyValueEditor value={http.defaultHeaders} onChange={(v) => setHttp({ defaultHeaders: v ? toStringMap(v) : undefined })} />
-            </div>
-            <Divider label={t('settings.retries')} labelPosition="left" />
-            <Hint>{t('settings.retriesHint')}</Hint>
-            <SimpleGrid cols={{ base: 1, sm: 2 }}>
-              <NumberInput
-                label={t('settings.maxRetries')}
-                description={t('settings.maxRetriesHint')}
-                placeholder="3"
-                min={0}
-                max={10}
-                value={retry.maxRetries ?? ''}
-                onChange={(v) => setRetry({ maxRetries: num(v) })}
-              />
-              <NumberInput
-                label={t('settings.maxConcurrency')}
-                description={t('settings.maxConcurrencyHint')}
-                placeholder="4"
-                min={1}
-                max={64}
-                value={http.maxConcurrency ?? ''}
-                onChange={(v) => setHttp({ maxConcurrency: num(v) })}
-              />
-              <NumberInput
-                label={t('settings.baseDelay')}
-                placeholder="500"
-                min={0}
-                step={100}
-                value={retry.baseDelayMs ?? ''}
-                onChange={(v) => setRetry({ baseDelayMs: num(v) })}
-              />
-              <NumberInput
-                label={t('settings.maxDelay')}
-                placeholder="30000"
-                min={0}
-                step={1000}
-                value={retry.maxDelayMs ?? ''}
-                onChange={(v) => setRetry({ maxDelayMs: num(v) })}
-              />
-            </SimpleGrid>
-            <Switch
-              label={t('settings.retryNonIdempotent')}
-              description={t('settings.retryNonIdempotentHint')}
-              checked={!!retry.retryNonIdempotent}
-              onChange={(e) => setRetry({ retryNonIdempotent: e.currentTarget.checked })}
-            />
-            <TagsInput
-              label={t('settings.trustedOrigins')}
-              description={t('settings.trustedOriginsHint')}
-              placeholder="https://gateway.example.com"
-              value={http.trustedOrigins ?? []}
-              onChange={(v) => setHttp({ trustedOrigins: v.length ? v : undefined })}
-              disabled={readOnly}
-            />
-          </Stack>
-        </Paper>
+                <div>
+                  <Text size="sm" fw={500} mb={4}>
+                    {t('settings.defaultHeaders')}
+                  </Text>
+                  <KeyValueEditor value={http.defaultHeaders} onChange={(v) => setHttp({ defaultHeaders: v ? toStringMap(v) : undefined })} />
+                </div>
+                <Divider label={t('settings.retries')} labelPosition="left" />
+                <Hint>{t('settings.retriesHint')}</Hint>
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                  <NumberInput
+                    label={t('settings.maxRetries')}
+                    description={t('settings.maxRetriesHint')}
+                    placeholder="3"
+                    min={0}
+                    max={10}
+                    value={retry.maxRetries ?? ''}
+                    onChange={(v) => setRetry({ maxRetries: num(v) })}
+                  />
+                  <NumberInput
+                    label={t('settings.maxConcurrency')}
+                    description={t('settings.maxConcurrencyHint')}
+                    placeholder="4"
+                    min={1}
+                    max={64}
+                    value={http.maxConcurrency ?? ''}
+                    onChange={(v) => setHttp({ maxConcurrency: num(v) })}
+                  />
+                  <NumberInput
+                    label={t('settings.baseDelay')}
+                    placeholder="500"
+                    min={0}
+                    step={100}
+                    value={retry.baseDelayMs ?? ''}
+                    onChange={(v) => setRetry({ baseDelayMs: num(v) })}
+                  />
+                  <NumberInput
+                    label={t('settings.maxDelay')}
+                    placeholder="30000"
+                    min={0}
+                    step={1000}
+                    value={retry.maxDelayMs ?? ''}
+                    onChange={(v) => setRetry({ maxDelayMs: num(v) })}
+                  />
+                </SimpleGrid>
+                <Switch
+                  label={t('settings.retryNonIdempotent')}
+                  description={t('settings.retryNonIdempotentHint')}
+                  checked={!!retry.retryNonIdempotent}
+                  onChange={(e) => setRetry({ retryNonIdempotent: e.currentTarget.checked })}
+                />
+                <TagsInput
+                  label={t('settings.trustedOrigins')}
+                  description={t('settings.trustedOriginsHint')}
+                  placeholder="https://gateway.example.com"
+                  value={http.trustedOrigins ?? []}
+                  onChange={(v) => setHttp({ trustedOrigins: v.length ? v : undefined })}
+                  disabled={readOnly}
+                />
+              </Stack>
+            </Paper>
+          </>
+        )}
 
         {!readOnly && (
           <>

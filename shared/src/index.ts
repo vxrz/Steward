@@ -54,3 +54,6 @@ export * from './assurance.js';
 export * from './pvault.js';
 export * from './ai.js';
 export * from './plant.js';
+export * from './plantData.js';
+export * from './database.js';
+export * from './sqlcheck.js';

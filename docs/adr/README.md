@@ -11,5 +11,6 @@ Short records of decisions that shape Steward's design: the context, what was de
 | [0005](0005-route-access-declared-on-routes.md)        | Route access declared on the route                      | Accepted |
 | [0006](0006-owning-teams-policy-module.md)             | Owning teams decided in one policy module               | Accepted |
 | [0007](0007-plant-registry.md)                         | The plant registry as an opt-in module                  | Accepted |
+| [0008](0008-database-platforms.md)                     | Database platforms: direct SQL, read-only               | Accepted |
 
 New record: copy [template.md](template.md) to `NNNN-short-title.md`, fill it in, add it to the table, and link it from [ARCHITECTURE.md](../ARCHITECTURE.md) where it applies.

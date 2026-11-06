@@ -1,4 +1,5 @@
 import type { AiGatewaySettings } from './ai.js';
+import type { DatabaseSettings } from './database.js';
 import type { ErrorParams } from './errors.js';
 import type { ControlTagKind } from './compliance.js';
 import type { ScheduleNotify } from './notifyPolicy.js';
@@ -582,6 +583,8 @@ export interface PlatformConfig {
   mcpGateway?: McpGatewayConfig;
   /** LLM gateways (0.6.0, docs/AI.md): models and allowed data – changed with PUT /api/platforms/:id/ai only */
   ai?: AiGatewaySettings;
+  /** Database platforms (0.7.0, docs/DATABASES.md): the connection – changed with PUT /api/platforms/:id/database only */
+  database?: DatabaseSettings;
 }
 
 /**

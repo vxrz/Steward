@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+import { SQL_PROBLEM_CODES, sqlProblemTextCode } from '@sm/shared';
 
 // Server errors reach the web UI as { error, code, params }. The UI shows errors:codes.<code>
 // (translated, with the params filled in) and the English message only for unknown codes.
@@ -55,7 +56,7 @@ interface Throw {
   contexts: string[];
 }
 
-/** Every `new HttpError(…)` / `new CertificateError(…)` with its code(s) and literal `context` values. */
+/** Every `new HttpError(…)` / `new CertificateError(…)` / `new DbError(…)` with its code(s) and literal `context` values. */
 function scan(): { throws: Throw[]; otherCodes: { file: string; code: string }[] } {
   const throws: Throw[] = [];
   const otherCodes: { file: string; code: string }[] = [];
@@ -63,9 +64,10 @@ function scan(): { throws: Throw[]; otherCodes: { file: string; code: string }[]
     const rel = path.relative(src, file).split(path.sep).join('/');
     const sf = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
     const visit = (n: ts.Node) => {
-      if (ts.isNewExpression(n) && ts.isIdentifier(n.expression) && ['HttpError', 'CertificateError'].includes(n.expression.text)) {
+      if (ts.isNewExpression(n) && ts.isIdentifier(n.expression) && ['HttpError', 'CertificateError', 'DbError'].includes(n.expression.text)) {
         const args = n.arguments ?? [];
-        const codeAt = n.expression.text === 'HttpError' ? 2 : 1;
+        // DbError (database platforms) takes the code first: new DbError(code, message, params, status)
+        const codeAt = n.expression.text === 'HttpError' ? 2 : n.expression.text === 'DbError' ? 0 : 1;
         const params = args[codeAt + 1];
         const contexts: string[] = [];
         if (params && ts.isObjectLiteralExpression(params))
@@ -90,6 +92,8 @@ function scan(): { throws: Throw[]; otherCodes: { file: string; code: string }[]
 
 describe('server error codes', () => {
   const { throws, otherCodes } = scan();
+  // the reasons of the statement check (shared/src/sqlcheck.ts), nested in DB_STATEMENT_REFUSED
+  for (const c of SQL_PROBLEM_CODES) otherCodes.push({ file: '../../shared/src/sqlcheck.ts', code: sqlProblemTextCode(c) });
   const en = errorsJson('en');
   const de = errorsJson('de');
   /** Codes the UI translates itself (record status, field labels of built-in types). */

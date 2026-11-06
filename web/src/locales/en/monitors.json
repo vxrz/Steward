@@ -282,7 +282,28 @@
     "vaultMaxAgeDays": "Rotated within (days)",
     "vaultMaxFindings": "Findings allowed",
     "vaultMaxFindingsHint": "On other than privileged secrets",
-    "vaultFailAs": "When there are findings"
+    "vaultFailAs": "When there are findings",
+    "dbMode": "What is checked",
+    "dbModes": {
+      "connection": "Connection",
+      "replication": "Replication lag",
+      "query": "Value of a query"
+    },
+    "dbModeHints": {
+      "connection": "Connects and signs in; degraded when the account can write",
+      "replication": "The largest replication lag in seconds (replicas of a primary, or this standby)",
+      "query": "The first column of the first row of a read-only query, compared with WARN and CRIT"
+    },
+    "dbSql": "SQL statement",
+    "dbSqlHint": "One SELECT; placeholders {{pg}} (PostgreSQL), {{my}} (MariaDB/MySQL), {{ms}} (SQL Server)",
+    "dbParams": "Parameters",
+    "dbParamsHint": "One value per placeholder, in order (Enter adds one)",
+    "dbCritLag": "CRIT (seconds of lag)",
+    "dbNoData": "Status without data",
+    "dbNoDataHints": {
+      "replication": "When the server has no replica and is no standby",
+      "query": "When the query returns no row"
+    }
   },
   "detail": {
     "template": "template",
@@ -630,6 +651,10 @@
       "label": "Snowflake",
       "help": "A Snowflake table changed recently enough, no task of a database failed, or a warehouse stayed within its credits"
     },
+    "database": {
+      "label": "Database",
+      "help": "A database platform: the connection works (and is read-only), replication lag stays below a limit, or the value of a read-only query is judged against WARN and CRIT levels"
+    },
     "dependency-track": {
       "label": "Vulnerabilities (Dependency-Track)",
       "help": "A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation"
@@ -661,7 +686,8 @@
     "snowflake": "Snowflake table fresh",
     "dependency-track": "No critical vulnerabilities",
     "entra": "App credentials valid",
-    "privilege-vault": "Vault hygiene"
+    "privilege-vault": "Vault hygiene",
+    "database": "Database reachable"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}"

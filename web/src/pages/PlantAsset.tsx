@@ -15,12 +15,14 @@ import { fmtDate, fmtDay } from '../format';
 import { plantKeys } from '../queryKeys';
 import { AssetStatusBadge, FieldValuesView, NotInSourceBadge, PreviewBadge, RefsView, useNameOf, usePlantLabel } from '../components/plant/common';
 import { AssetFormModal } from '../components/plant/forms';
+import { AssetDataSection } from '../components/plant/AssetData';
 import { SourceLine } from './PlantSite';
 
 /**
  * An asset (#218): where it is (site › area › work center › work unit, and the building that applies), the equipment
  * it is part of and the equipment that is part of it, its taxonomy, lifecycle, capabilities, external references, own
- * fields, image and links to Steward systems, applications and platforms.
+ * fields, image and links to Steward systems, applications and platforms; since #219 what its interfaces deliver
+ * (device profile, endpoints, publications) and its KPI instances with what Steward checks in them.
  */
 export function PlantAssetPage() {
   const { t } = useTranslation(['plant', 'common']);
@@ -199,6 +201,7 @@ export function PlantAssetPage() {
                 )}
               </Field>
             </Stack>
+            <AssetDataSection assetId={a.id} />
             <LinksPanel
               links={a.links}
               backlinks={a.backlinks}
