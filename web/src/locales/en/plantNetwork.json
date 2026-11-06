@@ -5,6 +5,7 @@
   "tabsLabel": "OT network of {{site}}",
   "tabs": {
     "overview": "Status",
+    "diagram": "Diagram",
     "vlans": "VLANs",
     "zones": "Zones and conduits",
     "devices": "Devices",
@@ -18,6 +19,7 @@
   "card": {
     "summary": "{{vlans}} VLANs · {{zones}} zones · {{devices}} devices",
     "open": "Open the OT network",
+    "diagram": "Diagram",
     "loading": "Loading …",
     "error": "The OT network could not be loaded."
   },

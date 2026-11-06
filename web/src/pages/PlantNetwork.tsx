@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Alert, Anchor, Badge, Button, Group, Menu, Paper, SimpleGrid, Stack, Table, Text, TextInput, Title, Tooltip } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,6 +7,7 @@ import {
   IconArrowLeft,
   IconArrowRight,
   IconArrowsLeftRight,
+  IconChartDots3,
   IconDevices,
   IconDownload,
   IconGauge,
@@ -31,9 +32,12 @@ import { CriticalityBadge, ItemRefView, LiveBadge, LiveCounts, NetField, SlBadge
 import { ConduitModal, SegmentModal, VlanModal, ZoneModal } from '../components/plant/networkForms';
 import { DataPathSummary, DeviceHints } from '../components/plant/AssetNetwork';
 
-const TABS = ['', 'vlans', 'zones', 'devices', 'paths'] as const;
+const TABS = ['', 'diagram', 'vlans', 'zones', 'devices', 'paths'] as const;
 type Tab = (typeof TABS)[number];
-const TAB_ICONS = { '': IconGauge, vlans: IconNetwork, zones: IconShieldLock, devices: IconDevices, paths: IconRoute } as const;
+const TAB_ICONS = { '': IconGauge, diagram: IconChartDots3, vlans: IconNetwork, zones: IconShieldLock, devices: IconDevices, paths: IconRoute } as const;
+
+// the diagram (#230) loads with the graph library, only when its tab is opened
+const NetworkDiagramView = lazy(() => import('./plant/views/NetworkDiagramView').then((m) => ({ default: m.NetworkDiagramView })));
 
 type Dialog =
   | { kind: 'vlan'; vlan?: PlantVlanValues }
@@ -171,6 +175,11 @@ export function PlantNetworkPage() {
         }
       />
       <div data-testid={`network-${tab || 'overview'}`}>
+        {tab === 'diagram' && (
+          <Suspense fallback={null}>
+            <NetworkDiagramView siteId={n.site.id} />
+          </Suspense>
+        )}
         {tab === '' && (
           <Stack gap="lg">
             <Section title={t('overview.title')} help={t('overview.help')}>

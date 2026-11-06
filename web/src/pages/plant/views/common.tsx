@@ -288,7 +288,7 @@ export function LegendItem({ mark, children }: { mark: ReactNode; children: Reac
 }
 
 /** A line sample for a legend: documented flow, not active, a failing check. */
-export function LineMark({ kind }: { kind: 'flow' | 'inactive' | 'problem' }) {
+export function LineMark({ kind }: { kind: 'flow' | 'inactive' | 'problem' | 'online' | 'offline' }) {
   const { animate } = useMotion();
   return (
     <svg width={34} height={10} viewBox="0 0 34 10">
@@ -296,11 +296,16 @@ export function LineMark({ kind }: { kind: 'flow' | 'inactive' | 'problem' }) {
         d="M1 5 H27"
         className="pv-edge-base"
         data-inactive={kind === 'inactive' || undefined}
-        data-problem={kind === 'problem' || undefined}
+        data-problem={kind === 'problem' || kind === 'offline' || undefined}
+        data-online={kind === 'online' || undefined}
         strokeWidth={2}
+        style={kind === 'offline' ? { strokeDasharray: 'none' } : undefined}
       />
-      {kind === 'flow' && animate && <path d="M1 5 H27" className="pv-edge-flow" strokeWidth={2.5} />}
-      <path d="M27 1 L33 5 L27 9 Z" fill={kind === 'problem' ? 'var(--pv-problem)' : 'var(--pv-edge)'} />
+      {(kind === 'flow' || kind === 'online') && animate && <path d="M1 5 H27" className="pv-edge-flow" strokeWidth={2.5} />}
+      <path
+        d="M27 1 L33 5 L27 9 Z"
+        fill={kind === 'problem' || kind === 'offline' ? 'var(--pv-problem)' : kind === 'online' ? 'var(--pv-ok)' : 'var(--pv-edge)'}
+      />
     </svg>
   );
 }

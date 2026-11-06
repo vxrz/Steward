@@ -117,6 +117,8 @@ export const plantKeys = {
   explore: (q: string) => ['plant', 'explore', q] as const,
   // part 3 (#220): the OT network of a site, of an asset
   network: (siteId: string | null | undefined) => ['plant', 'network', siteId] as const,
+  /** #230: the VLANs the hosts of a site's data paths are in (the diagram) */
+  placement: (siteId: string | null | undefined) => ['plant', 'network', siteId, 'placement'] as const,
   assetNetwork: (assetId: string | null | undefined) => ['plant', 'assetNetwork', assetId] as const,
   // visualizations (#230)
   overview: ['plant', 'views', 'overview'] as const,

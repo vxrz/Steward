@@ -205,6 +205,16 @@ export function SiteNetworkCard({ siteId }: { siteId: string }) {
           <Button size="xs" variant="light" component={Link} to={`/plant/sites/${encodeURIComponent(siteId)}/network`} data-testid="open-network">
             {t('card.open')}
           </Button>
+          {/* the picture of it (#230) */}
+          <Button
+            size="xs"
+            variant="default"
+            component={Link}
+            to={`/plant/sites/${encodeURIComponent(siteId)}/network/diagram`}
+            data-testid="open-network-diagram"
+          >
+            {t('card.diagram')}
+          </Button>
         </Group>
       </Stack>
     </Paper>

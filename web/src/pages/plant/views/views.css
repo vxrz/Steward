@@ -23,6 +23,9 @@
   --pv-tile: var(--mantine-color-gray-0);
   --pv-tile-hover: var(--mantine-color-gray-1);
   --pv-inner: var(--mantine-color-body);
+  --pv-conduit: var(--mantine-color-indigo-5);
+  --pv-zone-bg: color-mix(in srgb, var(--mantine-color-indigo-0) 70%, var(--mantine-color-body));
+  --pv-vlan-bg: var(--mantine-color-body);
 }
 [data-mantine-color-scheme='dark'] {
   --pv-planned: var(--mantine-color-gray-6);
@@ -46,6 +49,9 @@
   --pv-tile: var(--mantine-color-dark-6);
   --pv-tile-hover: var(--mantine-color-dark-5);
   --pv-inner: var(--mantine-color-dark-7);
+  --pv-conduit: var(--mantine-color-indigo-4);
+  --pv-zone-bg: color-mix(in srgb, var(--mantine-color-indigo-9) 22%, var(--mantine-color-body));
+  --pv-vlan-bg: var(--mantine-color-dark-7);
 }
 
 /* ---------- graph ---------- */
@@ -154,6 +160,7 @@
 }
 .pv-edge-pill {
   position: absolute;
+  z-index: 3;
   pointer-events: none;
   font-size: 11px;
   line-height: 1;
@@ -174,6 +181,78 @@
 }
 .pv-edge-pill[data-dim='true'] {
   opacity: 0.2;
+}
+
+/* areas of the OT network: IEC 62443-3-2 zones around IEEE 802.1Q VLANs around their assets */
+.pv-area {
+  position: relative;
+  border-radius: 14px;
+  border: 1.5px solid var(--pv-conduit);
+  background: var(--pv-zone-bg);
+  transition:
+    opacity 180ms ease,
+    box-shadow 180ms ease;
+}
+.pv-area[data-kind='vlan'] {
+  border: 1px solid var(--mantine-color-default-border);
+  background: var(--pv-vlan-bg);
+  border-radius: 12px;
+}
+.pv-area[data-dim='true'] {
+  opacity: 0.4;
+}
+.pv-area[data-hl='true'] {
+  box-shadow: 0 0 0 2px var(--pv-hl);
+}
+.pv-area-label {
+  position: absolute;
+  top: -12px;
+  left: 12px;
+  max-width: calc(100% - 24px);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--mantine-color-body);
+  border: 1px solid var(--pv-conduit);
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* a VLAN's name sits inside its top edge (the zone's on the zone's border, so the two never overlap) */
+.pv-area[data-kind='vlan'] .pv-area-label {
+  top: 1px;
+  left: 6px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  line-height: 16px;
+}
+.pv-area-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pv-area-tag {
+  color: var(--mantine-color-dimmed);
+  font-size: 11px;
+}
+.pv-node[data-small='true'] {
+  height: 68px;
+}
+.pv-edge-base[data-conduit='true'] {
+  stroke: var(--pv-conduit);
+  stroke-opacity: 0.5;
+  stroke-linecap: round;
+}
+.pv-edge-base[data-no-conduit='true'] {
+  stroke: var(--pv-warn);
+  stroke-dasharray: 7 6;
+}
+.pv-edge-base[data-online='true'] {
+  stroke: var(--pv-ok);
 }
 
 /* ---------- path list beside the graph ---------- */

@@ -3,7 +3,6 @@
   "tabs": {
     "siteLabel": "Seiten von {{name}}",
     "assetLabel": "Seiten von {{name}}",
-    "in": "am Standort",
     "site": {
       "overview": "Überblick",
       "structure": "Struktur"
@@ -44,13 +43,18 @@
       "down": "Ausgefallen",
       "maintenance": "Wartung",
       "blocked": "Blockiert",
-      "unknown": "Keine Daten"
+      "unknown": "Keine Daten",
+      "disabled": "Ausgeschaltet",
+      "not_found": "Nicht gefunden"
     },
     "dataset": {
       "fresh": "Aktuell",
       "due": "Fällig",
       "stale": "Veraltet",
-      "no_data": "Keine Daten"
+      "no_data": "Keine Daten",
+      "no_row": "Keine Zeile",
+      "no_time": "Keine Zeit",
+      "not_found": "Nicht gefunden"
     },
     "unknownStatus": "{{status}}",
     "from": {
@@ -90,7 +94,12 @@
     "kpi": "KPI-Job",
     "dataset": "Datensatz",
     "dashboard": "Dashboard",
-    "kpiDefinition": "KPI-Definition"
+    "kpiDefinition": "KPI-Definition",
+    "zone": "Sicherheitszone",
+    "vlan": "VLAN",
+    "conduit": "Verbindungskanal (Conduit)",
+    "host": "Host",
+    "peer": "Andere Stelle"
   },
   "node": {
     "hidden": "Nicht sichtbar",
@@ -115,7 +124,12 @@
     "problem": "Prüfung schlägt fehl",
     "inactive": "Nicht aktiv",
     "result": "Ergebnis",
-    "from": "Von {{from}} zu {{to}}"
+    "from": "Von {{from}} zu {{to}}",
+    "paths_one": "{{count}} Datenweg",
+    "paths_other": "{{count}} Datenwege",
+    "noConduit": "Kein Conduit dokumentiert",
+    "offline": "Offline",
+    "both": "in beide Richtungen"
   },
   "graph": {
     "label": "Bild: {{title}}",
@@ -139,6 +153,12 @@
     "reasons": {
       "interface_inactive": "Schnittstelle nicht aktiv",
       "unavailable": "Hier nicht geliefert"
+    },
+    "live": {
+      "online": "Online",
+      "offline": "Offline",
+      "unknown": "Keine Daten",
+      "notWatched": "Nicht überwacht"
     }
   },
   "table": {
@@ -147,7 +167,8 @@
     "name": "Name",
     "detail": "Details",
     "status": "Status",
-    "goesTo": "Geht zu"
+    "goesTo": "Geht zu",
+    "in": "liegt in {{name}}"
   },
   "flow": {
     "title": "Datenfluss",
@@ -264,5 +285,45 @@
     "structure": "Struktur",
     "coverageLink": "KPI-Abdeckung",
     "title": "Überblick"
+  },
+  "info": {
+    "hint": "Zeigen Sie auf eine Anlage, ein VLAN oder eine Zone, um ihre Geräte, Subnetze und VLANs zu sehen."
+  },
+  "network": {
+    "title": "Diagramm",
+    "help": "Zonen nach IEC 62443-3-2 mit ihren VLANs und den {{type}} darin, die Conduits zwischen den Zonen und die Datenwege darüber. Zeigen Sie auf einen Teil, um seine Geräte, Subnetze und VLANs zu sehen.",
+    "live": "die Prüfungen, die mit einer Anlage und ihren Geräten verknüpft sind (Monitore – Gatus, CheckMk, die MQTT- und Kafka-Prüfungen – und die Aktualität von Datensätzen): online, offline oder „keine Daten“. Ein Weg von einer Anlage, die offline ist, ist rot und steht still.",
+    "exportTitle": "OT-Netz von {{site}}",
+    "emptyTitle": "Noch nichts zu zeichnen",
+    "emptyText": "Legen Sie Zonen und VLANs sowie Geräte und Datenwege der {{type}} an, um das Diagramm zu sehen.",
+    "notDrawn_one": "{{count}} {{type}} ohne Geräte oder Datenwege ist nicht gezeichnet.",
+    "notDrawn_other": "{{count}} {{type}} ohne Geräte oder Datenwege sind nicht gezeichnet.",
+    "vid": "VID {{vid}}",
+    "devices_one": "{{count}} Gerät",
+    "devices_other": "{{count}} Geräte",
+    "paths_one": "{{count}} Datenweg",
+    "paths_other": "{{count}} Datenwege",
+    "noAddress": "keine Adresse",
+    "noVlan": "kein VLAN",
+    "on": "auf {{host}}",
+    "subnets": "Subnetze",
+    "controls": "Schutzmaßnahmen",
+    "assessment": "Risikobewertung",
+    "managedBy": "Verwaltet von",
+    "segment": "Netzsegment",
+    "restricted": "Eingeschränkt",
+    "legendZone": "Zone (IEC 62443-3-2): ihre Kritikalität und SL-T",
+    "legendVlan": "VLAN (IEEE 802.1Q) in einer Zone, die Anlagen darin",
+    "legendConduit": "Conduit zwischen zwei Zonen; Datenwege in eine andere Zone laufen hindurch",
+    "legendNoConduit": "Ein Datenweg in eine andere Zone ohne dokumentiertes Conduit",
+    "legendOnline": "Von einer Anlage, deren Prüfungen online sagen",
+    "legendOffline": "Von einer Anlage, deren Prüfungen offline sagen",
+    "structureLink": "Diagramm des OT-Netzes",
+    "liveWords": {
+      "online": "Online",
+      "offline": "Offline",
+      "unknown": "keine Daten",
+      "notWatched": "nicht überwacht"
+    }
   }
 }

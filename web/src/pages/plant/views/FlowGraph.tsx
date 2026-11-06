@@ -23,22 +23,27 @@ import { Badge, Group, Text, useComputedColorScheme } from '@mantine/core';
 import { useElementSize } from '@mantine/hooks';
 import {
   IconAlertTriangle,
+  IconArrowsExchange,
   IconBuildingFactory2,
   IconCloudUpload,
   IconCpu,
   IconDatabase,
   IconLayoutDashboard,
   IconMathFunction,
+  IconNetwork,
   IconPlugConnected,
   IconPlugConnectedX,
   IconPoint,
   IconRouter,
+  IconServer,
+  IconShieldLock,
+  IconWorld,
   type Icon,
 } from '@tabler/icons-react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { layeredLayout, type PlantFlowEdge, type PlantFlowGraph, type PlantFlowNode, type PlantFlowNodeKind } from '@sm/shared';
+import { compoundLayout, layeredLayout, type PlantFlowEdge, type PlantFlowGraph, type PlantFlowNode, type PlantFlowNodeKind } from '@sm/shared';
 import { ProtocolBadge } from '../../../components/plant/data';
 import { LiveBadge, liveVar } from './common';
 import { useMotion } from './prefs';
@@ -52,6 +57,7 @@ import { useMotion } from './prefs';
 
 export const NODE_W = 232;
 export const NODE_H = 104;
+export const NODE_H_SMALL = 68;
 
 export const KIND_ICON: Record<PlantFlowNodeKind, Icon> = {
   asset: IconCpu,
@@ -63,10 +69,18 @@ export const KIND_ICON: Record<PlantFlowNodeKind, Icon> = {
   kpi: IconMathFunction,
   dataset: IconDatabase,
   dashboard: IconLayoutDashboard,
+  zone: IconShieldLock,
+  vlan: IconNetwork,
+  conduit: IconArrowsExchange,
+  host: IconServer,
+  peer: IconWorld,
 };
 
 /** Kinds whose second line is an identifier (an endpoint, a path, a job): set in monospace. */
-const MONO = new Set<PlantFlowNodeKind>(['interface', 'target', 'kpi', 'point']);
+const MONO = new Set<PlantFlowNodeKind>(['interface', 'target', 'kpi', 'point', 'vlan', 'conduit']);
+
+/** The height of a node (a small one: an empty VLAN, a party outside the zones). */
+export const nodeHeight = (n: Pick<PlantFlowNode, 'small'>) => (n.small ? NODE_H_SMALL : NODE_H);
 
 // ---------- layout, computed once per graph ----------
 
@@ -74,6 +88,8 @@ export interface FlowLayout {
   /** Left to right, or top to bottom: whichever fits the frame better */
   dir: 'LR' | 'TB';
   pos: Map<string, { x: number; y: number }>;
+  /** Areas (zones, VLANs): their boxes */
+  boxes: Map<string, { x: number; y: number; width: number; height: number }>;
   width: number;
   height: number;
 }
@@ -81,17 +97,30 @@ export interface FlowLayout {
 const layouts = new Map<string, FlowLayout>();
 
 function layoutIn(g: Pick<PlantFlowGraph, 'nodes' | 'edges'>, dir: 'LR' | 'TB'): FlowLayout {
-  const pos = layeredLayout(
-    g.nodes.map((n) => ({ id: n.id, width: NODE_W, height: NODE_H })),
-    g.edges,
-    dir === 'LR' ? { direction: 'LR', rankSep: 84, nodeSep: 26 } : { direction: 'TB', rankSep: 64, nodeSep: 28 },
-  );
-  const ps = [...pos.values()];
+  const opts = dir === 'LR' ? { direction: 'LR' as const, rankSep: 84, nodeSep: 26 } : { direction: 'TB' as const, rankSep: 64, nodeSep: 28 };
+  const leaves = g.nodes.filter((n) => !n.group);
+  let pos: Map<string, { x: number; y: number }>;
+  let boxes = new Map<string, { x: number; y: number; width: number; height: number }>();
+  if (leaves.length === g.nodes.length)
+    pos = layeredLayout(
+      g.nodes.map((n) => ({ id: n.id, width: NODE_W, height: nodeHeight(n) })),
+      g.edges,
+      opts,
+    );
+  else
+    ({ pos, boxes } = compoundLayout(
+      leaves.map((n) => ({ id: n.id, width: NODE_W, height: nodeHeight(n), parent: n.parent })),
+      g.nodes.filter((n) => n.group).map((n) => ({ id: n.id, parent: n.parent })),
+      g.edges,
+      { ...opts, rankSep: opts.rankSep + 24 },
+    ));
+  const rects = [...leaves.map((n) => ({ ...(pos.get(n.id) ?? { x: 0, y: 0 }), width: NODE_W, height: nodeHeight(n) })), ...boxes.values()];
   return {
     dir,
     pos,
-    width: Math.max(NODE_W, ...ps.map((p) => p.x + NODE_W)) - Math.min(0, ...ps.map((p) => p.x)),
-    height: Math.max(NODE_H, ...ps.map((p) => p.y + NODE_H)) - Math.min(0, ...ps.map((p) => p.y)),
+    boxes,
+    width: Math.max(NODE_W, ...rects.map((r) => r.x + r.width)) - Math.min(0, ...rects.map((r) => r.x)),
+    height: Math.max(NODE_H, ...rects.map((r) => r.y + r.height)) - Math.min(0, ...rects.map((r) => r.y)),
   };
 }
 
@@ -146,7 +175,7 @@ const PartNode = memo(function PartNode({ data }: NodeProps<FlowRfNode>) {
     setPulse((p) => p + 1);
   }
   const I = KIND_ICON[node.kind];
-  const badges = !!(node.protocol || node.inactive || node.checks.length || node.count || node.instances);
+  const badges = !!(node.protocol || node.inactive || node.checks.length || node.count || node.instances || node.tags?.length) && !node.small;
   const accent = state ? liveVar(state) : node.checks.length ? 'var(--pv-problem)' : undefined;
   return (
     <div
@@ -158,6 +187,7 @@ const PartNode = memo(function PartNode({ data }: NodeProps<FlowRfNode>) {
       data-compact={compact || undefined}
       data-testid={`flow-node-${node.id}`}
       data-kind={node.kind}
+      data-small={node.small || undefined}
       style={accent ? ({ '--pv-state': accent } as CSSProperties) : undefined}
     >
       <Handle type="target" position={dir === 'LR' ? Position.Left : Position.Top} isConnectable={false} />
@@ -201,6 +231,11 @@ const PartNode = memo(function PartNode({ data }: NodeProps<FlowRfNode>) {
               {t('node.delivering', { count: node.count.delivering, total: node.count.total })}
             </Badge>
           )}
+          {node.tags?.map((x) => (
+            <Badge key={x} size="xs" color="gray" variant="light" style={{ textTransform: 'none' }}>
+              {x}
+            </Badge>
+          ))}
           {node.instances !== undefined && (
             <Badge size="xs" color="gray" variant="light" style={{ textTransform: 'none' }}>
               {t('node.instances', { count: node.instances })}
@@ -213,20 +248,75 @@ const PartNode = memo(function PartNode({ data }: NodeProps<FlowRfNode>) {
   );
 });
 
+/** An area: an IEC 62443-3-2 zone or an IEEE 802.1Q VLAN, drawn around its members; its name sits on its border. */
+type AreaNodeData = { node: PlantFlowNode; dim: boolean; hl: boolean; dir: 'LR' | 'TB'; width: number; height: number };
+type AreaRfNode = Node<AreaNodeData, 'area'>;
+
+const AreaNode = memo(function AreaNode({ data }: NodeProps<AreaRfNode>) {
+  const { node, dim, hl, dir, width, height } = data;
+  const text = useNodeText();
+  const I = KIND_ICON[node.kind];
+  return (
+    <div
+      className="pv-area"
+      data-kind={node.kind}
+      data-dim={dim || undefined}
+      data-hl={hl || undefined}
+      data-testid={`flow-area-${node.id}`}
+      style={{ width, height }}
+    >
+      <Handle type="target" position={dir === 'LR' ? Position.Left : Position.Top} isConnectable={false} />
+      <div className="pv-area-label">
+        <I size={13} stroke={1.8} aria-hidden style={{ flexShrink: 0 }} />
+        <span className="pv-node-kind">{text.kind(node)}</span>
+        <span className="pv-area-name">{text.label(node)}</span>
+        {node.tags?.map((x) => (
+          <span key={x} className="pv-area-tag">
+            {x}
+          </span>
+        ))}
+      </div>
+      <Handle type="source" position={dir === 'LR' ? Position.Right : Position.Bottom} isConnectable={false} />
+    </div>
+  );
+});
+
 // ---------- edges ----------
 
-type FlowEdgeData = { edge: PlantFlowEdge; dim: boolean; hl: boolean; animate: boolean; pill: string; problemText: string; inactiveText: string };
+type FlowEdgeData = {
+  edge: PlantFlowEdge;
+  dim: boolean;
+  hl: boolean;
+  animate: boolean;
+  pill: string;
+  problemText: string;
+  inactiveText: string;
+  noConduitText: string;
+  offlineText: string;
+};
 type FlowRfEdge = Edge<FlowEdgeData, 'way'>;
 
-export const edgeWidth = (e: Pick<PlantFlowEdge, 'points' | 'assets'>) => 1.4 + Math.min(3, Math.log2((e.points || e.assets || 1) + 1) * 0.7);
+export const edgeWidth = (e: Pick<PlantFlowEdge, 'points' | 'assets' | 'paths' | 'conduit'>) =>
+  e.conduit ? 6 : 1.4 + Math.min(3, Math.log2((e.points || e.assets || e.paths || 1) + 1) * 0.7);
 
-function WayEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, markerEnd }: EdgeProps<FlowRfEdge>) {
+function WayEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, markerEnd, markerStart }: EdgeProps<FlowRfEdge>) {
   const [path, lx, ly] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
   if (!data) return null;
   const { edge: e, dim, hl, animate } = data;
   const w = edgeWidth(e) + (hl ? 1 : 0);
-  const moving = animate && !e.inactive && !e.problem;
-  const pill = e.problem ? data.problemText : e.inactive ? data.inactiveText : data.pill;
+  const offline = e.live === 'offline';
+  // nothing moves where nothing flows: not active, a failing check, offline, or both ways at once
+  const moving = animate && !e.inactive && !e.problem && !e.both && !offline;
+  const pill = e.problem
+    ? data.problemText
+    : e.inactive
+      ? data.inactiveText
+      : e.noConduit
+        ? data.noConduitText
+        : offline
+          ? [data.offlineText, data.pill].filter(Boolean).join(' · ')
+          : data.pill;
+  const warn = e.problem || e.noConduit || offline;
   return (
     <>
       <g
@@ -235,16 +325,23 @@ function WayEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targe
         data-testid={`flow-edge-${id}`}
         data-inactive={e.inactive || undefined}
         data-problem={e.problem || undefined}
+        data-conduit={e.conduit || undefined}
+        data-live={e.live ?? undefined}
+        data-no-conduit={e.noConduit || undefined}
       >
         <path
           id={id}
           d={path}
           className="pv-edge-base"
           data-inactive={e.inactive || undefined}
-          data-problem={e.problem || undefined}
+          data-problem={e.problem || offline || undefined}
+          data-no-conduit={e.noConduit || undefined}
+          data-conduit={e.conduit || undefined}
+          data-online={e.live === 'online' || undefined}
           data-hl={hl || undefined}
           strokeWidth={w}
           markerEnd={markerEnd}
+          markerStart={markerStart}
         />
         {moving && <path d={path} className="pv-edge-flow" data-hl={hl || undefined} strokeWidth={w + 0.8} />}
       </g>
@@ -252,12 +349,12 @@ function WayEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targe
         <EdgeLabelRenderer>
           <div
             className="pv-edge-pill nodrag nopan"
-            data-problem={e.problem || undefined}
+            data-problem={warn || undefined}
             data-dim={dim || undefined}
             style={{ transform: `translate(-50%, -50%) translate(${lx}px, ${ly}px)` }}
             aria-hidden
           >
-            {e.problem && <IconAlertTriangle size={11} aria-hidden />}
+            {warn && <IconAlertTriangle size={11} aria-hidden />}
             {!e.problem && e.inactive && <IconPlugConnectedX size={11} aria-hidden />}
             {pill}
           </div>
@@ -267,7 +364,7 @@ function WayEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targe
   );
 }
 
-const nodeTypes = { part: PartNode };
+const nodeTypes = { part: PartNode, area: AreaNode };
 const edgeTypes = { way: WayEdge };
 
 // ---------- the graph ----------
@@ -283,8 +380,22 @@ export interface FlowGraphProps {
   focusKey?: string | null;
   /** A node is hovered or focused (null: none) */
   onHover?: (nodeId: string | null) => void;
-  /** Lineage counts assets on the edges, the asset flow data points */
-  counts: 'points' | 'assets';
+  /** Lineage counts assets on the edges, the asset flow data points, the OT network data paths */
+  counts: FlowCounts;
+}
+
+export type FlowCounts = 'points' | 'assets' | 'paths';
+
+/** The number an edge carries in a view. */
+export const edgeCount = (e: PlantFlowEdge, counts: FlowCounts) => (counts === 'points' ? e.points : counts === 'assets' ? e.assets : (e.paths ?? 0));
+
+/** The text on an edge (its count, the protocol it carries). */
+export function edgePill(t: T, e: PlantFlowEdge, counts: FlowCounts, grouped: boolean): string {
+  const n = edgeCount(e, counts);
+  if (counts === 'paths') return [e.label, n > 1 ? t('edge.paths', { count: n }) : ''].filter(Boolean).join(' · ');
+  if (e.result || n === 0) return e.files ? t('edge.files', { count: e.files }) : '';
+  if (counts === 'points') return t('edge.points', { count: n });
+  return grouped || n > 1 ? t('edge.assets', { count: n }) : '';
 }
 
 export function FlowGraph(props: FlowGraphProps) {
@@ -306,51 +417,97 @@ function GraphInner({ graph, label, height, highlight, focusKey, onHover, counts
   const wide = aspect > 1;
   const layout = useMemo(() => flowLayout(graph, wide ? 1.5 : 0.85), [graph, wide]);
   const byId = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n])), [graph]);
-  const nodes: FlowRfNode[] = useMemo(
-    () =>
-      graph.nodes.map((n) => ({
+  const hasAreas = graph.nodes.some((n) => n.group);
+  const nodes: (FlowRfNode | AreaRfNode)[] = useMemo(() => {
+    // an area that holds a highlighted part stays clear (without being highlighted itself)
+    const holds = new Set<string>();
+    if (highlight) for (const id of highlight.nodes) for (let p = byId.get(id)?.parent, i = 0; p && i < 8; p = byId.get(p)?.parent, i++) holds.add(p);
+    const flags = (n: PlantFlowNode) => ({
+      dim: !!highlight && !highlight.nodes.has(n.id) && !holds.has(n.id),
+      hl: !!highlight && highlight.nodes.has(n.id),
+      dir: layout.dir,
+    });
+    const common = { draggable: false, selectable: false, connectable: false };
+    // areas first (outer before inner), so their members are drawn on top of them
+    const depth = (n: PlantFlowNode) => {
+      let d = 0;
+      for (let p = n.parent; p && d < 8; p = byId.get(p)?.parent) d++;
+      return d;
+    };
+    const areas: AreaRfNode[] = graph.nodes
+      .filter((n) => n.group && layout.boxes.has(n.id))
+      .sort((a, b) => depth(a) - depth(b))
+      .map((n) => {
+        const b = layout.boxes.get(n.id)!;
+        return {
+          id: n.id,
+          type: 'area',
+          position: { x: b.x, y: b.y },
+          data: { node: n, ...flags(n), width: b.width, height: b.height },
+          ...common,
+          // areas below the ways, the ways below the parts: a way into a zone stays visible
+          zIndex: 0,
+          width: b.width,
+          height: b.height,
+          ariaLabel: nodeAria(t, n),
+        };
+      });
+    const parts: FlowRfNode[] = graph.nodes
+      .filter((n) => !n.group)
+      .map((n) => ({
         id: n.id,
         type: 'part',
         position: layout.pos.get(n.id) ?? { x: 0, y: 0 },
-        data: { node: n, dim: !!highlight && !highlight.nodes.has(n.id), hl: !!highlight && highlight.nodes.has(n.id), dir: layout.dir },
-        draggable: false,
-        selectable: false,
-        connectable: false,
+        data: { node: n, ...flags(n) },
+        ...common,
+        zIndex: hasAreas ? 2 : undefined,
         width: NODE_W,
-        height: NODE_H,
+        height: nodeHeight(n),
         ariaLabel: nodeAria(t, n),
-      })),
-    [graph, layout, highlight, t],
-  );
+      }));
+    return [...areas, ...parts];
+  }, [graph, layout, highlight, t, byId, hasAreas]);
   const edges: FlowRfEdge[] = useMemo(
     () =>
       graph.edges.map((e) => {
         const hl = !!highlight && highlight.edges.has(e.id);
-        const color = e.problem ? 'var(--pv-problem)' : hl ? 'var(--pv-hl)' : 'var(--pv-edge)';
-        const n = counts === 'points' ? e.points : e.assets;
-        const pill =
-          e.result || n === 0
-            ? e.files
-              ? t('edge.files', { count: e.files })
-              : ''
-            : counts === 'points'
-              ? t('edge.points', { count: n })
-              : graph.grouped || n > 1
-                ? t('edge.assets', { count: n })
-                : '';
+        const color =
+          e.problem || e.live === 'offline'
+            ? 'var(--pv-problem)'
+            : e.noConduit
+              ? 'var(--pv-warn)'
+              : hl
+                ? 'var(--pv-hl)'
+                : e.conduit
+                  ? 'var(--pv-conduit)'
+                  : 'var(--pv-edge)';
+        const pill = edgePill(t, e, counts, graph.grouped);
+        const marker = { type: MarkerType.ArrowClosed, color, width: e.conduit ? 22 : 16, height: e.conduit ? 22 : 16, markerUnits: 'userSpaceOnUse' };
         return {
           id: e.id,
           source: e.from,
           target: e.to,
           type: 'way',
-          markerEnd: { type: MarkerType.ArrowClosed, color, width: 16, height: 16, markerUnits: 'userSpaceOnUse' },
-          data: { edge: e, dim: !!highlight && !hl, hl, animate, pill, problemText: t('edge.problem'), inactiveText: t('edge.inactive') },
+          markerEnd: marker,
+          markerStart: e.both ? marker : undefined,
+          data: {
+            edge: e,
+            dim: !!highlight && !hl,
+            hl,
+            animate,
+            pill,
+            problemText: t('edge.problem'),
+            inactiveText: t('edge.inactive'),
+            noConduitText: t('edge.noConduit'),
+            offlineText: t('edge.offline'),
+          },
           selectable: false,
           focusable: false,
+          zIndex: hasAreas ? 1 : undefined,
           ariaLabel: edgeAria(t, e, byId, counts),
         };
       }),
-    [graph, highlight, animate, counts, t, byId],
+    [graph, highlight, animate, counts, t, byId, hasAreas],
   );
   const nodeIdOf = (el: EventTarget | null) => (el instanceof Element ? el.closest('.react-flow__node')?.getAttribute('data-id') : null) ?? null;
   const onKeyDown = (ev: KeyboardEvent) => {
@@ -477,14 +634,21 @@ export function statusSentence(t: T, n: PlantFlowNode): string {
   return out.join(' · ');
 }
 
-function edgeAria(t: T, e: PlantFlowEdge, byId: Map<string, PlantFlowNode>, counts: 'points' | 'assets'): string {
+function edgeAria(t: T, e: PlantFlowEdge, byId: Map<string, PlantFlowNode>, counts: FlowCounts): string {
   const name = (id: string) => {
     const n = byId.get(id);
     return n ? (n.hidden ? t('node.hidden') : n.label) : id;
   };
-  const n = counts === 'points' ? e.points : e.assets;
-  const what = e.result ? t('edge.result') : n ? (counts === 'points' ? t('edge.points', { count: n }) : t('edge.assets', { count: n })) : '';
-  return [t('edge.from', { from: name(e.from), to: name(e.to) }), what, e.inactive ? t('edge.inactive') : '', e.problem ? t('edge.problem') : '']
+  const what = e.result ? t('edge.result') : edgePill(t, e, counts, true);
+  return [
+    t('edge.from', { from: name(e.from), to: name(e.to) }),
+    what,
+    e.both ? t('edge.both') : '',
+    e.inactive ? t('edge.inactive') : '',
+    e.problem ? t('edge.problem') : '',
+    e.noConduit ? t('edge.noConduit') : '',
+    e.live === 'offline' ? t('edge.offline') : '',
+  ]
     .filter(Boolean)
     .join(', ');
 }

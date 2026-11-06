@@ -1,13 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Anchor, Badge, Button, Grid, Group, Paper, ScrollArea, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
-import { IconAlertTriangle, IconCircleCheck, IconPlugConnectedX, IconSearch } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCircleCheck, IconCircleDashed, IconCircleX, IconPlugConnectedX, IconSearch } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { PlantFlowGraph, PlantFlowNode, PlantFlowPath } from '@sm/shared';
 import { ProtocolBadge, useCheckText } from '../../../components/plant/data';
 import { LegendItem, LineMark, LiveBadge, ViewLegend, ViewToolbar } from './common';
-import { FlowGraph, KIND_ICON, statusSentence, useNodeText } from './FlowGraph';
+import { FlowGraph, KIND_ICON, edgePill, statusSentence, useNodeText, type FlowCounts } from './FlowGraph';
 import { flowSvg } from './flowExport';
 import { useMotion, useViewMode } from './prefs';
 
@@ -24,15 +24,21 @@ export function FlowView({
   pathsTitle,
   live,
   testId,
+  legend: extraLegend,
+  baseLegend = ['flow', 'inactive', 'problem'],
 }: {
   graph: PlantFlowGraph;
   viewId: string;
   title: string;
-  counts: 'points' | 'assets';
+  counts: FlowCounts;
   pathsTitle: string;
   /** Which parts of this view have live status */
   live: string;
   testId: string;
+  /** More entries of the legend (the OT network's zones, conduits …) */
+  legend?: ReactNode;
+  /** Which of the usual entries apply */
+  baseLegend?: ('flow' | 'inactive' | 'problem')[];
 }) {
   const { t } = useTranslation('plantViews');
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
@@ -47,15 +53,25 @@ export function FlowView({
     const p = pathById.get(hoverPath ?? pinned ?? '');
     if (p) return { nodes: new Set(p.nodes), edges: new Set(p.edges) };
     if (!hoverNode) return null;
-    const nodes = new Set([hoverNode]);
+    // an area (a zone, a VLAN) stands for everything in it
+    const inside = new Set([hoverNode]);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const n of graph.nodes)
+        if (n.parent && inside.has(n.parent) && !inside.has(n.id)) {
+          inside.add(n.id);
+          grew = true;
+        }
+    }
+    const nodes = new Set(inside);
     const edges = new Set<string>();
     for (const x of graph.paths)
-      if (x.nodes.includes(hoverNode)) {
+      if (x.nodes.some((n) => inside.has(n))) {
         x.nodes.forEach((n) => nodes.add(n));
         x.edges.forEach((e) => edges.add(e));
       }
     for (const e of graph.edges)
-      if (e.from === hoverNode || e.to === hoverNode) {
+      if (inside.has(e.from) || inside.has(e.to)) {
         edges.add(e.id);
         nodes.add(e.from);
         nodes.add(e.to);
@@ -63,12 +79,12 @@ export function FlowView({
     return { nodes, edges };
   }, [hoverNode, hoverPath, pinned, pathById, graph]);
   const pill = (e: PlantFlowGraph['edges'][number]) => {
-    const n = counts === 'points' ? e.points : e.assets;
     if (e.problem) return t('edge.problem');
     if (e.inactive) return t('edge.inactive');
-    if (e.result || !n) return e.files ? t('edge.files', { count: e.files }) : '';
-    return counts === 'points' ? t('edge.points', { count: n }) : graph.grouped || n > 1 ? t('edge.assets', { count: n }) : '';
+    if (e.noConduit) return t('edge.noConduit');
+    return [e.live === 'offline' ? t('edge.offline') : '', edgePill(t, e, counts, graph.grouped)].filter(Boolean).join(' · ');
   };
+  const hovered = hoverNode ? graph.nodes.find((n) => n.id === hoverNode) : undefined;
   const exportSvg = () => ({
     ...flowSvg(graph, {
       title,
@@ -82,18 +98,23 @@ export function FlowView({
   });
   const legend = (
     <ViewLegend live={live}>
-      <LegendItem mark={<LineMark kind="flow" />}>{motion.animate ? t('legend.flowMoving') : t('legend.flowStatic')}</LegendItem>
-      <LegendItem mark={<LineMark kind="inactive" />}>{t('legend.inactive')}</LegendItem>
-      <LegendItem mark={<LineMark kind="problem" />}>{t('legend.problem')}</LegendItem>
-      <LegendItem
-        mark={
-          <Badge size="xs" variant="default">
-            {counts === 'points' ? '8' : '3'}
-          </Badge>
-        }
-      >
-        {counts === 'points' ? t('legend.numbersPoints') : t('legend.numbersAssets')}
-      </LegendItem>
+      {baseLegend.includes('flow') && (
+        <LegendItem mark={<LineMark kind="flow" />}>{motion.animate ? t('legend.flowMoving') : t('legend.flowStatic')}</LegendItem>
+      )}
+      {baseLegend.includes('inactive') && <LegendItem mark={<LineMark kind="inactive" />}>{t('legend.inactive')}</LegendItem>}
+      {baseLegend.includes('problem') && <LegendItem mark={<LineMark kind="problem" />}>{t('legend.problem')}</LegendItem>}
+      {counts !== 'paths' && (
+        <LegendItem
+          mark={
+            <Badge size="xs" variant="default">
+              {counts === 'points' ? '8' : '3'}
+            </Badge>
+          }
+        >
+          {counts === 'points' ? t('legend.numbersPoints') : t('legend.numbersAssets')}
+        </LegendItem>
+      )}
+      {extraLegend}
     </ViewLegend>
   );
   return (
@@ -113,6 +134,7 @@ export function FlowView({
             />
           </Grid.Col>
           <Grid.Col span={{ base: 12, lg: 4 }}>
+            {graph.nodes.some((n) => n.info?.length) && <NodeInfo node={hovered} />}
             <PathList
               paths={graph.paths}
               title={pathsTitle}
@@ -132,8 +154,53 @@ export function FlowView({
   );
 }
 
+/** What hovering or focusing a part shows (an asset's devices, a VLAN's subnets): the same as its label says. */
+function NodeInfo({ node }: { node: PlantFlowNode | undefined }) {
+  const { t } = useTranslation('plantViews');
+  const text = useNodeText();
+  return (
+    <Paper withBorder p="xs" radius="md" mb="sm" data-testid="flow-node-info" aria-live="polite">
+      {node?.info?.length ? (
+        <Stack gap={4}>
+          <Text size="sm" fw={600}>
+            {text.kind(node)}: {text.label(node)}
+          </Text>
+          {node.info.map((x, i) => (
+            <Group key={i} gap={6} wrap="nowrap" align="flex-start">
+              <Text size="xs" c="dimmed" style={{ flexShrink: 0, minWidth: 76 }}>
+                {x.label}
+              </Text>
+              <Text size="xs" className="mono" style={{ overflowWrap: 'anywhere' }}>
+                {x.value}
+              </Text>
+            </Group>
+          ))}
+        </Stack>
+      ) : (
+        <Text size="xs" c="dimmed">
+          {t('info.hint')}
+        </Text>
+      )}
+    </Paper>
+  );
+}
+
+const PATH_LIVE = { online: IconCircleCheck, offline: IconCircleX, unknown: IconCircleDashed } as const;
+
 function PathStatus({ p }: { p: PlantFlowPath }) {
   const { t } = useTranslation('plantViews');
+  if (p.kind === 'path') {
+    const state = p.live ?? null;
+    const I = state ? PATH_LIVE[state] : IconCircleDashed;
+    return (
+      <Group gap={3} wrap="nowrap" component="span" c={state === 'online' ? 'var(--pv-ok)' : state === 'offline' ? 'var(--pv-fail)' : 'dimmed'}>
+        <I size={13} aria-hidden />
+        <Text span size="xs" c={state ? 'var(--mantine-color-text)' : 'dimmed'}>
+          {state ? t(`path.live.${state}`) : t('path.live.notWatched')}
+        </Text>
+      </Group>
+    );
+  }
   if (p.delivers)
     return (
       <Group gap={3} wrap="nowrap" c="var(--pv-ok)" component="span">
@@ -202,7 +269,7 @@ function PathList({
               <PathStatus p={p} />
             </Group>
             {p.detail && (
-              <Text size="xs" c="dimmed" className="mono" lineClamp={1}>
+              <Text size="xs" c="dimmed" className={p.kind === 'point' ? 'mono' : undefined} lineClamp={1}>
                 {p.detail}
               </Text>
             )}
@@ -279,16 +346,48 @@ function FlowTables({
   const { t } = useTranslation('plantViews');
   const checkText = useCheckText();
   const labelOf = new Map(graph.nodes.map((n) => [n.id, nodeText.label(n)]));
-  const name = (n: PlantFlowNode) =>
-    n.path ? (
-      <Anchor component={Link} to={n.path} size="sm" fw={500}>
-        {nodeText.label(n)}
-      </Anchor>
-    ) : (
-      <Text size="sm" fw={500} fs={n.hidden ? 'italic' : undefined}>
-        {nodeText.label(n)}
-      </Text>
-    );
+  const name = (n: PlantFlowNode) => (
+    <Stack gap={0}>
+      {n.path ? (
+        <Anchor component={Link} to={n.path} size="sm" fw={500}>
+          {nodeText.label(n)}
+        </Anchor>
+      ) : (
+        <Text size="sm" fw={500} fs={n.hidden ? 'italic' : undefined}>
+          {nodeText.label(n)}
+        </Text>
+      )}
+      {n.parent && labelOf.has(n.parent) && (
+        <Text size="xs" c="dimmed">
+          {t('table.in', { name: labelOf.get(n.parent) })}
+        </Text>
+      )}
+      {!!n.tags?.length && (
+        <Text size="xs" c="dimmed">
+          {n.tags.join(' · ')}
+        </Text>
+      )}
+    </Stack>
+  );
+  // the details: the second line and what hovering shows (devices, subnets)
+  const detail = (n: PlantFlowNode) => (
+    <Stack gap={2}>
+      {n.detail && (
+        <Text size="xs" className="mono" style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-line' }}>
+          {n.detail}
+        </Text>
+      )}
+      {n.info?.map((x, i) => (
+        <Text key={i} size="xs" style={{ overflowWrap: 'anywhere' }}>
+          <Text span size="xs" c="dimmed">
+            {x.label}:
+          </Text>{' '}
+          <span className="mono">{x.value}</span>
+        </Text>
+      ))}
+      {!n.detail && !n.info?.length && <Text size="xs">–</Text>}
+    </Stack>
+  );
   const status = (n: PlantFlowNode) => (
     <Stack gap={3}>
       {n.live && <LiveBadge live={n.live} withSource />}
@@ -339,11 +438,7 @@ function FlowTables({
                 <Stack gap={4}>
                   {kindCell(n)}
                   {name(n)}
-                  {n.detail && (
-                    <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-line' }}>
-                      {n.detail}
-                    </Text>
-                  )}
+                  {(n.detail || !!n.info?.length) && detail(n)}
                   {status(n)}
                 </Stack>
               </Paper>
@@ -365,11 +460,7 @@ function FlowTables({
                   <Table.Tr key={n.id}>
                     <Table.Td>{kindCell(n)}</Table.Td>
                     <Table.Td>{name(n)}</Table.Td>
-                    <Table.Td>
-                      <Text size="xs" className="mono" style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-line' }}>
-                        {n.detail || '–'}
-                      </Text>
-                    </Table.Td>
+                    <Table.Td>{detail(n)}</Table.Td>
                     <Table.Td>{status(n)}</Table.Td>
                   </Table.Tr>
                 ))}

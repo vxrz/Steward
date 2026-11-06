@@ -3,7 +3,6 @@
   "tabs": {
     "siteLabel": "Pages of {{name}}",
     "assetLabel": "Pages of {{name}}",
-    "in": "in",
     "site": {
       "overview": "Overview",
       "structure": "Structure"
@@ -44,13 +43,18 @@
       "down": "Down",
       "maintenance": "Maintenance",
       "blocked": "Blocked",
-      "unknown": "No data"
+      "unknown": "No data",
+      "disabled": "Turned off",
+      "not_found": "Not found"
     },
     "dataset": {
       "fresh": "Fresh",
       "due": "Due",
       "stale": "Stale",
-      "no_data": "No data"
+      "no_data": "No data",
+      "no_row": "No row",
+      "no_time": "No time",
+      "not_found": "Not found"
     },
     "unknownStatus": "{{status}}",
     "from": {
@@ -90,7 +94,12 @@
     "kpi": "KPI job",
     "dataset": "Dataset",
     "dashboard": "Dashboard",
-    "kpiDefinition": "KPI definition"
+    "kpiDefinition": "KPI definition",
+    "zone": "Zone",
+    "vlan": "VLAN",
+    "conduit": "Conduit",
+    "host": "Host",
+    "peer": "Other party"
   },
   "node": {
     "hidden": "Not visible",
@@ -115,7 +124,12 @@
     "problem": "Check fails",
     "inactive": "Not active",
     "result": "result",
-    "from": "From {{from}} to {{to}}"
+    "from": "From {{from}} to {{to}}",
+    "paths_one": "{{count}} data path",
+    "paths_other": "{{count}} data paths",
+    "noConduit": "No conduit documented",
+    "offline": "Offline",
+    "both": "both ways"
   },
   "graph": {
     "label": "Picture: {{title}}",
@@ -139,6 +153,12 @@
     "reasons": {
       "interface_inactive": "Interface not active",
       "unavailable": "Not delivered here"
+    },
+    "live": {
+      "online": "Online",
+      "offline": "Offline",
+      "unknown": "No data",
+      "notWatched": "Not watched"
     }
   },
   "table": {
@@ -147,7 +167,8 @@
     "name": "Name",
     "detail": "Details",
     "status": "Status",
-    "goesTo": "Goes to"
+    "goesTo": "Goes to",
+    "in": "in {{name}}"
   },
   "flow": {
     "title": "Data flow",
@@ -264,5 +285,45 @@
     "structure": "Structure",
     "coverageLink": "KPI coverage",
     "title": "Overview"
+  },
+  "info": {
+    "hint": "Point at an asset, a VLAN or a zone to see its devices, subnets and VLANs."
+  },
+  "network": {
+    "title": "Diagram",
+    "help": "Zones after IEC 62443-3-2 with their VLANs and the {{type}} on them, the conduits between the zones and the data paths across them. Point at a part to see its devices, subnets and VLANs.",
+    "live": "the checks linked to an asset and its devices (monitors – Gatus, CheckMk, the MQTT silent-device and Kafka checks – and dataset freshness): online, offline, or “no data”. A way from an offline asset is red and still.",
+    "exportTitle": "OT network of {{site}}",
+    "emptyTitle": "Nothing to draw yet",
+    "emptyText": "Add zones and VLANs, and devices and data paths of the {{type}}, to see the diagram.",
+    "notDrawn_one": "{{count}} {{type}} without devices or data paths is not drawn.",
+    "notDrawn_other": "{{count}} {{type}} without devices or data paths are not drawn.",
+    "vid": "VID {{vid}}",
+    "devices_one": "{{count}} device",
+    "devices_other": "{{count}} devices",
+    "paths_one": "{{count}} data path",
+    "paths_other": "{{count}} data paths",
+    "noAddress": "no address",
+    "noVlan": "no VLAN",
+    "on": "on {{host}}",
+    "subnets": "Subnets",
+    "controls": "Controls",
+    "assessment": "Risk assessment",
+    "managedBy": "Managed by",
+    "segment": "Network segment",
+    "restricted": "Restricted",
+    "legendZone": "Zone (IEC 62443-3-2): its criticality and SL-T",
+    "legendVlan": "VLAN (IEEE 802.1Q) in a zone, the assets on it",
+    "legendConduit": "Conduit between two zones; data paths into another zone run through it",
+    "legendNoConduit": "A data path into another zone without a documented conduit",
+    "legendOnline": "From an asset its checks say is online",
+    "legendOffline": "From an asset its checks say is offline",
+    "structureLink": "OT network diagram",
+    "liveWords": {
+      "online": "online",
+      "offline": "offline",
+      "unknown": "no data",
+      "notWatched": "not watched"
+    }
   }
 }

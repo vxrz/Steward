@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent } from 'react';
-import { Anchor, Badge, Box, Group, Paper, SegmentedControl, SimpleGrid, Stack, Table, Text, Title, UnstyledButton } from '@mantine/core';
+import { Anchor, Badge, Box, Button, Group, Paper, SegmentedControl, SimpleGrid, Stack, Table, Text, Title, UnstyledButton } from '@mantine/core';
 import { useElementSize, useMediaQuery } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { IconChartTreemap, IconChevronRight, IconSitemap } from '@tabler/icons-react';
+import { IconChartDots3, IconChartTreemap, IconChevronRight, IconSitemap } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { ASSET_STATUSES, LEVEL_RECORD_TYPE, type AssetStatus, type PlantStructure, type PlantStructureAsset, type PlantStructureNode } from '@sm/shared';
 import { get } from '../../../api';
@@ -148,14 +148,27 @@ export function SiteStructureView({ siteId }: { siteId: string }) {
       .join('. ');
   return (
     <Stack gap="sm" data-testid="site-structure">
-      <div>
-        <Title order={2} fz="h4">
-          {t('structure.title')}
-        </Title>
-        <Text size="xs" c="dimmed">
-          {t('structure.help', { type: label('asset', true, true) })}
-        </Text>
-      </div>
+      <Group justify="space-between" align="flex-start" gap="xs" wrap="wrap">
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <Title order={2} fz="h4">
+            {t('structure.title')}
+          </Title>
+          <Text size="xs" c="dimmed">
+            {t('structure.help', { type: label('asset', true, true) })}
+          </Text>
+        </div>
+        {/* the other picture of the site: its OT network (#220) */}
+        <Button
+          size="xs"
+          variant="default"
+          component={Link}
+          to={`/plant/sites/${encodeURIComponent(siteId)}/network/diagram`}
+          leftSection={<IconChartDots3 size={14} />}
+          data-testid="structure-network-link"
+        >
+          {t('network.structureLink')}
+        </Button>
+      </Group>
       {empty ? (
         <EmptyState icon={IconSitemap} title={t('structure.emptyTitle')} testId="structure-empty">
           {t('structure.emptyText', { areas: label('area', true, true), assets: label('asset', true, true) })}
