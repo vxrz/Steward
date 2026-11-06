@@ -136,6 +136,7 @@ export const MONITOR_TYPE_KINDS: Readonly<Record<string, readonly string[]>> = {
   'dependency-track': ['dependency-track'],
   entra: ['microsoft-graph'],
   'privilege-vault': ['privilege-vault'],
+  'page-watch': ['changedetection'],
 };
 
 /** Platform kinds without an HTTP API of their own: the "platform" monitor check (an HTTP request) does not fit them. */

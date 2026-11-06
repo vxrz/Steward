@@ -1,0 +1,36 @@
+# Vendor pages watched by changedetection.io (#242): changedetection.io runs separately and watches vendor terms,
+# pricing pages, release notes and status pages; Steward reads its watches (metadata only, never page contents).
+# "Vendor terms" turns degraded for a day after a page with the tag vendor-terms changed – someone should read the
+# diff; "Watches working" turns degraded while a watch fails (fetch error, filter not found) or was not checked for two
+# days, so a broken watch is noticed. The platform is the name of your changedetection.io platform (or its beginning).
+# See docs/CHANGEDETECTION.md.
+kind: monitor
+key: vendor-page-watches
+name: Vendor page watches
+description: Changes of vendor terms and the health of the watches in changedetection.io.
+tags: [vendors, changedetection]
+intervalSeconds: 900
+aggregate: { rule: worst }
+checks:
+  - id: vendor-terms
+    name: Vendor terms
+    description: A page with the tag vendor-terms changed within the last 24 hours – read the diff in changedetection.io.
+    type: page-watch
+    platform: changedetection.io
+    tag: vendor-terms
+    changedWithinHours: 24
+    changedAs: degraded
+    failingAs: degraded
+    x: 0
+    y: 0
+  - id: watches-working
+    name: Watches working
+    description: Every watch was checked within two days and its last check did not fail.
+    type: page-watch
+    platform: changedetection.io
+    changedWithinHours: 24
+    changedAs: up
+    failingAs: degraded
+    maxCheckAgeHours: 48
+    x: 260
+    y: 0

@@ -3960,6 +3960,7 @@
               "dependency-track",
               "entra",
               "privilege-vault",
+              "page-watch",
               "monitor"
             ]
           },
@@ -4385,6 +4386,7 @@
                     "dependency-track",
                     "entra",
                     "privilege-vault",
+                    "page-watch",
                     "monitor"
                   ]
                 },
