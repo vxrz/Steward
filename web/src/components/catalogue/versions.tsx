@@ -33,6 +33,7 @@ import {
   VERSION_LIMITS,
   VERSION_SCHEMES,
   VERSION_SOURCES,
+  isFullVersionSettings,
   isGitPlatformKind,
   type ApplicationDetail,
   type DtrackReadout,
@@ -45,6 +46,7 @@ import {
   type VersionSettings,
   type VersionSource,
   type VersionWatchConfig,
+  type VersionSettingsView,
   type VersionWatchStatus,
 } from '@sm/shared';
 import { get, notifyError, notifyOk, post, put } from '../../api';
@@ -653,12 +655,15 @@ function VersionWatchModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation(['applications', 'common']);
   const qc = useQueryClient();
   const status = useQuery({ queryKey: versionKeys.all, queryFn: () => get<VersionWatchStatus>('/catalogue/versions') });
-  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
+  // the platform choices: for administrators, who see and change them
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms'), enabled: !!status.data?.canEdit });
   const [draft, setDraft] = useState<VersionSettings | null>(null);
   const [busy, setBusy] = useState<'save' | 'refresh' | null>(null);
   const s = status.data;
-  const settings = draft ?? s?.settings ?? null;
-  const patch = (p: Partial<VersionSettings>) => settings && setDraft({ ...settings, ...p });
+  const settings: VersionSettingsView | null = draft ?? s?.settings ?? null;
+  // registry addresses and platforms: administrators only (the server leaves them out for everybody else)
+  const full = settings && isFullVersionSettings(settings) ? settings : null;
+  const patch = (p: Partial<VersionSettings>) => full && setDraft({ ...full, ...p });
   const refreshAll = async () => {
     await Promise.all([
       qc.invalidateQueries({ queryKey: versionKeys.all }),
@@ -808,48 +813,52 @@ function VersionWatchModal({ onClose }: { onClose: () => void }) {
             disabled={!s.canEdit}
             w={260}
           />
-          <div>
-            <Text size="sm" fw={500}>
-              {t('versions.registries')}
-            </Text>
-            <Text size="xs" c="dimmed" mb={4}>
-              {t('versions.registriesHint')}
-            </Text>
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
-              {PACKAGE_ECOSYSTEMS.map((e) => (
-                <TextInput
-                  key={e}
-                  label={t(`versions.ecosystems.${e}`)}
-                  size="xs"
-                  classNames={{ input: 'mono' }}
-                  placeholder={t('versions.registryOff')}
-                  value={settings.registries[e]}
-                  onChange={(ev) => patch({ registries: { ...settings.registries, [e]: ev.currentTarget.value } })}
-                  disabled={!s.canEdit}
-                />
-              ))}
-            </SimpleGrid>
-          </div>
-          <MultiSelect
-            label={t('versions.ociPlatforms')}
-            description={t('versions.ociPlatformsHint')}
-            data={all.filter((p) => p.kind === CONTAINER_REGISTRY_KIND).map((p) => ({ value: p.id, label: p.name }))}
-            value={settings.ociPlatformIds}
-            onChange={(v) => patch({ ociPlatformIds: v })}
-            nothingFoundMessage={t('versions.noPlatform')}
-            disabled={!s.canEdit}
-            clearable
-          />
-          <Select
-            label={t('versions.gitPlatform')}
-            description={t('versions.gitPlatformHint')}
-            data={all.filter((p) => isGitPlatformKind(p.kind)).map((p) => ({ value: p.id, label: p.name }))}
-            value={settings.gitPlatformId}
-            onChange={(v) => patch({ gitPlatformId: v })}
-            placeholder={t('versions.none')}
-            clearable
-            disabled={!s.canEdit}
-          />
+          {full && (
+            <>
+              <div>
+                <Text size="sm" fw={500}>
+                  {t('versions.registries')}
+                </Text>
+                <Text size="xs" c="dimmed" mb={4}>
+                  {t('versions.registriesHint')}
+                </Text>
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                  {PACKAGE_ECOSYSTEMS.map((e) => (
+                    <TextInput
+                      key={e}
+                      label={t(`versions.ecosystems.${e}`)}
+                      size="xs"
+                      classNames={{ input: 'mono' }}
+                      placeholder={t('versions.registryOff')}
+                      value={full.registries[e]}
+                      onChange={(ev) => patch({ registries: { ...full.registries, [e]: ev.currentTarget.value } })}
+                      disabled={!s.canEdit}
+                    />
+                  ))}
+                </SimpleGrid>
+              </div>
+              <MultiSelect
+                label={t('versions.ociPlatforms')}
+                description={t('versions.ociPlatformsHint')}
+                data={all.filter((p) => p.kind === CONTAINER_REGISTRY_KIND).map((p) => ({ value: p.id, label: p.name }))}
+                value={full.ociPlatformIds}
+                onChange={(v) => patch({ ociPlatformIds: v })}
+                nothingFoundMessage={t('versions.noPlatform')}
+                disabled={!s.canEdit}
+                clearable
+              />
+              <Select
+                label={t('versions.gitPlatform')}
+                description={t('versions.gitPlatformHint')}
+                data={all.filter((p) => isGitPlatformKind(p.kind)).map((p) => ({ value: p.id, label: p.name }))}
+                value={full.gitPlatformId}
+                onChange={(v) => patch({ gitPlatformId: v })}
+                placeholder={t('versions.none')}
+                clearable
+                disabled={!s.canEdit}
+              />
+            </>
+          )}
           <Switch
             label={t('versions.prereleasesSetting')}
             description={t('versions.prereleasesSettingHint')}

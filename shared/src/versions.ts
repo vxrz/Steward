@@ -191,8 +191,17 @@ export const DEFAULT_VERSION_SETTINGS: VersionSettings = {
   warnDays: 180,
 };
 
+/** The settings as everybody may read them: without the registry addresses (mirrors) and the platforms – those are for administrators. */
+export type VersionSettingsView = Omit<VersionSettings, 'registries' | 'ociPlatformIds' | 'gitPlatformId'> &
+  Partial<Pick<VersionSettings, 'registries' | 'ociPlatformIds' | 'gitPlatformId'>>;
+
+/** Whether a settings view carries all settings (an administrator's). */
+export const isFullVersionSettings = (s: VersionSettingsView): s is VersionSettings =>
+  s.registries !== undefined && s.ociPlatformIds !== undefined && s.gitPlatformId !== undefined;
+
 export interface VersionWatchStatus {
-  settings: VersionSettings;
+  /** Administrators: all settings; everybody else: without registries, ociPlatformIds and gitPlatformId */
+  settings: VersionSettingsView;
   /** Tech stack entries (of applications not archived and of systems) */
   entries: number;
   /** … with a newest version */

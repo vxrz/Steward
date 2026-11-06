@@ -98,10 +98,11 @@ describe('version watch', () => {
     expect(entry(a, 'web', 'deno').watch).toMatchObject({ source: 'registry', where: 'crates.io', newest: '2.4.5', lag: 'major' });
     // no package URL of a registry: endoflife.date (newest cycle 26, latest 26.4)
     expect(entry(a, 'web', 'nodejs').watch).toMatchObject({ source: 'endoflife', newest: '26.4', lag: 'major', behind: { major: 2, minor: 0, patch: 0 } });
-    // images from the cluster: tags with the installed tag's shape ("-alpine" kept), the token flow of the registry
+    // images from the cluster: tags with the installed tag's shape ("-alpine" kept), the token flow of the registry –
+    // a viewer sees no platforms: the registry is named by its kind
     expect(entry(a, 'shop-prod', 'nginx').watch).toMatchObject({
       source: 'oci',
-      where: 'Container registry (demo)',
+      where: 'Container registry',
       ref: 'library/nginx',
       newest: '1.28.0-alpine',
       lag: 'minor',
@@ -111,6 +112,7 @@ describe('version watch', () => {
     // the installed tag's shape: 19beta1 is a pre-release, 18.1-alpine has another suffix
     // node:24-alpine → 24 matches any 24.x; 26.1.0-alpine is the newest
     expect(entry(a, 'shop-prod', 'nodejs').watch).toMatchObject({ source: 'oci', newest: '26.1.0-alpine', lag: 'major' });
+    expect(entry(await s.api('GET', `/applications/${app.id}`), 'shop-prod', 'nginx').watch.where).toBe('Container registry (demo)');
     const audit = await s.api('GET', '/audit?action=catalogue.versions_refreshed&limit=5');
     expect(audit[0]).toMatchObject({ actor: 'dana' });
   });
@@ -205,7 +207,16 @@ describe('version watch', () => {
     await olivia('POST', `/applications/${app.id}/components/${comp.id}/dependency-track`, {});
     await dana('POST', '/catalogue/versions/refresh');
     const d = await vera('GET', `/catalogue/versions/entry?holder=component&id=${comp.id}&product=log4j`);
-    expect(d.watch).toMatchObject({ source: 'dtrack', where: dt.name, ref: 'pkg:maven/org.apache.logging.log4j/log4j-core', newest: '2.25.0', lag: 'minor' });
+    expect(d.watch).toMatchObject({
+      source: 'dtrack',
+      where: 'Dependency-Track',
+      ref: 'pkg:maven/org.apache.logging.log4j/log4j-core',
+      newest: '2.25.0',
+      lag: 'minor',
+    });
+    expect(JSON.stringify(d)).not.toContain(dt.name);
+    const own = await s.api('GET', `/catalogue/versions/entry?holder=component&id=${comp.id}&product=log4j`);
+    expect(own.watch.where).toBe(dt.name);
     expect(d.vulnerabilities).toMatchObject({ project: 'shop-web@2.4.1', counts: { critical: 1 } });
     expect(d.vulnerabilities.findings).toEqual([expect.objectContaining({ vulnId: 'CVE-2021-44228', component: 'org.apache.logging.log4j/log4j-core' })]);
   });
