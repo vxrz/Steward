@@ -119,6 +119,8 @@ Common fields: `id`, `name`, `description`, `intervalSeconds`, `timeoutSeconds`,
 
 **An absolute URL as the path** (`platform` and `freshness` checks): `path` may be a full `http(s)://` URL instead of a path below the base URL. Since 0.8.0 it goes through the outbound policy like every other request – the platform's own origins (base URL, trusted origins), another platform's origin or the outbound allow-list (_Settings → Outbound access_); a host outside it fails the check with "Blocked by the outbound policy". The platform's credentials are sent only to its own origins. Both check types also check the base URL against the policy (with the policy _allowList_, it must be on the list). For DynamoDB, use the [DynamoDB check](#dynamodb-tables).
 
+**Redirects** (`http`, `platform` and `freshness` checks, webhook outputs): at most 5 are followed, and since 0.9.0 every target goes through the outbound policy like the first URL ([SECURITY-HARDENING.md](SECURITY-HARDENING.md#which-rule-checks-which-call)). A redirect on the same origin, from `http` to `https` on the same host, or to the platform's own origins passes; a redirect to any other host must be allowed, or the check fails with "Blocked by the outbound policy: … redirected to …" – as for a refused first URL, an `http` check reports _unknown_ ("Target not allowed: …"), a `freshness` check _unknown_ and a `platform` check _down_. An `http` check's own headers go only to its first origin.
+
 ```yaml
 - id: newest-order
   name: Newest order in the search index
