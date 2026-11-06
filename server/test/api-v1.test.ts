@@ -512,6 +512,21 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   await listAll('/plant/checks', '/plant/checks');
   await get('/plant/export', '/plant/export');
   await get('/plant/export', '/plant/export?part=catalogue');
+  // database schemas (#222): the demo database platform (read) and a system (a tbls import)
+  for (const [kind, ids] of [
+    ['platforms', (await listAll('/platforms', '/platforms?kind=database')).map((x) => x.id)],
+    ['systems', (await listAll('/systems', '/systems')).map((x) => x.id)],
+  ] as const) {
+    const param = kind === 'platforms' ? '{platformId}' : '{systemId}';
+    for (const id of ids) {
+      const snaps = await listAll(`/${kind}/${param}/schema/snapshots`, `/${kind}/${id}/schema/snapshots`);
+      await listAll(`/${kind}/${param}/schema/changes`, `/${kind}/${id}/schema/changes`);
+      if (!snaps.length) continue;
+      await get(`/${kind}/${param}/schema/snapshots/{snapshotId}`, `/${kind}/${id}/schema/snapshots/${snaps[0].id}`);
+      await get(`/${kind}/${param}/schema/snapshots/{snapshotId}/export`, `/${kind}/${id}/schema/snapshots/latest/export?format=dbml`);
+      await get(`/${kind}/${param}/schema/compare`, `/${kind}/${id}/schema/compare?from=${snaps.at(-1).id}&to=${snaps[0].id}`);
+    }
+  }
   return out;
 }
 
@@ -614,6 +629,12 @@ describe('every endpoint', () => {
     });
     (await import('../src/scorecard/jobs.js')).sampleObjectives();
     (await import('../src/scorecard/jobs.js')).snapshotScorecards(Date.now(), true);
+    // database schemas (#222): a read of the demo database, and two tbls imports for the system (one change)
+    const demoDb = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'database').id;
+    await s.api('POST', `/db-schemas/platform/${demoDb}/read`);
+    const tbls = (cols: unknown[]) => JSON.stringify({ name: 'api', tables: [{ name: 'public.t', type: 'BASE TABLE', columns: cols }] });
+    await s.api('POST', `/db-schemas/system/${sys.id}/import`, { schema: tbls([{ name: 'id', type: 'integer', nullable: false }]) });
+    await s.api('POST', `/db-schemas/system/${sys.id}/import`, { schema: tbls([{ name: 'id', type: 'bigint', nullable: false }]) });
     adminCrawl = await crawl(tokens.admin);
   });
 

@@ -4,7 +4,7 @@
     "title": "Steward API",
     "version": "1.1.0",
     "summary": "Read-only REST API of Steward",
-    "description": "Read-only access to the data Steward holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), change requests and decision records, the service catalogue, the credentials register (documentation only, never secret values), and the data model itself as an Apache Ossie semantic model.\n\n**Authentication.** Every endpoint except `/health` needs a personal API token: `Authorization: Bearer smt_…`. Create one on your profile page in the web UI (scope *read* is enough; tokens with scope *mcp* only work on the MCP endpoint). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.\n\n**Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return `{ items, nextCursor }` – pass `nextCursor` as `cursor` to get the next page (also offered as an RFC 8288 `Link: <…>; rel=\"next\"` header). `limit` is 1–200 (default 50). Errors are problem details (RFC 9457, `application/problem+json`). Responses carry `Cache-Control: no-store` and `RateLimit-*` headers; above the limit the API answers 429 with `Retry-After`.\n\n**Versioning.** The path carries the major version. Within v1 changes are additive (new endpoints, optional parameters and fields) – ignore fields you do not know. Breaking changes get a new major version; endpoints that are going away are announced with `Deprecation` and `Sunset` headers first.",
+    "description": "Read-only access to the data Steward holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), change requests and decision records, the service catalogue, the credentials register (documentation only, never secret values), database schema snapshots and their changes, and the data model itself as an Apache Ossie semantic model.\n\n**Authentication.** Every endpoint except `/health` needs a personal API token: `Authorization: Bearer smt_…`. Create one on your profile page in the web UI (scope *read* is enough; tokens with scope *mcp* only work on the MCP endpoint). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.\n\n**Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return `{ items, nextCursor }` – pass `nextCursor` as `cursor` to get the next page (also offered as an RFC 8288 `Link: <…>; rel=\"next\"` header). `limit` is 1–200 (default 50). Errors are problem details (RFC 9457, `application/problem+json`). Responses carry `Cache-Control: no-store` and `RateLimit-*` headers; above the limit the API answers 429 with `Retry-After`.\n\n**Versioning.** The path carries the major version. Within v1 changes are additive (new endpoints, optional parameters and fields) – ignore fields you do not know. Breaking changes get a new major version; endpoints that are going away are announced with `Deprecation` and `Sunset` headers first.",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -3956,6 +3956,7 @@
               "snowflake",
               "database",
               "dynamodb",
+              "db-schema",
               "dependency-track",
               "entra",
               "privilege-vault",
@@ -4380,6 +4381,7 @@
                     "snowflake",
                     "database",
                     "dynamodb",
+                    "db-schema",
                     "dependency-track",
                     "entra",
                     "privilege-vault",
@@ -23267,6 +23269,1338 @@
           "dataPaths"
         ],
         "additionalProperties": false
+      },
+      "DbSchemaSnapshot": {
+        "title": "DbSchemaSnapshot",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "read",
+              "tbls"
+            ],
+            "description": "read: Steward read the database platform; tbls: an imported tbls schema.json"
+          },
+          "takenAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The last read or import that found the same schema"
+          },
+          "actor": {
+            "type": "string",
+            "description": "Who read or imported it (system for scheduled reads)"
+          },
+          "via": {
+            "type": "string",
+            "description": "ui, api, job or monitor"
+          },
+          "dialect": {
+            "type": "string",
+            "enum": [
+              "postgresql",
+              "mysql",
+              "sqlserver",
+              "sqlite",
+              "other"
+            ]
+          },
+          "product": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serverVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "database": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tables": {
+            "type": "integer"
+          },
+          "columns": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "More tables or columns than Steward keeps: the first ones are in the snapshot"
+          },
+          "sha256": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "SHA-256 of the imported file (tbls)"
+          },
+          "fileName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "checks": {
+            "type": "integer",
+            "description": "Findings of tbls lint"
+          },
+          "changes": {
+            "type": "integer",
+            "description": "Changes against the snapshot before"
+          },
+          "breaking": {
+            "type": "integer",
+            "description": "Breaking changes among them"
+          },
+          "previousId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "takenAt",
+          "checkedAt",
+          "actor",
+          "via",
+          "dialect",
+          "product",
+          "serverVersion",
+          "database",
+          "tables",
+          "columns",
+          "truncated",
+          "sha256",
+          "fileName",
+          "checks",
+          "changes",
+          "breaking",
+          "previousId"
+        ],
+        "additionalProperties": false
+      },
+      "DbSchemaSnapshotDetail": {
+        "title": "DbSchemaSnapshotDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "read",
+              "tbls"
+            ],
+            "description": "read: Steward read the database platform; tbls: an imported tbls schema.json"
+          },
+          "takenAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The last read or import that found the same schema"
+          },
+          "actor": {
+            "type": "string",
+            "description": "Who read or imported it (system for scheduled reads)"
+          },
+          "via": {
+            "type": "string",
+            "description": "ui, api, job or monitor"
+          },
+          "dialect": {
+            "type": "string",
+            "enum": [
+              "postgresql",
+              "mysql",
+              "sqlserver",
+              "sqlite",
+              "other"
+            ]
+          },
+          "product": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serverVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "database": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tables": {
+            "type": "integer"
+          },
+          "columns": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "More tables or columns than Steward keeps: the first ones are in the snapshot"
+          },
+          "sha256": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "SHA-256 of the imported file (tbls)"
+          },
+          "fileName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "checks": {
+            "type": "integer",
+            "description": "Findings of tbls lint"
+          },
+          "changes": {
+            "type": "integer",
+            "description": "Changes against the snapshot before"
+          },
+          "breaking": {
+            "type": "integer",
+            "description": "Breaking changes among them"
+          },
+          "previousId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "schema": {
+            "type": "object",
+            "properties": {
+              "format": {
+                "type": "string",
+                "enum": [
+                  "steward-db-schema"
+                ]
+              },
+              "version": {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              "dialect": {
+                "type": "string",
+                "enum": [
+                  "postgresql",
+                  "mysql",
+                  "sqlserver",
+                  "sqlite",
+                  "other"
+                ]
+              },
+              "product": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "serverVersion": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "database": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "tables": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "schema": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "table, view, materialized view, foreign table …"
+                    },
+                    "comment": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "columns": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "nullable": {
+                            "type": "boolean"
+                          },
+                          "default": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "comment": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "type",
+                          "nullable",
+                          "default",
+                          "comment"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "primaryKey": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "columns": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "columns"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "foreignKeys": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "columns": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "refSchema": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "refTable": {
+                            "type": "string"
+                          },
+                          "refColumns": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "onUpdate": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "onDelete": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "columns",
+                          "refSchema",
+                          "refTable",
+                          "refColumns",
+                          "onUpdate",
+                          "onDelete"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "indexes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "columns": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "unique": {
+                            "type": "boolean"
+                          },
+                          "primary": {
+                            "type": "boolean"
+                          },
+                          "definition": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "columns",
+                          "unique",
+                          "primary",
+                          "definition"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "name",
+                    "type",
+                    "comment",
+                    "columns",
+                    "primaryKey",
+                    "foreignKeys",
+                    "indexes"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "format",
+              "version",
+              "dialect",
+              "product",
+              "serverVersion",
+              "database",
+              "tables",
+              "truncated"
+            ],
+            "additionalProperties": false
+          },
+          "lint": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rule": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "rule",
+                "target",
+                "message"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Findings of tbls lint, named by their rule"
+          },
+          "diff": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "changes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "table-added",
+                            "table-removed",
+                            "table-type",
+                            "column-added",
+                            "column-removed",
+                            "column-type",
+                            "column-nullable",
+                            "column-default",
+                            "primary-key-added",
+                            "primary-key-removed",
+                            "primary-key-changed",
+                            "foreign-key-added",
+                            "foreign-key-removed",
+                            "unique-added",
+                            "unique-removed",
+                            "index-added",
+                            "index-removed"
+                          ]
+                        },
+                        "table": {
+                          "type": "string",
+                          "description": "The table with its schema"
+                        },
+                        "column": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "The key or index"
+                        },
+                        "before": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "breaking": {
+                          "type": "boolean"
+                        },
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "tableRemoved",
+                            "columnRemoved",
+                            "typeNarrowed",
+                            "typeChanged",
+                            "notNullWithoutDefault",
+                            "keyRemoved"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "table",
+                        "breaking"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "total": {
+                    "type": "integer",
+                    "description": "All changes (more than listed when there are very many)"
+                  },
+                  "breaking": {
+                    "type": "integer"
+                  },
+                  "incomplete": {
+                    "type": "boolean",
+                    "description": "A snapshot was truncated: removals are not listed"
+                  }
+                },
+                "required": [
+                  "changes",
+                  "total",
+                  "breaking",
+                  "incomplete"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The changes against the snapshot before (null for the first one)"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "takenAt",
+          "checkedAt",
+          "actor",
+          "via",
+          "dialect",
+          "product",
+          "serverVersion",
+          "database",
+          "tables",
+          "columns",
+          "truncated",
+          "sha256",
+          "fileName",
+          "checks",
+          "changes",
+          "breaking",
+          "previousId",
+          "schema",
+          "lint",
+          "diff"
+        ],
+        "additionalProperties": false
+      },
+      "DbSchemaDocument": {
+        "title": "DbSchemaDocument",
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "steward-db-schema"
+            ]
+          },
+          "version": {
+            "type": "number",
+            "enum": [
+              1
+            ]
+          },
+          "dialect": {
+            "type": "string",
+            "enum": [
+              "postgresql",
+              "mysql",
+              "sqlserver",
+              "sqlite",
+              "other"
+            ]
+          },
+          "product": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serverVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "database": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "schema": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "table, view, materialized view, foreign table …"
+                },
+                "comment": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "columns": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string"
+                      },
+                      "nullable": {
+                        "type": "boolean"
+                      },
+                      "default": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      },
+                      "comment": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "type",
+                      "nullable",
+                      "default",
+                      "comment"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "primaryKey": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "columns": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "columns"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "foreignKeys": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      },
+                      "columns": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "refSchema": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      },
+                      "refTable": {
+                        "type": "string"
+                      },
+                      "refColumns": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "onUpdate": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      },
+                      "onDelete": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "columns",
+                      "refSchema",
+                      "refTable",
+                      "refColumns",
+                      "onUpdate",
+                      "onDelete"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "indexes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "columns": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "unique": {
+                        "type": "boolean"
+                      },
+                      "primary": {
+                        "type": "boolean"
+                      },
+                      "definition": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "columns",
+                      "unique",
+                      "primary",
+                      "definition"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "schema",
+                "name",
+                "type",
+                "comment",
+                "columns",
+                "primaryKey",
+                "foreignKeys",
+                "indexes"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "format",
+          "version",
+          "dialect",
+          "product",
+          "serverVersion",
+          "database",
+          "tables",
+          "truncated"
+        ],
+        "additionalProperties": false
+      },
+      "DbSchemaDiff": {
+        "title": "DbSchemaDiff",
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "table-added",
+                    "table-removed",
+                    "table-type",
+                    "column-added",
+                    "column-removed",
+                    "column-type",
+                    "column-nullable",
+                    "column-default",
+                    "primary-key-added",
+                    "primary-key-removed",
+                    "primary-key-changed",
+                    "foreign-key-added",
+                    "foreign-key-removed",
+                    "unique-added",
+                    "unique-removed",
+                    "index-added",
+                    "index-removed"
+                  ]
+                },
+                "table": {
+                  "type": "string",
+                  "description": "The table with its schema"
+                },
+                "column": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The key or index"
+                },
+                "before": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "after": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "breaking": {
+                  "type": "boolean"
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "tableRemoved",
+                    "columnRemoved",
+                    "typeNarrowed",
+                    "typeChanged",
+                    "notNullWithoutDefault",
+                    "keyRemoved"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "table",
+                "breaking"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "All changes (more than listed when there are very many)"
+          },
+          "breaking": {
+            "type": "integer"
+          },
+          "incomplete": {
+            "type": "boolean",
+            "description": "A snapshot was truncated: removals are not listed"
+          }
+        },
+        "required": [
+          "changes",
+          "total",
+          "breaking",
+          "incomplete"
+        ],
+        "additionalProperties": false
+      },
+      "DbSchemaChangeSet": {
+        "title": "DbSchemaChangeSet",
+        "type": "object",
+        "properties": {
+          "snapshot": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "read",
+                  "tbls"
+                ],
+                "description": "read: Steward read the database platform; tbls: an imported tbls schema.json"
+              },
+              "takenAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              "checkedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The last read or import that found the same schema"
+              },
+              "actor": {
+                "type": "string",
+                "description": "Who read or imported it (system for scheduled reads)"
+              },
+              "via": {
+                "type": "string",
+                "description": "ui, api, job or monitor"
+              },
+              "dialect": {
+                "type": "string",
+                "enum": [
+                  "postgresql",
+                  "mysql",
+                  "sqlserver",
+                  "sqlite",
+                  "other"
+                ]
+              },
+              "product": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "serverVersion": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "database": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "tables": {
+                "type": "integer"
+              },
+              "columns": {
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean",
+                "description": "More tables or columns than Steward keeps: the first ones are in the snapshot"
+              },
+              "sha256": {
+                "type": [
+                  "null",
+                  "string"
+                ],
+                "description": "SHA-256 of the imported file (tbls)"
+              },
+              "fileName": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "checks": {
+                "type": "integer",
+                "description": "Findings of tbls lint"
+              },
+              "changes": {
+                "type": "integer",
+                "description": "Changes against the snapshot before"
+              },
+              "breaking": {
+                "type": "integer",
+                "description": "Breaking changes among them"
+              },
+              "previousId": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "source",
+              "takenAt",
+              "checkedAt",
+              "actor",
+              "via",
+              "dialect",
+              "product",
+              "serverVersion",
+              "database",
+              "tables",
+              "columns",
+              "truncated",
+              "sha256",
+              "fileName",
+              "checks",
+              "changes",
+              "breaking",
+              "previousId"
+            ],
+            "additionalProperties": false
+          },
+          "diff": {
+            "type": "object",
+            "properties": {
+              "changes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "table-added",
+                        "table-removed",
+                        "table-type",
+                        "column-added",
+                        "column-removed",
+                        "column-type",
+                        "column-nullable",
+                        "column-default",
+                        "primary-key-added",
+                        "primary-key-removed",
+                        "primary-key-changed",
+                        "foreign-key-added",
+                        "foreign-key-removed",
+                        "unique-added",
+                        "unique-removed",
+                        "index-added",
+                        "index-removed"
+                      ]
+                    },
+                    "table": {
+                      "type": "string",
+                      "description": "The table with its schema"
+                    },
+                    "column": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "The key or index"
+                    },
+                    "before": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "after": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "breaking": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "tableRemoved",
+                        "columnRemoved",
+                        "typeNarrowed",
+                        "typeChanged",
+                        "notNullWithoutDefault",
+                        "keyRemoved"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "table",
+                    "breaking"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "total": {
+                "type": "integer",
+                "description": "All changes (more than listed when there are very many)"
+              },
+              "breaking": {
+                "type": "integer"
+              },
+              "incomplete": {
+                "type": "boolean",
+                "description": "A snapshot was truncated: removals are not listed"
+              }
+            },
+            "required": [
+              "changes",
+              "total",
+              "breaking",
+              "incomplete"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "snapshot",
+          "diff"
+        ],
+        "additionalProperties": false
+      },
+      "DbSchemaComparison": {
+        "title": "DbSchemaComparison",
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "table-added",
+                    "table-removed",
+                    "table-type",
+                    "column-added",
+                    "column-removed",
+                    "column-type",
+                    "column-nullable",
+                    "column-default",
+                    "primary-key-added",
+                    "primary-key-removed",
+                    "primary-key-changed",
+                    "foreign-key-added",
+                    "foreign-key-removed",
+                    "unique-added",
+                    "unique-removed",
+                    "index-added",
+                    "index-removed"
+                  ]
+                },
+                "table": {
+                  "type": "string",
+                  "description": "The table with its schema"
+                },
+                "column": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The key or index"
+                },
+                "before": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "after": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "breaking": {
+                  "type": "boolean"
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "tableRemoved",
+                    "columnRemoved",
+                    "typeNarrowed",
+                    "typeChanged",
+                    "notNullWithoutDefault",
+                    "keyRemoved"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "table",
+                "breaking"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "All changes (more than listed when there are very many)"
+          },
+          "breaking": {
+            "type": "integer"
+          },
+          "incomplete": {
+            "type": "boolean",
+            "description": "A snapshot was truncated: removals are not listed"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "changes",
+          "total",
+          "breaking",
+          "incomplete",
+          "from",
+          "to"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
@@ -31884,6 +33218,1030 @@
           }
         }
       }
+    },
+    "/platforms/{platformId}/schema/snapshots": {
+      "get": {
+        "operationId": "listPlatformSchemaSnapshots",
+        "summary": "List the schema snapshots of a database platform",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "Newest first. A snapshot is stored for every read or tbls import that found a schema other than the latest one (otherwise its `checkedAt` moves on). Older snapshots go by the retention of the database (Schema → Settings).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "platformId",
+            "required": true,
+            "description": "Platform id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of snapshots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of snapshots",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DbSchemaSnapshot"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/platforms/{platformId}/schema/snapshots/{snapshotId}": {
+      "get": {
+        "operationId": "getPlatformSchemaSnapshot",
+        "summary": "Get a schema snapshot of a database platform",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "`latest` for the newest one. With the schema (tables, columns, keys, indexes, comments), the findings of tbls lint and the changes against the snapshot before.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "platformId",
+            "required": true,
+            "description": "Platform id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "snapshotId",
+            "required": true,
+            "description": "Snapshot id, or latest"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbSchemaSnapshotDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/platforms/{platformId}/schema/snapshots/{snapshotId}/export": {
+      "get": {
+        "operationId": "exportPlatformSchemaSnapshot",
+        "summary": "Export a schema snapshot of a database platform",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "DBML (opens in dbdiagram, drawDB, ChartDB), SQL DDL in the dialect of the source (standard SQL for databases Steward does not speak), or the schema as JSON. `latest` for the newest snapshot.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "dbml",
+                "sql",
+                "json"
+              ],
+              "default": "json"
+            },
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "description": "dbml, sql (DDL of the source dialect) or json"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "platformId",
+            "required": true,
+            "description": "Platform id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "snapshotId",
+            "required": true,
+            "description": "Snapshot id, or latest"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "description": "DBML"
+                }
+              },
+              "application/sql": {
+                "schema": {
+                  "type": "string",
+                  "description": "SQL DDL"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbSchemaDocument"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/platforms/{platformId}/schema/changes": {
+      "get": {
+        "operationId": "listPlatformSchemaChanges",
+        "summary": "List the schema changes of a database platform",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "One entry per snapshot that has one before it, newest first: added, removed and changed tables, columns (type, null, default), keys and indexes, each marked breaking or not (removed table or column, narrowed or other type, NOT NULL without a default, removed key).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "description": "Snapshots taken at or after this time"
+          },
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "breaking",
+            "required": false,
+            "description": "Only snapshots with breaking changes"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "platformId",
+            "required": true,
+            "description": "Platform id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of change sets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of change sets",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DbSchemaChangeSet"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/platforms/{platformId}/schema/compare": {
+      "get": {
+        "operationId": "comparePlatformSchemaSnapshots",
+        "summary": "Compare two schema snapshots of a database platform",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "The changes from `from` to `to`, with the same rules as the change list.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "description": "A snapshot id (usually the older one)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "description": "Another snapshot id of the same database"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "platformId",
+            "required": true,
+            "description": "Platform id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbSchemaComparison"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/systems/{systemId}/schema/snapshots": {
+      "get": {
+        "operationId": "listSystemSchemaSnapshots",
+        "summary": "List the schema snapshots of a system (its imported tbls schemas)",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "Newest first. A snapshot is stored for every read or tbls import that found a schema other than the latest one (otherwise its `checkedAt` moves on). Older snapshots go by the retention of the database (Schema → Settings).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "systemId",
+            "required": true,
+            "description": "System id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of snapshots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of snapshots",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DbSchemaSnapshot"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/systems/{systemId}/schema/snapshots/{snapshotId}": {
+      "get": {
+        "operationId": "getSystemSchemaSnapshot",
+        "summary": "Get a schema snapshot of a system (its imported tbls schemas)",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "`latest` for the newest one. With the schema (tables, columns, keys, indexes, comments), the findings of tbls lint and the changes against the snapshot before.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "systemId",
+            "required": true,
+            "description": "System id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "snapshotId",
+            "required": true,
+            "description": "Snapshot id, or latest"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbSchemaSnapshotDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/systems/{systemId}/schema/snapshots/{snapshotId}/export": {
+      "get": {
+        "operationId": "exportSystemSchemaSnapshot",
+        "summary": "Export a schema snapshot of a system (its imported tbls schemas)",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "DBML (opens in dbdiagram, drawDB, ChartDB), SQL DDL in the dialect of the source (standard SQL for databases Steward does not speak), or the schema as JSON. `latest` for the newest snapshot.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "dbml",
+                "sql",
+                "json"
+              ],
+              "default": "json"
+            },
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "description": "dbml, sql (DDL of the source dialect) or json"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "systemId",
+            "required": true,
+            "description": "System id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "snapshotId",
+            "required": true,
+            "description": "Snapshot id, or latest"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "description": "DBML"
+                }
+              },
+              "application/sql": {
+                "schema": {
+                  "type": "string",
+                  "description": "SQL DDL"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbSchemaDocument"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/systems/{systemId}/schema/changes": {
+      "get": {
+        "operationId": "listSystemSchemaChanges",
+        "summary": "List the schema changes of a system (its imported tbls schemas)",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "One entry per snapshot that has one before it, newest first: added, removed and changed tables, columns (type, null, default), keys and indexes, each marked breaking or not (removed table or column, narrowed or other type, NOT NULL without a default, removed key).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "description": "Snapshots taken at or after this time"
+          },
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "breaking",
+            "required": false,
+            "description": "Only snapshots with breaking changes"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "systemId",
+            "required": true,
+            "description": "System id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of change sets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of change sets",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DbSchemaChangeSet"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/systems/{systemId}/schema/compare": {
+      "get": {
+        "operationId": "compareSystemSchemaSnapshots",
+        "summary": "Compare two schema snapshots of a system (its imported tbls schemas)",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "The changes from `from` to `to`, with the same rules as the change list.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "description": "A snapshot id (usually the older one)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "description": "Another snapshot id of the same database"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "systemId",
+            "required": true,
+            "description": "System id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbSchemaComparison"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
     }
   },
   "servers": [
@@ -31964,6 +34322,10 @@
     {
       "name": "Plant",
       "description": "The plant registry (opt-in module): sites with their ISA-95 hierarchy (area, work center, work unit) and buildings, and the assets in them"
+    },
+    {
+      "name": "Database schemas",
+      "description": "Schema snapshots of database platforms and systems (Steward reads or tbls imports), their changes marked breaking or not, and exports as DBML, SQL DDL or JSON"
     }
   ],
   "externalDocs": {

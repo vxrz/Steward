@@ -42,7 +42,7 @@ Access reviews, account hygiene, monitor checks and datasets are needed for the 
 ## Not now (and how it would come)
 
 - **Writes.** Always read-only in this step. A later manual step could run one approved statement with four-eyes (an approver other than the designer, the statement shown verbatim, its own control point in the assurance policy, a separate write account) – until then generated statements such as `REVOKE` are shown in a manual step and run by a person.
-- **Oracle**, Entra ID tokens for SQL Server, IAM tokens for RDS; schema snapshots and diagrams (#222); data contracts (#221).
+- **Oracle**, Entra ID tokens for SQL Server, IAM tokens for RDS; the table diagram (#222, step 2); data contracts (#221). Schema snapshots, their changes and the tbls import came in 0.8.0 (#222, step 1: catalog statements in `server/src/dbms/schema-catalog.ts`, run in the same read-only transaction; [DATABASES.md](../DATABASES.md#database-schemas)).
 
 ## Consequences
 

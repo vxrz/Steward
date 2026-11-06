@@ -102,6 +102,7 @@ const TRYABLE = new Set<CheckType>([
   'snowflake',
   'database',
   'dynamodb',
+  'db-schema',
   'dependency-track',
   'entra',
   'privilege-vault',

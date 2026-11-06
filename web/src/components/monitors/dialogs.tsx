@@ -34,7 +34,8 @@ export function CopyBlock({ label, text }: { label: string; text: string }) {
           )}
         </CopyButton>
       </Group>
-      <Code block style={{ whiteSpace: 'pre', overflowX: 'auto', fontSize: 12 }}>
+      {/* focusable: a long line scrolls sideways, also with the keyboard */}
+      <Code block tabIndex={0} style={{ whiteSpace: 'pre', overflowX: 'auto', fontSize: 12 }}>
         {text}
       </Code>
     </div>

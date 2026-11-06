@@ -780,6 +780,15 @@ async function checkDynamoDb(c: CheckOf<'dynamodb'>, ctx: ExecContext): Promise<
   }
 }
 
+// ---------- database schemas ----------
+
+/** Schema changes of a database platform or a system (#222): stored snapshots, optionally read first. */
+async function checkDbSchema(c: CheckOf<'db-schema'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { dbSchemaCheck } = await import('../dbschema/check.js');
+  return { ...(await dbSchemaCheck(c, ctx)), durationMs: Date.now() - t0 };
+}
+
 // ---------- Entra ID ----------
 
 /** Expiring app credentials or Microsoft 365 service health of an Entra ID tenant (v0.5.0). */
@@ -1068,6 +1077,7 @@ type Active =
   | CheckOf<'snowflake'>
   | CheckOf<'database'>
   | CheckOf<'dynamodb'>
+  | CheckOf<'db-schema'>
   | CheckOf<'dependency-track'>
   | CheckOf<'entra'>
   | CheckOf<'privilege-vault'>;
@@ -1102,6 +1112,8 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkDatabase(c, ctx);
       case 'dynamodb':
         return await checkDynamoDb(c, ctx);
+      case 'db-schema':
+        return await checkDbSchema(c, ctx);
       case 'dependency-track':
         return await checkDtrack(c, ctx);
       case 'entra':

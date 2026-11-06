@@ -176,7 +176,9 @@
       "Zone {{name}}",
       "Conduits",
       "Conduit {{name}}",
-      "Switch"
+      "Switch",
+      "Schema",
+      "DBML (dbdiagram, drawDB, ChartDB)"
     ]
   }
 }

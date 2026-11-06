@@ -348,7 +348,28 @@
       "report": "Report only"
     },
     "ddbFailAs": "When a requirement is not met",
-    "ddbPolicy": "Read-only: needs dynamodb:Query and the Describe actions on the table (and its indexes), cloudwatch:GetMetricData for the write activity – see docs/AWS.md."
+    "ddbPolicy": "Read-only: needs dynamodb:Query and the Describe actions on the table (and its indexes), cloudwatch:GetMetricData for the write activity – see docs/AWS.md.",
+    "dbSchemaOn": "Schema of",
+    "dbSchemaOnPlatform": "A database platform",
+    "dbSchemaOnSystem": "A system (tbls imports)",
+    "dbSchemaSystem": "System",
+    "dbSchemaSystemHint": "A system of the service catalogue whose tbls schema is pushed to Steward",
+    "dbSchemaChooseSystem": "Choose a system",
+    "dbSchemaNoSystem": "No system found",
+    "dbSchemaMode": "Fails on",
+    "dbSchemaModes": {
+      "breaking": "A breaking change",
+      "changed": "Any change"
+    },
+    "dbSchemaModeHints": {
+      "breaking": "A removed table or column, a narrowed type, NOT NULL without a default, a removed key",
+      "changed": "Any added, removed or changed table, column, key or index"
+    },
+    "dbSchemaWithin": "Within the last (hours)",
+    "dbSchemaFailAs": "When it fails",
+    "dbSchemaNoData": "Without a snapshot",
+    "dbSchemaRead": "Read the database first",
+    "dbSchemaReadHint": "Reads the schema at every check (a snapshot when it changed). Off: only the reads and imports already stored count."
   },
   "detail": {
     "template": "template",
@@ -700,6 +721,10 @@
       "label": "Database",
       "help": "A database platform: the connection works (and is read-only), replication lag stays below a limit, or the value of a read-only query is judged against WARN and CRIT levels"
     },
+    "db-schema": {
+      "label": "Database schema changes",
+      "help": "The schema snapshots of a database platform or a system: no change, or no breaking change, within the last N hours; optionally reads the platform first"
+    },
     "dependency-track": {
       "label": "Vulnerabilities (Dependency-Track)",
       "help": "A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation"
@@ -737,7 +762,8 @@
     "entra": "App credentials valid",
     "privilege-vault": "Vault hygiene",
     "database": "Database reachable",
-    "dynamodb": "DynamoDB table fresh"
+    "dynamodb": "DynamoDB table fresh",
+    "db-schema": "No breaking schema change"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}"

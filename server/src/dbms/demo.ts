@@ -1,5 +1,7 @@
 import { DbError, RowCollector, type ConnectTarget, type DbDriver, type DriverConnection, type RunLimits, type ServerInfo, type Statement } from './types.js';
 import { CATALOG } from './catalog.js';
+import { SCHEMA_PARTS, SCHEMA_SQL } from './schema-catalog.js';
+import { demoSchemaRows } from './demo-schema.js';
 import type { DbCatalog } from '@sm/shared';
 
 /**
@@ -102,6 +104,9 @@ function answer(stmt: Statement): Record<string, unknown>[] {
   if (stmt.trusted) {
     const name = (Object.keys(CATALOG) as DbCatalog[]).find((k) => CATALOG[k].sql.postgresql === stmt.sql);
     if (name) return CANNED[name]();
+    // the schema read (#222)
+    const part = SCHEMA_PARTS.find((k) => SCHEMA_SQL.postgresql[k] === stmt.sql);
+    if (part) return demoSchemaRows(part);
   }
   const hit = STATEMENTS.find((s) => norm(s.sql) === norm(stmt.sql));
   if (hit) return hit.rows();

@@ -330,6 +330,7 @@ const PLATFORM_KIND: Partial<Record<string, string>> = {
   snowflake: 'snowflake',
   database: 'database',
   dynamodb: 'aws',
+  'db-schema': 'database',
   'dependency-track': 'dependency-track',
   entra: 'microsoft-graph',
   'privilege-vault': 'privilege-vault',

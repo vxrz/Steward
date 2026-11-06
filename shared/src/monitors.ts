@@ -58,6 +58,7 @@ export const CHECK_TYPES = [
   'snowflake',
   'database',
   'dynamodb',
+  'db-schema',
   'dependency-track',
   'entra',
   'privilege-vault',
@@ -99,6 +100,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   dynamodb: {
     label: 'DynamoDB table',
     help: 'A DynamoDB table on an AWS platform: the newest item per partition key is recent enough, the table had writes within the window (CloudWatch), or its status, point-in-time recovery and time to live',
+  },
+  'db-schema': {
+    label: 'Database schema changes',
+    help: 'The schema snapshots of a database platform or a system: no change, or no breaking change, within the last N hours; optionally reads the platform first',
   },
   entra: {
     label: 'Entra ID (Microsoft Graph)',
@@ -475,6 +480,24 @@ export const checkSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     ...checkBase,
+    type: z.literal('db-schema'),
+    /** A database platform … */
+    platform: platformRef.optional(),
+    /** … or a system with imported tbls schemas (exactly one of the two) */
+    system: z.string().trim().min(1).max(100).optional(),
+    /** breaking: a breaking change fails the check (default); changed: any change does */
+    mode: z.enum(['breaking', 'changed']).default('breaking'),
+    /** The window: changes of snapshots taken within the last N hours count (default 24) */
+    withinHours: z.number().int().min(1).max(8760).default(24),
+    /** Read the database platform first (a snapshot when the schema changed); otherwise only stored snapshots count */
+    read: z.boolean().default(false),
+    /** Status of a failing check (default: down for breaking changes, degraded for changes) */
+    failAs: z.enum(['down', 'degraded']).optional(),
+    /** Status while there is no snapshot yet (default unknown) */
+    noData: z.enum(['unknown', 'up', 'down']).default('unknown'),
+  }),
+  z.object({
+    ...checkBase,
     type: z.literal('kafka'),
     platform: platformRef,
     /** The topic (#112) */
@@ -671,6 +694,10 @@ export function definitionIssues(def: MonitorDefinition, opts: { template?: bool
       issues.push({ path: `checks.${i}.sql`, message: 'query mode needs the SQL statement', checkId: c.id });
     if (c.type === 'database' && c.mode !== 'connection' && c.crit === undefined)
       issues.push({ path: `checks.${i}.crit`, message: `${c.mode} mode needs the CRIT level`, checkId: c.id });
+    if (c.type === 'db-schema' && !c.platform === !c.system)
+      issues.push({ path: `checks.${i}.platform`, message: 'name a database platform or a system (one of them)', checkId: c.id });
+    if (c.type === 'db-schema' && c.read && !c.platform)
+      issues.push({ path: `checks.${i}.read`, message: 'only a database platform can be read', checkId: c.id });
     if (c.type === 'freshness' && c.source === 'platform') {
       if (!c.path) issues.push({ path: `checks.${i}.path`, message: 'platform freshness needs the path', checkId: c.id });
       if (!c.timestamp) issues.push({ path: `checks.${i}.timestamp`, message: 'platform freshness needs the timestamp expression', checkId: c.id });

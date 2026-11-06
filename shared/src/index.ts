@@ -60,3 +60,4 @@ export * from './plantViews.js';
 export * from './layout.js';
 export * from './database.js';
 export * from './sqlcheck.js';
+export * from './dbschema.js';

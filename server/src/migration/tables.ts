@@ -59,6 +59,7 @@ export const NOT_MOVED: Record<string, string> = {
   schema_version: 'maintained by the migrations',
   schema_migrations: 'maintained by the migrations',
   sqlite_sequence: 'SQLite internal',
+  db_schema_push_tokens: 'push tokens of CI (#222), only their hashes: created again on the target, like API tokens',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -137,6 +138,9 @@ export const HISTORY_COLUMNS: string[] = [
   'plant_assets.updated_by',
   'plant_asset_images.updated_by',
   'plant_imports.created_by',
+  // database schema snapshots and their settings (#222)
+  'db_schema_snapshots.actor',
+  'db_schema_settings.updated_by',
   'plant_profiles.created_by',
   'plant_profiles.updated_by',
   'plant_kpis.created_by',
@@ -263,6 +267,11 @@ export const NOT_PEOPLE_COLUMNS: string[] = [
   'plant_zones.owner',
   'plant_devices.owner',
   'plant_data_paths.subject',
+  // a database platform or system (#222), not a person
+  'db_schema_snapshots.subject_kind',
+  'db_schema_snapshots.subject_id',
+  'db_schema_settings.subject_kind',
+  'db_schema_settings.subject_id',
 ];
 
 /** Tables whose automation is paused after the import: an administrator reviews and turns them on again. */
