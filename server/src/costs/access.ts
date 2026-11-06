@@ -146,14 +146,14 @@ function teamApplications(teamId: string): string[] {
 }
 
 /**
- * What a scope covers. For a reader (`visibleOnly`, the default) a service or team covers only the applications they
- * may see – an application they may not see is neither named nor counted in its totals; budgets and their notices use
- * the whole scope (`visibleOnly: false`).
+ * What a scope covers. For a reader (`visibleOnly`, the default; `reader`, by default the signed-in user) a service or
+ * team covers only the applications they may see – an application they may not see is neither named nor counted in
+ * its totals; budgets and their notices use the whole scope (`visibleOnly: false`). No reader (a job): everything.
  */
-export function coverOf(scope: CostScope, id: string, visibleOnly = true): ScopeCover {
+export function coverOf(scope: CostScope, id: string, visibleOnly = true, reader: AuthUser | null = currentUser()): ScopeCover {
   if (scope === 'platform') return { applications: [], unassignedPlatforms: [], platform: id };
   if (scope === 'application') return { applications: [id], unassignedPlatforms: [], platform: null };
-  const u = visibleOnly ? currentUser() : null;
+  const u = visibleOnly ? reader : null;
   const seen = (appId: string) => !u || !!scopeInfo('application', appId, u);
   if (scope === 'service')
     return {

@@ -13,7 +13,7 @@ import {
   type CostSource,
 } from '@sm/shared';
 import { db } from '../db.js';
-import { currentUser } from '../auth/context.js';
+import { currentUser, type AuthUser } from '../auth/context.js';
 import { capabilities } from '../auth/permissions.js';
 import { costSettings, coverOf, coverWhere, requireScope, scopeInfo, visibleScopes, type ScopeCover, type ScopeInfo } from './access.js';
 
@@ -453,7 +453,12 @@ export function overview(scope: CostScope, now = Date.now()): CostOverview {
   };
 }
 
-/** Sums of a scope in one currency for two months (the monitor check, the scorecard). */
-export function scopeMonths(scope: CostScope, id: string, fromMonth: string): Map<string, Map<string, { e: number; end: string | null }>> {
-  return sums(coverWhere(coverOf(scope, id)), fromMonth);
+/** Sums of a scope per currency and month from `fromMonth` on, as `reader` sees it (the monitor check). */
+export function scopeMonths(
+  scope: CostScope,
+  id: string,
+  fromMonth: string,
+  reader: AuthUser | null,
+): Map<string, Map<string, { e: number; end: string | null }>> {
+  return sums(coverWhere(coverOf(scope, id, true, reader)), fromMonth);
 }
