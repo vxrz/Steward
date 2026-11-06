@@ -215,9 +215,7 @@ function Overview({ c, canEdit }: { c: DataContractDetail; canEdit: boolean }) {
       <Grid.Col span={{ base: 12, md: 5 }}>
         <Stack gap="md">
           <SettingsCard c={c} canEdit={canEdit} />
-          <Paper withBorder p="md">
-            <OwningTeams kind="contract" id={c.id} />
-          </Paper>
+          <OwningTeams kind="contract" id={c.id} />
         </Stack>
       </Grid.Col>
     </Grid>
@@ -334,7 +332,6 @@ function ContractTab({ c, canEdit }: { c: DataContractDetail; canEdit: boolean }
     return (
       <Stack gap="sm">
         <Hint>{t('editor.readOnly')}</Hint>
-        <LintList findings={c.lint} />
         <ContractYamlEditor value={c.yaml} onChange={() => undefined} readOnly contractId={c.id} name={c.name} currentVersion={c.currentVersion} />
       </Stack>
     );
@@ -628,7 +625,10 @@ function RunModal({ contractId, runId, onClose }: { contractId: string; runId: s
   const { t } = useTranslation(['contracts', 'common']);
   const q = useQuery({ queryKey: dataContractKeys.run(contractId, runId), queryFn: () => get<DataContractRun>(`/data-contracts/${contractId}/runs/${runId}`) });
   const r = q.data;
-  const checks = ((r?.report as { checks?: ReportCheck[] } | null)?.checks ?? []).filter((x) => x && typeof x === 'object');
+  // the checks that did not pass first
+  const checks = ((r?.report as { checks?: ReportCheck[] } | null)?.checks ?? [])
+    .filter((x) => x && typeof x === 'object')
+    .sort((a, b) => Number(a.result === 'passed') - Number(b.result === 'passed'));
   return (
     <Modal opened onClose={onClose} title={t('tests.runTitle')} size="xl" data-testid="contract-run">
       <QueryState query={q} />

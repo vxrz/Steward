@@ -48,8 +48,8 @@ export function LintList({ findings, title }: { findings: DataContractLintFindin
   const { t } = useTranslation('contracts');
   if (!findings.length)
     return (
-      <Group gap={6} c="green.8" data-testid="contract-lint-ok">
-        <IconCircleCheck size={16} aria-hidden />
+      <Group gap={6} data-testid="contract-lint-ok">
+        <IconCircleCheck size={16} color="var(--mantine-color-green-filled)" aria-hidden />
         <Text size="sm">{t('lint.ok')}</Text>
       </Group>
     );
@@ -152,8 +152,8 @@ export function FindingsList({ findings }: { findings: DataContractFinding[] }) 
   const { t } = useTranslation('contracts');
   if (!findings.length)
     return (
-      <Group gap={6} c="green.8" data-testid="contract-findings-ok">
-        <IconCircleCheck size={16} aria-hidden />
+      <Group gap={6} data-testid="contract-findings-ok">
+        <IconCircleCheck size={16} color="var(--mantine-color-green-filled)" aria-hidden />
         <Text size="sm">{t('findings.none')}</Text>
       </Group>
     );
@@ -239,7 +239,9 @@ export function ContractYamlEditor({
         autoCapitalize="off"
         autoCorrect="off"
         classNames={{ input: 'mono' }}
-        styles={{ input: { fontSize: 13, lineHeight: 1.5 } }}
+        // YAML is read by its indentation: long lines scroll instead of wrapping
+        wrap="off"
+        styles={{ input: { fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre', overflowX: 'auto' } }}
         data-testid="contract-yaml"
       />
       <Box aria-live="polite">
