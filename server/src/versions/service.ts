@@ -663,7 +663,8 @@ export function watchOf(entries: WatchedEntry[], now = Date.now(), all = false):
   });
   const rows = lookupRows(plans.flatMap((p) => p.cands.flatMap((c) => (c.lookup ? [c.lookup.key] : []))));
   const eol = eolData([...new Set(entries.map((e) => e.product))]);
-  for (const p of plans) out.set(entryKey(p.e.holderKind, p.e.holderId, p.e.product), { ...evaluate(p.e, p.stored, p.cands, rows, eol, ctx, now, all), entry: p.e });
+  for (const p of plans)
+    out.set(entryKey(p.e.holderKind, p.e.holderId, p.e.product), { ...evaluate(p.e, p.stored, p.cands, rows, eol, ctx, now, all), entry: p.e });
   return out;
 }
 
@@ -815,15 +816,34 @@ export async function runVersionJob(now = Date.now()): Promise<void> {
 
 // ---------- status, one entry ----------
 
+/** The entries of applications and systems the caller may see (#131): a hidden one is neither counted nor named. */
+function visibleEntries(): WatchedEntry[] {
+  const apps = new Map(
+    db()
+      .all<{ id: string; owners: string }>('SELECT id, owners FROM applications')
+      .map((a) => [a.id, catalogueVisibleNow('application', a)]),
+  );
+  const systems = new Map(
+    db()
+      .all<{ id: string; owners: string }>('SELECT id, owners FROM systems')
+      .map((x) => [x.id, catalogueVisibleNow('system', x)]),
+  );
+  return allEntries().filter((e) => (e.holderKind === 'component' ? apps.get(e.applicationId) : systems.get(e.holderId)) === true);
+}
+
 export function versionStatus(): VersionWatchStatus {
   me();
   const s = versionSettings();
-  const entries = allEntries();
+  const entries = visibleEntries();
   const m = watchOf(entries);
   const watches = [...m.values()].map((x) => x.watch).filter((w): w is StackVersion => !!w);
-  const lookups = db().all<{ key: string; source: VersionSource; ref: string; fetched_at: string; error: string | null }>(
-    'SELECT key, source, ref, fetched_at, error FROM version_lookups ORDER BY fetched_at DESC',
-  );
+  // only the lookups of the entries the caller may see: their names (images, repositories, package URLs) stay private
+  const keys = new Set(neededLookups(entries).map((l) => l.key));
+  const lookups = db()
+    .all<{ key: string; source: VersionSource; ref: string; fetched_at: string; error: string | null }>(
+      'SELECT key, source, ref, fetched_at, error FROM version_lookups ORDER BY fetched_at DESC',
+    )
+    .filter((l) => keys.has(l.key));
   const eolAt = db().get<{ t: string | null }>('SELECT MAX(fetched_at) AS t FROM eol_products')?.t ?? null;
   return {
     settings: s,
@@ -1011,6 +1031,13 @@ export async function readVersionEntry(ref: z.infer<typeof entryRef>): Promise<V
   const e = entriesOf(ref.holder, [ref.id]).find((x) => x.product === ref.product);
   if (!e) throw new HttpError(404, `The tech stack has no product ${ref.product}`, 'STACK_ENTRY_NOT_FOUND', { product: ref.product });
   await readEntryNow(e);
+  audit({
+    action: h.kind === 'component' ? 'application.versions_read' : 'system.versions_read',
+    entityType: h.kind === 'component' ? 'application' : 'system',
+    entityId: h.kind === 'component' ? h.appId : h.id,
+    summary: `Versions of ${e.product} in ${h.kind} "${h.name}" read now`,
+    details: { holder: h.kind, holderId: h.id, product: e.product },
+  });
   return versionEntry(ref);
 }
 

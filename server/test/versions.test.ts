@@ -244,6 +244,19 @@ describe('version watch', () => {
     expect(await status(vera('GET', `/catalogue/versions/entry?holder=component&id=${c.id}&product=nodejs`))).toBe(404);
     expect(await status(vera('PUT', '/catalogue/versions/entry', { holder: 'component', id: c.id, product: 'nodejs', config: { source: 'off' } }))).toBe(404);
     expect((await olivia('GET', `/catalogue/versions/entry?holder=component&id=${c.id}&product=nodejs`)).holderName).toBe('core');
+    // the status neither counts its entries nor names its lookups (a failing image of the hidden application)
+    await s.api('POST', `/applications/${hidden.id}/components`, { type: 'other', name: 'edge', stack: [{ product: 'deno', version: '1.0' }] });
+    await s.api('PUT', '/catalogue/versions/entry', {
+      holder: 'component',
+      id: (await s.api('GET', `/applications/${hidden.id}`)).components.find((x: any) => x.name === 'edge').id,
+      product: 'deno',
+      config: { source: 'registry', purl: 'pkg:npm/payments-secret-sdk' },
+    });
+    const mine = await olivia('GET', '/catalogue/versions');
+    const theirs = await vera('GET', '/catalogue/versions');
+    expect(mine.entries - theirs.entries).toBe(2);
+    expect(JSON.stringify(mine.errors)).toContain('payments-secret-sdk');
+    expect(JSON.stringify(theirs)).not.toContain('payments-secret-sdk');
   });
 
   it('messages the owners once when a new major release appears (not for what was known at first sight)', async () => {
