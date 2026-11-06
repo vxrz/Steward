@@ -10059,6 +10059,145 @@
                           }
                         ],
                         "description": "End of life of the release cycle in use (from endoflife.date); null: no data for the product"
+                      },
+                      "watch": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "dtrack",
+                                      "registry",
+                                      "oci",
+                                      "git",
+                                      "endoflife"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The source that answered first (dtrack, registry, oci, git, endoflife); null: none"
+                              },
+                              "ref": {
+                                "type": "string",
+                                "description": "What was looked up: a package URL, an image, a repository, the product"
+                              },
+                              "where": {
+                                "type": "string",
+                                "description": "Where: npm, PyPI …, a platform’s name, endoflife.date"
+                              },
+                              "newest": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "The newest version, as the source names it (a tag keeps its suffix)"
+                              },
+                              "newestAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "When it was published, if the source says"
+                              },
+                              "lag": {
+                                "type": "string",
+                                "enum": [
+                                  "current",
+                                  "patch",
+                                  "minor",
+                                  "major",
+                                  "unknown"
+                                ],
+                                "description": "current, patch, minor, major or unknown"
+                              },
+                              "behind": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "major": {
+                                        "type": "integer"
+                                      },
+                                      "minor": {
+                                        "type": "integer"
+                                      },
+                                      "patch": {
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "required": [
+                                      "major",
+                                      "minor",
+                                      "patch"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The first part that differs"
+                              },
+                              "daysBehind": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Days since the first release newer than the installed one"
+                              },
+                              "checkedAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "error": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Why no source answered"
+                              },
+                              "configured": {
+                                "type": "boolean",
+                                "description": "The entry has its own setting"
+                              },
+                              "prereleases": {
+                                "type": "boolean",
+                                "description": "Pre-releases count"
+                              }
+                            },
+                            "required": [
+                              "source",
+                              "ref",
+                              "where",
+                              "newest",
+                              "newestAt",
+                              "lag",
+                              "behind",
+                              "daysBehind",
+                              "checkedAt",
+                              "error",
+                              "configured",
+                              "prereleases"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The newest version from the version watch and how far behind this one is; null: not watched"
                       }
                     },
                     "required": [
@@ -10471,6 +10610,145 @@
                           }
                         ],
                         "description": "End of life of the release cycle in use (from endoflife.date); null: no data for the product"
+                      },
+                      "watch": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "dtrack",
+                                      "registry",
+                                      "oci",
+                                      "git",
+                                      "endoflife"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The source that answered first (dtrack, registry, oci, git, endoflife); null: none"
+                              },
+                              "ref": {
+                                "type": "string",
+                                "description": "What was looked up: a package URL, an image, a repository, the product"
+                              },
+                              "where": {
+                                "type": "string",
+                                "description": "Where: npm, PyPI …, a platform’s name, endoflife.date"
+                              },
+                              "newest": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "The newest version, as the source names it (a tag keeps its suffix)"
+                              },
+                              "newestAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "When it was published, if the source says"
+                              },
+                              "lag": {
+                                "type": "string",
+                                "enum": [
+                                  "current",
+                                  "patch",
+                                  "minor",
+                                  "major",
+                                  "unknown"
+                                ],
+                                "description": "current, patch, minor, major or unknown"
+                              },
+                              "behind": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "major": {
+                                        "type": "integer"
+                                      },
+                                      "minor": {
+                                        "type": "integer"
+                                      },
+                                      "patch": {
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "required": [
+                                      "major",
+                                      "minor",
+                                      "patch"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The first part that differs"
+                              },
+                              "daysBehind": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Days since the first release newer than the installed one"
+                              },
+                              "checkedAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "error": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Why no source answered"
+                              },
+                              "configured": {
+                                "type": "boolean",
+                                "description": "The entry has its own setting"
+                              },
+                              "prereleases": {
+                                "type": "boolean",
+                                "description": "Pre-releases count"
+                              }
+                            },
+                            "required": [
+                              "source",
+                              "ref",
+                              "where",
+                              "newest",
+                              "newestAt",
+                              "lag",
+                              "behind",
+                              "daysBehind",
+                              "checkedAt",
+                              "error",
+                              "configured",
+                              "prereleases"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The newest version from the version watch and how far behind this one is; null: not watched"
                       }
                     },
                     "required": [
@@ -11055,6 +11333,145 @@
                     }
                   ],
                   "description": "End of life of the release cycle in use (from endoflife.date); null: no data for the product"
+                },
+                "watch": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "dtrack",
+                                "registry",
+                                "oci",
+                                "git",
+                                "endoflife"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The source that answered first (dtrack, registry, oci, git, endoflife); null: none"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "description": "What was looked up: a package URL, an image, a repository, the product"
+                        },
+                        "where": {
+                          "type": "string",
+                          "description": "Where: npm, PyPI …, a platform’s name, endoflife.date"
+                        },
+                        "newest": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "The newest version, as the source names it (a tag keeps its suffix)"
+                        },
+                        "newestAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "When it was published, if the source says"
+                        },
+                        "lag": {
+                          "type": "string",
+                          "enum": [
+                            "current",
+                            "patch",
+                            "minor",
+                            "major",
+                            "unknown"
+                          ],
+                          "description": "current, patch, minor, major or unknown"
+                        },
+                        "behind": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "major": {
+                                  "type": "integer"
+                                },
+                                "minor": {
+                                  "type": "integer"
+                                },
+                                "patch": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "major",
+                                "minor",
+                                "patch"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The first part that differs"
+                        },
+                        "daysBehind": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Days since the first release newer than the installed one"
+                        },
+                        "checkedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Why no source answered"
+                        },
+                        "configured": {
+                          "type": "boolean",
+                          "description": "The entry has its own setting"
+                        },
+                        "prereleases": {
+                          "type": "boolean",
+                          "description": "Pre-releases count"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "ref",
+                        "where",
+                        "newest",
+                        "newestAt",
+                        "lag",
+                        "behind",
+                        "daysBehind",
+                        "checkedAt",
+                        "error",
+                        "configured",
+                        "prereleases"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The newest version from the version watch and how far behind this one is; null: not watched"
                 }
               },
               "required": [

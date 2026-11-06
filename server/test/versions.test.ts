@@ -115,6 +115,14 @@ describe('version watch', () => {
     expect(audit[0]).toMatchObject({ actor: 'dana' });
   });
 
+  it('the public API carries the newest version on every stack entry', async () => {
+    const { token } = await vera('POST', '/me/tokens', { name: 'versions read', scope: 'read' });
+    const res = await fetch(`${s.base}/api/v1/applications/${app.id}`, { headers: { authorization: `Bearer ${token}` } });
+    const body = await res.json();
+    const react = body.components.find((c: any) => c.name === 'web').stack.find((x: any) => x.product === 'react');
+    expect(react.watch).toMatchObject({ source: 'registry', newest: '19.2.0', lag: 'major', behind: { major: 1, minor: 0, patch: 0 } });
+  });
+
   it('shows one entry with what each source said', async () => {
     const a = await dana('GET', `/applications/${app.id}`);
     const web = a.components.find((c: any) => c.name === 'web');
