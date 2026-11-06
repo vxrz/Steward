@@ -159,25 +159,31 @@ export function invalidatePlatformCaches(platformId: string): void {
   for (const fn of invalidationListeners) fn(platformId);
   dropKeys(tokenCache, platformId);
   dropKeys(awsCache, platformId);
-  for (const key of [platformId, `${platformId}|mtls`]) {
-    const d = dispatcherCache.get(key);
-    if (!d) continue;
+  for (const [key, d] of [...dispatcherCache]) {
+    // the platform's plain dispatcher and the client-certificate dispatchers of its identities (`${id}:${identity}|mtls`)
+    if (key !== platformId && !key.startsWith(`${platformId}:`)) continue;
     dispatcherCache.delete(key);
     d.dispatcher.close().catch(() => undefined); // an old dispatcher: closing it is best effort
   }
 }
 
-/** Clears what is cached for one identity (its credentials changed): its token, role and database pool – not the platform's dispatcher. */
+/** Clears what is cached for one identity (its credentials changed): its token, role, client-certificate dispatcher and database pool – not the platform's dispatcher. */
 export function invalidateIdentityCaches(platformId: string, identityId: string): void {
   for (const fn of invalidationListeners) fn(platformId, identityId);
   const key = identityKey({ id: platformId, identityId });
   tokenCache.delete(key);
   awsCache.delete(key);
+  const d = dispatcherCache.get(`${key}|mtls`);
+  if (d) {
+    dispatcherCache.delete(`${key}|mtls`);
+    d.dispatcher.close().catch(() => undefined); // an old dispatcher: closing it is best effort
+  }
 }
 
 function dispatcherFor(p: Platform, tls?: ClientTls): Dispatcher {
-  // a dispatcher with the client certificate is kept apart from the one without (hops to other origins)
-  const key = tls ? `${p.id}|mtls` : p.id;
+  // a dispatcher with the client certificate is kept apart from the one without (hops to other origins), and per
+  // identity: two identities with their own certificates do not replace each other's dispatcher (0.9.0)
+  const key = tls ? `${identityKey(p)}|mtls` : p.id;
   const stamp = tls
     ? `${p.updatedAt}|${crypto
         .createHash('sha256')
