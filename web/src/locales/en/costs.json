@@ -1,0 +1,255 @@
+{
+  "title": "Costs",
+  "description": "What services, applications, teams and platforms cost per month – from the platforms Steward reads and imported FOCUS files. Showback, not invoices.",
+  "search": "Search by name",
+  "scopeLabel": "Costs of",
+  "scopes": {
+    "service": "Service",
+    "application": "Application",
+    "team": "Team",
+    "platform": "Platform"
+  },
+  "scopesPlural": {
+    "service": "Services",
+    "application": "Applications",
+    "team": "Teams",
+    "platform": "Platforms"
+  },
+  "tableLabel": "Costs of the {{scope}}",
+  "columns": {
+    "currency": "Currency",
+    "thisMonth": "This month so far",
+    "forecast": "Forecast",
+    "lastMonth": "Last month",
+    "change": "Change",
+    "unassigned": "Unassigned",
+    "budget": "Budget"
+  },
+  "totals": "Platforms this month ({{currency}})",
+  "totalsLast": "Last month: {{amount}}",
+  "hiddenHint": "Amounts are shown to owners, members of the owning teams, administrators and auditors. You see the changes and budget states.",
+  "hiddenHintOne": "Amounts are shown to the owners, the members of the owning teams, administrators and auditors. You see the changes and the budget's state.",
+  "empty": {
+    "title": "No costs yet",
+    "who": "Who may manage a platform turns on reading its costs, or imports a FOCUS file, under Costs → Platforms → the platform → Source.",
+    "platforms": "Go to the platforms",
+    "service": "No service has costs yet: costs reach a service through its applications.",
+    "application": "No application has costs yet: a tag on the costs (default “application”) or a platform that belongs to the application links them.",
+    "team": "No team has costs yet: a team has the costs of the applications and platforms it owns.",
+    "platform": "No platform has costs yet. Steward reads AWS, Snowflake, Confluent Cloud and LLM gateways, and imports FOCUS files of other providers."
+  },
+  "settings": {
+    "open": "Settings",
+    "title": "Cost settings",
+    "hide": "Hide amounts from viewers",
+    "hideHint": "Only owners, members of the owning teams, administrators and auditors see amounts; everybody else sees changes in percent and budget states.",
+    "currency": "Currency of AI prices",
+    "currencyHint": "For LLM gateways without their own currency",
+    "noConversion": "Amounts are never converted between currencies: totals are per currency.",
+    "saved": "Cost settings saved",
+    "notSaved": "Cost settings not saved"
+  },
+  "tabsLabel": "Costs of the platform",
+  "tabs": {
+    "overview": "Overview",
+    "source": "Source"
+  },
+  "detailHint": {
+    "service": "The costs of the service's applications, per month and currency.",
+    "application": "The costs linked to the application, per month and currency.",
+    "team": "The costs of the applications the team owns, and what its platforms have unassigned.",
+    "platform": "Everything read or imported for this platform, also what no application is linked to."
+  },
+  "open": {
+    "service": "Open the service",
+    "application": "Open the application",
+    "platform": "Open the platform"
+  },
+  "currencyTitle": "Costs in {{currency}}",
+  "none": {
+    "title": "No costs here yet",
+    "who": "Who may manage a platform reads its costs or imports a FOCUS file; the tag (default “application”) links them to applications.",
+    "service": "None of the service's applications has costs linked to it.",
+    "application": "No costs are linked to this application – check the tag of its cloud accounts and the FOCUS files.",
+    "team": "No application or platform of the team has costs yet.",
+    "platform": "Nothing was read or imported for this platform yet."
+  },
+  "trend": {
+    "label": "Trend",
+    "perMonth": "{{amount}} a month",
+    "stable": "steady over {{months}} months ({{pct}} a month)",
+    "rough": "uneven over {{months}} months ({{pct}} a month)",
+    "none": "not enough months yet"
+  },
+  "chart": {
+    "label": "Costs in {{currency}} from {{from}} to {{to}}",
+    "forecastTip": "Forecast: {{amount}}",
+    "months": "Month",
+    "soFar": "This month so far",
+    "forecast": "Forecast",
+    "budget": "Budget",
+    "showTable": "Show as table",
+    "showChart": "Show as chart"
+  },
+  "table": {
+    "month": "Month",
+    "effective": "Costs (EffectiveCost)",
+    "billed": "Billed (BilledCost)",
+    "soFar": "so far"
+  },
+  "unassigned": {
+    "title": "Unassigned",
+    "hint": "Costs that no application is linked to: no tag, a tag no component or application has, or a platform no application owns.",
+    "line": "This month {{thisMonth}} · last month {{lastMonth}}"
+  },
+  "parts": {
+    "applications": "By application",
+    "platforms": "By platform",
+    "application": "Application",
+    "platform": "Platform",
+    "unassigned": "Unassigned",
+    "unassignedOn": "Unassigned on {{name}}",
+    "other": "Others you may not see"
+  },
+  "byService": {
+    "title": "By provider and service",
+    "service": "Service"
+  },
+  "sources": "From: {{list}}",
+  "sourceKinds": {
+    "aws": "AWS Cost Explorer",
+    "snowflake": "Snowflake",
+    "confluent": "Confluent Costs API",
+    "ai": "AI usage log",
+    "focus": "FOCUS files"
+  },
+  "budget": {
+    "title": "Monthly budget",
+    "none": "No budget is set.",
+    "set": "Set budget",
+    "edit": "Change budget",
+    "used": "{{used}} of {{amount}} this month",
+    "usedPct": "{{pct}} % of the budget this month",
+    "pctOf": "{{pct}} % of the budget",
+    "forecast": "Forecast for the month: {{pct}} % of the budget",
+    "changed": "Set by {{who}}, {{when}}",
+    "states": {
+      "ok": "Within budget",
+      "warning": "80 % reached",
+      "exceeded": "Budget reached"
+    },
+    "dialogTitle": "Monthly budget of {{name}}",
+    "dialogHint": "The owners hear about it at 80 % and 100 %. A budget stops nothing – it is showback.",
+    "amount": "Amount per month",
+    "currency": "Currency",
+    "comment": "Why (optional)",
+    "raiseHint": "This raises the budget (a higher amount, another currency, or none): you confirm it is you.",
+    "remove": "Remove budget",
+    "saved": "Budget saved",
+    "notSaved": "Budget not saved"
+  },
+  "source": {
+    "title": {
+      "aws": "AWS Cost Explorer",
+      "snowflake": "Snowflake usage",
+      "confluent": "Confluent Cloud Costs API",
+      "ai": "AI usage log",
+      "focus": "Linking to applications"
+    },
+    "how": {
+      "aws": "UnblendedCost per month by the application tag and by service – once a day, as each request costs $0.01.",
+      "snowflake": "USAGE_IN_CURRENCY_DAILY of the organisation's usage views; without them the credits of METERING_DAILY_HISTORY times your price per credit. Once a day.",
+      "confluent": "Daily lines per cluster, connector and product in US dollars, at most a month per request, complete after 72 hours. Once a day.",
+      "ai": "The costs of the calls from the prices set on the models, per day, model and process. Every hour.",
+      "focus": "This platform has no cost connector: import the FOCUS files its provider exports, or push them from CI."
+    },
+    "readNow": "Read now",
+    "lastRead": "Last read {{when}}",
+    "neverRead": "Not read yet",
+    "enabled": "Read costs from this platform",
+    "enabledHint": {
+      "aws": "The cloud-account components of applications read the costs as well.",
+      "snowflake": "Read with the rights of who saves this.",
+      "confluent": "The Cloud API key needs the OrganizationAdmin or BillingAdmin role.",
+      "ai": "From Steward's own usage log – no call to the gateway."
+    },
+    "tagKey": "Tag that names the application",
+    "tagKeyHint": "Its value is the name of a component on this platform or of an application",
+    "creditPrice": "Price per credit (fallback)",
+    "creditPriceHint": "Only used without the organisation's usage views",
+    "currency": "Currency",
+    "aiCurrencyHint": "The currency of the prices on the models; empty: the cost settings' currency",
+    "saved": "Cost source saved",
+    "notSaved": "Cost source not saved",
+    "readDone": "Costs read",
+    "readFailed": "Costs not read"
+  },
+  "import": {
+    "title": "FOCUS files",
+    "help": "CSV files in the FinOps FOCUS format (AWS Data Exports, Azure cost exports, Google Cloud and others), up to {{max}}. You see a preview first.",
+    "choose": "Import a file",
+    "tooLarge": "The file is larger than {{max}}",
+    "notRead": "The file could not be read",
+    "previewOf": "{{name}}: {{rows}} rows, {{lines}} cost lines",
+    "period": "Charges from {{from}} to {{to}}",
+    "mapping": "Lines linked to applications: {{assigned}}, unassigned: {{unassigned}} · Providers: {{providers}}",
+    "ignored_one": "{{count}} column is not used",
+    "ignored_other": "{{count}} columns are not used",
+    "duplicate": "This file was imported before ({{when}}).",
+    "mode": "How to import",
+    "modes": {
+      "replace": "Replace these days",
+      "add": "Add"
+    },
+    "replaceHint_one": "Replaces {{count}} line of earlier imports for the same days (a corrected file). Changes of closed days are recorded as corrections.",
+    "replaceHint_other": "Replaces {{count}} lines of earlier imports for the same days (a corrected file). Changes of closed days are recorded as corrections.",
+    "addHint": "Keeps every earlier line – for files of other accounts for the same days.",
+    "run": "Import",
+    "done": "Imported: {{lines}} lines, {{replaced}} replaced",
+    "failed": "Import failed",
+    "none": "No file imported yet",
+    "noneHint": "Imports are listed here with their SHA-256, period and who imported them.",
+    "list": "Imported FOCUS files",
+    "file": "File",
+    "periodCol": "Period",
+    "linesCol": "Lines",
+    "by": "By",
+    "when": "When",
+    "noName": "(no name)",
+    "linesOf": "{{lines}} of {{rows}} rows",
+    "viaPush": "push"
+  },
+  "push": {
+    "title": "Push from CI",
+    "help": "A push token can do nothing but send FOCUS files for this platform to Steward. It is shown once; only its hash is kept.",
+    "new": "New push token",
+    "empty": "No push token",
+    "emptyHint": "Create one for the job that exports your FOCUS files.",
+    "name": "Name",
+    "nameHint": "Which job uses it",
+    "token": "Token",
+    "lastUsed": "Last used",
+    "expires": "Expires",
+    "actions": "Actions",
+    "creatorInactive": "Stopped: its creator may no longer manage the platform",
+    "neverUsed": "never",
+    "expired": "expired",
+    "never": "never",
+    "rotate": "New secret",
+    "revoke": "Revoke",
+    "rotateNamed": "New secret for {{name}}",
+    "revokeNamed": "Revoke {{name}}",
+    "rotateConfirm": "Give “{{name}}” a new secret? The old one stops working at once.",
+    "revokeConfirm": "Revoke “{{name}}”? Pushes with it are refused from now on.",
+    "newTitle": "New push token",
+    "expiresIn": "Expires after (days)",
+    "addresses": "Allowed addresses (optional)",
+    "addressesHint": "IP addresses or CIDR ranges of your CI runners",
+    "create": "Create",
+    "secretTitle": "Push token “{{name}}”",
+    "secretOnce": "Copy the token now – Steward keeps only its hash and cannot show it again.",
+    "command": "In your CI job",
+    "done": "Done"
+  },
+  "lastMonthShort": "last month {{amount}}"
+}

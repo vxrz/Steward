@@ -62,6 +62,8 @@ export const NOT_MOVED: Record<string, string> = {
   schema_migrations: 'maintained by the migrations',
   sqlite_sequence: 'SQLite internal',
   db_schema_push_tokens: 'push tokens of CI (#222), only their hashes: created again on the target, like API tokens',
+  cost_push_tokens: 'push tokens of CI for FOCUS cost files (#226), only their hashes: created again on the target, like API tokens',
+  cost_budget_notices: 'send bookkeeping of the source (a cost budget notice of the current month may be sent again on the target)',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -133,6 +135,10 @@ export const USER_REFS: UserRef[] = [
 export const HISTORY_COLUMNS: string[] = [
   'ai_usage.actor',
   'ai_budgets.updated_by',
+  // platform costs (#226)
+  'cost_sources.updated_by',
+  'cost_imports.actor',
+  'cost_budgets.updated_by',
   // the plant registry (#218)
   'plant_sites.created_by',
   'plant_sites.updated_by',

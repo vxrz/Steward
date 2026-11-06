@@ -1,4 +1,4 @@
-import type { Platform } from '@sm/shared';
+import { toMicros, type Platform } from '@sm/shared';
 import { platformRequest, type HttpResult } from '../platforms/http.js';
 import { unescapeXml as unescape, xmlAll, xmlOne } from '../platforms/xml.js';
 
@@ -148,45 +148,60 @@ export class AwsClient {
 
   /**
    * Unblended costs per month (UTC months from `start` to the end of `end`'s month), grouped by the tag and by
-   * service. Cost Explorer charges per request: the connector reads once a day.
+   * service in one request series (two GroupBy keys, #226): `lines` per month, tag value and service with the amount
+   * as Cost Explorer wrote it (a decimal string), and the sums per tag and per service. Cost Explorer charges per
+   * request: the connector reads once a day.
    */
   async costs(o: { start: string; end: string; tagKey: string }): Promise<{
     byTag: { month: string; tag: string; amount: number; unit: string }[];
     byService: { month: string; service: string; amount: number; unit: string }[];
+    lines: { month: string; tag: string; service: string; amount: string; unit: string }[];
   }> {
     type Res = {
       ResultsByTime?: { TimePeriod: { Start: string }; Groups?: { Keys: string[]; Metrics: { UnblendedCost: { Amount: string; Unit: string } } }[] }[];
       NextPageToken?: string;
     };
-    const read = async (groupBy: { Type: string; Key: string }) => {
-      const rows: { month: string; key: string; amount: number; unit: string }[] = [];
-      let token: string | undefined;
-      do {
-        const r = await this.json<Res>('ce', CE_REGION, 'AWSInsightsIndexService.GetCostAndUsage', {
-          TimePeriod: { Start: o.start, End: o.end },
-          Granularity: 'MONTHLY',
-          Metrics: ['UnblendedCost'],
-          GroupBy: [groupBy],
-          ...(token ? { NextPageToken: token } : {}),
-        });
-        for (const t of r.ResultsByTime ?? [])
-          for (const g of t.Groups ?? [])
-            rows.push({
-              month: t.TimePeriod.Start.slice(0, 7),
-              key: g.Keys[0] ?? '',
-              amount: Number(g.Metrics.UnblendedCost.Amount) || 0,
-              unit: g.Metrics.UnblendedCost.Unit,
-            });
-        token = r.NextPageToken || undefined;
-      } while (token);
-      return rows;
+    const lines: { month: string; tag: string; service: string; amount: string; unit: string }[] = [];
+    let token: string | undefined;
+    do {
+      const r = await this.json<Res>('ce', CE_REGION, 'AWSInsightsIndexService.GetCostAndUsage', {
+        TimePeriod: { Start: o.start, End: o.end },
+        Granularity: 'MONTHLY',
+        Metrics: ['UnblendedCost'],
+        GroupBy: [
+          { Type: 'TAG', Key: o.tagKey },
+          { Type: 'DIMENSION', Key: 'SERVICE' },
+        ],
+        ...(token ? { NextPageToken: token } : {}),
+      });
+      for (const t of r.ResultsByTime ?? [])
+        for (const g of t.Groups ?? []) {
+          // Cost Explorer names tag groups "<key>$<value>" ("<key>$" for untagged)
+          const k = g.Keys[0] ?? '';
+          lines.push({
+            month: t.TimePeriod.Start.slice(0, 7),
+            tag: k.includes('$') ? k.slice(k.indexOf('$') + 1) : k,
+            service: g.Keys[1] ?? '',
+            amount: String(g.Metrics.UnblendedCost.Amount ?? '0'),
+            unit: g.Metrics.UnblendedCost.Unit,
+          });
+        }
+      token = r.NextPageToken || undefined;
+    } while (token);
+    const sum = <K extends 'tag' | 'service'>(key: K) => {
+      const m = new Map<string, { month: string; key: string; micros: number; unit: string }>();
+      for (const l of lines) {
+        const k = `${l.month}|${l[key]}|${l.unit}`;
+        const x = m.get(k) ?? { month: l.month, key: l[key], micros: 0, unit: l.unit };
+        x.micros += toMicros(l.amount) ?? 0;
+        m.set(k, x);
+      }
+      return [...m.values()];
     };
-    const tag = await read({ Type: 'TAG', Key: o.tagKey });
-    const service = await read({ Type: 'DIMENSION', Key: 'SERVICE' });
     return {
-      // Cost Explorer names tag groups "<key>$<value>" ("<key>$" for untagged)
-      byTag: tag.map((r) => ({ month: r.month, tag: r.key.includes('$') ? r.key.slice(r.key.indexOf('$') + 1) : r.key, amount: r.amount, unit: r.unit })),
-      byService: service.map((r) => ({ month: r.month, service: r.key, amount: r.amount, unit: r.unit })),
+      byTag: sum('tag').map((r) => ({ month: r.month, tag: r.key, amount: r.micros / 1_000_000, unit: r.unit })),
+      byService: sum('service').map((r) => ({ month: r.month, service: r.key, amount: r.micros / 1_000_000, unit: r.unit })),
+      lines,
     };
   }
 

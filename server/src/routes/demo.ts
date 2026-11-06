@@ -52,6 +52,7 @@ import { DEMO_GRAPH } from '../mock/mockGraph.js';
 import { seedPlantDemo } from '../plant/demo.js';
 import { DEMO_PVAULT } from '../mock/mockPrivilegeVault.js';
 import { DEMO_LLM } from '../mock/mockLlmGateway.js';
+import { DEMO_CONFLUENT } from '../mock/mockConfluent.js';
 
 /** Creates demo platforms (pointing to the built-in mock) and imports all templates. */
 export const DEMO_USER_PASSWORD = 'Demo-password-1';
@@ -355,7 +356,7 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
       baseUrl: `${base}/schema-registry`,
       config: {
         auth: { type: 'basic' },
-        variables: { bootstrap: DEMO_KAFKA_BOOTSTRAP, sasl: 'plain', tls: 'true', peek: 'on' },
+        variables: { bootstrap: DEMO_KAFKA_BOOTSTRAP, sasl: 'plain', tls: 'true', peek: 'on', confluentClusterId: DEMO_CONFLUENT.cluster },
         http: { proxy: 'none' },
         testPath: '/subjects',
       },
@@ -489,6 +490,22 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
       baseUrl: `${base}/llm`,
       config: { ...preset.config, http: { ...preset.config.http, proxy: 'none' }, ai },
       secrets: { apiKey: DEMO_LLM.apiKey },
+    });
+    platforms++;
+  }
+  if (!existing.has('Confluent Cloud (demo)')) {
+    // Confluent Cloud (#226): the simulated Cloud API – role bindings for access reviews and the Costs API; the costs of
+    // its cluster lkc-demo1 belong to "Kafka (demo)" (variable confluentClusterId there)
+    const preset = PRESETS.find((x) => x.kind === 'confluent-cloud')!;
+    createPlatform({
+      name: 'Confluent Cloud (demo)',
+      kind: 'confluent-cloud',
+      environment: 'demo',
+      description:
+        'Simulated Confluent Cloud API served by the built-in mock: role bindings, users, service accounts and the Costs API. See docs/CONFLUENT.md and docs/COSTS.md.',
+      baseUrl: `${base}/confluent`,
+      config: { ...preset.config, http: { ...preset.config.http, proxy: 'none' } },
+      secrets: { username: DEMO_CONFLUENT.cloudKey, password: DEMO_CONFLUENT.cloudSecret },
     });
     platforms++;
   }
@@ -749,6 +766,13 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
     monitors = await setupMonitorDemo();
   } catch (err) {
     logger.warn({ err: (err as Error).message }, 'demo monitors not created');
+  }
+
+  // ---- platform costs (#226): the connectors of the demo platforms read once ----
+  try {
+    await (await import('../costs/demo.js')).setupCostDemo(currentActor());
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'demo costs not read');
   }
 
   // ---- access reconciliation of the simulated Insights Hub (baseline snapshot) ----

@@ -203,6 +203,28 @@ function PartDetails({ card: c, part }: { card: ServiceScorecardDetail; part: Sc
       </Stack>
     );
   }
+  if (part === 'costs') {
+    const k = c.costs;
+    if (k.status === 'none')
+      return (
+        <Text size="xs" c="dimmed">
+          {t('costs.none')}
+        </Text>
+      );
+    return (
+      <Stack gap={2}>
+        <Text size="xs">
+          {k.thisMonth !== null && k.budget !== null
+            ? t('costs.summaryAmounts', { used: k.thisMonth, budget: k.budget, currency: k.currency, pct: k.budgetPct })
+            : t('costs.summary', { pct: k.budgetPct })}
+        </Text>
+        {k.forecastPct !== null && <Text size="xs">{t('costs.forecast', { pct: k.forecastPct })}</Text>}
+        <Anchor component={Link} to={`/costs/service/${c.serviceId}`} size="xs">
+          {t('costs.open')}
+        </Anchor>
+      </Stack>
+    );
+  }
   if (part === 'vulnerabilities') {
     const v = c.vulnerabilities;
     if (!v.projects)

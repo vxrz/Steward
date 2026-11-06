@@ -1,0 +1,255 @@
+{
+  "title": "Kosten",
+  "description": "Was Services, Anwendungen, Teams und Plattformen pro Monat kosten – aus den Plattformen, die Steward liest, und importierten FOCUS-Dateien. Showback, keine Rechnungen.",
+  "search": "Nach Namen suchen",
+  "scopeLabel": "Kosten von",
+  "scopes": {
+    "service": "Service",
+    "application": "Anwendung",
+    "team": "Team",
+    "platform": "Plattform"
+  },
+  "scopesPlural": {
+    "service": "Services",
+    "application": "Anwendungen",
+    "team": "Teams",
+    "platform": "Plattformen"
+  },
+  "tableLabel": "Kosten der {{scope}}",
+  "columns": {
+    "currency": "Währung",
+    "thisMonth": "Dieser Monat bisher",
+    "forecast": "Prognose",
+    "lastMonth": "Letzter Monat",
+    "change": "Änderung",
+    "unassigned": "Nicht zugeordnet",
+    "budget": "Budget"
+  },
+  "totals": "Plattformen diesen Monat ({{currency}})",
+  "totalsLast": "Letzter Monat: {{amount}}",
+  "hiddenHint": "Beträge sehen die Verantwortlichen, die Mitglieder der zuständigen Teams, Administratoren und Prüfer. Sie sehen die Änderungen und die Budgetstände.",
+  "hiddenHintOne": "Beträge sehen die Verantwortlichen, die Mitglieder der zuständigen Teams, Administratoren und Prüfer. Sie sehen die Änderungen und den Stand des Budgets.",
+  "empty": {
+    "title": "Noch keine Kosten",
+    "who": "Wer eine Plattform verwalten darf, schaltet das Lesen ihrer Kosten ein oder importiert eine FOCUS-Datei – unter Kosten → Plattformen → die Plattform → Quelle.",
+    "platforms": "Zu den Plattformen",
+    "service": "Noch kein Service hat Kosten: Kosten kommen über seine Anwendungen zu einem Service.",
+    "application": "Noch keine Anwendung hat Kosten: ein Tag an den Kosten (Standard „application“) oder eine Plattform, die zur Anwendung gehört, verknüpft sie.",
+    "team": "Noch kein Team hat Kosten: ein Team hat die Kosten der Anwendungen und Plattformen, die ihm gehören.",
+    "platform": "Noch keine Plattform hat Kosten. Steward liest AWS, Snowflake, Confluent Cloud und LLM-Gateways und importiert FOCUS-Dateien anderer Anbieter."
+  },
+  "settings": {
+    "open": "Einstellungen",
+    "title": "Einstellungen der Kosten",
+    "hide": "Beträge vor Betrachtern verbergen",
+    "hideHint": "Nur Verantwortliche, Mitglieder der zuständigen Teams, Administratoren und Prüfer sehen Beträge; alle anderen sehen Änderungen in Prozent und Budgetstände.",
+    "currency": "Währung der KI-Preise",
+    "currencyHint": "Für LLM-Gateways ohne eigene Währung",
+    "noConversion": "Beträge werden nie zwischen Währungen umgerechnet: Summen gelten je Währung.",
+    "saved": "Einstellungen der Kosten gespeichert",
+    "notSaved": "Einstellungen der Kosten nicht gespeichert"
+  },
+  "tabsLabel": "Kosten der Plattform",
+  "tabs": {
+    "overview": "Übersicht",
+    "source": "Quelle"
+  },
+  "detailHint": {
+    "service": "Die Kosten der Anwendungen des Service, je Monat und Währung.",
+    "application": "Die Kosten, die mit der Anwendung verknüpft sind, je Monat und Währung.",
+    "team": "Die Kosten der Anwendungen des Teams und was seine Plattformen nicht zugeordnet haben.",
+    "platform": "Alles, was für diese Plattform gelesen oder importiert wurde, auch was keiner Anwendung zugeordnet ist."
+  },
+  "open": {
+    "service": "Service öffnen",
+    "application": "Anwendung öffnen",
+    "platform": "Plattform öffnen"
+  },
+  "currencyTitle": "Kosten in {{currency}}",
+  "none": {
+    "title": "Hier gibt es noch keine Kosten",
+    "who": "Wer eine Plattform verwalten darf, liest ihre Kosten oder importiert eine FOCUS-Datei; der Tag (Standard „application“) verknüpft sie mit Anwendungen.",
+    "service": "Keine Anwendung des Service hat verknüpfte Kosten.",
+    "application": "Mit dieser Anwendung sind keine Kosten verknüpft – prüfen Sie den Tag ihrer Cloud-Konten und die FOCUS-Dateien.",
+    "team": "Noch keine Anwendung oder Plattform des Teams hat Kosten.",
+    "platform": "Für diese Plattform wurde noch nichts gelesen oder importiert."
+  },
+  "trend": {
+    "label": "Trend",
+    "perMonth": "{{amount}} pro Monat",
+    "stable": "gleichmäßig über {{months}} Monate ({{pct}} pro Monat)",
+    "rough": "ungleichmäßig über {{months}} Monate ({{pct}} pro Monat)",
+    "none": "noch nicht genug Monate"
+  },
+  "chart": {
+    "label": "Kosten in {{currency}} von {{from}} bis {{to}}",
+    "forecastTip": "Prognose: {{amount}}",
+    "months": "Monat",
+    "soFar": "Dieser Monat bisher",
+    "forecast": "Prognose",
+    "budget": "Budget",
+    "showTable": "Als Tabelle anzeigen",
+    "showChart": "Als Diagramm anzeigen"
+  },
+  "table": {
+    "month": "Monat",
+    "effective": "Kosten (EffectiveCost)",
+    "billed": "Abgerechnet (BilledCost)",
+    "soFar": "bisher"
+  },
+  "unassigned": {
+    "title": "Nicht zugeordnet",
+    "hint": "Kosten, die keiner Anwendung zugeordnet sind: ohne Tag, mit einem Tag, den keine Komponente oder Anwendung hat, oder auf einer Plattform ohne Anwendung.",
+    "line": "Dieser Monat {{thisMonth}} · letzter Monat {{lastMonth}}"
+  },
+  "parts": {
+    "applications": "Nach Anwendung",
+    "platforms": "Nach Plattform",
+    "application": "Anwendung",
+    "platform": "Plattform",
+    "unassigned": "Nicht zugeordnet",
+    "unassignedOn": "Nicht zugeordnet auf {{name}}",
+    "other": "Weitere, die Sie nicht sehen dürfen"
+  },
+  "byService": {
+    "title": "Nach Anbieter und Dienst",
+    "service": "Dienst"
+  },
+  "sources": "Aus: {{list}}",
+  "sourceKinds": {
+    "aws": "AWS Cost Explorer",
+    "snowflake": "Snowflake",
+    "confluent": "Confluent-Kosten-API",
+    "ai": "KI-Nutzungsprotokoll",
+    "focus": "FOCUS-Dateien"
+  },
+  "budget": {
+    "title": "Monatsbudget",
+    "none": "Es ist kein Budget festgelegt.",
+    "set": "Budget festlegen",
+    "edit": "Budget ändern",
+    "used": "{{used}} von {{amount}} diesen Monat",
+    "usedPct": "{{pct}} % des Budgets diesen Monat",
+    "pctOf": "{{pct}} % des Budgets",
+    "forecast": "Prognose für den Monat: {{pct}} % des Budgets",
+    "changed": "Festgelegt von {{who}}, {{when}}",
+    "states": {
+      "ok": "Im Budget",
+      "warning": "80 % erreicht",
+      "exceeded": "Budget erreicht"
+    },
+    "dialogTitle": "Monatsbudget von {{name}}",
+    "dialogHint": "Die Verantwortlichen erfahren es bei 80 % und 100 %. Ein Budget hält nichts an – es ist Showback.",
+    "amount": "Betrag pro Monat",
+    "currency": "Währung",
+    "comment": "Warum (optional)",
+    "raiseHint": "Damit erhöhen Sie das Budget (höherer Betrag, andere Währung oder keines mehr): Sie bestätigen, dass Sie es sind.",
+    "remove": "Budget entfernen",
+    "saved": "Budget gespeichert",
+    "notSaved": "Budget nicht gespeichert"
+  },
+  "source": {
+    "title": {
+      "aws": "AWS Cost Explorer",
+      "snowflake": "Snowflake-Verbrauch",
+      "confluent": "Kosten-API von Confluent Cloud",
+      "ai": "KI-Nutzungsprotokoll",
+      "focus": "Verknüpfung mit Anwendungen"
+    },
+    "how": {
+      "aws": "UnblendedCost je Monat nach dem Anwendungs-Tag und nach Dienst – einmal am Tag, da jede Anfrage 0,01 $ kostet.",
+      "snowflake": "USAGE_IN_CURRENCY_DAILY aus den Nutzungsansichten der Organisation; ohne sie die Credits aus METERING_DAILY_HISTORY mal Ihrem Preis pro Credit. Einmal am Tag.",
+      "confluent": "Tägliche Zeilen je Cluster, Connector und Produkt in US-Dollar, höchstens ein Monat pro Anfrage, vollständig nach 72 Stunden. Einmal am Tag.",
+      "ai": "Die Kosten der Aufrufe aus den Preisen an den Modellen, je Tag, Modell und Prozess. Jede Stunde.",
+      "focus": "Diese Plattform hat keinen Kosten-Connector: Importieren Sie die FOCUS-Dateien, die ihr Anbieter exportiert, oder senden Sie sie aus der CI."
+    },
+    "readNow": "Jetzt lesen",
+    "lastRead": "Zuletzt gelesen {{when}}",
+    "neverRead": "Noch nicht gelesen",
+    "enabled": "Kosten dieser Plattform lesen",
+    "enabledHint": {
+      "aws": "Die Cloud-Konto-Komponenten von Anwendungen lesen die Kosten ebenfalls.",
+      "snowflake": "Gelesen mit den Rechten der Person, die dies speichert.",
+      "confluent": "Der Cloud-API-Schlüssel braucht die Rolle OrganizationAdmin oder BillingAdmin.",
+      "ai": "Aus Stewards eigenem Nutzungsprotokoll – kein Aufruf des Gateways."
+    },
+    "tagKey": "Tag, der die Anwendung nennt",
+    "tagKeyHint": "Sein Wert ist der Name einer Komponente auf dieser Plattform oder einer Anwendung",
+    "creditPrice": "Preis pro Credit (Ersatz)",
+    "creditPriceHint": "Nur ohne die Nutzungsansichten der Organisation verwendet",
+    "currency": "Währung",
+    "aiCurrencyHint": "Die Währung der Preise an den Modellen; leer: die Währung der Kosteneinstellungen",
+    "saved": "Kostenquelle gespeichert",
+    "notSaved": "Kostenquelle nicht gespeichert",
+    "readDone": "Kosten gelesen",
+    "readFailed": "Kosten nicht gelesen"
+  },
+  "import": {
+    "title": "FOCUS-Dateien",
+    "help": "CSV-Dateien im FinOps-Format FOCUS (AWS Data Exports, Kostenexporte von Azure, Google Cloud und andere), bis {{max}}. Sie sehen zuerst eine Vorschau.",
+    "choose": "Datei importieren",
+    "tooLarge": "Die Datei ist größer als {{max}}",
+    "notRead": "Die Datei konnte nicht gelesen werden",
+    "previewOf": "{{name}}: {{rows}} Zeilen, {{lines}} Kostenzeilen",
+    "period": "Kosten vom {{from}} bis {{to}}",
+    "mapping": "Mit Anwendungen verknüpfte Zeilen: {{assigned}}, nicht zugeordnet: {{unassigned}} · Anbieter: {{providers}}",
+    "ignored_one": "{{count}} Spalte wird nicht verwendet",
+    "ignored_other": "{{count}} Spalten werden nicht verwendet",
+    "duplicate": "Diese Datei wurde schon importiert ({{when}}).",
+    "mode": "Wie importieren",
+    "modes": {
+      "replace": "Diese Tage ersetzen",
+      "add": "Hinzufügen"
+    },
+    "replaceHint_one": "Ersetzt {{count}} Zeile früherer Importe für dieselben Tage (eine korrigierte Datei). Änderungen abgeschlossener Tage werden als Korrekturen protokolliert.",
+    "replaceHint_other": "Ersetzt {{count}} Zeilen früherer Importe für dieselben Tage (eine korrigierte Datei). Änderungen abgeschlossener Tage werden als Korrekturen protokolliert.",
+    "addHint": "Behält alle früheren Zeilen – für Dateien anderer Konten für dieselben Tage.",
+    "run": "Importieren",
+    "done": "Importiert: {{lines}} Zeilen, {{replaced}} ersetzt",
+    "failed": "Import fehlgeschlagen",
+    "none": "Noch keine Datei importiert",
+    "noneHint": "Importe stehen hier mit ihrem SHA-256, dem Zeitraum und wer sie importiert hat.",
+    "list": "Importierte FOCUS-Dateien",
+    "file": "Datei",
+    "periodCol": "Zeitraum",
+    "linesCol": "Zeilen",
+    "by": "Von",
+    "when": "Wann",
+    "noName": "(ohne Namen)",
+    "linesOf": "{{lines}} aus {{rows}} Zeilen",
+    "viaPush": "Push"
+  },
+  "push": {
+    "title": "Senden aus der CI",
+    "help": "Ein Push-Token kann nichts anderes, als FOCUS-Dateien für diese Plattform an Steward zu senden. Es wird einmal angezeigt; gespeichert wird nur sein Hash.",
+    "new": "Neues Push-Token",
+    "empty": "Kein Push-Token",
+    "emptyHint": "Legen Sie eines für den Job an, der Ihre FOCUS-Dateien exportiert.",
+    "name": "Name",
+    "nameHint": "Welcher Job es verwendet",
+    "token": "Token",
+    "lastUsed": "Zuletzt verwendet",
+    "expires": "Läuft ab",
+    "actions": "Aktionen",
+    "creatorInactive": "Angehalten: die Person, die es angelegt hat, darf die Plattform nicht mehr verwalten",
+    "neverUsed": "nie",
+    "expired": "abgelaufen",
+    "never": "nie",
+    "rotate": "Neues Geheimnis",
+    "revoke": "Widerrufen",
+    "rotateNamed": "Neues Geheimnis für {{name}}",
+    "revokeNamed": "{{name}} widerrufen",
+    "rotateConfirm": "„{{name}}“ ein neues Geheimnis geben? Das alte gilt sofort nicht mehr.",
+    "revokeConfirm": "„{{name}}“ widerrufen? Sendungen damit werden ab jetzt abgelehnt.",
+    "newTitle": "Neues Push-Token",
+    "expiresIn": "Läuft ab nach (Tagen)",
+    "addresses": "Erlaubte Adressen (optional)",
+    "addressesHint": "IP-Adressen oder CIDR-Bereiche Ihrer CI-Runner",
+    "create": "Anlegen",
+    "secretTitle": "Push-Token „{{name}}“",
+    "secretOnce": "Kopieren Sie das Token jetzt – Steward speichert nur seinen Hash und kann es nicht noch einmal zeigen.",
+    "command": "In Ihrem CI-Job",
+    "done": "Fertig"
+  },
+  "lastMonthShort": "letzter Monat {{amount}}"
+}

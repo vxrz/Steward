@@ -425,5 +425,15 @@
     "process": "Process “{{name}}”",
     "day": "today",
     "month": "this month"
+  },
+  "costBudget": {
+    "title80": "Cost budget at 80 %: {{name}}",
+    "title100": "Cost budget reached: {{name}}",
+    "body80": "{{name}} has cost {{used}} of its budget of {{limit}} this month ({{pct}} %). The forecast for the month: {{forecast}}.",
+    "body100": "{{name}} has cost {{used}} this month – its budget of {{limit}} is reached ({{pct}} %). Budgets do not stop anything; check the costs or raise the budget.",
+    "service": "Service “{{name}}”",
+    "application": "Application “{{name}}”",
+    "team": "Team “{{name}}”",
+    "noForecast": "not yet known"
   }
 }

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ActionIcon, Badge, Box, Collapse, Divider, Group, Indicator, NavLink, ScrollArea, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import {
+  IconCoin,
   IconActivity,
   IconApps,
   IconArrowsDiff,
@@ -70,6 +71,7 @@ export type NavKey =
   | 'statusPages'
   | 'duties'
   | 'scorecard'
+  | 'costs'
   | 'credentials'
   | 'tickets'
   | 'reports'
@@ -154,6 +156,7 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/tickets', key: 'tickets', icon: IconTicket },
       { to: '/duties', key: 'duties', icon: IconCalendarCheck },
       { to: '/scorecard', key: 'scorecard', icon: IconGauge },
+      { to: '/costs', key: 'costs', icon: IconCoin },
       { to: '/maintenance', key: 'maintenance', icon: IconTool },
     ],
   },

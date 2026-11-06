@@ -76,32 +76,67 @@ const USERS: DemoUser[] = [
 ];
 
 /** Monthly costs per application tag and per service for the last months (the current one so far). */
-function costs(start: string, end: string, groupBy: { Type: string; Key: string }) {
+/**
+ * What the demo account costs per tag value and service in a month (USD, before growth): the sums per tag (shop 1840,
+ * crm 410, untagged 95) and per service add up to the same total.
+ */
+const COST_MATRIX: Record<string, Record<string, number>> = {
+  shop: {
+    'Amazon Elastic Compute Cloud - Compute': 970,
+    'Amazon Relational Database Service': 410,
+    'Amazon Simple Storage Service': 100,
+    'Elastic Load Balancing': 160,
+    'Amazon Elastic Container Service': 200,
+  },
+  crm: { 'Amazon Elastic Compute Cloud - Compute': 150, 'Amazon Relational Database Service': 200, 'Amazon DynamoDB': 60 },
+  '': { 'Amazon Simple Storage Service': 40, 'AWS Lambda': 38, 'Amazon DynamoDB': 2, 'Elastic Load Balancing': 15 },
+};
+
+/** For tests: a factor on the demo costs of one month (YYYY-MM) – a late correction by AWS. */
+const costFactor = new Map<string, number>();
+export function setAwsCostFactor(month: string, factor: number | null): void {
+  if (factor === null) costFactor.delete(month);
+  else costFactor.set(month, factor);
+}
+
+/** The part of a month that has passed (the current month so far; at least a tenth, so the demo has figures on the 1st). */
+function monthShare(monthStart: string): number {
+  const start = Date.parse(`${monthStart.slice(0, 7)}-01T00:00:00Z`);
+  const next = new Date(start);
+  next.setUTCMonth(next.getUTCMonth() + 1);
+  return Math.min(1, Math.max(0.1, (Date.now() - start) / (next.getTime() - start)));
+}
+
+function costs(start: string, end: string, groupBy: { Type: string; Key: string }[]) {
   const months: string[] = [];
   const d = new Date(`${start.slice(0, 7)}-01T00:00:00Z`);
   while (d.toISOString().slice(0, 10) < end) {
     months.push(d.toISOString().slice(0, 10));
     d.setUTCMonth(d.getUTCMonth() + 1);
   }
-  const base: Record<string, number> =
-    groupBy.Type === 'TAG'
-      ? { [`${groupBy.Key}$shop`]: 1840, [`${groupBy.Key}$crm`]: 410, [`${groupBy.Key}$`]: 95 }
-      : {
-          'Amazon Elastic Compute Cloud - Compute': 1120,
-          'Amazon Relational Database Service': 610,
-          'Amazon Simple Storage Service': 140,
-          'AWS Lambda': 38,
-          'Amazon DynamoDB': 62,
-          'Elastic Load Balancing': 175,
-          'Amazon Elastic Container Service': 200,
-        };
+  const tagKey = groupBy.find((g) => g.Type === 'TAG')?.Key;
+  const byService = groupBy.some((g) => g.Type === 'DIMENSION' && g.Key === 'SERVICE');
+  const sum = (o: Record<string, number>) => Object.values(o).reduce((a, b) => a + b, 0);
+  const services: Record<string, number> = {};
+  for (const svc of Object.values(COST_MATRIX)) for (const [k, v] of Object.entries(svc)) services[k] = (services[k] ?? 0) + v;
+  const base: [string[], number][] =
+    tagKey && byService
+      ? Object.entries(COST_MATRIX).flatMap(([tag, svc]) => Object.entries(svc).map(([k, v]): [string[], number] => [[`${tagKey}$${tag}`, k], v]))
+      : tagKey
+        ? Object.entries(COST_MATRIX).map(([tag, svc]): [string[], number] => [[`${tagKey}$${tag}`], sum(svc)])
+        : Object.entries(services).map(([k, v]): [string[], number] => [[k], v]);
   return {
     ResultsByTime: months.map((m, i) => ({
       TimePeriod: { Start: m, End: months[i + 1] ?? end },
-      Groups: Object.entries(base).map(([k, v]) => ({
-        Keys: [k],
-        // a little growth each month, the current month only partly through
-        Metrics: { UnblendedCost: { Amount: ((v * (1 + 0.03 * i)) / (i === months.length - 1 ? 2 : 1)).toFixed(4), Unit: 'USD' } },
+      Groups: base.map(([keys, v]) => ({
+        Keys: keys,
+        // a little growth each month, the current month as far as it has passed; a factor for a corrected month
+        Metrics: {
+          UnblendedCost: {
+            Amount: (v * (1 + 0.03 * i) * (i === months.length - 1 ? monthShare(m) : 1) * (costFactor.get(m.slice(0, 7)) ?? 1)).toFixed(4),
+            Unit: 'USD',
+          },
+        },
       })),
     })),
   };
@@ -377,7 +412,7 @@ export async function mockAws(app: FastifyInstance): Promise<void> {
             };
           }
           if (target === 'AWSInsightsIndexService.GetCostAndUsage' && sc.service === 'ce' && sc.region === 'us-east-1') {
-            return costs(body.TimePeriod.Start, body.TimePeriod.End, body.GroupBy[0]);
+            return costs(body.TimePeriod.Start, body.TimePeriod.End, body.GroupBy ?? []);
           }
           return reply.code(400).send({ __type: 'UnknownOperationException', message: `${target} for ${sc.service}` });
         }

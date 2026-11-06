@@ -31,6 +31,7 @@ Steward notifies people in the app (the bell in the header) and – depending on
 | Maintenance                     | The responsible people and owners of what a maintenance window reaches ([APPLICATIONS.md](APPLICATIONS.md#maintenance-windows))                                                                           |
 | Incident review measure         | The owners of a measure from an incident review: before its due date, on it, weekly while overdue ([RECORDS.md](RECORDS.md#incident-reviews))                                                             |
 | Platform connection failing     | The platform's managers (else administrators), once when its periodic connection test starts failing – again only after it passed in between ([PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md#platform-health)) |
+| Cost budget                     | The owners and owning teams of a service, application or team (else administrators), at 80 % and 100 % of its monthly cost budget, once per month and level ([COSTS.md](COSTS.md#budgets))                |
 | Daily summary                   | People who turned it on (below) – in-app and e-mail only, never Teams or webhooks                                                                                                                         |
 
 ## Notification policy of automated runs

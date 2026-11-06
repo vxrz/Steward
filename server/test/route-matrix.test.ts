@@ -265,6 +265,24 @@ const EXPECT: Record<string, Access> = {
   'POST /api/db-schemas/:kind/:id/push-tokens/:tokenId/rotate': ADMIN,
   'DELETE /api/db-schemas/:kind/:id/push-tokens/:tokenId': ADMIN,
   'POST /api/hooks/db-schema/:kind/:id': HOOK,
+  // platform costs (#226), here of the demo platform: the overview for everyone (each sees the scopes they may see), a
+  // platform's costs for who may see the platform and auditors; its source, imports and push tokens for its managers
+  'GET /api/costs': ALL,
+  'GET /api/costs/settings': ALL,
+  'PUT /api/costs/settings': ADMIN,
+  'PUT /api/costs/budgets': DESIGN,
+  'GET /api/costs/:scope/:id': RECON_READ,
+  'GET /api/costs/platform/:id/source': RECON_READ,
+  'PUT /api/costs/platform/:id/source': ADMIN,
+  'POST /api/costs/platform/:id/read': ADMIN,
+  'GET /api/costs/platform/:id/imports': RECON_READ,
+  'POST /api/costs/platform/:id/imports/preview': ADMIN,
+  'POST /api/costs/platform/:id/imports': ADMIN,
+  'GET /api/costs/platform/:id/push-tokens': ADMIN,
+  'POST /api/costs/platform/:id/push-tokens': ADMIN,
+  'POST /api/costs/platform/:id/push-tokens/:tokenId/rotate': ADMIN,
+  'DELETE /api/costs/platform/:id/push-tokens/:tokenId': ADMIN,
+  'POST /api/hooks/costs/:platformId': HOOK,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
@@ -781,6 +799,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/plant/assets/:assetId/network': PLANT,
   // database schemas (#222): of the demo database platform (who sees it) and of the matrix system (everyone);
   'GET /api/v1/platforms/:platformId/schema/snapshots': USE,
+  // platform costs (#226): the overview for everyone (each sees what they may see); one scope as in the web app
+  'GET /api/v1/costs': ALL,
+  'GET /api/v1/costs/:scope/:id': RECON_READ,
   'GET /api/v1/platforms/:platformId/schema/snapshots/:snapshotId': USE,
   'GET /api/v1/platforms/:platformId/schema/snapshots/:snapshotId/export': USE,
   'GET /api/v1/platforms/:platformId/schema/changes': USE,
@@ -1131,6 +1152,15 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     harmless: { scope: 'installation', scopeId: '', tokensPerDay: 500, tokensPerMonth: null },
   },
   'PUT /api/backups/passphrase': 'always',
+  // raising a cost budget (#226; the fixtures set 1,000 USD a month for a service); lowering it needs no confirmation
+  'PUT /api/costs/budgets': {
+    get sensitive() {
+      return { scope: 'service', scopeId: fx.service, amount: '2000', currency: 'USD' };
+    },
+    get harmless() {
+      return { scope: 'service', scopeId: fx.service, amount: '500', currency: 'USD' };
+    },
+  },
 };
 
 /**
@@ -1206,6 +1236,9 @@ function fill(url: string): string {
       // Kafka Connect (#223): the demo cluster and its Debezium connector
       .replace(/\/api\/platforms\/:id\/kafka-connect/, `/api/platforms/${fx.connectPlatform}/kafka-connect`)
       .replace(/:name\/config/, 'shop-cdc/config')
+      // platform costs (#226): the demo platform
+      .replace(/\/api\/(v1\/)?costs\/:scope\/:id/, `/api/$1costs/platform/${fx.platform}`)
+      .replace(/\/api\/costs\/platform\/:id/, `/api/costs/platform/${fx.platform}`)
       .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : url.startsWith('/api/changedetection') ? fx.cdPlatform! : fx.platform!)
       .replace(/:uuid/g, '7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e01')
       .replace(/:specId/g, fx.spec!)
@@ -1726,6 +1759,8 @@ beforeAll(async () => {
   fx.connectPlatform = platforms.find((p: { kind: string }) => p.kind === 'kafka-connect').id;
   // changedetection.io (#242): the demo platform, read by the demo setup
   fx.cdPlatform = platforms.find((p: { kind: string }) => p.kind === 'changedetection').id;
+  // a cost budget (#226), so raising it is a sensitive change (STEP_UP)
+  await a('PUT', '/costs/budgets', { scope: 'service', scopeId: fx.service, amount: '1000', currency: 'USD' });
   const dbSnap = (await a('POST', `/db-schemas/platform/${fx.dbPlatform}/read`)).snapshot.id;
   const tbls = JSON.stringify({
     name: 'matrix',

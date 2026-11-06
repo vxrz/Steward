@@ -2,12 +2,12 @@
 
 Steward reads what runs in an AWS account for an application: the **resources** that carry the application tag, their **costs** per month and the **IAM users** with the tag and the age and last use of their **access keys**. Everything is read-only, signed with AWS Signature Version 4 by Steward itself (no AWS SDK).
 
-| What                      | AWS API                                                                   | How often                                 |
-| ------------------------- | ------------------------------------------------------------------------- | ----------------------------------------- |
-| Who the credentials are   | STS `GetCallerIdentity` (and `AssumeRole` with a role)                    | connection test, every read               |
-| Resources with the tag    | Resource Groups Tagging API `GetResources`, per region                    | every 6 hours, or _Read now_              |
-| Costs per month           | Cost Explorer `GetCostAndUsage`, by the tag and by service                | **once a day** (it costs $0.01 a request) |
-| IAM users and access keys | IAM `ListUsers`, `ListUserTags`, `ListAccessKeys`, `GetAccessKeyLastUsed` | every 6 hours, or _Read now_              |
+| What                      | AWS API                                                                                                                                                         | How often                                 |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Who the credentials are   | STS `GetCallerIdentity` (and `AssumeRole` with a role)                                                                                                          | connection test, every read               |
+| Resources with the tag    | Resource Groups Tagging API `GetResources`, per region                                                                                                          | every 6 hours, or _Read now_              |
+| Costs per month           | Cost Explorer `GetCostAndUsage`, by the tag and by service (one request series, 12 months and the current one, also into the cost model – [COSTS.md](COSTS.md)) | **once a day** (it costs $0.01 a request) |
+| IAM users and access keys | IAM `ListUsers`, `ListUserTags`, `ListAccessKeys`, `GetAccessKeyLastUsed`                                                                                       | every 6 hours, or _Read now_              |
 
 One platform is one AWS account. What the account answers is read once and shared by all components that use it (table `aws_account_cache`), so ten applications in one account cost one read, not ten.
 
@@ -141,7 +141,7 @@ An application component of type **Cloud account** names the AWS platform; its *
 Steward then shows, every 6 hours or on _Read now_:
 
 - **Resources**: every resource with the tag in the regions read, with service, type, name and region (S3 buckets have none), counted per service. Resources that came or went are recorded in the application's history (`application.aws_resources_changed`).
-- **Costs**: unblended costs per month for the tag, the current month so far and the last month on the component, six months in the readout (also for processes). Costs are read at most once a day, also on _Read now_.
+- **Costs**: unblended costs per month for the tag, the current month so far and the last month on the component, six months in the readout (also for processes). Costs are read at most once a day, also on _Read now_. The same read fills the cost model: _Costs_ shows the account's costs per application (by the tag), per service and as _unassigned_ for untagged resources, with 12 months, trend, forecast and budgets ([COSTS.md](COSTS.md)).
 - **IAM users** that carry the tag: each access key with its status, age and last use (date and service). Active keys older than 90 days are marked. _Add to the credentials register_ opens a new credential with the key's id, creation date and user, belonging to the component – review it and save; the secret part of a key is never read (AWS does not give it out after creation).
 
 Each DynamoDB table among the resources links to a new monitor with a [DynamoDB check](#dynamodb-monitor-checks) for it (for people who may create monitors).

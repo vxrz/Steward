@@ -186,6 +186,8 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('ai.budget', 'mcp', ['changeAiBudget']),
   // ---- catalogue ----
   sp('catalogue.ciaScale', 'catalogue', ['changeCiaScale']),
+  // raising a monthly cost budget of a service, application or team, or removing it (0.9.0, #226); lowering one needs no confirmation
+  sp('cost.budget', 'catalogue', ['changeCostBudget']),
   // ---- system and data ----
   sp('notifications.delivery', 'system', ['changeNotificationDelivery']),
   sp('backup.settings', 'system', ['changeBackups']),

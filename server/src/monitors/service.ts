@@ -56,6 +56,7 @@ import {
 import { requireVisiblePlatform, resolvePlatformRef } from './platforms.js';
 import { requireVisibleSystem } from '../dbschema/check.js';
 import { requireVisibleApplication } from '../versions/check.js';
+import { requireVisibleCostScope } from '../costs/check.js';
 import { checkUptimes, monitorUptime } from './stats.js';
 import { coerceParams, renderTemplate } from './templates.js';
 import { checkExpressions, parseDefinitionInput, validateTemplate } from './validation.js';
@@ -466,6 +467,8 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
     if (c.type === 'db-schema' && c.system) requireVisibleSystem(c.name, c.system);
     // the application of a version check (#241): one the editor may not see answers like a missing one
     if (c.type === 'version-behind') requireVisibleApplication(c.name, c.application);
+    // the scope of a cost check: one the editor may not see answers like a missing one
+    if (c.type === 'cost') requireVisibleCostScope(c.name, c);
     if (c.type === 'monitor') {
       const sub = monitorRow(c.monitor);
       if (!sub || !permissionsOfRow(sub).includes('view'))

@@ -25,6 +25,7 @@ import { CatalogueCredentials } from '../components/catalogue/CatalogueCredentia
 import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { OwningTeams } from '../components/OwningTeams';
 import { DetailHeader } from '../components/page/DetailPage';
+import { CostsButton } from '../components/costs/CostsButton';
 import { platformKeys } from '../queryKeys';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { useMe } from '../auth';
@@ -85,21 +86,24 @@ export function ApplicationDetailPage() {
           </>
         }
         actions={
-          (a.canEdit || canCreate) && (
-            <>
-              {canCreate && <DuplicateButton kind="application" id={a.id} />}
-              {a.canEdit && (
-                <>
-                  <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}>
-                    {t('common:edit')}
-                  </Button>
-                  <Button size="xs" variant="default" leftSection={a.archived ? <IconArchiveOff size={14} /> : <IconArchive size={14} />} onClick={archive}>
-                    {a.archived ? t('restore') : t('archive')}
-                  </Button>
-                </>
-              )}
-            </>
-          )
+          <>
+            <CostsButton scope="application" id={a.id} />
+            {(a.canEdit || canCreate) && (
+              <>
+                {canCreate && <DuplicateButton kind="application" id={a.id} />}
+                {a.canEdit && (
+                  <>
+                    <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}>
+                      {t('common:edit')}
+                    </Button>
+                    <Button size="xs" variant="default" leftSection={a.archived ? <IconArchiveOff size={14} /> : <IconArchive size={14} />} onClick={archive}>
+                      {a.archived ? t('restore') : t('archive')}
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
+          </>
         }
       />
       <Grid gap="lg">

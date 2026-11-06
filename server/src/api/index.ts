@@ -73,6 +73,11 @@ const TAGS = [
     description:
       'Schema snapshots of database platforms and systems (Steward reads or tbls imports), their changes marked breaking or not, and exports as DBML, SQL DDL or JSON',
   },
+  {
+    name: 'Costs',
+    description:
+      'Platform costs (showback) per service, application, team and platform: 12 months, the current month, trend, forecast and budget, per currency, in FinOps FOCUS columns',
+  },
 ];
 
 const problemContent = { 'application/problem+json': { schema: { $ref: '#/components/schemas/Problem' } } };

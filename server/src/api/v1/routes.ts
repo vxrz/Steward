@@ -19,6 +19,7 @@ import { dutyApiRoutes } from '../../duties/api-v1.js';
 import { scorecardApiRoutes } from '../../scorecard/api-v1.js';
 import { plantApiRoutes } from '../../plant/api-v1.js';
 import { dbSchemaApiRoutes } from '../../dbschema/api-v1.js';
+import { costApiRoutes } from '../../costs/api-v1.js';
 import { API_VERSION } from './config.js';
 import * as S from './schemas.js';
 import type { ApiPrincipal } from './auth.js';
@@ -164,4 +165,6 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
   plantApiRoutes(get);
   // ---------- database schemas (#222) ----------
   dbSchemaApiRoutes(get);
+  // ---------- platform costs (#226) ----------
+  costApiRoutes(get);
 }

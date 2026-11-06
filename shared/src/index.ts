@@ -64,3 +64,4 @@ export * from './dbschema.js';
 export * from './kafkaConnect.js';
 export * from './versions.js';
 export * from './changedetection.js';
+export * from './costs.js';

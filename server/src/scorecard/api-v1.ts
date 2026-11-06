@@ -60,6 +60,7 @@ const mapCard = (c: ServiceScorecard) => ({
   lifecycle: c.lifecycle,
   vulnerabilities: c.vulnerabilities,
   upToDate: c.upToDate,
+  costs: c.costs,
 });
 
 function found<T>(f: () => T, what: string): T {

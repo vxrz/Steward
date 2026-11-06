@@ -26,13 +26,17 @@ import { platformKeys } from '../../queryKeys';
 /**
  * The parts to show: "Tech stack" only while it is turned on in the end-of-life settings (#104), "Vulnerabilities" only
  * when a component of some service links a Dependency-Track project (#119), "Up to date" only while it is turned on in
- * the version watch settings (#241).
+ * the version watch settings (#241), "Costs" only when a service has a cost budget (#226).
  */
-export function shownParts(cards: Pick<ServiceScorecard, 'lifecycle' | 'vulnerabilities' | 'upToDate'>[]): ScorecardPart[] {
+export function shownParts(cards: Pick<ServiceScorecard, 'lifecycle' | 'vulnerabilities' | 'upToDate' | 'costs'>[]): ScorecardPart[] {
   const lifecycle = cards.some((c) => c.lifecycle?.enabled);
   const vulnerabilities = cards.some((c) => (c.vulnerabilities?.status ?? 'none') !== 'none');
   const upToDate = cards.some((c) => c.upToDate?.enabled);
-  return SCORECARD_PARTS.filter((p) => (p !== 'lifecycle' || lifecycle) && (p !== 'vulnerabilities' || vulnerabilities) && (p !== 'upToDate' || upToDate));
+  // "Costs" only when a service has a cost budget (#226)
+  const costs = cards.some((c) => (c.costs?.status ?? 'none') !== 'none');
+  return SCORECARD_PARTS.filter(
+    (p) => (p !== 'lifecycle' || lifecycle) && (p !== 'vulnerabilities' || vulnerabilities) && (p !== 'upToDate' || upToDate) && (p !== 'costs' || costs),
+  );
 }
 
 export const PART_COLORS: Record<ScorecardPartStatus | 'hidden', string> = {

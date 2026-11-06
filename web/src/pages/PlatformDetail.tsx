@@ -56,6 +56,7 @@ import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { DetailHeader } from '../components/page/DetailPage';
+import { CostsButton } from '../components/costs/CostsButton';
 import { platformKeys } from '../queryKeys';
 import { GetStartedPanel, PlatformHealthPanel, TestHints } from '../components/platform/onboarding';
 
@@ -203,6 +204,7 @@ export function PlatformDetailPage() {
         }
         actions={
           <>
+            <CostsButton scope="platform" id={p.id} />
             {canUse && (
               <Button size="xs" leftSection={<IconPlugConnected size={14} />} onClick={runTest} loading={testing} variant="light">
                 {t('detail.test')}

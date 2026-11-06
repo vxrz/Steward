@@ -264,6 +264,18 @@ export const ScorecardServiceEntry = z.object({
         .describe('The entries behind more than allowed, major first'),
     })
     .describe('Up to date: how far the tech stack of the service’s applications is behind the newest versions (version watch)'),
+  costs: z
+    .object({
+      status: partStatus().describe(
+        'attention: this month’s costs reached the service’s monthly cost budget; pending: 80 % of it, or the forecast of the month is above it; ok: below; none: no cost budget',
+      ),
+      budgetPct: z.number().nullable().describe('This month so far in percent of the budget'),
+      forecastPct: z.number().nullable().describe('The month’s forecast in percent of the budget'),
+      currency: z.string().nullable(),
+      thisMonth: z.string().nullable().describe('Decimal; null when the token owner may not see the service’s costs'),
+      budget: z.string().nullable().describe('Decimal; null when the token owner may not see the service’s costs'),
+    })
+    .describe('Costs: the month’s costs against the service’s monthly cost budget (docs/COSTS.md)'),
 });
 
 const PartCounts = z.object({ ok: z.number().int(), attention: z.number().int(), pending: z.number().int(), none: z.number().int() });
@@ -280,6 +292,7 @@ const RollupGroup = z.object({
     lifecycle: PartCounts,
     vulnerabilities: PartCounts,
     upToDate: PartCounts,
+    costs: PartCounts,
   }),
 });
 
@@ -303,6 +316,7 @@ export const ScorecardTrendEntry = z.object({
     lifecycle: TrendCounts,
     vulnerabilities: TrendCounts,
     upToDate: TrendCounts,
+    costs: TrendCounts,
   }),
 });
 
@@ -320,6 +334,7 @@ export const ServiceScorecardEntry = ScorecardServiceEntry.extend({
           lifecycle: HistoryPart,
           vulnerabilities: HistoryPart,
           upToDate: HistoryPart,
+          costs: HistoryPart,
         }),
       }),
     )

@@ -30,7 +30,8 @@
     "protection": "Protection need",
     "lifecycle": "Tech stack",
     "vulnerabilities": "Vulnerabilities",
-    "upToDate": "Up to date"
+    "upToDate": "Up to date",
+    "costs": "Costs"
   },
   "windows": {
     "h1": "1 h",
@@ -195,5 +196,12 @@
     "majorItem_other": "{{component}}: {{product}} → {{newest}} – {{count}} major releases behind",
     "behindItem_one": "{{component}}: {{product}} → {{newest}} – {{count}} minor release behind for {{days}} days",
     "behindItem_other": "{{component}}: {{product}} → {{newest}} – {{count}} minor releases behind for {{days}} days"
+  },
+  "costs": {
+    "none": "The service has no cost budget.",
+    "summary": "This month so far: {{pct}} % of the budget",
+    "summaryAmounts": "This month so far: {{used}} of {{budget}} {{currency}} ({{pct}} %)",
+    "forecast": "Forecast for the month: {{pct}} % of the budget",
+    "open": "Show the costs"
   }
 }

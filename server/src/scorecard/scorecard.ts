@@ -21,6 +21,7 @@ import {
   type ScorecardLifecycle,
   type ScorecardLifecycleItem,
   type ScorecardVulnerabilities,
+  type ScorecardCosts,
   type ScorecardVulnerabilityItem,
   type ScorecardUpToDate,
   type ScorecardUpToDateItem,
@@ -63,6 +64,8 @@ import { environmentList } from '../catalogue/environments.js';
 import { productLabel } from '../catalogue/components.js';
 import { isWellBehind, versionSettings, watchOf, type WatchedEntry } from '../versions/service.js';
 import { applicationEntries } from '../versions/check.js';
+import { scopeInfo as costScopeInfo } from '../costs/access.js';
+import { budgetOf as costBudgetOf } from '../costs/query.js';
 
 /**
  * The service scorecard (#86): per service its parts, each with its own status – no weighting.
@@ -632,6 +635,20 @@ function vulnerabilitiesPart(d: Data, serviceId: string, ctx: Map<string, Dtrack
 
 // ---------- scorecards ----------
 
+/**
+ * Costs (#226): the service's monthly cost budget against this month so far and the forecast. The amounts only for a
+ * reader who may see the service's costs (costs/access.ts); the state for everyone who sees the service.
+ */
+function costsPart(serviceId: string, viewer: AuthUser | null, now: number): ScorecardCosts {
+  const none: ScorecardCosts = { status: 'none', budgetPct: null, forecastPct: null, currency: null, thisMonth: null, budget: null };
+  const amounts = viewer ? (costScopeInfo('service', serviceId, viewer)?.amounts ?? false) : false;
+  const b = costBudgetOf('service', serviceId, amounts, now);
+  if (!b) return none;
+  const status: ScorecardPartStatus =
+    b.state === 'exceeded' ? 'attention' : b.state === 'warning' || (b.forecastPct !== null && b.forecastPct > 100) ? 'pending' : 'ok';
+  return { status, budgetPct: b.pct, forecastPct: b.forecastPct, currency: b.currency, thisMonth: b.used, budget: b.amount };
+}
+
 export interface Computed {
   card: ServiceScorecard;
   /** Released documents that counted (snapshots) */
@@ -659,13 +676,14 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
     const lifecycle = lifecyclePart(d, s.id, lc, now);
     const vulnerabilities = vulnerabilitiesPart(d, s.id, vc, now);
     const upToDate = upToDatePart(d, s.id, uc);
+    const costs = costsPart(s.id, viewer, now);
     return {
       card: {
         serviceId: s.id,
         serviceName: s.name,
         owners: parseJson<string[]>(s.owners, []),
         criticality: (s.criticality as ServiceCriticality | null) ?? null,
-        attention: [duties, availability, documentation, protection, lifecycle, vulnerabilities, upToDate].some((p) => p.status === 'attention'),
+        attention: [duties, availability, documentation, protection, lifecycle, vulnerabilities, upToDate, costs].some((p) => p.status === 'attention'),
         duties,
         availability,
         documentation,
@@ -673,6 +691,7 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
         lifecycle,
         vulnerabilities,
         upToDate,
+        costs,
       },
       documentIds: ids,
     };
@@ -727,6 +746,7 @@ export interface SnapshotRow {
   lifecycle?: ScorecardPartStatus;
   vulnerabilities?: ScorecardPartStatus;
   up_to_date?: ScorecardPartStatus;
+  costs?: ScorecardPartStatus | null;
   document_ids: string;
   details: string;
   updated_at: string;
@@ -758,6 +778,7 @@ function pointOf(r: SnapshotRow, readable: boolean): ServiceScorecardHistoryPoin
     lifecycle: r.lifecycle ?? 'none',
     vulnerabilities: r.vulnerabilities ?? 'none',
     upToDate: r.up_to_date ?? 'none',
+    costs: r.costs ?? 'none',
   };
   return { day: r.day, attention: SCORECARD_PARTS.some((p) => parts[p] === 'attention'), parts };
 }

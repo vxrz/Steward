@@ -28,7 +28,19 @@ async function areas(page: Page): Promise<Record<string, string[]>> {
 }
 
 const OPERATE = ['Runs', 'Monitors', 'Dashboards', 'Status pages', 'Reports', 'My tasks', 'AI requests'];
-const CATALOGUE = ['Services', 'Applications', 'Systems', 'Platforms', 'Credentials', 'Documents', 'Ticket references', 'Duties', 'Scorecard', 'Maintenance'];
+const CATALOGUE = [
+  'Services',
+  'Applications',
+  'Systems',
+  'Platforms',
+  'Credentials',
+  'Documents',
+  'Ticket references',
+  'Duties',
+  'Scorecard',
+  'Costs',
+  'Maintenance',
+];
 const COMPLIANCE = ['Controls', 'Access changes', 'Access reconciliation', 'Person reviews', 'Evidence packs'];
 
 const EXPECTED: Partial<Record<UserKey, Record<string, string[]>>> = {
@@ -148,6 +160,7 @@ test.describe('addresses (admin)', () => {
       ['/tickets', 'Ticket references'],
       ['/duties', 'Duties'],
       ['/scorecard', 'Scorecard'],
+      ['/costs', 'Costs'],
       ['/maintenance', 'Maintenance'],
       ['/compliance/person-reviews', 'Person reviews'],
       ['/users', 'Users & teams'],

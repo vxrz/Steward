@@ -23,6 +23,7 @@ import {
   IconArrowsExchange,
   IconArrowBigUpLines,
   IconFileDiff,
+  IconCoin,
 } from '@tabler/icons-react';
 import type { CheckDef, CheckType } from '@sm/shared';
 import i18n from '../../i18n';
@@ -46,6 +47,7 @@ export const CHECK_ICONS: Record<CheckType, typeof IconApi> = {
   database: IconDatabase,
   dynamodb: IconTable,
   'db-schema': IconSchema,
+  cost: IconCoin,
   'dependency-track': IconShieldCheck,
   'version-behind': IconArrowBigUpLines,
   entra: IconUserShield,
@@ -74,6 +76,7 @@ const DEFAULT_NAMES: Record<CheckType, string> = {
   database: 'Database reachable',
   dynamodb: 'DynamoDB table fresh',
   'db-schema': 'No breaking schema change',
+  cost: 'Costs not rising',
   'dependency-track': 'No critical vulnerabilities',
   'version-behind': 'Tech stack up to date',
   entra: 'App credentials valid',
@@ -150,6 +153,8 @@ export function newCheck(type: CheckType, id: string): CheckDef {
       } as CheckDef;
     case 'db-schema':
       return { ...base, name, type, platform: '', mode: 'breaking', withinHours: 24, read: false, noData: 'unknown' } as CheckDef;
+    case 'cost':
+      return { ...base, name, type, scope: 'service', target: '', period: 'month', maxIncreasePct: 20, failAs: 'degraded', noData: 'unknown' } as CheckDef;
     case 'dependency-track':
       return { ...base, name, type, platform: '', project: '', maxCritical: 0, policyFail: true, failAs: 'down' } as CheckDef;
     case 'version-behind':

@@ -417,7 +417,36 @@
     "pageWatchMaxCheckAgeHint": "Counts as failing; empty: not looked at",
     "pageWatchPausedAs": "Paused watches",
     "pageWatchPausedIgnore": "Left out",
-    "pageWatchChangedAsHint": "Information: the check stays OK and names the change"
+    "pageWatchChangedAsHint": "Information: the check stays OK and names the change",
+    "cost": {
+      "scope": "Costs of",
+      "target": "Which",
+      "targetEmpty": "Nothing you may see",
+      "period": "Compare",
+      "periods": {
+        "month": "The last month with the month before",
+        "monthToDate": "This month so far with the same share of the month before"
+      },
+      "maxIncreasePct": "Up by more than (%)",
+      "maxIncrease": "or by more than (amount)",
+      "maxIncreaseHint": "In the currency compared, e.g. 500",
+      "currency": "Currency",
+      "currencyHint": "Empty: the one with the highest costs",
+      "failAs": "Status when it rises more",
+      "noData": "Status without costs to compare",
+      "statuses": {
+        "down": "Down",
+        "degraded": "Degraded",
+        "unknown": "Unknown",
+        "up": "Up"
+      },
+      "scopes": {
+        "service": "Service",
+        "application": "Application",
+        "team": "Team",
+        "platform": "Platform"
+      }
+    }
   },
   "detail": {
     "template": "template",
@@ -800,6 +829,10 @@
     "page-watch": {
       "label": "Page watch (changedetection.io)",
       "help": "Watches of changedetection.io: a page changed within the last N hours (informational or degraded), a watch whose last check failed or that was not checked for too long"
+    },
+    "cost": {
+      "label": "Cost change",
+      "help": "The costs of a service, application, team or platform: up by more than a percentage or an amount compared with the month before"
     }
   },
   "newCheck": {
@@ -826,7 +859,8 @@
     "database": "Database reachable",
     "dynamodb": "DynamoDB table fresh",
     "db-schema": "No breaking schema change",
-    "page-watch": "Vendor pages watched"
+    "page-watch": "Vendor pages watched",
+    "cost": "Costs not rising"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}"

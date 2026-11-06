@@ -407,7 +407,7 @@ export const PRESETS: PlatformPreset[] = [
     kind: 'confluent-cloud',
     label: 'Confluent Cloud API (access reviews)',
     description:
-      'The Confluent Cloud API (https://api.confluent.cloud) for access reviews: an access check of source "Confluent" snapshots the role bindings of an organisation, environment or cluster (IAM v2, by CRN) and – with the variables kafkaRestUrl (the cluster\'s REST endpoint, https://pkc-….confluent.cloud:443) and clusterId (lkc-…) and the cluster\'s own API key – its Kafka ACLs; users are named by their e-mail address, so person reviews include Confluent. Credentials: a Cloud API key and secret (not a cluster key) of a service account with a role that may list role bindings, users and service accounts. Read-only. For topics, consumer lag and schemas use a "Kafka cluster" platform. See docs/CONFLUENT.md.',
+      'The Confluent Cloud API (https://api.confluent.cloud) for access reviews: an access check of source "Confluent" snapshots the role bindings of an organisation, environment or cluster (IAM v2, by CRN) and – with the variables kafkaRestUrl (the cluster\'s REST endpoint, https://pkc-….confluent.cloud:443) and clusterId (lkc-…) and the cluster\'s own API key – its Kafka ACLs; users are named by their e-mail address, so person reviews include Confluent. Platform costs read the Costs API (the key needs OrganizationAdmin or BillingAdmin for it, docs/COSTS.md). Credentials: a Cloud API key and secret (not a cluster key) of a service account with a role that may list role bindings, users and service accounts. Read-only. For topics, consumer lag and schemas use a "Kafka cluster" platform. See docs/CONFLUENT.md.',
     baseUrl: 'https://api.confluent.cloud',
     config: {
       auth: { type: 'basic' },

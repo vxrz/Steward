@@ -67,8 +67,8 @@ export function snapshotScorecards(now = Date.now(), force = false): number | nu
     db().run('DELETE FROM scorecard_snapshots WHERE day = ?', day);
     for (const { card: c, documentIds } of cards) {
       db().run(
-        `INSERT INTO scorecard_snapshots (day, service_id, service_name, owners, attention, duties, availability, documentation, protection, lifecycle, vulnerabilities, up_to_date, document_ids, details, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO scorecard_snapshots (day, service_id, service_name, owners, attention, duties, availability, documentation, protection, lifecycle, vulnerabilities, up_to_date, costs, document_ids, details, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         day,
         c.serviceId,
         c.serviceName,
@@ -81,6 +81,7 @@ export function snapshotScorecards(now = Date.now(), force = false): number | nu
         c.lifecycle.status,
         c.vulnerabilities.status,
         c.upToDate.status,
+        c.costs.status,
         JSON.stringify(documentIds),
         JSON.stringify({
           duties: { mandatory: c.duties.mandatory, recommended: c.duties.recommended, optional: c.duties.optional },
@@ -101,6 +102,7 @@ export function snapshotScorecards(now = Date.now(), force = false): number | nu
             stale: c.vulnerabilities.stale,
           },
           upToDate: { enabled: c.upToDate.enabled, entries: c.upToDate.entries, major: c.upToDate.major, behind: c.upToDate.behind },
+          costs: { budgetPct: c.costs.budgetPct, forecastPct: c.costs.forecastPct, currency: c.costs.currency },
         }),
         iso(now),
       );

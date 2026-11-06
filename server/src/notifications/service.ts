@@ -19,6 +19,8 @@ import { HttpError, nowIso, parseJson } from '../util.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
 import { matches, platformPermissions, processPermissions, verificationCheck } from '../auth/permissions.js';
 import { onBudgetNotice } from '../ai/usage.js';
+import { onCostBudgetNotice, type BudgetNotice } from '../costs/budgets.js';
+import { scopeInfo as costScopeInfo } from '../costs/access.js';
 import { getTask } from '../engine/store.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
 import { addInApp, claimSend } from './store.js';
@@ -640,6 +642,58 @@ export function notifyAiBudget(n: { use: AiBudgetUse; level: 80 | 100; period: '
 }
 
 /**
+ * A monthly cost budget reached 80 % or 100 % (0.9.0, #226, costs/budgets.ts): once per budget, month and level – to
+ * the owners of the service or application and the members of its owning teams (of a team: its members), who see its
+ * amounts; to the administrators when nobody else is.
+ */
+export function notifyCostBudget(n: BudgetNotice): void {
+  const all = activeUsers();
+  const owners = all.filter((u) => {
+    if (u.roles.includes('admin')) return false;
+    const i = costScopeInfo(n.scope, n.scopeId, toAuthUser(u));
+    return !!i?.owner && i.amounts;
+  });
+  const recipients = owners.length ? owners : admins(all);
+  const b = n.budget;
+  const money = (l: Locale, v: string | null) =>
+    v === null ? '' : `${Number(v).toLocaleString(l, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${b.currency}`;
+  const name = (l: Locale) => t(l, `costBudget.${n.scope}`, { name: n.name });
+  const forecast = (l: Locale) =>
+    b.forecastPct === null || b.amount === null
+      ? t(l, 'costBudget.noForecast')
+      : `${money(l, String((Number(b.amount) * b.forecastPct) / 100))} (${b.forecastPct} %)`;
+  const link = `/costs/${n.scope}/${encodeURIComponent(n.scopeId)}`;
+  notify({
+    event: 'cost.budget',
+    text: (l) => ({
+      title: t(l, n.level === 100 ? 'costBudget.title100' : 'costBudget.title80', { name: titleName(name(l)) }),
+      body: t(l, n.level === 100 ? 'costBudget.body100' : 'costBudget.body80', {
+        name: name(l),
+        used: money(l, b.used),
+        limit: money(l, b.amount),
+        pct: b.pct.toLocaleString(l),
+        forecast: forecast(l),
+      }),
+    }),
+    link,
+    recipients: uniqueUsers(recipients),
+    inAppKey: `cost:${n.scope}:${n.scopeId}:${n.month}:${n.level}`,
+    externalKey: `cost:${n.scope}:${n.scopeId}:${n.month}:${n.level}`,
+    data: {
+      scope: n.scope,
+      scopeId: n.scopeId,
+      name: n.name,
+      level: n.level,
+      month: n.month,
+      used: b.used,
+      budget: b.amount,
+      currency: b.currency,
+      pct: b.pct,
+    },
+  });
+}
+
+/**
  * Reports each stale partition of a dataset once per stale period (a new publish starts a new period, #142): when the
  * publish step sets `staleAfterMinutes`, or a schedule feeds the partition (2.5 × its interval). Returns how many.
  */
@@ -716,6 +770,7 @@ export function initNotifications(): void {
   on('check.resolved', deferred('check.resolved', onCheckResolved));
   on('schedule.skipped', deferred('schedule.skipped', onScheduleSkipped));
   onBudgetNotice(notifyAiBudget);
+  onCostBudgetNotice(notifyCostBudget);
   on('dataset.published', (e) => {
     // a partition's new publish starts its own period (its updated_at changes); others keep theirs
     db().run('DELETE FROM notification_stale WHERE dataset_key = ?', e.key);

@@ -158,7 +158,8 @@ export interface ObjectiveDetail extends ObjectiveSummary {
  * when no component links a Dependency-Track project.
  * upToDate: the version watch (#241) – counted only when turned on (VersionSettings.scorecard), else "none".
  */
-export const SCORECARD_PARTS = ['duties', 'availability', 'documentation', 'protection', 'lifecycle', 'vulnerabilities', 'upToDate'] as const;
+/* costs: the month's costs of the service against its monthly cost budget (#226) – "none" without a budget. */
+export const SCORECARD_PARTS = ['duties', 'availability', 'documentation', 'protection', 'lifecycle', 'vulnerabilities', 'upToDate', 'costs'] as const;
 export type ScorecardPart = (typeof SCORECARD_PARTS)[number];
 
 /**
@@ -395,6 +396,22 @@ export interface ScorecardUpToDate {
   items: ScorecardUpToDateItem[];
 }
 
+export interface ScorecardCosts {
+  /**
+   * attention: this month's costs reached the service's monthly budget; pending: 80 % of it, or the forecast of the
+   * month is above it; ok: below; none: the service has no cost budget
+   */
+  status: ScorecardPartStatus;
+  /** This month so far in percent of the budget */
+  budgetPct: number | null;
+  /** The month's forecast in percent of the budget */
+  forecastPct: number | null;
+  currency: string | null;
+  /** The amounts – only for readers who may see the service's costs */
+  thisMonth: string | null;
+  budget: string | null;
+}
+
 export interface ServiceScorecard {
   serviceId: string;
   serviceName: string;
@@ -409,6 +426,7 @@ export interface ServiceScorecard {
   lifecycle: ScorecardLifecycle;
   vulnerabilities: ScorecardVulnerabilities;
   upToDate: ScorecardUpToDate;
+  costs: ScorecardCosts;
 }
 
 export type ScorecardPartCounts = Record<ScorecardPartStatus, number>;
