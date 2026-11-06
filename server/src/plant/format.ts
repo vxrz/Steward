@@ -23,6 +23,17 @@ import {
   protocolOf,
   WORK_CENTER_TYPES,
   WORK_UNIT_TYPES,
+  ADDRESS_TYPES,
+  COLLECTOR_KINDS,
+  CONDUIT_DIRECTIONS,
+  DESTINATION_KINDS,
+  DEVICE_CONFIDENCE,
+  DEVICE_STATES,
+  PEER_KINDS,
+  PLANT_NETWORK_LIMITS as NL,
+  TRANSFER_MODES,
+  VLAN_RANGE_TYPES,
+  ZONE_CRITICALITIES,
 } from '@sm/shared';
 import { ID_HINT } from './model.js';
 import { NAME_HINT, NAME_RE } from './data-model.js';
@@ -34,7 +45,9 @@ import { NAME_HINT, NAME_RE } from './data-model.js';
  * each naming its site in `location.site`) – an import takes several files at once.
  *
  * Part 2 (#219) adds the optional top-level keys `device_profiles` (`device_profile`), `kpi_definitions`
- * (`kpi_definition`) and `assignments` (`assignment`) – files of part 1 stay valid. Later parts add more (OT network).
+ * (`kpi_definition`) and `assignments` (`assignment`) – files of part 1 stay valid. Part 3 (#220) adds the OT network:
+ * `ot_networks` (`ot_network`: a site's VLANs, IEC 62443-3-2 zones and conduits) and `asset_networks` (`asset_network`:
+ * an asset's devices, data paths and the checks that give its live status).
  */
 
 export const SCHEMA_ID = 'https://github.com/vxrz/Steward/blob/main/docs/plant/plant-registry-1.schema.json';
@@ -472,6 +485,198 @@ export const assignmentSchema = z
   .strict()
   .meta({ id: 'Assignment', description: 'What an asset’s interfaces deliver: its device profile, endpoints, overrides, publications and KPI instances' });
 
+// ---------- part 3 (#220): the OT network ----------
+
+const short = text(NL.text);
+const strings = (max: number) => z.array(z.string().min(1).max(NL.text)).max(max).optional();
+
+export const statusCheckSchema = z
+  .object({
+    monitor: z.string().min(1).max(200).optional().describe('A Steward monitor (key or id) whose status tells it'),
+    check: z.string().max(128).nullable().optional().describe('One check of the monitor (id or key; empty: the whole monitor)'),
+    dataset: z.string().min(1).max(200).optional().describe('A Steward dataset (key) whose freshness tells it'),
+    column: text(120).describe('Only rows whose column has value (a dataset per device or asset)'),
+    value: z
+      .union([z.string().max(NL.text), z.number()])
+      .nullable()
+      .optional(),
+    time_column: text(120).describe('The column with the time of the last value (empty: when the dataset was written)'),
+    max_age_minutes: z.number().int().min(1).max(525_600).nullable().optional().describe('Older is offline (empty: the dataset’s own freshness)'),
+    note: text(500),
+  })
+  .strict()
+  .refine((c) => !!c.monitor !== !!c.dataset, { message: 'Name either a monitor or a dataset' })
+  .meta({ id: 'StatusCheck', description: 'A check that tells the live status: a monitor (or one of its checks) or the freshness of a dataset' });
+
+const checks = z.array(statusCheckSchema).max(NL.checks).optional().describe('Linked checks: the live status (online, offline, unknown) comes only from them');
+
+const ip = text(45).describe('IPv4 or IPv6 address');
+
+export const vlanSchema = z
+  .object({
+    id,
+    name,
+    vid: z.number().int().min(1).max(4094).nullable().optional().describe('IEEE 802.1Q VLAN identifier (VID), 1–4094'),
+    type: text(60).describe('What it is for: production, management, iot …'),
+    owner: short,
+    description: text(NL.longText),
+    subnets: z
+      .array(
+        z
+          .object({
+            cidr: z.string().min(1).max(50).describe('CIDR notation, IPv4 or IPv6: 10.20.30.0/24, 2001:db8:30::/48'),
+            gateway: ip,
+            description: text(500),
+            ranges: z
+              .array(z.object({ start: z.string().min(1).max(45), end: z.string().min(1).max(45), type: z.enum(VLAN_RANGE_TYPES), notes: text(500) }).strict())
+              .max(NL.ranges)
+              .optional()
+              .describe('Address ranges: blocked, dynamic (DHCP) or static'),
+          })
+          .strict(),
+      )
+      .max(NL.subnets)
+      .optional(),
+    restricted: z.boolean().nullable().optional().describe('Access to it is restricted (an rVLAN behind a firewall)'),
+    managed_by: short.describe('Who manages it'),
+    rules_at: text(2000).describe('Where its access rules are kept'),
+    sites: z.array(id).max(NL.sites).optional().describe('Other sites it reaches'),
+    location: short,
+    segment: text(100).describe('The Steward network segment (system id) it is linked to'),
+    notes: text(NL.longText),
+  })
+  .strict()
+  .meta({ id: 'Vlan', description: 'An IEEE 802.1Q VLAN of a site with its subnets and ranges' });
+
+export const zoneSchema = z
+  .object({
+    id,
+    name,
+    description: text(NL.longText),
+    criticality: z.enum(ZONE_CRITICALITIES).nullable().optional(),
+    vlans: z.array(id).max(NL.vlansPerZone).optional().describe('The VLANs in the zone (ids of VLANs of the site)'),
+    owner: short,
+    sl_t: z
+      .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
+      .nullable()
+      .optional()
+      .describe('IEC 62443-3-2 target security level (SL-T 1–4); leave it out until a risk assessment sets it'),
+    risk_assessment: text(500).describe('The risk assessment that set SL-T (needed with sl_t)'),
+    assessed_at: date,
+    notes: text(NL.longText),
+  })
+  .strict()
+  .meta({ id: 'Zone', description: 'An IEC 62443-3-2 zone' });
+
+export const conduitSchema = z
+  .object({
+    id,
+    name,
+    description: text(NL.longText),
+    zones: z.tuple([id, id]).describe('The two zones it connects'),
+    direction: z.enum(CONDUIT_DIRECTIONS).optional().describe('a_to_b (first to second zone), b_to_a or both (default)'),
+    protocols: strings(NL.protocols).describe('Protocols and ports: opc-ua tcp/4840, https tcp/443'),
+    controls: strings(NL.controls).describe('Its controls: firewall, data diode, jump host'),
+    notes: text(NL.longText),
+  })
+  .strict()
+  .meta({ id: 'Conduit', description: 'An IEC 62443-3-2 conduit between two zones' });
+
+export const otNetworkSchema = z
+  .object({
+    site: id.describe('The site'),
+    vlans: z.array(vlanSchema).max(NL.vlansPerSite).optional(),
+    zones: z.array(zoneSchema).max(NL.zonesPerSite).optional(),
+    conduits: z.array(conduitSchema).max(NL.conduitsPerSite).optional(),
+  })
+  .strict()
+  .meta({ id: 'OtNetwork', description: 'The OT network of a site: VLANs, zones and conduits' });
+
+export const deviceSchema = z
+  .object({
+    id,
+    hostname: text(NL.host),
+    domain: text(NL.host),
+    purpose: short,
+    mac: text(20).describe('MAC address (EUI-48): AC-DE-48-00-00-80, ac:de:48:00:00:80 or acde.4800.0080'),
+    serial: short,
+    vlan: ref.describe('A VLAN of the asset’s site'),
+    address_type: z.enum(ADDRESS_TYPES).nullable().optional(),
+    address: ip,
+    switch: short,
+    switch_port: text(100),
+    wall_outlet: text(100),
+    cmdb_port: short.describe('The port’s name in the CMDB'),
+    state: z.enum(DEVICE_STATES).optional().describe('active (default), planned, inactive or retired'),
+    flags: z.array(z.string().min(1).max(40)).max(NL.flags).optional().describe('snake_case flags: device_ordered, port_ordered, address_ordered …'),
+    confidence: z.enum(DEVICE_CONFIDENCE).nullable().optional().describe('How sure the documentation is'),
+    owner: short,
+    monitoring: text(500).describe('The monitoring that watches it (text)'),
+    checks,
+    notes: text(NL.longText),
+  })
+  .strict()
+  .meta({ id: 'Device', description: 'A device of an asset: its network identity' });
+
+export const dataPathSchema = z
+  .object({
+    id,
+    subject: z.string().min(1).max(NL.text).describe('What data'),
+    description: text(NL.longText),
+    devices: z.array(id).max(NL.devicesPerPath).optional().describe('Devices of the asset it covers'),
+    collector: z
+      .object({
+        kind: z.enum(COLLECTOR_KINDS).describe('application, platform, process (a Steward item) or job (elsewhere, by name)'),
+        ref: z.string().min(1).max(NL.text).describe('Its id (the name of a job)'),
+        host: text(100).describe('The Steward system it runs on'),
+      })
+      .strict()
+      .nullable()
+      .optional(),
+    transfers: z
+      .array(
+        z
+          .object({
+            protocol: z.string().min(1).max(60),
+            mode: z.enum(TRANSFER_MODES),
+            peer_kind: z.enum(PEER_KINDS).optional().describe('device (of the asset), system (a Steward system) or other (default)'),
+            peer: short,
+            port: z.number().int().min(1).max(65535).nullable().optional(),
+            notes: text(500),
+          })
+          .strict(),
+      )
+      .max(NL.transfers)
+      .optional(),
+    destinations: z
+      .array(
+        z
+          .object({
+            kind: z.enum(DESTINATION_KINDS).optional().describe('system, dataset or other (default)'),
+            ref: z.string().min(1).max(NL.text),
+            path: text(500),
+            notes: text(500),
+          })
+          .strict(),
+      )
+      .max(NL.destinations)
+      .optional(),
+    notes: text(NL.longText),
+  })
+  .strict()
+  .meta({ id: 'DataPath', description: 'What data leaves an asset, who collects it, how it is transferred and where it ends up' });
+
+export const assetNetworkSchema = z
+  .object({
+    asset: id.describe('The asset'),
+    site: id.optional().describe('The asset’s site (optional; checked when given)'),
+    checks,
+    devices: z.array(deviceSchema).max(NL.devicesPerAsset).optional(),
+    data_paths: z.array(dataPathSchema).max(NL.pathsPerAsset).optional(),
+  })
+  .strict()
+  .meta({ id: 'AssetNetwork', description: 'The OT network of an asset: its devices, data paths and live-status checks' });
+
 export const plantFileSchema = z
   .object({
     $schema: z.string().max(500).optional(),
@@ -489,12 +694,18 @@ export const plantFileSchema = z
     kpi_definitions: z.array(kpiSchema).max(L.kpis).optional().describe('KPI definitions (a catalogue of the installation)'),
     assignment: assignmentSchema.optional().describe('The assignment of one asset'),
     assignments: z.array(assignmentSchema).max(PLANT_LIMITS.assets).optional().describe('Assignments of assets'),
+    ot_network: otNetworkSchema.optional().describe('The OT network of one site (a file per site)'),
+    ot_networks: z.array(otNetworkSchema).max(PLANT_LIMITS.sites).optional().describe('The OT networks of sites'),
+    asset_network: assetNetworkSchema.optional().describe('The OT network of one asset'),
+    asset_networks: z.array(assetNetworkSchema).max(PLANT_LIMITS.assets).optional().describe('The OT networks of assets'),
   })
   .strict()
   .refine((f) => !(f.site && f.sites), { message: 'Use either site (one) or sites (several), not both', path: ['site'] })
   .refine((f) => !(f.device_profile && f.device_profiles), { message: 'Use either device_profile or device_profiles, not both', path: ['device_profile'] })
   .refine((f) => !(f.kpi_definition && f.kpi_definitions), { message: 'Use either kpi_definition or kpi_definitions, not both', path: ['kpi_definition'] })
-  .refine((f) => !(f.assignment && f.assignments), { message: 'Use either assignment or assignments, not both', path: ['assignment'] });
+  .refine((f) => !(f.assignment && f.assignments), { message: 'Use either assignment or assignments, not both', path: ['assignment'] })
+  .refine((f) => !(f.ot_network && f.ot_networks), { message: 'Use either ot_network or ot_networks, not both', path: ['ot_network'] })
+  .refine((f) => !(f.asset_network && f.asset_networks), { message: 'Use either asset_network or asset_networks, not both', path: ['asset_network'] });
 
 export type PlantFile = z.infer<typeof plantFileSchema>;
 export type SiteFile = z.infer<typeof siteSchema>;
@@ -505,6 +716,9 @@ export type InterfaceFile = z.infer<typeof interfaceSchema>;
 export type DataPointFile = z.infer<typeof dataPointSchema>;
 export type KpiFile = z.infer<typeof kpiSchema>;
 export type AssignmentFile = z.infer<typeof assignmentSchema>;
+export type OtNetworkFile = z.infer<typeof otNetworkSchema>;
+export type AssetNetworkFile = z.infer<typeof assetNetworkSchema>;
+export type StatusCheckFile = z.infer<typeof statusCheckSchema>;
 
 /** The published JSON Schema (2020-12) of the format. */
 export function plantJsonSchema(): Record<string, unknown> {
@@ -515,7 +729,7 @@ export function plantJsonSchema(): Record<string, unknown> {
     $id: SCHEMA_ID,
     title: 'Steward plant registry, format 1',
     description:
-      'Sites of an enterprise with their ISA-95 (IEC 62264) hierarchy – area, work center, work unit –, the buildings (IEC 81346 location aspect) and the assets in them; device profiles with their interfaces and data points (OPC UA IEC 62541, Modbus, IEC 61131-3, UCUM), KPI definitions (ISO 22400-2) and the assignments of assets. See docs/PLANT.md.',
+      'Sites of an enterprise with their ISA-95 (IEC 62264) hierarchy – area, work center, work unit –, the buildings (IEC 81346 location aspect) and the assets in them; device profiles with their interfaces and data points (OPC UA IEC 62541, Modbus, IEC 61131-3, UCUM), KPI definitions (ISO 22400-2) and the assignments of assets; the OT network – IEEE 802.1Q VLANs, IEC 62443-3-2 zones and conduits, devices and data paths of assets. See docs/PLANT.md.',
     ...rest,
   };
 }

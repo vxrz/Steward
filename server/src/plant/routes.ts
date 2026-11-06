@@ -15,6 +15,8 @@ import { plantJsonSchema } from './format.js';
 import { seedPlantDemo } from './demo.js';
 import * as cat from './catalogue.js';
 import { assignmentInput, deleteAssignment, getAssignment, putAssignment } from './assignments.js';
+import * as net from './network.js';
+import { assetFlow, coverage, hostPlacement, overview, pointLineage, siteStructure } from './views.js';
 import './links.js';
 
 /**
@@ -27,6 +29,9 @@ import './links.js';
  *   …       /api/plant/assets[/:assetId[/image|/links|/assignment]]
  *   …       /api/plant/profiles[/:profileId[/points/:pointId]], /api/plant/kpis[/:kpiId]   the catalogues of part 2 (#219)
  *   GET     /api/plant/explore/points, /api/plant/checks
+ *   …       /api/plant/sites/:siteId/network, …/vlans[/:vlanId[/segment]], …/zones[/:zoneId], …/conduits[/:conduitId]   the OT network (#220)
+ *   …       /api/plant/assets/:assetId/network, …/devices[/:deviceId], …/paths[/:pathId], …/checks
+ *   GET     /api/plant/views/overview | /views/coverage, …/structure, …/flow, …/lineage   the visualizations (#230)
  *   POST    /api/plant/import/preview | /api/plant/import, GET /api/plant/imports, GET /api/plant/export
  */
 
@@ -168,6 +173,55 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   // which assets deliver a data point (by text across the profiles); every check of what the caller may see
   app.get('/plant/explore/points', async (req) => cat.explorePoints(z.object({ q: z.string().max(200).default('') }).parse(req.query).q));
   app.get('/plant/checks', async () => cat.listChecks());
+
+  // ---------- the OT network (#220): VLANs, IEC 62443-3-2 zones and conduits of a site; devices, data paths, checks ----------
+  app.get('/plant/sites/:siteId/network', async (req) => net.siteNetwork(p(req).siteId!));
+  app.post('/plant/sites/:siteId/vlans', async (req) => net.createVlan(p(req).siteId!, net.vlanInput.parse(req.body)));
+  app.put('/plant/sites/:siteId/vlans/:vlanId', async (req) => net.updateVlan(p(req).siteId!, p(req).vlanId!, net.vlanUpdate.parse(req.body)));
+  app.delete('/plant/sites/:siteId/vlans/:vlanId', async (req) => net.deleteVlan(p(req).siteId!, p(req).vlanId!));
+  // "Create segment from this VLAN": a Steward network segment (the catalogue's rights apply), linked to the VLAN
+  app.post('/plant/sites/:siteId/vlans/:vlanId/segment', async (req) =>
+    net.createSegmentFromVlan(
+      p(req).siteId!,
+      p(req).vlanId!,
+      z
+        .object({ name: z.string().trim().min(1).max(120).optional() })
+        .strict()
+        .parse(req.body ?? {}).name,
+    ),
+  );
+  app.post('/plant/sites/:siteId/zones', async (req) => net.createZone(p(req).siteId!, net.zoneInput.parse(req.body)));
+  app.put('/plant/sites/:siteId/zones/:zoneId', async (req) => net.updateZone(p(req).siteId!, p(req).zoneId!, net.zoneUpdate.parse(req.body)));
+  app.delete('/plant/sites/:siteId/zones/:zoneId', async (req) => net.deleteZone(p(req).siteId!, p(req).zoneId!));
+  app.post('/plant/sites/:siteId/conduits', async (req) => net.createConduit(p(req).siteId!, net.conduitInput.parse(req.body)));
+  app.put('/plant/sites/:siteId/conduits/:conduitId', async (req) => net.updateConduit(p(req).siteId!, p(req).conduitId!, net.conduitUpdate.parse(req.body)));
+  app.delete('/plant/sites/:siteId/conduits/:conduitId', async (req) => net.deleteConduit(p(req).siteId!, p(req).conduitId!));
+  app.get('/plant/assets/:assetId/network', async (req) => net.assetNetwork(p(req).assetId!));
+  app.put('/plant/assets/:assetId/checks', async (req) => net.putAssetChecks(p(req).assetId!, net.assetChecksInput.parse(req.body)));
+  app.post('/plant/assets/:assetId/devices', async (req) => net.createDevice(p(req).assetId!, net.deviceInput.parse(req.body)));
+  app.put('/plant/assets/:assetId/devices/:deviceId', async (req) => net.updateDevice(p(req).assetId!, p(req).deviceId!, net.deviceUpdate.parse(req.body)));
+  app.delete('/plant/assets/:assetId/devices/:deviceId', async (req) => net.deleteDevice(p(req).assetId!, p(req).deviceId!));
+  app.post('/plant/assets/:assetId/paths', async (req) => net.createDataPath(p(req).assetId!, net.dataPathInput.parse(req.body)));
+  app.put('/plant/assets/:assetId/paths/:pathId', async (req) => net.updateDataPath(p(req).assetId!, p(req).pathId!, net.dataPathUpdate.parse(req.body)));
+  app.delete('/plant/assets/:assetId/paths/:pathId', async (req) => net.deleteDataPath(p(req).assetId!, p(req).pathId!));
+  // ---------- visualizations (#230): read-only aggregates, the same rights as the pages they picture ----------
+  app.get('/plant/views/overview', async () => overview());
+  app.get('/plant/views/coverage', async (req) =>
+    coverage(
+      z
+        .object({
+          site: z.string().max(100).optional(),
+          area: z.string().max(100).optional(),
+          profile: z.string().max(100).optional(),
+          kpi: z.string().max(100).optional(),
+        })
+        .parse(req.query),
+    ),
+  );
+  app.get('/plant/sites/:siteId/structure', async (req) => siteStructure(p(req).siteId!));
+  app.get('/plant/sites/:siteId/network/placement', async (req) => hostPlacement(p(req).siteId!));
+  app.get('/plant/assets/:assetId/flow', async (req) => assetFlow(p(req).assetId!));
+  app.get('/plant/profiles/:profileId/points/:pointId/lineage', async (req) => pointLineage(p(req).profileId!, p(req).pointId!));
 
   // ---------- import and export ----------
   app.post('/plant/import/preview', imports, async (req) => previewImport(importInput.parse(req.body)));

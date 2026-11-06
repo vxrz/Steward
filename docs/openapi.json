@@ -4,7 +4,7 @@
     "title": "Steward API",
     "version": "1.1.0",
     "summary": "Read-only REST API of Steward",
-    "description": "Read-only access to the data Steward holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), change requests and decision records, the service catalogue, the credentials register (documentation only, never secret values), and the data model itself as an Apache Ossie semantic model.\n\n**Authentication.** Every endpoint except `/health` needs a personal API token: `Authorization: Bearer smt_…`. Create one on your profile page in the web UI (scope *read* is enough; tokens with scope *mcp* only work on the MCP endpoint). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.\n\n**Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return `{ items, nextCursor }` – pass `nextCursor` as `cursor` to get the next page (also offered as an RFC 8288 `Link: <…>; rel=\"next\"` header). `limit` is 1–200 (default 50). Errors are problem details (RFC 9457, `application/problem+json`). Responses carry `Cache-Control: no-store` and `RateLimit-*` headers; above the limit the API answers 429 with `Retry-After`.\n\n**Versioning.** The path carries the major version. Within v1 changes are additive (new endpoints, optional parameters and fields) – ignore fields you do not know. Breaking changes get a new major version; endpoints that are going away are announced with `Deprecation` and `Sunset` headers first.",
+    "description": "Read-only access to the data Steward holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), change requests and decision records, the service catalogue, the credentials register (documentation only, never secret values), database schema snapshots and their changes, and the data model itself as an Apache Ossie semantic model.\n\n**Authentication.** Every endpoint except `/health` needs a personal API token: `Authorization: Bearer smt_…`. Create one on your profile page in the web UI (scope *read* is enough; tokens with scope *mcp* only work on the MCP endpoint). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.\n\n**Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return `{ items, nextCursor }` – pass `nextCursor` as `cursor` to get the next page (also offered as an RFC 8288 `Link: <…>; rel=\"next\"` header). `limit` is 1–200 (default 50). Errors are problem details (RFC 9457, `application/problem+json`). Responses carry `Cache-Control: no-store` and `RateLimit-*` headers; above the limit the API answers 429 with `Retry-After`.\n\n**Versioning.** The path carries the major version. Within v1 changes are additive (new endpoints, optional parameters and fields) – ignore fields you do not know. Breaking changes get a new major version; endpoints that are going away are announced with `Deprecation` and `Sunset` headers first.",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -3955,6 +3955,8 @@
               "mqtt",
               "snowflake",
               "database",
+              "dynamodb",
+              "db-schema",
               "dependency-track",
               "entra",
               "privilege-vault",
@@ -4378,6 +4380,8 @@
                     "mqtt",
                     "snowflake",
                     "database",
+                    "dynamodb",
+                    "db-schema",
                     "dependency-track",
                     "entra",
                     "privilege-vault",
@@ -20772,6 +20776,3867 @@
           "updatedBy"
         ],
         "additionalProperties": false
+      },
+      "PlantSiteNetworkEntry": {
+        "title": "PlantSiteNetworkEntry",
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "code": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "names": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Translations of the name, keyed by language code"
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "name",
+              "names"
+            ],
+            "additionalProperties": false
+          },
+          "vlans": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "vid": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "IEEE 802.1Q VLAN identifier (1–4094)"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "subnets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "cidr": {
+                        "type": "string",
+                        "description": "CIDR notation, IPv4 or IPv6"
+                      },
+                      "gateway": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "ranges": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "start": {
+                              "type": "string"
+                            },
+                            "end": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "blocked",
+                                "dynamic",
+                                "static"
+                              ]
+                            },
+                            "notes": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "start",
+                            "end",
+                            "type",
+                            "notes"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "cidr",
+                      "gateway",
+                      "description",
+                      "ranges"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "restricted": {
+                  "type": "boolean"
+                },
+                "managedBy": {
+                  "type": "string"
+                },
+                "rulesAt": {
+                  "type": "string",
+                  "description": "Where its access rules are kept"
+                },
+                "sites": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Other sites it reaches (those the token owner may see)"
+                },
+                "location": {
+                  "type": "string"
+                },
+                "segmentId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The Steward network segment (system id) it is linked to"
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "importId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The last import that wrote the record (null: entered in Steward)"
+                },
+                "notInSource": {
+                  "type": "boolean",
+                  "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "segment": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "system",
+                            "application",
+                            "platform",
+                            "process",
+                            "dataset",
+                            "job"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "Its name (empty when the token owner may not see it)"
+                        },
+                        "path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        },
+                        "vid": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "subnets": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "label",
+                        "path",
+                        "visible",
+                        "vid",
+                        "subnets"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "segmentHint": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "vidDiffers": {
+                          "type": "boolean"
+                        },
+                        "onlyVlan": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "onlySegment": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "vidDiffers",
+                        "onlyVlan",
+                        "onlySegment"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The linked segment’s VLAN ID or subnets differ"
+                },
+                "otherSites": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "zones": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "deviceCount": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "vid",
+                "type",
+                "owner",
+                "description",
+                "subnets",
+                "restricted",
+                "managedBy",
+                "rulesAt",
+                "sites",
+                "location",
+                "segmentId",
+                "notes",
+                "importId",
+                "notInSource",
+                "segment",
+                "segmentHint",
+                "otherSites",
+                "zones",
+                "deviceCount"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "criticality": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "vlans": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "slTarget": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 4
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "IEC 62443-3-2 target security level (SL-T); null: open until a risk assessment sets it"
+                },
+                "riskAssessment": {
+                  "type": "string"
+                },
+                "assessedAt": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "importId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The last import that wrote the record (null: entered in Steward)"
+                },
+                "notInSource": {
+                  "type": "boolean",
+                  "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "conduits": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "deviceCount": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "description",
+                "criticality",
+                "vlans",
+                "owner",
+                "slTarget",
+                "riskAssessment",
+                "assessedAt",
+                "notes",
+                "importId",
+                "notInSource",
+                "conduits",
+                "deviceCount"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "conduits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "zones": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The two zones it connects"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "a_to_b",
+                    "b_to_a",
+                    "both"
+                  ]
+                },
+                "protocols": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "controls": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "importId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The last import that wrote the record (null: entered in Steward)"
+                },
+                "notInSource": {
+                  "type": "boolean",
+                  "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "linkId": {
+                  "type": "string",
+                  "description": "Its id as a link target (`<site>/<conduit>`)"
+                },
+                "linkedFrom": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "note": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "label",
+                      "path",
+                      "note"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Firewall changes and other records that link to it"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "description",
+                "zones",
+                "direction",
+                "protocols",
+                "controls",
+                "notes",
+                "importId",
+                "notInSource",
+                "linkId",
+                "linkedFrom"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "hostname": {
+                  "type": "string"
+                },
+                "domain": {
+                  "type": "string"
+                },
+                "purpose": {
+                  "type": "string"
+                },
+                "mac": {
+                  "type": "string",
+                  "description": "EUI-48 in IEEE 802 notation (AC-DE-48-00-00-80)"
+                },
+                "serial": {
+                  "type": "string"
+                },
+                "vlan": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "addressType": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "dynamic",
+                        "reserved",
+                        "static"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "address": {
+                  "type": "string"
+                },
+                "switch": {
+                  "type": "string"
+                },
+                "switchPort": {
+                  "type": "string"
+                },
+                "wallOutlet": {
+                  "type": "string"
+                },
+                "cmdbPort": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "planned",
+                    "active",
+                    "inactive",
+                    "retired"
+                  ]
+                },
+                "flags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "confidence": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "high",
+                        "medium",
+                        "low"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "monitoring": {
+                  "type": "string"
+                },
+                "checks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "monitor",
+                          "dataset"
+                        ],
+                        "description": "monitor (a Steward monitor or one of its checks) or dataset (its freshness)"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "description": "The monitor (key or id) or the dataset (key)"
+                      },
+                      "check": {
+                        "type": "string",
+                        "description": "A monitor: one of its checks (empty: the whole monitor)"
+                      },
+                      "column": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "timeColumn": {
+                        "type": "string"
+                      },
+                      "maxAgeMinutes": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "note": {
+                        "type": "string"
+                      },
+                      "hiddenSlot": {
+                        "type": "integer",
+                        "description": "A check the token owner may not see (or that no longer exists): every other field is empty, this is its place in the list"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref",
+                      "check",
+                      "column",
+                      "value",
+                      "timeColumn",
+                      "maxAgeMinutes",
+                      "note"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "importId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The last import that wrote the record (null: entered in Steward)"
+                },
+                "notInSource": {
+                  "type": "boolean",
+                  "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "assetId": {
+                  "type": "string"
+                },
+                "assetName": {
+                  "type": "string"
+                },
+                "live": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "online",
+                        "offline",
+                        "unknown"
+                      ],
+                      "description": "online, offline or unknown – only linked checks set it; unknown is never online"
+                    },
+                    "watched": {
+                      "type": "boolean",
+                      "description": "Whether any check is linked"
+                    },
+                    "checks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "monitor",
+                              "dataset"
+                            ]
+                          },
+                          "ref": {
+                            "type": "string"
+                          },
+                          "check": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "online",
+                              "offline",
+                              "unknown"
+                            ]
+                          },
+                          "reason": {
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down",
+                              "unknown",
+                              "maintenance",
+                              "disabled",
+                              "not_found",
+                              "fresh",
+                              "stale",
+                              "no_data",
+                              "no_row",
+                              "no_time",
+                              "hidden"
+                            ],
+                            "description": "Why: the monitor’s status, the dataset is fresh or stale, missing, … – `hidden`: a check the token owner may not see, which shows its state only"
+                          },
+                          "label": {
+                            "type": "string",
+                            "description": "Name of the monitor or dataset (empty when the token owner may not see it; then `ref`, `check` and `at` are empty too)"
+                          },
+                          "path": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          },
+                          "at": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "ISO 8601 timestamp (UTC)"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "When the value it is based on was taken"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "ref",
+                          "check",
+                          "state",
+                          "reason",
+                          "label",
+                          "path",
+                          "visible",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "watched",
+                    "checks"
+                  ],
+                  "additionalProperties": false
+                },
+                "hints": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "vlan_missing",
+                      "address_outside",
+                      "address_blocked"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "hostname",
+                "domain",
+                "purpose",
+                "mac",
+                "serial",
+                "vlan",
+                "addressType",
+                "address",
+                "switch",
+                "switchPort",
+                "wallOutlet",
+                "cmdbPort",
+                "state",
+                "flags",
+                "confidence",
+                "owner",
+                "monitoring",
+                "checks",
+                "notes",
+                "importId",
+                "notInSource",
+                "assetId",
+                "assetName",
+                "live",
+                "hints"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "dataPaths": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "subject": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "devices": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "collector": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "application",
+                            "platform",
+                            "process",
+                            "job"
+                          ]
+                        },
+                        "ref": {
+                          "type": "string"
+                        },
+                        "host": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref",
+                        "host"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "transfers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "protocol": {
+                        "type": "string"
+                      },
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "push",
+                          "pull"
+                        ]
+                      },
+                      "peerKind": {
+                        "type": "string",
+                        "enum": [
+                          "device",
+                          "system",
+                          "other"
+                        ]
+                      },
+                      "peer": {
+                        "type": "string"
+                      },
+                      "port": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "notes": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "protocol",
+                      "mode",
+                      "peerKind",
+                      "peer",
+                      "port",
+                      "notes"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "destinations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "system",
+                          "dataset",
+                          "other"
+                        ]
+                      },
+                      "ref": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "notes": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref",
+                      "path",
+                      "notes"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "importId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The last import that wrote the record (null: entered in Steward)"
+                },
+                "notInSource": {
+                  "type": "boolean",
+                  "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "assetId": {
+                  "type": "string"
+                },
+                "assetName": {
+                  "type": "string"
+                },
+                "collectorRef": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "system",
+                            "application",
+                            "platform",
+                            "process",
+                            "dataset",
+                            "job"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "Its name (empty when the token owner may not see it)"
+                        },
+                        "path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "label",
+                        "path",
+                        "visible"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "collectorHost": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "system",
+                            "application",
+                            "platform",
+                            "process",
+                            "dataset",
+                            "job"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "Its name (empty when the token owner may not see it)"
+                        },
+                        "path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "label",
+                        "path",
+                        "visible"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "peers": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "system",
+                              "application",
+                              "platform",
+                              "process",
+                              "dataset",
+                              "job"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string",
+                            "description": "Its name (empty when the token owner may not see it)"
+                          },
+                          "path": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id",
+                          "label",
+                          "path",
+                          "visible"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "targets": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "system",
+                              "application",
+                              "platform",
+                              "process",
+                              "dataset",
+                              "job"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string",
+                            "description": "Its name (empty when the token owner may not see it)"
+                          },
+                          "path": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id",
+                          "label",
+                          "path",
+                          "visible"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "next": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "assetId": {
+                        "type": "string"
+                      },
+                      "assetName": {
+                        "type": "string"
+                      },
+                      "pathId": {
+                        "type": "string"
+                      },
+                      "subject": {
+                        "type": "string"
+                      },
+                      "via": {
+                        "type": "string",
+                        "description": "The system they share"
+                      }
+                    },
+                    "required": [
+                      "assetId",
+                      "assetName",
+                      "pathId",
+                      "subject",
+                      "via"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Data paths that read from a system this one writes to (at most 50)"
+                },
+                "previous": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "assetId": {
+                        "type": "string"
+                      },
+                      "assetName": {
+                        "type": "string"
+                      },
+                      "pathId": {
+                        "type": "string"
+                      },
+                      "subject": {
+                        "type": "string"
+                      },
+                      "via": {
+                        "type": "string",
+                        "description": "The system they share"
+                      }
+                    },
+                    "required": [
+                      "assetId",
+                      "assetName",
+                      "pathId",
+                      "subject",
+                      "via"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Data paths that write to a system this one reads from (at most 50)"
+                },
+                "nextMore": {
+                  "type": "integer",
+                  "description": "How many more data paths read from it than `next` lists"
+                },
+                "previousMore": {
+                  "type": "integer",
+                  "description": "How many more data paths write to it than `previous` lists"
+                }
+              },
+              "required": [
+                "id",
+                "subject",
+                "description",
+                "devices",
+                "collector",
+                "transfers",
+                "destinations",
+                "notes",
+                "importId",
+                "notInSource",
+                "assetId",
+                "assetName",
+                "collectorRef",
+                "collectorHost",
+                "peers",
+                "targets",
+                "next",
+                "previous",
+                "nextMore",
+                "previousMore"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "planned",
+                    "commissioning",
+                    "operational",
+                    "maintenance",
+                    "out_of_service",
+                    "decommissioned"
+                  ]
+                },
+                "live": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "online",
+                        "offline",
+                        "unknown"
+                      ],
+                      "description": "online, offline or unknown – only linked checks set it; unknown is never online"
+                    },
+                    "watched": {
+                      "type": "boolean",
+                      "description": "Whether any check is linked"
+                    },
+                    "checks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "monitor",
+                              "dataset"
+                            ]
+                          },
+                          "ref": {
+                            "type": "string"
+                          },
+                          "check": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "online",
+                              "offline",
+                              "unknown"
+                            ]
+                          },
+                          "reason": {
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down",
+                              "unknown",
+                              "maintenance",
+                              "disabled",
+                              "not_found",
+                              "fresh",
+                              "stale",
+                              "no_data",
+                              "no_row",
+                              "no_time",
+                              "hidden"
+                            ],
+                            "description": "Why: the monitor’s status, the dataset is fresh or stale, missing, … – `hidden`: a check the token owner may not see, which shows its state only"
+                          },
+                          "label": {
+                            "type": "string",
+                            "description": "Name of the monitor or dataset (empty when the token owner may not see it; then `ref`, `check` and `at` are empty too)"
+                          },
+                          "path": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          },
+                          "at": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "ISO 8601 timestamp (UTC)"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "When the value it is based on was taken"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "ref",
+                          "check",
+                          "state",
+                          "reason",
+                          "label",
+                          "path",
+                          "visible",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "watched",
+                    "checks"
+                  ],
+                  "additionalProperties": false
+                },
+                "devices": {
+                  "type": "integer"
+                },
+                "paths": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "status",
+                "live",
+                "devices",
+                "paths"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Every asset of the site with its live status"
+          },
+          "statusCounts": {
+            "type": "object",
+            "properties": {
+              "online": {
+                "type": "integer"
+              },
+              "offline": {
+                "type": "integer"
+              },
+              "unknown": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "online",
+              "offline",
+              "unknown"
+            ],
+            "additionalProperties": false
+          },
+          "hosts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "system",
+                    "application",
+                    "platform",
+                    "process",
+                    "dataset",
+                    "job"
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Its name (empty when the token owner may not see it)"
+                },
+                "path": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "visible": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "label",
+                "path",
+                "visible"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The Steward systems the data paths name"
+          }
+        },
+        "required": [
+          "site",
+          "vlans",
+          "zones",
+          "conduits",
+          "devices",
+          "dataPaths",
+          "assets",
+          "statusCounts",
+          "hosts"
+        ],
+        "additionalProperties": false
+      },
+      "PlantAssetNetworkEntry": {
+        "title": "PlantAssetNetworkEntry",
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "siteId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "siteId"
+            ],
+            "additionalProperties": false
+          },
+          "live": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "online",
+                  "offline",
+                  "unknown"
+                ],
+                "description": "online, offline or unknown – only linked checks set it; unknown is never online"
+              },
+              "watched": {
+                "type": "boolean",
+                "description": "Whether any check is linked"
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "monitor",
+                        "dataset"
+                      ]
+                    },
+                    "ref": {
+                      "type": "string"
+                    },
+                    "check": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "online",
+                        "offline",
+                        "unknown"
+                      ]
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "up",
+                        "degraded",
+                        "down",
+                        "unknown",
+                        "maintenance",
+                        "disabled",
+                        "not_found",
+                        "fresh",
+                        "stale",
+                        "no_data",
+                        "no_row",
+                        "no_time",
+                        "hidden"
+                      ],
+                      "description": "Why: the monitor’s status, the dataset is fresh or stale, missing, … – `hidden`: a check the token owner may not see, which shows its state only"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "Name of the monitor or dataset (empty when the token owner may not see it; then `ref`, `check` and `at` are empty too)"
+                    },
+                    "path": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "visible": {
+                      "type": "boolean"
+                    },
+                    "at": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "When the value it is based on was taken"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "ref",
+                    "check",
+                    "state",
+                    "reason",
+                    "label",
+                    "path",
+                    "visible",
+                    "at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "state",
+              "watched",
+              "checks"
+            ],
+            "additionalProperties": false
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "monitor",
+                    "dataset"
+                  ],
+                  "description": "monitor (a Steward monitor or one of its checks) or dataset (its freshness)"
+                },
+                "ref": {
+                  "type": "string",
+                  "description": "The monitor (key or id) or the dataset (key)"
+                },
+                "check": {
+                  "type": "string",
+                  "description": "A monitor: one of its checks (empty: the whole monitor)"
+                },
+                "column": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "timeColumn": {
+                  "type": "string"
+                },
+                "maxAgeMinutes": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "note": {
+                  "type": "string"
+                },
+                "hiddenSlot": {
+                  "type": "integer",
+                  "description": "A check the token owner may not see (or that no longer exists): every other field is empty, this is its place in the list"
+                }
+              },
+              "required": [
+                "kind",
+                "ref",
+                "check",
+                "column",
+                "value",
+                "timeColumn",
+                "maxAgeMinutes",
+                "note"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The checks linked to the asset itself"
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "hostname": {
+                  "type": "string"
+                },
+                "domain": {
+                  "type": "string"
+                },
+                "purpose": {
+                  "type": "string"
+                },
+                "mac": {
+                  "type": "string",
+                  "description": "EUI-48 in IEEE 802 notation (AC-DE-48-00-00-80)"
+                },
+                "serial": {
+                  "type": "string"
+                },
+                "vlan": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "addressType": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "dynamic",
+                        "reserved",
+                        "static"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "address": {
+                  "type": "string"
+                },
+                "switch": {
+                  "type": "string"
+                },
+                "switchPort": {
+                  "type": "string"
+                },
+                "wallOutlet": {
+                  "type": "string"
+                },
+                "cmdbPort": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "planned",
+                    "active",
+                    "inactive",
+                    "retired"
+                  ]
+                },
+                "flags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "confidence": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "high",
+                        "medium",
+                        "low"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "monitoring": {
+                  "type": "string"
+                },
+                "checks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "monitor",
+                          "dataset"
+                        ],
+                        "description": "monitor (a Steward monitor or one of its checks) or dataset (its freshness)"
+                      },
+                      "ref": {
+                        "type": "string",
+                        "description": "The monitor (key or id) or the dataset (key)"
+                      },
+                      "check": {
+                        "type": "string",
+                        "description": "A monitor: one of its checks (empty: the whole monitor)"
+                      },
+                      "column": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "timeColumn": {
+                        "type": "string"
+                      },
+                      "maxAgeMinutes": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "note": {
+                        "type": "string"
+                      },
+                      "hiddenSlot": {
+                        "type": "integer",
+                        "description": "A check the token owner may not see (or that no longer exists): every other field is empty, this is its place in the list"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref",
+                      "check",
+                      "column",
+                      "value",
+                      "timeColumn",
+                      "maxAgeMinutes",
+                      "note"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "importId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The last import that wrote the record (null: entered in Steward)"
+                },
+                "notInSource": {
+                  "type": "boolean",
+                  "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "assetId": {
+                  "type": "string"
+                },
+                "assetName": {
+                  "type": "string"
+                },
+                "live": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "online",
+                        "offline",
+                        "unknown"
+                      ],
+                      "description": "online, offline or unknown – only linked checks set it; unknown is never online"
+                    },
+                    "watched": {
+                      "type": "boolean",
+                      "description": "Whether any check is linked"
+                    },
+                    "checks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "monitor",
+                              "dataset"
+                            ]
+                          },
+                          "ref": {
+                            "type": "string"
+                          },
+                          "check": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "online",
+                              "offline",
+                              "unknown"
+                            ]
+                          },
+                          "reason": {
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "degraded",
+                              "down",
+                              "unknown",
+                              "maintenance",
+                              "disabled",
+                              "not_found",
+                              "fresh",
+                              "stale",
+                              "no_data",
+                              "no_row",
+                              "no_time",
+                              "hidden"
+                            ],
+                            "description": "Why: the monitor’s status, the dataset is fresh or stale, missing, … – `hidden`: a check the token owner may not see, which shows its state only"
+                          },
+                          "label": {
+                            "type": "string",
+                            "description": "Name of the monitor or dataset (empty when the token owner may not see it; then `ref`, `check` and `at` are empty too)"
+                          },
+                          "path": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          },
+                          "at": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "ISO 8601 timestamp (UTC)"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "When the value it is based on was taken"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "ref",
+                          "check",
+                          "state",
+                          "reason",
+                          "label",
+                          "path",
+                          "visible",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "watched",
+                    "checks"
+                  ],
+                  "additionalProperties": false
+                },
+                "hints": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "vlan_missing",
+                      "address_outside",
+                      "address_blocked"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "hostname",
+                "domain",
+                "purpose",
+                "mac",
+                "serial",
+                "vlan",
+                "addressType",
+                "address",
+                "switch",
+                "switchPort",
+                "wallOutlet",
+                "cmdbPort",
+                "state",
+                "flags",
+                "confidence",
+                "owner",
+                "monitoring",
+                "checks",
+                "notes",
+                "importId",
+                "notInSource",
+                "assetId",
+                "assetName",
+                "live",
+                "hints"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "dataPaths": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "subject": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "devices": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "collector": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "application",
+                            "platform",
+                            "process",
+                            "job"
+                          ]
+                        },
+                        "ref": {
+                          "type": "string"
+                        },
+                        "host": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref",
+                        "host"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "transfers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "protocol": {
+                        "type": "string"
+                      },
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "push",
+                          "pull"
+                        ]
+                      },
+                      "peerKind": {
+                        "type": "string",
+                        "enum": [
+                          "device",
+                          "system",
+                          "other"
+                        ]
+                      },
+                      "peer": {
+                        "type": "string"
+                      },
+                      "port": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "notes": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "protocol",
+                      "mode",
+                      "peerKind",
+                      "peer",
+                      "port",
+                      "notes"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "destinations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "system",
+                          "dataset",
+                          "other"
+                        ]
+                      },
+                      "ref": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "notes": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref",
+                      "path",
+                      "notes"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "importId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The last import that wrote the record (null: entered in Steward)"
+                },
+                "notInSource": {
+                  "type": "boolean",
+                  "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "assetId": {
+                  "type": "string"
+                },
+                "assetName": {
+                  "type": "string"
+                },
+                "collectorRef": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "system",
+                            "application",
+                            "platform",
+                            "process",
+                            "dataset",
+                            "job"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "Its name (empty when the token owner may not see it)"
+                        },
+                        "path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "label",
+                        "path",
+                        "visible"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "collectorHost": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "system",
+                            "application",
+                            "platform",
+                            "process",
+                            "dataset",
+                            "job"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "Its name (empty when the token owner may not see it)"
+                        },
+                        "path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "label",
+                        "path",
+                        "visible"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "peers": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "system",
+                              "application",
+                              "platform",
+                              "process",
+                              "dataset",
+                              "job"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string",
+                            "description": "Its name (empty when the token owner may not see it)"
+                          },
+                          "path": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id",
+                          "label",
+                          "path",
+                          "visible"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "targets": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "system",
+                              "application",
+                              "platform",
+                              "process",
+                              "dataset",
+                              "job"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string",
+                            "description": "Its name (empty when the token owner may not see it)"
+                          },
+                          "path": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id",
+                          "label",
+                          "path",
+                          "visible"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "next": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "assetId": {
+                        "type": "string"
+                      },
+                      "assetName": {
+                        "type": "string"
+                      },
+                      "pathId": {
+                        "type": "string"
+                      },
+                      "subject": {
+                        "type": "string"
+                      },
+                      "via": {
+                        "type": "string",
+                        "description": "The system they share"
+                      }
+                    },
+                    "required": [
+                      "assetId",
+                      "assetName",
+                      "pathId",
+                      "subject",
+                      "via"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Data paths that read from a system this one writes to (at most 50)"
+                },
+                "previous": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "assetId": {
+                        "type": "string"
+                      },
+                      "assetName": {
+                        "type": "string"
+                      },
+                      "pathId": {
+                        "type": "string"
+                      },
+                      "subject": {
+                        "type": "string"
+                      },
+                      "via": {
+                        "type": "string",
+                        "description": "The system they share"
+                      }
+                    },
+                    "required": [
+                      "assetId",
+                      "assetName",
+                      "pathId",
+                      "subject",
+                      "via"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Data paths that write to a system this one reads from (at most 50)"
+                },
+                "nextMore": {
+                  "type": "integer",
+                  "description": "How many more data paths read from it than `next` lists"
+                },
+                "previousMore": {
+                  "type": "integer",
+                  "description": "How many more data paths write to it than `previous` lists"
+                }
+              },
+              "required": [
+                "id",
+                "subject",
+                "description",
+                "devices",
+                "collector",
+                "transfers",
+                "destinations",
+                "notes",
+                "importId",
+                "notInSource",
+                "assetId",
+                "assetName",
+                "collectorRef",
+                "collectorHost",
+                "peers",
+                "targets",
+                "next",
+                "previous",
+                "nextMore",
+                "previousMore"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "asset",
+          "live",
+          "checks",
+          "devices",
+          "dataPaths"
+        ],
+        "additionalProperties": false
+      },
+      "DbSchemaSnapshot": {
+        "title": "DbSchemaSnapshot",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "read",
+              "tbls"
+            ],
+            "description": "read: Steward read the database platform; tbls: an imported tbls schema.json"
+          },
+          "takenAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The last read or import that found the same schema"
+          },
+          "actor": {
+            "type": "string",
+            "description": "Who read or imported it (system for scheduled reads)"
+          },
+          "via": {
+            "type": "string",
+            "description": "ui, api, job or monitor"
+          },
+          "dialect": {
+            "type": "string",
+            "enum": [
+              "postgresql",
+              "mysql",
+              "sqlserver",
+              "sqlite",
+              "other"
+            ]
+          },
+          "product": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serverVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "database": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tables": {
+            "type": "integer"
+          },
+          "columns": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "More tables or columns than Steward keeps: the first ones are in the snapshot"
+          },
+          "sha256": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "SHA-256 of the imported file (tbls)"
+          },
+          "fileName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "checks": {
+            "type": "integer",
+            "description": "Findings of tbls lint"
+          },
+          "changes": {
+            "type": "integer",
+            "description": "Changes against the snapshot before"
+          },
+          "breaking": {
+            "type": "integer",
+            "description": "Breaking changes among them"
+          },
+          "previousId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "takenAt",
+          "checkedAt",
+          "actor",
+          "via",
+          "dialect",
+          "product",
+          "serverVersion",
+          "database",
+          "tables",
+          "columns",
+          "truncated",
+          "sha256",
+          "fileName",
+          "checks",
+          "changes",
+          "breaking",
+          "previousId"
+        ],
+        "additionalProperties": false
+      },
+      "DbSchemaSnapshotDetail": {
+        "title": "DbSchemaSnapshotDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "read",
+              "tbls"
+            ],
+            "description": "read: Steward read the database platform; tbls: an imported tbls schema.json"
+          },
+          "takenAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The last read or import that found the same schema"
+          },
+          "actor": {
+            "type": "string",
+            "description": "Who read or imported it (system for scheduled reads)"
+          },
+          "via": {
+            "type": "string",
+            "description": "ui, api, job or monitor"
+          },
+          "dialect": {
+            "type": "string",
+            "enum": [
+              "postgresql",
+              "mysql",
+              "sqlserver",
+              "sqlite",
+              "other"
+            ]
+          },
+          "product": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serverVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "database": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tables": {
+            "type": "integer"
+          },
+          "columns": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "More tables or columns than Steward keeps: the first ones are in the snapshot"
+          },
+          "sha256": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "SHA-256 of the imported file (tbls)"
+          },
+          "fileName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "checks": {
+            "type": "integer",
+            "description": "Findings of tbls lint"
+          },
+          "changes": {
+            "type": "integer",
+            "description": "Changes against the snapshot before"
+          },
+          "breaking": {
+            "type": "integer",
+            "description": "Breaking changes among them"
+          },
+          "previousId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "schema": {
+            "type": "object",
+            "properties": {
+              "format": {
+                "type": "string",
+                "enum": [
+                  "steward-db-schema"
+                ]
+              },
+              "version": {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              "dialect": {
+                "type": "string",
+                "enum": [
+                  "postgresql",
+                  "mysql",
+                  "sqlserver",
+                  "sqlite",
+                  "other"
+                ]
+              },
+              "product": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "serverVersion": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "database": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "tables": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "schema": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "table, view, materialized view, foreign table …"
+                    },
+                    "comment": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "columns": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "nullable": {
+                            "type": "boolean"
+                          },
+                          "default": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "comment": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "type",
+                          "nullable",
+                          "default",
+                          "comment"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "primaryKey": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "columns": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "columns"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "foreignKeys": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "columns": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "refSchema": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "refTable": {
+                            "type": "string"
+                          },
+                          "refColumns": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "onUpdate": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "onDelete": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "columns",
+                          "refSchema",
+                          "refTable",
+                          "refColumns",
+                          "onUpdate",
+                          "onDelete"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "indexes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "columns": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "unique": {
+                            "type": "boolean"
+                          },
+                          "primary": {
+                            "type": "boolean"
+                          },
+                          "definition": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "columns",
+                          "unique",
+                          "primary",
+                          "definition"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "name",
+                    "type",
+                    "comment",
+                    "columns",
+                    "primaryKey",
+                    "foreignKeys",
+                    "indexes"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "format",
+              "version",
+              "dialect",
+              "product",
+              "serverVersion",
+              "database",
+              "tables",
+              "truncated"
+            ],
+            "additionalProperties": false
+          },
+          "lint": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rule": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "rule",
+                "target",
+                "message"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Findings of tbls lint, named by their rule"
+          },
+          "diff": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "changes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "table-added",
+                            "table-removed",
+                            "table-type",
+                            "column-added",
+                            "column-removed",
+                            "column-type",
+                            "column-nullable",
+                            "column-default",
+                            "primary-key-added",
+                            "primary-key-removed",
+                            "primary-key-changed",
+                            "foreign-key-added",
+                            "foreign-key-removed",
+                            "unique-added",
+                            "unique-removed",
+                            "index-added",
+                            "index-removed"
+                          ]
+                        },
+                        "table": {
+                          "type": "string",
+                          "description": "The table with its schema"
+                        },
+                        "column": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "The key or index"
+                        },
+                        "before": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "breaking": {
+                          "type": "boolean"
+                        },
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "tableRemoved",
+                            "columnRemoved",
+                            "typeNarrowed",
+                            "typeChanged",
+                            "notNullWithoutDefault",
+                            "keyRemoved"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "table",
+                        "breaking"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "total": {
+                    "type": "integer",
+                    "description": "All changes (more than listed when there are very many)"
+                  },
+                  "breaking": {
+                    "type": "integer"
+                  },
+                  "incomplete": {
+                    "type": "boolean",
+                    "description": "A snapshot was truncated: removals are not listed"
+                  }
+                },
+                "required": [
+                  "changes",
+                  "total",
+                  "breaking",
+                  "incomplete"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The changes against the snapshot before (null for the first one)"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "takenAt",
+          "checkedAt",
+          "actor",
+          "via",
+          "dialect",
+          "product",
+          "serverVersion",
+          "database",
+          "tables",
+          "columns",
+          "truncated",
+          "sha256",
+          "fileName",
+          "checks",
+          "changes",
+          "breaking",
+          "previousId",
+          "schema",
+          "lint",
+          "diff"
+        ],
+        "additionalProperties": false
+      },
+      "DbSchemaDocument": {
+        "title": "DbSchemaDocument",
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "steward-db-schema"
+            ]
+          },
+          "version": {
+            "type": "number",
+            "enum": [
+              1
+            ]
+          },
+          "dialect": {
+            "type": "string",
+            "enum": [
+              "postgresql",
+              "mysql",
+              "sqlserver",
+              "sqlite",
+              "other"
+            ]
+          },
+          "product": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serverVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "database": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "schema": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "table, view, materialized view, foreign table …"
+                },
+                "comment": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "columns": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string"
+                      },
+                      "nullable": {
+                        "type": "boolean"
+                      },
+                      "default": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      },
+                      "comment": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "type",
+                      "nullable",
+                      "default",
+                      "comment"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "primaryKey": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "columns": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "columns"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "foreignKeys": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      },
+                      "columns": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "refSchema": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      },
+                      "refTable": {
+                        "type": "string"
+                      },
+                      "refColumns": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "onUpdate": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      },
+                      "onDelete": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "columns",
+                      "refSchema",
+                      "refTable",
+                      "refColumns",
+                      "onUpdate",
+                      "onDelete"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "indexes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "columns": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "unique": {
+                        "type": "boolean"
+                      },
+                      "primary": {
+                        "type": "boolean"
+                      },
+                      "definition": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "columns",
+                      "unique",
+                      "primary",
+                      "definition"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "schema",
+                "name",
+                "type",
+                "comment",
+                "columns",
+                "primaryKey",
+                "foreignKeys",
+                "indexes"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "format",
+          "version",
+          "dialect",
+          "product",
+          "serverVersion",
+          "database",
+          "tables",
+          "truncated"
+        ],
+        "additionalProperties": false
+      },
+      "DbSchemaDiff": {
+        "title": "DbSchemaDiff",
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "table-added",
+                    "table-removed",
+                    "table-type",
+                    "column-added",
+                    "column-removed",
+                    "column-type",
+                    "column-nullable",
+                    "column-default",
+                    "primary-key-added",
+                    "primary-key-removed",
+                    "primary-key-changed",
+                    "foreign-key-added",
+                    "foreign-key-removed",
+                    "unique-added",
+                    "unique-removed",
+                    "index-added",
+                    "index-removed"
+                  ]
+                },
+                "table": {
+                  "type": "string",
+                  "description": "The table with its schema"
+                },
+                "column": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The key or index"
+                },
+                "before": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "after": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "breaking": {
+                  "type": "boolean"
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "tableRemoved",
+                    "columnRemoved",
+                    "typeNarrowed",
+                    "typeChanged",
+                    "notNullWithoutDefault",
+                    "keyRemoved"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "table",
+                "breaking"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "All changes (more than listed when there are very many)"
+          },
+          "breaking": {
+            "type": "integer"
+          },
+          "incomplete": {
+            "type": "boolean",
+            "description": "A snapshot was truncated: removals are not listed"
+          }
+        },
+        "required": [
+          "changes",
+          "total",
+          "breaking",
+          "incomplete"
+        ],
+        "additionalProperties": false
+      },
+      "DbSchemaChangeSet": {
+        "title": "DbSchemaChangeSet",
+        "type": "object",
+        "properties": {
+          "snapshot": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "read",
+                  "tbls"
+                ],
+                "description": "read: Steward read the database platform; tbls: an imported tbls schema.json"
+              },
+              "takenAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              "checkedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The last read or import that found the same schema"
+              },
+              "actor": {
+                "type": "string",
+                "description": "Who read or imported it (system for scheduled reads)"
+              },
+              "via": {
+                "type": "string",
+                "description": "ui, api, job or monitor"
+              },
+              "dialect": {
+                "type": "string",
+                "enum": [
+                  "postgresql",
+                  "mysql",
+                  "sqlserver",
+                  "sqlite",
+                  "other"
+                ]
+              },
+              "product": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "serverVersion": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "database": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "tables": {
+                "type": "integer"
+              },
+              "columns": {
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean",
+                "description": "More tables or columns than Steward keeps: the first ones are in the snapshot"
+              },
+              "sha256": {
+                "type": [
+                  "null",
+                  "string"
+                ],
+                "description": "SHA-256 of the imported file (tbls)"
+              },
+              "fileName": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "checks": {
+                "type": "integer",
+                "description": "Findings of tbls lint"
+              },
+              "changes": {
+                "type": "integer",
+                "description": "Changes against the snapshot before"
+              },
+              "breaking": {
+                "type": "integer",
+                "description": "Breaking changes among them"
+              },
+              "previousId": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "source",
+              "takenAt",
+              "checkedAt",
+              "actor",
+              "via",
+              "dialect",
+              "product",
+              "serverVersion",
+              "database",
+              "tables",
+              "columns",
+              "truncated",
+              "sha256",
+              "fileName",
+              "checks",
+              "changes",
+              "breaking",
+              "previousId"
+            ],
+            "additionalProperties": false
+          },
+          "diff": {
+            "type": "object",
+            "properties": {
+              "changes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "table-added",
+                        "table-removed",
+                        "table-type",
+                        "column-added",
+                        "column-removed",
+                        "column-type",
+                        "column-nullable",
+                        "column-default",
+                        "primary-key-added",
+                        "primary-key-removed",
+                        "primary-key-changed",
+                        "foreign-key-added",
+                        "foreign-key-removed",
+                        "unique-added",
+                        "unique-removed",
+                        "index-added",
+                        "index-removed"
+                      ]
+                    },
+                    "table": {
+                      "type": "string",
+                      "description": "The table with its schema"
+                    },
+                    "column": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "The key or index"
+                    },
+                    "before": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "after": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "breaking": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "tableRemoved",
+                        "columnRemoved",
+                        "typeNarrowed",
+                        "typeChanged",
+                        "notNullWithoutDefault",
+                        "keyRemoved"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "table",
+                    "breaking"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "total": {
+                "type": "integer",
+                "description": "All changes (more than listed when there are very many)"
+              },
+              "breaking": {
+                "type": "integer"
+              },
+              "incomplete": {
+                "type": "boolean",
+                "description": "A snapshot was truncated: removals are not listed"
+              }
+            },
+            "required": [
+              "changes",
+              "total",
+              "breaking",
+              "incomplete"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "snapshot",
+          "diff"
+        ],
+        "additionalProperties": false
+      },
+      "DbSchemaComparison": {
+        "title": "DbSchemaComparison",
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "table-added",
+                    "table-removed",
+                    "table-type",
+                    "column-added",
+                    "column-removed",
+                    "column-type",
+                    "column-nullable",
+                    "column-default",
+                    "primary-key-added",
+                    "primary-key-removed",
+                    "primary-key-changed",
+                    "foreign-key-added",
+                    "foreign-key-removed",
+                    "unique-added",
+                    "unique-removed",
+                    "index-added",
+                    "index-removed"
+                  ]
+                },
+                "table": {
+                  "type": "string",
+                  "description": "The table with its schema"
+                },
+                "column": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The key or index"
+                },
+                "before": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "after": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "breaking": {
+                  "type": "boolean"
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "tableRemoved",
+                    "columnRemoved",
+                    "typeNarrowed",
+                    "typeChanged",
+                    "notNullWithoutDefault",
+                    "keyRemoved"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "table",
+                "breaking"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "All changes (more than listed when there are very many)"
+          },
+          "breaking": {
+            "type": "integer"
+          },
+          "incomplete": {
+            "type": "boolean",
+            "description": "A snapshot was truncated: removals are not listed"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "changes",
+          "total",
+          "breaking",
+          "incomplete",
+          "from",
+          "to"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
@@ -28986,6 +32851,134 @@
         }
       }
     },
+    "/plant/sites/{siteId}/network": {
+      "get": {
+        "operationId": "getPlantSiteNetwork",
+        "summary": "Get the OT network of a site",
+        "tags": [
+          "Plant"
+        ],
+        "description": "The IEEE 802.1Q VLANs of a site (subnets, ranges, the linked Steward network segment and a hint when they differ), its IEC 62443-3-2 zones (criticality, VLANs, SL-T) and conduits (two zones, direction, protocols, controls, the records that link to them), the devices and data paths of its assets (collector, transfers, destinations, the next and previous link of a chain), every asset's live status (online, offline, unknown – only from linked checks) and the systems the data paths name. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "siteId",
+            "required": true,
+            "description": "Site id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantSiteNetworkEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/assets/{assetId}/network": {
+      "get": {
+        "operationId": "getPlantAssetNetwork",
+        "summary": "Get the devices, data paths and live status of an asset",
+        "tags": [
+          "Plant"
+        ],
+        "description": "The asset's devices (host name, MAC as EUI-48, VLAN, address, switch port, state, flags, linked checks and live status), its data paths and the checks linked to the asset itself. The live status is online, offline or unknown, only from the linked checks (monitors, dataset freshness); a monitor or dataset the token owner may not see is not named. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "description": "Asset id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantAssetNetworkEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/plant/checks": {
       "get": {
         "operationId": "listPlantChecks",
@@ -29151,7 +33144,7 @@
         "tags": [
           "Plant"
         ],
-        "description": "The registry as a document of format 1 (docs/PLANT.md, JSON Schema docs/plant/plant-registry-1.schema.json), the same as Plant → Import → Export: every site the token owner may see with the device profiles, KPI definitions and the assignments of their assets; one site (`site`, with the assignments of its assets); the catalogues only (`part=catalogue`); one device profile (`profile`) or one KPI definition (`kpi`). Sites the token owner may not see and their assets are never in it; the catalogues belong to the installation. YAML by default, JSON with `format=json`; both import back unchanged. Recorded in the audit log with the token. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "description": "The registry as a document of format 1 (docs/PLANT.md, JSON Schema docs/plant/plant-registry-1.schema.json), the same as Plant → Import → Export: every site the token owner may see with the device profiles, KPI definitions, the assignments of their assets and the OT network (`ot_networks`, `asset_networks`); one site (`site`, with the assignments and OT network of its assets); the catalogues only (`part=catalogue`); one device profile (`profile`) or one KPI definition (`kpi`). Sites the token owner may not see and their assets are never in it; the catalogues belong to the installation. YAML by default, JSON with `format=json`; both import back unchanged. Recorded in the audit log with the token. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
         "parameters": [
           {
             "schema": {
@@ -29261,6 +33254,1030 @@
           }
         }
       }
+    },
+    "/platforms/{platformId}/schema/snapshots": {
+      "get": {
+        "operationId": "listPlatformSchemaSnapshots",
+        "summary": "List the schema snapshots of a database platform",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "Newest first. A snapshot is stored for every read or tbls import that found a schema other than the latest one (otherwise its `checkedAt` moves on). Older snapshots go by the retention of the database (Schema → Settings).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "platformId",
+            "required": true,
+            "description": "Platform id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of snapshots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of snapshots",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DbSchemaSnapshot"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/platforms/{platformId}/schema/snapshots/{snapshotId}": {
+      "get": {
+        "operationId": "getPlatformSchemaSnapshot",
+        "summary": "Get a schema snapshot of a database platform",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "`latest` for the newest one. With the schema (tables, columns, keys, indexes, comments), the findings of tbls lint and the changes against the snapshot before.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "platformId",
+            "required": true,
+            "description": "Platform id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "snapshotId",
+            "required": true,
+            "description": "Snapshot id, or latest"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbSchemaSnapshotDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/platforms/{platformId}/schema/snapshots/{snapshotId}/export": {
+      "get": {
+        "operationId": "exportPlatformSchemaSnapshot",
+        "summary": "Export a schema snapshot of a database platform",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "DBML (opens in dbdiagram, drawDB, ChartDB), SQL DDL in the dialect of the source (standard SQL for databases Steward does not speak), or the schema as JSON. `latest` for the newest snapshot.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "dbml",
+                "sql",
+                "json"
+              ],
+              "default": "json"
+            },
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "description": "dbml, sql (DDL of the source dialect) or json"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "platformId",
+            "required": true,
+            "description": "Platform id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "snapshotId",
+            "required": true,
+            "description": "Snapshot id, or latest"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "description": "DBML"
+                }
+              },
+              "application/sql": {
+                "schema": {
+                  "type": "string",
+                  "description": "SQL DDL"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbSchemaDocument"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/platforms/{platformId}/schema/changes": {
+      "get": {
+        "operationId": "listPlatformSchemaChanges",
+        "summary": "List the schema changes of a database platform",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "One entry per snapshot that has one before it, newest first: added, removed and changed tables, columns (type, null, default), keys and indexes, each marked breaking or not (removed table or column, narrowed or other type, NOT NULL without a default, removed key).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "description": "Snapshots taken at or after this time"
+          },
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "breaking",
+            "required": false,
+            "description": "Only snapshots with breaking changes"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "platformId",
+            "required": true,
+            "description": "Platform id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of change sets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of change sets",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DbSchemaChangeSet"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/platforms/{platformId}/schema/compare": {
+      "get": {
+        "operationId": "comparePlatformSchemaSnapshots",
+        "summary": "Compare two schema snapshots of a database platform",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "The changes from `from` to `to`, with the same rules as the change list.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "description": "A snapshot id (usually the older one)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "description": "Another snapshot id of the same database"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "platformId",
+            "required": true,
+            "description": "Platform id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbSchemaComparison"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/systems/{systemId}/schema/snapshots": {
+      "get": {
+        "operationId": "listSystemSchemaSnapshots",
+        "summary": "List the schema snapshots of a system (its imported tbls schemas)",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "Newest first. A snapshot is stored for every read or tbls import that found a schema other than the latest one (otherwise its `checkedAt` moves on). Older snapshots go by the retention of the database (Schema → Settings).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "systemId",
+            "required": true,
+            "description": "System id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of snapshots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of snapshots",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DbSchemaSnapshot"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/systems/{systemId}/schema/snapshots/{snapshotId}": {
+      "get": {
+        "operationId": "getSystemSchemaSnapshot",
+        "summary": "Get a schema snapshot of a system (its imported tbls schemas)",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "`latest` for the newest one. With the schema (tables, columns, keys, indexes, comments), the findings of tbls lint and the changes against the snapshot before.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "systemId",
+            "required": true,
+            "description": "System id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "snapshotId",
+            "required": true,
+            "description": "Snapshot id, or latest"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbSchemaSnapshotDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/systems/{systemId}/schema/snapshots/{snapshotId}/export": {
+      "get": {
+        "operationId": "exportSystemSchemaSnapshot",
+        "summary": "Export a schema snapshot of a system (its imported tbls schemas)",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "DBML (opens in dbdiagram, drawDB, ChartDB), SQL DDL in the dialect of the source (standard SQL for databases Steward does not speak), or the schema as JSON. `latest` for the newest snapshot.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "dbml",
+                "sql",
+                "json"
+              ],
+              "default": "json"
+            },
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "description": "dbml, sql (DDL of the source dialect) or json"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "systemId",
+            "required": true,
+            "description": "System id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "snapshotId",
+            "required": true,
+            "description": "Snapshot id, or latest"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "description": "DBML"
+                }
+              },
+              "application/sql": {
+                "schema": {
+                  "type": "string",
+                  "description": "SQL DDL"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbSchemaDocument"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/systems/{systemId}/schema/changes": {
+      "get": {
+        "operationId": "listSystemSchemaChanges",
+        "summary": "List the schema changes of a system (its imported tbls schemas)",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "One entry per snapshot that has one before it, newest first: added, removed and changed tables, columns (type, null, default), keys and indexes, each marked breaking or not (removed table or column, narrowed or other type, NOT NULL without a default, removed key).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "description": "Snapshots taken at or after this time"
+          },
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "breaking",
+            "required": false,
+            "description": "Only snapshots with breaking changes"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "systemId",
+            "required": true,
+            "description": "System id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of change sets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of change sets",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DbSchemaChangeSet"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/systems/{systemId}/schema/compare": {
+      "get": {
+        "operationId": "compareSystemSchemaSnapshots",
+        "summary": "Compare two schema snapshots of a system (its imported tbls schemas)",
+        "tags": [
+          "Database schemas"
+        ],
+        "description": "The changes from `from` to `to`, with the same rules as the change list.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "description": "A snapshot id (usually the older one)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "description": "Another snapshot id of the same database"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "systemId",
+            "required": true,
+            "description": "System id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbSchemaComparison"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
     }
   },
   "servers": [
@@ -29341,6 +34358,10 @@
     {
       "name": "Plant",
       "description": "The plant registry (opt-in module): sites with their ISA-95 hierarchy (area, work center, work unit) and buildings, and the assets in them"
+    },
+    {
+      "name": "Database schemas",
+      "description": "Schema snapshots of database platforms and systems (Steward reads or tbls imports), their changes marked breaking or not, and exports as DBML, SQL DDL or JSON"
     }
   ],
   "externalDocs": {

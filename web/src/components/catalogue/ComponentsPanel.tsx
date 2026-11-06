@@ -23,6 +23,8 @@ import { notifications } from '@mantine/notifications';
 import { useQuery } from '@tanstack/react-query';
 import { IconEdit, IconEye, IconExternalLink, IconFileImport, IconKey, IconPlus, IconRefresh, IconShieldCheck, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+import { useMe } from '../../auth';
 import {
   AWS_KIND,
   AWS_LIMITS,
@@ -31,6 +33,7 @@ import {
   COMPONENT_TYPES,
   GIT_PLATFORM_KINDS,
   type AwsAccessKey,
+  type AwsResource,
   type AwsIamUser,
   type ApplicationComponent,
   type RepositoryKey,
@@ -536,6 +539,7 @@ function SnowflakeLine({ component: c }: { component: ApplicationComponent }) {
 /** What Steward last read from an AWS account for the application tag (#116): resources, costs, IAM users and their keys. */
 function AwsLine({ component: c, onRegister }: { component: ApplicationComponent; onRegister?: (d: CredentialDraft) => void }) {
   const { t } = useTranslation('applications');
+  const canWatch = useMe().caps.createMonitors;
   const r = c.aws;
   if (!r)
     return (
@@ -576,6 +580,7 @@ function AwsLine({ component: c, onRegister }: { component: ApplicationComponent
             })
           : t('components.aws.noResources')}
       </Text>
+      {canWatch && c.platformId && <DynamoDbTables platformId={c.platformId} resources={r.resources} />}
       {current && (
         <Text size="xs" c="dimmed">
           {t('components.aws.costs', {
@@ -626,6 +631,31 @@ function AwsLine({ component: c, onRegister }: { component: ApplicationComponent
         </Text>
       ))}
     </Stack>
+  );
+}
+
+/** The DynamoDB tables of an AWS readout, each with a link that opens a new monitor with a DynamoDB check for it (#233). */
+function DynamoDbTables({ platformId, resources }: { platformId: string; resources: AwsResource[] }) {
+  const { t } = useTranslation('applications');
+  const tables = resources.filter((x) => x.service === 'dynamodb' && x.type === 'table' && x.name).slice(0, 20);
+  if (!tables.length) return null;
+  return (
+    <Group gap={6} data-testid="aws-dynamodb-tables">
+      <Text size="xs" c="dimmed">
+        {t('components.aws.dynamoDbTables')}
+      </Text>
+      {tables.map((x) => (
+        <Anchor
+          key={x.arn}
+          component={Link}
+          size="xs"
+          to={`/monitors/new?${new URLSearchParams({ dynamodb: platformId, region: x.region, table: x.name }).toString()}`}
+          aria-label={t('components.aws.watchTable', { table: x.name })}
+        >
+          {x.name}
+        </Anchor>
+      ))}
+    </Group>
   );
 }
 

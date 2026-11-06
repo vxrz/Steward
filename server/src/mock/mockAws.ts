@@ -4,7 +4,9 @@ import { escapeXml } from '../platforms/xml.js';
 
 /**
  * A demo AWS account (#116) under /mock/aws-api – one endpoint for every service, like LocalStack: STS
- * GetCallerIdentity, the Resource Groups Tagging API, Cost Explorer and the IAM calls Steward reads. Every request
+ * GetCallerIdentity, the Resource Groups Tagging API, Cost Explorer, the IAM calls Steward reads, and for the
+ * DynamoDB check (#233) Query, DescribeTable, DescribeContinuousBackups, DescribeTimeToLive and CloudWatch
+ * GetMetricData of the example table crm-contacts. Every request
  * must be signed with SigV4 for the demo key AKIADEMOEXAMPLE / demoSecretKey; the mock recomputes the signature
  * (service and region from the credential scope) from the request as it arrived.
  */
@@ -105,6 +107,159 @@ function costs(start: string, end: string, groupBy: { Type: string; Key: string 
   };
 }
 
+// ---------- DynamoDB and CloudWatch (#233) ----------
+
+/**
+ * The example table crm-contacts in eu-central-1: key contactId; the index by-segment-updated (segment, updatedAt
+ * as ISO 8601) finds the newest contact per segment. Every item also carries syncedAt (epoch seconds).
+ */
+export const DEMO_DYNAMODB = {
+  table: 'crm-contacts',
+  region: 'eu-central-1',
+  index: 'by-segment-updated',
+  partitionKey: 'segment',
+  timeAttribute: 'updatedAt',
+  /** Seconds since the newest change per segment: partner is stale */
+  segments: { customer: 140, lead: 45, partner: 26 * 3600 } as Record<string, number>,
+};
+
+const contacts = () =>
+  Object.entries(DEMO_DYNAMODB.segments).flatMap(([segment, age], i) =>
+    [0, 1].map((n) => {
+      const at = Date.now() - (age + n * 600) * 1000;
+      return {
+        contactId: { S: `c-${1001 + i * 2 + n}` },
+        segment: { S: segment },
+        updatedAt: { S: new Date(at).toISOString() },
+        syncedAt: { N: String(Math.floor(at / 1000)) },
+        email: { S: `contact${i * 2 + n}@example.invalid` },
+      };
+    }),
+  );
+
+/** For tests: DynamoDB and CloudWatch actions answered with a throttling error, as AWS does under load. */
+let throttled = new Map<string, string>();
+export function setAwsThrottled(actions: Record<string, string>): void {
+  throttled = new Map(Object.entries(actions));
+}
+/** For tests: the requests the DynamoDB and CloudWatch mock received (target and body). */
+export const dynamoRequests: { target: string; service: string; region: string; signedHeaders: string; contentType: string; body: unknown }[] = [];
+
+type Json = Record<string, unknown>;
+const ddbError = (reply: FastifyReply, type: string, message: string, code = 400) =>
+  reply
+    .code(code)
+    .type('application/x-amz-json-1.0')
+    .send({ __type: `com.amazonaws.dynamodb.v20120810#${type}`, message });
+
+/** A ProjectionExpression or key condition may only name attributes through #placeholders. */
+function resolveName(token: string, names: Record<string, string> | undefined): string | null {
+  const t = token.trim();
+  if (!/^#[A-Za-z0-9_]+$/.test(t)) return null;
+  return names?.[t] ?? null;
+}
+
+function dynamoDb(reply: FastifyReply, action: string, region: string, body: Json) {
+  const table = body.TableName;
+  if (action === 'Scan' || action === 'GetItem') return ddbError(reply, 'AccessDeniedException', `the demo policy does not allow dynamodb:${action}`);
+  if (typeof table !== 'string' || table !== DEMO_DYNAMODB.table || region !== DEMO_DYNAMODB.region)
+    return ddbError(reply, 'ResourceNotFoundException', 'Requested resource not found');
+  const arn = `arn:aws:dynamodb:${region}:${DEMO_AWS.account}:table/${table}`;
+  if (action === 'DescribeTable')
+    return {
+      Table: {
+        TableName: table,
+        TableArn: arn,
+        TableStatus: 'ACTIVE',
+        ItemCount: 48210,
+        TableSizeBytes: 9_873_211,
+        CreationDateTime: Math.floor(Date.now() / 1000) - 400 * 86400,
+        BillingModeSummary: { BillingMode: 'PAY_PER_REQUEST' },
+        KeySchema: [{ AttributeName: 'contactId', KeyType: 'HASH' }],
+        AttributeDefinitions: [
+          { AttributeName: 'contactId', AttributeType: 'S' },
+          { AttributeName: 'segment', AttributeType: 'S' },
+          { AttributeName: 'updatedAt', AttributeType: 'S' },
+        ],
+        GlobalSecondaryIndexes: [
+          {
+            IndexName: DEMO_DYNAMODB.index,
+            IndexStatus: 'ACTIVE',
+            KeySchema: [
+              { AttributeName: 'segment', KeyType: 'HASH' },
+              { AttributeName: 'updatedAt', KeyType: 'RANGE' },
+            ],
+            Projection: { ProjectionType: 'KEYS_ONLY' },
+          },
+        ],
+      },
+    };
+  if (action === 'DescribeContinuousBackups')
+    return {
+      ContinuousBackupsDescription: {
+        ContinuousBackupsStatus: 'ENABLED',
+        PointInTimeRecoveryDescription: { PointInTimeRecoveryStatus: 'ENABLED', EarliestRestorableDateTime: Math.floor(Date.now() / 1000) - 35 * 86400 },
+      },
+    };
+  if (action === 'DescribeTimeToLive') return { TimeToLiveDescription: { TimeToLiveStatus: 'DISABLED' } };
+  if (action !== 'Query') return ddbError(reply, 'UnknownOperationException', `${action} is not answered by the demo`);
+  // like DynamoDB: attribute names only through ExpressionAttributeNames, the value through ExpressionAttributeValues
+  const names = body.ExpressionAttributeNames as Record<string, string> | undefined;
+  const m = /^\s*(#[A-Za-z0-9_]+)\s*=\s*(:[A-Za-z0-9_]+)\s*$/.exec(String(body.KeyConditionExpression ?? ''));
+  const keyName = m ? resolveName(m[1]!, names) : null;
+  const keyValue = m ? (body.ExpressionAttributeValues as Record<string, Record<string, string>> | undefined)?.[m[2]!] : undefined;
+  if (!keyName || !keyValue) return ddbError(reply, 'ValidationException', 'Invalid KeyConditionExpression');
+  const projection =
+    body.ProjectionExpression === undefined
+      ? null
+      : String(body.ProjectionExpression)
+          .split(',')
+          .map((x) => resolveName(x, names));
+  if (projection?.some((x) => x === null))
+    return ddbError(reply, 'ValidationException', 'Invalid ProjectionExpression: an attribute name is not a placeholder');
+  const index = body.IndexName;
+  if (index !== undefined && index !== DEMO_DYNAMODB.index)
+    return ddbError(reply, 'ValidationException', 'The table does not have the specified index: ' + String(index));
+  if (index ? keyName !== DEMO_DYNAMODB.partitionKey : keyName !== 'contactId')
+    return ddbError(reply, 'ValidationException', 'Query condition missed key schema element');
+  const items = contacts()
+    .filter((it) => (it as Record<string, { S?: string }>)[keyName]?.S === keyValue.S)
+    .sort((a, b) => (body.ScanIndexForward === false ? b.updatedAt.S.localeCompare(a.updatedAt.S) : a.updatedAt.S.localeCompare(b.updatedAt.S)))
+    .slice(0, Math.max(1, Math.min(Number(body.Limit ?? 100), 100)))
+    .map((it) => (projection ? Object.fromEntries(Object.entries(it).filter(([k]) => projection.includes(k))) : it));
+  return { Count: items.length, ScannedCount: items.length, Items: items };
+}
+
+function getMetricData(body: Json) {
+  const q = ((body.MetricDataQueries as Json[] | undefined) ?? [])[0] as
+    | { Id?: string; MetricStat?: { Metric?: { Namespace?: string; MetricName?: string; Dimensions?: { Name: string; Value: string }[] }; Period?: number } }
+    | undefined;
+  const metric = q?.MetricStat?.Metric;
+  const period = Number(q?.MetricStat?.Period ?? 60);
+  const start = Number(body.StartTime);
+  const end = Math.min(Number(body.EndTime), Math.floor(Date.now() / 1000));
+  const ours =
+    metric?.Namespace === 'AWS/DynamoDB' &&
+    metric.MetricName === 'ConsumedWriteCapacityUnits' &&
+    metric.Dimensions?.some((d) => d.Name === 'TableName' && d.Value === DEMO_DYNAMODB.table);
+  const timestamps: number[] = [];
+  const values: number[] = [];
+  // CloudWatch is a few minutes behind: nothing for the newest three minutes; writes every minute before that
+  if (ours && Number.isFinite(start) && Number.isFinite(end) && period >= 60)
+    for (let t = Math.floor((end - 180) / period) * period; t >= start && timestamps.length < Number(body.MaxDatapoints ?? 100800); t -= period) {
+      timestamps.push(t);
+      values.push(((t / period) % 7) + 3);
+    }
+  if (body.ScanBy === 'TimestampAscending') {
+    timestamps.reverse();
+    values.reverse();
+  }
+  return {
+    MetricDataResults: [{ Id: q?.Id ?? 'm', Label: metric?.MetricName ?? '', Timestamps: timestamps, Values: values, StatusCode: 'Complete' }],
+    Messages: [],
+  };
+}
+
 function scope(req: FastifyRequest): { service: string; region: string } | string {
   const auth = String(req.headers.authorization ?? '');
   const m =
@@ -120,7 +275,8 @@ function scope(req: FastifyRequest): { service: string; region: string } | strin
       .filter((h) => h !== 'host' && h !== 'x-amz-date')
       .map((h) => [h, String(req.headers[h] ?? '')]),
   );
-  const again = { method: req.method, url: `http://${req.headers.host}${req.url}`, headers, body: typeof req.body === 'string' ? req.body : '' };
+  // the URL as the client signed it: under SM_BASE_PATH, req.url has the prefix stripped for routing
+  const again = { method: req.method, url: `http://${req.headers.host}${req.originalUrl}`, headers, body: typeof req.body === 'string' ? req.body : '' };
   signRequest(again, { region: m[3]!, service: m[4]!, credentials: { accessKeyId: DEMO_AWS.accessKeyId, secretAccessKey: DEMO_AWS.secretAccessKey }, now });
   return again.headers.authorization === auth
     ? { service: m[4]!, region: m[3]! }
@@ -156,6 +312,44 @@ export async function mockAws(app: FastifyInstance): Promise<void> {
         const sc = scope(req);
         if (typeof sc === 'string') return reply.code(403).type('application/json').send({ __type: 'UnrecognizedClientException', message: sc });
         const target = String(req.headers['x-amz-target'] ?? '');
+        if (target.startsWith('DynamoDB_20120810.') || target.startsWith('GraniteServiceVersion20100801.')) {
+          const contentType = String(req.headers['content-type'] ?? '');
+          let body: Json;
+          try {
+            body = JSON.parse(String(req.body || '{}')) as Json;
+          } catch {
+            return reply.code(400).type('application/x-amz-json-1.0').send({ __type: 'SerializationException' });
+          }
+          const cloudWatch = target.startsWith('Granite');
+          dynamoRequests.push({
+            target,
+            service: sc.service,
+            region: sc.region,
+            signedHeaders: /SignedHeaders=([^,]+)/.exec(String(req.headers.authorization ?? ''))?.[1] ?? '',
+            contentType,
+            body,
+          });
+          if (dynamoRequests.length > 200) dynamoRequests.shift();
+          // AWS JSON 1.0, signed for the service's own signing name
+          if (contentType !== 'application/x-amz-json-1.0' || sc.service !== (cloudWatch ? 'monitoring' : 'dynamodb'))
+            return reply
+              .code(400)
+              .type('application/x-amz-json-1.0')
+              .send({ __type: 'UnknownOperationException', message: `${target} for ${sc.service}` });
+          const action = target.slice(target.indexOf('.') + 1);
+          const iamAction = `${cloudWatch ? 'cloudwatch' : 'dynamodb'}:${action}`;
+          if (denied.has(iamAction))
+            return reply
+              .code(400)
+              .type('application/x-amz-json-1.0')
+              .send({ __type: 'AccessDeniedException', message: deniedMessage(iamAction) });
+          const throttle = throttled.get(iamAction);
+          if (throttle)
+            return reply.code(400).type('application/x-amz-json-1.0').send({ __type: throttle, message: 'Rate of requests exceeds the allowed throughput.' });
+          reply.type('application/x-amz-json-1.0');
+          if (cloudWatch) return action === 'GetMetricData' ? getMetricData(body) : reply.code(400).send({ __type: 'InvalidAction', message: action });
+          return dynamoDb(reply, action, sc.region, body);
+        }
         if (target) {
           let body: {
             TagFilters?: { Key?: string }[];

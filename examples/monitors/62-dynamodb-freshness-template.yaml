@@ -1,0 +1,37 @@
+# Template "DynamoDB freshness" (#233): one monitor per table whose newest item must be recent – create instances under
+# Monitors → Templates with a form or a CSV upload, e.g.
+#   name,title,table,indexName,partitionKey,partitionValue,timeAttribute,maxAgeSeconds
+#   press-07,Press 07 telemetry,plant-telemetry,,device,device#press-07,ts,600
+# The table (or the index, when given) must have the time as its sort key: the check reads one item per partition key,
+# newest first, and only its key and time attribute. "platform: AWS" finds your AWS platform when it is the only one.
+kind: monitorTemplate
+key: dynamodb-freshness
+name: "{{ params.title }}"
+description: "The newest item of {{ params.partitionValue }} in the DynamoDB table {{ params.table }} is recent."
+tags: [aws, dynamodb]
+intervalSeconds: 300
+parameters:
+  - { name: title, label: Monitor name, description: "e.g. Press 07 telemetry" }
+  - { name: region, label: AWS region, default: eu-central-1 }
+  - { name: table, label: Table }
+  - { name: indexName, label: Index (empty – the table's own key), required: false }
+  - { name: partitionKey, label: Partition key attribute, default: pk }
+  - { name: partitionValue, label: Partition key value, description: "e.g. device#press-07" }
+  - { name: timeAttribute, label: Time attribute (ISO 8601 or epoch), description: "Usually the sort key", default: ts }
+  - { name: maxAgeSeconds, label: Down when older than (s), type: number, default: 3600 }
+checks:
+  - id: newest-item
+    name: "Newest item of {{ params.partitionValue }}"
+    type: dynamodb
+    platform: AWS
+    region: "{{ params.region }}"
+    table: "{{ params.table }}"
+    mode: newestItem
+    indexName: "{{ params.indexName }}"
+    partitionKey: "{{ params.partitionKey }}"
+    partitionValues: ["{{ params.partitionValue }}"]
+    timeAttribute: "{{ params.timeAttribute }}"
+    freshnessMode: maxAge
+    maxAgeSeconds: "{{ params.maxAgeSeconds }}"
+    x: 0
+    y: 0

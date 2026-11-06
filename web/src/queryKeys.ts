@@ -115,4 +115,25 @@ export const plantKeys = {
   assignment: (assetId: string | null | undefined) => ['plant', 'assignment', assetId] as const,
   checks: ['plant', 'checks'] as const,
   explore: (q: string) => ['plant', 'explore', q] as const,
+  // part 3 (#220): the OT network of a site, of an asset
+  network: (siteId: string | null | undefined) => ['plant', 'network', siteId] as const,
+  /** #230: the VLANs the hosts of a site's data paths are in (the diagram) */
+  placement: (siteId: string | null | undefined) => ['plant', 'network', siteId, 'placement'] as const,
+  assetNetwork: (assetId: string | null | undefined) => ['plant', 'assetNetwork', assetId] as const,
+  // visualizations (#230)
+  overview: ['plant', 'views', 'overview'] as const,
+  coverage: (filter: string) => ['plant', 'views', 'coverage', filter] as const,
+  structure: (siteId: string | null | undefined) => ['plant', 'views', 'structure', siteId] as const,
+  flow: (assetId: string | null | undefined) => ['plant', 'views', 'flow', assetId] as const,
+  lineage: (profileId: string | null | undefined, pointId: string | null | undefined) => ['plant', 'views', 'lineage', profileId, pointId] as const,
+};
+
+/** Database schemas (#222): per platform or system, its snapshots and comparisons. */
+export const dbSchemaKeys = {
+  all: ['db-schema'] as const,
+  overview: (kind: string, id: string | null | undefined) => ['db-schema', kind, id] as const,
+  snapshot: (kind: string, id: string | null | undefined, snapshotId: string | null | undefined) => ['db-schema', kind, id, 'snapshot', snapshotId] as const,
+  compare: (kind: string, id: string | null | undefined, from: string | null | undefined, to: string | null | undefined) =>
+    ['db-schema', kind, id, 'compare', from, to] as const,
+  pushTokens: (kind: string, id: string | null | undefined) => ['db-schema', kind, id, 'push-tokens'] as const,
 };

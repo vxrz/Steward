@@ -537,6 +537,7 @@ describe('monitor examples', () => {
       'checkmk-database-host',
       'new-critical-vulnerabilities',
       'entra-app-credentials',
+      'crm-contacts-dynamodb',
     ]) {
       const m = ((await s.api('GET', '/monitors')) as any[]).find((x) => x.key === key);
       const def = (await s.api('GET', `/monitors/${m.id}`)).definition;

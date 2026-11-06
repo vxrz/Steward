@@ -357,7 +357,8 @@
       "external": "Externer Link",
       "system": "System",
       "site": "Standort",
-      "asset": "Anlage"
+      "asset": "Anlage",
+      "conduit": "Conduit (OT-Netzwerk)"
     },
     "target": "Ziel",
     "search": "Zum Suchen tippen",

@@ -63,7 +63,8 @@ function signatureOk(req: FastifyRequest, body: Buffer): string | null {
       .filter((h) => h !== 'host' && h !== 'x-amz-date' && h !== 'x-amz-content-sha256')
       .map((h) => [h, String(req.headers[h] ?? '')]),
   );
-  const again = { method: req.method, url: `http://${req.headers.host}${req.url}`, headers, body };
+  // the URL as the client signed it: under SM_BASE_PATH, req.url has the prefix stripped for routing
+  const again = { method: req.method, url: `http://${req.headers.host}${req.originalUrl}`, headers, body };
   signRequest(again, {
     region: m[3]!,
     service: 's3',

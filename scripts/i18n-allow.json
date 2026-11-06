@@ -167,7 +167,18 @@
       "PostgreSQL",
       "MariaDB / MySQL",
       "SQL Server",
-      "Parameter {{n}}"
+      "Parameter {{n}}",
+      "Live",
+      "Online",
+      "Offline",
+      "Push",
+      "Pull",
+      "Zone {{name}}",
+      "Conduits",
+      "Conduit {{name}}",
+      "Switch",
+      "Schema",
+      "DBML (dbdiagram, drawDB, ChartDB)"
     ]
   }
 }

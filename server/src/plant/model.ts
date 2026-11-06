@@ -764,16 +764,20 @@ export function removeAssetRow(id: string): void {
   db().run('DELETE FROM plant_asset_images WHERE asset_id = ?', id);
   // its profile assignment and KPI instances (#219)
   db().run('DELETE FROM plant_assignments WHERE asset_id = ?', id);
+  // its devices, data paths and linked checks (#220)
+  for (const t of ['plant_devices', 'plant_data_paths', 'plant_asset_checks']) db().run(`DELETE FROM ${t} WHERE asset_id = ?`, id);
   db().run("DELETE FROM plant_refs WHERE kind = 'asset' AND item_id = ?", id);
   db().run("DELETE FROM item_links WHERE from_kind = 'asset' AND from_id = ?", id);
   db().run("DELETE FROM copied_from WHERE kind = 'asset' AND id = ?", id);
   db().run('DELETE FROM plant_assets WHERE id = ?', id);
 }
 
-/** Removes a site with its hierarchy and buildings (its assets must be gone already). */
+/** Removes a site with its hierarchy, buildings and OT network (its assets must be gone already). */
 export function removeSiteRows(id: string): void {
   db().run('DELETE FROM plant_nodes WHERE site_id = ?', id);
   db().run('DELETE FROM plant_buildings WHERE site_id = ?', id);
+  // its VLANs, zones and conduits (#220)
+  for (const t of ['plant_conduits', 'plant_zones', 'plant_vlans']) db().run(`DELETE FROM ${t} WHERE site_id = ?`, id);
   db().run("DELETE FROM plant_refs WHERE kind = 'site' AND item_id = ?", id);
   db().run("DELETE FROM item_links WHERE from_kind = 'site' AND from_id = ?", id);
   db().run("DELETE FROM resource_teams WHERE kind = 'site' AND resource_id = ?", id);

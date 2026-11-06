@@ -316,8 +316,26 @@ export type PlantImportMode = (typeof PLANT_IMPORT_MODES)[number];
 export const PLANT_MISSING = ['remove', 'mark'] as const;
 export type PlantMissing = (typeof PLANT_MISSING)[number];
 
-/** Kinds of records an import writes; device profiles, KPI definitions and assignments since part 2 (#219). */
-export type PlantChangeKind = 'site' | 'area' | 'work_center' | 'work_unit' | 'building' | 'asset' | 'profile' | 'kpi' | 'assignment';
+/**
+ * Kinds of records an import writes; device profiles, KPI definitions and assignments since part 2 (#219); the OT
+ * network since part 3 (#220): VLANs, zones and conduits of a site, devices, data paths and the checks of an asset.
+ */
+export type PlantChangeKind =
+  | 'site'
+  | 'area'
+  | 'work_center'
+  | 'work_unit'
+  | 'building'
+  | 'asset'
+  | 'profile'
+  | 'kpi'
+  | 'assignment'
+  | 'vlan'
+  | 'zone'
+  | 'conduit'
+  | 'device'
+  | 'data_path'
+  | 'asset_checks';
 export type PlantChangeAction = 'add' | 'change' | 'remove' | 'mark' | 'unchanged' | 'skip';
 
 export interface PlantChange {

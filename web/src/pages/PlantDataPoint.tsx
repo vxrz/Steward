@@ -1,4 +1,5 @@
-import { Anchor, Badge, Button, Grid, Group, List, Paper, Stack, Table, Text, Title } from '@mantine/core';
+import { lazy, Suspense } from 'react';
+import { Anchor, Badge, Box, Button, Grid, Group, List, Paper, Stack, Table, Text, Title } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
@@ -12,6 +13,9 @@ import { Field } from '../components/records/common';
 import { plantKeys } from '../queryKeys';
 import { PreviewBadge, useNameOf, usePlantLabel } from '../components/plant/common';
 import { AssetBriefLink, Breakable, ProtocolBadge, rateText, useAddressHint } from '../components/plant/data';
+
+// the lineage picture (#230) loads with the graph library, after the page itself
+const PointLineageView = lazy(() => import('./plant/views/AssetFlowView').then((m) => ({ default: m.PointLineageView })));
 
 /**
  * A data point of a device profile (#219): what it is (type, unit, address, access, update rate), which assets
@@ -231,6 +235,11 @@ export function PlantDataPointPage() {
           </Paper>
         </Grid.Col>
       </Grid>
+      <Box mt="lg">
+        <Suspense fallback={null}>
+          <PointLineageView profileId={d.profile.id} pointId={p.id} pointName={p.name} />
+        </Suspense>
+      </Box>
     </>
   );
 }

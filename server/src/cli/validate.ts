@@ -83,8 +83,22 @@ export async function validateFile(file: string): Promise<FileResult> {
       : { file: rel, kind: 'template bundle', ok: false, errors: r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`), warnings: [] };
   }
   // a plant registry file (#218, examples/plant): version 1 with sites, a site or assets – checked against its format;
-  // since part 2 (#219) also device profiles, KPI definitions and assignments
-  const PLANT_KEYS = ['sites', 'site', 'assets', 'device_profiles', 'device_profile', 'kpi_definitions', 'kpi_definition', 'assignments', 'assignment'];
+  // since part 2 (#219) also device profiles, KPI definitions and assignments; since part 3 (#220) OT networks
+  const PLANT_KEYS = [
+    'sites',
+    'site',
+    'assets',
+    'device_profiles',
+    'device_profile',
+    'kpi_definitions',
+    'kpi_definition',
+    'assignments',
+    'assignment',
+    'ot_networks',
+    'ot_network',
+    'asset_networks',
+    'asset_network',
+  ];
   if (obj && typeof obj === 'object' && 'version' in obj && PLANT_KEYS.some((k) => k in obj)) {
     const r = plantFileSchema.safeParse(raw);
     if (!r.success)
@@ -97,7 +111,15 @@ export async function validateFile(file: string): Promise<FileResult> {
       (r.data.assets?.length ?? 0) +
       one(r.data.device_profiles, r.data.device_profile) +
       one(r.data.kpi_definitions, r.data.kpi_definition) +
-      one(r.data.assignments, r.data.assignment);
+      one(r.data.assignments, r.data.assignment) +
+      [...(r.data.ot_networks ?? []), ...(r.data.ot_network ? [r.data.ot_network] : [])].reduce(
+        (n, x) => n + (x.vlans?.length ?? 0) + (x.zones?.length ?? 0) + (x.conduits?.length ?? 0),
+        0,
+      ) +
+      [...(r.data.asset_networks ?? []), ...(r.data.asset_network ? [r.data.asset_network] : [])].reduce(
+        (n, x) => n + (x.devices?.length ?? 0) + (x.data_paths?.length ?? 0) + (x.checks ? 1 : 0),
+        0,
+      );
     return { file: rel, kind: 'plant registry', ok: true, count, errors: [], warnings: [] };
   }
   if (obj && (obj.kind === 'monitor' || obj.kind === 'monitorTemplate')) {

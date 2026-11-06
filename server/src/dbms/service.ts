@@ -4,6 +4,7 @@ import {
   DATABASE_KIND,
   DB_DIALECT_INFO,
   DB_LIMITS,
+  DB_SCHEMA_LIMITS,
   databaseSettingsSchema,
   dbPort,
   effectiveDbLimits,
@@ -16,6 +17,7 @@ import {
   type DbDialect,
   type DbLimits,
   type DbQueryResult,
+  type DbSchemaDoc,
   type MonitorStatus,
   type Platform,
 } from '@sm/shared';
@@ -33,6 +35,7 @@ import { outboundContext } from '../platforms/policyContext.js';
 import { DbError, type ConnectTarget, type DbDriver, type DriverConnection, type RunLimits, type ServerInfo } from './types.js';
 import { catalogColumns, catalogSql, mapCatalogRows } from './catalog.js';
 import { closePool, poolFor } from './pool.js';
+import { assembleSchema, SCHEMA_PART_BYTES, SCHEMA_PART_ROWS, SCHEMA_PARTS, schemaSql, type SchemaPart } from './schema-catalog.js';
 import { DEMO_DB_HOST, demoDriver } from './demo.js';
 import { assertNotOwnDatabase, databaseLookup } from './own.js';
 
@@ -275,6 +278,50 @@ export async function runQuery(p: Platform, secrets: Record<string, string>, q: 
       server: conn.server,
       settings: s,
       limits,
+    };
+  });
+}
+
+// ---------- schema read (#222) ----------
+
+/**
+ * Reads the schema of a database platform: Steward's schema statements (schema-catalog.ts) one after the other on a
+ * pooled connection, each in the read-only (or always rolled back) transaction of every statement, within the
+ * platform's time limit per statement and DB_SCHEMA_LIMITS for the whole read. The platform's own row and size limits
+ * are ceilings for every part as well (ADR 0008); a part cut by either limit marks the schema truncated.
+ */
+export async function readDatabaseSchema(
+  p: Platform,
+  secrets: Record<string, string>,
+  signal: AbortSignal,
+): Promise<{ doc: DbSchemaDoc; server: ServerInfo; durationMs: number }> {
+  const s = databaseSettings(p);
+  const timeoutMs = Math.min(s.limits.timeoutSeconds ?? DB_LIMITS.timeoutSeconds.default, DB_LIMITS.timeoutSeconds.max) * 1000;
+  const all = AbortSignal.any([signal, AbortSignal.timeout(DB_SCHEMA_LIMITS.readSeconds * 1000)]);
+  // the read's own limits, never above what the platform's managers set
+  const partLimits = (part: SchemaPart) => ({
+    maxRows: Math.min(SCHEMA_PART_ROWS[part], s.limits.maxRows ?? DB_LIMITS.maxRows.max),
+    maxBytes: Math.min(SCHEMA_PART_BYTES, (s.limits.maxMb ?? DB_LIMITS.maxMb.max) * 1024 * 1024),
+  });
+  const t0 = Date.now();
+  return withConnection(p, s, secrets, all, async (conn) => {
+    const parts = {} as Record<SchemaPart, { rows: Record<string, unknown>[]; truncated: boolean }>;
+    for (const part of SCHEMA_PARTS) {
+      // a part cut at its limit can end the connection (MariaDB/MySQL): the parts after it stay empty, the schema truncated
+      if (!conn.usable) {
+        parts[part] = { rows: [], truncated: true };
+        continue;
+      }
+      const limits: RunLimits = { ...partLimits(part), timeoutMs, truncate: true };
+      const r = await conn.run({ sql: schemaSql(part, conn.server), params: [], trusted: true }, limits, all).catch((e: unknown) => {
+        throw redactDbError(e, secrets);
+      });
+      parts[part] = { rows: r.rows, truncated: r.truncated };
+    }
+    return {
+      doc: assembleSchema(conn.server.flavour, parts, { database: s.database, version: conn.server.version }),
+      server: conn.server,
+      durationMs: Date.now() - t0,
     };
   });
 }

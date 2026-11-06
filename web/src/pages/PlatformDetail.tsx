@@ -23,6 +23,7 @@ import {
   IconTrash,
   IconGauge,
   IconDatabase,
+  IconSchema,
 } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { DATABASE_KIND, LLM_GATEWAY_KIND, type AclEntry, type Platform } from '@sm/shared';
@@ -44,6 +45,7 @@ import { RecordingsTab } from '../components/platform/RecordingsTab';
 import { AiModelsTab } from '../components/platform/AiModelsTab';
 import { AiUsageTab } from '../components/platform/AiUsageTab';
 import { DatabaseTab } from '../components/platform/DatabaseTab';
+import { SchemaView } from '../components/dbschema/SchemaView';
 import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
@@ -322,6 +324,11 @@ export function PlatformDetailPage() {
               {t('detail.tabs.database')}
             </Tabs.Tab>
           )}
+          {isDatabase && (
+            <Tabs.Tab value="schema" leftSection={<IconSchema size={16} />} data-testid="platform-tab-schema">
+              {t('detail.tabs.schema')}
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="settings" leftSection={<IconSettings size={16} />}>
             {t('detail.tabs.settings')}
           </Tabs.Tab>
@@ -377,6 +384,11 @@ export function PlatformDetailPage() {
         {isDatabase && (
           <Tabs.Panel value="database">
             <DatabaseTab platform={p} readOnly={!canManage} />
+          </Tabs.Panel>
+        )}
+        {isDatabase && (
+          <Tabs.Panel value="schema">
+            <SchemaView subject={{ kind: 'platform', id: p.id, name: p.name }} />
           </Tabs.Panel>
         )}
         <Tabs.Panel value="settings">

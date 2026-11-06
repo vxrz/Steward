@@ -303,7 +303,73 @@
     "dbNoDataHints": {
       "replication": "When the server has no replica and is no standby",
       "query": "When the query returns no row"
-    }
+    },
+    "headers": "Headers",
+    "headersHint": "Sent with the request; the platform's own authentication is added as usual.",
+    "requestBody": "Body",
+    "requestBodyHint": "JSON, or text sent as it is. Only with POST – for APIs that read with POST (search, GraphQL, JSON protocols).",
+    "ddbRegion": "Region",
+    "ddbRegionHint": "Empty: the platform's main region ({{region}})",
+    "ddbTable": "Table",
+    "ddbMode": "What is checked",
+    "ddbModes": {
+      "newestItem": "Newest item per partition key",
+      "writeActivity": "Write activity (CloudWatch)",
+      "hygiene": "Table hygiene"
+    },
+    "ddbModeHints": {
+      "newestItem": "One Query per partition key value: Limit 1, newest first by the sort key – the time attribute is usually the sort key. Only the key and the time attribute are read.",
+      "writeActivity": "ConsumedWriteCapacityUnits of the table: the newest minute with writes is the age. CloudWatch is a few minutes behind – allow at least 10 minutes.",
+      "hygiene": "Status ACTIVE, point-in-time recovery and time to live. Item count and size are values for trends (AWS updates them about every six hours)."
+    },
+    "ddbIndex": "Index",
+    "ddbIndexHint": "A secondary index whose sort key is the time; empty: the table's own key",
+    "ddbPartitionKey": "Partition key",
+    "ddbPartitionKeyType": "Type",
+    "ddbKeyTypes": {
+      "S": "String",
+      "N": "Number"
+    },
+    "ddbPartitionValues": "Partition key values",
+    "ddbPartitionValuesHint": "Each with its own age, e.g. device#press-07 (at most 20; press Enter after each)",
+    "ddbTimeAttribute": "Time attribute",
+    "ddbTimeFormat": "Time format",
+    "ddbTimeFormats": {
+      "auto": "Detect",
+      "iso8601": "ISO 8601",
+      "epochSeconds": "Epoch seconds",
+      "epochMillis": "Epoch milliseconds"
+    },
+    "ddbActive": "Status ACTIVE",
+    "ddbPitr": "Point-in-time recovery on",
+    "ddbTtl": "Time to live on",
+    "ddbRequirements": {
+      "required": "Required",
+      "report": "Report only"
+    },
+    "ddbFailAs": "When a requirement is not met",
+    "ddbPolicy": "Read-only: needs dynamodb:Query and the Describe actions on the table (and its indexes), cloudwatch:GetMetricData for the write activity – see docs/AWS.md.",
+    "dbSchemaOn": "Schema of",
+    "dbSchemaOnPlatform": "A database platform",
+    "dbSchemaOnSystem": "A system (tbls imports)",
+    "dbSchemaSystem": "System",
+    "dbSchemaSystemHint": "A system of the service catalogue whose tbls schema is pushed to Steward",
+    "dbSchemaChooseSystem": "Choose a system",
+    "dbSchemaNoSystem": "No system found",
+    "dbSchemaMode": "Fails on",
+    "dbSchemaModes": {
+      "breaking": "A breaking change",
+      "changed": "Any change"
+    },
+    "dbSchemaModeHints": {
+      "breaking": "A removed table or column, a narrowed type, NOT NULL without a default, a removed key",
+      "changed": "Any added, removed or changed table, column, key or index"
+    },
+    "dbSchemaWithin": "Within the last (hours)",
+    "dbSchemaFailAs": "When it fails",
+    "dbSchemaNoData": "Without a snapshot",
+    "dbSchemaRead": "Read the database first",
+    "dbSchemaReadHint": "Reads the schema at every check (a snapshot when it changed). Off: only the reads and imports already stored count."
   },
   "detail": {
     "template": "template",
@@ -655,6 +721,10 @@
       "label": "Database",
       "help": "A database platform: the connection works (and is read-only), replication lag stays below a limit, or the value of a read-only query is judged against WARN and CRIT levels"
     },
+    "db-schema": {
+      "label": "Database schema changes",
+      "help": "The schema snapshots of a database platform or a system: no change, or no breaking change, within the last N hours; optionally reads the platform first"
+    },
     "dependency-track": {
       "label": "Vulnerabilities (Dependency-Track)",
       "help": "A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation"
@@ -666,6 +736,10 @@
     "privilege-vault": {
       "label": "Vault hygiene (IBM Verify Privilege Vault)",
       "help": "Secrets of IBM Verify Privilege Vault: failed heartbeats, passwords not rotated or expired, automatic changing off, no owner, privileged secrets without checkout or approval"
+    },
+    "dynamodb": {
+      "label": "DynamoDB table",
+      "help": "A DynamoDB table on an AWS platform: the newest item per partition key is recent enough, the table had writes within the window (CloudWatch), or its status, point-in-time recovery and time to live"
     }
   },
   "newCheck": {
@@ -687,7 +761,9 @@
     "dependency-track": "No critical vulnerabilities",
     "entra": "App credentials valid",
     "privilege-vault": "Vault hygiene",
-    "database": "Database reachable"
+    "database": "Database reachable",
+    "dynamodb": "DynamoDB table fresh",
+    "db-schema": "No breaking schema change"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}"

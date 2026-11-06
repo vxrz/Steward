@@ -20,6 +20,7 @@ import { DetailHeader } from '../components/page/DetailPage';
 import { FirewallNetworkPanel, NetworkAttributesView } from '../components/catalogue/network';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { useMe } from '../auth';
+import { SystemSchemaField } from '../components/dbschema/SystemSchemaField';
 
 /** A system (#129): what it is, its tech stack, the platform it is, and the applications that run on it per environment. */
 export function SystemDetailPage() {
@@ -171,6 +172,7 @@ export function SystemDetailPage() {
                   '–'
                 )}
               </Field>
+              <SystemSchemaField system={s} />
               <Field label={t('environments.title')}>
                 {s.environments.length ? (
                   <Group gap={4}>

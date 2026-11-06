@@ -86,6 +86,10 @@ beforeAll(async () => {
   await setup(s);
   // the plant registry module on (#218): the demo loads its example enterprise
   await s.api('PUT', '/settings/plant', { enabled: true, enterprise: 'Brightwater Components', labels: {}, fields: {} });
+  // part 3 (#220): the invented OT network of the example enterprise
+  const otExample = 'brightwater-ot-network.plant.yaml';
+  const otContent = (await import('node:fs')).readFileSync(path.resolve(__dirname, '../../examples/plant', otExample), 'utf8');
+  await s.api('POST', '/plant/import', { files: [{ name: otExample, content: otContent }], mode: 'add' });
   await s.api('POST', '/demo/setup', {});
   await allowEmailDomains(s, ['example.com']);
   [vera, audrey, dana] = await Promise.all(['vera', 'audrey', 'dana'].map((u) => s.as(u, PW)));
@@ -501,10 +505,28 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   for (const x of await listAll('/plant/profiles', '/plant/profiles')) await get('/plant/profiles/{profileId}', `/plant/profiles/${x.id}`);
   for (const x of await listAll('/plant/kpis', '/plant/kpis')) await get('/plant/kpis/{kpiId}', `/plant/kpis/${x.id}`);
   for (const id of ['rvs-mill-01', 'rvs-mill-02', 'rvs-press-01']) await get('/plant/assets/{assetId}/assignment', `/plant/assets/${id}/assignment`);
+  // part 3 (#220): the OT network of a site and of assets (the example imports devices and data paths of two)
+  for (const x of await listAll('/plant/sites', '/plant/sites')) await get('/plant/sites/{siteId}/network', `/plant/sites/${x.id}/network`);
+  for (const id of ['rvs-mill-01', 'rvs-mill-02']) await get('/plant/assets/{assetId}/network', `/plant/assets/${id}/network`);
   // what Steward checks, and the export in the import format (YAML; JSON is the same document)
   await listAll('/plant/checks', '/plant/checks');
   await get('/plant/export', '/plant/export');
   await get('/plant/export', '/plant/export?part=catalogue');
+  // database schemas (#222): the demo database platform (read) and a system (a tbls import)
+  for (const [kind, ids] of [
+    ['platforms', (await listAll('/platforms', '/platforms?kind=database')).map((x) => x.id)],
+    ['systems', (await listAll('/systems', '/systems')).map((x) => x.id)],
+  ] as const) {
+    const param = kind === 'platforms' ? '{platformId}' : '{systemId}';
+    for (const id of ids) {
+      const snaps = await listAll(`/${kind}/${param}/schema/snapshots`, `/${kind}/${id}/schema/snapshots`);
+      await listAll(`/${kind}/${param}/schema/changes`, `/${kind}/${id}/schema/changes`);
+      if (!snaps.length) continue;
+      await get(`/${kind}/${param}/schema/snapshots/{snapshotId}`, `/${kind}/${id}/schema/snapshots/${snaps[0].id}`);
+      await get(`/${kind}/${param}/schema/snapshots/{snapshotId}/export`, `/${kind}/${id}/schema/snapshots/latest/export?format=dbml`);
+      await get(`/${kind}/${param}/schema/compare`, `/${kind}/${id}/schema/compare?from=${snaps.at(-1).id}&to=${snaps[0].id}`);
+    }
+  }
   return out;
 }
 
@@ -607,6 +629,12 @@ describe('every endpoint', () => {
     });
     (await import('../src/scorecard/jobs.js')).sampleObjectives();
     (await import('../src/scorecard/jobs.js')).snapshotScorecards(Date.now(), true);
+    // database schemas (#222): a read of the demo database, and two tbls imports for the system (one change)
+    const demoDb = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'database').id;
+    await s.api('POST', `/db-schemas/platform/${demoDb}/read`);
+    const tbls = (cols: unknown[]) => JSON.stringify({ name: 'api', tables: [{ name: 'public.t', type: 'BASE TABLE', columns: cols }] });
+    await s.api('POST', `/db-schemas/system/${sys.id}/import`, { schema: tbls([{ name: 'id', type: 'integer', nullable: false }]) });
+    await s.api('POST', `/db-schemas/system/${sys.id}/import`, { schema: tbls([{ name: 'id', type: 'bigint', nullable: false }]) });
     adminCrawl = await crawl(tokens.admin);
   });
 

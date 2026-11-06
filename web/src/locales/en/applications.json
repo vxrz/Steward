@@ -386,7 +386,9 @@
       "used": "last used {{date}} ({{service}})",
       "neverUsed": "never used",
       "registerKey": "Add the access key {{id}} to the credentials register",
-      "keyDescription": "Access key of the IAM user {{user}} in the AWS account {{account}}"
+      "keyDescription": "Access key of the IAM user {{user}} in the AWS account {{account}}",
+      "dynamoDbTables": "DynamoDB tables – watch their freshness:",
+      "watchTable": "Watch the freshness of {{table}} in a new monitor"
     },
     "snowflake": {
       "platform": "Snowflake account",

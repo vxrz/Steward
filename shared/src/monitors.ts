@@ -12,6 +12,7 @@ import type { AclEntry } from './api.js';
 import { boundedRecord } from './zodLimits.js';
 import { DB_LIMITS } from './database.js';
 import { tagInput } from './tags.js';
+import { AWS_REGION_RE } from './aws.js';
 
 // ---------- statuses ----------
 
@@ -56,6 +57,8 @@ export const CHECK_TYPES = [
   'mqtt',
   'snowflake',
   'database',
+  'dynamodb',
+  'db-schema',
   'dependency-track',
   'entra',
   'privilege-vault',
@@ -93,6 +96,14 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   database: {
     label: 'Database',
     help: 'A database platform: the connection works (and is read-only), replication lag stays below a limit, or the value of a read-only query is judged against WARN and CRIT levels',
+  },
+  dynamodb: {
+    label: 'DynamoDB table',
+    help: 'A DynamoDB table on an AWS platform: the newest item per partition key is recent enough, the table had writes within the window (CloudWatch), or its status, point-in-time recovery and time to live',
+  },
+  'db-schema': {
+    label: 'Database schema changes',
+    help: 'The schema snapshots of a database platform or a system: no change, or no breaking change, within the last N hours; optionally reads the platform first',
   },
   entra: {
     label: 'Entra ID (Microsoft Graph)',
@@ -149,8 +160,7 @@ const checkBase = {
   y: z.number().optional(),
 };
 
-const freshnessFields = {
-  mode: z.enum(FRESHNESS_MODES).default('cadence'),
+const freshnessLimits = {
   /** cadence: the source delivers data every N seconds */
   expectedIntervalSeconds: seconds(1, 7 * 86400).optional(),
   /** cadence: degraded after this many missed intervals (default 2) */
@@ -162,6 +172,49 @@ const freshnessFields = {
   /** maxAge: degraded when the newest value is older (optional) */
   degradedAgeSeconds: seconds(1, 365 * 86400).optional(),
 };
+const freshnessFields = { mode: z.enum(FRESHNESS_MODES).default('cadence'), ...freshnessLimits };
+
+// ---------- requests of checks (#233) ----------
+
+/** HTTP header names (RFC 9110 token) */
+const HEADER_NAME_RE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,100}$/;
+/** Headers a check may not set: they belong to the connection or the platform's signing */
+const RESERVED_HEADERS = new Set([
+  'host',
+  'content-length',
+  'transfer-encoding',
+  'connection',
+  'te',
+  'upgrade',
+  'trailer',
+  'keep-alive',
+  'proxy-authorization',
+]);
+const MAX_BODY_CHARS = 65536;
+const bodyChars = (b: unknown): number => (b === undefined || b === null ? 0 : typeof b === 'string' ? b.length : (JSON.stringify(b) ?? '').length);
+/** Request headers of a check: valid names, none the connection sets – checked wherever a check is parsed (save, import, Check now) */
+const requestHeaders = boundedRecord(z.string().max(2000), 100).superRefine((h, ctx) => {
+  for (const name of Object.keys(h ?? {})) {
+    if (!HEADER_NAME_RE.test(name)) ctx.addIssue({ code: 'custom', message: `"${name.slice(0, 40)}" is not a valid header name` });
+    else if (RESERVED_HEADERS.has(name.toLowerCase())) ctx.addIssue({ code: 'custom', message: `the header ${name} is set by the connection` });
+  }
+});
+
+// ---------- DynamoDB (#233) ----------
+
+export const DYNAMODB_MODES = ['newestItem', 'writeActivity', 'hygiene'] as const;
+export type DynamoDbMode = (typeof DYNAMODB_MODES)[number];
+/** How the time attribute is read: auto (a number is epoch seconds below 1e11, else milliseconds; a string is ISO 8601 or a number) */
+export const DYNAMODB_TIME_FORMATS = ['auto', 'iso8601', 'epochSeconds', 'epochMillis'] as const;
+export const DYNAMODB_REQUIREMENTS = ['required', 'report'] as const;
+export const DYNAMODB_LIMITS = {
+  /** Partition key values per check: one Query each */
+  partitionValues: 20,
+  /** Characters of a partition key value */
+  valueChars: 1024,
+} as const;
+/** Table and index names (DynamoDB naming rules): 3–255 of a-z A-Z 0-9 _ - . */
+export const DYNAMODB_NAME_RE = /^[A-Za-z0-9_.-]{3,255}$/;
 
 /** platform: id or name of a configured platform (names are resolved to ids when saving). */
 const platformRef = z.string().trim().min(1).max(200);
@@ -221,6 +274,15 @@ export const checkSchema = z.discriminatedUnion('type', [
     variables: z.array(z.string().min(1).max(200)).max(50).optional(),
     path: z.string().max(2000).optional(),
     query: boundedRecord(z.string().max(2000), 100).optional(),
+    /** platform source: GET (default) or POST – POST only for APIs that read with it (search, GraphQL, JSON RPC) */
+    method: z.enum(['GET', 'POST']).optional(),
+    /** platform source: extra request headers (the platform's own authentication is added as usual) */
+    headers: requestHeaders.optional(),
+    /** platform source, POST: the request body (JSON, or a string sent as it is) */
+    body: z
+      .unknown()
+      .refine((b) => bodyChars(b) <= MAX_BODY_CHARS, `the body may have at most ${MAX_BODY_CHARS} characters`)
+      .optional(),
     /** platform source: JSONata over the response body returning a timestamp (or a list – the newest counts) */
     timestamp: expr.optional(),
     ...freshnessFields,
@@ -371,6 +433,68 @@ export const checkSchema = z.discriminatedUnion('type', [
     /** Status when the query returns no row, or replication has no replica (default unknown) */
     noData: z.enum(['unknown', 'up', 'down']).default('unknown'),
     unit: z.string().max(20).optional(),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('dynamodb'),
+    /** An AWS account platform (#116, #233) */
+    platform: platformRef,
+    /** The table's region; empty: the platform's main region */
+    region: z
+      .string()
+      .trim()
+      .max(40)
+      .refine((v) => !v || AWS_REGION_RE.test(v), 'an AWS region, e.g. eu-central-1')
+      .optional(),
+    table: z.string().trim().regex(DYNAMODB_NAME_RE, 'a DynamoDB table name: 3–255 of a-z, A-Z, 0-9, _ - .'),
+    /**
+     * newestItem: one Query per partition key value (Limit 1, newest first by the sort key) – the item's time attribute is
+     * the age; writeActivity: CloudWatch ConsumedWriteCapacityUnits – the newest minute with writes is the age;
+     * hygiene: DescribeTable, DescribeContinuousBackups, DescribeTimeToLive
+     */
+    mode: z.enum(DYNAMODB_MODES).default('newestItem'),
+    /** newestItem: a global or local secondary index whose sort key is the time; empty: the table's own key */
+    indexName: z
+      .string()
+      .trim()
+      .max(255)
+      .refine((v) => !v || DYNAMODB_NAME_RE.test(v), 'an index name: 3–255 of a-z, A-Z, 0-9, _ - .')
+      .optional(),
+    /** newestItem: the partition key attribute of the table or index, and its type (S string, N number) */
+    partitionKey: z.string().min(1).max(255).optional(),
+    partitionKeyType: z.enum(['S', 'N']).default('S'),
+    /** newestItem: the partition key values, each with its own age (e.g. device#press-07) */
+    partitionValues: z.array(z.string().min(1).max(DYNAMODB_LIMITS.valueChars)).max(DYNAMODB_LIMITS.partitionValues).optional(),
+    /** newestItem: the attribute with the item's time (usually the sort key) */
+    timeAttribute: z.string().min(1).max(255).optional(),
+    timeFormat: z.enum(DYNAMODB_TIME_FORMATS).default('auto'),
+    /** newestItem and writeActivity: cadence (expected every N seconds) or maxAge, like the freshness check */
+    freshnessMode: z.enum(FRESHNESS_MODES).default('cadence'),
+    ...freshnessLimits,
+    /** hygiene: each requirement is required (fails the check) or only reported */
+    activeTable: z.enum(DYNAMODB_REQUIREMENTS).default('required'),
+    pointInTimeRecovery: z.enum(DYNAMODB_REQUIREMENTS).default('report'),
+    timeToLive: z.enum(DYNAMODB_REQUIREMENTS).default('report'),
+    /** hygiene: the status when a required one is not met (default degraded) */
+    failAs: z.enum(['down', 'degraded']).default('degraded'),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('db-schema'),
+    /** A database platform … */
+    platform: platformRef.optional(),
+    /** … or a system with imported tbls schemas (exactly one of the two) */
+    system: z.string().trim().min(1).max(100).optional(),
+    /** breaking: a breaking change fails the check (default); changed: any change does */
+    mode: z.enum(['breaking', 'changed']).default('breaking'),
+    /** The window: changes of snapshots taken within the last N hours count (default 24) */
+    withinHours: z.number().int().min(1).max(8760).default(24),
+    /** Read the database platform first (a snapshot when the schema changed); otherwise only stored snapshots count */
+    read: z.boolean().default(false),
+    /** Status of a failing check (default: down for breaking changes, degraded for changes) */
+    failAs: z.enum(['down', 'degraded']).optional(),
+    /** Status while there is no snapshot yet (default unknown) */
+    noData: z.enum(['unknown', 'up', 'down']).default('unknown'),
   }),
   z.object({
     ...checkBase,
@@ -570,10 +694,16 @@ export function definitionIssues(def: MonitorDefinition, opts: { template?: bool
       issues.push({ path: `checks.${i}.sql`, message: 'query mode needs the SQL statement', checkId: c.id });
     if (c.type === 'database' && c.mode !== 'connection' && c.crit === undefined)
       issues.push({ path: `checks.${i}.crit`, message: `${c.mode} mode needs the CRIT level`, checkId: c.id });
+    if (c.type === 'db-schema' && !c.platform === !c.system)
+      issues.push({ path: `checks.${i}.platform`, message: 'name a database platform or a system (one of them)', checkId: c.id });
+    if (c.type === 'db-schema' && c.read && !c.platform)
+      issues.push({ path: `checks.${i}.read`, message: 'only a database platform can be read', checkId: c.id });
     if (c.type === 'freshness' && c.source === 'platform') {
       if (!c.path) issues.push({ path: `checks.${i}.path`, message: 'platform freshness needs the path', checkId: c.id });
       if (!c.timestamp) issues.push({ path: `checks.${i}.timestamp`, message: 'platform freshness needs the timestamp expression', checkId: c.id });
     }
+    if (c.type === 'freshness') issues.push(...requestIssues(c, i));
+    if (c.type === 'dynamodb') issues.push(...dynamoDbIssues(c, i));
   });
   const seen = new Set<string>();
   def.links.forEach((l, i) => {
@@ -601,6 +731,41 @@ export function definitionIssues(def: MonitorDefinition, opts: { template?: bool
     issues.push({ path: 'aggregate.quorum', message: 'the quorum rule needs k (checks that must be up)' });
   if (!opts.template && def.parameters?.length) issues.push({ path: 'parameters', message: 'only templates have parameters' });
   return issues;
+}
+
+/** method, headers and body of a freshness check: only with the platform source, a body only with POST (#233). */
+function requestIssues(c: CheckOf<'freshness'>, i: number): DefinitionIssue[] {
+  const out: DefinitionIssue[] = [];
+  const at = (field: string, message: string) => out.push({ path: `checks.${i}.${field}`, message, checkId: c.id });
+  if (c.source !== 'platform') {
+    for (const f of ['method', 'headers', 'body'] as const) if (c[f] !== undefined) at(f, 'only the platform source sends a request of its own');
+    return out;
+  }
+  // header names and the body's size are rules of the schema
+  if (bodyChars(c.body) > 0 && (c.method ?? 'GET') !== 'POST') at('body', 'a body is only sent with POST');
+  return out;
+}
+
+/** The fields each DynamoDB mode needs (#233). */
+function dynamoDbIssues(c: CheckOf<'dynamodb'>, i: number): DefinitionIssue[] {
+  const out: DefinitionIssue[] = [];
+  const at = (field: string, message: string) => out.push({ path: `checks.${i}.${field}`, message, checkId: c.id });
+  // region and index name are rules of the schema
+  if (c.mode === 'newestItem') {
+    if (!c.partitionKey) at('partitionKey', 'newest item needs the partition key attribute');
+    if (!c.partitionValues?.length) at('partitionValues', 'newest item needs at least one partition key value');
+    else if (new Set(c.partitionValues).size !== c.partitionValues.length) at('partitionValues', 'each partition key value only once');
+    else if (c.partitionKeyType === 'N' && c.partitionValues.some((v) => !/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(v)))
+      at('partitionValues', 'the partition key is a number: every value must be one');
+    if (!c.timeAttribute) at('timeAttribute', 'newest item needs the time attribute');
+    else if (c.timeAttribute === c.partitionKey) at('timeAttribute', 'the time attribute cannot be the partition key');
+  }
+  if (c.mode !== 'hygiene') {
+    if (c.freshnessMode === 'cadence' && !c.expectedIntervalSeconds) at('expectedIntervalSeconds', 'cadence mode needs the expected interval');
+    if (c.freshnessMode === 'maxAge' && !c.maxAgeSeconds) at('maxAgeSeconds', 'maxAge mode needs the maximum age');
+    if (c.freshnessMode === 'cadence' && (c.degradedAfterMissed ?? 2) > (c.downAfterMissed ?? 4)) at('downAfterMissed', 'must be at least degradedAfterMissed');
+  }
+  return out;
 }
 
 /**

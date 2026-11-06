@@ -1,0 +1,56 @@
+# A DynamoDB table on an AWS account platform (#233), in all three modes: the newest item of each partition key (a
+# Query on an index whose sort key is the time – Limit 1, newest first, only the key and the time attribute read), the
+# write activity CloudWatch reports, and the table's hygiene. "platform: AWS" finds your AWS platform when it is the
+# only one (or the only one whose name starts with "AWS"); on import you choose it otherwise. Replace the table, index,
+# attributes and values with your own. The read-only IAM statements are in docs/AWS.md.
+kind: monitor
+key: crm-contacts-dynamodb
+name: CRM contacts (DynamoDB)
+description: New contacts arrive in every segment, the table is written to, and it is active with point-in-time recovery.
+tags: [aws, dynamodb]
+intervalSeconds: 300
+aggregate: { rule: worst }
+checks:
+  - id: newest-contact
+    name: Newest contact per segment
+    type: dynamodb
+    platform: AWS
+    region: eu-central-1
+    table: crm-contacts
+    mode: newestItem
+    indexName: by-segment-updated
+    partitionKey: segment
+    partitionValues: [customer, lead]
+    timeAttribute: updatedAt
+    timeFormat: auto
+    freshnessMode: maxAge
+    maxAgeSeconds: 3600
+    degradedAgeSeconds: 900
+    x: 0
+    y: 0
+  - id: writes
+    name: Writes within 30 minutes
+    type: dynamodb
+    platform: AWS
+    region: eu-central-1
+    table: crm-contacts
+    mode: writeActivity
+    freshnessMode: maxAge
+    maxAgeSeconds: 1800
+    x: 260
+    y: 0
+  - id: hygiene
+    name: Table active, point-in-time recovery on
+    type: dynamodb
+    platform: AWS
+    region: eu-central-1
+    table: crm-contacts
+    mode: hygiene
+    activeTable: required
+    pointInTimeRecovery: required
+    timeToLive: report
+    failAs: degraded
+    critical: false
+    intervalSeconds: 3600
+    x: 520
+    y: 0

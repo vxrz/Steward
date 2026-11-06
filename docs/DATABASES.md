@@ -1,6 +1,6 @@
 # Database platforms
 
-Steward connects to databases directly – PostgreSQL, MariaDB and MySQL, Microsoft SQL Server – for access reviews, account hygiene, monitor checks and datasets, with the same evidence and safety rules as the HTTP platforms. Everything it sends is **read-only**. The design and its limits are recorded in [ADR 0008](adr/0008-database-platforms.md).
+Steward connects to databases directly – PostgreSQL, MariaDB and MySQL, Microsoft SQL Server – for access reviews, account hygiene, monitor checks and datasets, with the same evidence and safety rules as the HTTP platforms. Everything it sends is **read-only**. It also keeps the [schema](#database-schemas) of each database – snapshots, their breaking changes, DBML and DDL exports, tbls imports from CI. The design and its limits are recorded in [ADR 0008](adr/0008-database-platforms.md).
 
 | DBMS                 | Versions                                                           | Driver (pure JavaScript, no client install) | Read-only by                                                       |
 | -------------------- | ------------------------------------------------------------------ | ------------------------------------------- | ------------------------------------------------------------------ |
@@ -106,6 +106,124 @@ The dashboard [Databases](../examples/dashboards/88-databases.yaml) shows the fo
 
 Test runs of monitors use the recorded response `POST /sql/<check id>`.
 
+## Database schemas
+
+Steward keeps the **structure** of the databases it cares about – schemas, tables and views, columns with type, NULL, default and comment, primary and foreign keys, unique keys and indexes – as **snapshots**, shows **what changed** between them and which changes are **breaking**, and hands the schema to other tools as **DBML**, **SQL DDL** or **JSON** (#222). Two sources, one model:
+
+- **Steward reads a database platform** (_Platform → Schema → Read now_, a scheduled read, or the monitor check): its own catalog statements (`server/src/dbms/schema-catalog.ts`, next to the catalog queries), one after the other on a pooled connection, in the same read-only transaction as every statement ([What Steward refuses](#what-steward-refuses)), within the platform's time limit per statement and 180 s for the whole read. The platform's row and size limits (_Platform → Database → Limits_, when set) are ceilings for each of these statements too, as for every statement ([ADR 0008](adr/0008-database-platforms.md)): a read cut by them, or by the limits below, is kept as a _truncated_ snapshot. PostgreSQL reads `pg_catalog` (every schema but the system ones, partitions folded into their table), MariaDB/MySQL `information_schema` of the connection's database (one view per statement), SQL Server `sys.*` of the database (descriptions are the `MS_Description` extended properties). The read-only account of [below](#a-read-only-account-per-dbms) sees what it needs; on SQL Server `VIEW ANY DEFINITION` makes the metadata visible.
+- **A tbls import**: [tbls](https://github.com/k1LoW/tbls) (MIT) documents a database and writes it as JSON (`tbls out -t json`). Steward does not bundle tbls: it runs where the database is – a CI job, a job inside a separated network – and its `schema.json` is uploaded (_Import tbls_) or pushed from CI with a push token ([below](#tbls-from-ci)). This also works for a database that only has a **system** in Steward (_Systems → system → Database schema_), with no platform and no connection. The file is checked against the tbls JSON format ([`spec/tbls.schema.json_schema.json`](https://github.com/k1LoW/tbls/tree/main/spec) of tbls: the required fields and their types; viewpoints, functions and labels are ignored), and the import is audited with the file's **SHA-256** (`dbschema.imported`). The output of **`tbls lint`**, when it is sent along, becomes **checks** named by their rule (`requireColumnComment`, `columnCount`, `requireForeignKeyIndex` … – tbls prints no rule names, Steward recognises its messages; unknown ones are `tbls-lint`).
+
+| Limit                           | Value                                                                                   |
+| ------------------------------- | --------------------------------------------------------------------------------------- |
+| Tables and views                | 2,000 (a read keeps the first and marks the snapshot _truncated_; an import is refused) |
+| Columns (all tables), per table | 50,000, 1,000                                                                           |
+| Indexes, foreign keys per table | 200 each                                                                                |
+| tbls file, lint output          | 10 MB, 1 MB                                                                             |
+| Snapshots kept                  | 30 by default, 1–500 (_Schema → Settings_)                                              |
+
+**Snapshots.** Every read and every import that finds a schema other than the newest snapshot stores a new one (who, when, from where: the web app, the API, the scheduled read or a monitor); an identical one only moves the newest snapshot's _checked_ time. The newest N snapshots are kept (_retention_), with two exceptions so that an import cannot erase the history: a tbls import or push removes only imported snapshots, never Steward's own reads (those go with the next read or a lower retention); and a snapshot that recorded a breaking change (or any change, for a check in mode `changed`) stays while a `db-schema` monitor check on the database still counts it – up to twice the retention. _Schema → Settings_ (the platform's managers, or who may change the system) also sets a **scheduled read** every N hours (0: off; the job `db-schemas` asks every 5 minutes and reads at most 10 platforms at a time). Snapshots of a deleted platform or system are removed by that job.
+
+### Changes between snapshots
+
+Each snapshot is compared with the one before it (or, on the page, with any other): tables, columns (type, NULL, default), primary keys, foreign keys, unique keys and indexes added, removed or changed. A change is **breaking** when something that worked before can fail afterwards:
+
+| Breaking                                                                                    | Not breaking                                                                                    |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| a table or column removed                                                                   | a table, column, key or index added                                                             |
+| a **narrower** type (shorter text, smaller integer, less precision or scale, Unicode → not) | a wider type (`varchar(40)` → `varchar(80)`, `integer` → `bigint`, `real` → `double precision`) |
+| another kind of type (`integer` → `text`, `jsonb` → `json`)                                 | NOT NULL → NULL, another default                                                                |
+| NOT NULL added without a default, or a new NOT NULL column without one                      | NOT NULL added **with** a default                                                               |
+| a primary, unique or foreign key removed or changed                                         | a plain index removed                                                                           |
+
+Spellings that mean the same type are the same (`int4` = `integer`, `character varying(120)` = `varchar(120)`, MySQL display widths). When a snapshot is truncated, removals cannot be told from what was left out: they are not listed and the comparison says so. The Schema tab shows the changes with the reason of each breaking one, copies them as Markdown and starts a **change request** with them (a change record linked to the platform or system); the monitor check below watches them.
+
+**Monitor check _Database schema changes_** (`type: db-schema`, [MONITORS.md](MONITORS.md)): a database platform (`platform`) or a system (`system`); `mode: breaking` (default, down) fails on a breaking change within `withinHours` (default 24), `mode: changed` (degraded) on any change; `read: true` reads the platform first (only a changed schema adds a snapshot); without a snapshot the check is `noData` (unknown). Whoever saves the check or tries it with _Check now_ must see the platform or system it names (one they may not see answers like a missing one); _Check now_ with `read: true` needs their own _use_ right on the platform, not only the monitor owner's.
+
+```yaml
+- id: shop-schema
+  name: No breaking schema change
+  type: db-schema
+  platform: Shop database
+  mode: breaking
+  withinHours: 24
+  read: true
+```
+
+### Export and other tools
+
+_Export_ (and `GET …/schema/snapshots/{snapshotId}/export?format=` in the API) writes the snapshot as
+
+- **DBML** ([dbml.dbdiagram.io](https://dbml.dbdiagram.io/docs)) – tables with their columns, `pk`, `not null`, `unique`, defaults and notes, indexes, and `Ref`s for the foreign keys; views become tables with the note `view`. Written by Steward itself, no library;
+- **SQL DDL** in the dialect of the source (`CREATE TABLE`, constraints, indexes, comments, then the foreign keys as `ALTER TABLE`); databases Steward does not speak (a tbls import of BigQuery, Snowflake …) get standard SQL. Views appear as a comment: a snapshot keeps their columns, not their definition;
+- **JSON**: Steward's schema model (`"format": "steward-db-schema"`).
+
+Steward runs none of it – but the DDL is meant to be run elsewhere, and what it holds comes from the database or a tbls file, written by anyone who may create a table there or holds a push token. So nothing of a snapshot can end a statement or a comment in it:
+
+- names are quoted for the dialect (PostgreSQL and standard SQL `"…"` with `""`, MariaDB/MySQL `` `…` `` with doubled backticks, SQL Server `[…]` with `]]`); tabs and line breaks in a name (a quoted identifier may hold them) are kept as their control pictures `␉ ␊ ␍` – in the snapshot, on the page and in every export – so a name is always one line and still shows what it held;
+- texts (comments) are string literals of the dialect on one line; MariaDB/MySQL also escape `\`, PostgreSQL writes a text with a `\` as `E'…'` (safe whatever `standard_conforming_strings` says);
+- every comment line (`--`, DBML's `//`) is one line;
+- a data type or a default is written only when it is a plain type name (`varchar(120)`, `timestamp(3) with time zone`, `enum('a','b')`, `integer[]` …) or a plain expression (quotes and brackets balanced; no `;`, comment, `$` or `\`); otherwise the file says so in a comment above the table and leaves the column or the default out;
+- an index without columns (an expression index) is written from its definition only for Steward's own read of PostgreSQL (`pg_get_indexdef`), never from a tbls file.
+
+Read a DDL file before running it all the same, as any SQL from somewhere else. The DBML or SQL file opens in editors such as [dbdiagram.io](https://dbdiagram.io), [drawDB](https://github.com/drawdb-io/drawdb) or [ChartDB](https://github.com/chartdb/chartdb); [Azimutt](https://github.com/azimuttapp/azimutt) (self-hosted) suits exploring very large databases. Steward bundles no editor: drawDB and ChartDB are AGPL-3.0 applications of their own. Such a tool can be registered as an application in the service catalogue, with a link on the database platform.
+
+### Rights
+
+Whoever sees the database platform (any right) or the system sees its schema, snapshots and changes – a platform or system someone may not see answers like one that does not exist, in the web app and the API. Reading the database needs the platform's _use_ right; importing and the settings its _manage_ right, or the right to change the system. A system that is a database platform of Steward keeps its schema on the platform (`DB_SCHEMA_ON_PLATFORM`). Who may not see the database platform a system is sees that system like any other: nothing on its schema page or in the API tells that the platform exists or what kind it is. Audit log: `dbschema.read` (a person's read, or a scheduled or monitor read that found a change), `dbschema.imported` (with the SHA-256, the file name, `via`, the counts; for a push the token), `dbschema.settings_changed`, `dbschema.push_token_created`, `_rotated`, `_revoked`.
+
+### tbls from CI
+
+CI pushes with a **push token**, not with a personal API token: _Schema → Push from CI → New push token_ (the platform's _manage_ right, or the right to change the system). A push token belongs to exactly one database platform or system and can do nothing but push its `schema.json` (and the output of `tbls lint`); several per database, each with a name, an optional expiry, optional allowed addresses (IP or CIDR) and a limit of pushes per minute (default 10). Steward stores only its SHA-256 and shows the secret once – keep it as a CI secret (`STEWARD_PUSH_TOKEN`). The list shows when and from where each token was last used; _Rotate_ gives a new secret (the old one stops at once), _Revoke_ ends it. Like an API token with its owner, a push token **stops with its creator**: it works only while the person who created it is active and may still manage the database (the platform's _manage_ right, or the right to change the system) – otherwise the list marks it _Creator inactive – create a new token_ and its pushes get the same `401` as a wrong token. Creating, rotating and revoking are audited (`dbschema.push_token_created`, `_rotated`, `_revoked`), and every push as `dbschema.imported` with the token's id and name and the file's SHA-256.
+
+The endpoint is `POST /api/hooks/db-schema/platform/{platformId}` (or `/api/hooks/db-schema/system/{systemId}`), like heartbeats and webhook triggers – the read-only API `/api/v1` does not write; _Import tbls_ and the token dialog show the exact URL. Send `Authorization: Bearer sdbp_…` and the `schema.json` as it is (`Content-Type: application/json`, at most 10 MB), or `{ "schema": "<the file as text>", "lint": "<tbls lint output>", "fileName": "schema.json" }`. The endpoint takes no API token and no sign-in session. The token is checked from the headers before the body is read: a request without a valid token is refused without Steward reading up to 10 MB first. A wrong, revoked or expired token, a token of another database, a token whose creator is inactive or may no longer manage the database and an address outside the allowed ranges all get the same `401`; more pushes than allowed `429` with `Retry-After`. The answer names the snapshot, whether it was new, and its changes.
+
+The allowed addresses are checked against the address Steward sees. Behind a reverse proxy with `SM_TRUST_PROXY` ([CONFIGURATION.md](CONFIGURATION.md)) that is the address the proxy forwards (`X-Forwarded-For`), so the ranges are only as strong as that setting: trust only your own proxy (its address, or a hop count – then only a peer on loopback or a private network may forward), never any peer.
+
+A plain shell job (any CI, a cron job next to the database):
+
+```sh
+#!/bin/sh
+set -eu
+# TBLS_DSN, e.g. postgres://tbls_reader:…@db.internal.example:5432/shop?sslmode=require
+tbls out -t json -o schema.json "$TBLS_DSN"
+tbls lint "$TBLS_DSN" > lint.txt || true   # findings make tbls exit 1
+jq -n --rawfile schema schema.json --rawfile lint lint.txt '{schema: $schema, lint: $lint, fileName: "schema.json"}' |
+  curl -sS -f -X POST "https://steward.example.com/api/hooks/db-schema/platform/$STEWARD_PLATFORM" \
+    -H "Authorization: Bearer $STEWARD_PUSH_TOKEN" \
+    -H 'Content-Type: application/json' \
+    --data-binary @- | jq '{created, snapshot: .snapshot.id, changes: .diff.total, breaking: .diff.breaking}'
+```
+
+GitHub Actions, after the migrations of a branch ran against a test database:
+
+```yaml
+name: database schema
+on:
+  push:
+    branches: [main]
+jobs:
+  schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: k1low/setup-tbls@v1
+      - name: Document and lint the schema
+        env:
+          TBLS_DSN: ${{ secrets.TBLS_DSN }}
+        run: |
+          tbls out -t json -o schema.json
+          tbls lint > lint.txt || true
+      - name: Push it to Steward
+        env:
+          STEWARD_PUSH_TOKEN: ${{ secrets.STEWARD_PUSH_TOKEN }}
+        run: |
+          jq -n --rawfile schema schema.json --rawfile lint lint.txt '{schema: $schema, lint: $lint, fileName: "schema.json"}' |
+            curl -sS -f -X POST "https://steward.example.com/api/hooks/db-schema/system/${{ vars.STEWARD_SYSTEM }}" \
+              -H "Authorization: Bearer $STEWARD_PUSH_TOKEN" -H 'Content-Type: application/json' --data-binary @-
+```
+
+Without the lint results, `curl … --data-binary @schema.json` sends the file itself. A schema that equals the newest snapshot adds none, so the job can run on every push. To fail a pipeline on a breaking change, check `.diff.breaking` in the answer.
+
 ## MCP gateway
 
 Off by default, like for every platform. When a platform's managers turn it on (_Platform → MCP_), MCP clients get the tool `database_query`: one statement (`sql` with `params`) or a catalog query, through the same check, session and limits – at most 200 rows and 1 MB per answer, marked truncated. Every call and refusal is audited (`mcp.gateway_call`, `mcp.gateway_refused`). **Changing statements are not available**: the gateway of a database platform cannot be set to _confirm_ or _four-eyes_ (`MCP_WRITES_NOT_AVAILABLE`). See [MCP.md](MCP.md).
@@ -143,6 +261,8 @@ GRANT SELECT ON mysql.tables_priv TO 'steward_reader'@'10.0.%';
 GRANT REPLICA MONITOR ON *.* TO 'steward_reader'@'10.0.%';
 -- tables of the database (catalog query "tables" and own SQL)
 GRANT SELECT ON shop.* TO 'steward_reader'@'10.0.%';
+-- database schemas: MariaDB hides the ON DELETE / ON UPDATE rules of foreign keys from an account with SELECT only
+GRANT SHOW VIEW ON shop.* TO 'steward_reader'@'10.0.%';
 ```
 
 ### MySQL
@@ -156,6 +276,8 @@ GRANT SELECT ON mysql.tables_priv TO 'steward_reader'@'10.0.%';
 -- SHOW REPLICA STATUS
 GRANT REPLICATION CLIENT ON *.* TO 'steward_reader'@'10.0.%';
 GRANT SELECT ON shop.* TO 'steward_reader'@'10.0.%';
+-- database schemas: the view definitions and, on some versions, the rules of foreign keys
+GRANT SHOW VIEW ON shop.* TO 'steward_reader'@'10.0.%';
 ```
 
 `SELECT` on `mysql.user` shows the password hashes (`authentication_string`) to the account; Steward never selects that column. Where that is not acceptable, leave the grant out: the catalog query `accounts` then fails with the missing privilege, the others keep working.
@@ -189,6 +311,8 @@ Give the login nothing else: no `db_datawriter`, `db_owner`, `db_ddladmin` or `s
 | `DB_DIALECT_MISMATCH`                                  | The step is written for another DBMS                                                 |
 | `DB_PARAM_INVALID`                                     | A parameter is not a text, number or boolean (lists only on PostgreSQL: `= ANY($1)`) |
 | `DB_OWN_DATABASE`                                      | The platform names Steward's own database on its server                              |
+| `DB_SCHEMA_TBLS_INVALID`, `DB_SCHEMA_TOO_LARGE`        | The file is not a tbls schema.json, or beyond the [limits](#database-schemas)        |
+| `DB_SCHEMA_ON_PLATFORM`, `DB_SCHEMA_NO_READ`           | A system that is a database platform imports there; a system has nothing to read     |
 
 ## Demo
 
@@ -196,4 +320,4 @@ In demo mode the platform **Shop database (demo)** points at a simulated Postgre
 
 ## Tests
 
-PostgreSQL is tested against a real server whenever the suite has one (`npm run test:pg`, or `SM_TEST_PG_ADMIN_URL`); MariaDB and SQL Server with `SM_TEST_MYSQL_URL` and `SM_TEST_MSSQL_URL` (`server/test/dbms-integration.test.ts`, the CI job `test-databases`). The dialect-specific parts – statement check, read-only wrapping, parameter binding, limits, catalog statements and their quoting, error mapping – are unit-tested without a server (`server/test/dbms-unit.test.ts`).
+PostgreSQL is tested against a real server whenever the suite has one (the schema read included) (`npm run test:pg`, or `SM_TEST_PG_ADMIN_URL`); MariaDB and SQL Server with `SM_TEST_MYSQL_URL` and `SM_TEST_MSSQL_URL` (`server/test/dbms-integration.test.ts`, the CI job `test-databases`). The dialect-specific parts – statement check, read-only wrapping, parameter binding, limits, catalog statements and their quoting, error mapping – are unit-tested without a server (`server/test/dbms-unit.test.ts`).

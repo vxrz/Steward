@@ -1,7 +1,7 @@
 import type { Platform } from '@sm/shared';
 import { db } from '../db.js';
 import { vault } from '../vault.js';
-import { runAs } from '../auth/context.js';
+import { currentUser, runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { HttpError } from '../util.js';
@@ -51,6 +51,28 @@ export function platformFor(owner: string, platformId: string): { platform: Plat
   }
 }
 
+/** The answer for a platform reference that finds nothing – and for a platform the caller may not see (the same). */
+export const platformNotFound = (ref: string, kind?: string): HttpError =>
+  new HttpError(400, `Platform "${ref}" not found${kind ? ` (expected a platform of kind ${kind})` : ''}`, 'PLATFORM_NOT_FOUND', {
+    id: ref,
+    ...(kind ? { context: 'kind', kind } : {}),
+  });
+
+/**
+ * The platform as the caller sees it; one the caller may not see (no right at all) answers like a missing one, before
+ * anything names it or its kind. Without a caller (a job, Git sync) every platform is visible.
+ */
+export function requireVisiblePlatform(id: string, ref: string = id, kind?: string): Platform {
+  let p: Platform;
+  try {
+    p = getPlatform(id);
+  } catch {
+    throw platformNotFound(ref, kind);
+  }
+  if (currentUser() && !p.permissions.length) throw platformNotFound(ref, kind);
+  return p;
+}
+
 /** Resolves a platform reference (id or name) to an id; `kind` disambiguates. */
 export function resolvePlatformRef(ref: string, kind?: string): { id: string; name: string; kind: string } {
   const rows = db().all<{ id: string; name: string; kind: string }>('SELECT id, name, kind FROM platforms ORDER BY name');
@@ -66,8 +88,5 @@ export function resolvePlatformRef(ref: string, kind?: string): { id: string; na
     const ofKind = rows.filter((r) => r.kind === kind);
     if (ofKind.length === 1) return ofKind[0]!;
   }
-  throw new HttpError(400, `Platform "${ref}" not found${kind ? ` (expected a platform of kind ${kind})` : ''}`, 'PLATFORM_NOT_FOUND', {
-    id: ref,
-    ...(kind ? { context: 'kind', kind } : {}),
-  });
+  throw platformNotFound(ref, kind);
 }

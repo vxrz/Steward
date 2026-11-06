@@ -1,0 +1,445 @@
+/* Plant registry views (#230): colours, the flow animation and the marks. Motion only shows direction, a live update
+   or a highlighted path; with prefers-reduced-motion (or "Animation off") nothing moves and arrows stay. */
+
+:root {
+  --pv-planned: var(--mantine-color-gray-5);
+  --pv-commissioning: var(--mantine-color-blue-6);
+  --pv-operational: var(--mantine-color-green-6);
+  --pv-maintenance: var(--mantine-color-orange-6);
+  --pv-out_of_service: var(--mantine-color-red-7);
+  --pv-decommissioned: var(--mantine-color-dark-3);
+  --pv-ok: var(--mantine-color-green-7);
+  --pv-warn: var(--mantine-color-orange-7);
+  --pv-fail: var(--mantine-color-red-7);
+  --pv-unknown: var(--mantine-color-gray-6);
+  --pv-has: var(--mantine-color-green-6);
+  --pv-problem: var(--mantine-color-red-6);
+  --pv-could: var(--mantine-color-blue-6);
+  --pv-cannot: var(--mantine-color-gray-4);
+  --pv-unchecked: var(--mantine-color-gray-2);
+  --pv-edge: var(--mantine-color-gray-5);
+  --pv-flow: var(--mantine-color-blue-6);
+  --pv-hl: var(--mantine-color-accent-6, var(--mantine-color-blue-6));
+  --pv-tile: var(--mantine-color-gray-0);
+  --pv-tile-hover: var(--mantine-color-gray-1);
+  --pv-inner: var(--mantine-color-body);
+  --pv-conduit: var(--mantine-color-indigo-5);
+  --pv-zone-bg: color-mix(in srgb, var(--mantine-color-indigo-0) 70%, var(--mantine-color-body));
+  --pv-vlan-bg: var(--mantine-color-body);
+}
+[data-mantine-color-scheme='dark'] {
+  --pv-planned: var(--mantine-color-gray-6);
+  --pv-commissioning: var(--mantine-color-blue-5);
+  --pv-operational: var(--mantine-color-green-5);
+  --pv-maintenance: var(--mantine-color-orange-5);
+  --pv-out_of_service: var(--mantine-color-red-5);
+  --pv-decommissioned: var(--mantine-color-gray-7);
+  --pv-ok: var(--mantine-color-green-5);
+  --pv-warn: var(--mantine-color-orange-5);
+  --pv-fail: var(--mantine-color-red-5);
+  --pv-unknown: var(--mantine-color-gray-5);
+  --pv-has: var(--mantine-color-green-6);
+  --pv-problem: var(--mantine-color-red-6);
+  --pv-could: var(--mantine-color-blue-5);
+  --pv-cannot: var(--mantine-color-dark-3);
+  --pv-unchecked: var(--mantine-color-dark-5);
+  --pv-edge: var(--mantine-color-dark-2);
+  --pv-flow: var(--mantine-color-blue-4);
+  --pv-hl: var(--mantine-color-accent-4, var(--mantine-color-blue-4));
+  --pv-tile: var(--mantine-color-dark-6);
+  --pv-tile-hover: var(--mantine-color-dark-5);
+  --pv-inner: var(--mantine-color-dark-7);
+  --pv-conduit: var(--mantine-color-indigo-4);
+  --pv-zone-bg: color-mix(in srgb, var(--mantine-color-indigo-9) 22%, var(--mantine-color-body));
+  --pv-vlan-bg: var(--mantine-color-dark-7);
+}
+
+/* ---------- graph ---------- */
+
+.pv-graph {
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  overflow: hidden;
+  background: var(--mantine-color-body);
+}
+.pv-graph .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+.pv-graph .react-flow__node:focus-visible {
+  outline: 2px solid var(--pv-hl);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+.pv-node {
+  width: 232px;
+  height: 104px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--mantine-color-body);
+  border: 1px solid var(--mantine-color-default-border);
+  border-left: 5px solid var(--pv-state, var(--pv-edge));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+  overflow: hidden;
+  transition:
+    opacity 180ms ease,
+    box-shadow 180ms ease;
+}
+.pv-node[data-inactive='true'] {
+  border-style: dashed;
+  border-left-style: dashed;
+}
+.pv-node[data-dim='true'] {
+  opacity: 0.28;
+}
+.pv-node[data-hl='true'] {
+  box-shadow: 0 0 0 2px var(--pv-hl);
+}
+.pv-node[data-compact='true'] .pv-node-detail,
+.pv-node[data-compact='true'] .pv-node-badges {
+  display: none;
+}
+.pv-node[data-compact='true'] .pv-node-label {
+  font-size: 18px;
+}
+.pv-node-kind {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mantine-color-dimmed);
+  font-weight: 600;
+}
+.pv-pulse {
+  animation: pv-pulse 1.4s ease-out 2;
+}
+@keyframes pv-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--pv-state, var(--pv-hl)) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}
+
+.pv-edge-base {
+  fill: none;
+  stroke: var(--pv-edge);
+  transition:
+    opacity 180ms ease,
+    stroke 180ms ease;
+}
+.pv-edge-base[data-inactive='true'] {
+  stroke-dasharray: 7 6;
+}
+.pv-edge-base[data-problem='true'] {
+  stroke: var(--pv-problem);
+  stroke-dasharray: 7 6;
+}
+.pv-edge-base[data-hl='true'] {
+  stroke: var(--pv-hl);
+}
+.pv-edge-flow {
+  fill: none;
+  stroke: var(--pv-flow);
+  stroke-linecap: round;
+  stroke-dasharray: 2 14;
+  animation: pv-dash 1.2s linear infinite;
+  pointer-events: none;
+}
+.pv-edge-flow[data-hl='true'] {
+  stroke: var(--pv-hl);
+  animation-duration: 0.7s;
+}
+.pv-edge[data-dim='true'] {
+  opacity: 0.18;
+}
+@keyframes pv-dash {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+.pv-edge-pill {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: var(--mantine-color-body);
+  border: 1px solid var(--mantine-color-default-border);
+  color: var(--mantine-color-text);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: opacity 180ms ease;
+}
+.pv-edge-pill[data-problem='true'] {
+  border-color: var(--pv-problem);
+  color: var(--mantine-color-red-light-color);
+}
+.pv-edge-pill[data-dim='true'] {
+  opacity: 0.2;
+}
+
+/* areas of the OT network: IEC 62443-3-2 zones around IEEE 802.1Q VLANs around their assets */
+.pv-area {
+  position: relative;
+  border-radius: 14px;
+  border: 1.5px solid var(--pv-conduit);
+  background: var(--pv-zone-bg);
+  transition:
+    opacity 180ms ease,
+    box-shadow 180ms ease;
+}
+.pv-area[data-kind='vlan'] {
+  border: 1px solid var(--mantine-color-default-border);
+  background: var(--pv-vlan-bg);
+  border-radius: 12px;
+}
+.pv-area[data-dim='true'] {
+  opacity: 0.4;
+}
+.pv-area[data-hl='true'] {
+  box-shadow: 0 0 0 2px var(--pv-hl);
+}
+.pv-area-label {
+  position: absolute;
+  top: -12px;
+  left: 12px;
+  max-width: calc(100% - 24px);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--mantine-color-body);
+  border: 1px solid var(--pv-conduit);
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* a VLAN's name sits inside its top edge (the zone's on the zone's border, so the two never overlap) */
+.pv-area[data-kind='vlan'] .pv-area-label {
+  top: 1px;
+  left: 6px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  line-height: 16px;
+}
+.pv-area-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pv-area-tag {
+  color: var(--mantine-color-dimmed);
+  font-size: 11px;
+}
+.pv-node[data-small='true'] {
+  height: 68px;
+}
+.pv-edge-base[data-conduit='true'] {
+  stroke: var(--pv-conduit);
+  stroke-opacity: 0.5;
+  stroke-linecap: round;
+}
+.pv-edge-base[data-no-conduit='true'] {
+  stroke: var(--pv-warn);
+  stroke-dasharray: 7 6;
+}
+.pv-edge-base[data-online='true'] {
+  stroke: var(--pv-ok);
+}
+
+/* ---------- path list beside the graph ---------- */
+
+.pv-path {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: var(--mantine-radius-sm);
+  border: 1px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.pv-path:hover,
+.pv-path[data-active='true'] {
+  background: var(--mantine-color-default-hover);
+  border-color: var(--mantine-color-default-border);
+}
+.pv-path:focus-visible {
+  outline: 2px solid var(--pv-hl);
+  outline-offset: 1px;
+}
+
+/* ---------- structure (treemap) ---------- */
+
+.pv-map {
+  position: relative;
+  width: 100%;
+  border-radius: var(--mantine-radius-md);
+  overflow: hidden;
+}
+.pv-map-stage {
+  transform-origin: 0 0;
+  transition: transform 380ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.pv-tile {
+  cursor: pointer;
+}
+.pv-tile rect.pv-tile-bg {
+  fill: var(--pv-tile);
+  stroke: var(--mantine-color-default-border);
+  transition: fill 150ms ease;
+}
+.pv-tile:hover rect.pv-tile-bg {
+  fill: var(--pv-tile-hover);
+}
+.pv-tile rect.pv-tile-bg:focus {
+  outline: none;
+}
+.pv-tile rect.pv-tile-bg:focus-visible {
+  stroke: var(--pv-hl);
+  stroke-width: 3;
+}
+.pv-tile[data-leaf='true'] {
+  cursor: default;
+}
+.pv-tile text {
+  fill: var(--mantine-color-text);
+  pointer-events: none;
+}
+.pv-tile text.pv-dim {
+  fill: var(--mantine-color-dimmed);
+}
+.pv-tile .pv-inner {
+  fill: var(--pv-inner);
+  stroke: var(--mantine-color-default-border);
+  transition: fill 150ms ease;
+}
+.pv-inner-tile:hover .pv-inner {
+  fill: var(--pv-tile-hover);
+}
+
+/* ---------- coverage ---------- */
+
+.pv-matrix {
+  border-collapse: separate;
+  border-spacing: 2px;
+}
+.pv-matrix th {
+  font-weight: 600;
+  font-size: var(--mantine-font-size-xs);
+  text-align: center;
+  vertical-align: bottom;
+  padding: 4px;
+}
+.pv-matrix td {
+  padding: 0;
+}
+.pv-matrix .pv-sticky {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--mantine-color-body);
+  padding: 4px 8px 4px 0;
+  min-width: 200px;
+  max-width: 280px;
+}
+.pv-cell {
+  width: 100%;
+  min-width: 88px;
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+.pv-cell:focus-visible {
+  outline: 2px solid var(--pv-hl);
+  outline-offset: 2px;
+}
+.pv-cell[data-state='has'] {
+  background: var(--mantine-color-green-light);
+  color: var(--mantine-color-green-light-color);
+  box-shadow: inset 0 0 0 1.5px var(--pv-has);
+}
+.pv-cell[data-state='problem'] {
+  background: var(--mantine-color-red-light);
+  color: var(--mantine-color-red-light-color);
+  box-shadow: inset 0 0 0 1.5px var(--pv-problem);
+}
+.pv-cell[data-state='could'] {
+  background: var(--mantine-color-body);
+  color: var(--mantine-color-blue-light-color);
+  box-shadow: inset 0 0 0 1.5px var(--pv-could);
+}
+.pv-cell[data-state='cannot'] {
+  background: var(--mantine-color-gray-light);
+  color: var(--mantine-color-gray-light-color);
+}
+.pv-cell[data-state='unchecked'] {
+  background: transparent;
+  color: var(--mantine-color-dimmed);
+  box-shadow: inset 0 0 0 1px var(--mantine-color-default-border);
+}
+.pv-cell[data-inactive='true'] {
+  background-image: repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, currentColor 14%, transparent) 5px 7px);
+}
+
+.pv-bar {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 4px;
+}
+.pv-bar > span {
+  display: block;
+  min-width: 3px;
+}
+
+/* nothing moves for who asked for less motion, or turned it off */
+.pv-static .pv-edge-flow {
+  display: none;
+}
+.pv-static .pv-map-stage,
+.pv-static .pv-node,
+.pv-static .pv-edge-base {
+  transition: none;
+}
+.pv-static .pv-pulse {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pv-edge-flow {
+    display: none;
+  }
+  .pv-pulse {
+    animation: none;
+  }
+  .pv-map-stage,
+  .pv-node,
+  .pv-edge-base {
+    transition: none;
+  }
+}
+.pv-hint {
+  background: var(--mantine-color-body);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+  padding: 2px 8px;
+}

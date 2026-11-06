@@ -101,10 +101,25 @@ const TRYABLE = new Set<CheckType>([
   'mqtt',
   'snowflake',
   'database',
+  'dynamodb',
+  'db-schema',
   'dependency-track',
   'entra',
   'privilege-vault',
 ]);
+
+/**
+ * A new monitor from a link (#233): ?dynamodb=<platform id>&region=…&table=… – the AWS inventory of a cloud account
+ * opens the editor with a DynamoDB check for a table it found.
+ */
+function initialDefinition(): MonitorDefinition {
+  const q = new URLSearchParams(window.location.search);
+  const platform = q.get('dynamodb');
+  const table = q.get('table')?.slice(0, 255);
+  if (!platform || !table) return EMPTY;
+  const check = { ...newCheck('dynamodb', 'newest-item'), platform: platform.slice(0, 200), table, region: q.get('region')?.slice(0, 40) ?? '' } as CheckDef;
+  return { ...EMPTY, name: `DynamoDB ${table}`, checks: [{ ...check, x: 0, y: 0 }] };
+}
 interface Preview {
   status: MonitorStatus;
   message: string;
@@ -121,13 +136,14 @@ export function MonitorEditorPage() {
   const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const monitors = useQuery({ queryKey: monitorKeys.all, queryFn: () => get<MonitorSummary[]>('/monitors') });
   const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
-  const [draft, setDraft] = useState<Draft | null>(isNew ? draftOf(EMPTY) : null);
+  const [draft, setDraft] = useState<Draft | null>(() => (isNew ? draftOf(initialDefinition()) : null));
   const history = useDefHistory<Draft>(draft, setDraft);
   const def = draft?.def ?? null;
   const keys = useMemo(() => draft?.keys ?? [], [draft]);
   const [key, setKey] = useState('');
   const [isTemplate, setIsTemplate] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
+  // a monitor opened from a link starts with its check selected
+  const [selected, setSelected] = useState<string | null>(() => (isNew && draft?.def.checks.length ? (draft.keys[0] ?? null) : null));
   // several cards selected (shift-click or a shift-drag box): duplicated together with the links between them
   const [multi, setMulti] = useState<string[]>([]);
   const [asTemplate, setAsTemplate] = useState(false);

@@ -1,0 +1,5 @@
+[36mpublic.loaves[0m[1m: table comment required.[0m
+[36mpublic.loaves.kind[0m[1m: column comment required.[0m
+[36mpublic.customers[0m[1m: too many columns. [3/2][0m
+
+[1m3 detected[0m

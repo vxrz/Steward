@@ -81,6 +81,7 @@ const ApplicationsPage = page(() => import('./pages/Applications'), 'Application
 const SystemsPage = page(() => import('./pages/Systems'), 'SystemsPage');
 const MaintenancePage = page(() => import('./pages/Maintenance'), 'MaintenancePage');
 const SystemDetailPage = page(() => import('./pages/SystemDetail'), 'SystemDetailPage');
+const SystemSchemaPage = page(() => import('./pages/SystemSchema'), 'SystemSchemaPage');
 const ApplicationDetailPage = page(() => import('./pages/ApplicationDetail'), 'ApplicationDetailPage');
 const DutiesPage = page(() => import('./pages/Duties'), 'DutiesPage');
 const DutyDetailPage = page(() => import('./pages/DutyDetail'), 'DutyDetailPage');
@@ -105,6 +106,7 @@ const PlantKpisPage = page(() => import('./pages/PlantKpis'), 'PlantKpisPage');
 const PlantKpiPage = page(() => import('./pages/PlantKpi'), 'PlantKpiPage');
 const PlantExplorePage = page(() => import('./pages/PlantExplore'), 'PlantExplorePage');
 const PlantChecksPage = page(() => import('./pages/PlantChecks'), 'PlantChecksPage');
+const PlantNetworkPage = page(() => import('./pages/PlantNetwork'), 'PlantNetworkPage');
 
 const MAIN_ID = 'main-content';
 
@@ -307,8 +309,12 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/" element={<Navigate to="/plant/sites" replace />} />
                     {caps.plant && <Route path="/plant/sites" element={<PlantSitesPage />} />}
                     {caps.plant && <Route path="/plant/sites/:siteId" element={<PlantSitePage />} />}
+                    {caps.plant && <Route path="/plant/sites/:siteId/network" element={<PlantNetworkPage />} />}
+                    {caps.plant && <Route path="/plant/sites/:siteId/network/:tab" element={<PlantNetworkPage />} />}
+                    {caps.plant && <Route path="/plant/sites/:siteId/:tab" element={<PlantSitePage />} />}
                     {caps.plant && <Route path="/plant/assets" element={<PlantAssetsPage />} />}
                     {caps.plant && <Route path="/plant/assets/:assetId" element={<PlantAssetPage />} />}
+                    {caps.plant && <Route path="/plant/assets/:assetId/:tab" element={<PlantAssetPage />} />}
                     {caps.plant && <Route path="/plant/import" element={<PlantImportPage />} />}
                     {caps.plant && <Route path="/plant/profiles" element={<PlantProfilesPage />} />}
                     {caps.plant && <Route path="/plant/profiles/:profileId" element={<PlantProfilePage />} />}
@@ -358,6 +364,7 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/applications/:id" element={<ApplicationDetailPage />} />
                     <Route path="/systems" element={<SystemsPage />} />
                     <Route path="/systems/:id" element={<SystemDetailPage />} />
+                    <Route path="/systems/:id/schema" element={<SystemSchemaPage />} />
                     <Route path="/maintenance" element={<MaintenancePage />} />
                     <Route path="/status-pages" element={<StatusPagesPage />} />
                     <Route path="/status-pages/:id" element={<StatusPageViewPage />} />
@@ -377,8 +384,12 @@ function Shell({ status }: { status: AuthStatus }) {
                     {/* the plant registry (#218): only while its module is on – otherwise "page not found" */}
                     {caps.plant && <Route path="/plant/sites" element={<PlantSitesPage />} />}
                     {caps.plant && <Route path="/plant/sites/:siteId" element={<PlantSitePage />} />}
+                    {caps.plant && <Route path="/plant/sites/:siteId/network" element={<PlantNetworkPage />} />}
+                    {caps.plant && <Route path="/plant/sites/:siteId/network/:tab" element={<PlantNetworkPage />} />}
+                    {caps.plant && <Route path="/plant/sites/:siteId/:tab" element={<PlantSitePage />} />}
                     {caps.plant && <Route path="/plant/assets" element={<PlantAssetsPage />} />}
                     {caps.plant && <Route path="/plant/assets/:assetId" element={<PlantAssetPage />} />}
+                    {caps.plant && <Route path="/plant/assets/:assetId/:tab" element={<PlantAssetPage />} />}
                     {caps.plant && <Route path="/plant/import" element={<PlantImportPage />} />}
                     {caps.plant && <Route path="/plant/profiles" element={<PlantProfilesPage />} />}
                     {caps.plant && <Route path="/plant/profiles/:profileId" element={<PlantProfilePage />} />}

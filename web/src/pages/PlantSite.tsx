@@ -24,6 +24,8 @@ import { fmtDate } from '../format';
 import { plantKeys } from '../queryKeys';
 import { AssetStatusBadge, FieldValuesView, MapLink, NotInSourceBadge, PreviewBadge, RefsView, useNameOf, usePlantLabel } from '../components/plant/common';
 import { AssetFormModal, BuildingFormModal, NodeFormModal, SiteFormModal } from '../components/plant/forms';
+import { SiteNetworkCard } from '../components/plant/network';
+import { PlantSiteTabPage, SiteTabs } from './plant/views/tabs';
 
 type NodeDialog = { level: PlantLevel; parentId: string | null; node?: PlantNode } | null;
 
@@ -35,7 +37,7 @@ export function PlantSitePage() {
   const { t } = useTranslation(['plant', 'common']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
-  const { siteId } = useParams();
+  const { siteId, tab } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const q = useQuery({ queryKey: plantKeys.site(siteId), queryFn: () => get<PlantSiteDetail>(`/plant/sites/${encodeURIComponent(siteId!)}`) });
@@ -45,6 +47,8 @@ export function PlantSitePage() {
   const [newAsset, setNewAsset] = useState(false);
   const s = q.data;
   if (!s) return <DetailState query={q} back="plantSites" />;
+  // the other tabs (#230): the structure as a picture
+  if (tab) return <PlantSiteTabPage site={s} tab={tab} />;
   const saved = (x: PlantSiteDetail) => {
     qc.setQueryData(plantKeys.site(siteId), x);
     void qc.invalidateQueries({ queryKey: plantKeys.sites });
@@ -150,6 +154,7 @@ export function PlantSitePage() {
         menu={
           canManage ? { items: [{ label: t('site.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'site-delete' }] } : undefined
         }
+        tabs={<SiteTabs site={s} active="" />}
       />
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
@@ -310,6 +315,8 @@ export function PlantSitePage() {
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Box visibleFrom="md">{assetsCard}</Box>
+          {/* the OT network (#220): the live status of the assets and the way to the site's network */}
+          <SiteNetworkCard siteId={s.id} />
           <Paper withBorder p="md" mt={{ base: 0, md: 'md' }}>
             <Stack gap="sm">
               <Field label={t('form.id')}>

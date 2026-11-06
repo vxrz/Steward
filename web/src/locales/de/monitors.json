@@ -303,7 +303,73 @@
     "dbNoDataHints": {
       "replication": "Wenn der Server kein Replikat hat und kein Standby ist",
       "query": "Wenn die Abfrage keine Zeile liefert"
-    }
+    },
+    "headers": "Header",
+    "headersHint": "Werden mit der Anfrage gesendet; die Anmeldung der Plattform kommt wie gewohnt hinzu.",
+    "requestBody": "Inhalt",
+    "requestBodyHint": "JSON oder Text, der unverändert gesendet wird. Nur mit POST – für APIs, die mit POST lesen (Suche, GraphQL, JSON-Protokolle).",
+    "ddbRegion": "Region",
+    "ddbRegionHint": "Leer: die Hauptregion der Plattform ({{region}})",
+    "ddbTable": "Tabelle",
+    "ddbMode": "Was geprüft wird",
+    "ddbModes": {
+      "newestItem": "Neuestes Element je Partitionsschlüssel",
+      "writeActivity": "Schreibaktivität (CloudWatch)",
+      "hygiene": "Tabellenpflege"
+    },
+    "ddbModeHints": {
+      "newestItem": "Eine Query je Partitionsschlüssel-Wert: Limit 1, das neueste zuerst nach dem Sortierschlüssel – das Zeitattribut ist meist der Sortierschlüssel. Gelesen werden nur der Schlüssel und das Zeitattribut.",
+      "writeActivity": "ConsumedWriteCapacityUnits der Tabelle: die neueste Minute mit Schreibzugriffen ist das Alter. CloudWatch liegt einige Minuten zurück – lassen Sie mindestens 10 Minuten zu.",
+      "hygiene": "Status ACTIVE, Point-in-Time-Wiederherstellung und Gültigkeitsdauer (TTL). Anzahl der Elemente und Größe sind Werte für Trends (AWS aktualisiert sie etwa alle sechs Stunden)."
+    },
+    "ddbIndex": "Sekundärindex",
+    "ddbIndexHint": "Ein sekundärer Index, dessen Sortierschlüssel die Zeit ist; leer: der eigene Schlüssel der Tabelle",
+    "ddbPartitionKey": "Partitionsschlüssel",
+    "ddbPartitionKeyType": "Typ",
+    "ddbKeyTypes": {
+      "S": "Zeichenkette",
+      "N": "Zahl"
+    },
+    "ddbPartitionValues": "Werte des Partitionsschlüssels",
+    "ddbPartitionValuesHint": "Jeder mit eigenem Alter, z. B. device#press-07 (höchstens 20; nach jedem Wert Enter drücken)",
+    "ddbTimeAttribute": "Zeitattribut",
+    "ddbTimeFormat": "Zeitformat",
+    "ddbTimeFormats": {
+      "auto": "Erkennen",
+      "iso8601": "ISO 8601",
+      "epochSeconds": "Epoch-Sekunden",
+      "epochMillis": "Epoch-Millisekunden"
+    },
+    "ddbActive": "Tabellenstatus ACTIVE",
+    "ddbPitr": "Point-in-Time-Wiederherstellung an",
+    "ddbTtl": "Gültigkeitsdauer (TTL) an",
+    "ddbRequirements": {
+      "required": "Erforderlich",
+      "report": "Nur melden"
+    },
+    "ddbFailAs": "Wenn eine Anforderung nicht erfüllt ist",
+    "ddbPolicy": "Nur lesend: braucht dynamodb:Query und die Describe-Aktionen auf der Tabelle (und ihren Indizes), cloudwatch:GetMetricData für die Schreibaktivität – siehe docs/AWS.md.",
+    "dbSchemaOn": "Schema von",
+    "dbSchemaOnPlatform": "Einer Datenbank-Plattform",
+    "dbSchemaOnSystem": "Einem System (tbls-Importe)",
+    "dbSchemaSystem": "System",
+    "dbSchemaSystemHint": "Ein System des Servicekatalogs, dessen tbls-Schema an Steward geschickt wird",
+    "dbSchemaChooseSystem": "System wählen",
+    "dbSchemaNoSystem": "Kein System gefunden",
+    "dbSchemaMode": "Schlägt fehl bei",
+    "dbSchemaModes": {
+      "breaking": "Einer inkompatiblen Änderung",
+      "changed": "Jeder Änderung"
+    },
+    "dbSchemaModeHints": {
+      "breaking": "Eine entfernte Tabelle oder Spalte, ein engerer Typ, NOT NULL ohne Standardwert, ein entfernter Schlüssel",
+      "changed": "Jede hinzugefügte, entfernte oder geänderte Tabelle, Spalte, jeder Schlüssel und Index"
+    },
+    "dbSchemaWithin": "In den letzten (Stunden)",
+    "dbSchemaFailAs": "Wenn sie fehlschlägt",
+    "dbSchemaNoData": "Ohne Snapshot",
+    "dbSchemaRead": "Zuerst die Datenbank lesen",
+    "dbSchemaReadHint": "Liest das Schema bei jeder Prüfung (ein Snapshot, wenn es sich geändert hat). Aus: Es zählen nur die schon gespeicherten Lesevorgänge und Importe."
   },
   "detail": {
     "template": "Vorlage",
@@ -655,6 +721,10 @@
       "label": "Datenbank",
       "help": "Eine Datenbank-Plattform: die Verbindung funktioniert (und ist nur lesend), der Replikationsverzug bleibt unter einer Grenze, oder der Wert einer lesenden Abfrage wird gegen WARN- und CRIT-Stufen beurteilt"
     },
+    "db-schema": {
+      "label": "Änderungen am Datenbankschema",
+      "help": "Die Schema-Snapshots einer Datenbank-Plattform oder eines Systems: keine Änderung oder keine inkompatible Änderung in den letzten N Stunden; liest die Plattform auf Wunsch zuerst"
+    },
     "dependency-track": {
       "label": "Schwachstellen (Dependency-Track)",
       "help": "Ein Dependency-Track-Projekt hat nicht mehr offene kritische (oder hohe) Befunde als erlaubt und keinen fehlgeschlagenen Richtlinienverstoß"
@@ -666,6 +736,10 @@
     "privilege-vault": {
       "label": "Tresor-Hygiene (IBM Verify Privilege Vault)",
       "help": "Secrets in IBM Verify Privilege Vault: fehlgeschlagene Heartbeats, nicht rotierte oder abgelaufene Passwörter, automatischer Wechsel aus, kein Besitzer, privilegierte Secrets ohne Check-out oder Genehmigung"
+    },
+    "dynamodb": {
+      "label": "DynamoDB-Tabelle",
+      "help": "Eine DynamoDB-Tabelle auf einer AWS-Plattform: das neueste Element je Partitionsschlüssel ist aktuell genug, die Tabelle wurde im Zeitfenster beschrieben (CloudWatch), oder ihr Status, die Point-in-Time-Wiederherstellung und die Gültigkeitsdauer (TTL)"
     }
   },
   "newCheck": {
@@ -687,7 +761,9 @@
     "dependency-track": "Keine kritischen Schwachstellen",
     "entra": "App-Zugangsdaten gültig",
     "privilege-vault": "Tresor-Hygiene",
-    "database": "Datenbank erreichbar"
+    "database": "Datenbank erreichbar",
+    "dynamodb": "DynamoDB-Tabelle aktuell",
+    "db-schema": "Keine inkompatible Schemaänderung"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"

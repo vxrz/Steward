@@ -27,6 +27,7 @@ const CODED_AREAS = [
   'monitors/',
   'duplicate/',
   'plant/',
+  'dbschema/',
   'routes/reports.ts',
   'routes/report-schedules.ts',
 ];

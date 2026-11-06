@@ -32,6 +32,7 @@ import { SERVICE_COMPONENTS } from '../../catalogue/api-schemas.js';
 import { DUTY_COMPONENTS } from '../../duties/api-schemas.js';
 import { SCORECARD_COMPONENTS } from '../../scorecard/api-schemas.js';
 import { PLANT_COMPONENTS } from '../../plant/api-schemas.js';
+import { DB_SCHEMA_COMPONENTS } from '../../dbschema/api-schemas.js';
 
 export const RUN_STATUSES = ['queued', 'running', 'waiting', 'succeeded', 'failed', 'cancelled', 'interrupted'] as const satisfies readonly RunStatus[];
 export const RUN_OUTCOMES = [...RUN_STATUSES, 'findings'] as const satisfies readonly RunOutcome[];
@@ -626,6 +627,7 @@ export const COMPONENTS: Record<string, ZodTypeAny> = {
   ...DUTY_COMPONENTS,
   ...SCORECARD_COMPONENTS,
   ...PLANT_COMPONENTS,
+  ...DB_SCHEMA_COMPONENTS,
 };
 
 /** Example values shown in the documentation. */

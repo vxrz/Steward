@@ -6,7 +6,8 @@ import { currentUser } from '../auth/context.js';
 import { canCreateMonitors, loadMonitor, timeoutMs } from './model.js';
 import { requireMonitor } from './service.js';
 import { isActive, runActiveCheck } from './checks.js';
-import { resolvePlatformRef } from './platforms.js';
+import { requireVisiblePlatform, resolvePlatformRef } from './platforms.js';
+import { requireVisibleSystem } from '../dbschema/check.js';
 
 /**
  * Test run of a monitor (#105): its platform checks answered from the platforms' recorded responses, nothing stored
@@ -95,9 +96,17 @@ export async function previewCheck(input: { monitorId?: string; check: unknown; 
   const c: CheckDef = { ...parsed.data };
   if (!isActive(c)) throw new HttpError(409, 'This check type is evaluated from reports, not by a call', 'CHECK_PREVIEW_UNSUPPORTED', { type: c.type });
   if ('platform' in c && c.platform) {
-    const kind = c.type === 'gatus' ? 'gatus' : c.type === 'freshness' && c.source === 'insightsHub' ? 'insights-hub' : undefined;
-    (c as { platform: string }).platform = resolvePlatformRef(c.platform, kind).id;
+    const kind =
+      c.type === 'gatus' ? 'gatus' : c.type === 'freshness' && c.source === 'insightsHub' ? 'insights-hub' : c.type === 'dynamodb' ? 'aws' : undefined;
+    const id = resolvePlatformRef(c.platform, kind).id;
+    // the check runs with the owner's rights, but the person trying it must see the platform (a hidden one reads like
+    // a missing one) – and reading a database's schema is their own "use" as well
+    const p = requireVisiblePlatform(id, c.platform, kind);
+    if (c.type === 'db-schema' && c.read && !p.permissions.includes('use'))
+      throw new HttpError(403, `You are not allowed to use platform "${p.name}"`, 'PLATFORM_USE_FORBIDDEN', { name: p.name });
+    (c as { platform: string }).platform = id;
   }
+  if (c.type === 'db-schema' && c.system) requireVisibleSystem(c.name, c.system);
   const started = Date.now();
   const res = await runActiveCheck(c, {
     owner,
