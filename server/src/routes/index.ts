@@ -17,6 +17,7 @@ import { migrationRoutes } from '../migration/routes.js';
 import { dutyRoutes } from '../duties/routes.js';
 import { scorecardRoutes } from '../scorecard/routes.js';
 import { gatusRoutes } from '../gatus/routes.js';
+import { changedetectionRoutes } from '../changedetection/routes.js';
 import { credentialRoutes } from '../credentials/routes.js';
 import { reportScheduleRoutes } from './report-schedules.js';
 import { syncRoutes } from '../sync/routes.js';
@@ -55,6 +56,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await triggerRoutes(app);
   await monitorRoutes(app);
   await gatusRoutes(app);
+  // changedetection.io (#242): watches as components of the platform
+  await changedetectionRoutes(app);
   await credentialRoutes(app);
   await reportScheduleRoutes(app);
   await recordRoutes(app);

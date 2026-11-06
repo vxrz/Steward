@@ -13,6 +13,7 @@ import { canReadRecordRow, canViewCatalogue } from './access.js';
 import { checkLinkType, linkTypeByKey, linkTypeKey } from './link-types.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { dashboardVisible } from '../dashboards/service.js';
+import { watchesLinkingTo } from '../changedetection/store.js';
 
 /**
  * Generic links from a record or service to an internal item ({ kind, id })
@@ -388,6 +389,17 @@ export function listBacklinks(kind: string, id: string): Backlink[] {
   if (plantViewer) return out;
   for (const c of credentialsLinkingTo(kind, id)) {
     out.push({ linkId: `credential:${c.id}`, kind: 'credential', id: c.id, label: c.name, note: '', path: `/credentials?open=${encodeURIComponent(c.id)}` });
+  }
+  // page watches of changedetection.io linked to an application or service (#242)
+  for (const w of watchesLinkingTo(kind, id)) {
+    out.push({
+      linkId: `page-watch:${w.platformId}:${w.uuid}`,
+      kind: 'page-watch',
+      id: w.uuid,
+      label: w.title,
+      note: w.vendor,
+      path: `/platforms/${encodeURIComponent(w.platformId)}?tab=watches&watch=${w.uuid}`,
+    });
   }
   return out;
 }

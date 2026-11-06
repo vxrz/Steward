@@ -36,6 +36,7 @@ import { ASSURANCE_MIGRATIONS } from './migrations/assurance.js';
 import { AI_MIGRATIONS } from './migrations/ai.js';
 import { PLANT_MIGRATIONS } from './migrations/plant.js';
 import { DBSCHEMA_MIGRATIONS } from './migrations/dbschema.js';
+import { CHANGEDETECTION_MIGRATIONS } from './migrations/changedetection.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -118,6 +119,7 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...AI_MIGRATIONS,
   ...PLANT_MIGRATIONS,
   ...DBSCHEMA_MIGRATIONS,
+  ...CHANGEDETECTION_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [

@@ -304,6 +304,11 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/gatus/sources/:platformId': ADMIN,
   'POST /api/gatus/sources/:platformId/scrape': USE,
   'GET /api/gatus/sources/:platformId/endpoints': USE,
+  // changedetection.io (#242): watches as components of the platform
+  'GET /api/changedetection/:platformId/watches': USE,
+  'POST /api/changedetection/:platformId/watches/read': USE,
+  'PUT /api/changedetection/:platformId/watches/:uuid/link': ADMIN,
+  'GET /api/changedetection/:platformId/watches/:uuid/history': USE,
 
   // ---- processes, runs, tasks, schedules, triggers ----
   'GET /api/templates': ALL,
@@ -355,6 +360,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/schedules/:id/run': RUN,
   'POST /api/cron/preview': ALL,
   'GET /api/triggers': ALL,
+  'GET /api/triggers/examples': ALL,
   'POST /api/triggers': RUN,
   'POST /api/triggers/preview-mapping': RUN,
   'GET /api/triggers/:id': ALL,
@@ -1185,7 +1191,8 @@ function fill(url: string): string {
       .replace(/\/schema\/snapshots\/:snapshotId/, '/schema/snapshots/latest')
       .replace(/\/api\/db-schemas\/([^/]+)\/([^/]+)\/snapshots\/:snapshotId/, '/api/db-schemas/$1/$2/snapshots/latest')
       .replace(/:platformId\/schema/, `${fx.dbPlatform}/schema`)
-      .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : fx.platform!)
+      .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : url.startsWith('/api/changedetection') ? fx.cdPlatform! : fx.platform!)
+      .replace(/:uuid/g, '7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e01')
       .replace(/:specId/g, fx.spec!)
       .replace(/:docId/g, fx.doc!)
       .replace(/:processId/g, fx.process!)
@@ -1691,6 +1698,8 @@ beforeAll(async () => {
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
   // database schemas (#222): a read of the demo database platform, a tbls import for the matrix system
   fx.dbPlatform = platforms.find((p: { kind: string }) => p.kind === 'database').id;
+  // changedetection.io (#242): the demo platform, read by the demo setup
+  fx.cdPlatform = platforms.find((p: { kind: string }) => p.kind === 'changedetection').id;
   const dbSnap = (await a('POST', `/db-schemas/platform/${fx.dbPlatform}/read`)).snapshot.id;
   const tbls = JSON.stringify({
     name: 'matrix',
