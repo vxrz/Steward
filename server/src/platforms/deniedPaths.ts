@@ -1,4 +1,4 @@
-import { PVAULT_KIND } from '@sm/shared';
+import { KAFKA_CONNECT_KIND, PVAULT_KIND, redactConnectAnswer } from '@sm/shared';
 import { HttpError } from '../util.js';
 
 /**
@@ -119,8 +119,32 @@ const VALUE_KEYS: Record<string, ReadonlySet<string>> = {
   [PVAULT_KIND]: new Set(['itemvalue', 'extendedfields', 'password', 'privatekey', 'privatekeypassphrase', 'passphrase', 'filecontent']),
 };
 
-/** A copy of an answer without the kind's value keys (at most 64 levels deep; deeper parts are dropped). */
+/**
+ * Kinds that are only read (0.9.0): Kafka Connect (#223) – no connector is created, changed, restarted, paused or
+ * resumed through Steward, whoever asks (process steps, the explorer, the MCP gateway, recordings).
+ */
+const READ_ONLY_KINDS = new Set([KAFKA_CONNECT_KIND]);
+const READ_METHODS = new Set(['GET', 'HEAD']);
+
+/** Throws 403 PLATFORM_METHOD_DENIED for a changing request to a platform of a read-only kind. */
+export function assertMethodAllowed(kind: string, method: string): void {
+  if (!READ_ONLY_KINDS.has(kind) || READ_METHODS.has(method.toUpperCase())) return;
+  throw Object.assign(
+    new HttpError(403, `Steward only reads ${kind} platforms: ${method.toUpperCase().slice(0, 10)} is refused`, 'PLATFORM_METHOD_DENIED', {
+      kind,
+      method: method.toUpperCase().slice(0, 10),
+    }),
+    { retryable: false },
+  );
+}
+
+/**
+ * A copy of an answer without the kind's value keys (at most 64 levels deep; deeper parts are dropped). Kafka Connect
+ * (#223): connector configurations with their secret-looking values removed and error traces trimmed
+ * (redactConnectAnswer in shared/src/kafkaConnect.ts).
+ */
 export function stripValues<T>(kind: string, body: T): T {
+  if (kind === KAFKA_CONNECT_KIND) return redactConnectAnswer(body);
   const keys = VALUE_KEYS[kind];
   if (!keys) return body;
   const walk = (x: unknown, depth: number): unknown => {

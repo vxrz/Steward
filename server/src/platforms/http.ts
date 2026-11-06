@@ -13,7 +13,7 @@ import { assertOutboundAllowed, guardedLookup } from './outbound.js';
 import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
 import { JWT_ALGS, certificateThumbprints, clientAssertion, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
 import { where as originAndPath } from './answers.js';
-import { assertPathAllowed, stripValues } from './deniedPaths.js';
+import { assertMethodAllowed, assertPathAllowed, stripValues } from './deniedPaths.js';
 
 export interface HttpRequest {
   method: string;
@@ -39,6 +39,26 @@ export interface HttpRequest {
   responseFile?: string;
   /** AWS SigV4 (#116): sign this request for another service or region than the platform's (one AWS account, many APIs). */
   aws?: { service: string; region: string };
+  /** Mutual TLS (0.9.0): the client certificate presented on this hop – set per hop for the platform's own origins only */
+  clientTls?: ClientTls;
+}
+
+/** A client certificate for mutual TLS (PEM). */
+export interface ClientTls {
+  cert: string;
+  key: string;
+  passphrase?: string;
+}
+
+/**
+ * Mutual TLS (0.9.0, #223): the client certificate in the platform's credentials tlsCertificate and tlsKey (PEM; an
+ * encrypted key with tlsKeyPassphrase). Presented only to the platform's own origins, like every other credential.
+ */
+export function clientTlsOf(secrets: Record<string, string>): ClientTls | undefined {
+  const cert = secrets.tlsCertificate?.trim();
+  const key = secrets.tlsKey?.trim();
+  if (!cert || !key) return undefined;
+  return { cert, key, ...(secrets.tlsKeyPassphrase ? { passphrase: secrets.tlsKeyPassphrase } : {}) };
 }
 
 export interface HttpResult {
@@ -118,20 +138,30 @@ export function invalidatePlatformCaches(platformId: string): void {
   for (const fn of invalidationListeners) fn(platformId);
   tokenCache.delete(platformId);
   awsCache.delete(platformId);
-  const d = dispatcherCache.get(platformId);
-  if (d) {
-    dispatcherCache.delete(platformId);
+  for (const key of [platformId, `${platformId}|mtls`]) {
+    const d = dispatcherCache.get(key);
+    if (!d) continue;
+    dispatcherCache.delete(key);
     d.dispatcher.close().catch(() => undefined); // an old dispatcher: closing it is best effort
   }
 }
 
-function dispatcherFor(p: Platform): Dispatcher {
-  const stamp = p.updatedAt;
-  const hit = dispatcherCache.get(p.id);
+function dispatcherFor(p: Platform, tls?: ClientTls): Dispatcher {
+  // a dispatcher with the client certificate is kept apart from the one without (hops to other origins)
+  const key = tls ? `${p.id}|mtls` : p.id;
+  const stamp = tls
+    ? `${p.updatedAt}|${crypto
+        .createHash('sha256')
+        .update(`${tls.cert}\u0000${tls.key}\u0000${tls.passphrase ?? ''}`)
+        .digest('hex')}`
+    : p.updatedAt;
+  const hit = dispatcherCache.get(key);
   if (hit && hit.stamp === stamp) return hit.dispatcher;
+  if (hit) hit.dispatcher.close().catch(() => undefined); // replaced: closing the old one is best effort
   const connect = {
     rejectUnauthorized: !p.config.http?.insecureTls,
     ...(p.config.http?.caPem ? { ca: p.config.http.caPem } : {}),
+    ...(tls ? { cert: tls.cert, key: tls.key, ...(tls.passphrase ? { passphrase: tls.passphrase } : {}) } : {}),
     // Resolve DNS ourselves, reject metadata/link-local addresses and pin the IP
     // for the connection so a name cannot be rebound after the policy check.
     lookup: guardedLookup,
@@ -142,7 +172,7 @@ function dispatcherFor(p: Platform): Dispatcher {
   if (proxy === 'none') dispatcher = new Agent({ connect });
   else if (proxy) dispatcher = new ProxyAgent({ uri: proxy, requestTls: connect });
   else dispatcher = new EnvHttpProxyAgent({ connect, requestTls: connect } as never);
-  dispatcherCache.set(p.id, { stamp, dispatcher });
+  dispatcherCache.set(key, { stamp, dispatcher });
   return dispatcher;
 }
 
@@ -286,7 +316,7 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
       method: req.method,
       headers,
       body,
-      dispatcher: dispatcherFor(p),
+      dispatcher: dispatcherFor(p, req.clientTls),
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       // Redirects are followed manually (see followRedirects) so credentials can be
       // re-evaluated per hop; undici only strips Authorization, not custom headers.
@@ -796,6 +826,7 @@ async function followRedirects(
     const hopTrusted = await credentialsAllowed(p, secrets, url);
     // AWS SigV4: only requests to the platform's own origins are signed
     let sign: HttpRequest['sign'];
+    let clientTls: ClientTls | undefined;
     const headers: Record<string, string> = {};
     if (hopTrusted) for (const [k, v] of Object.entries(p.config.http?.defaultHeaders ?? {})) headers[k.toLowerCase()] = v;
     for (const [k, v] of Object.entries(req.headers ?? {})) {
@@ -810,6 +841,7 @@ async function followRedirects(
       const auth = await obtainAuthHeader(p, secrets, signal);
       if (auth && !headers[auth[0]]) headers[auth[0]] = auth[1];
       sign = await signerFor(p, secrets, signal, req.aws);
+      clientTls = clientTlsOf(secrets);
       if (p.config.auth?.type === 'apiKey' && p.config.auth.apiKeyIn === 'query' && hop === 0 && initialQuery) {
         /* the initial url already carries the query api key (buildUrl) */
       }
@@ -827,6 +859,7 @@ async function followRedirects(
         rawText: req.rawText,
         responseFile: req.responseFile,
         sign,
+        clientTls,
       },
       signal,
       attempt,
@@ -882,8 +915,9 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
     query[p.config.auth.apiKeyName || 'api_key'] = secrets.apiKey ?? '';
   }
   const url = await buildUrl(p, secrets, req.url, query);
-  // paths the kind never calls, e.g. a vault's secret values (v0.5.0, deniedPaths.ts)
+  // paths the kind never calls, e.g. a vault's secret values (v0.5.0, deniedPaths.ts); kinds that are only read (0.9.0)
   assertPathAllowed(p.kind, url);
+  assertMethodAllowed(p.kind, req.method);
   if (!trusted && /^https?:\/\//i.test(req.url)) await assertAbsoluteAllowed(url);
   if (!trusted) {
     let host = '';
