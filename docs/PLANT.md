@@ -1,8 +1,8 @@
 # Plant registry (preview)
 
-The plant registry documents the factories of the enterprise an installation serves: its **sites**, how each site is organised (**areas, work centers, work units**), its **buildings**, the **assets** – machines and equipment – in them, and since 0.7.0 **what data each asset's interfaces deliver and which KPIs are computed from it** (device profiles, data points, KPI definitions). It is an opt-in module: off by default, and while it is off nothing of it shows and the rest of Steward works as before. The design is recorded in [ADR 0007](adr/0007-plant-registry.md).
+The plant registry documents the factories of the enterprise an installation serves: its **sites**, how each site is organised (**areas, work centers, work units**), its **buildings**, the **assets** – machines and equipment – in them, since 0.7.0 **what data each asset's interfaces deliver and which KPIs are computed from it** (device profiles, data points, KPI definitions), and since 0.8.0 the **OT network** of sites and assets – VLANs, zones and conduits, devices, data paths – with the **live status** of each asset. It is an opt-in module: off by default, and while it is off nothing of it shows and the rest of Steward works as before. The design is recorded in [ADR 0007](adr/0007-plant-registry.md).
 
-> **Preview.** The pages, the API and the import format may still change in 0.8.0 (OT network and live status, #220). Format 1 stays importable; 0.7.0 added optional keys to it (#219).
+> **Preview.** The pages, the API and the import format may still change. Format 1 stays importable; 0.7.0 (#219) and 0.8.0 (#220) added optional keys to it.
 
 - [Turning it on](#turning-it-on)
 - [Concepts and standards](#concepts-and-standards)
@@ -11,13 +11,14 @@ The plant registry documents the factories of the enterprise an installation ser
 - [Links to Steward items](#links-to-steward-items)
 - [Own fields and display names](#own-fields-and-display-names)
 - [Device profiles, data points and KPIs](#device-profiles-data-points-and-kpis)
+- [Part 3: OT network](#part-3-ot-network)
 - [YAML import and export](#yaml-import-and-export)
 - [Permissions](#permissions)
 - [API](#api)
 
 ## Turning it on
 
-_Settings → Modules → Plant registry_ (administrators): **Turn on the plant registry**, give the enterprise's name and save. The sidebar gets the area **Plant** with _Sites_, _Assets_, _Device profiles_, _KPI definitions_, _Explore data_, _Checks_ and – for whoever may manage a site – _Import_; documents, tickets, services and applications can link to sites and assets.
+_Settings → Modules → Plant registry_ (administrators): **Turn on the plant registry**, give the enterprise's name and save. The sidebar gets the area **Plant** with _Sites_, _Assets_, _Device profiles_, _KPI definitions_, _Explore data_, _Checks_ and – for whoever may manage a site – _Import_; documents, tickets, services and applications can link to sites and assets. Each site page leads to its **OT network** (since 0.8.0).
 
 Turning it off hides the area, the pages and the link kinds again; every route of the module answers `404` with the code `PLANT_MODULE_OFF` (also `/api/v1/plant/…`). The data stays and is back when the module is turned on again. Turning it on or off is audited (`plant.module_enabled`, `plant.module_disabled`).
 
@@ -141,6 +142,62 @@ _Plant → Explore data_: **who delivers a data point** – a text across every 
 
 Everyone who sees the plant registry sees the catalogues (the role _Plant viewer_ included); **designers and administrators** manage them (whoever may add sites). An assignment and its KPI instances follow the asset's site: who sees the site sees them, who manages it changes them. Lists, counts, the search, the checks and the data point and KPI pages count and name only assets of sites the reader may see; a profile that only a hidden asset has is “still in use” without a count. Every change is audited (`device_profile.created|updated|deleted`, `kpi_definition.created|updated|deleted`, `asset.assignment_set|assignment_removed`, `*.duplicated`).
 
+## Part 3: OT network
+
+Part 3 of the registry (#220, [ADR 0007 – Part 3](adr/0007-plant-registry.md#part-3-ot-network-080)) documents how the plant's operational-technology network looks and whether an asset is online. It is documentation, **not a CMDB, not an IP address management tool**: Steward checks formats (VLAN IDs, CIDR subnets, addresses, MAC addresses), not overlaps, and reads nothing from switches or firewalls. A **site** holds its VLANs, zones and conduits; an **asset** its devices, data paths and the checks that tell its live status.
+
+### Standards
+
+| What               | Standard                                                                                                                                                                                                                                                              |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| VLANs              | **IEEE 802.1Q**: the VLAN identifier (VID) is 1–4094                                                                                                                                                                                                                  |
+| Subnets, addresses | **CIDR** notation (RFC 4632) for IPv4 and IPv6 (`10.20.110.0/24`, `2001:db8::/48`); addresses IPv4 (RFC 791) or IPv6 (RFC 4291 text forms)                                                                                                                            |
+| MAC addresses      | **EUI-48** (IEEE 802): any usual spelling is accepted (`ac:de:48:00:00:80`, `acde.4800.0080`) and stored in IEEE 802 notation `AC-DE-48-00-00-80`                                                                                                                     |
+| Zones and conduits | **IEC 62443-3-2** (security risk assessment for system design): a _zone_ groups assets with the same security requirements; a _conduit_ connects two zones; the **target security level SL-T** (1–4) of a zone is set by a risk assessment – until then it stays open |
+| Host names         | DNS names (RFC 1123 labels)                                                                                                                                                                                                                                           |
+
+### VLANs and network segments
+
+_Plant → Sites → a site → OT network → VLANs_: a VLAN has a stable id, a name, its **VID**, a type (production, management, DMZ …), an owner, a description, **subnets** (CIDR, an optional gateway inside the subnet, **ranges** from a first to a last address of the type _blocked_, _dynamic_ or _static_), whether access is **restricted**, who **manages** it, **where its access rules are kept**, other **sites** it reaches and its **location**.
+
+A VLAN can be **linked to a Steward network segment** (a system of kind _Network segment_, [FIREWALL-CHANGES.md](FIREWALL-CHANGES.md#network-segments)): pick an existing one, or use **Create segment from this VLAN** in the VLAN's menu – Steward creates the segment with the VLAN's VID, subnets, the zones it is in and the site's name, with the catalogue's own rights and audit, and links it. **Nothing becomes a segment on its own.** When a linked pair differs – another VID, subnets only one of them has (compared in canonical form, so `10.1.2.3/24` and `10.1.2.0/24` are the same) – the VLAN shows a **hint** with the difference; Steward changes neither.
+
+A VLAN that zones or devices name cannot be removed (`PLANT_VLAN_IN_USE`).
+
+### Zones and conduits
+
+_OT network → Zones and conduits_:
+
+- a **zone** has a description, a **criticality** (low, medium, high, critical), the **VLANs** of the site in it, an owner, the **SL-T** – with the **risk assessment** that set it (required with SL-T: a document number or link) and its date – and notes. Without SL-T the zone shows _SL-T open_;
+- a **conduit** connects **two different zones** of the site, with a **direction** (from the first to the second, the other way, both), its **protocols** (`opc-ua tcp/4840`, `https tcp/443`), its **controls** (firewall, data diode, jump host) and notes.
+
+**Firewall changes link to a conduit**: `conduit` is a link kind (id `<site>/<conduit>`, shown under _Links → Conduit_ while the module is on), so a firewall change (`FWC`) names the conduit it changes besides the affected segments and systems. The conduit lists the records that link to it. A zone that a conduit connects cannot be removed (`PLANT_ZONE_IN_USE`).
+
+### Devices of an asset
+
+On the asset page, section **OT network → Devices** – the network identity of the asset, often a small box next to the machine: **host name and domain**, purpose, **MAC** (EUI-48), serial number; **VLAN** (of the asset's site), **address type** (dynamic, reserved, static) and **address**; **switch, switch port, wall outlet, CMDB port name**; **state** (planned, active, inactive, retired), **flags** (snake_case: `device_ordered`, `port_ordered`, `address_ordered` …) and a **confidence** (high, medium, low: how sure the documentation is); **owner**, the **monitoring** that watches it (text) and its **linked checks**. A device shows a hint when its VLAN does not exist (any more), its address is outside the VLAN's subnets or in a blocked range. _OT network → Devices_ lists the devices of every asset of the site, with a search.
+
+### Data paths of an asset
+
+**OT network → Data paths**: what data leaves the asset – a **subject** (machine state, NC programs), the **devices** it covers, the **collector** (a Steward **application**, **platform** or **process**, or a **job** elsewhere by name, optionally with the Steward **system** it runs on), its **transfers** (protocol, **push or pull**, port, the **peer**: a device of the asset, a Steward system or text) and its **destinations** (a Steward system with a path, a Steward dataset, or text).
+
+**Hosts are Steward systems**, so chains of services – _pull job → file share → archive job_ – can be followed link by link: a data path **continues in** every data path that reads (as a transfer peer or the collector's host) from a system it writes to, and **comes from** those that write to a system it reads from, across assets and sites the reader may see. A device that a data path names cannot be removed (`PLANT_DEVICE_IN_USE`).
+
+### Live status
+
+An asset or device is **online**, **offline** or **unknown** – **only from its linked checks**:
+
+- a **monitor** (by key or id) or **one of its checks** (by check id or key): Gatus endpoints, CheckMk services, the MQTT silent-device check, Kafka and every other check type ([MONITORS.md](MONITORS.md)). _Up_ and _degraded_ are online (degraded with its reason), _down_ is offline; no result yet, blocked, maintenance or a monitor or check that is turned off is unknown;
+- the **freshness of a dataset** (the last value of an aspect on an IoT platform, published by a process): optionally only the rows whose **column** has a **value** (the row of this asset or device), the **time column** of the last value and a **maximum age** in minutes (empty: the dataset's own freshness, [DASHBOARDS.md](DASHBOARDS.md)). Newer is online, older offline; no data under the key, no row or no readable time is unknown.
+
+A device is offline when any of its checks says offline, online only when **every** check says online, unknown otherwise – and **unknown when nothing is linked**. An asset combines its own checks with those of its devices that have checks (a device without checks says nothing): offline wins, unknown is never shown as online. The status is shown on the asset page, on the **site page** (a card with the counts) and on the site's **overview dashboard** _OT network → Status_ (online, offline and unknown assets, each with its devices and data paths). It is read when the page is read; Steward stores no status history of its own (the monitors and datasets have theirs).
+
+A monitor or dataset the reader may not see is not named – the status it gives is shown (it is a fact about the asset), "a check you may not see"; a Plant viewer sees names, never links.
+
+### Rights
+
+The OT network follows its site ([Permissions](#permissions)): who **sees the site** sees its VLANs, zones, conduits and the devices, data paths and live status of its assets – the role _Plant viewer_ included; who **manages the site** changes them. Status viewers never reach it, and nothing of it is shown on status pages. A site or asset someone may not see answers `404`, in the import too ("There is no site …", "You may not add or change asset …"); a VLAN's other sites and the conduit link targets leave out sites they may not see. Linking a monitor, a segment, a collector or a host needs to see it (an item that was linked before may stay). Every change is audited on its site or asset: `site.vlan_added|vlan_changed|vlan_removed`, `site.zone_*`, `site.conduit_*`, `asset.device_added|device_changed|device_removed`, `asset.data_path_*`, `asset.checks_set`; creating a segment from a VLAN is also `system.created`.
+
 ## YAML import and export
 
 The format is YAML (or JSON) in snake_case, **version 1**, described by a JSON Schema 2020-12 document: [`docs/plant/plant-registry-1.schema.json`](plant/plant-registry-1.schema.json) (also `GET /api/plant/schema`). Editors that understand `# yaml-language-server: $schema=…` check a file while it is written; the export writes that line.
@@ -150,6 +207,7 @@ A file holds
 - a whole tree – `sites:` with every site, its buildings, areas and assets;
 - one site – `site:` (a file per site);
 - or only assets – `assets:`, each naming its site in `location.site` (a file per asset);
+- since 0.8.0 the **OT network** (optional keys): `ot_networks:` or `ot_network:` (the VLANs, zones and conduits of a site, a file per site) and `asset_networks:` or `asset_network:` (the devices, data paths and checks of an asset, a file per asset);
 - since 0.7.0 also (optional keys; files of 0.6.0 stay valid) **device profiles** – `device_profiles:` or `device_profile:` (a file per profile), **KPI definitions** – `kpi_definitions:` or `kpi_definition:`, and **assignments** of assets – `assignments:` or `assignment:` (a file per asset).
 
 Several files are imported together, so a repository with one hierarchy file per site and one file per asset is one import.
@@ -275,6 +333,80 @@ assignment:
 
 Values are read in their usual spellings: protocols `OPC-UA`, `Modbus/TCP`, `SMB/CIFS`, `HTTP`; sign-in `username-password`; data types `int`, `float[]`, `bool`; units `kWh`, `°C`, `rpm`; an input kind `datapoint`. Files of other tools import after renaming their keys, for example `profile_id`/`kpi_id` → `id`, `display_name` → `name`, `type` (of an interface) → `protocol`, `requires_client` → `client`, `datapoint_groups` → `groups`, `group` → `name`, `datapoints` → `data_points`, `type` (of a data point) → `data_type`, `opc_node_id` → `node_id`, `typical_update_rate_ms` → `update_rate_ms`, `params` → `parameters`, `variables` → `data_points`, `arity` → `scope`; in an assignment `asset_id` → `asset`, `controller_profile` → `profile`, `controller_firmware` → `firmware`, `connectivity` → `interfaces`, `interface_id` → `interface`, `endpoint_url` → `endpoint`, `datapoint_overrides` → `overrides`, publications' `datapoint` → `data_point`, `aspect` → `path`, `variable` → `name`, `job_name` → `job`; attributes of the asset itself (its tags, its name) go into the asset, not the assignment. A profile and a KPI definition are matched by their `id`, an assignment by its asset.
 
+### OT network
+
+```yaml
+version: 1
+ot_network:
+  site: riverside
+  vlans:
+    - id: rvs-vlan-110
+      name: Machining cells
+      vid: 110 # IEEE 802.1Q
+      type: production
+      subnets:
+        - cidr: 10.20.110.0/24
+          gateway: 10.20.110.1
+          ranges:
+            - { start: 10.20.110.1, end: 10.20.110.9, type: blocked }
+            - { start: 10.20.110.10, end: 10.20.110.99, type: static }
+      restricted: true
+      managed_by: OT network team
+      rules_at: Firewall FW-RVS-1, rule set "machining"
+      segment: sys_… # optional: the Steward network segment
+  zones:
+    - {
+        id: rvs-zone-cells,
+        name: Production cells,
+        criticality: high,
+        vlans: [rvs-vlan-110],
+        sl_t: 2,
+        risk_assessment: RA-RVS-2026-01,
+        assessed_at: '2026-03-02',
+      }
+    - { id: rvs-zone-dmz, name: OT DMZ, vlans: [rvs-vlan-900] } # SL-T open
+  conduits:
+    - {
+        id: rvs-cdt-cells-dmz,
+        name: Cells to DMZ,
+        zones: [rvs-zone-cells, rvs-zone-dmz],
+        direction: a_to_b,
+        protocols: [opc-ua tcp/4840],
+        controls: [firewall FW-RVS-1],
+      }
+---
+version: 1
+asset_network:
+  asset: rvs-mill-01
+  site: riverside # optional, checked
+  checks: # the asset's own live-status checks
+    - { dataset: iot.last-values, column: asset, value: rvs-mill-01, time_column: ts, max_age_minutes: 15 }
+  devices:
+    - id: rvs-mill-01-ipc
+      hostname: rvs-mill-01-ipc
+      domain: ot.example.com
+      mac: 00-00-5E-00-53-11
+      vlan: rvs-vlan-110
+      address_type: static
+      address: 10.20.110.21
+      switch: rvs-sw-h1-a1
+      switch_port: Gi1/0/12
+      flags: [port_ordered]
+      confidence: high
+      checks: [{ monitor: rvs-ot, check: mill-01-ipc }]
+  data_paths:
+    - id: machine-state
+      subject: Machine state and spindle values
+      devices: [rvs-mill-01-ipc]
+      collector: { kind: job, ref: rvs-edge-collector } # or application, platform, process (Steward ids), with host: <system id>
+      transfers:
+        - { protocol: opc-ua, mode: pull, peer_kind: device, peer: rvs-mill-01-ipc, port: 4840 }
+      destinations:
+        - { ref: IoT platform, path: rvs-mill-01/state } # kind: system (a Steward system id), dataset (a key) or other
+```
+
+Keys: an OT network has `site`, `vlans`, `zones`, `conduits`; a VLAN `id`, `name`, `vid`, `type`, `owner`, `description`, `subnets` (`cidr`, `gateway`, `description`, `ranges` with `start`, `end`, `type`, `notes`), `restricted`, `managed_by`, `rules_at`, `sites`, `location`, `segment`, `notes`; a zone `id`, `name`, `description`, `criticality`, `vlans`, `owner`, `sl_t`, `risk_assessment`, `assessed_at`, `notes`; a conduit `id`, `name`, `description`, `zones` (two), `direction`, `protocols`, `controls`, `notes`. An asset network has `asset`, `site`, `checks`, `devices`, `data_paths`; a device `id`, `hostname`, `domain`, `purpose`, `mac`, `serial`, `vlan`, `address_type`, `address`, `switch`, `switch_port`, `wall_outlet`, `cmdb_port`, `state`, `flags`, `confidence`, `owner`, `monitoring`, `checks`, `notes`; a data path `id`, `subject`, `description`, `devices`, `collector` (`kind`, `ref`, `host`), `transfers` (`protocol`, `mode`, `peer_kind`, `peer`, `port`, `notes`), `destinations` (`kind`, `ref`, `path`, `notes`), `notes`; a check either `monitor` (with `check`) or `dataset` (with `column`, `value`, `time_column`, `max_age_minutes`), and `note`. A VLAN, zone and conduit are matched by their site and id, a device and data path by their asset and id, the checks by their asset. The same rules as an edit apply; in _replace_ with _remove_, a VLAN, zone or device that goes while a record that stays names it stops the import. `examples/plant/brightwater-ot-network.plant.yaml` is an invented OT network of the example enterprise (import it after `brightwater.plant.yaml`).
+
 ### Modes
 
 _Plant → Import_ (or `POST /api/plant/import`): choose the files and the mode, look at the preview, then import.
@@ -295,7 +427,7 @@ _Plant → Import_ (or `POST /api/plant/import`): choose the files and the mode,
 
 ### Export
 
-_Export YAML_ on the site list (every site you may see, with the device profiles, KPI definitions and the assignments of the assets), on a site page (that site, as `site:`, with the assignments of its assets), on the profile and KPI lists (`?part=catalogue`: the device profiles and KPI definitions) and on a profile or KPI definition page (`?profile=<id>`, `?kpi=<id>`: one record, as `device_profile:` or `kpi_definition:`), or `GET /api/plant/export[?site=<id>|?part=catalogue|?profile=<id>|?kpi=<id>]`. The export is format 1 and imports back unchanged: exporting, importing the file in _replace_ mode and exporting again gives the same file. It is audited (`plant.exported`).
+_Export YAML_ on the site list (every site you may see, with the device profiles, KPI definitions, the assignments of the assets and their OT networks), on a site page and its OT network (that site, as `site:`, with the assignments of its assets, `ot_network:` and `asset_networks:`), on the profile and KPI lists (`?part=catalogue`: the device profiles and KPI definitions) and on a profile or KPI definition page (`?profile=<id>`, `?kpi=<id>`: one record, as `device_profile:` or `kpi_definition:`), or `GET /api/plant/export[?site=<id>|?part=catalogue|?profile=<id>|?kpi=<id>]`. The export is format 1 and imports back unchanged: exporting, importing the file in _replace_ mode and exporting again gives the same file. It is audited (`plant.exported`).
 
 ## Permissions
 
@@ -306,13 +438,14 @@ Rights are per site; the hierarchy, buildings and assets of a site follow it ([A
 - **Owning teams**: as for other resources, members of the owning teams have their instance and team roles on the site.
 - **Plant viewer** (`plant`): a new instance role that **sees only the plant registry** (sites that are not restricted) and their own profile. For a user whose only working role it is – no other instance role (a _status_ role adds the status pages) and no role in a team – the server refuses every other route (`403 PLANT_VIEWER_ONLY`), the public API answers only `/api/v1/plant/…` and `/api/v1/me`, the MCP endpoint refuses them, and the web app shows the _Plant_ area and the profile only. Linked systems and applications show by name, without a link; records, services and credentials that link to a site or asset are not listed. With another working role, they keep that role's access.
 - **Status viewers** never see the module; nothing of it is shown on status pages.
+- The **OT network** (#220) follows its site: who sees the site sees it, who manages the site changes it ([Rights](#rights-1)).
 - **Device profiles and KPI definitions** (#219) belong to the installation: everyone who sees the registry sees them, designers and administrators manage them. An asset's **assignment and KPI instances** follow its site ([Rights](#rights)).
 
 A site or asset that you may not see answers `404`, as if it did not exist; a link to it shows as "not visible".
 
 ## API
 
-The internal API (the web app) is under `/api/plant/…`: `sites`, `sites/:siteId` with `nodes`, `buildings`, `links` and `access`, `hierarchy`, `assets`, `assets/:assetId` with `image` and `links`, `import/preview`, `import`, `imports`, `export`, `schema`, `config`; since 0.7.0 `assets/:assetId/assignment` (`GET`, `PUT`, `DELETE`), `profiles`, `profiles/:profileId` with `points/:pointId` and `duplicate`, `kpis`, `kpis/:kpiId` with `duplicate`, `explore/points?q=` and `checks`; `assets` also takes `profile` and `dataPoint`; the switch and settings are `GET`/`PUT /api/settings/plant`.
+The internal API (the web app) is under `/api/plant/…`: `sites`, `sites/:siteId` with `nodes`, `buildings`, `links` and `access`, `hierarchy`, `assets`, `assets/:assetId` with `image` and `links`, `import/preview`, `import`, `imports`, `export`, `schema`, `config`; since 0.7.0 `assets/:assetId/assignment` (`GET`, `PUT`, `DELETE`), `profiles`, `profiles/:profileId` with `points/:pointId` and `duplicate`, `kpis`, `kpis/:kpiId` with `duplicate`, `explore/points?q=` and `checks`; `assets` also takes `profile` and `dataPoint`; since 0.8.0 `sites/:siteId/network` (the whole OT network of a site with every asset's live status and the systems the data paths name – one answer for a diagram), `sites/:siteId/vlans[/:vlanId[/segment]]`, `sites/:siteId/zones[/:zoneId]`, `sites/:siteId/conduits[/:conduitId]`, `assets/:assetId/network`, `assets/:assetId/devices[/:deviceId]`, `assets/:assetId/paths[/:pathId]` and `assets/:assetId/checks`; the switch and settings are `GET`/`PUT /api/settings/plant`.
 
 The public, read-only API ([API.md](API.md), tag _Plant_):
 
@@ -325,7 +458,9 @@ The public, read-only API ([API.md](API.md), tag _Plant_):
 - `GET /api/v1/plant/kpis`, `GET /api/v1/plant/kpis/{kpiId}` – KPI definitions with inputs, parameters, columns, computation, checks, instances and candidates;
 - `GET /api/v1/plant/assets?profile=&dataPoint=` – the assets that have a profile (and deliver one of its data points);
 - `GET /api/v1/plant/checks?site=&asset=&kpi=&kind=` – the problems of [Checks](#checks) (paginated);
-- `GET /api/v1/plant/export?site=|part=catalogue|profile=|kpi=&format=yaml|json` – the registry in the import format.
+- `GET /api/v1/plant/sites/{siteId}/network` – the OT network of a site: VLANs (with the linked segment and the hint), zones, conduits (with the records that link to them), the devices and data paths of its assets and every asset's live status (#220);
+- `GET /api/v1/plant/assets/{assetId}/network` – an asset's devices, data paths, own checks and live status;
+- `GET /api/v1/plant/export?site=|part=catalogue|profile=|kpi=&format=yaml|json` – the registry in the import format (with the OT network).
 
 They answer `404` while the module is off.
 

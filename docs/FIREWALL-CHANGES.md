@@ -69,7 +69,7 @@ A built-in document type, next to `CR`, created in every installation (also exis
 | Rollback plan       | text (several lines)                                                          |
 | Rules\*             | table, one row per rule line                                                  |
 
-The **affected segments and systems** are links of the kind _System_ (note _affected_); a firewall change cannot be submitted without one. The **rule lines** are a [table field](RECORDS.md#table-fields) with the columns _Change_ (add / remove), _Source_, _Destination_, _Protocol/port_ (`tcp/443`), _Action_ (allow / deny), _Enforced at_ (perimeter firewall, host firewall, cloud security group), _Purpose_ and _Expiry_ (a date, for temporary rules).
+The **affected segments and systems** are links of the kind _System_ (note _affected_); a firewall change cannot be submitted without one. With the plant registry on, a change can also link to the **IEC 62443-3-2 conduit** it changes (link kind _Conduit_, [PLANT.md](PLANT.md#zones-and-conduits)); the conduit lists the changes that name it. The **rule lines** are a [table field](RECORDS.md#table-fields) with the columns _Change_ (add / remove), _Source_, _Destination_, _Protocol/port_ (`tcp/443`), _Action_ (allow / deny), _Enforced at_ (perimeter firewall, host firewall, cloud security group), _Purpose_ and _Expiry_ (a date, for temporary rules).
 
 ### Steps
 
