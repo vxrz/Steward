@@ -2,13 +2,14 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Platform } from '@sm/shared';
-import { platformRequest } from '../src/platforms/http.js';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 // F3: custom-named credential headers must be dropped on a cross-origin redirect
 // (undici only strips `Authorization`). Since 0.9.0 the redirect target goes through the outbound policy (#243):
 // the sink is on the allow-list here, platform-redirects.test.ts covers the refusal.
 let s: TestServer;
+// imported after the test server set its data folder (config.ts reads it once)
+let platformRequest: (typeof import('../src/platforms/http.js'))['platformRequest'];
 let origin: http.Server;
 let sink: http.Server;
 let originPort = 0;
@@ -35,6 +36,7 @@ beforeAll(async () => {
   await new Promise<void>((r) => origin.listen(0, '127.0.0.1', r));
   originPort = (origin.address() as AddressInfo).port;
   s = await startTestServer();
+  ({ platformRequest } = await import('../src/platforms/http.js'));
   await setup(s);
   await s.api('PUT', '/settings', { outboundAllowList: [`http://127.0.0.1:${sinkPort}`] });
 });
