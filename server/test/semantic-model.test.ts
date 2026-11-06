@@ -86,7 +86,7 @@ describe('semantic model (Apache Ossie)', () => {
     }
     // every dataset says which API operation serves it, and that operation exists in the OpenAPI document
     const openapi = JSON.parse((await get('/openapi.json')).text);
-    const ops = new Set(Object.values<any>(openapi.paths).map((p) => p.get.operationId));
+    const ops = new Set(Object.values<any>(openapi.paths).map((p) => (p.get ?? p.post).operationId));
     for (const d of doc.datasets) {
       const ext = JSON.parse(d.custom_extensions[0].data).steward;
       expect(ops.has(ext.operationId), `${d.name} → ${ext.operationId}`).toBe(true);
