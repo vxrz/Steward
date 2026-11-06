@@ -2,12 +2,20 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Platform } from '@sm/shared';
-import { platformRequest, secretValues } from '../src/platforms/http.js';
+import { setup, startTestServer, type TestServer } from './helpers.js';
 
 // One local server reachable under two origins (127.0.0.1 and localhost) – it echoes what it received.
 let server: http.Server;
 let port = 0;
+// the outbound policy (0.8.0: an absolute URL to another host needs it) reads the settings
+let s: TestServer;
+// imported after the test server set the data folder (the settings live in its database)
+let platformRequest: typeof import('../src/platforms/http.js').platformRequest;
+let secretValues: typeof import('../src/platforms/http.js').secretValues;
 beforeAll(async () => {
+  s = await startTestServer();
+  await setup(s);
+  ({ platformRequest, secretValues } = await import('../src/platforms/http.js'));
   server = http.createServer((req, res) => {
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify({ authorization: req.headers.authorization ?? null, apiKey: req.headers['x-api-key'] ?? null, url: req.url }));
@@ -15,7 +23,10 @@ beforeAll(async () => {
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   port = (server.address() as AddressInfo).port;
 });
-afterAll(() => new Promise<void>((r) => server.close(() => r())));
+afterAll(async () => {
+  await new Promise<void>((r) => (server ? server.close(() => r()) : r()));
+  await s?.app.close();
+});
 
 const platform = (config: Partial<Platform['config']> = {}): Platform =>
   ({
@@ -44,6 +55,11 @@ describe('platform credentials only reach the platform', () => {
 
   it('withholds credentials, API keys and default headers for other origins', async () => {
     const p = platform({ http: { defaultHeaders: { 'x-api-key': 'default-key' } } } as Partial<Platform['config']>);
+    // another origin goes through the outbound policy: refused until it is on the allow-list
+    await expect(platformRequest(p, { token: 'secret-token-2' }, { method: 'GET', url: `http://localhost:${port}/steal` })).rejects.toThrow(
+      /Blocked by the outbound policy/,
+    );
+    await s.api('PUT', '/settings', { outboundAllowList: [`http://localhost:${port}`] });
     const res = await platformRequest(p, { token: 'secret-token-2' }, { method: 'GET', url: `http://localhost:${port}/steal` });
     expect(res.body).toMatchObject({ authorization: null, apiKey: null });
     const q = platform({ auth: { type: 'apiKey', apiKeyIn: 'query', apiKeyName: 'key' } } as Partial<Platform['config']>);

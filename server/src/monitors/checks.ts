@@ -4,7 +4,7 @@ import tls from 'node:tls';
 import { Agent, EnvHttpProxyAgent, fetch, type Dispatcher } from 'undici';
 import type { CheckOf, MonitorStatus, Platform } from '@sm/shared';
 import { evalExpr } from '../engine/expr.js';
-import { buildUrl, platformRequest, type HttpResult } from '../platforms/http.js';
+import { buildUrl, credentialsAllowed, platformRequest, type HttpResult } from '../platforms/http.js';
 import { findRecording, missingRecording } from '../platforms/recordings.js';
 import { assertAddressSafe, assertNetAllowed, assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
@@ -52,6 +52,9 @@ async function checkRequest(
     ctx.recorded.recorded = true;
     return hit.result;
   }
+  // the outbound policy as for every other request: the base URL – or an absolute URL in the path (0.8.0)
+  const target = await buildUrl(platform, secrets, req.url, {});
+  await assertOutboundAllowed(target, outboundContext(), { platformOrigins: (await credentialsAllowed(platform, secrets, target)) ? [target] : [] });
   return platformRequest(
     platform,
     secrets,

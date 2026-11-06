@@ -9,7 +9,7 @@ import { HttpError } from '../util.js';
 import { SpanKind, SpanStatusCode, injectTraceHeaders, withSpan } from '../telemetry.js';
 import { logger } from '../log.js';
 import { emit } from '../events.js';
-import { guardedLookup } from './outbound.js';
+import { assertOutboundAllowed, guardedLookup } from './outbound.js';
 import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
 import { JWT_ALGS, certificateThumbprints, clientAssertion, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
 import { where as originAndPath } from './answers.js';
@@ -858,6 +858,17 @@ async function followRedirects(
 const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
 
 /**
+ * An absolute URL in place of a path (a check's or a step's path, a test path, an ad-hoc request) to a host that is
+ * not the platform's own goes through the outbound policy like every other request (0.8.0): the platforms' origins or
+ * the allow-list. The platform's own origins – its base URL, its trusted origins, the AWS endpoints of an AWS account,
+ * where its credentials go – are what a path is.
+ */
+async function assertAbsoluteAllowed(url: string): Promise<void> {
+  const { outboundContext } = await import('./policyContext.js');
+  await assertOutboundAllowed(url, outboundContext());
+}
+
+/**
  * Perform an authenticated request against a platform.
  * Retries 429/502/503/504 and network errors (honouring Retry-After; POST/PATCH
  * only with retryNonIdempotent) and limits concurrent calls per platform.
@@ -873,6 +884,7 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
   const url = await buildUrl(p, secrets, req.url, query);
   // paths the kind never calls, e.g. a vault's secret values (v0.5.0, deniedPaths.ts)
   assertPathAllowed(p.kind, url);
+  if (!trusted && /^https?:\/\//i.test(req.url)) await assertAbsoluteAllowed(url);
   if (!trusted) {
     let host = '';
     try {
