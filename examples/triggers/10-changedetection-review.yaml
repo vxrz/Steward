@@ -1,0 +1,39 @@
+# steward-min-version: 0.9.0
+# An example webhook trigger (#242): changedetection.io's notification of a changed page starts a review task.
+# Create the trigger under Triggers → New webhook trigger with the process "changedetection.io – Review a changed page"
+# and "Map: changedetection.io notification"; the secret dialog then shows the notification URL to paste into
+# changedetection.io. See docs/CHANGEDETECTION.md.
+kind: webhookTrigger
+name: changedetection.io notification
+description: |
+  A changed page – vendor terms, pricing, release notes, a status page – starts "changedetection.io – Review a changed
+  page": the watch is looked up in changedetection.io and a person gets a review task with the link to the diff.
+  changedetection.io sends its notification with its Apprise "posts://" URL as a JSON POST whose body you set (below);
+  the secret goes in the header X-Steward-Token. Set the notification format to plain text.
+process: 76-changedetection-review-change
+authMode: token
+# changedetection.io sends one notification per change; a second identical one within 15 minutes is a repeat
+dedupeSeconds: 900
+# several pages may change at once – each gets its own review
+skipIfRunning: false
+rateLimitPerMinute: 30
+inputMapping:
+  watchUuid: body.watch_uuid
+  watchTitle: body.watch_title
+  watchUrl: body.watch_url
+  diffUrl: body.diff_url
+  tags: body.watch_tag
+samplePayload:
+  watch_uuid: 7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e01
+  watch_title: Zentrova Cloud – Terms of service
+  watch_url: https://zentrova.example.com/legal/terms
+  diff_url: https://changes.example.com/diff/7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e01?from_version=1761901200&to_version=1762333200
+  watch_tag: vendor-terms
+sender:
+  name: changedetection.io
+  # Apprise URL of changedetection.io's own HTTP handler: posts:// sends the body as it is (https; post:// for http),
+  # ?+Name=value adds a request header
+  url: "{post}://{hostPath}?+X-Steward-Token={secret}"
+  # Jinja2 in changedetection.io; |tojson quotes each value, so a title with quotes still makes valid JSON
+  body: '{"watch_uuid": {{ watch_uuid|tojson }}, "watch_title": {{ watch_title|tojson }}, "watch_url": {{ watch_url|tojson }}, "diff_url": {{ diff_url|tojson }}, "watch_tag": {{ watch_tag|tojson }}}'
+  docs: docs/CHANGEDETECTION.md
