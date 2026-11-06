@@ -147,7 +147,7 @@ It runs with the monitor owner's rights; the scope must be one they (and whoever
 
 ## Who sees costs
 
-- A scope is only reachable for those who may see it: a hidden service, application, team or platform answers like a missing one; lists, breakdowns, reports and the check neither name nor count it (applications or platforms you may not see are one row _Others you may not see_; sources you may not see are left out).
+- A scope is only reachable for those who may see it: a hidden service, application, team or platform answers like a missing one; lists, breakdowns, reports and the check neither name nor count it. A service or team covers only the applications you may see – one you may not see is left out of its totals; a platform's total is its bill, so there the applications (or, for an application, the platforms) you may not see are one row _Others you may not see_ without a name; sources you may not see are left out. Budgets and their notices always use the whole service or team.
 - **Amounts**: administrators and auditors; the named **owners** and the members of the **owning teams** of a service or application; the members of a team; who may manage a platform or is a member of its owning teams. Everybody else who may see the scope sees the amounts too – unless an administrator turns on **Hide amounts from viewers** (_Costs → Settings_): then they see percentages and budget states only. Changing the setting is audited (`cost.settings_changed`).
 - Viewers see no platforms (as everywhere); auditors see every platform's costs.
 

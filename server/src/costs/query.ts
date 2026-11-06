@@ -183,12 +183,12 @@ export function budgetOf(scope: CostBudgetScope, id: string, amounts: boolean, n
   const b = budgetRow(scope, id);
   if (!b) return null;
   const month = monthOf(now);
-  const m = sums(coverWhere(coverOf(scope, id)), month)
+  const m = sums(coverWhere(coverOf(scope, id, false)), month)
     .get(b.currency)
     ?.get(month);
   const used = m?.e ?? 0;
   const limit = Number(b.amount);
-  const forecast = m ? (monthForecast(coverWhere(coverOf(scope, id)), month, now).get(b.currency) ?? null) : null;
+  const forecast = m ? (monthForecast(coverWhere(coverOf(scope, id, false)), month, now).get(b.currency) ?? null) : null;
   const p = limit > 0 ? Math.round((used / limit) * 1000) / 10 : 0;
   return {
     scope,

@@ -145,19 +145,27 @@ function teamApplications(teamId: string): string[] {
     .map((a) => a.id);
 }
 
-export function coverOf(scope: CostScope, id: string): ScopeCover {
+/**
+ * What a scope covers. For a reader (`visibleOnly`, the default) a service or team covers only the applications they
+ * may see – an application they may not see is neither named nor counted in its totals; budgets and their notices use
+ * the whole scope (`visibleOnly: false`).
+ */
+export function coverOf(scope: CostScope, id: string, visibleOnly = true): ScopeCover {
   if (scope === 'platform') return { applications: [], unassignedPlatforms: [], platform: id };
   if (scope === 'application') return { applications: [id], unassignedPlatforms: [], platform: null };
+  const u = visibleOnly ? currentUser() : null;
+  const seen = (appId: string) => !u || !!scopeInfo('application', appId, u);
   if (scope === 'service')
     return {
       applications: db()
         .all<{ application_id: string }>('SELECT application_id FROM service_applications WHERE service_id = ? ORDER BY application_id', id)
-        .map((r) => r.application_id),
+        .map((r) => r.application_id)
+        .filter(seen),
       unassignedPlatforms: [],
       platform: null,
     };
   return {
-    applications: teamApplications(id),
+    applications: teamApplications(id).filter(seen),
     unassignedPlatforms: db()
       .all<{ resource_id: string }>("SELECT resource_id FROM resource_teams WHERE kind = 'platform' AND team_id = ? ORDER BY resource_id", id)
       .map((r) => r.resource_id),

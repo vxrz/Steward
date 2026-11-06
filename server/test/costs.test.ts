@@ -245,6 +245,15 @@ describe('who sees costs', () => {
     expect(JSON.stringify(o)).not.toContain('Secret app');
     expect(o.parts.some((p: { kind: string }) => p.kind === 'other')).toBe(true);
     expect((await olivia('GET', '/costs?scope=application')).rows.some((r: { id: string }) => r.id === secret)).toBe(false);
+    // a service with the hidden application: its costs are neither named nor counted for olivia
+    await s.api('PUT', `/services/${service}/applications/${secret}`, {});
+    const full = await s.api('GET', `/costs/service/${service}`);
+    expect(full.parts.map((p: { name: string }) => p.name)).toContain('Secret app');
+    const mine = await olivia('GET', `/costs/service/${service}`);
+    expect(JSON.stringify(mine)).not.toContain('Secret app');
+    expect(mine.parts.some((p: { kind: string }) => p.kind === 'other')).toBe(false);
+    expect(Number(mine.currencies[0].lastMonth)).toBe(Number(full.currencies[0].lastMonth) - 99);
+    await s.api('DELETE', `/services/${service}/applications/${secret}`);
   });
 });
 
@@ -280,6 +289,14 @@ describe('push from CI', () => {
     const other = (await s.api('GET', '/platforms')).find((p: { id: string; kind: string }) => p.id !== platform && p.kind === 'generic');
     expect((await push(t.token, csv('1'), {}, other.id)).json.code).toBe('COST_PUSH_TOKEN_INVALID');
 
+    // the body limit of the push is the file limit
+    const big = await fetch(`${s.base}/api/hooks/costs/${platform}`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/csv', authorization: `Bearer ${t.token}` },
+      body: 'x'.repeat(26 * 1024 * 1024),
+    });
+    expect(big.status).toBe(413);
+    (await import('../src/costs/push.js')).resetCostPushState();
     const ok = await push(t.token, csv('2'), {}, platform, '?fileName=ci.csv&mode=add');
     expect(ok.status).toBe(200);
     expect(ok.json).toMatchObject({ inserted: 1, import: { via: 'push', fileName: 'ci.csv', mode: 'add' } });

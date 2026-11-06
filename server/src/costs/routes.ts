@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { COST_SCOPES, costBudgetInput } from '@sm/shared';
 import { ACCESS } from '../auth/access.js';
-import { LARGE_BODIES } from '../bodyLimits.js';
+import { COST_PUSH_BODY_LIMIT, LARGE_BODIES } from '../bodyLimits.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { costSettings, setCostSettings } from './access.js';
 import { overview, scopeDetail } from './query.js';
@@ -101,7 +101,7 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
   await app.register(async (hooks) => {
     // the body as bytes: its SHA-256 is that of the file as sent
     hooks.removeAllContentTypeParsers();
-    hooks.addContentTypeParser('*', { parseAs: 'buffer', bodyLimit: LARGE_BODIES.costImport.bytes }, (_req, body, done) => done(null, body));
+    hooks.addContentTypeParser('*', { parseAs: 'buffer', bodyLimit: COST_PUSH_BODY_LIMIT }, (_req, body, done) => done(null, body));
     const verified = new WeakMap<FastifyRequest, VerifiedPushToken>();
     const answer = (reply: FastifyReply, res: PushResponse) => {
       reply.header('cache-control', 'no-store');
@@ -112,7 +112,7 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
       '/hooks/costs/:platformId',
       {
         config: { rateLimit: ROUTE_LIMITS.webhook },
-        bodyLimit: LARGE_BODIES.costImport.bytes,
+        bodyLimit: COST_PUSH_BODY_LIMIT,
         // the token is checked from the headers before the body is read
         onRequest: async (req, reply) => {
           const platformId = String((req.params as { platformId?: string }).platformId ?? '');

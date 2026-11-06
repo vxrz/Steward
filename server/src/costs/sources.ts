@@ -1,6 +1,7 @@
 import { type Platform } from '@sm/shared';
 import { db } from '../db.js';
 import { logger } from '../log.js';
+import { audit } from '../audit.js';
 import { vault } from '../vault.js';
 import { currentActor } from '../auth/context.js';
 import { platformFor } from '../monitors/platforms.js';
@@ -141,7 +142,15 @@ export async function readNow(platformId: string): Promise<ReadOutcome> {
   const info = requireScope('platform', platformId);
   if (!info.canManageSource)
     throw new HttpError(403, 'You are not allowed to read the costs of this platform', 'PLATFORM_MANAGE_FORBIDDEN', { name: info.name });
-  return readSource(platformId, currentActor());
+  const out = await readSource(platformId, currentActor());
+  audit({
+    action: 'cost.read',
+    entityType: 'platform',
+    entityId: platformId,
+    summary: `Costs of "${info.name}" read now: ${out.error ? `failed – ${out.error.slice(0, 200)}` : `${out.lines} line(s)${out.result?.corrections.length ? `, ${out.result.corrections.length} correction(s)` : ''}`}`,
+    details: { source: out.source, lines: out.lines, note: out.note, error: out.error },
+  });
+  return out;
 }
 
 /**
