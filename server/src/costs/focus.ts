@@ -1,6 +1,7 @@
 import { COST_LIMITS, FOCUS_COLUMNS, FOCUS_REQUIRED, fromMicros, toMicros, type CostImportPreview, type FocusColumn } from '@sm/shared';
 import { HttpError, sha256 } from '../util.js';
-import { readCsv } from './csv.js';
+import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
+import { csvRows, type CsvRow } from './csv.js';
 import type { CostLine } from './store.js';
 
 /**
@@ -72,6 +73,33 @@ const nextMonth = (iso: string) => {
 
 /** Reads a FOCUS CSV file into cost lines (summed per day and dimension). Throws HttpError 400 (COST_IMPORT_…). */
 export function parseFocus(csv: string): ParsedFocus {
+  const r = focusReader(csv);
+  const rows = csvRows(csv, CSV_LIMITS);
+  for (;;) {
+    const x = rows.next();
+    if (x.done) return r.finish(x.value);
+    r.row(x.value);
+  }
+}
+
+/**
+ * The same, giving the event loop a turn every `chunk` rows: a file of 25 MB takes seconds to read, and the server
+ * answers other requests in between (imports and pushes).
+ */
+export async function parseFocusAsync(csv: string, chunk = 5000): Promise<ParsedFocus> {
+  const r = focusReader(csv);
+  const rows = csvRows(csv, CSV_LIMITS);
+  for (let n = 1; ; n++) {
+    const x = rows.next();
+    if (x.done) return r.finish(x.value);
+    r.row(x.value);
+    if (n % chunk === 0) await yieldToEventLoop();
+  }
+}
+
+const CSV_LIMITS = { rows: COST_LIMITS.importRows, columns: COST_LIMITS.importColumns, cellChars: COST_LIMITS.cellChars };
+
+function focusReader(csv: string): { row: (r: CsvRow) => void; finish: (rows: number) => ParsedFocus } {
   const bytes = Buffer.byteLength(csv, 'utf8');
   if (bytes > COST_LIMITS.importBytes)
     throw new HttpError(400, `The file has more than ${COST_LIMITS.importBytes / 1024 / 1024} MB`, 'COST_IMPORT_TOO_LARGE', {
@@ -88,7 +116,7 @@ export function parseFocus(csv: string): ParsedFocus {
   const skip = (line: number, why: string) => {
     if (skipped++ < 10) warnings.push(`Line ${line}: ${why} – the row is left out`);
   };
-  const rows = readCsv(csv, { rows: COST_LIMITS.importRows, columns: COST_LIMITS.importColumns, cellChars: COST_LIMITS.cellChars }, (cells, line, i) => {
+  const row = ({ cells, line, index: i }: CsvRow): void => {
     if (i < 0) {
       const found: [FocusColumn, number][] = [];
       cells.forEach((h, n) => {
@@ -162,21 +190,24 @@ export function parseFocus(csv: string): ParsedFocus {
     } else sums.set(k, { ...line0, key: sha256(k).slice(0, 40), billed, effective });
     if (!first || cps < first) first = cps;
     if (!last || cpe > last) last = cpe;
-  });
-  if (index.BilledCost === undefined) throw new HttpError(400, 'The file is empty', 'COST_IMPORT_EMPTY');
-  if (skipped > 10) warnings.push(`… ${skipped - 10} more rows left out`);
-  if (badTags) warnings.push(`${badTags} row(s) with Tags that are not a JSON object: their tags are left out`);
-  const found = FOCUS_COLUMNS.filter((c) => index[c] !== undefined);
-  return {
-    sha256: sha256(csv),
-    bytes,
-    rows,
-    lines: [...sums.values()],
-    columns: { found, missing: FOCUS_COLUMNS.filter((c) => index[c] === undefined && c !== 'ServiceProviderName' && c !== 'ProviderName'), ignored },
-    periodStart: first,
-    periodEnd: last,
-    warnings,
   };
+  const finish = (rows: number): ParsedFocus => {
+    if (index.BilledCost === undefined) throw new HttpError(400, 'The file is empty', 'COST_IMPORT_EMPTY');
+    if (skipped > 10) warnings.push(`… ${skipped - 10} more rows left out`);
+    if (badTags) warnings.push(`${badTags} row(s) with Tags that are not a JSON object: their tags are left out`);
+    const found = FOCUS_COLUMNS.filter((c) => index[c] !== undefined);
+    return {
+      sha256: sha256(csv),
+      bytes,
+      rows,
+      lines: [...sums.values()],
+      columns: { found, missing: FOCUS_COLUMNS.filter((c) => index[c] === undefined && c !== 'ServiceProviderName' && c !== 'ProviderName'), ignored },
+      periodStart: first,
+      periodEnd: last,
+      warnings,
+    };
+  };
+  return { row, finish };
 }
 
 /** Totals per currency, providers and a sample of a parsed file (the preview). */

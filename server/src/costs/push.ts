@@ -267,7 +267,10 @@ export function authorizePush(req: PushHead): { ok: true; token: VerifiedPushTok
 }
 
 /** The import of a push whose token authorizePush accepted. `mode` and `fileName` come from the query string. */
-export function importPush(token: VerifiedPushToken, req: { raw: Buffer | undefined; ip: string; query: Record<string, unknown> }): PushResponse {
+export async function importPush(
+  token: VerifiedPushToken,
+  req: { raw: Buffer | undefined; ip: string; query: Record<string, unknown> },
+): Promise<PushResponse> {
   const csv = (req.raw ?? Buffer.alloc(0)).toString('utf8');
   if (!csv.trim()) return { status: 400, body: { error: 'The body is empty – send the FOCUS CSV file', code: 'COST_IMPORT_EMPTY' } };
   const modeRaw = typeof req.query.mode === 'string' ? req.query.mode : 'replace';
@@ -275,12 +278,15 @@ export function importPush(token: VerifiedPushToken, req: { raw: Buffer | undefi
   const fileName = typeof req.query.fileName === 'string' ? req.query.fileName.slice(0, 200) : '';
   db().run('UPDATE cost_push_tokens SET last_used_at = ?, last_used_ip = ? WHERE id = ?', nowIso(), req.ip, token.id);
   try {
-    // the token was checked above (its creator is active and may still manage the platform); no user is signed in
-    const out = importFile(
+    // the token was checked above (its creator is active and may still manage the platform); no user is signed in –
+    // the lines link with the creator's rights
+    const creator = findUserByName(token.created_by);
+    const out = await importFile(
       token.platform_id,
       { csv, fileName, mode: modeRaw as CostImportMode },
       { kind: 'push', tokenId: token.id, tokenName: token.name, ip: req.ip },
       `push token "${token.name}"`.slice(0, 120),
+      creator ? toAuthUser(creator) : null,
     );
     return {
       status: 200,
