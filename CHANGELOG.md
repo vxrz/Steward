@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-06
+
+Steward 0.8.0 completes the **plant registry** with the OT network and adds **pictures** of it, **database schemas** and a **DynamoDB freshness check**. The plant registry (opt-in, preview) now documents VLANs, IEC 62443-3-2 zones and conduits, devices and data paths, with live status only where a Steward check is linked, and draws site structures, data flows, data point lineage, KPI coverage and the OT network – animated where it shows direction, with a table for every picture. Database platforms read their schema (or take a tbls `schema.json` pushed from CI with a push token bound to one database), keep snapshots, mark breaking changes and export DBML or SQL DDL. Two security reviews found and fixed leaks of hidden datasets and monitors in live status, a runnable-statement path in the SQL export, and – older – a full URL in platform and freshness checks that skipped the outbound allow-list; see _Check before updating_ under Changed.
+
 ### Added
 
 - **Plant registry, part 3: the OT network and live status (preview, #220, [docs/PLANT.md](docs/PLANT.md#part-3-ot-network), [ADR 0007 – Part 3](docs/adr/0007-plant-registry.md#part-3-ot-network-080))**: how a plant's network looks and whether an asset is online.
@@ -894,7 +898,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/vxrz/steward/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/vxrz/steward/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/vxrz/steward/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/vxrz/steward/compare/v0.5.0...v0.5.1
