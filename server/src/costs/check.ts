@@ -3,7 +3,7 @@ import { runAs, type AuthUser } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { CheckSetupError } from '../monitors/platforms.js';
 import { HttpError } from '../util.js';
-import { scopeInfo } from './access.js';
+import { costSettings, scopeInfo } from './access.js';
 import { addMonths, monthOf, scopeMonths } from './query.js';
 
 /**
@@ -12,7 +12,8 @@ import { addMonths, monthOf, scopeMonths } from './query.js';
  * month so far against the same share of the month before ("monthToDate"). It fails when they rose by more than
  * `maxIncreasePct` percent or by more than `maxIncrease`. It runs with the monitor owner's rights – also when the
  * monitor engine calls it without a request: they must see the scope, and a service or team counts only the
- * applications they may see; amounts appear in the message only when they may see them.
+ * applications they may see. Every monitor viewer reads the message and the value, so they carry amounts only when the
+ * owner may see them and "Hide amounts from viewers" is off; otherwise only the change in percent.
  */
 
 const SCOPE_LABEL = { service: 'Service', application: 'Application', team: 'Team', platform: 'Platform' } as const;
@@ -31,8 +32,10 @@ export function costCheck(c: CheckOf<'cost'>, ctx: { owner: string; now: () => n
 }
 
 function ownerCheck(c: CheckOf<'cost'>, owner: AuthUser, now: number): { status: MonitorStatus; message: string; value?: unknown } {
-  const info = scopeInfo(c.scope, c.target, owner);
-  if (!info) throw new CheckSetupError(`${c.scope} ${c.target} does not exist or the monitor owner may not see it`);
+  const found = scopeInfo(c.scope, c.target, owner);
+  if (!found) throw new CheckSetupError(`${c.scope} ${c.target} does not exist or the monitor owner may not see it`);
+  // every monitor viewer reads the result: no amounts while they are hidden from viewers
+  const info = { ...found, amounts: found.amounts && !costSettings().hideAmountsFromViewers };
   const month = monthOf(now);
   const sums = scopeMonths(c.scope, c.target, addMonths(month, -2), owner);
   const currency =
