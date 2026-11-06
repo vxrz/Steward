@@ -38,7 +38,8 @@
     "plantKpis": "KPI-Definitionen",
     "plantExplore": "Daten erkunden",
     "plantChecks": "Prüfungen",
-    "plantImport": "Importieren"
+    "plantImport": "Importieren",
+    "costs": "Kosten"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",

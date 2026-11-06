@@ -99,6 +99,14 @@ export function setAwsCostFactor(month: string, factor: number | null): void {
   else costFactor.set(month, factor);
 }
 
+/** The part of a month that has passed (the current month so far; at least a tenth, so the demo has figures on the 1st). */
+function monthShare(monthStart: string): number {
+  const start = Date.parse(`${monthStart.slice(0, 7)}-01T00:00:00Z`);
+  const next = new Date(start);
+  next.setUTCMonth(next.getUTCMonth() + 1);
+  return Math.min(1, Math.max(0.1, (Date.now() - start) / (next.getTime() - start)));
+}
+
 function costs(start: string, end: string, groupBy: { Type: string; Key: string }[]) {
   const months: string[] = [];
   const d = new Date(`${start.slice(0, 7)}-01T00:00:00Z`);
@@ -122,10 +130,10 @@ function costs(start: string, end: string, groupBy: { Type: string; Key: string 
       TimePeriod: { Start: m, End: months[i + 1] ?? end },
       Groups: base.map(([keys, v]) => ({
         Keys: keys,
-        // a little growth each month, the current month only partly through; a factor for a corrected month
+        // a little growth each month, the current month as far as it has passed; a factor for a corrected month
         Metrics: {
           UnblendedCost: {
-            Amount: (((v * (1 + 0.03 * i)) / (i === months.length - 1 ? 2 : 1)) * (costFactor.get(m.slice(0, 7)) ?? 1)).toFixed(4),
+            Amount: (v * (1 + 0.03 * i) * (i === months.length - 1 ? monthShare(m) : 1) * (costFactor.get(m.slice(0, 7)) ?? 1)).toFixed(4),
             Unit: 'USD',
           },
         },

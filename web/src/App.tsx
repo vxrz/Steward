@@ -82,6 +82,8 @@ const SystemsPage = page(() => import('./pages/Systems'), 'SystemsPage');
 const MaintenancePage = page(() => import('./pages/Maintenance'), 'MaintenancePage');
 const SystemDetailPage = page(() => import('./pages/SystemDetail'), 'SystemDetailPage');
 const SystemSchemaPage = page(() => import('./pages/SystemSchema'), 'SystemSchemaPage');
+const CostsPage = page(() => import('./pages/Costs'), 'CostsPage');
+const CostDetailPage = page(() => import('./pages/CostDetail'), 'CostDetailPage');
 const ApplicationDetailPage = page(() => import('./pages/ApplicationDetail'), 'ApplicationDetailPage');
 const DutiesPage = page(() => import('./pages/Duties'), 'DutiesPage');
 const DutyDetailPage = page(() => import('./pages/DutyDetail'), 'DutyDetailPage');
@@ -371,6 +373,9 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/duties" element={<DutiesPage />} />
                     <Route path="/duties/:id" element={<DutyDetailPage />} />
                     <Route path="/scorecard" element={<ScorecardPage />} />
+                    <Route path="/costs" element={<CostsPage />} />
+                    <Route path="/costs/:scope/:id" element={<CostDetailPage />} />
+                    <Route path="/costs/:scope/:id/:tab" element={<CostDetailPage />} />
                     <Route path="/credentials" element={<CredentialsPage />} />
                     <Route path="/tickets" element={<TicketsPage />} />
                     <Route path="/tickets/:id" element={<TicketDetailPage />} />

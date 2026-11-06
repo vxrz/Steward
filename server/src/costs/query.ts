@@ -77,14 +77,62 @@ export function forecastOf(soFar: number | null, newestEnd: string | null, month
   return Math.round((soFar / covered) * daysIn(month));
 }
 
+/**
+ * The forecast of the current month, per currency, as the sum of each platform's own projection: sources lag behind
+ * by different times (Cost Explorer a day, Confluent's Costs API three), so each platform's days so far count for it.
+ */
+export function forecastFromGroups(
+  groups: { plat: string; currency: string; e: number; end: string | null }[],
+  month: string,
+  now: number,
+): Map<string, number | null> {
+  const per = new Map<string, { currency: string; e: number; end: string | null }>();
+  for (const g of groups) {
+    const k = `${g.currency}|${g.plat}`;
+    const x = per.get(k) ?? { currency: g.currency, e: 0, end: null };
+    x.e += g.e;
+    if (!x.end || (g.end && g.end > x.end)) x.end = g.end;
+    per.set(k, x);
+  }
+  const out = new Map<string, number | null>();
+  for (const x of per.values()) {
+    const f = forecastOf(x.e, x.end, month, now);
+    const was = out.get(x.currency);
+    out.set(x.currency, f === null || was === null ? null : (was ?? 0) + f);
+  }
+  return out;
+}
+
+function monthForecast(where: { sql: string; params: unknown[] } | false, month: string, now: number): Map<string, number | null> {
+  if (!where) return new Map();
+  const rows = db().all<{ plat: string; currency: string; e: number; last_end: string | null }>(
+    `SELECT platform_id AS plat, billing_currency AS currency, SUM(effective_cost) AS e, MAX(charge_period_end) AS last_end FROM cost_records
+      WHERE ${where.sql} AND month = ? GROUP BY platform_id, billing_currency`,
+    ...where.params,
+    month,
+  );
+  return forecastFromGroups(
+    rows.map((r) => ({ plat: r.plat, currency: r.currency, e: Number(r.e), end: r.last_end })),
+    month,
+    now,
+  );
+}
+
 const pct = (a: number, b: number): number | null => (b > 0 ? Math.round(((a - b) / b) * 1000) / 10 : null);
 
-function currencySummary(currency: string, m: Map<string, Sum>, month: string, now: number, amounts: boolean): CostCurrencySummary {
+function currencySummary(
+  currency: string,
+  m: Map<string, Sum>,
+  month: string,
+  now: number,
+  amounts: boolean,
+  fc: Map<string, number | null>,
+): CostCurrencySummary {
   const window = monthWindow(month);
   const show = (n: number | null) => (n === null || !amounts ? null : fromMicros(n));
   const cur = m.get(month);
   const prev = m.get(addMonths(month, -1));
-  const forecast = forecastOf(cur ? cur.e : null, cur?.end ?? null, month, now);
+  const forecast = cur ? (fc.get(currency) ?? null) : null;
   // the trend: complete months from the first one with costs
   const complete = window.slice(0, -1);
   const firstWith = complete.findIndex((x) => m.has(x));
@@ -140,7 +188,7 @@ export function budgetOf(scope: CostBudgetScope, id: string, amounts: boolean, n
     ?.get(month);
   const used = m?.e ?? 0;
   const limit = Number(b.amount);
-  const forecast = forecastOf(m ? m.e : null, m?.end ?? null, month, now);
+  const forecast = m ? (monthForecast(coverWhere(coverOf(scope, id)), month, now).get(b.currency) ?? null) : null;
   const p = limit > 0 ? Math.round((used / limit) * 1000) / 10 : 0;
   return {
     scope,
@@ -221,9 +269,10 @@ export function scopeDetail(scope: CostScope, id: string, now = Date.now()): Cos
   const where = coverWhere(cover);
   const window = monthWindow(month);
   const s = sums(where, window[0]!);
+  const fc = monthForecast(where, month, now);
   const amounts = info.amounts;
   const show = (n: number) => (amounts ? fromMicros(n) : null);
-  const currencies = [...s.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([c, m]) => currencySummary(c, m, month, now, amounts));
+  const currencies = [...s.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([c, m]) => currencySummary(c, m, month, now, amounts, fc));
   const prev = addMonths(month, -1);
   const unassigned =
     scope === 'platform' && where
@@ -345,7 +394,14 @@ export function overview(scope: CostScope, now = Date.now()): CostOverview {
       } else x.l += a.e;
       byCurrency.set(a.currency, x);
     }
+    const fcs = forecastFromGroups(
+      mine.filter((a) => a.month === month).map((a) => ({ plat: a.plat, currency: a.currency, e: a.e, end: a.last_end })),
+      month,
+      now,
+    );
     const budget = scope === 'platform' ? null : budgetOf(scope, info.id, info.amounts, now);
+    // a platform without costs and without a cost source is left out of the list
+    if (!byCurrency.size && scope === 'platform' && !db().get('SELECT platform_id FROM cost_sources WHERE platform_id = ? AND enabled = 1', info.id)) continue;
     if (!byCurrency.size)
       rows.push({
         scope,
@@ -362,7 +418,7 @@ export function overview(scope: CostScope, now = Date.now()): CostOverview {
         budgetState: budget?.state ?? null,
       });
     for (const [currency, x] of [...byCurrency.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-      const forecast = forecastOf(x.any ? x.t : null, x.end, month, now);
+      const forecast = x.any ? (fcs.get(currency) ?? null) : null;
       const show = (n: number | null) => (n === null || !info.amounts ? null : fromMicros(n));
       const b = budget && budget.currency === currency ? budget : null;
       rows.push({
