@@ -48,6 +48,9 @@ interface Target {
   placeholder: string;
 }
 
+/** The digits 0–9 as a derived table, to build number series without a recursive CTE. */
+const DIGITS = `(SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9)`;
+
 const URLS: Record<DbDialect, string | undefined> = {
   postgresql: process.env.SM_TEST_PG_ADMIN_URL || process.env.SM_TEST_DATABASE_URL || undefined,
   mysql: process.env.SM_TEST_MYSQL_URL || undefined,
@@ -163,7 +166,8 @@ async function mysqlTarget(url: string): Promise<Target> {
   for (const sql of [
     `CREATE DATABASE ${database}`,
     `CREATE TABLE ${database}.orders (id int PRIMARY KEY, customer varchar(40), total decimal(10,2))`,
-    `INSERT INTO ${database}.orders WITH RECURSIVE g(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM g WHERE n < 3000) SELECT n, CONCAT('customer-', n), n * 1.5 FROM g`,
+    // 3000 rows without a recursive CTE (MariaDB stops recursion after max_recursive_iterations = 1000 by default)
+    `INSERT INTO ${database}.orders SELECT n, CONCAT('customer-', n), n * 1.5 FROM (SELECT a.d + 10 * b.d + 100 * c.d + 1000 * e.d + 1 AS n FROM ${DIGITS} a CROSS JOIN ${DIGITS} b CROSS JOIN ${DIGITS} c CROSS JOIN ${DIGITS} e) g WHERE n <= 3000`,
     `CREATE FUNCTION ${database}.add_order() RETURNS int MODIFIES SQL DATA BEGIN INSERT INTO orders VALUES (99999, 'x', 1); RETURN 1; END`,
     `CREATE USER '${ro}'@'%' IDENTIFIED BY '${RO_PW}'`,
     `CREATE USER '${rw}'@'%' IDENTIFIED BY '${RW_PW}'`,
