@@ -1,0 +1,95 @@
+{
+  "name": "bakery",
+  "desc": "An invented bakery shop for the tests of Steward",
+  "tables": [
+    {
+      "name": "public.customers",
+      "type": "BASE TABLE",
+      "comment": "People who order",
+      "columns": [
+        { "name": "id", "type": "integer", "nullable": false, "default": "nextval('customers_id_seq'::regclass)" },
+        { "name": "email", "type": "varchar(120)", "nullable": false, "comment": "Sign-in" },
+        { "name": "nickname", "type": "text", "nullable": true, "default": null }
+      ],
+      "indexes": [
+        {
+          "name": "customers_pkey",
+          "def": "CREATE UNIQUE INDEX customers_pkey ON public.customers USING btree (id)",
+          "table": "public.customers",
+          "columns": ["id"]
+        },
+        {
+          "name": "customers_email_key",
+          "def": "CREATE UNIQUE INDEX customers_email_key ON public.customers USING btree (email)",
+          "table": "public.customers",
+          "columns": ["email"]
+        }
+      ],
+      "constraints": [
+        { "name": "customers_pkey", "type": "PRIMARY KEY", "def": "PRIMARY KEY (id)", "table": "public.customers", "referenced_table": "", "columns": ["id"] },
+        { "name": "customers_email_key", "type": "UNIQUE", "def": "UNIQUE (email)", "table": "public.customers", "referenced_table": "", "columns": ["email"] }
+      ],
+      "triggers": [],
+      "def": ""
+    },
+    {
+      "name": "public.loaves",
+      "type": "BASE TABLE",
+      "columns": [
+        { "name": "id", "type": "integer", "nullable": false },
+        { "name": "customer_id", "type": "integer", "nullable": false },
+        { "name": "kind", "type": "varchar(40)", "nullable": false, "default": "'rye'::character varying" },
+        { "name": "baked_at", "type": "timestamp with time zone", "nullable": true }
+      ],
+      "indexes": [
+        { "name": "loaves_pkey", "def": "CREATE UNIQUE INDEX loaves_pkey ON public.loaves USING btree (id)", "table": "public.loaves", "columns": ["id"] },
+        {
+          "name": "loaves_customer_idx",
+          "def": "CREATE INDEX loaves_customer_idx ON public.loaves USING btree (customer_id)",
+          "table": "public.loaves",
+          "columns": ["customer_id"]
+        }
+      ],
+      "constraints": [
+        { "name": "loaves_pkey", "type": "PRIMARY KEY", "def": "PRIMARY KEY (id)", "table": "public.loaves", "referenced_table": "", "columns": ["id"] },
+        {
+          "name": "loaves_customer_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE",
+          "table": "public.loaves",
+          "referenced_table": "customers",
+          "columns": ["customer_id"],
+          "referenced_columns": ["id"]
+        }
+      ]
+    },
+    {
+      "name": "reports.daily_loaves",
+      "type": "VIEW",
+      "comment": "Loaves per day",
+      "columns": [
+        { "name": "day", "type": "date", "nullable": true },
+        { "name": "loaves", "type": "bigint", "nullable": true }
+      ],
+      "def": "CREATE VIEW daily_loaves AS (SELECT date(baked_at) AS day, count(*) AS loaves FROM loaves GROUP BY 1)"
+    }
+  ],
+  "relations": [
+    {
+      "table": "public.loaves",
+      "columns": ["customer_id"],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.customers",
+      "parent_columns": ["id"],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE",
+      "virtual": false
+    }
+  ],
+  "functions": [],
+  "driver": {
+    "name": "postgres",
+    "database_version": "PostgreSQL 16.4",
+    "meta": { "current_schema": "public", "search_paths": ["public"], "dict": {} }
+  }
+}
