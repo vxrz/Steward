@@ -125,6 +125,9 @@ beforeAll(async () => {
   redirects.set('base /api/to-trusted', [302, `${origin.trusted}/sign-in`]);
   redirects.set('base /api/to-dual', [302, `${origin.dual}/start`]);
   redirects.set('dual /start', [301, `${origin.dual.replace('http:', 'https:')}/secure`]);
+  redirects.set('base /api/same-307', [307, '/api/ok']);
+  redirects.set('base /api/to-trusted-307', [307, `${origin.trusted}/sign-in`]);
+  redirects.set('allowed /same-307', [307, '/ok']);
   redirects.set('base /eol/api/v1/products/nodejs', [302, `${origin.outside}/api/v1/products/nodejs`]);
 });
 afterAll(async () => {
@@ -359,5 +362,71 @@ describe('the outbound policy on every redirect hop', () => {
     await ok('http://198.51.100.8/b', ['http://198.51.100.7/a'], { platformOrigins: ['http://198.51.100.8'] });
     // address safety is never skipped, also on the same origin (Steward's own API is a path)
     await expect(assertRedirectAllowed(`${s.base}/api/settings`, [`${s.base}/mock/x`], ctx, { own: true })).rejects.toThrow(/may not call the Steward server/);
+  });
+});
+
+describe('a 307/308 redirect does not carry a credential in the body to another host', () => {
+  const SECRET = 'line-secret-token-0123456789';
+  const BODY_BLOCKED =
+    /^Blocked: http:\/\/127\.0\.0\.1:\d+ redirected \(HTTP 307\) to http:\/\/127\.0\.0\.1:\d+, which would receive the request body again – and the body contains a credential of platform "Line API"/;
+
+  it('refuses a body with the platform’s secret (also encoded) for an allowed host outside the platform', async () => {
+    await withSettings({ outboundAllowList: [origin.allowed, origin.outside] }, async () => {
+      for (const body of [{ note: SECRET }, { note: Buffer.from(SECRET).toString('base64') }, { note: encodeURIComponent(`a ${SECRET}`) }]) {
+        const e = await request(line, '/to-outside-307', 'POST', body).catch((x) => x);
+        expect(e.status).toBe(403);
+        expect(e.body.error).toMatch(BODY_BLOCKED);
+        expect(e.body).toMatchObject({ code: 'REDIRECT_BODY_SECRET', params: { status: 307, to: origin.outside } });
+      }
+      expect(hits.outside).toBe(0);
+      expect(hits.base).toBe(3); // not retried
+      // a body without one goes on as before
+      expect(await request(line, '/to-outside-307', 'POST', { note: 'nothing secret' })).toMatchObject({ status: 200, body: { server: 'outside' } });
+      expect(outsideBodies).toEqual(['{"note":"nothing secret"}']);
+    });
+  });
+
+  it('refuses a credential obtained for the request (the Basic header), not only the stored ones', async () => {
+    const basic = await s.api('POST', '/platforms', {
+      name: 'Line API (basic)',
+      kind: 'generic',
+      baseUrl: `${origin.base}/api`,
+      config: { auth: { type: 'basic' }, variables: {}, http: { proxy: 'none', retry: { maxRetries: 0 } } },
+      secrets: { username: 'svc-line', password: 'line-basic-password-42' },
+    });
+    const header = Buffer.from('svc-line:line-basic-password-42').toString('base64');
+    await withSettings({ outboundAllowList: [origin.allowed, origin.outside] }, async () => {
+      await expect(request(basic.id, '/to-outside-307', 'POST', { auth: header })).rejects.toThrow(/REDIRECT_BODY_SECRET/);
+      await expect(request(basic.id, '/to-outside-307', 'POST', { pw: 'line-basic-password-42' })).rejects.toThrow(/REDIRECT_BODY_SECRET/);
+    });
+    expect(hits.outside).toBe(0);
+  });
+
+  it('the same origin, the platform’s own origins and a 302/303 (which drop the body) keep working', async () => {
+    expect(await request(line, '/same-307', 'POST', { note: SECRET })).toMatchObject({ status: 200, body: { server: 'base', path: '/api/ok' } });
+    const own = await s.api('POST', '/platforms', {
+      name: 'Line API (trusted, with token)',
+      kind: 'generic',
+      baseUrl: `${origin.base}/api`,
+      config: { auth: { type: 'bearer' }, variables: {}, http: { proxy: 'none', retry: { maxRetries: 0 }, trustedOrigins: [origin.trusted] } },
+      secrets: { token: SECRET },
+    });
+    expect(await request(own.id, '/to-trusted-307', 'POST', { note: SECRET })).toMatchObject({ status: 200, body: { server: 'trusted' } });
+    // 302 turns a POST into a GET without body
+    expect(await request(line, '/to-allowed', 'POST', { note: SECRET })).toMatchObject({ status: 200, body: { server: 'allowed' } });
+  });
+
+  it('fetchCheckingRedirects: the same for a webhook with a credential in its URL', async () => {
+    const { fetchCheckingRedirects, urlSecrets } = await import('../src/platforms/outbound.js');
+    const { outboundContext } = await import('../src/platforms/policyContext.js');
+    const url = `${origin.allowed}/to-outside-307?sig=webhook-signature-0815`;
+    const post = (to: string, body: string) => fetchCheckingRedirects(to, { method: 'POST', body }, outboundContext(), { bodySecrets: urlSecrets(url) });
+    await withSettings({ outboundAllowList: [origin.allowed, origin.outside] }, async () => {
+      await expect(post(url, '{"echo":"webhook-signature-0815"}')).rejects.toMatchObject({ statusCode: 403, code: 'REDIRECT_BODY_SECRET' });
+      expect(hits.outside).toBe(0);
+      expect((await post(url, '{"echo":"plain"}')).status).toBe(200);
+      expect(outsideBodies).toEqual(['{"echo":"plain"}']);
+      expect((await post(`${origin.allowed}/same-307`, '{"echo":"webhook-signature-0815"}')).status).toBe(200);
+    });
   });
 });
