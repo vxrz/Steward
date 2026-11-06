@@ -105,6 +105,8 @@ const OCI: Record<string, string[]> = {
 export const DEMO_REGISTRY = { token: 'demo-registry-token', username: 'robot$steward', password: 'demo-registry-password' };
 
 const notFound = (reply: FastifyReply) => reply.code(404).send({ error: 'Not found' });
+/** An error answer of the OCI distribution spec: { errors: [{ code, message }] } */
+const ociError = (code: string, message: string) => ({ errors: [{ code, message }] });
 /** The path after the mount point, from the original URL (the base path is stripped from req.url only). */
 function tail(req: FastifyRequest, mount: string): string {
   const path = req.originalUrl.split('?')[0]!;
@@ -199,16 +201,16 @@ export async function mockRegistries(app: FastifyInstance): Promise<void> {
     const auth = req.headers.authorization;
     // anonymous, or the demo robot account; other credentials are refused
     if (auth && auth !== `Basic ${Buffer.from(`${DEMO_REGISTRY.username}:${DEMO_REGISTRY.password}`).toString('base64')}`)
-      return reply.code(401).send({ errors: [{ code: 'UNAUTHORIZED', message: 'authentication required' }] });
+      return reply.code(401).send(ociError('UNAUTHORIZED', 'authentication required'));
     if (q.service !== 'registry.demo' || !q.scope?.startsWith('repository:') || !q.scope.endsWith(':pull'))
-      return reply.code(400).send({ errors: [{ code: 'DENIED', message: 'invalid scope' }] });
+      return reply.code(400).send(ociError('DENIED', 'invalid scope'));
     return { token: `${DEMO_REGISTRY.token}:${q.scope.slice('repository:'.length, -':pull'.length)}`, expires_in: 300, issued_at: new Date().toISOString() };
   });
   app.get('/registry/v2/', async (req, reply) =>
     reply
       .code(401)
       .header('www-authenticate', `Bearer realm="${realmOf(req)}",service="registry.demo"`)
-      .send({ errors: [{ code: 'UNAUTHORIZED', message: 'authentication required' }] }),
+      .send(ociError('UNAUTHORIZED', 'authentication required')),
   );
   app.get('/registry/v2/*', async (req, reply) => {
     const path = tail(req, '/registry/v2/');
@@ -218,9 +220,9 @@ export async function mockRegistries(app: FastifyInstance): Promise<void> {
       return reply
         .code(401)
         .header('www-authenticate', `Bearer realm="${realmOf(req)}",service="registry.demo",scope="repository:${name}:pull"`)
-        .send({ errors: [{ code: 'UNAUTHORIZED', message: 'authentication required' }] });
+        .send(ociError('UNAUTHORIZED', 'authentication required'));
     const tags = OCI[name];
-    if (!tags) return reply.code(404).send({ errors: [{ code: 'NAME_UNKNOWN', message: 'repository name not known to registry' }] });
+    if (!tags) return reply.code(404).send(ociError('NAME_UNKNOWN', 'repository name not known to registry'));
     // paged like the spec: n tags after "last", a Link header to the next page
     const q = req.query as { n?: string; last?: string };
     const n = Math.max(1, Math.min(Number(q.n ?? 1000) || 1000, 1000));
