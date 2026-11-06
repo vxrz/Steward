@@ -65,38 +65,43 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.6.0:** AI models through LLM gateways ([#216](https://github.com/vxrz/Steward/issues/216)) and part 1 of the plant registry ([#218](https://github.com/vxrz/Steward/issues/218), [ADR 0007](adr/0007-plant-registry.md)).
 - **0.7.0:** plant registry part 2 – device profiles, data points and KPI definitions ([#219](https://github.com/vxrz/Steward/issues/219)) – and direct SQL database platforms ([#203](https://github.com/vxrz/Steward/issues/203), [ADR 0008](adr/0008-database-platforms.md)).
 
-## Next – 0.8.0 and after
+## Next – 0.8.0
 
-In this order:
+1. **Plant registry part 3** ([#220](https://github.com/vxrz/Steward/issues/220)): the OT network – devices of an asset, VLANs (optionally linked to network segments), zones and conduits after **IEC 62443-3-2**, data paths – and live status from what Steward already reads.
+2. **Plant registry visualizations** ([#230](https://github.com/vxrz/Steward/issues/230)): site structure, the data flow of an asset, data point lineage, KPI coverage and the OT network, animated and accessible; live status only where a Steward check is linked, documentation otherwise.
+3. **Database schemas, step 1** ([#222](https://github.com/vxrz/Steward/issues/222)): snapshots and a change history of the connected databases, a [tbls](https://github.com/k1LoW/tbls) `schema.json` import for databases Steward does not reach, changes as monitor checks and change records, DBML and SQL export; a table diagram later.
+4. **DynamoDB freshness** ([#233](https://github.com/vxrz/Steward/issues/233)): a monitor check for the newest item, write activity and table hygiene of a DynamoDB table, and `POST` with headers and body for the generic freshness check.
 
-1. **0.8.0 – plant registry part 3** ([#220](https://github.com/vxrz/Steward/issues/220)): the OT network – devices of an asset, VLANs (optionally linked to network segments), zones and conduits after **IEC 62443-3-2**, data paths – and live status from what Steward already reads.
-2. **0.8.0 – plant registry visualizations** ([#230](https://github.com/vxrz/Steward/issues/230)): site structure, the data flow of an asset, data point lineage, KPI coverage and the OT network, animated and accessible; live status only where a Steward check is linked, documentation otherwise.
-3. **0.8.0 – database schemas, step 1** ([#222](https://github.com/vxrz/Steward/issues/222)): snapshots and a change history of the connected databases, a [tbls](https://github.com/k1LoW/tbls) `schema.json` import for databases Steward does not reach, changes as monitor checks and change records, DBML and SQL export; a table diagram later.
-4. **Platform identities** ([#228](https://github.com/vxrz/Steward/issues/228)): several credentials per platform, each with its own access list, MCP mode, read-only flag and optional operation filter.
-5. **Platform costs** ([#226](https://github.com/vxrz/Steward/issues/226)): one cost model in FinOps FOCUS for AWS, Snowflake, Confluent Cloud, AI gateways and FOCUS file imports – showback per service, application and team, budgets and checks.
-6. **Data contracts** ([#221](https://github.com/vxrz/Steward/issues/221)): contracts in the Open Data Contract Standard (ODCS v3) with versions and breaking-change detection, drafts from API schemas, datasets and tables, tests through the datacontract API as a platform and a monitor check.
-7. **Postman import** (rest of [#204](https://github.com/vxrz/Steward/issues/204)): requests and sign-in from a collection.
+## Then – 0.9.0
+
+1. **Platform identities** ([#228](https://github.com/vxrz/Steward/issues/228)): several credentials per platform, each with its own access list, MCP mode, read-only flag and optional operation filter.
+2. **Platform costs** ([#226](https://github.com/vxrz/Steward/issues/226)): one cost model in FinOps FOCUS for AWS, Snowflake, Confluent Cloud, AI gateways and FOCUS file imports – showback per service, application and team, budgets and checks.
+3. **Data contracts** ([#221](https://github.com/vxrz/Steward/issues/221)): contracts in the Open Data Contract Standard (ODCS v3) with versions and breaking-change detection, drafts from API schemas, datasets and tables, tests through the datacontract API as a platform and a monitor check.
+4. **Kafka Connect and Debezium** ([#223](https://github.com/vxrz/Steward/issues/223)): connectors and tasks of an existing Kafka Connect watched like other platforms – Steward does not capture changes itself.
+
+## Then – 0.10.0
+
+Each gets a decision record before it starts.
+
+1. **Debugging procedures** ([#235](https://github.com/vxrz/Steward/issues/235)): run a single node with sample data, step through a run, compare two runs' decisions and changes.
+2. **Quiet hours** ([#236](https://github.com/vxrz/Steward/issues/236)) and digest options for notifications.
+3. **Approvals from Microsoft Teams** ([#237](https://github.com/vxrz/Steward/issues/237)) (adaptive cards) for procedure steps and MCP write requests.
+4. **Shared procedure libraries** ([#238](https://github.com/vxrz/Steward/issues/238)) distributed through Git as signed bundles, building on Git sync.
+5. **A map of sites** in the plant registry ([#234](https://github.com/vxrz/Steward/issues/234)): OpenStreetMap by default, light and dark vector styles, an own tile source or a self-hosted PMTiles file for networks without internet access, or off.
+6. **An engine boundary** ([#239](https://github.com/vxrz/Steward/issues/239)) (start run / signal decision / cancel) that would allow a durable-execution backend such as Temporal for very long or very many runs.
 
 ## Later
 
-Bigger topics we expect to work on, in no fixed order. Each gets a decision record before it starts.
-
-- **Debugging procedures:** run a single node with sample data, step through a run, compare two runs' decisions and changes.
-- **Quiet hours** and digest options for notifications.
-- **Approvals from Microsoft Teams** (adaptive cards) for procedure steps and MCP write requests.
-- **ITSM integration:** open or update a ServiceNow / Jira ticket from a run and link it back, on top of the ticket references.
-- **SCIM provisioning** of users and teams from the identity provider.
-- **Audit anchoring with RFC 3161 timestamps** or a transparency log, next to the signed checkpoints.
-- **Shared procedure libraries** distributed through Git as signed bundles, building on Git sync.
-- **External key management:** wrap the vault keys with a KMS or HSM instead of (or in addition to) the master passphrase.
-- **Kafka Connect and Debezium** ([#223](https://github.com/vxrz/Steward/issues/223)): connectors and tasks of an existing Kafka Connect watched like other platforms – Steward does not capture changes itself.
-- **A map of sites** in the plant registry (needs a map library and tile sources allowed by the content security policy).
-- **An engine boundary** (start run / signal decision / cancel) that would allow a durable-execution backend such as Temporal for very long or very many runs.
+- **Postman import** (rest of [#204](https://github.com/vxrz/Steward/issues/204)): requests and sign-in from a collection.
 
 ## Ideas parked
 
 Discussed and not planned, with the reason; they come back only with a concrete need.
 
+- **ITSM integration** (open or update a ServiceNow / Jira ticket from a run): ticket references cover linking today; parked until a team needs Steward to write tickets.
+- **SCIM provisioning** of users and teams: SSO with claim mapping covers sign-in and roles; parked.
+- **Audit anchoring with RFC 3161 timestamps** or a transparency log: the signed checkpoints cover tamper evidence for now; parked.
+- **External key management** (KMS or HSM for the vault keys): the master passphrase stays; parked.
 - **Approved changes put monitors into maintenance automatically.** Maintenance windows exist (0.2.5) and are set on purpose; tying them to change records adds coupling for a rare case – documented changes seldom take platforms offline.
 - **Running Steward's procedures on Kestra, Windmill or Node-RED.** They overlap with the engine but lack dry runs, attestation-style decisions and sealed evidence; Steward calls them over HTTP where they already run.
 
