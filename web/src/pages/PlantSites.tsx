@@ -13,10 +13,11 @@ import { fmtRelative } from '../format';
 import { plantKeys } from '../queryKeys';
 import { AssetStatusBadge, MapLink, NotInSourceBadge, PreviewBadge, useNameOf, usePlantConfig, usePlantLabel } from '../components/plant/common';
 import { SiteFormModal } from '../components/plant/forms';
+import { SiteTileStats } from './plant/views/SiteTiles';
 
 /** The sites of the enterprise (#218): the plant registry's start page. */
 export function PlantSitesPage() {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantViews']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const navigate = useNavigate();
@@ -132,6 +133,7 @@ export function PlantSitesPage() {
                 )}
                 <Text size="sm">{t('sites.counts', { areas: s.areaCount, buildings: s.buildingCount, assets: s.assetCount })}</Text>
                 {statuses(s)}
+                <SiteTileStats siteId={s.id} />
                 <MapLink geo={s.geo} name={nameOf(s)} />
               </Stack>
             </Paper>
@@ -147,6 +149,7 @@ export function PlantSitesPage() {
                 <Table.Th>{label('area', true)}</Table.Th>
                 <Table.Th>{label('building', true)}</Table.Th>
                 <Table.Th>{label('asset', true)}</Table.Th>
+                <Table.Th>{t('plantViews:tiles.title')}</Table.Th>
                 <Table.Th>{t('sites.map')}</Table.Th>
                 <Table.Th>{t('updated')}</Table.Th>
               </Table.Tr>
@@ -179,6 +182,9 @@ export function PlantSitesPage() {
                       <Text size="sm">{s.assetCount}</Text>
                       {statuses(s)}
                     </Stack>
+                  </Table.Td>
+                  <Table.Td onClick={(e) => e.stopPropagation()} miw={220}>
+                    <SiteTileStats siteId={s.id} compact />
                   </Table.Td>
                   <Table.Td onClick={(e) => e.stopPropagation()}>
                     <MapLink geo={s.geo} name={nameOf(s)} />

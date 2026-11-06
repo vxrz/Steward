@@ -18,6 +18,7 @@ import { AssetFormModal } from '../components/plant/forms';
 import { AssetDataSection } from '../components/plant/AssetData';
 import { AssetNetworkSection } from '../components/plant/AssetNetwork';
 import { SourceLine } from './PlantSite';
+import { AssetTabs, PlantAssetTabPage } from './plant/views/tabs';
 
 /**
  * An asset (#218): where it is (site › area › work center › work unit, and the building that applies), the equipment
@@ -29,7 +30,7 @@ export function PlantAssetPage() {
   const { t } = useTranslation(['plant', 'common']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
-  const { assetId } = useParams();
+  const { assetId, tab } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [search, setSearch] = useSearchParams();
@@ -46,6 +47,8 @@ export function PlantAssetPage() {
     }
   }, [a?.canManage, search, setSearch]);
   if (!a) return <DetailState query={q} back="plantAssets" />;
+  // the other tabs (#230): the data flow as a picture
+  if (tab) return <PlantAssetTabPage asset={a} tab={tab} />;
   const base = `/plant/assets/${encodeURIComponent(a.id)}`;
   const saved = (x: PlantAssetDetail) => {
     qc.setQueryData(plantKeys.asset(assetId), x);
@@ -138,6 +141,7 @@ export function PlantAssetPage() {
             ? { items: [{ label: t('asset.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'asset-delete' }] }
             : undefined
         }
+        tabs={<AssetTabs asset={a} active="" />}
       />
       <CopiedFromNote kind="asset" id={a.id} pathOf={(id) => `/plant/assets/${encodeURIComponent(id)}`} />
       <Grid gap="lg">

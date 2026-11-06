@@ -911,6 +911,12 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/plant/assets/:assetId/assignment': DESIGN,
   'DELETE /api/plant/assets/:assetId/assignment': DESIGN,
   'GET /api/plant/explore/points': PLANT,
+  // visualizations (#230): read-only, the rights of the pages they picture (only what the caller may see)
+  'GET /api/plant/views/overview': PLANT,
+  'GET /api/plant/views/coverage': PLANT,
+  'GET /api/plant/sites/:siteId/structure': PLANT,
+  'GET /api/plant/assets/:assetId/flow': PLANT,
+  'GET /api/plant/profiles/:profileId/points/:pointId/lineage': PLANT,
   'GET /api/plant/checks': PLANT,
   // part 3 (#220): the OT network follows the site – who sees it sees the network, who manages it changes it
   'GET /api/plant/sites/:siteId/network': PLANT,

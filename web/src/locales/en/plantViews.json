@@ -1,0 +1,268 @@
+{
+  "noAssets": "No assets",
+  "tabs": {
+    "siteLabel": "Pages of {{name}}",
+    "assetLabel": "Pages of {{name}}",
+    "in": "in",
+    "site": {
+      "overview": "Overview",
+      "structure": "Structure"
+    },
+    "asset": {
+      "overview": "Overview",
+      "flow": "Data flow"
+    }
+  },
+  "toolbar": {
+    "mode": "Show as",
+    "picture": "Picture",
+    "table": "Table",
+    "animationOff": "Animation off",
+    "reducedHint": "Your system asks for reduced motion: nothing moves, the arrows show the direction.",
+    "export": "Export picture",
+    "exportSvg": "Download as SVG",
+    "exportPng": "Download as PNG"
+  },
+  "export": {
+    "subtitle": "Plant registry · documented as of {{date}}"
+  },
+  "legend": {
+    "liveTitle": "Live status:",
+    "docTitle": "Documentation only:",
+    "doc": "everything without a badge shows what the registry documents. A linked item without data says “No data” – never OK.",
+    "flowMoving": "Documented flow – the moving dashes show its direction",
+    "flowStatic": "Documented flow – the arrow shows its direction",
+    "inactive": "Documented, not active",
+    "problem": "A plant check fails",
+    "numbersPoints": "Data points that take the way",
+    "numbersAssets": "Assets that take the way"
+  },
+  "live": {
+    "monitor": {
+      "up": "Up",
+      "degraded": "Degraded",
+      "down": "Down",
+      "maintenance": "Maintenance",
+      "blocked": "Blocked",
+      "unknown": "No data"
+    },
+    "dataset": {
+      "fresh": "Fresh",
+      "due": "Due",
+      "stale": "Stale",
+      "no_data": "No data"
+    },
+    "unknownStatus": "{{status}}",
+    "from": {
+      "monitor": "From the linked monitor “{{name}}”",
+      "dataset": "Freshness of dataset {{name}}"
+    },
+    "fromAny": {
+      "monitor": "From the monitors linked to it",
+      "dataset": "Freshness of the dataset"
+    },
+    "sourceName": {
+      "monitor": "Monitor",
+      "dataset": "Dataset"
+    },
+    "sourceWord": {
+      "monitor": "Monitor: {{word}}",
+      "dataset": "Dataset: {{word}}"
+    }
+  },
+  "liveCount": {
+    "ok_one": "{{count}} up",
+    "ok_other": "{{count}} up",
+    "warn_one": "{{count}} degraded",
+    "warn_other": "{{count}} degraded",
+    "fail_one": "{{count}} down",
+    "fail_other": "{{count}} down",
+    "unknown_one": "{{count}} without data",
+    "unknown_other": "{{count}} without data"
+  },
+  "kinds": {
+    "asset": "Asset",
+    "point": "Data point",
+    "site": "Site",
+    "interface": "Interface",
+    "collector": "Collector",
+    "target": "Target system",
+    "kpi": "KPI job",
+    "dataset": "Dataset",
+    "dashboard": "Dashboard",
+    "kpiDefinition": "KPI definition"
+  },
+  "node": {
+    "hidden": "Not visible",
+    "inactive": "Not active",
+    "inactiveSentence": "Documented, not active",
+    "checks_one": "{{count}} problem",
+    "checks_other": "{{count}} problems",
+    "delivering": "{{count}} of {{total}} deliver",
+    "instances_one": "{{count}} job",
+    "instances_other": "{{count}} jobs",
+    "liveSentence": "{{source}}: {{status}}",
+    "docOnly": "Documentation only",
+    "opens": "Enter opens its page."
+  },
+  "edge": {
+    "points_one": "{{count}} data point",
+    "points_other": "{{count}} data points",
+    "assets_one": "{{count}} asset",
+    "assets_other": "{{count}} assets",
+    "files_one": "{{count}} file set",
+    "files_other": "{{count}} file sets",
+    "problem": "Check fails",
+    "inactive": "Not active",
+    "result": "result",
+    "from": "From {{from}} to {{to}}"
+  },
+  "graph": {
+    "label": "Picture: {{title}}",
+    "nodeHelp": "Tab moves to the next part, Enter opens its page.",
+    "edgeHelp": "A way of the documented flow.",
+    "controls": "Zoom",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fitView": "Show everything",
+    "partial": "Drag to see the rest; the buttons zoom."
+  },
+  "path": {
+    "help": "Point at an entry to see its way; a click keeps it highlighted.",
+    "count_one": "{{count}}",
+    "count_other": "{{count}}",
+    "filter": "Filter",
+    "none": "Nothing to show.",
+    "nowhere": "Goes nowhere further",
+    "more": "Show {{count}} more",
+    "delivers": "Delivered",
+    "reasons": {
+      "interface_inactive": "Interface not active",
+      "unavailable": "Not delivered here"
+    }
+  },
+  "table": {
+    "parts": "Parts",
+    "kind": "Kind",
+    "name": "Name",
+    "detail": "Details",
+    "status": "Status",
+    "goesTo": "Goes to"
+  },
+  "flow": {
+    "title": "Data flow",
+    "help": "Where the data of this {{type}} goes, as the registry documents it: interfaces, the gateway that collects them, where they are published, the KPI jobs that read them and where their results are shown.",
+    "live": "monitors linked to the asset, the freshness of the datasets its KPI jobs write, and the plant checks.",
+    "points": "Data points",
+    "exportTitle": "Data flow of {{name}}",
+    "emptyTitle": "No data flow documented yet",
+    "emptyText": "Assign a device profile to see the data flow: on the overview, under Data and KPIs, choose the profile and set up its interfaces.",
+    "emptyAction": "Go to the overview",
+    "whoCanAct": "Whoever manages the site assigns device profiles.",
+    "noProfile": "No device profile is assigned: only the KPI jobs are drawn."
+  },
+  "lineage": {
+    "title": "Lineage",
+    "help": "Which {{type}} deliver this data point, where each publishes it and which KPIs read it.",
+    "live": "monitors linked to an asset, the freshness of the datasets of the KPI jobs, and the plant checks.",
+    "exportTitle": "Lineage of {{name}}",
+    "grouped": "Many {{type}} have this profile: the picture shows one node per {{site}}; the table lists every one.",
+    "emptyTitle": "No {{type}} has this profile yet",
+    "emptyText": "Assign the device profile to an {{type}} to see where this data point goes."
+  },
+  "structure": {
+    "title": "Structure",
+    "help": "The site’s hierarchy after ISA-95, each part sized by its {{type}}. A click opens a part; the path above goes back.",
+    "live": "the inner ring and the counts show monitors linked to assets. The outer ring is the documented status of the assets.",
+    "groupBy": "Group by",
+    "byFunction": "Function (ISA-95)",
+    "byLocation": "Location ({{type}})",
+    "byLocationPlain": "Location (IEC 81346)",
+    "trail": "Where you are",
+    "mapLabel": "Parts of {{name}}",
+    "assets_one": "{{count}} asset",
+    "assets_other": "{{count}} assets",
+    "drill": "Enter opens it",
+    "liveWord": "Monitors",
+    "directly": "{{type}} placed directly here",
+    "inList": "Show in the assets list",
+    "more": "{{count}} more – the assets list shows all of them.",
+    "truncated": "This site has more assets than the picture lists – the assets list shows all of them.",
+    "unplacedFunction": "Not placed",
+    "unplacedLocation": "No {{type}}",
+    "unplacedLocationShort": "Without a building",
+    "emptyTitle": "Nothing to picture yet",
+    "emptyText": "Add {{areas}}, work centers and work units, and place {{assets}} in them, to see the structure.",
+    "noNodes": "No areas yet.",
+    "noBuildings": "No buildings yet.",
+    "level": "Level",
+    "assetsHeader": "Assets",
+    "statusHeader": "Status (documented)",
+    "liveHeader": "Monitors",
+    "docOnly": "Documentation only",
+    "ringLegend": "Ring: assets by status; inner ring: linked monitors",
+    "exportTitle": "Structure of {{name}}",
+    "contains": "Contains {{names}}"
+  },
+  "coverage": {
+    "title": "KPI coverage",
+    "help": "Which {{type}} have a KPI, could have it (they deliver every input) or cannot (inputs missing) – and where a check fails.",
+    "cardTitle": "Coverage",
+    "live": "the plant checks (a problem). Has, could and cannot follow from what the registry documents.",
+    "all": "All",
+    "allKpis": "All KPI definitions",
+    "profile": "Device profile",
+    "noProfile": "No profile",
+    "states": {
+      "has": "Has it",
+      "problem": "Problem",
+      "could": "Could have it",
+      "cannot": "Cannot",
+      "unchecked": "Not checked"
+    },
+    "short": {
+      "has": "Has",
+      "problem": "Problem",
+      "could": "Could",
+      "cannot": "Cannot",
+      "unchecked": "–"
+    },
+    "legend": {
+      "has": "Has it: a KPI job is set up",
+      "problem": "Problem: a plant check of the job fails",
+      "could": "Could have it: delivers every input, no job yet",
+      "cannot": "Cannot: inputs are missing (the cell says which)",
+      "unchecked": "Not checked: the KPI reads no data points"
+    },
+    "pct": "KPI coverage {{pct}} %",
+    "pctNone": "KPI coverage: nothing to cover",
+    "pctHelp": "Jobs set up, of all the KPIs the assets could have",
+    "jobs": "Jobs: {{jobs}}",
+    "inactive": "(not active)",
+    "couldHint": "Add a KPI job on the asset page (Data and KPIs).",
+    "kpisOf": "KPIs of {{name}}",
+    "more": "Show {{count}} more",
+    "shown": "{{shown}} of {{total}} shown",
+    "truncated": "{{shown}} of {{total}} listed – narrow the filters to see the rest. The counts above cover all of them.",
+    "noKpisTitle": "No KPI definitions yet",
+    "noKpisText": "Add KPI definitions (Plant → KPI definitions) to see which assets have them.",
+    "noAssetsTitle": "No {{type}} to show",
+    "noAssetsText": "Add {{type}} to a site to see their KPI coverage.",
+    "noMatch": "Nothing matches the filters.",
+    "cannotWith": "{{type}} with a profile that cannot have it",
+    "openMatrix": "Open the coverage matrix",
+    "exportTitle": "KPI coverage"
+  },
+  "explore": {
+    "coverage": "KPI coverage"
+  },
+  "tiles": {
+    "coverage": "KPI coverage",
+    "coverageHint": "KPI jobs set up, of all the KPIs the site’s assets could have (they deliver every input).",
+    "checks_one": "{{count}} open check",
+    "checks_other": "{{count}} open checks",
+    "structure": "Structure",
+    "coverageLink": "KPI coverage",
+    "title": "Overview"
+  }
+}

@@ -17,6 +17,7 @@ import { NotInSourceBadge, PreviewBadge, useNameOf, usePlantLabel } from '../com
 import { AssetBriefLink, Breakable, ChecksList, RowMenu, UnitText } from '../components/plant/data';
 import { ComputationModal, KpiColumnModal, KpiFormModal, KpiInputModal, KpiParameterModal } from '../components/plant/dataForms';
 import { SourceLine } from './PlantSite';
+import { KpiCoverageCard } from './plant/views/CoverageMatrix';
 
 const valuesOf = (k: PlantKpiDetail): PlantKpiValues => ({
   id: k.id,
@@ -508,6 +509,7 @@ export function PlantKpiPage() {
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Stack gap="md">
+            <KpiCoverageCard kpiId={k.id} />
             <Paper withBorder p="md" data-testid="kpi-instances">
               <Stack gap="xs">
                 <Title order={2} fz="h5">

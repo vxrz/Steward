@@ -16,6 +16,7 @@ import { seedPlantDemo } from './demo.js';
 import * as cat from './catalogue.js';
 import { assignmentInput, deleteAssignment, getAssignment, putAssignment } from './assignments.js';
 import * as net from './network.js';
+import { assetFlow, coverage, overview, pointLineage, siteStructure } from './views.js';
 import './links.js';
 
 /**
@@ -30,6 +31,7 @@ import './links.js';
  *   GET     /api/plant/explore/points, /api/plant/checks
  *   …       /api/plant/sites/:siteId/network, …/vlans[/:vlanId[/segment]], …/zones[/:zoneId], …/conduits[/:conduitId]   the OT network (#220)
  *   …       /api/plant/assets/:assetId/network, …/devices[/:deviceId], …/paths[/:pathId], …/checks
+ *   GET     /api/plant/views/overview | /views/coverage, …/structure, …/flow, …/lineage   the visualizations (#230)
  *   POST    /api/plant/import/preview | /api/plant/import, GET /api/plant/imports, GET /api/plant/export
  */
 
@@ -202,6 +204,23 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   app.post('/plant/assets/:assetId/paths', async (req) => net.createDataPath(p(req).assetId!, net.dataPathInput.parse(req.body)));
   app.put('/plant/assets/:assetId/paths/:pathId', async (req) => net.updateDataPath(p(req).assetId!, p(req).pathId!, net.dataPathUpdate.parse(req.body)));
   app.delete('/plant/assets/:assetId/paths/:pathId', async (req) => net.deleteDataPath(p(req).assetId!, p(req).pathId!));
+  // ---------- visualizations (#230): read-only aggregates, the same rights as the pages they picture ----------
+  app.get('/plant/views/overview', async () => overview());
+  app.get('/plant/views/coverage', async (req) =>
+    coverage(
+      z
+        .object({
+          site: z.string().max(100).optional(),
+          area: z.string().max(100).optional(),
+          profile: z.string().max(100).optional(),
+          kpi: z.string().max(100).optional(),
+        })
+        .parse(req.query),
+    ),
+  );
+  app.get('/plant/sites/:siteId/structure', async (req) => siteStructure(p(req).siteId!));
+  app.get('/plant/assets/:assetId/flow', async (req) => assetFlow(p(req).assetId!));
+  app.get('/plant/profiles/:profileId/points/:pointId/lineage', async (req) => pointLineage(p(req).profileId!, p(req).pointId!));
 
   // ---------- import and export ----------
   app.post('/plant/import/preview', imports, async (req) => previewImport(importInput.parse(req.body)));

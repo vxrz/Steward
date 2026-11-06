@@ -12,6 +12,7 @@ The plant registry documents the factories of the enterprise an installation ser
 - [Own fields and display names](#own-fields-and-display-names)
 - [Device profiles, data points and KPIs](#device-profiles-data-points-and-kpis)
 - [Part 3: OT network](#part-3-ot-network)
+- [Visualizations](#visualizations)
 - [YAML import and export](#yaml-import-and-export)
 - [Permissions](#permissions)
 - [API](#api)
@@ -197,6 +198,58 @@ A monitor or dataset the reader may not see is not named – the status it gives
 ### Rights
 
 The OT network follows its site ([Permissions](#permissions)): who **sees the site** sees its VLANs, zones, conduits and the devices, data paths and live status of its assets – the role _Plant viewer_ included; who **manages the site** changes them. Status viewers never reach it, and nothing of it is shown on status pages. A site or asset someone may not see answers `404`, in the import too ("There is no site …", "You may not add or change asset …"); a VLAN's other sites and the conduit link targets leave out sites they may not see. Linking a monitor, a segment, a collector or a host needs to see it (an item that was linked before may stay). Every change is audited on its site or asset: `site.vlan_added|vlan_changed|vlan_removed`, `site.zone_*`, `site.conduit_*`, `asset.device_added|device_changed|device_removed`, `asset.data_path_*`, `asset.checks_set`; creating a segment from a VLAN is also `system.created`.
+
+## Visualizations
+
+Since 0.8.0 (#230) the registry draws what it **documents**: how a site is structured, where an asset's data goes, which assets deliver a data point and which KPIs are covered. The pictures are documentation, not monitoring:
+
+- **Live status only where it is real.** Colour, "failing" marks and status words come only from Steward items that are linked to the part: a **monitor** the asset links to (its status: _Up, Degraded, Down, Maintenance, Blocked_), the **dataset** a KPI instance names (its freshness: _Fresh, Due, Stale_) and the **plant checks** ([Checks](#checks)). A part without such a link is drawn neutral. A linked item without data – a dataset that has no rows yet, or one the reader may not see – says **No data**, never OK. Every view has a small legend that says which parts have live status.
+- **Motion means direction.** The edges of a graph move in the direction of the documented flow; a path that is highlighted moves faster; a node whose live status changes pulses once. With the system setting _reduce motion_ (`prefers-reduced-motion`) nothing moves and arrows show the direction; the switch **Animation off** does the same for whoever wants it (remembered in the browser).
+- **A table for every picture.** _Picture_ or _Table_ above each view (phones start with the table): the same parts and their status in words. Nodes are focusable and labelled (Tab moves through them, Enter opens the part's page), statuses carry an icon and a word, never colour alone; light and dark themes.
+- **Export.** Every picture downloads as **SVG** or **PNG** (the download button above it), for documents and presentations.
+- **The same rights as the pages.** Only assets of sites the reader may see are drawn or counted; monitors, datasets and dashboards follow their own rights (a hidden dashboard is drawn as "not visible", without its name). The Plant viewer sees the pictures, without monitors and datasets.
+
+### Site structure
+
+![The structure of a site: the areas of Riverside Works as a treemap, each tile with its assets and a status ring](images/plant/structure.png)
+
+Site page → **Structure**: the ISA-95 hierarchy (areas → work centers → work units) as a **zoomable treemap**. Each tile is sized by the assets in it and shows their number, a **status ring** (the assets' documented status – planned, commissioning, operational, maintenance, out of service, decommissioned) and – where assets link to monitors – an inner ring and counts of their monitors' states. Inside a tile its parts are drawn small, with a strip of their status and a square per asset. A click (or Enter) opens a part with a short zoom, the path above goes back (Escape too); the innermost level lists its assets. **Group by** switches to the **buildings** – the location aspect of IEC 81346 instead of the function aspect of ISA-95. Large sites stay fast: only one level is drawn at a time, at most 5,000 assets are listed (the counts cover all).
+
+### Data flow of an asset
+
+![The data flow of milling centre 2: its interfaces, the inactive OPC UA server and the KPI job whose input is missing, drawn dashed](images/plant/data-flow.png)
+
+Asset page → **Data flow**: from the part-2 assignment – the asset → its **interfaces** (protocol, endpoint) → the **collector** (who publishes the data, else the client the interface needs) → the **target systems** of its publications (with their paths) → the **KPI jobs** that read the data → the **datasets** and **dashboards** that show their result. The numbers on the edges are the data points that take the way. An interface that is not set up or not active is drawn **dashed** with _Not active_; a KPI input that is not delivered (a failing plant check) is dashed in red with _Check fails_ and the problem on the job. The list beside the picture names every data point: pointing at one highlights its way end to end, a click keeps it and zooms to it. Without an assignment the page says what to add.
+
+### Lineage of a data point
+
+![The lineage of the program status: the assets of the profile, where they publish it and the KPI that reads it](images/plant/lineage.png)
+
+A data point's page ends with its **lineage**: the same flow, fanned out from the point – every asset with the profile (dashed when it does not deliver the point), where each publishes it and the KPI definitions that read it, with their jobs' results. With more than 24 assets the picture draws one node per site (how many of them deliver); the list and the table still name every asset.
+
+### KPI coverage
+
+![The KPI coverage matrix: assets of Riverside Works against the KPI definitions, with the state of each](images/plant/coverage.png)
+
+_Plant → Explore data → KPI coverage_ and the KPI page (**Coverage**): assets × KPI definitions, each cell one of
+
+| State             | Means                                                                                                                         |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **Has it**        | a KPI job is set up on the asset                                                                                              |
+| **Problem**       | a job is set up, and a plant check of it fails                                                                                |
+| **Could have it** | the asset delivers every data point input, but has no job yet                                                                 |
+| **Cannot**        | inputs are missing – the cell says which (no profile, another profile, an interface not active, a data point the asset lacks) |
+| **Not checked**   | the KPI reads no data points, so Steward cannot tell                                                                          |
+
+The **KPI coverage** in per cent is the jobs set up of all the KPIs the assets could have (has + problem over has + problem + could). Filters: site, area, device profile (and a KPI, from the KPI page) – part of the address. Pointing at a cell explains it; a click opens the asset (its data flow, or its overview where a job is to be added or a check is shown). Phones show a list per asset. One answer holds at most 20,000 cells (at most 2,000 assets); the totals count every asset that matches.
+
+### Site overview tiles
+
+![Two site cards with their assets by status, KPI coverage and open checks](images/plant/site-tiles.png)
+
+_Plant → Sites_: every site's card (and a column of the table) shows its assets by status as a small bar, its **KPI coverage**, its **open checks** and – where assets link to monitors – their states, with links into the structure and the coverage matrix.
+
+The views read their data again every minute (live status may change; the documentation rarely does). Their internal routes are `GET /api/plant/views/overview`, `GET /api/plant/views/coverage?site=&area=&profile=&kpi=`, `GET /api/plant/sites/:siteId/structure`, `GET /api/plant/assets/:assetId/flow` and `GET /api/plant/profiles/:profileId/points/:pointId/lineage` – with the rights of the pages they picture.
 
 ## YAML import and export
 
@@ -445,7 +498,7 @@ A site or asset that you may not see answers `404`, as if it did not exist; a li
 
 ## API
 
-The internal API (the web app) is under `/api/plant/…`: `sites`, `sites/:siteId` with `nodes`, `buildings`, `links` and `access`, `hierarchy`, `assets`, `assets/:assetId` with `image` and `links`, `import/preview`, `import`, `imports`, `export`, `schema`, `config`; since 0.7.0 `assets/:assetId/assignment` (`GET`, `PUT`, `DELETE`), `profiles`, `profiles/:profileId` with `points/:pointId` and `duplicate`, `kpis`, `kpis/:kpiId` with `duplicate`, `explore/points?q=` and `checks`; `assets` also takes `profile` and `dataPoint`; since 0.8.0 `sites/:siteId/network` (the whole OT network of a site with every asset's live status and the systems the data paths name – one answer for a diagram), `sites/:siteId/vlans[/:vlanId[/segment]]`, `sites/:siteId/zones[/:zoneId]`, `sites/:siteId/conduits[/:conduitId]`, `assets/:assetId/network`, `assets/:assetId/devices[/:deviceId]`, `assets/:assetId/paths[/:pathId]` and `assets/:assetId/checks`; the switch and settings are `GET`/`PUT /api/settings/plant`.
+The internal API (the web app) is under `/api/plant/…`: `sites`, `sites/:siteId` with `nodes`, `buildings`, `links` and `access`, `hierarchy`, `assets`, `assets/:assetId` with `image` and `links`, `import/preview`, `import`, `imports`, `export`, `schema`, `config`; since 0.7.0 `assets/:assetId/assignment` (`GET`, `PUT`, `DELETE`), `profiles`, `profiles/:profileId` with `points/:pointId` and `duplicate`, `kpis`, `kpis/:kpiId` with `duplicate`, `explore/points?q=` and `checks`; `assets` also takes `profile` and `dataPoint`; since 0.8.0 the [visualizations](#visualizations) `views/overview`, `views/coverage`, `sites/:siteId/structure`, `assets/:assetId/flow` and `profiles/:profileId/points/:pointId/lineage`, and the OT network `sites/:siteId/network` (the whole OT network of a site with every asset's live status and the systems the data paths name – one answer for a diagram), `sites/:siteId/vlans[/:vlanId[/segment]]`, `sites/:siteId/zones[/:zoneId]`, `sites/:siteId/conduits[/:conduitId]`, `assets/:assetId/network`, `assets/:assetId/devices[/:deviceId]`, `assets/:assetId/paths[/:pathId]` and `assets/:assetId/checks`; the switch and settings are `GET`/`PUT /api/settings/plant`.
 
 The public, read-only API ([API.md](API.md), tag _Plant_):
 

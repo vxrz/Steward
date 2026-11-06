@@ -118,4 +118,10 @@ export const plantKeys = {
   // part 3 (#220): the OT network of a site, of an asset
   network: (siteId: string | null | undefined) => ['plant', 'network', siteId] as const,
   assetNetwork: (assetId: string | null | undefined) => ['plant', 'assetNetwork', assetId] as const,
+  // visualizations (#230)
+  overview: ['plant', 'views', 'overview'] as const,
+  coverage: (filter: string) => ['plant', 'views', 'coverage', filter] as const,
+  structure: (siteId: string | null | undefined) => ['plant', 'views', 'structure', siteId] as const,
+  flow: (assetId: string | null | undefined) => ['plant', 'views', 'flow', assetId] as const,
+  lineage: (profileId: string | null | undefined, pointId: string | null | undefined) => ['plant', 'views', 'lineage', profileId, pointId] as const,
 };

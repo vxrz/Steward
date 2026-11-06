@@ -33,6 +33,7 @@ import type compliance from '../locales/en/compliance.json';
 import type assurance from '../locales/en/assurance.json';
 import type plant from '../locales/en/plant.json';
 import type plantNetwork from '../locales/en/plantNetwork.json';
+import type plantViews from '../locales/en/plantViews.json';
 import auth from '../locales/en/auth.json';
 import common from '../locales/en/common.json';
 import errors from '../locales/en/errors.json';
@@ -79,4 +80,5 @@ export interface Resources {
   assurance: typeof assurance;
   plant: typeof plant;
   plantNetwork: typeof plantNetwork;
+  plantViews: typeof plantViews;
 }

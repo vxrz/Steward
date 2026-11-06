@@ -11,6 +11,7 @@ import { ListPage } from '../components/page/ListPage';
 import { plantKeys } from '../queryKeys';
 import { PreviewBadge, useNameOf, usePlantLabel } from '../components/plant/common';
 import { Breakable, ChecksList, NoProblems, ProtocolBadge, UnitText } from '../components/plant/data';
+import { CoverageMatrix } from './plant/views/CoverageMatrix';
 
 const pointPath = (h: PlantPointHit) => `/plant/profiles/${encodeURIComponent(h.profile.id)}/points/${encodeURIComponent(h.point.id)}`;
 const assetsPath = (h: PlantPointHit) => `/plant/assets?profile=${encodeURIComponent(h.profile.id)}&dataPoint=${encodeURIComponent(h.point.id)}`;
@@ -20,10 +21,12 @@ const assetsPath = (h: PlantPointHit) => `/plant/assets?profile=${encodeURICompo
  * address, description), and which KPIs an asset can have. Both are in the address, so a result can be shared.
  */
 export function PlantExplorePage() {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantViews']);
   const label = usePlantLabel();
+  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const [params, setParams] = useSearchParams();
-  const mode = params.get('view') === 'asset' ? 'asset' : 'points';
+  const view = params.get('view');
+  const mode = view === 'asset' || view === 'coverage' ? view : 'points';
   const [q, setQ] = useState(params.get('q') ?? '');
   const [needle] = useDebouncedValue(q.trim(), 250);
   const set = (k: string, v: string | null) => {
@@ -60,15 +63,24 @@ export function PlantExplorePage() {
       <SegmentedControl
         mb="md"
         value={mode}
-        onChange={(v) => set('view', v === 'asset' ? 'asset' : null)}
+        onChange={(v) => set('view', v === 'points' ? null : v)}
         aria-label={t('explore.mode')}
+        orientation={narrow ? 'vertical' : 'horizontal'}
+        fullWidth={narrow}
         data={[
           { value: 'points', label: t('explore.points', { type: label('asset', true, true) }) },
           { value: 'asset', label: t('explore.asset', { type: label('asset', false, true) }) },
+          { value: 'coverage', label: t('plantViews:explore.coverage') },
         ]}
         data-testid="explore-mode"
       />
-      {mode === 'points' ? <PointSearch needle={needle} /> : <AssetKpis assetId={params.get('asset')} onAsset={(id) => set('asset', id)} />}
+      {mode === 'points' ? (
+        <PointSearch needle={needle} />
+      ) : mode === 'coverage' ? (
+        <CoverageMatrix />
+      ) : (
+        <AssetKpis assetId={params.get('asset')} onAsset={(id) => set('asset', id)} />
+      )}
     </ListPage>
   );
 }

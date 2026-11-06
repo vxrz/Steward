@@ -310,8 +310,10 @@ function Shell({ status }: { status: AuthStatus }) {
                     {caps.plant && <Route path="/plant/sites/:siteId" element={<PlantSitePage />} />}
                     {caps.plant && <Route path="/plant/sites/:siteId/network" element={<PlantNetworkPage />} />}
                     {caps.plant && <Route path="/plant/sites/:siteId/network/:tab" element={<PlantNetworkPage />} />}
+                    {caps.plant && <Route path="/plant/sites/:siteId/:tab" element={<PlantSitePage />} />}
                     {caps.plant && <Route path="/plant/assets" element={<PlantAssetsPage />} />}
                     {caps.plant && <Route path="/plant/assets/:assetId" element={<PlantAssetPage />} />}
+                    {caps.plant && <Route path="/plant/assets/:assetId/:tab" element={<PlantAssetPage />} />}
                     {caps.plant && <Route path="/plant/import" element={<PlantImportPage />} />}
                     {caps.plant && <Route path="/plant/profiles" element={<PlantProfilesPage />} />}
                     {caps.plant && <Route path="/plant/profiles/:profileId" element={<PlantProfilePage />} />}
@@ -382,8 +384,10 @@ function Shell({ status }: { status: AuthStatus }) {
                     {caps.plant && <Route path="/plant/sites/:siteId" element={<PlantSitePage />} />}
                     {caps.plant && <Route path="/plant/sites/:siteId/network" element={<PlantNetworkPage />} />}
                     {caps.plant && <Route path="/plant/sites/:siteId/network/:tab" element={<PlantNetworkPage />} />}
+                    {caps.plant && <Route path="/plant/sites/:siteId/:tab" element={<PlantSitePage />} />}
                     {caps.plant && <Route path="/plant/assets" element={<PlantAssetsPage />} />}
                     {caps.plant && <Route path="/plant/assets/:assetId" element={<PlantAssetPage />} />}
+                    {caps.plant && <Route path="/plant/assets/:assetId/:tab" element={<PlantAssetPage />} />}
                     {caps.plant && <Route path="/plant/import" element={<PlantImportPage />} />}
                     {caps.plant && <Route path="/plant/profiles" element={<PlantProfilesPage />} />}
                     {caps.plant && <Route path="/plant/profiles/:profileId" element={<PlantProfilePage />} />}
