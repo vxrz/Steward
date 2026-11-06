@@ -605,6 +605,44 @@ export interface McpGatewayConfig {
   allowedPathPrefixes?: string[];
 }
 
+/**
+ * MCP mode of an identity (0.9.0, ADR 0009): off, read, or approved writes (`writes`: confirm or fourEyes). With mode
+ * off, `writes` keeps the approval mode chosen before (turning the gateway on again without one restores it).
+ */
+export const IDENTITY_MCP_MODES = ['off', 'read', 'writes'] as const;
+export type IdentityMcpMode = (typeof IDENTITY_MCP_MODES)[number];
+export interface IdentityMcp {
+  mode: IdentityMcpMode;
+  writes?: Exclude<McpWriteMode, 'off'>;
+}
+
+/**
+ * One set of credentials under a platform (0.9.0, #228, ADR 0009). Every platform has exactly one default identity;
+ * requests that name no identity use it. Never carries a secret, the sign-in settings or variables – only names and flags.
+ */
+export interface PlatformIdentity {
+  id: string;
+  platformId: string;
+  name: string;
+  description: string;
+  default: boolean;
+  readOnly: boolean;
+  privileged: boolean;
+  mcp: IdentityMcp;
+  /** null: every operation (no filter) */
+  operationFilter: { preset: 'read' | 'chosen'; operations: { specId: string; method: string; specPath: string; operationId?: string }[] } | null;
+  /** Whether the identity signs in with its own settings (false: the platform's sign-in settings) */
+  ownSignIn: boolean;
+  /** Names of its stored secrets (values are never returned) */
+  secretKeys: string[];
+  /** Integrity of its seal, as for the platform */
+  integrity: 'ok' | 'unsealed' | 'mismatch' | 'locked';
+  /** Whether the current user may use it (the default identity: the platform's "use") */
+  mayUse: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Platform {
   id: string;
   name: string;
@@ -627,6 +665,8 @@ export interface Platform {
   updatedAt: string;
   /** The latest connection test (from the audit log; GET /platforms only, null: never tested) */
   lastTest?: { at: string; ok: boolean } | null;
+  /** Its identities (0.9.0, ADR 0009), the default first – names and flags only */
+  identities?: PlatformIdentity[];
 }
 
 export interface PlatformPreset {

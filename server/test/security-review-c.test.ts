@@ -406,20 +406,33 @@ describe('M1 – platform settings changed in the database are refused', () => {
 
   it('binds the encrypted credentials to their platform', async () => {
     const d = await db();
-    const rows = d.all<{ id: string; secrets: string | null }>('SELECT id, secrets FROM platforms WHERE secrets IS NOT NULL ORDER BY id');
+    // the credentials live on the default identities (0.9.0, ADR 0009); the platform rows are empty
+    expect(d.all('SELECT id FROM platforms WHERE secrets IS NOT NULL')).toEqual([]);
+    const rows = d.all<{ id: string; platform_id: string; secrets: string | null }>(
+      'SELECT id, platform_id, secrets FROM platform_identities WHERE secrets IS NOT NULL ORDER BY id',
+    );
     // two platforms whose credentials differ: demo platforms share credentials, and the seal covers the plaintext
     const { vault } = await import('../src/vault.js');
     const plain = (r: { secrets: string | null }) => JSON.stringify(vault().decrypt(r.secrets!));
     const a = rows[0];
     const b = rows.find((r) => plain(r) !== plain(a!));
     expect(b, 'two platforms with different credentials').toBeDefined();
-    d.run('UPDATE platforms SET secrets = ? WHERE id = ?', a!.secrets, b!.id);
+    d.run('UPDATE platform_identities SET secrets = ? WHERE id = ?', a!.secrets, b!.id);
     try {
-      expect((await s.api('GET', `/platforms/${b!.id}`)).integrity).toBe('mismatch');
+      expect((await s.api('GET', `/platforms/${b!.platform_id}`)).integrity).toBe('mismatch');
+      await expect(s.api('POST', `/platforms/${b!.platform_id}/test`, {})).rejects.toMatchObject({ status: 409 });
     } finally {
-      d.run('UPDATE platforms SET secrets = ? WHERE id = ?', b!.secrets, b!.id);
+      d.run('UPDATE platform_identities SET secrets = ? WHERE id = ?', b!.secrets, b!.id);
     }
-    expect((await s.api('GET', `/platforms/${b!.id}`)).integrity).toBe('ok');
+    expect((await s.api('GET', `/platforms/${b!.platform_id}`)).integrity).toBe('ok');
+    // an old-style ciphertext put back on the platform row breaks the platform's seal
+    d.run('UPDATE platforms SET secrets = ? WHERE id = ?', a!.secrets, b!.platform_id);
+    try {
+      expect((await s.api('GET', `/platforms/${b!.platform_id}`)).integrity).toBe('mismatch');
+    } finally {
+      d.run('UPDATE platforms SET secrets = NULL WHERE id = ?', b!.platform_id);
+    }
+    expect((await s.api('GET', `/platforms/${b!.platform_id}`)).integrity).toBe('ok');
   });
 });
 

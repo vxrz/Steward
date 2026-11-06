@@ -16,7 +16,9 @@ let hub: string;
 let apiService = '';
 /** Every secret value we know of; none may ever show up in a /api/v1 response. */
 const SECRETS: string[] = [];
-const PLATFORM_KEYS = ['id', 'name', 'kind', 'description', 'environment', 'baseUrl', 'authType', 'permissions', 'createdAt', 'updatedAt'].sort();
+const PLATFORM_KEYS = ['id', 'name', 'kind', 'description', 'environment', 'baseUrl', 'authType', 'permissions', 'identities', 'createdAt', 'updatedAt'].sort();
+/** An identity (ADR 0009): names and flags only */
+const IDENTITY_KEYS = ['id', 'name', 'description', 'default', 'readOnly', 'privileged', 'mcp', 'operationFilter', 'mayUse'].sort();
 
 interface Res {
   status: number;
@@ -660,7 +662,11 @@ describe('every endpoint', () => {
     }
     const platforms = adminCrawl.filter((c) => c.template === '/platforms/{platformId}');
     expect(platforms.length).toBeGreaterThanOrEqual(2);
-    for (const p of platforms) expect(Object.keys(p.res.body).sort()).toEqual(PLATFORM_KEYS);
+    for (const p of platforms) {
+      expect(Object.keys(p.res.body).sort()).toEqual(PLATFORM_KEYS);
+      expect(p.res.body.identities.length).toBeGreaterThanOrEqual(1);
+      for (const i of p.res.body.identities) expect(Object.keys(i).sort()).toEqual(IDENTITY_KEYS);
+    }
   });
 
   it('pages dataset rows and detects re-publishing', async () => {

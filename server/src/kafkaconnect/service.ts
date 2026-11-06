@@ -18,7 +18,7 @@ import { audit } from '../audit.js';
 import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { HttpError, parseJson } from '../util.js';
-import { getPlatform, getSecrets, listPlatforms } from '../platforms/service.js';
+import { getConnection, getPlatform, listPlatforms } from '../platforms/service.js';
 import { requireVisiblePlatform } from '../monitors/platforms.js';
 import { catalogueVisibleNow } from '../records/access.js';
 import { ConnectError, assertConnectOutbound, connectGet, readConnect } from './client.js';
@@ -142,13 +142,13 @@ export function connectErrorMessage(e: unknown): string {
  * why. Connectors that appear or disappear are recorded in the platform's history (platform.connectors_changed).
  */
 export async function refreshConnect(platformId: string, actor: string, now = Date.now()): Promise<ConnectReadout> {
-  const platform = getPlatform(platformId);
+  const { platform, secrets } = getConnection(platformId);
   if (platform.kind !== KAFKA_CONNECT_KIND) throw new HttpError(400, 'Choose a Kafka Connect platform', 'KAFKA_CONNECT_PLATFORM');
   const before = storedReadout(platformId);
   const at = new Date(now).toISOString();
   let readout: ConnectReadout;
   try {
-    readout = { readAt: at, error: null, ...(await readConnect(platform, getSecrets(platformId), { before, now })) };
+    readout = { readAt: at, error: null, ...(await readConnect(platform, secrets, { before, now })) };
   } catch (e) {
     readout = { ...(before ?? { worker: null, connectors: [], plugins: [] }), readAt: at, error: connectErrorMessage(e) };
   }
@@ -206,9 +206,8 @@ export async function runKafkaConnectJob(now = Date.now()): Promise<number> {
  * already (redactConnectAnswer). Who may use the platform reads it; every read is recorded (kafka_connect.config_read).
  */
 export async function connectorConfig(platformId: string, name: string, actor: string): Promise<{ name: string; config: Record<string, string> }> {
-  const platform = getPlatform(platformId);
+  const { platform, secrets } = getConnection(platformId);
   if (platform.kind !== KAFKA_CONNECT_KIND) throw new HttpError(400, 'Choose a Kafka Connect platform', 'KAFKA_CONNECT_PLATFORM');
-  const secrets = getSecrets(platformId);
   let body: unknown;
   try {
     await assertConnectOutbound(platform, secrets);

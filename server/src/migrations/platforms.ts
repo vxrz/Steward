@@ -1,9 +1,59 @@
 import type { NamedMigration } from '../db.js';
+import { pgDdl } from '../database/sql.js';
+
+/** platforms-005 (0.9.0, ADR 0009): identities – several sets of credentials per platform. */
+const IDENTITIES_DDL = `
+  CREATE TABLE platform_identities (
+    id TEXT PRIMARY KEY,
+    platform_id TEXT NOT NULL REFERENCES platforms(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    is_default INTEGER NOT NULL DEFAULT 0,
+    auth TEXT,
+    variables TEXT NOT NULL DEFAULT '{}',
+    secrets TEXT,
+    acl TEXT NOT NULL DEFAULT '[]',
+    read_only INTEGER NOT NULL DEFAULT 0,
+    privileged INTEGER NOT NULL DEFAULT 0,
+    operation_filter TEXT,
+    mcp TEXT NOT NULL DEFAULT '{"mode":"off"}',
+    credential_source TEXT,
+    config_mac TEXT,
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX platform_identities_name ON platform_identities(platform_id, lower(name));
+  CREATE UNIQUE INDEX platform_identities_default ON platform_identities(platform_id) WHERE is_default = 1;
+`;
+
+/**
+ * One default identity per platform: id pi_ + the random part of the platform id (platforms/identities.ts
+ * defaultIdentityId), the ciphertext of platforms.secrets copied unchanged (the vault encrypts without context), the MCP
+ * mode from config.mcpGateway. Not sealed: the one-time step after the next unlock (platforms/integrity.ts
+ * createPlatformIdentities) seals it and empties platforms.secrets – only for platforms whose seal is intact.
+ */
+const identitiesInsert = (enabled: string, writes: string) => `
+  INSERT INTO platform_identities (id, platform_id, name, description, is_default, auth, variables, secrets, acl, read_only, privileged,
+    operation_filter, mcp, credential_source, config_mac, created_at, created_by, updated_at, updated_by)
+  SELECT CASE WHEN substr(id, 1, 3) = 'pf_' THEN 'pi_' || substr(id, 4) ELSE 'pi_' || id END,
+    id, 'Default', '', 1, NULL, '{}', secrets, '[]', 0, 0, NULL,
+    CASE
+      WHEN ${enabled} AND ${writes} IN ('confirm', 'fourEyes') THEN '{"mode":"writes","writes":"' || ${writes} || '"}'
+      WHEN ${enabled} THEN '{"mode":"read"}'
+      WHEN ${writes} IN ('confirm', 'fourEyes') THEN '{"mode":"off","writes":"' || ${writes} || '"}'
+      ELSE '{"mode":"off"}'
+    END,
+    NULL, NULL, created_at, 'system', updated_at, 'system'
+  FROM platforms;
+`;
 
 /**
  * Platforms and their API specifications.
  * - platforms-004: what Steward last read from a Kafka Connect cluster (0.9.0, #223, kafkaconnect/service.ts): connectors,
  *   tasks and plugins – never a connector configuration.
+ * - platforms-005: identities (0.9.0, #228, ADR 0009) – one default identity per platform, no change in behaviour.
  * - platforms-003: the periodic connection test of a platform (v0.4.0, platforms/health.ts): off by default.
  * - platforms-002: recorded responses for test runs (#105).
  * - platforms-001: the path prefix of an API specification (the path of its server URL, editable per spec). NULL for
@@ -66,5 +116,11 @@ export const PLATFORM_MIGRATIONS: NamedMigration[] = [
         read_by TEXT NOT NULL
       );
     `,
+  },
+  {
+    // Identities (0.9.0, #228, ADR 0009): additive – platforms.secrets stays (emptied by the one-time step after unlock)
+    name: 'platforms-005-identities',
+    sql: IDENTITIES_DDL + identitiesInsert("json_extract(config, '$.mcpGateway.enabled') = 1", "json_extract(config, '$.mcpGateway.writes')"),
+    pg: pgDdl(IDENTITIES_DDL) + identitiesInsert("(config::jsonb #>> '{mcpGateway,enabled}') = 'true'", "(config::jsonb #>> '{mcpGateway,writes}')"),
   },
 ];

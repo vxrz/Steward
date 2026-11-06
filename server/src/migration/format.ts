@@ -101,6 +101,11 @@ export interface Manifest {
   settings: { sha256: string; keys: string[] };
   /** Configuration integrity of each platform on the source ('ok': resealed with the target's key on import) */
   platformIntegrity: Record<string, 'ok' | 'mismatch' | 'unsealed'>;
+  /**
+   * The same for each platform identity (0.9.0, ADR 0009). Missing in packages of older versions: their identities are
+   * made in staging by the SQL migration and get the platform's credentials when the platform was intact.
+   */
+  identityIntegrity?: Record<string, 'ok' | 'mismatch' | 'unsealed'>;
 }
 
 export interface Signature {

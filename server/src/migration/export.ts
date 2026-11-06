@@ -9,7 +9,7 @@ import { createCheckpoint } from '../audit-anchor.js';
 import { publicKeyFingerprint, vault, encryptWith } from '../vault.js';
 import { ENCRYPTED_COLUMNS } from '../vault-rotation.js';
 import { ZipWriter } from '../compliance/zip.js';
-import { platformIntegrity, type SealedPlatformRow } from '../platforms/integrity.js';
+import { identityIntegrity, platformIntegrity, type SealedIdentityRow, type SealedPlatformRow } from '../platforms/integrity.js';
 import { columns, readBatches, tables } from '../cli/db-copy.js';
 import { HttpError, parseJson, sha256 } from '../util.js';
 import { listProviders } from '../auth/sso.js';
@@ -130,6 +130,7 @@ export async function exportPackage(opts: { out: string; transferPassphrase: str
     let settingsKeys: string[] = [];
     let auditEntries = 0;
     const integrity: Manifest['platformIntegrity'] = {};
+    const identities: NonNullable<Manifest['identityIntegrity']> = {};
     const schema = currentSchema();
 
     // ---- one consistent read of the database (synchronous; table contents go to temporary files) ----
@@ -273,6 +274,12 @@ export async function exportPackage(opts: { out: string; transferPassphrase: str
         const state = platformIntegrity(p);
         integrity[p.id] = state === 'ok' ? 'ok' : state === 'unsealed' ? 'unsealed' : 'mismatch';
       }
+      for (const i of d.all<SealedIdentityRow>(
+        'SELECT id, platform_id, name, is_default, auth, variables, secrets, read_only, privileged, operation_filter, mcp, credential_source, config_mac FROM platform_identities',
+      )) {
+        const state = identityIntegrity(i);
+        identities[i.id] = state === 'ok' ? 'ok' : state === 'unsealed' ? 'unsealed' : 'mismatch';
+      }
     });
 
     // ---- the package: tables, audit log, settings, files, signed manifest ----
@@ -306,6 +313,7 @@ export async function exportPackage(opts: { out: string; transferPassphrase: str
       teams,
       settings: { sha256: sha256(settingsJson), keys: settingsKeys },
       platformIntegrity: integrity,
+      identityIntegrity: identities,
     };
     const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 1), 'utf8');
     await zip.add('manifest.json', manifestBytes, { compress: true });

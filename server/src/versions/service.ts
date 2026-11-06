@@ -33,7 +33,7 @@ import { readSetting, writeSetting } from '../settings.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
 import { logger } from '../log.js';
 import { vault } from '../vault.js';
-import { getPlatform, getSecrets, listPlatforms } from '../platforms/service.js';
+import { getConnection, listPlatforms } from '../platforms/service.js';
 import { ownerProblem, platformFor } from '../monitors/platforms.js';
 import { behindOf, newestOf, parseVersion, type Scheme, type Version } from './compare.js';
 import { ECOSYSTEM_LABELS, isEcosystem, parsePurl, purlLabel, type Purl } from './purl.js';
@@ -679,7 +679,7 @@ export function stackWatch(kind: 'component' | 'system', ids: string[]): (id: st
 async function runLookup(l: Lookup): Promise<FoundVersion[]> {
   if (l.source === 'registry') return readRegistry(l.purl!, l.base!);
   if (!vault().unlocked) throw new Error('the vault is locked');
-  const { platform, secrets } = l.actor ? platformFor(l.actor, l.platformId!) : { platform: getPlatform(l.platformId!), secrets: getSecrets(l.platformId!) };
+  const { platform, secrets } = l.actor ? platformFor(l.actor, l.platformId!) : getConnection(l.platformId!);
   if (l.source === 'dtrack') {
     if (platform.kind !== DTRACK_KIND) throw new Error(`"${platform.name}" is not a Dependency-Track platform`);
     return readDtrackLatest(platform, secrets, l.purl!);

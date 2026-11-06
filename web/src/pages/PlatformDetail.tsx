@@ -22,6 +22,7 @@ import {
   IconTerminal2,
   IconTrash,
   IconGauge,
+  IconId,
   IconDatabase,
   IconSchema,
   IconArrowsExchange,
@@ -39,6 +40,7 @@ import { fmtNumber, fmtRelative } from '../format';
 import { KIND_COLORS } from './Platforms';
 import { SettingsTab } from '../components/platform/SettingsTab';
 import { CredentialsTab } from '../components/platform/CredentialsTab';
+import { IdentitiesTab } from '../components/platform/IdentitiesTab';
 import { SpecsTab } from '../components/platform/SpecsTab';
 import { DocsTab } from '../components/platform/DocsTab';
 import { ExplorerTab, type ExplorerPreset } from '../components/platform/ExplorerTab';
@@ -353,6 +355,9 @@ export function PlatformDetailPage() {
           <Tabs.Tab value="credentials" leftSection={<IconKey size={16} />}>
             {t('detail.tabs.credentials')}
           </Tabs.Tab>
+          <Tabs.Tab value="identities" leftSection={<IconId size={16} />} data-testid="platform-tab-identities">
+            {t('detail.tabs.identities')}
+          </Tabs.Tab>
           {!isDatabase && (
             <Tabs.Tab value="specs" leftSection={<IconApi size={16} />}>
               {t('detail.tabs.specs')}
@@ -419,6 +424,9 @@ export function PlatformDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="credentials">
           <CredentialsTab platform={p} readOnly={!canManage} />
+        </Tabs.Panel>
+        <Tabs.Panel value="identities">
+          <IdentitiesTab platform={p} onOpenTab={setTab} />
         </Tabs.Panel>
         <Tabs.Panel value="specs">
           <SpecsTab

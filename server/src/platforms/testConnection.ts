@@ -71,7 +71,7 @@ export async function runConnectionTest(p: Platform, secrets: Record<string, str
           durationMs: Date.now() - t0,
           message,
           body: null,
-          token: tokenInfo(p.id),
+          token: tokenInfo(p),
           checks: redactSecrets(r.checks, secrets),
         },
         `Connection test "${p.name}": ${message.slice(0, 300)}${r.ok ? '' : ' – failed'}`,
@@ -108,7 +108,7 @@ export async function runConnectionTest(p: Platform, secrets: Record<string, str
           durationMs: Date.now() - t0,
           message,
           body: null,
-          token: p.kind === PVAULT_KIND ? tokenInfo(p.id) : null,
+          token: p.kind === PVAULT_KIND ? tokenInfo(p) : null,
           ...(checks ? { checks: redactSecrets(checks, secrets) } : {}),
         },
         `Connection test "${p.name}": ${message}`,
@@ -138,7 +138,7 @@ export async function runConnectionTest(p: Platform, secrets: Record<string, str
         headers: redactSecrets(shownHeaders(res.headers), secrets),
         url: where(res.url),
         // when the cached access token was issued: roles granted later need a new one (POST …/token/renew)
-        token: tokenInfo(p.id),
+        token: tokenInfo(p),
       },
       `Connection test "${p.name}": GET ${testPath} → HTTP ${res.status} (${res.durationMs} ms)${verdict.ok ? '' : ' – failed'}`,
     );

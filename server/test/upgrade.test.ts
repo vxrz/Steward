@@ -65,6 +65,8 @@ describe.each(versions)('upgrade from %s', (version) => {
   let oldOperations: { platformId: string; ops: { method: string; path: string }[] }[] = [];
   /** The datasets as the old version stored them (0.4.0 keeps their rows in the partitions only) */
   let oldDatasets: { key: string; rows: number }[] = [];
+  /** The platforms as the old version stored them: credentials (ciphertext) and MCP gateway on the platform row */
+  let oldPlatforms: { id: string; name: string; secrets: string | null; config: string }[] = [];
   let proc: ChildProcess | undefined;
   let stdout = '';
   let base = '';
@@ -121,6 +123,7 @@ describe.each(versions)('upgrade from %s', (version) => {
         platformId: r.platform_id,
         ops: (JSON.parse(r.operations) as { method: string; path: string }[]).map((o) => ({ method: o.method, path: (r.path_prefix ?? '') + o.path })),
       }));
+      oldPlatforms = old.all<{ id: string; name: string; secrets: string | null; config: string }>('SELECT id, name, secrets, config FROM platforms');
       oldDatasets = old.all<{ key: string; row_count: number }>('SELECT key, row_count FROM datasets').map((r) => ({ key: r.key, rows: Number(r.row_count) }));
       // evidence packs expire a week after they were made (SM_EVIDENCE_RETENTION_DAYS): the fixture's pack would turn
       // "expired" as the fixture ages. This test checks that it still verifies after the upgrade, not the expiry.
@@ -191,6 +194,40 @@ describe.each(versions)('upgrade from %s', (version) => {
     await expect(admin('POST', '/vault/unlock', { passphrase: 'not-the-passphrase' })).rejects.toMatchObject({ status: 401 });
     await admin('POST', '/vault/unlock', { passphrase: m.passphrase });
     expect((await admin('GET', '/auth/status')).unlocked).toBe(true);
+  });
+
+  it("moves every platform's credentials and MCP mode to its sealed default identity, once (0.9.0, ADR 0009)", async () => {
+    const { mcpFromGateway, parseMcp } = await import('../src/platforms/identities.js');
+    expect(oldPlatforms.length).toBeGreaterThan(0);
+    const d = new Db(pg ? { ...pg, lock: false } : sqlite, { migrate: false });
+    try {
+      expect(d.all('SELECT id FROM platforms WHERE secrets IS NOT NULL')).toEqual([]);
+      for (const p of oldPlatforms) {
+        const rows = d.all<{ id: string; secrets: string | null; mcp: string; config_mac: string | null; is_default: number }>(
+          'SELECT id, secrets, mcp, config_mac, is_default FROM platform_identities WHERE platform_id = ?',
+          p.id,
+        );
+        expect(rows, p.name).toHaveLength(1);
+        expect(rows[0]!.id).toBe(p.id.startsWith('pf_') ? `pi_${p.id.slice(3)}` : `pi_${p.id}`);
+        expect(Number(rows[0]!.is_default)).toBe(1);
+        // the ciphertext is copied unchanged (the vault encrypts without context)
+        expect(rows[0]!.secrets, p.name).toBe(p.secrets);
+        expect(rows[0]!.config_mac, p.name).toBeTruthy();
+        expect(parseMcp(rows[0]!.mcp), p.name).toEqual(mcpFromGateway(JSON.parse(p.config).mcpGateway));
+      }
+    } finally {
+      d.close();
+    }
+    const now = new Map((await admin('GET', '/platforms')).map((p: any) => [p.id, p]));
+    for (const p of oldPlatforms) {
+      const x = now.get(p.id) as any;
+      expect(x.integrity, p.name).toBe('ok');
+      expect(x.identities.map((i: any) => i.default)).toEqual([true]);
+      expect(!!x.config.mcpGateway?.enabled, p.name).toBe(JSON.parse(p.config).mcpGateway?.enabled === true);
+    }
+    const entries = await admin('GET', '/audit?action=platform.identities_created&limit=10');
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ actor: 'system', details: { count: oldPlatforms.length } });
   });
 
   it('returns the data of the old version', async () => {

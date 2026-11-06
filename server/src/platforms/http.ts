@@ -14,6 +14,7 @@ import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
 import { JWT_ALGS, certificateThumbprints, clientAssertion, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
 import { where as originAndPath } from './answers.js';
 import { assertPathAllowed, stripValues } from './deniedPaths.js';
+import { defaultIdentityId } from './identities.js';
 
 export interface HttpRequest {
   method: string;
@@ -82,21 +83,33 @@ interface CachedToken {
   refreshToken?: string;
 }
 
+/** Token and AWS role caches are per identity (0.9.0, ADR 0009): `platformId:identityId`. */
 const tokenCache = new Map<string, CachedToken>();
 const dispatcherCache = new Map<string, { stamp: string; dispatcher: Dispatcher }>();
 
-/** The cached access token of a platform (login or OAuth2), without the token itself. */
-export function tokenInfo(platformId: string): { fetchedAt: string; expiresAt: string } | null {
-  const t = tokenCache.get(platformId);
-  return t ? { fetchedAt: new Date(t.fetchedAt).toISOString(), expiresAt: new Date(t.expiresAt).toISOString() } : awsCredentialInfo(platformId);
+/** A platform object as getConnection gives it (with its identity), or as getPlatform does (the default identity). */
+type WithIdentity = Pick<Platform, 'id'> & { identityId?: string };
+
+/**
+ * The cache key of the identity a platform object is used with: getConnection sets `identityId`; a plain platform
+ * object (getPlatform) stands for the default identity, whose id is derived from the platform id.
+ */
+export function identityKey(p: WithIdentity): string {
+  return `${p.id}:${p.identityId ?? defaultIdentityId(p.id)}`;
+}
+
+/** The cached access token of a platform identity (login or OAuth2), without the token itself. */
+export function tokenInfo(p: WithIdentity): { fetchedAt: string; expiresAt: string } | null {
+  const t = tokenCache.get(identityKey(p));
+  return t ? { fetchedAt: new Date(t.fetchedAt).toISOString(), expiresAt: new Date(t.expiresAt).toISOString() } : awsCredentialInfo(p);
 }
 
 /**
  * The claims of the platform's cached access token when it is a JWT (Entra ID: roles = the application permissions with
  * admin consent, v0.5.0) – never the token itself; null without a cached JWT.
  */
-export function tokenClaims(platformId: string): Record<string, unknown> | null {
-  const t = tokenCache.get(platformId);
+export function tokenClaims(p: WithIdentity): Record<string, unknown> | null {
+  const t = tokenCache.get(identityKey(p));
   const parts = t?.header[1].replace(/^Bearer\s+/i, '').split('.');
   if (!parts || parts.length !== 3) return null;
   try {
@@ -119,31 +132,47 @@ export function usesCachedToken(p: Platform): boolean {
  */
 export async function renewToken(p: Platform, secrets: Record<string, string>, signal?: AbortSignal): Promise<{ fetchedAt: string; expiresAt: string }> {
   if (!usesCachedToken(p)) throw new Error('This platform does not log in for a token');
-  tokenCache.delete(p.id);
-  awsCache.delete(p.id);
+  tokenCache.delete(identityKey(p));
+  awsCache.delete(identityKey(p));
   if (p.config.auth?.type === 'aws_sigv4') await awsCredentials(p, secrets, signal);
   else await obtainAuthHeader(p, secrets, signal);
-  const info = tokenInfo(p.id);
+  const info = tokenInfo(p);
   if (!info) throw new Error('The login did not return a token');
   return info;
 }
 
-const invalidationListeners: ((platformId: string) => void)[] = [];
-/** Called whenever a platform's settings or credentials change or it is deleted (database connection pools, 0.7.0). */
-export function onPlatformInvalidated(fn: (platformId: string) => void): void {
+const invalidationListeners: ((platformId: string, identityId?: string) => void)[] = [];
+/**
+ * Called whenever a platform's settings or credentials change or it is deleted (database connection pools, 0.7.0);
+ * with an identity id when only that identity's credentials changed.
+ */
+export function onPlatformInvalidated(fn: (platformId: string, identityId?: string) => void): void {
   invalidationListeners.push(fn);
 }
 
+function dropKeys(map: Map<string, unknown>, platformId: string): void {
+  for (const k of [...map.keys()]) if (k.startsWith(`${platformId}:`)) map.delete(k);
+}
+
+/** Clears everything cached for a platform: the tokens and roles of all its identities, its TLS dispatcher. */
 export function invalidatePlatformCaches(platformId: string): void {
   for (const fn of invalidationListeners) fn(platformId);
-  tokenCache.delete(platformId);
-  awsCache.delete(platformId);
+  dropKeys(tokenCache, platformId);
+  dropKeys(awsCache, platformId);
   for (const key of [platformId, `${platformId}|mtls`]) {
     const d = dispatcherCache.get(key);
     if (!d) continue;
     dispatcherCache.delete(key);
     d.dispatcher.close().catch(() => undefined); // an old dispatcher: closing it is best effort
   }
+}
+
+/** Clears what is cached for one identity (its credentials changed): its token, role and database pool – not the platform's dispatcher. */
+export function invalidateIdentityCaches(platformId: string, identityId: string): void {
+  for (const fn of invalidationListeners) fn(platformId, identityId);
+  const key = identityKey({ id: platformId, identityId });
+  tokenCache.delete(key);
+  awsCache.delete(key);
 }
 
 function dispatcherFor(p: Platform, tls?: ClientTls): Dispatcher {
@@ -459,7 +488,7 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       return [(auth.apiKeyName || 'x-api-key').toLowerCase(), secrets.apiKey ?? ''];
     case 'oauth2_client_credentials':
     case 'token_request': {
-      const cached = tokenCache.get(p.id);
+      const cached = tokenCache.get(identityKey(p));
       if (cached && cached.expiresAt > Date.now() + 30000) return cached.header;
       let token: string;
       let expiresIn = 1800;
@@ -515,11 +544,11 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       const headerValue = await renderString(auth.headerValue || 'Bearer {{ token }}', { ...scope, token });
       const header: [string, string] = [headerName, headerValue];
       const now = Date.now();
-      tokenCache.set(p.id, { header, fetchedAt: now, expiresAt: now + expiresIn * 1000, ...(refreshToken ? { refreshToken } : {}) });
+      tokenCache.set(identityKey(p), { header, fetchedAt: now, expiresAt: now + expiresIn * 1000, ...(refreshToken ? { refreshToken } : {}) });
       return header;
     }
     case 'jwt': {
-      const cached = tokenCache.get(p.id);
+      const cached = tokenCache.get(identityKey(p));
       if (cached && cached.expiresAt > Date.now() + 30000) return cached.header;
       const cfg = auth.jwt ?? {};
       const alg = cfg.alg ?? 'RS256';
@@ -547,7 +576,7 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
         (auth.headerName || 'Authorization').toLowerCase(),
         await renderString(auth.headerValue || 'Bearer {{ token }}', { ...scope, token }),
       ];
-      tokenCache.set(p.id, { header, fetchedAt: Date.now(), expiresAt });
+      tokenCache.set(identityKey(p), { header, fetchedAt: Date.now(), expiresAt });
       return header;
     }
     case 'aws_sigv4':
@@ -614,7 +643,7 @@ async function awsCredentials(p: Platform, secrets: Record<string, string>, sign
     ...(secrets.sessionToken ? { sessionToken: secrets.sessionToken } : {}),
   };
   if (!aws.roleArn) return base;
-  const cached = awsCache.get(p.id);
+  const cached = awsCache.get(identityKey(p));
   if (cached && cached.expiration > Date.now() + 5 * 60_000) return cached;
   if (!/^arn:aws[a-z-]*:iam::\d{12}:role\/[\w+=,.@/-]{1,512}$/.test(aws.roleArn))
     throw new Error('The role ARN is not an IAM role (arn:aws:iam::123456789012:role/name)');
@@ -643,7 +672,7 @@ async function awsCredentials(p: Platform, secrets: Record<string, string>, sign
   );
   const creds = typeof r.body === 'string' ? parseAssumeRole(r.body) : null;
   if (!r.ok || !creds) throw new Error(`AssumeRole of ${aws.roleArn} failed with HTTP ${r.status}: ${short(r.body)}`);
-  awsCache.set(p.id, { ...creds, fetchedAt: Date.now() });
+  awsCache.set(identityKey(p), { ...creds, fetchedAt: Date.now() });
   return creds;
 }
 
@@ -658,8 +687,8 @@ async function signerFor(p: Platform, secrets: Record<string, string>, signal?: 
 }
 
 /** When the assumed role's credentials were fetched and end (like tokenInfo for logins). */
-export function awsCredentialInfo(platformId: string): { fetchedAt: string; expiresAt: string } | null {
-  const c = awsCache.get(platformId);
+export function awsCredentialInfo(p: WithIdentity): { fetchedAt: string; expiresAt: string } | null {
+  const c = awsCache.get(identityKey(p));
   return c ? { fetchedAt: new Date(c.fetchedAt).toISOString(), expiresAt: new Date(c.expiration).toISOString() } : null;
 }
 
@@ -975,8 +1004,8 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
     const release = await sem.acquire(signal);
     try {
       res = await send(attempt);
-      if (res.status === 401 && tokenCache.has(p.id)) {
-        tokenCache.delete(p.id);
+      if (res.status === 401 && tokenCache.has(identityKey(p))) {
+        tokenCache.delete(identityKey(p));
         res = await send(attempt);
       }
     } catch (e) {

@@ -218,7 +218,7 @@ The gateway lets an assistant read a platform's API **through Steward**. Steward
 1. Open the platform and the tab **MCP**.
 2. Switch on **Allow access for MCP clients** and click **Save**. _Changing calls_ stays at _Not possible (read-only)_ unless you choose otherwise ([Approved writes](#approved-writes)).
 
-Only people with the `manage` right on the platform can do this; it is audited (`platform.mcp_gateway_changed`). The setting is part of the platform's sealed connection settings, so a change made directly in the database is detected. New platforms, copies and connector types always start with the gateway off. People who call the gateway need the `use` right on the platform.
+Only people with the `manage` right on the platform can do this; it is audited (`platform.mcp_gateway_changed`). The setting is part of the platform's sealed connection settings (since 0.9.0 the mode is kept on the platform's default identity, [ADR 0009](adr/0009-platform-identities.md); the path prefixes stay on the platform), so a change made directly in the database is detected. New platforms, copies and connector types always start with the gateway off. People who call the gateway need the `use` right on the platform.
 
 ### How it works
 

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  BRAND,
   DATABASE_KIND,
   aiGatewaySettingsSchema,
   databaseSettingsSchema,
@@ -9,6 +10,7 @@ import {
   type Platform,
   type PlatformConfig,
   type PlatformDoc,
+  type PlatformIdentity,
   type PlatformSpec,
 } from '@sm/shared';
 import { db } from '../db.js';
@@ -17,11 +19,27 @@ import { audit } from '../audit.js';
 import { config } from '../config.js';
 import { HttpError, newId, nowIso, parseJson, pathInside, sha256 } from '../util.js';
 import { parseYaml, SPEC_YAML } from '../yaml-safe.js';
-import { invalidatePlatformCaches, resolveBaseUrl } from './http.js';
+import { invalidateIdentityCaches, invalidatePlatformCaches, resolveBaseUrl } from './http.js';
 import { derivePathPrefix, literalBasePath, pathPrefixProblem, withPrefix } from './pathPrefix.js';
 import { deleteSource as deleteGatusSource } from '../gatus/metrics.js';
 import { deleteWatchesOf } from '../changedetection/store.js';
-import { platformIntegrity, requireIntact, sealPlatform } from './integrity.js';
+import { identityIntegrity, platformIntegrity, requireIdentityIntact, requireIntact, requirePlatformIntact, sealIdentity, sealPlatform } from './integrity.js';
+import {
+  DEFAULT_IDENTITY_NAME,
+  allIdentityRows,
+  configWithoutMcpMode,
+  defaultIdentityId,
+  defaultIdentityRow,
+  gatewayView,
+  identityRow,
+  identityRows,
+  mcpFromGateway,
+  mcpFromSetting,
+  mergedAuthAndVariables,
+  parseMcp,
+  toIdentity,
+  type IdentityRow,
+} from './identities.js';
 import { paramSchema, requestBodyInfo, resolveRef, successStatuses } from './openapi.js';
 import { currentUser } from '../auth/context.js';
 import { cleanAcl, platformPermissions } from '../auth/permissions.js';
@@ -47,28 +65,66 @@ function defaultConfig(): PlatformConfig {
   return { auth: { type: 'none' }, variables: {}, http: {} };
 }
 
-function toPlatform(r: PlatformRow): Platform {
-  const cfg = { ...defaultConfig(), ...parseJson<Partial<PlatformConfig>>(r.config, {}) };
+const decryptSecrets = (blob: string | null): Record<string, string> => (blob ? vault().decrypt<Record<string, string>>(blob) : {});
+
+/** Names of stored credentials; none when the blob cannot be read (changed in the database: the seal says so). */
+function secretNames(blob: string | null): string[] {
+  try {
+    return Object.keys(decryptSecrets(blob));
+  } catch (e) {
+    if (!vault().unlocked) throw e; // locked: answered as before (423)
+    return []; // undecryptable: the identity's integrity is "mismatch" and it is refused
+  }
+}
+
+/** The worst of several integrity states (a platform is intact only when it and its identities are). */
+function worst(states: Platform['integrity'][]): Platform['integrity'] {
+  for (const s of ['mismatch', 'unsealed', 'locked'] as const) if (states.includes(s)) return s;
+  return 'ok';
+}
+
+function toPlatform(r: PlatformRow, idents: IdentityRow[]): Platform {
+  const stored = { ...defaultConfig(), ...parseJson<Partial<PlatformConfig>>(r.config, {}) };
   const acl = parseJson<AclEntry<PlatformPermission>[]>(r.acl, []);
+  const permissions = platformPermissions(currentUser(), { id: r.id, acl });
+  const def = idents.find((i) => Number(i.is_default) === 1 || i.is_default === true);
+  // the MCP mode lives on the default identity (0.9.0); the API shows it in config.mcpGateway as before
+  const mcpGateway = gatewayView(stored.mcpGateway, def ? parseMcp(def.mcp) : mcpFromGateway(stored.mcpGateway));
+  const { mcpGateway: _stored, ...rest } = stored;
+  const cfg = { ...rest, ...(mcpGateway ? { mcpGateway } : {}) } as PlatformConfig;
+  const identities: PlatformIdentity[] = idents.map((i) =>
+    toIdentity(i, {
+      secretKeys: secretNames(i.secrets),
+      integrity: identityIntegrity(i),
+      // step 1: the default identity is open to everybody with "use" on the platform (ADR 0009); there are no others yet
+      mayUse: (Number(i.is_default) === 1 || i.is_default === true) && permissions.includes('use'),
+    }),
+  );
+  const own = platformIntegrity(r);
   return {
     acl,
-    permissions: platformPermissions(currentUser(), { id: r.id, acl }),
+    permissions,
     id: r.id,
     name: r.name,
     kind: r.kind,
     description: r.description,
     baseUrl: r.base_url,
     environment: r.environment,
-    config: cfg as PlatformConfig,
-    secretKeys: r.secrets ? Object.keys(vault().decrypt<Record<string, string>>(r.secrets)) : [],
-    integrity: platformIntegrity(r),
+    config: cfg,
+    secretKeys: def ? (identities.find((i) => i.id === def.id)?.secretKeys ?? []) : secretNames(r.secrets),
+    // changed outside the application: the platform row, one of its identities, or its default identity missing
+    integrity: own === 'locked' ? own : worst([own, ...identities.map((i) => i.integrity), def ? 'ok' : 'unsealed']),
+    identities,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
 }
 
 export function listPlatforms(): Platform[] {
-  return db().all<PlatformRow>('SELECT * FROM platforms ORDER BY name').map(toPlatform);
+  const idents = allIdentityRows();
+  return db()
+    .all<PlatformRow>('SELECT * FROM platforms ORDER BY name')
+    .map((r) => toPlatform(r, idents.get(r.id) ?? []));
 }
 
 /**
@@ -94,22 +150,93 @@ export function lastConnectionTests(): Map<string, { at: string; ok: boolean }> 
 export function getPlatform(id: string): Platform {
   const r = db().get<PlatformRow>('SELECT * FROM platforms WHERE id = ?', id);
   if (!r) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
-  return toPlatform(r);
+  return toPlatform(r, identityRows(id));
 }
 
-/** Credentials for using a platform – refused when its connection settings were changed outside the application. */
-export function getSecrets(id: string): Record<string, string> {
-  const r = db().get<PlatformRow>('SELECT * FROM platforms WHERE id = ?', id);
+/** The platform's configuration as stored (config.mcpGateway: only the path prefixes) – for code that writes it back. */
+export function storedConfig(id: string): PlatformConfig {
+  const r = db().get<{ config: string }>('SELECT config FROM platforms WHERE id = ?', id);
   if (!r) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
+  return { ...defaultConfig(), ...parseJson<Partial<PlatformConfig>>(r.config, {}) } as PlatformConfig;
+}
+
+/**
+ * A platform object for requests with one of its identities: the identity's sign-in settings and variables merged in
+ * (platformRequest, obtainAuthHeader, signerFor and resolveBaseUrl read them as before), and the identity's id, which keys
+ * the token, AWS role and database pool caches (platforms/http.ts identityKey).
+ */
+export type ConnectedPlatform = Platform & { identityId: string; identityName: string };
+
+export interface Connection {
+  platform: ConnectedPlatform;
+  identity: PlatformIdentity;
+  secrets: Record<string, string>;
+}
+
+/**
+ * The one resolver for using a platform (ADR 0009): the platform and one of its identities (default: the default
+ * identity) with its credentials. Both seals are checked – refused (PLATFORM_CONFIG_UNVERIFIED) when the platform or
+ * the identity was changed outside the application. The caller checks the rights.
+ */
+export function getConnection(platformId: string, identityId?: string): Connection {
+  const r = db().get<PlatformRow>('SELECT * FROM platforms WHERE id = ?', platformId);
+  if (!r) throw new HttpError(404, `Platform ${platformId} not found`, 'PLATFORM_NOT_FOUND', { id: platformId });
   requireIntact(r);
-  return r.secrets ? vault().decrypt<Record<string, string>>(r.secrets) : {};
+  const i = identityId ? identityRow(platformId, identityId) : defaultIdentityRow(platformId);
+  if (!i) {
+    if (identityId) throw new HttpError(404, `Identity ${identityId} of "${r.name}" not found`, 'IDENTITY_NOT_FOUND', { id: identityId });
+    // every platform has a default identity: a missing one was deleted in the database
+    throw new HttpError(
+      409,
+      `The credentials of "${r.name}" were changed outside ${BRAND.name} (directly in the database) – no requests are sent until an administrator reviews them and confirms (platform page)`,
+      'PLATFORM_CONFIG_UNVERIFIED',
+    );
+  }
+  requireIdentityIntact(i, r.name);
+  const p = toPlatform(r, identityRows(platformId));
+  const identity = p.identities!.find((x) => x.id === i.id)!;
+  const merged = mergedAuthAndVariables(p.config, i);
+  return {
+    platform: { ...p, config: { ...p.config, auth: merged.auth, variables: merged.variables }, identityId: i.id, identityName: i.name },
+    identity,
+    secrets: decryptSecrets(i.secrets),
+  };
 }
 
-/** Credentials without the integrity check – only for scrubbing them from error reports and listing their names. */
+/**
+ * Credentials of the platform's default identity – refused when the platform or the identity was changed outside the
+ * application. Kept for the call sites that are not converted to getConnection yet (server/test/identities.test.ts
+ * lists them).
+ */
+export function getSecrets(id: string): Record<string, string> {
+  return getConnection(id).secrets;
+}
+
+/** Credentials of the default identity without the integrity check – only for scrubbing them from error reports and listing their names. */
 export function getSecretsUnchecked(id: string): Record<string, string> {
-  const r = db().get<{ secrets: string | null }>('SELECT secrets FROM platforms WHERE id = ?', id);
-  if (!r) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
-  return r.secrets ? vault().decrypt<Record<string, string>>(r.secrets) : {};
+  if (!db().get('SELECT 1 FROM platforms WHERE id = ?', id)) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
+  return decryptSecrets(defaultIdentityRow(id)?.secrets ?? null);
+}
+
+/**
+ * Every credential stored for a platform – of all its identities, and of the platform row while it still has the old
+ * layout – for masking error reports (not only the identity in use). Never checked: never sent anywhere.
+ */
+export function allSecretsUnchecked(id: string): Record<string, string>[] {
+  const legacy = db().get<{ secrets: string | null }>('SELECT secrets FROM platforms WHERE id = ?', id)?.secrets ?? null;
+  const blobs = [
+    legacy,
+    ...db()
+      .all<{ secrets: string | null }>('SELECT secrets FROM platform_identities WHERE platform_id = ?', id)
+      .map((x) => x.secrets),
+  ];
+  return blobs.flatMap((b) => {
+    try {
+      return b ? [decryptSecrets(b)] : [];
+    } catch {
+      return []; // an unreadable blob (changed in the database) holds nothing to mask
+    }
+  });
 }
 
 export interface PlatformInput {
@@ -169,10 +296,11 @@ export function createPlatform(input: PlatformInput): Platform {
   const id = newId('pf_');
   const ts = nowIso();
   const secrets = Object.fromEntries(Object.entries(input.secrets ?? {}).filter(([, v]) => v !== '' && v != null));
+  const actor = currentUser()?.username ?? 'system';
   db().tx(() => {
     db().run(
       `INSERT INTO platforms (id, name, kind, description, base_url, environment, config, secrets, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
       id,
       input.name.trim(),
       input.kind || 'generic',
@@ -180,10 +308,25 @@ export function createPlatform(input: PlatformInput): Platform {
       input.baseUrl ?? '',
       input.environment ?? '',
       JSON.stringify(checkedDatabase(checkedAi(withoutGateway(input.config ?? defaultConfig())))),
-      Object.keys(secrets).length ? vault().encrypt(secrets) : null,
       ts,
       ts,
     );
+    // its default identity holds the credentials (0.9.0, ADR 0009); MCP starts off, as the gateway always did
+    const identityId = defaultIdentityId(id);
+    db().run(
+      `INSERT INTO platform_identities (id, platform_id, name, is_default, secrets, mcp, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`,
+      identityId,
+      id,
+      DEFAULT_IDENTITY_NAME,
+      Object.keys(secrets).length ? vault().encrypt(secrets) : null,
+      JSON.stringify({ mode: 'off' }),
+      ts,
+      actor,
+      ts,
+      actor,
+    );
+    sealIdentity(identityId);
     assignCreatorTeams('platform', id, currentUser());
     audit({
       action: 'platform.created',
@@ -197,15 +340,25 @@ export function createPlatform(input: PlatformInput): Platform {
   return getPlatform(id);
 }
 
-function requireIntactRow(id: string): void {
-  const r = db().get<PlatformRow>('SELECT * FROM platforms WHERE id = ?', id);
-  if (r) requireIntact(r);
+const requireIntactRow = requirePlatformIntact;
+
+/** The platform's default identity (every platform has one; a missing one was deleted in the database). */
+function requireDefaultIdentity(id: string, name: string): IdentityRow {
+  const i = defaultIdentityRow(id);
+  if (!i)
+    throw new HttpError(
+      409,
+      `The credentials of "${name}" were changed outside ${BRAND.name} (directly in the database) – no requests are sent until an administrator reviews them and confirms (platform page)`,
+      'PLATFORM_CONFIG_UNVERIFIED',
+    );
+  return i;
 }
 
 export function updatePlatform(id: string, patch: Partial<PlatformInput>): Platform {
   // settings changed outside the application have to be confirmed first (they would be sealed unseen otherwise)
   requireIntactRow(id);
   const before = getPlatform(id);
+  const stored = storedConfig(id);
   const next = {
     name: patch.name?.trim() || before.name,
     kind: patch.kind ?? before.kind,
@@ -218,11 +371,12 @@ export function updatePlatform(id: string, patch: Partial<PlatformInput>): Platf
     config: patch.config
       ? {
           ...withoutDatabase(withoutAi(withoutGateway(patch.config))),
-          ...(before.config.mcpGateway ? { mcpGateway: before.config.mcpGateway } : {}),
-          ...(before.config.ai ? { ai: before.config.ai } : {}),
-          ...(before.config.database ? { database: before.config.database } : {}),
+          // as stored: the path prefixes (the MCP mode is on the default identity)
+          ...(stored.mcpGateway ? { mcpGateway: stored.mcpGateway } : {}),
+          ...(stored.ai ? { ai: stored.ai } : {}),
+          ...(stored.database ? { database: stored.database } : {}),
         }
-      : before.config,
+      : stored,
   };
   db().tx(() => {
     db().run(
@@ -241,7 +395,7 @@ export function updatePlatform(id: string, patch: Partial<PlatformInput>): Platf
       entityType: 'platform',
       entityId: id,
       summary: `Platform "${next.name}" updated`,
-      details: { changed: diffKeys(before, next) },
+      details: { changed: diffKeys({ ...before, config: stored } as Platform, next) },
     });
     sealPlatform(id);
   });
@@ -254,10 +408,10 @@ function diffKeys(before: Platform, next: Record<string, unknown>): string[] {
   return Object.keys(next).filter((k) => JSON.stringify(b[k]) !== JSON.stringify(next[k]));
 }
 
-/** Merge secrets: empty string / null removes a key. Values are never logged. */
+/** Merge secrets of the default identity: empty string / null removes a key. Values are never logged. */
 export function setSecrets(id: string, patch: Record<string, string | null>): Platform {
   const p = getPlatform(id);
-  const current = getSecrets(id);
+  const { secrets: current, identity } = getConnection(id);
   const changed: string[] = [];
   const removed: string[] = [];
   for (const [k, v] of Object.entries(patch)) {
@@ -269,25 +423,34 @@ export function setSecrets(id: string, patch: Record<string, string | null>): Pl
       changed.push(k);
     }
   }
+  const ts = nowIso();
   db().tx(() => {
-    db().run('UPDATE platforms SET secrets = ?, updated_at = ? WHERE id = ?', Object.keys(current).length ? vault().encrypt(current) : null, nowIso(), id);
+    db().run(
+      'UPDATE platform_identities SET secrets = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      Object.keys(current).length ? vault().encrypt(current) : null,
+      ts,
+      currentUser()?.username ?? 'system',
+      identity.id,
+    );
+    db().run('UPDATE platforms SET updated_at = ? WHERE id = ?', ts, id);
     audit({
       action: 'platform.secrets_changed',
       entityType: 'platform',
       entityId: id,
       summary: `Credentials of "${p.name}" changed (${[...changed, ...removed.map((r) => `-${r}`)].join(', ') || 'no change'})`,
-      details: { set: changed, removed },
+      details: { set: changed, removed, identityId: identity.id },
     });
-    sealPlatform(id);
+    sealIdentity(identity.id);
   });
-  invalidatePlatformCaches(id);
+  invalidateIdentityCaches(id, identity.id);
   return getPlatform(id);
 }
 
-/** Turns the read-only MCP gateway of a platform on or off (the caller checks the "manage" right). */
+/** Turns the MCP gateway of a platform on or off (the caller checks the "manage" right): the default identity's mode, the platform's path prefixes. */
 export function setMcpGateway(id: string, input: McpGatewayConfig): Platform {
   requireIntactRow(id);
   const before = getPlatform(id);
+  const identity = requireDefaultIdentity(id, before.name);
   const prefixes = [...new Set((input.allowedPathPrefixes ?? []).map((x) => x.trim()).filter(Boolean))];
   // changing calls (#11) keep their mode when a client sends none; "off" is not stored
   const writes = input.writes ?? before.config.mcpGateway?.writes ?? 'off';
@@ -308,15 +471,32 @@ export function setMcpGateway(id: string, input: McpGatewayConfig): Platform {
     writes
   ];
   const previous = before.config.mcpGateway ?? { enabled: false };
+  const stored = storedConfig(id);
+  const { mcpGateway: _gateway, ...rest } = stored;
+  const ts = nowIso();
   db().tx(() => {
-    db().run('UPDATE platforms SET config = ?, updated_at = ? WHERE id = ?', JSON.stringify({ ...before.config, mcpGateway: gateway }), nowIso(), id);
+    // the path prefixes describe the API (platform); the mode belongs to the credential (default identity, ADR 0009)
+    db().run(
+      'UPDATE platforms SET config = ?, updated_at = ? WHERE id = ?',
+      configWithoutMcpMode(JSON.stringify({ ...rest, mcpGateway: { allowedPathPrefixes: prefixes } })),
+      ts,
+      id,
+    );
+    db().run(
+      'UPDATE platform_identities SET mcp = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      JSON.stringify(mcpFromSetting(input.enabled, writes)),
+      ts,
+      currentUser()?.username ?? 'system',
+      identity.id,
+    );
     audit({
       action: 'platform.mcp_gateway_changed',
       entityType: 'platform',
       entityId: id,
       summary: `MCP gateway of "${before.name}" ${gateway.enabled ? `turned on (${writesText})` : 'turned off'}${prefixes.length ? ` – path prefixes: ${prefixes.join(', ')}` : ''}`,
-      details: { enabled: gateway.enabled, allowedPathPrefixes: prefixes, writes, previous },
+      details: { enabled: gateway.enabled, allowedPathPrefixes: prefixes, writes, previous, identityId: identity.id },
     });
+    sealIdentity(identity.id);
     sealPlatform(id);
   });
   invalidatePlatformCaches(id);
@@ -343,6 +523,8 @@ export function deletePlatform(id: string): void {
   const p = getPlatform(id);
   const docs = db().all<{ filename: string | null; id: string }>('SELECT id, filename FROM platform_docs WHERE platform_id = ?', id);
   db().tx(() => {
+    // its identities go with it (ON DELETE CASCADE as well)
+    db().run('DELETE FROM platform_identities WHERE platform_id = ?', id);
     db().run('DELETE FROM platforms WHERE id = ?', id);
     // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
     forgetOwningTeams('platform', id);
