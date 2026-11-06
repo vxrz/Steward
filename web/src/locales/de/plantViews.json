@@ -1,0 +1,267 @@
+{
+  "noAssets": "Keine Anlagen",
+  "tabs": {
+    "siteLabel": "Seiten von {{name}}",
+    "assetLabel": "Seiten von {{name}}",
+    "in": "am Standort",
+    "site": {
+      "overview": "Überblick",
+      "structure": "Struktur"
+    },
+    "asset": {
+      "overview": "Überblick",
+      "flow": "Datenfluss"
+    }
+  },
+  "toolbar": {
+    "mode": "Anzeigen als",
+    "picture": "Bild",
+    "table": "Tabelle",
+    "animationOff": "Animation aus",
+    "reducedHint": "Ihr System wünscht weniger Bewegung: Nichts bewegt sich, die Pfeile zeigen die Richtung.",
+    "export": "Bild exportieren",
+    "exportSvg": "Als SVG herunterladen",
+    "exportPng": "Als PNG herunterladen"
+  },
+  "export": {
+    "subtitle": "Anlagenverzeichnis · dokumentierter Stand vom {{date}}"
+  },
+  "legend": {
+    "liveTitle": "Live-Status:",
+    "docTitle": "Nur Dokumentation:",
+    "doc": "Alles ohne Plakette zeigt, was das Verzeichnis dokumentiert. Ein verknüpftes Element ohne Daten zeigt „Keine Daten“ – nie OK.",
+    "flowMoving": "Dokumentierter Fluss – die laufenden Striche zeigen seine Richtung",
+    "flowStatic": "Dokumentierter Fluss – der Pfeil zeigt seine Richtung",
+    "inactive": "Dokumentiert, nicht aktiv",
+    "problem": "Eine Anlagenprüfung schlägt fehl",
+    "numbersPoints": "Datenpunkte auf diesem Weg",
+    "numbersAssets": "Anlagen auf diesem Weg"
+  },
+  "live": {
+    "monitor": {
+      "up": "OK",
+      "degraded": "Beeinträchtigt",
+      "down": "Ausgefallen",
+      "maintenance": "Wartung",
+      "blocked": "Blockiert",
+      "unknown": "Keine Daten"
+    },
+    "dataset": {
+      "fresh": "Aktuell",
+      "due": "Fällig",
+      "stale": "Veraltet",
+      "no_data": "Keine Daten"
+    },
+    "unknownStatus": "{{status}}",
+    "from": {
+      "monitor": "Vom verknüpften Monitor „{{name}}“",
+      "dataset": "Aktualität des Datensatzes {{name}}"
+    },
+    "fromAny": {
+      "monitor": "Von den verknüpften Monitoren",
+      "dataset": "Aktualität des Datensatzes"
+    },
+    "sourceName": {
+      "monitor": "Monitor",
+      "dataset": "Datensatz"
+    },
+    "sourceWord": {
+      "monitor": "Monitorstatus: {{word}}",
+      "dataset": "Datensatz: {{word}}"
+    }
+  },
+  "liveCount": {
+    "ok_one": "{{count}} OK",
+    "ok_other": "{{count}} OK",
+    "warn_one": "{{count}} beeinträchtigt",
+    "warn_other": "{{count}} beeinträchtigt",
+    "fail_one": "{{count}} ausgefallen",
+    "fail_other": "{{count}} ausgefallen",
+    "unknown_one": "{{count}} ohne Daten",
+    "unknown_other": "{{count}} ohne Daten"
+  },
+  "kinds": {
+    "asset": "Anlage",
+    "point": "Datenpunkt",
+    "site": "Standort",
+    "interface": "Schnittstelle",
+    "collector": "Sammler",
+    "target": "Zielsystem",
+    "kpi": "KPI-Job",
+    "dataset": "Datensatz",
+    "dashboard": "Dashboard"
+  },
+  "node": {
+    "hidden": "Nicht sichtbar",
+    "inactive": "Nicht aktiv",
+    "inactiveSentence": "Dokumentiert, nicht aktiv",
+    "checks_one": "{{count}} Problem",
+    "checks_other": "{{count}} Probleme",
+    "delivering": "{{count}} von {{total}} liefern",
+    "instances_one": "{{count}} Job",
+    "instances_other": "{{count}} Jobs",
+    "liveSentence": "{{source}}: {{status}}",
+    "docOnly": "Nur Dokumentation",
+    "opens": "Eingabe öffnet seine Seite."
+  },
+  "edge": {
+    "points_one": "{{count}} Datenpunkt",
+    "points_other": "{{count}} Datenpunkte",
+    "assets_one": "{{count}} Anlage",
+    "assets_other": "{{count}} Anlagen",
+    "files_one": "{{count}} Dateigruppe",
+    "files_other": "{{count}} Dateigruppen",
+    "problem": "Prüfung schlägt fehl",
+    "inactive": "Nicht aktiv",
+    "result": "Ergebnis",
+    "from": "Von {{from}} zu {{to}}"
+  },
+  "graph": {
+    "label": "Bild: {{title}}",
+    "nodeHelp": "Tab geht zum nächsten Teil, Eingabe öffnet seine Seite.",
+    "edgeHelp": "Ein Weg des dokumentierten Flusses.",
+    "controls": "Zoomen",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "fitView": "Alles zeigen",
+    "partial": "Ziehen Sie, um den Rest zu sehen; die Knöpfe zoomen."
+  },
+  "path": {
+    "help": "Zeigen Sie auf einen Eintrag, um seinen Weg zu sehen; ein Klick hält ihn hervorgehoben.",
+    "count_one": "{{count}}",
+    "count_other": "{{count}}",
+    "filter": "Filtern",
+    "none": "Nichts zu zeigen.",
+    "nowhere": "Geht nicht weiter",
+    "more": "{{count}} weitere zeigen",
+    "delivers": "Geliefert",
+    "reasons": {
+      "interface_inactive": "Schnittstelle nicht aktiv",
+      "unavailable": "Hier nicht geliefert"
+    }
+  },
+  "table": {
+    "parts": "Teile",
+    "kind": "Art",
+    "name": "Name",
+    "detail": "Details",
+    "status": "Status",
+    "goesTo": "Geht zu"
+  },
+  "flow": {
+    "title": "Datenfluss",
+    "help": "Wohin die Daten dieser {{type}} gehen, wie das Verzeichnis sie dokumentiert: Schnittstellen, das Gateway, das sie sammelt, wohin sie veröffentlicht werden, die KPI-Jobs, die sie lesen, und wo deren Ergebnisse zu sehen sind.",
+    "live": "Monitore, die mit der Anlage verknüpft sind, die Aktualität der Datensätze ihrer KPI-Jobs und die Anlagenprüfungen.",
+    "points": "Datenpunkte",
+    "exportTitle": "Datenfluss von {{name}}",
+    "emptyTitle": "Noch kein Datenfluss dokumentiert",
+    "emptyText": "Weisen Sie ein Geräteprofil zu, um den Datenfluss zu sehen: im Überblick unter Daten und KPIs das Profil wählen und seine Schnittstellen einrichten.",
+    "emptyAction": "Zum Überblick",
+    "whoCanAct": "Wer den Standort verwaltet, weist Geräteprofile zu.",
+    "noProfile": "Kein Geräteprofil zugewiesen: Nur die KPI-Jobs werden gezeigt."
+  },
+  "lineage": {
+    "title": "Herkunft",
+    "help": "Welche {{type}} diesen Datenpunkt liefern, wohin jede ihn veröffentlicht und welche KPIs ihn lesen.",
+    "live": "Monitore, die mit einer Anlage verknüpft sind, die Aktualität der Datensätze der KPI-Jobs und die Anlagenprüfungen.",
+    "exportTitle": "Herkunft von {{name}}",
+    "grouped": "Viele {{type}} haben dieses Profil: Das Bild zeigt einen Knoten je {{site}}; die Tabelle nennt alle.",
+    "emptyTitle": "Noch keine {{type}} mit diesem Profil",
+    "emptyText": "Weisen Sie das Geräteprofil einer {{type}} zu, um zu sehen, wohin dieser Datenpunkt geht."
+  },
+  "structure": {
+    "title": "Struktur",
+    "help": "Die Hierarchie des Standorts nach ISA-95, jeder Teil nach seinen {{type}} bemessen. Ein Klick öffnet einen Teil; der Pfad darüber führt zurück.",
+    "live": "Der innere Ring und die Zahlen zeigen Monitore, die mit Anlagen verknüpft sind. Der äußere Ring ist der dokumentierte Status der Anlagen.",
+    "groupBy": "Gruppieren nach",
+    "byFunction": "Funktion (ISA-95)",
+    "byLocation": "Ort ({{type}})",
+    "byLocationPlain": "Ort (IEC 81346)",
+    "trail": "Wo Sie sind",
+    "mapLabel": "Teile von {{name}}",
+    "assets_one": "{{count}} Anlage",
+    "assets_other": "{{count}} Anlagen",
+    "drill": "Eingabe öffnet ihn",
+    "liveWord": "Monitore",
+    "directly": "{{type}} direkt hier",
+    "inList": "In der Anlagenliste zeigen",
+    "more": "{{count}} weitere – die Anlagenliste zeigt alle.",
+    "truncated": "Dieser Standort hat mehr Anlagen, als das Bild auflistet – die Anlagenliste zeigt alle.",
+    "unplacedFunction": "Nicht zugeordnet",
+    "unplacedLocation": "Ohne {{type}}",
+    "unplacedLocationShort": "Ohne Gebäude",
+    "emptyTitle": "Noch nichts darzustellen",
+    "emptyText": "Legen Sie {{areas}}, Arbeitszentren und Arbeitseinheiten an und ordnen Sie ihnen {{assets}} zu, um die Struktur zu sehen.",
+    "noNodes": "Noch keine Bereiche.",
+    "noBuildings": "Noch keine Gebäude.",
+    "level": "Ebene",
+    "assetsHeader": "Anlagen",
+    "statusHeader": "Status (dokumentiert)",
+    "liveHeader": "Monitore",
+    "docOnly": "Nur Dokumentation",
+    "ringLegend": "Ring: Anlagen nach Status; innerer Ring: verknüpfte Monitore",
+    "exportTitle": "Struktur von {{name}}",
+    "contains": "Enthält {{names}}"
+  },
+  "coverage": {
+    "title": "KPI-Abdeckung",
+    "help": "Welche {{type}} eine KPI haben, sie haben könnten (sie liefern jede Eingabe) oder nicht haben können (Eingaben fehlen) – und wo eine Prüfung fehlschlägt.",
+    "cardTitle": "Abdeckung",
+    "live": "die Anlagenprüfungen (ein Problem). Hat, könnte und kann nicht folgen aus dem, was das Verzeichnis dokumentiert.",
+    "all": "Alle",
+    "allKpis": "Alle KPI-Definitionen",
+    "profile": "Geräteprofil",
+    "noProfile": "Kein Profil",
+    "states": {
+      "has": "Hat sie",
+      "problem": "Problem",
+      "could": "Könnte sie haben",
+      "cannot": "Kann nicht",
+      "unchecked": "Nicht geprüft"
+    },
+    "short": {
+      "has": "Hat",
+      "problem": "Problem",
+      "could": "Könnte",
+      "cannot": "Nicht",
+      "unchecked": "–"
+    },
+    "legend": {
+      "has": "Hat sie: ein KPI-Job ist eingerichtet",
+      "problem": "Problem: eine Anlagenprüfung des Jobs schlägt fehl",
+      "could": "Könnte sie haben: liefert jede Eingabe, noch kein Job",
+      "cannot": "Kann nicht: Eingaben fehlen (die Zelle sagt, welche)",
+      "unchecked": "Nicht geprüft: die KPI liest keine Datenpunkte"
+    },
+    "pct": "KPI-Abdeckung {{pct}} %",
+    "pctNone": "KPI-Abdeckung: nichts abzudecken",
+    "pctHelp": "Eingerichtete Jobs von allen KPIs, die die Anlagen haben könnten",
+    "jobs": "KPI-Jobs: {{jobs}}",
+    "inactive": "(nicht aktiv)",
+    "couldHint": "Legen Sie auf der Seite der Anlage einen KPI-Job an (Daten und KPIs).",
+    "kpisOf": "KPIs von {{name}}",
+    "more": "{{count}} weitere zeigen",
+    "shown": "{{shown}} von {{total}} gezeigt",
+    "truncated": "{{shown}} von {{total}} aufgelistet – grenzen Sie die Filter ein, um den Rest zu sehen. Die Zahlen oben umfassen alle.",
+    "noKpisTitle": "Noch keine KPI-Definitionen",
+    "noKpisText": "Legen Sie KPI-Definitionen an (Werk → KPI-Definitionen), um zu sehen, welche Anlagen sie haben.",
+    "noAssetsTitle": "Keine {{type}} zu zeigen",
+    "noAssetsText": "Legen Sie {{type}} an einem Standort an, um ihre KPI-Abdeckung zu sehen.",
+    "noMatch": "Nichts passt zu den Filtern.",
+    "cannotWith": "{{type}} mit Profil, die sie nicht haben können",
+    "openMatrix": "Abdeckungsmatrix öffnen",
+    "exportTitle": "KPI-Abdeckung"
+  },
+  "explore": {
+    "coverage": "KPI-Abdeckung"
+  },
+  "tiles": {
+    "coverage": "KPI-Abdeckung",
+    "coverageHint": "Eingerichtete KPI-Jobs von allen KPIs, die die Anlagen des Standorts haben könnten (sie liefern jede Eingabe).",
+    "checks_one": "{{count}} offene Prüfung",
+    "checks_other": "{{count}} offene Prüfungen",
+    "structure": "Struktur",
+    "coverageLink": "KPI-Abdeckung",
+    "title": "Überblick"
+  }
+}

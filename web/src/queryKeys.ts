@@ -115,4 +115,10 @@ export const plantKeys = {
   assignment: (assetId: string | null | undefined) => ['plant', 'assignment', assetId] as const,
   checks: ['plant', 'checks'] as const,
   explore: (q: string) => ['plant', 'explore', q] as const,
+  // visualizations (#230)
+  overview: ['plant', 'views', 'overview'] as const,
+  coverage: (filter: string) => ['plant', 'views', 'coverage', filter] as const,
+  structure: (siteId: string | null | undefined) => ['plant', 'views', 'structure', siteId] as const,
+  flow: (assetId: string | null | undefined) => ['plant', 'views', 'flow', assetId] as const,
+  lineage: (profileId: string | null | undefined, pointId: string | null | undefined) => ['plant', 'views', 'lineage', profileId, pointId] as const,
 };

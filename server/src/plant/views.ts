@@ -495,7 +495,7 @@ export function assetFlow(assetId: string): PlantFlowGraph {
           id: point.id,
           kind: 'point',
           label: point.name || point.id,
-          detail: [iface.name || iface.id, point.address].filter(Boolean).join(' · '),
+          detail: point.address,
           delivers: d.delivers,
           reason: d.reason,
           nodes: [root, ifId],
