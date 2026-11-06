@@ -106,6 +106,7 @@ const TRYABLE = new Set<CheckType>([
   'dependency-track',
   'entra',
   'privilege-vault',
+  'page-watch',
 ]);
 
 /**

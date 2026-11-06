@@ -66,6 +66,15 @@
       "secretHelp": {
         "username": "A read-only login (docs/DATABASES.md): db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION"
       }
+    },
+    "changedetection-io-page-watches-read-only": {
+      "description": "A changedetection.io instance that runs separately – its own container, with its own browser for JavaScript pages – and watches pages without an API: vendor changelogs and release notes, terms and pricing pages, status pages, documentation. Steward reads its watches (title, URL, tags, last check, last change, errors, snapshot times) as components of the platform, links them to applications, services or vendors, and checks them in monitors (check \"Page watch\"); changedetection.io's notifications start processes through a webhook trigger. Read-only: Steward never writes and never reads page contents – only metadata and the link to the diff. Base URL: the instance's root (e.g. http://changedetection:5000 on the same Docker network); variable uiUrl: its address in the browser, for links, when it differs. API key: Settings → API in changedetection.io, sent as x-api-key. The outbound policy must allow the instance's host. Software versions are better watched by the version watch of the tech stack. See docs/CHANGEDETECTION.md.",
+      "secrets": {
+        "apiKey": "API key"
+      },
+      "secretHelp": {
+        "apiKey": "Settings → API in changedetection.io (with \"Require API key\" on)"
+      }
     }
   },
   "title": "Platforms",
@@ -186,7 +195,8 @@
       "mcp": "MCP",
       "recordings": "Recorded responses",
       "ai": "AI models",
-      "aiUsage": "AI usage"
+      "aiUsage": "AI usage",
+      "watches": "Watches"
     },
     "deleteText": "This deletes <b>{{name}}</b> including its stored credentials, API specs and documents. Processes and schedules that use it will fail until another platform is selected. The audit log is kept.",
     "typeToConfirm": "Type \"{{name}}\" to confirm"
@@ -973,5 +983,68 @@
       "secretHelp": "Keep it as a secret of the CI job (STEWARD_PUSH_TOKEN) and push with one of these commands.",
       "done": "Done"
     }
+  },
+  "watches": {
+    "intro": "The watches of changedetection.io are the components of this platform: Steward reads their title, page, tags, last check, last change and errors – never the page contents. Link a watch to an application, a service or a vendor; the monitor check \"Page watch\" judges them.",
+    "lastReadFailed": "The last read failed",
+    "failingCount": "{{count}} failing",
+    "lastRead": "Read {{when}} by {{who}} · {{count}} watches · read again every hour",
+    "neverRead": "Not read yet",
+    "open": "Open changedetection.io",
+    "readNow": "Read now",
+    "read_one": "{{count}} watch read",
+    "read_other": "{{count}} watches read",
+    "readFailed": "Reading changedetection.io failed",
+    "emptyTitle": "No watches",
+    "emptyText": "changedetection.io has no watches yet. Add the pages to watch there; Steward shows them here at the next read.",
+    "notReadTitle": "Watches not read yet",
+    "notReadText": "Read the watches once; Steward then reads them again every hour with your rights.",
+    "whoCanRead": "People who may use this platform read its watches.",
+    "search": "Search title, page, vendor, application",
+    "filterTag": "Tag",
+    "allTags": "All tags",
+    "filterState": "State",
+    "allStates": "All states",
+    "noMatch": "No watch matches the filters.",
+    "tableLabel": "Watches of changedetection.io",
+    "limited": "Showing {{shown}} of {{total}} watches: Steward keeps at most {{max}} per platform.",
+    "col": {
+      "watch": "Watch",
+      "state": "State",
+      "changed": "Last change",
+      "checked": "Last check",
+      "links": "Linked to",
+      "actions": "Actions"
+    },
+    "state": {
+      "ok": "OK",
+      "failing": "Failing",
+      "paused": "Paused",
+      "unchecked": "Not checked yet",
+      "removed": "Removed"
+    },
+    "never": "never",
+    "changedChecked": "Changed: {{changed}} · checked {{checked}}",
+    "hidden": "(not visible to you)",
+    "vendorIs": "Vendor: {{vendor}}",
+    "diff": "Diff",
+    "diffOf": "Diff of {{title}} in changedetection.io",
+    "history": "History",
+    "historyOf": "History of {{title}}",
+    "link": "Link",
+    "linkOf": "Link {{title}}",
+    "linkTitle": "Link “{{title}}”",
+    "linkIntro": "The watch then shows up with the application or service (under \"Linked from\"), and the vendor names whose page it is.",
+    "application": "Application",
+    "service": "Service",
+    "vendor": "Vendor",
+    "vendorHint": "Whose page it is, e.g. the vendor of a cloud service",
+    "linked": "Links saved",
+    "historyTitle": "History of “{{title}}”",
+    "snapshots_one": "{{count}} snapshot, {{changes}} changes",
+    "snapshots_other": "{{count}} snapshots, {{changes}} changes",
+    "firstSnapshot": "first fetch",
+    "historyNote": "Only the times: the snapshots themselves stay in changedetection.io.",
+    "noChange": "no change yet"
   }
 }

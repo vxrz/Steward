@@ -66,6 +66,15 @@
       "secretHelp": {
         "username": "Ein nur lesendes Login (docs/DATABASES.md): db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION"
       }
+    },
+    "changedetection-io-page-watches-read-only": {
+      "description": "Eine changedetection.io-Instanz, die getrennt läuft – in einem eigenen Container, mit eigenem Browser für JavaScript-Seiten – und Seiten ohne API überwacht: Changelogs und Release Notes von Herstellern, Nutzungsbedingungen und Preisseiten, Statusseiten, Dokumentation. Steward liest ihre Überwachungen (Titel, URL, Tags, letzte Prüfung, letzte Änderung, Fehler, Zeitpunkte der Stände) als Komponenten der Plattform, verknüpft sie mit Anwendungen, Services oder Herstellern und prüft sie in Monitoren (Prüfung „Seitenüberwachung“); die Benachrichtigungen von changedetection.io starten Prozesse über einen Webhook-Trigger. Nur lesend: Steward schreibt nie und liest nie Seiteninhalte – nur Metadaten und den Link zu den Unterschieden. Basis-URL: die Wurzel der Instanz (z. B. http://changedetection:5000 im selben Docker-Netz); Variable uiUrl: ihre Adresse im Browser, für Links, wenn sie abweicht. API-Schlüssel: Settings → API in changedetection.io, gesendet als x-api-key. Die Ausgangsrichtlinie muss den Host der Instanz erlauben. Softwareversionen beobachtet die Versionsbeobachtung des Tech-Stacks besser. Siehe docs/CHANGEDETECTION.md.",
+      "secrets": {
+        "apiKey": "API-Schlüssel"
+      },
+      "secretHelp": {
+        "apiKey": "Settings → API in changedetection.io (mit „Require API key“)"
+      }
     }
   },
   "title": "Plattformen",
@@ -186,7 +195,8 @@
       "mcp": "MCP",
       "recordings": "Aufgezeichnete Antworten",
       "ai": "KI-Modelle",
-      "aiUsage": "KI-Nutzung"
+      "aiUsage": "KI-Nutzung",
+      "watches": "Überwachungen"
     },
     "deleteText": "Damit wird <b>{{name}}</b> einschließlich gespeicherter Zugangsdaten, API-Spezifikationen und Dokumente gelöscht. Prozesse und Zeitpläne, die sie verwenden, schlagen fehl, bis eine andere Plattform gewählt wird. Das Audit-Log bleibt erhalten.",
     "typeToConfirm": "Zur Bestätigung „{{name}}“ eingeben"
@@ -973,5 +983,68 @@
       "secretHelp": "Hinterlegen Sie es als Geheimnis des CI-Jobs (STEWARD_PUSH_TOKEN) und schicken Sie mit einem dieser Befehle.",
       "done": "Fertig"
     }
+  },
+  "watches": {
+    "intro": "Die Überwachungen von changedetection.io sind die Komponenten dieser Plattform: Steward liest Titel, Seite, Tags, letzte Prüfung, letzte Änderung und Fehler – nie die Inhalte der Seiten. Verknüpfen Sie eine Überwachung mit einer Anwendung, einem Service oder einem Hersteller; die Monitorprüfung „Seitenüberwachung“ bewertet sie.",
+    "lastReadFailed": "Das letzte Lesen ist fehlgeschlagen",
+    "failingCount": "{{count}} fehlerhaft",
+    "lastRead": "Gelesen {{when}} von {{who}} · {{count}} Überwachungen · stündlich neu gelesen",
+    "neverRead": "Noch nicht gelesen",
+    "open": "changedetection.io öffnen",
+    "readNow": "Jetzt lesen",
+    "read_one": "{{count}} Überwachung gelesen",
+    "read_other": "{{count}} Überwachungen gelesen",
+    "readFailed": "Lesen von changedetection.io fehlgeschlagen",
+    "emptyTitle": "Keine Überwachungen",
+    "emptyText": "changedetection.io hat noch keine Überwachungen. Legen Sie die zu überwachenden Seiten dort an; Steward zeigt sie hier beim nächsten Lesen.",
+    "notReadTitle": "Überwachungen noch nicht gelesen",
+    "notReadText": "Lesen Sie die Überwachungen einmal; danach liest Steward sie stündlich mit Ihren Rechten neu.",
+    "whoCanRead": "Personen, die diese Plattform nutzen dürfen, lesen ihre Überwachungen.",
+    "search": "Titel, Seite, Hersteller, Anwendung durchsuchen",
+    "filterTag": "Tag",
+    "allTags": "Alle Tags",
+    "filterState": "Zustand",
+    "allStates": "Alle Zustände",
+    "noMatch": "Keine Überwachung passt zu den Filtern.",
+    "tableLabel": "Überwachungen von changedetection.io",
+    "limited": "{{shown}} von {{total}} Überwachungen: Steward behält höchstens {{max}} pro Plattform.",
+    "col": {
+      "watch": "Überwachung",
+      "state": "Zustand",
+      "changed": "Letzte Änderung",
+      "checked": "Letzte Prüfung",
+      "links": "Verknüpft mit",
+      "actions": "Aktionen"
+    },
+    "state": {
+      "ok": "OK",
+      "failing": "Fehlerhaft",
+      "paused": "Pausiert",
+      "unchecked": "Noch nicht geprüft",
+      "removed": "Entfernt"
+    },
+    "never": "nie",
+    "changedChecked": "Geändert: {{changed}} · geprüft {{checked}}",
+    "hidden": "(für Sie nicht sichtbar)",
+    "vendorIs": "Hersteller: {{vendor}}",
+    "diff": "Unterschiede",
+    "diffOf": "Unterschiede von {{title}} in changedetection.io",
+    "history": "Verlauf",
+    "historyOf": "Verlauf von {{title}}",
+    "link": "Verknüpfen",
+    "linkOf": "{{title}} verknüpfen",
+    "linkTitle": "„{{title}}“ verknüpfen",
+    "linkIntro": "Die Überwachung erscheint dann bei der Anwendung oder dem Service (unter „Verwiesen von“), und der Hersteller nennt, wessen Seite es ist.",
+    "application": "Anwendung",
+    "service": "Service",
+    "vendor": "Hersteller",
+    "vendorHint": "Wessen Seite es ist, z. B. der Anbieter eines Cloud-Dienstes",
+    "linked": "Verknüpfungen gespeichert",
+    "historyTitle": "Verlauf von „{{title}}“",
+    "snapshots_one": "{{count}} Stand, {{changes}} Änderungen",
+    "snapshots_other": "{{count}} Stände, {{changes}} Änderungen",
+    "firstSnapshot": "erster Abruf",
+    "historyNote": "Nur die Zeitpunkte: Die Stände selbst bleiben in changedetection.io.",
+    "noChange": "noch keine Änderung"
   }
 }

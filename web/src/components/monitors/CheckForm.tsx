@@ -20,12 +20,17 @@ import { ExpressionInput } from '../editor/ExpressionInput';
 import { Hint, JsonView, KeyValueEditor } from '../common';
 import { fmtDate, fmtRelative } from '../../format';
 import { checkTypeHelp, checkTypeLabel } from './status';
+import { PageWatchFields } from './PageWatchFields';
 
 type Patch = (p: Partial<CheckDef>) => void;
 
 /** Fields this form shows a problem on; the others are listed at the top. */
 const FORM_FIELDS = [
   'allowedCidrs',
+  'changedWithinHours',
+  'maxCheckAgeHours',
+  'tag',
+  'watch',
   'aspect',
   'assetId',
   'authMode',
@@ -1001,6 +1006,19 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
             checked={c.policyFail ?? true}
             onChange={(e) => set({ policyFail: e.currentTarget.checked })}
           />
+        </>
+      )}
+      {c.type === 'page-watch' && (
+        <>
+          <PlatformSelect
+            value={c.platform}
+            onChange={(v) => set({ platform: v })}
+            platforms={platforms}
+            kind="changedetection"
+            disabled={disabled}
+            error={err('platform')}
+          />
+          <PageWatchFields check={c} set={set} platforms={platforms} disabled={disabled} err={err} />
         </>
       )}
       {c.type === 'entra' && (

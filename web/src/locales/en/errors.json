@@ -928,7 +928,10 @@
     "DB_SQL_PLACEHOLDERS_missing": "Placeholder {{word}} is missing – number the placeholders from 1 without gaps.",
     "DB_SQL_PLACEHOLDERS_fromOne": "Placeholders are numbered from 1.",
     "DB_SQL_PLACEHOLDERS_count": "The statement has {{need}} placeholder(s), but {{given}} parameter(s) are given (placeholders: {{syntax}} …).",
-    "MCP_WRITES_NOT_AVAILABLE": "“{{name}}” is a database platform: its MCP gateway is read-only."
+    "MCP_WRITES_NOT_AVAILABLE": "“{{name}}” is a database platform: its MCP gateway is read-only.",
+    "PAGE_WATCH_NOT_FOUND": "changedetection.io has no such watch.",
+    "CHANGEDETECTION_PLATFORM_REQUIRED": "Page watches are only available for changedetection.io platforms.",
+    "CHANGEDETECTION_READ_FAILED": "changedetection.io could not be read: {{message}}"
   },
   "boundary": {
     "title": "Something went wrong on this page",

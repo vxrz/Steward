@@ -45,7 +45,7 @@ import { GetStartedPanel, TestHints } from './onboarding';
 type GroupKey = 'industrial' | 'monitoring' | 'cloud' | 'databases' | 'development' | 'ai' | 'messaging' | 'custom' | 'other';
 const GROUPS: { key: GroupKey; kinds: string[] }[] = [
   { key: 'industrial', kinds: ['insights-hub', 'industrial-edge-management', 'mqtt'] },
-  { key: 'monitoring', kinds: ['gatus', 'checkmk', 'prometheus', 'zabbix'] },
+  { key: 'monitoring', kinds: ['gatus', 'checkmk', 'prometheus', 'zabbix', 'changedetection'] },
   { key: 'cloud', kinds: ['aws', 'kubernetes', 'snowflake', 'kafka', 'confluent-cloud', 'microsoft-graph'] },
   { key: 'databases', kinds: ['database'] },
   { key: 'development', kinds: ['github', 'gitlab', 'forgejo', 'dependency-track', 'endoflife-date'] },

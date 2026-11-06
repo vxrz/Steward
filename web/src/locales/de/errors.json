@@ -928,7 +928,10 @@
     "DB_SQL_PLACEHOLDERS_missing": "Platzhalter {{word}} fehlt – nummerieren Sie die Platzhalter ab 1 ohne Lücken.",
     "DB_SQL_PLACEHOLDERS_fromOne": "Platzhalter werden ab 1 nummeriert.",
     "DB_SQL_PLACEHOLDERS_count": "Die Anweisung hat {{need}} Platzhalter, es sind aber {{given}} Parameter angegeben (Platzhalter: {{syntax}} …).",
-    "MCP_WRITES_NOT_AVAILABLE": "„{{name}}“ ist eine Datenbank-Plattform: Ihr MCP-Gateway ist nur lesend."
+    "MCP_WRITES_NOT_AVAILABLE": "„{{name}}“ ist eine Datenbank-Plattform: Ihr MCP-Gateway ist nur lesend.",
+    "PAGE_WATCH_NOT_FOUND": "changedetection.io hat keine solche Überwachung.",
+    "CHANGEDETECTION_PLATFORM_REQUIRED": "Seitenüberwachungen gibt es nur für changedetection.io-Plattformen.",
+    "CHANGEDETECTION_READ_FAILED": "changedetection.io konnte nicht gelesen werden: {{message}}"
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

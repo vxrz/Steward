@@ -46,6 +46,9 @@ export const platformKeys = {
   recordings: (id: string | null | undefined) => ['platform-recordings', id] as const,
   /** LLM gateways (0.6.0): budgets, use and the latest calls; refreshed with the platform (prefix ['platform', id]) */
   aiUsage: (id: string | null | undefined) => ['platform', id, 'ai-usage'] as const,
+  /** changedetection.io (0.9.0): the watches as components of the platform (prefix ['platform', id]) */
+  watches: (id: string | null | undefined) => ['platform', id, 'watches'] as const,
+  watchHistory: (id: string | null | undefined, uuid: string) => ['platform', id, 'watches', uuid, 'history'] as const,
 };
 
 /** AI models (0.6.0): every budget (administrators and auditors) */

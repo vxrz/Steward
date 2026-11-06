@@ -358,7 +358,8 @@
       "system": "System",
       "site": "Standort",
       "asset": "Anlage",
-      "conduit": "Conduit (OT-Netzwerk)"
+      "conduit": "Conduit (OT-Netzwerk)",
+      "page-watch": "Seitenüberwachung"
     },
     "target": "Ziel",
     "search": "Zum Suchen tippen",
