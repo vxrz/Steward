@@ -1,4 +1,4 @@
-import { PAGE_WATCH_LIMITS, PAGE_WATCH_UUID_RE, type Platform } from '@sm/shared';
+import { PAGE_WATCH_LIMITS, PAGE_WATCH_UUID_RE, watchUrlWithoutCredentials, type Platform } from '@sm/shared';
 import { buildUrl, platformRequest } from '../platforms/http.js';
 import { assertOutboundAllowed } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
@@ -55,7 +55,10 @@ const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v =
 /** One entry of GET /api/v1/watch, or null when it is not a watch. */
 export function parseWatch(uuid: string, raw: unknown, tagNames: Map<string, string>): CdWatch | null {
   if (!PAGE_WATCH_UUID_RE.test(uuid) || !isObject(raw)) return null;
-  const link = clip(raw.link, PAGE_WATCH_LIMITS.url) || clip(raw.url, PAGE_WATCH_LIMITS.url);
+  // without user info and secret-looking query values (0.9.0): the URL is stored and shown to every reader of the platform
+  const link =
+    watchUrlWithoutCredentials(clip(raw.link, PAGE_WATCH_LIMITS.url)).slice(0, PAGE_WATCH_LIMITS.url) ||
+    watchUrlWithoutCredentials(clip(raw.url, PAGE_WATCH_LIMITS.url)).slice(0, PAGE_WATCH_LIMITS.url);
   const title = clip(raw.title, PAGE_WATCH_LIMITS.title) || clip(raw.page_title, PAGE_WATCH_LIMITS.title) || link.slice(0, PAGE_WATCH_LIMITS.title);
   const tags: string[] = [];
   for (const id of Array.isArray(raw.tags) ? raw.tags.slice(0, 200) : []) {
