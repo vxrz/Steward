@@ -11,6 +11,7 @@ import { refsOf } from './model.js';
 import * as svc from './service.js';
 import * as cat from './catalogue.js';
 import { getAssignment } from './assignments.js';
+import { assetNetwork, siteNetwork } from './network.js';
 import { exportYaml } from './import.js';
 import type { ApiPrincipal } from '../api/v1/auth.js';
 import { PlantAssetListQuery, PlantCatalogueListQuery, PlantCheckListQuery, PlantExportQuery, PlantSiteListQuery } from './api-schemas.js';
@@ -267,6 +268,39 @@ export function plantApiRoutes(get: Get): void {
     },
   );
 
+  // ---------- part 3 (#220): the OT network ----------
+  get(
+    '/plant/sites/:siteId/network',
+    {
+      operationId: 'getPlantSiteNetwork',
+      tag: 'Plant',
+      summary: 'Get the OT network of a site',
+      description: `The IEEE 802.1Q VLANs of a site (subnets, ranges, the linked Steward network segment and a hint when they differ), its IEC 62443-3-2 zones (criticality, VLANs, SL-T) and conduits (two zones, direction, protocols, controls, the records that link to them), the devices and data paths of its assets (collector, transfers, destinations, the next and previous link of a chain), every asset's live status (online, offline, unknown – only from linked checks) and the systems the data paths name. ${MODULE}`,
+      params: { siteId: 'Site id' },
+      response: { $ref: 'PlantSiteNetworkEntry#' },
+    },
+    async (req) => {
+      const { canManage: _c, ...n } = found(() => siteNetwork((req.params as { siteId: string }).siteId), 'Site');
+      return n;
+    },
+  );
+
+  get(
+    '/plant/assets/:assetId/network',
+    {
+      operationId: 'getPlantAssetNetwork',
+      tag: 'Plant',
+      summary: 'Get the devices, data paths and live status of an asset',
+      description: `The asset's devices (host name, MAC as EUI-48, VLAN, address, switch port, state, flags, linked checks and live status), its data paths and the checks linked to the asset itself. The live status is online, offline or unknown, only from the linked checks (monitors, dataset freshness); a monitor or dataset the token owner may not see is not named. ${MODULE}`,
+      params: { assetId: 'Asset id' },
+      response: { $ref: 'PlantAssetNetworkEntry#' },
+    },
+    async (req) => {
+      const { canManage: _c, vlans: _v, checksSource: _s, ...n } = found(() => assetNetwork((req.params as { assetId: string }).assetId), 'Asset');
+      return n;
+    },
+  );
+
   // ---------- what Steward checks, and the export in the import format ----------
   get(
     '/plant/checks',
@@ -326,7 +360,7 @@ export function plantApiRoutes(get: Get): void {
       operationId: 'exportPlantRegistry',
       tag: 'Plant',
       summary: 'Export the plant registry in the import format',
-      description: `The registry as a document of format 1 (docs/PLANT.md, JSON Schema docs/plant/plant-registry-1.schema.json), the same as Plant → Import → Export: every site the token owner may see with the device profiles, KPI definitions and the assignments of their assets; one site (\`site\`, with the assignments of its assets); the catalogues only (\`part=catalogue\`); one device profile (\`profile\`) or one KPI definition (\`kpi\`). Sites the token owner may not see and their assets are never in it; the catalogues belong to the installation. YAML by default, JSON with \`format=json\`; both import back unchanged. Recorded in the audit log with the token. ${MODULE}`,
+      description: `The registry as a document of format 1 (docs/PLANT.md, JSON Schema docs/plant/plant-registry-1.schema.json), the same as Plant → Import → Export: every site the token owner may see with the device profiles, KPI definitions, the assignments of their assets and the OT network (\`ot_networks\`, \`asset_networks\`); one site (\`site\`, with the assignments and OT network of its assets); the catalogues only (\`part=catalogue\`); one device profile (\`profile\`) or one KPI definition (\`kpi\`). Sites the token owner may not see and their assets are never in it; the catalogues belong to the installation. YAML by default, JSON with \`format=json\`; both import back unchanged. Recorded in the audit log with the token. ${MODULE}`,
       query: PlantExportQuery,
       response: {
         content: {
