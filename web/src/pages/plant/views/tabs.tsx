@@ -1,7 +1,7 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Anchor, Badge, Group, Text } from '@mantine/core';
 import { Link, Navigate } from 'react-router-dom';
-import { IconInfoCircle, IconRoute, IconSitemap, type Icon } from '@tabler/icons-react';
+import { IconBuilding, IconChevronRight, IconInfoCircle, IconRoute, IconSitemap, type Icon } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { PlantAssetDetail, PlantSiteDetail } from '@sm/shared';
 import { DetailHeader } from '../../../components/page/DetailPage';
@@ -83,6 +83,7 @@ export function PlantSiteTabPage({ site, tab }: { site: PlantSiteDetail; tab: st
         recent={{ label: nameOf(site), kind: 'site', to: siteBase(site.id) }}
         back="plantSites"
         title={nameOf(site)}
+        description={site.description || undefined}
         status={
           <>
             {site.code && <Badge variant="default">{site.code}</Badge>}
@@ -99,20 +100,37 @@ export function PlantSiteTabPage({ site, tab }: { site: PlantSiteDetail; tab: st
 
 /** A tab of an asset other than the overview. */
 export function PlantAssetTabPage({ asset, tab }: { asset: PlantAssetDetail; tab: string }) {
-  const { t } = useTranslation('plantViews');
+  const { t } = useTranslation(['plantViews', 'plant']);
   const nameOf = useNameOf();
   const known = ASSET_TABS.find((x) => x === tab);
   if (!known) return <Navigate to={assetBase(asset.id)} replace />;
-  const site = asset.location.site;
+  // the same way to the asset's place as on its overview, so the header stays as it is when the tab changes
+  const loc = asset.location;
+  const crumbs = [
+    { to: siteBase(loc.site.id), label: nameOf(loc.site) },
+    ...[loc.area, loc.workCenter, loc.workUnit]
+      .filter((x): x is NonNullable<typeof x> => !!x)
+      .map((n) => ({ to: `/plant/assets?site=${encodeURIComponent(loc.site.id)}&node=${encodeURIComponent(n.id)}`, label: nameOf(n) })),
+  ];
   const where: ReactNode = (
-    <Group gap={4} wrap="wrap" component="span">
-      <Text span size="sm">
-        {t('tabs.in')}
-      </Text>
-      <Anchor component={Link} to={siteBase(site.id)} size="sm">
-        {nameOf(site)}
-      </Anchor>
-    </Group>
+    <nav aria-label={t('plant:asset.location')}>
+      <Group gap={4} wrap="wrap">
+        {crumbs.map((c, i) => (
+          <Group key={c.to} gap={4} wrap="nowrap">
+            {i > 0 && <IconChevronRight size={12} aria-hidden />}
+            <Anchor component={Link} to={c.to} size="sm">
+              {c.label}
+            </Anchor>
+          </Group>
+        ))}
+        {loc.building && (
+          <Group gap={4} wrap="nowrap" ml="xs">
+            <IconBuilding size={14} aria-hidden />
+            <Text size="sm">{nameOf(loc.building)}</Text>
+          </Group>
+        )}
+      </Group>
+    </nav>
   );
   return (
     <>
