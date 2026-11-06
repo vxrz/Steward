@@ -1,7 +1,18 @@
 import { useState } from 'react';
 import { Alert, Divider, Group, NumberInput, SegmentedControl, Select, Stack, Switch, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import { HIDDEN_MONITOR_REF, type CheckDef, type CheckOf, type MonitorSummary, type Platform } from '@sm/shared';
+import {
+  DYNAMODB_LIMITS,
+  DYNAMODB_MODES,
+  DYNAMODB_REQUIREMENTS,
+  DYNAMODB_TIME_FORMATS,
+  HIDDEN_MONITOR_REF,
+  type CheckDef,
+  type CheckOf,
+  type DynamoDbMode,
+  type MonitorSummary,
+  type Platform,
+} from '@sm/shared';
 import { ExpressionInput } from '../editor/ExpressionInput';
 import { Hint, JsonView, KeyValueEditor } from '../common';
 import { fmtDate, fmtRelative } from '../../format';
@@ -33,19 +44,25 @@ const FORM_FIELDS = [
   'headers',
   'host',
   'id',
+  'indexName',
   'intervalSeconds',
   'key',
   'maxAgeSeconds',
   'method',
   'monitor',
   'name',
+  'partitionKey',
+  'partitionValues',
   'path',
   'platform',
   'port',
   'rateLimitPerMinute',
+  'region',
   'source',
   'statusExpression',
   'successesBeforeUp',
+  'table',
+  'timeAttribute',
   'timeoutSeconds',
   'timestamp',
   'tlsExpiryWarnDays',
@@ -100,13 +117,16 @@ function FreshnessFields({
   what,
   err,
 }: {
-  c: CheckOf<'freshness'> | CheckOf<'heartbeat'>;
+  c: CheckOf<'freshness'> | CheckOf<'heartbeat'> | CheckOf<'dynamodb'>;
   set: Patch;
   disabled?: boolean;
   what: 'data' | 'reports';
   err: FieldError;
 }) {
   const { t } = useTranslation('monitors');
+  // the DynamoDB check has a mode of its own: cadence or maximum age is its freshnessMode
+  const mode = c.type === 'dynamodb' ? c.freshnessMode : c.mode;
+  const setMode = (m: 'cadence' | 'maxAge') => set(c.type === 'dynamodb' ? { freshnessMode: m } : { mode: m });
   return (
     <>
       <div>
@@ -116,15 +136,15 @@ function FreshnessFields({
         <SegmentedControl
           size="xs"
           disabled={disabled}
-          value={c.mode}
-          onChange={(v) => set({ mode: v as 'cadence' | 'maxAge' })}
+          value={mode}
+          onChange={(v) => setMode(v as 'cadence' | 'maxAge')}
           data={[
             { value: 'cadence', label: t('form.cadence') },
             { value: 'maxAge', label: t('form.maxAge') },
           ]}
         />
       </div>
-      {c.mode === 'cadence' ? (
+      {mode === 'cadence' ? (
         <Group grow align="flex-start">
           <NumberInput
             error={err('expectedIntervalSeconds')}
@@ -1297,6 +1317,162 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
               onChange={(e) => set({ unit: e.currentTarget.value || undefined })}
             />
           </Group>
+        </>
+      )}
+      {c.type === 'dynamodb' && (
+        <>
+          <PlatformSelect
+            value={c.platform}
+            onChange={(v) => set({ platform: v })}
+            platforms={platforms}
+            kind="aws"
+            disabled={disabled}
+            error={err('platform')}
+          />
+          <TextInput
+            error={err('table')}
+            data-field="table"
+            label={t('form.ddbTable')}
+            required
+            disabled={disabled}
+            value={c.table}
+            onChange={(e) => set({ table: e.currentTarget.value })}
+            classNames={{ input: 'mono' }}
+            spellCheck={false}
+          />
+          <TextInput
+            error={err('region')}
+            data-field="region"
+            label={t('form.ddbRegion')}
+            description={t('form.ddbRegionHint', {
+              region: platforms.find((p) => p.id === c.platform)?.config.auth?.aws?.region || 'us-east-1',
+            })}
+            placeholder={platforms.find((p) => p.id === c.platform)?.config.auth?.aws?.region || 'eu-central-1'}
+            disabled={disabled}
+            value={c.region ?? ''}
+            onChange={(e) => set({ region: e.currentTarget.value || undefined })}
+            classNames={{ input: 'mono' }}
+            spellCheck={false}
+          />
+          <Select
+            data-field="mode"
+            label={t('form.ddbMode')}
+            description={t(`form.ddbModeHints.${c.mode}`)}
+            allowDeselect={false}
+            disabled={disabled}
+            data={DYNAMODB_MODES.map((m) => ({ value: m, label: t(`form.ddbModes.${m}`) }))}
+            value={c.mode}
+            onChange={(v) => set({ mode: (v as DynamoDbMode | null) ?? 'newestItem' })}
+          />
+          {c.mode === 'newestItem' && (
+            <>
+              <TextInput
+                error={err('indexName')}
+                data-field="indexName"
+                label={t('form.ddbIndex')}
+                description={t('form.ddbIndexHint')}
+                disabled={disabled}
+                value={c.indexName ?? ''}
+                onChange={(e) => set({ indexName: e.currentTarget.value || undefined })}
+                classNames={{ input: 'mono' }}
+                spellCheck={false}
+              />
+              <Group grow align="flex-start">
+                <TextInput
+                  error={err('partitionKey')}
+                  data-field="partitionKey"
+                  label={t('form.ddbPartitionKey')}
+                  required
+                  disabled={disabled}
+                  value={c.partitionKey ?? ''}
+                  onChange={(e) => set({ partitionKey: e.currentTarget.value || undefined })}
+                  classNames={{ input: 'mono' }}
+                  spellCheck={false}
+                  style={{ flex: 3 }}
+                />
+                <Select
+                  data-field="partitionKeyType"
+                  label={t('form.ddbPartitionKeyType')}
+                  allowDeselect={false}
+                  disabled={disabled}
+                  data={(['S', 'N'] as const).map((v) => ({ value: v, label: t(`form.ddbKeyTypes.${v}`) }))}
+                  value={c.partitionKeyType}
+                  onChange={(v) => set({ partitionKeyType: v === 'N' ? 'N' : 'S' })}
+                />
+              </Group>
+              <TagsInput
+                error={err('partitionValues')}
+                data-field="partitionValues"
+                label={t('form.ddbPartitionValues')}
+                description={t('form.ddbPartitionValuesHint')}
+                required
+                disabled={disabled}
+                value={c.partitionValues ?? []}
+                onChange={(v) => set({ partitionValues: v })}
+                maxTags={DYNAMODB_LIMITS.partitionValues}
+                splitChars={[]}
+              />
+              <Group grow align="flex-start">
+                <TextInput
+                  error={err('timeAttribute')}
+                  data-field="timeAttribute"
+                  label={t('form.ddbTimeAttribute')}
+                  required
+                  disabled={disabled}
+                  value={c.timeAttribute ?? ''}
+                  onChange={(e) => set({ timeAttribute: e.currentTarget.value || undefined })}
+                  classNames={{ input: 'mono' }}
+                  spellCheck={false}
+                />
+                <Select
+                  data-field="timeFormat"
+                  label={t('form.ddbTimeFormat')}
+                  allowDeselect={false}
+                  disabled={disabled}
+                  data={DYNAMODB_TIME_FORMATS.map((v) => ({ value: v, label: t(`form.ddbTimeFormats.${v}`) }))}
+                  value={c.timeFormat}
+                  onChange={(v) => set({ timeFormat: (v as (typeof DYNAMODB_TIME_FORMATS)[number] | null) ?? 'auto' })}
+                />
+              </Group>
+            </>
+          )}
+          {c.mode === 'hygiene' ? (
+            <>
+              {(
+                [
+                  ['activeTable', 'ddbActive'],
+                  ['pointInTimeRecovery', 'ddbPitr'],
+                  ['timeToLive', 'ddbTtl'],
+                ] as const
+              ).map(([field, label]) => (
+                <Select
+                  key={field}
+                  data-field={field}
+                  label={t(`form.${label}`)}
+                  allowDeselect={false}
+                  disabled={disabled}
+                  data={DYNAMODB_REQUIREMENTS.map((v) => ({ value: v, label: t(`form.ddbRequirements.${v}`) }))}
+                  value={c[field]}
+                  onChange={(v) => set({ [field]: v === 'report' ? 'report' : 'required' })}
+                />
+              ))}
+              <Select
+                data-field="failAs"
+                label={t('form.ddbFailAs')}
+                allowDeselect={false}
+                disabled={disabled}
+                data={[
+                  { value: 'degraded', label: t('status.degraded') },
+                  { value: 'down', label: t('status.down') },
+                ]}
+                value={c.failAs}
+                onChange={(v) => set({ failAs: v === 'down' ? 'down' : 'degraded' })}
+              />
+            </>
+          ) : (
+            <FreshnessFields c={c} set={set} disabled={disabled} what="data" err={err} />
+          )}
+          <Hint>{t('form.ddbPolicy')}</Hint>
         </>
       )}
       {c.type === 'database' && (
