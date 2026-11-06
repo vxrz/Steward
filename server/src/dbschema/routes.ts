@@ -1,11 +1,21 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { DB_SCHEMA_EXPORT_FORMATS, DB_SCHEMA_SUBJECTS } from '@sm/shared';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { contentDisposition } from '../records/attachments.js';
 import * as svc from './service.js';
-import { createPushToken, handlePush, listPushTokens, revokePushToken, rotatePushToken } from './push.js';
+import {
+  authorizePush,
+  createPushToken,
+  importPush,
+  listPushTokens,
+  REFUSED,
+  revokePushToken,
+  rotatePushToken,
+  type PushResponse,
+  type VerifiedPushToken,
+} from './push.js';
 
 /**
  * Database schemas (0.8.0, #222, docs/DATABASES.md#database-schemas) in the internal API. `:kind` is platform or
@@ -91,22 +101,32 @@ export async function dbSchemaRoutes(app: FastifyInstance): Promise<void> {
     // the body as bytes: its SHA-256 is that of the file as sent
     hooks.removeAllContentTypeParsers();
     hooks.addContentTypeParser('*', { parseAs: 'buffer', bodyLimit: LARGE_BODIES.dbSchemaImport.bytes }, (_req, body, done) => done(null, body));
+    const verified = new WeakMap<FastifyRequest, VerifiedPushToken>();
+    const answer = (reply: FastifyReply, res: PushResponse) => {
+      reply.header('cache-control', 'no-store');
+      if (res.headers) reply.headers(res.headers);
+      return reply.code(res.status).send(res.body);
+    };
+    const target = (req: FastifyRequest) => {
+      const p = req.params as { kind?: string; id?: string };
+      return { kind: String(p.kind ?? ''), id: String(p.id ?? '') };
+    };
     hooks.post(
       '/hooks/db-schema/:kind/:id',
-      { config: { rateLimit: ROUTE_LIMITS.webhook }, bodyLimit: LARGE_BODIES.dbSchemaImport.bytes },
+      {
+        config: { rateLimit: ROUTE_LIMITS.webhook },
+        bodyLimit: LARGE_BODIES.dbSchemaImport.bytes,
+        // the token is checked from the headers before the body is read: without a valid one, nothing of up to 10 MB is buffered
+        onRequest: async (req, reply) => {
+          const a = authorizePush({ ...target(req), contentType: req.headers['content-type'], headers: req.headers, ip: req.ip });
+          if (!a.ok) return answer(reply, a.res);
+          verified.set(req, a.token);
+        },
+      },
       async (req, reply) => {
-        const p = req.params as { kind?: string; id?: string };
-        const res = handlePush({
-          kind: String(p.kind ?? ''),
-          id: String(p.id ?? ''),
-          raw: Buffer.isBuffer(req.body) ? req.body : undefined,
-          contentType: req.headers['content-type'],
-          headers: req.headers,
-          ip: req.ip,
-        });
-        reply.header('cache-control', 'no-store');
-        if (res.headers) reply.headers(res.headers);
-        return reply.code(res.status).send(res.body);
+        const token = verified.get(req);
+        if (!token) return answer(reply, REFUSED);
+        return answer(reply, importPush(token, { raw: Buffer.isBuffer(req.body) ? req.body : undefined, ip: req.ip }));
       },
     );
   });

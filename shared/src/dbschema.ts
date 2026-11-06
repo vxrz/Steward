@@ -301,6 +301,11 @@ export interface DbSchemaPushToken {
   lastUsedIp: string | null;
   /** expired: past expiresAt */
   expired: boolean;
+  /**
+   * The person who created it is deactivated or may no longer manage the database: the token stops working (like an
+   * API token with its owner) – create a new one
+   */
+  creatorInactive: boolean;
 }
 
 /** A token as it is created or rotated: with its secret, this once. */

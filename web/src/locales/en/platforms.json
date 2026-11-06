@@ -939,7 +939,7 @@
     "lintCount_other": "{{n}} lint findings",
     "push": {
       "title": "Push from CI",
-      "help": "A push token can do one thing: push the tbls schema.json of this database (and the output of tbls lint) from a CI job. It is shown once and stored as a hash.",
+      "help": "A push token can do one thing: push the tbls schema.json of this database (and the output of tbls lint) from a CI job. It is shown once and stored as a hash, and stops working when the person who created it is deactivated or may no longer manage this database.",
       "new": "New push token",
       "empty": "No push token yet",
       "emptyHint": "Create one for the CI job that runs tbls, and keep it as a secret there.",
@@ -954,6 +954,8 @@
       "expires": "Expires",
       "never": "never",
       "expired": "expired",
+      "creatorInactive": "Creator inactive – create a new token",
+      "creatorInactiveHint": "{{name}} created it and is deactivated or may no longer manage this database: pushes with it are refused.",
       "expiresIn": "Expires after (days)",
       "expiresInHint": "1 to {{max}}; empty: never.",
       "rate": "Pushes per minute at most",

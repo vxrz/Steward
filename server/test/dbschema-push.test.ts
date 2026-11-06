@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -194,6 +195,92 @@ describe('the push endpoint', () => {
     expect(third.status).toBe(429);
     expect(Number(third.headers.get('retry-after'))).toBeGreaterThan(0);
     await setEnv({ SM_RATE_LIMIT_PER_MINUTE: undefined });
+  });
+
+  it('refuses a missing or wrong token from the headers, before the body is read (security review of #222)', async () => {
+    // 20 MB announced, 1 KB sent and the rest never: only an answer from the headers arrives in time
+    const headOnly = (headers: Record<string, string>) =>
+      new Promise<{ status: number; body: string }>((resolve, reject) => {
+        const u = new URL(`${s.base}/api/hooks/db-schema/system/${systemId}`);
+        const req = http.request(
+          {
+            host: u.hostname,
+            port: u.port,
+            path: u.pathname,
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'content-length': String(20 * 1024 * 1024), ...headers },
+          },
+          (res) => {
+            let body = '';
+            res.on('data', (c: Buffer) => (body += c.toString()));
+            res.on('end', () => {
+              clearTimeout(timer);
+              req.destroy();
+              resolve({ status: res.statusCode!, body });
+            });
+          },
+        );
+        const timer = setTimeout(() => {
+          req.destroy();
+          reject(new Error('no answer before the body was complete'));
+        }, 5000);
+        req.on('error', (e) => {
+          clearTimeout(timer);
+          reject(e);
+        });
+        req.write('x'.repeat(1024));
+      });
+    const wrong = await headOnly({ authorization: `Bearer sdbp_${'x'.repeat(43)}` });
+    expect(wrong.status).toBe(401);
+    expect(JSON.parse(wrong.body).code).toBe('DB_SCHEMA_PUSH_TOKEN_INVALID');
+    expect((await headOnly({})).status).toBe(401);
+    const full = (await s.api('POST', '/me/tokens', { name: 'not here', scope: 'full' })).token;
+    expect(JSON.parse((await headOnly({ authorization: `Bearer ${full}` })).body).code).toBe('DB_SCHEMA_PUSH_API_TOKEN');
+    // a valid token of another target, and a valid one with the wrong content type: refused from the headers too
+    const other = await s.api('POST', `/db-schemas/system/${otherSystem}/push-tokens`, { name: 'other target' });
+    expect(said(JSON.parse((await headOnly({ authorization: `Bearer ${other.token}` })).body))).toEqual(said(JSON.parse(wrong.body)));
+    const mine = await s.api('POST', `/db-schemas/system/${systemId}/push-tokens`, { name: 'wrong type' });
+    expect((await headOnly({ authorization: `Bearer ${mine.token}`, 'content-type': 'application/x-www-form-urlencoded' })).status).toBe(415);
+    // the token still pushes a whole file
+    expect((await push('system', systemId, mine.token)).status).toBe(200);
+  });
+
+  it('stops when its creator is deactivated or may no longer manage the database (owner decision, like API tokens)', async () => {
+    const { user, temporaryPassword } = await s.api('POST', '/users', { username: 'cora-ci', roles: ['operator'] });
+    const first = await s.as('cora-ci', temporaryPassword);
+    await first('POST', '/auth/password', { current: temporaryPassword, next: 'Cora-password-123' });
+    const cora = await s.as('cora-ci', 'Cora-password-123');
+    const acl = (permissions: string[]) => s.api('PUT', `/platforms/${db.id}/access`, { acl: [{ subject: 'user:cora-ci', permissions }] });
+    try {
+      await acl(['manage']);
+      const t = await cora('POST', `/db-schemas/platform/${db.id}/push-tokens`, { name: 'cora ci' });
+      expect(t.createdBy).toBe('cora-ci');
+      expect(t.creatorInactive).toBe(false);
+      expect((await push('platform', db.id, t.token)).status).toBe(200);
+      const wrong = await push('platform', db.id, `sdbp_${'x'.repeat(43)}`);
+      const listed = async () => (await s.api('GET', `/db-schemas/platform/${db.id}/push-tokens`)).find((x: { id: string }) => x.id === t.id);
+
+      await s.api('PUT', `/users/${user.id}`, { active: false });
+      const off = await push('platform', db.id, t.token);
+      expect(off.status).toBe(401);
+      expect(said(off.json)).toEqual(said(wrong.json));
+      expect((await listed()).creatorInactive).toBe(true);
+      await s.api('PUT', `/users/${user.id}`, { active: true });
+      expect((await push('platform', db.id, t.token)).status).toBe(200);
+
+      // only "use" left: the token stops as well
+      await acl(['use']);
+      const lost = await push('platform', db.id, t.token);
+      expect(lost.status).toBe(401);
+      expect(said(lost.json)).toEqual(said(wrong.json));
+      expect((await listed()).creatorInactive).toBe(true);
+      // a token of someone who may still manage it goes on working
+      const mine = await s.api('POST', `/db-schemas/platform/${db.id}/push-tokens`, { name: 'admin ci' });
+      expect((await push('platform', db.id, mine.token)).status).toBe(200);
+      expect((await listed()).creatorInactive).toBe(true);
+    } finally {
+      await s.api('PUT', `/platforms/${db.id}/access`, { acl: [] });
+    }
   });
 
   it('pushes for a database platform too, and its token dies with the platform', async () => {

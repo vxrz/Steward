@@ -74,6 +74,16 @@ export function PushTokensPanel({ subject }: { subject: SchemaSubject }) {
     ) : (
       t('schema.push.never')
     );
+  // the creator is deactivated or may no longer manage the database: pushes with it are refused
+  const stopped = (x: DbSchemaPushToken) =>
+    x.creatorInactive ? (
+      <Group gap={4} wrap="nowrap" align="flex-start" data-testid="push-token-creator-inactive">
+        <IconAlertTriangle size={14} aria-hidden style={{ flex: 'none', marginTop: 2, color: 'var(--mantine-color-orange-8)' }} />
+        <Text size="xs" c="orange.8" title={t('schema.push.creatorInactiveHint', { name: x.createdBy })}>
+          {t('schema.push.creatorInactive')}
+        </Text>
+      </Group>
+    ) : null;
   const used = (x: DbSchemaPushToken) =>
     x.lastUsedAt ? `${fmtRelative(x.lastUsedAt)}${x.lastUsedIp ? ` · ${x.lastUsedIp}` : ''}` : t('schema.push.neverUsed');
   const actions = (x: DbSchemaPushToken) => (
@@ -122,6 +132,7 @@ export function PushTokensPanel({ subject }: { subject: SchemaSubject }) {
                   <Text size="sm" fw={500} style={{ wordBreak: 'break-word' }}>
                     {x.name}
                   </Text>
+                  {stopped(x)}
                   <Text size="xs" c="dimmed" className="mono">
                     {x.prefix}…
                   </Text>
@@ -161,7 +172,10 @@ export function PushTokensPanel({ subject }: { subject: SchemaSubject }) {
             <Table.Tbody>
               {list.map((x) => (
                 <Table.Tr key={x.id}>
-                  <Table.Td>{x.name}</Table.Td>
+                  <Table.Td>
+                    {x.name}
+                    {stopped(x)}
+                  </Table.Td>
                   <Table.Td className="mono">{x.prefix}…</Table.Td>
                   <Table.Td className="mono" style={{ wordBreak: 'break-all' }}>
                     {x.allowedCidrs.join(', ') || t('schema.push.anyAddress')}
