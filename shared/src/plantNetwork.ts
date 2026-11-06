@@ -450,11 +450,13 @@ export function ipValue(s: string): { v: 4 | 6; n: bigint } | null {
   if (isIpv4(s)) return { v: 4, n: s.split('.').reduce((acc, p) => (acc << 8n) + BigInt(Number(p)), 0n) };
   if (!isIpv6(s)) return null;
   let text = s;
-  // an IPv4 tail: two groups
-  const tail = /(\d+\.\d+\.\d+\.\d+)$/.exec(text);
-  if (tail) {
-    const n = ipValue(tail[1]!)!.n;
-    text = `${text.slice(0, -tail[1]!.length)}${(n >> 16n).toString(16)}:${(n & 0xffffn).toString(16)}`;
+  // an IPv4 tail (after the last colon): two groups – plain string parsing, no regular expression on input
+  const tailStart = text.lastIndexOf(':') + 1;
+  const tail = text.slice(tailStart);
+  if (tail.includes('.')) {
+    if (!isIpv4(tail)) return null;
+    const n = ipValue(tail)!.n;
+    text = `${text.slice(0, tailStart)}${(n >> 16n).toString(16)}:${(n & 0xffffn).toString(16)}`;
   }
   const [head, rest] = text.split('::') as [string, string | undefined];
   const hs = head ? head.split(':') : [];
