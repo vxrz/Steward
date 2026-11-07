@@ -1,6 +1,6 @@
 # 0012. Quiet hours and digests for notifications
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-07
 - **Since:** 0.10.0 (#236), planned in steps (below)
 
@@ -81,11 +81,11 @@ A message that breaks through is sent at once, even in quiet hours. Its footer (
 **Always, cannot be turned off:**
 
 - `security.emergency` (someone used emergency access).
-- A **decision that expires** inside the target's quiet hours or within one hour after their end. Today that is an MCP request; later the start approval of ADR 0009. Process decision steps have no deadline, so they are held (see open question 2).
+- A **decision that expires** inside the target's quiet hours or within one hour after their end. Today that is an MCP request; later the start approval of ADR 0009. Process decision steps have no deadline, so they are held (decision 2 below).
 
 **By default, and the person or channel can turn it off (`urgentBreaksThrough`):**
 
-- Messages from an **urgent source** – see open question 1 for what counts as urgent.
+- Messages from an **urgent source**: a source whose notification policy is marked _Urgent – interrupts quiet hours_ (decision 1 below).
 
 A message that broke through is not repeated in the catch-up message.
 
@@ -132,7 +132,7 @@ CREATE UNIQUE INDEX notification_outbox_open ON notification_outbox(target, item
 
 ### Digests
 
-- A person chooses, per **event group** (open question 3), a rhythm for e-mail: _immediately_ (default, as today), _hourly_, _daily_ at a chosen time, or _weekly_ on a chosen day and time.
+- A person chooses, per **event group** (decision 3 below), a rhythm for e-mail: _immediately_ (default, as today), _hourly_, _daily_ at a chosen time, or _weekly_ on a chosen day and time.
 - Channel targets have quiet hours, but **no digests** in this release. A noisy source is tamed with its own notification policy (#139).
 - **Limits on decisions**: decision events (`task.assigned`, `mcp.request`, `duty.exception`) can be _immediately_ or _hourly_, never daily or weekly – a run is waiting. An expiring decision breaks through a digest like it breaks through quiet hours.
 - Never digested: `security.emergency` and messages from urgent sources.
@@ -190,7 +190,7 @@ CREATE UNIQUE INDEX notification_outbox_open ON notification_outbox(target, item
 **Risks**
 
 - **Time zone and daylight-saving bugs.** Mitigation: wall-clock evaluation only, no stored instants, the test matrix above on both databases.
-- **Too much breaks through, or too little.** Mitigation: a narrow default (open question 1), the footer says why, and the admin view shows who uses what.
+- **Too much breaks through, or too little.** Mitigation: a narrow default (decision 1: only sources marked urgent), the footer says why, and the admin view shows who uses what.
 - **A large backlog after a long weekend.** Mitigation: collapsing per item, current state at release, the 500-row limit with counts.
 
 ### Migration and rollout plan
@@ -198,32 +198,15 @@ CREATE UNIQUE INDEX notification_outbox_open ON notification_outbox(target, item
 Each step is its own PR. Nothing changes until someone turns quiet hours on.
 
 1. **Outbox and personal quiet hours.** `quiet.ts`, `outbox.ts`, `clock.ts`, the tables, `deliveryPlan` in `notify()`, quiet hours for e-mail with team defaults, the fixed break-throughs, the catch-up message, the admin switch and view, audit, the profile card.
-2. **Channel quiet hours and urgent sources.** Instance channels, team channels and monitor outputs in Teams format; the urgent setting (open question 1).
+2. **Channel quiet hours and urgent sources.** Instance channels, team channels and monitor outputs in Teams format; the urgent flag on the notification policy (decision 1).
 3. **Digests.** Event groups and rhythms, the digest job, the weekly daily summary.
 4. **Teams chat target.** `teamsChat:<userId>` once ADR 0013 stage 2 sends personal Teams messages.
 
 Each step: tests on SQLite and PostgreSQL (time zones, daylight saving), e2e on desktop and phone with axe, [NOTIFICATIONS.md](../NOTIFICATIONS.md).
 
-## Open questions
+## Decided after review
 
-1. **What counts as urgent, so it breaks through quiet hours?**
-   - **A. A flag on the source's notification policy (recommended).** _Urgent – interrupts quiet hours_ on schedules, webhook triggers and monitor outputs. Failed runs, and checks failing with severity `error`, of that source break through. Why: the policy belongs to the source (#139). The same process can be urgent in production and not in a test schedule. It is explicit, visible on the source and audited with it.
-   - **B. By severity.** Every check failing with `error` breaks through. But `error` is the default severity, so nearly everything would.
-   - **C. By service criticality.** Processes and monitors of services with criticality _high_ or _critical_ break through. Uses data that exists, but many processes have no service, and the link is indirect.
-   - **D. A _critical_ flag in the process definition** (the issue's wording). Mixes delivery into meaning: the same process would interrupt people when run from a test schedule.
-
-2. **Decisions for several people, when some of them are in quiet hours?**
-   - **A. Hold while someone else can decide (recommended).** A decision is held for people in quiet hours as long as at least one other eligible decider is outside theirs. When nobody is reachable and the decision expires inside the quiet hours (or within an hour after), it breaks through for everybody. Why: it follows the sun with the fewest interruptions, and nothing expires unseen.
-   - **B. Expiring decisions always break through** for every decider. Simple, but wakes a whole team for one request.
-   - **C. Decisions never break through.** Expiry is the requester's problem. Risky for MCP requests.
-   - Note: process decision steps have no deadline today. An optional deadline on `userTask` would let them take part. That is a process feature with its own issue, not part of this record.
-
-3. **How fine are the digest choices?**
-   - **A. Per event group, e-mail only (recommended).** About six groups: decisions, runs and checks, monitors, reminders (credentials, documents, tickets, duties, measures), reports and releases, budgets and costs. Why: a person can understand six rows. Groups follow the event list in `shared/src/ops.ts`; a new event joins a group.
-   - **B. Per event and channel** (the issue's wording). About 30 events × 2 channels. Precise, but few people would set it, and the UI gets long.
-   - **C. One rhythm** for all e-mail that is not urgent. Easiest, but decisions and reports would share one rhythm.
-
-4. **Does Steward escalate when nobody reacts?**
-   - **A. No escalation in Steward (recommended).** JSON webhooks are never held, so an on-call tool can page people with its own rota and escalation. Steward has no on-call rota (duties are periodic tasks). Why: paging is a product of its own; the break-through rules cover expiring decisions.
-   - **B. Escalate held urgent items.** If nobody opens an urgent item within N minutes, post it to the owning team's channel or to the administrators. Useful, but needs read tracking for e-mail, which Steward does not have.
-   - **C. Build an on-call rota** under service duties, and let it decide who breaks through. Large, and overlaps with dedicated tools.
+1. **What counts as urgent, so it breaks through quiet hours?** Decided: a flag on the source's notification policy, _Urgent – interrupts quiet hours_, on schedules, webhook triggers and monitor outputs. Failed runs and checks failing with severity `error` of such a source break through; the flag is visible on the source and audited with it.
+2. **Decisions for several people, when some of them are in quiet hours?** Decided: hold while another eligible decider is outside their quiet hours. When nobody is reachable and the decision expires inside the quiet hours (or within an hour after), it breaks through for everybody. An optional deadline on process decision steps stays a separate issue.
+3. **How fine are the digest choices?** Decided: per event group (about six: decisions, runs and checks, monitors, reminders, reports and releases, budgets and costs), e-mail only. A new event joins a group.
+4. **Does Steward escalate when nobody reacts?** Decided: no escalation and no on-call rota in Steward. JSON webhooks are never held, so an on-call tool can page people with its own rota.
