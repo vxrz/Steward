@@ -44,6 +44,8 @@ interface Loaded {
 }
 
 const MASK = '***';
+/** Names that never become keys of an answer object (they come from stored variable and input names). */
+const UNSAFE = new Set(['__proto__', 'constructor', 'prototype']);
 /** The most nodes whose variables are rebuilt (each rebuild reads the run's journal once). */
 const VAR_NODES = 200;
 
@@ -240,7 +242,7 @@ export function compareRuns(aId: string, bId: string): RunComparison {
         const vb = varsB.get(nodeId)!;
         const vars: NonNullable<CompareRow['vars']> = {};
         let differ = false;
-        for (const name of [...new Set([...Object.keys(va), ...Object.keys(vb)])].sort()) {
+        for (const name of [...new Set([...Object.keys(va), ...Object.keys(vb)])].sort().filter((x) => !UNSAFE.has(x))) {
           const x = va[name];
           const y = vb[name];
           const masked = hasMask(x) && hasMask(y);
@@ -260,7 +262,7 @@ export function compareRuns(aId: string, bId: string): RunComparison {
   const ia = parseJson<Record<string, unknown>>(a.run.inputs, {});
   const ib = parseJson<Record<string, unknown>>(b.run.inputs, {});
   const inputs: RunComparison['inputs'] = {};
-  for (const name of [...new Set([...Object.keys(ia), ...Object.keys(ib)])].sort()) {
+  for (const name of [...new Set([...Object.keys(ia), ...Object.keys(ib)])].sort().filter((x) => !UNSAFE.has(x))) {
     if (secretInputs.has(name)) inputs[name] = { a: { secret: true }, b: { secret: true }, same: null };
     else inputs[name] = { a: shown(ia[name]), b: shown(ib[name]), same: same(ia[name], ib[name]) };
   }
