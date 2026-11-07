@@ -9,7 +9,7 @@ services:
   steward:
     # Signed release image (with Chromium: …:0.2.7-browser). Compose pulls it, and builds it from
     # this checkout only if the registry doesn't have it.
-    image: ghcr.io/vxrz/steward:0.9.0
+    image: ghcr.io/vxrz/steward:0.10.0
     build: .
     restart: unless-stopped
     # SIGTERM gives running steps SM_SHUTDOWN_GRACE_SECONDS (25) to finish; Docker's default would kill after 10 s

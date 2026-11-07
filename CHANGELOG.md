@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-07
+
+Steward 0.10.0 puts the process engine behind **one interface** and builds **debugging** on it, adds **quiet hours and digests** for notifications, **approvals from Microsoft Teams**, **shared procedure libraries** and a **map of sites**. Every start, decision and cancel of a run now goes through one rights check; a single node can be run with sample data, a run stepped through and two runs compared, without debug runs ever counting anywhere. Messages wait for the end of quiet hours instead of being dropped; Teams cards open Steward's decision dialog, and a preview bot decides in the card where the assurance policy allows it. Libraries are signed releases installed after a full review; the plant registry's map fetches its tiles only through Steward and stays off until an administrator turns it on. Three security reviews of the new features found and fixed, among others, a debug path around the AI allowed-data rule, Teams decisions on stale rights, a Hold that a designer could lift and a map check that could send the stored key elsewhere; see _Check before updating_ under Changed.
+
 ### Added
 
 - **Quiet hours and digests (#236, [ADR 0012](docs/adr/0012-quiet-hours-and-digests.md), [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#quiet-hours-and-digests))**: e-mails and Teams posts wait at night and arrive together – nothing is dropped, the app gets everything at once.
@@ -1030,7 +1034,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/vxrz/steward/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/vxrz/steward/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/vxrz/steward/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/vxrz/steward/compare/v0.6.0...v0.7.0
