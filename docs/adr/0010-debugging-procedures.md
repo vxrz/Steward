@@ -177,3 +177,14 @@ Each step is its own PR, with unit tests on SQLite and PostgreSQL and e2e on des
 2. **How are decisions and manual steps handled in debug runs?** Decided: simulated by the debugger in the debug panel and marked _Simulated_; from the first simulated or skipped decision on, the rest of the run uses recorded answers only. No real task is created.
 3. **May a debug run execute unsaved changes?** Decided: single node yes, step-through no. The unsaved node is checked like a saved definition, stored in the step's input, and `definition_hash` is the hash of the definition with that node.
 4. **Who sees debug runs?** Decided: the starter, process managers (`manage`), administrators and auditors. Everyone else does not see them, not even with `view` on the process.
+
+## Changed while building
+
+1. All steps shipped in 0.10.0 together with ADR 0011.
+2. _Run this node_ is a third tab beside a node's properties (next to _Last run_), not a drawer: the editor's side panel already is one on small screens.
+3. The comparison page has no graph with both paths coloured; steps only one run reached are marked in the table (cards on a phone).
+4. A single-node debug run never waits for a free slot (`SM_MAX_CONCURRENT_RUNS`): it executes one node. Step-through runs queue like any run.
+5. A pasted answer stands in for http requests only; database queries, browser steps, sub-processes and contract tests cannot run offline (they need recorded answers).
+6. In a step-through run a parallel `forEach` runs one item at a time, so there is one pause at a time. _Continue_ also ends _pause before each node_ (it runs to the next breakpoint).
+7. A sub-process run of a debug run has nobody to answer its decisions: they are skipped, and the recorded-answers rule applies from there.
+8. A live read of an AI node asks the model although the debug run is a dry run (dry runs otherwise use the sample answer). Its call is marked _debug_ in the usage log by joining the run, without a new column.

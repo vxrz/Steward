@@ -182,3 +182,12 @@ ADR 0010 (debugging) builds on steps 1 and 2: its debug runs start with `start({
 1. **Where do rights checks for runs live?** Decided: a command layer in front of the engine. `engine/commands.ts` has `authorizeStart` (process `run`, `use` on each bound platform, slot requirements), `authorizeSignal` (`canDecide`, four-eyes) and `authorizeCancel`; every caller uses it, and the release notes name the callers that became stricter.
 2. **Is the in-process event emitter enough as the interface's event stream?** Decided: yes, for 0.10.0. `events.ts` stays; the interface documents the event types and `run.started`/`run.finished` gain `mode` and `debug`. No outbox, no push to the web app.
 3. **Do we try the interface against a real durable-execution SDK in 0.10.0?** Decided: a time-boxed spike in a separate branch, not merged (one example process as a Temporal workflow with a decision signal and a cancel). Its result becomes a note in this record.
+
+## Changed while building
+
+1. Steps 1–3 shipped together in 0.10.0: the interface, every caller moved (the ESLint allow-list is empty from the start), and the rights in `engine/commands.ts`.
+2. `RunEngine` has one more host call, `counts()` (active, busy and queued run ids), for the shutdown report in `bootstrap.ts`.
+3. A signal on a task that is no longer open is refused by the command layer with **403 `TASK_CLOSED`**, as the route answered before, not 409. The invariant holds: it changes nothing.
+4. The golden protocol hashes cover examples 70 (endpoint check) and 90 (sub-process building block) and a synthetic process with every control type. A parent run with a sub-process step is not in the golden set: its protocol holds the child's run id, which differs per run.
+5. Callers that became stricter: monitor outputs (now also `use` on the bound platforms) and sub-process steps (`use` on the child's platforms, for the run's actor); the demo setup goes through the same check. A schedule whose bound platform was deleted is skipped instead of failing.
+6. The durable-execution spike (decided question 3) was not part of this work; it remains open.

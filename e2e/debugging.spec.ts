@@ -135,6 +135,8 @@ test.describe('on a phone', () => {
   test.use({ storageState: authFile('dana') });
   test('compare and the debug panel on a phone @mobile', async ({ page, apiAs }) => {
     const api = await apiAs('dana');
+    // archiving needs manage: the administrator cleans up
+    const admin = await apiAs('admin');
     const proc = await createProcess(api, uniq('E2E compare phone'));
     try {
       const ids: string[] = [];
@@ -158,7 +160,7 @@ test.describe('on a phone', () => {
       await drawer.getByTestId('debug-stop').click();
       await expect(drawer.getByText('Debug run stopped')).toBeVisible();
     } finally {
-      await api.delete(`/api/processes/${proc.id}`);
+      await admin.delete(`/api/processes/${proc.id}`);
     }
   });
 });
