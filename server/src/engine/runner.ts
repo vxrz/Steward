@@ -2869,7 +2869,7 @@ export const builtinEngine: RunEngine = {
   async signal(runId: string, s: RunSignal, actor: string): Promise<SignalResult> {
     switch (s.type) {
       case 'task.decide':
-        await completeTask(s.taskId, s.decision, actor);
+        await completeTask(s.taskId, s.decision, actor, s.audit ?? {});
         return { ok: true };
       case 'manual.complete':
         return { ok: true, ...(await completeManualTask(s.taskId, s.input, actor)) };
