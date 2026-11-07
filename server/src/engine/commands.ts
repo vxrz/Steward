@@ -7,15 +7,15 @@
  * The checks run as the given user (a schedule's owner, a trigger's owner, a run's actor), or – without one – as the
  * signed-in user of the request, whose assurance proofs (four-eyes) the request's audit entries carry.
  */
-import type { DebugAnswers, TaskRecord } from '@sm/shared';
-import { HttpError } from '../util.js';
+import type { DebugAnswers, FlowNode, TaskRecord } from '@sm/shared';
+import { HttpError, parseJson } from '../util.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { isAdmin } from '../auth/permissions.js';
 import { sameIdentity } from '../auth/aliases.js';
 import { me } from '../auth/access.js';
 import { fourEyesRequired, noteFourEyes } from '../auth/assurance.js';
-import { permissionsFor } from '../processes/service.js';
+import { getProcess, permissionsFor } from '../processes/service.js';
 import { getPlatform } from '../platforms/service.js';
 import { requireRun, visibleTask } from '../routes/helpers.js';
 import * as store from './store.js';
@@ -113,6 +113,8 @@ export function authorizeStart(user: AuthUser | string | null | undefined, cmd: 
 export function authorizeSignal(
   runId: string | null,
   s: RunSignal | { type: 'task.decide' | 'manual.complete' | 'manual.verify'; taskId: string },
+  /** A debug signal: the node the run paused before (engine().query(runId).paused) */
+  paused?: { nodeId: string } | null,
 ): TaskRecord | undefined {
   if (s.type === 'task.decide' || s.type === 'manual.complete' || s.type === 'manual.verify') {
     // the one task (not a search of the newest tasks: an older open step is decidable too)
@@ -144,7 +146,30 @@ export function authorizeSignal(
   const r = requireRun(runId, 'view', 'view this run');
   if (!r.debug) throw new HttpError(409, 'Not a debug run', 'DEBUG_NOT_A_DEBUG_RUN');
   if (!sameIdentity(r.actor, me())) throw new HttpError(403, 'Only the person who started this debug run can drive it', 'DEBUG_NOT_STARTER');
+  // driving it on (not stopping it, not changing breakpoints) needs the rights of now: run on the process, and use on
+  // the platforms of the node it paused before – a right taken away meanwhile stops further steps
+  if (s.type === 'debug.continue' || s.type === 'debug.step' || s.type === 'debug.skip' || s.type === 'debug.answer') {
+    authorizeStart(undefined, { processId: r.process_id, bindings: pausedNodeBindings(r, paused?.nodeId) });
+  }
   return undefined;
+}
+
+/** The platforms bound to the connections of the node a debug run paused before (none when it is not known). */
+function pausedNodeBindings(r: store.RunRow, nodeId: string | undefined): Record<string, string> {
+  if (!nodeId) return {};
+  let node: FlowNode | undefined;
+  try {
+    node = getProcess(r.process_id, r.process_version).definition.nodes.find((n) => n.id === nodeId);
+  } catch {
+    return {};
+  }
+  if (!node) return {};
+  const slots = new Set<string>();
+  const c = (node as { connection?: unknown }).connection;
+  if (typeof c === 'string' && c) slots.add(c);
+  if (node.type === 'subprocess') for (const v of Object.values(node.connections ?? {})) slots.add(v);
+  const bound = parseJson<Record<string, { platformId?: string }>>(r.bindings, {});
+  return Object.fromEntries([...slots].flatMap((slot) => (bound[slot]?.platformId ? [[slot, bound[slot]!.platformId!]] : [])));
 }
 
 /** Who may cancel a run: `run` on its process; a debug run only its starter or an administrator. */

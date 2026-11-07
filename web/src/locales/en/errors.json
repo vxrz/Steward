@@ -1078,7 +1078,8 @@
     "DEBUG_NOT_STARTER": "Only the person who started this debug run can drive it.",
     "DEBUG_NOT_A_DEBUG_RUN": "This is not a debug run.",
     "DEBUG_NOT_RESUMABLE": "A debug run cannot be resumed – start a new one.",
-    "COMPARE_OTHER_PROCESS": "Only runs of the same process can be compared."
+    "COMPARE_OTHER_PROCESS": "Only runs of the same process can be compared.",
+    "DEBUG_NODE_BUSY": "{{max}} of your single-node runs are still running – wait until one has finished."
   },
   "boundary": {
     "title": "Something went wrong on this page",

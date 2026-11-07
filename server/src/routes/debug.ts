@@ -177,7 +177,8 @@ export async function debugRoutes(app: FastifyInstance): Promise<void> {
   app.post('/runs/:id/debug', async (req): Promise<DebugRunState> => {
     const id = params(req).id!;
     const s = signalBody.parse(req.body);
-    authorizeSignal(id, s);
+    // the rights of now are checked again on every step (run, and use on the platforms of the paused node)
+    authorizeSignal(id, s, requireRunPaused(id));
     await engine().signal(id, s, currentActor());
     return debugState(id);
   });
@@ -305,6 +306,13 @@ export async function debugRoutes(app: FastifyInstance): Promise<void> {
       };
     },
   );
+}
+
+/** The node a visible debug run is paused before, if any (visibility first: a hidden run answers "not found"). */
+function requireRunPaused(runId: string): { nodeId: string } | null {
+  requireRun(runId, 'view', 'view this run');
+  const p = engine().query(runId).paused;
+  return p ? { nodeId: p.nodeId } : null;
 }
 
 /** Waits until a step-through run pauses or ends (or `ms` pass). */

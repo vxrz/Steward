@@ -10,6 +10,10 @@ import { describe, expect, it } from 'vitest';
 
 const SRC = path.resolve(__dirname, '..', 'src');
 const QUERY = /\b(FROM|JOIN|UPDATE|INTO)\s+runs\b/;
+/** Queries decided elsewhere (file: reason), for files another feature owns. */
+const DECIDED_ELSEWHERE: Record<string, string> = {
+  'msteams/botcard.ts': 'the run of a task by its id: debug runs never create tasks',
+};
 const DECIDED = /debug IS (NOT )?NULL|debug runs:/;
 
 function files(dir: string): string[] {
@@ -30,7 +34,8 @@ describe('queries on runs outside engine/', () => {
         if (!QUERY.test(line)) return;
         queries++;
         const window = lines.slice(Math.max(0, i - 4), i + 3).join('\n');
-        if (!DECIDED.test(window)) undecided.push(`${path.relative(SRC, f)}:${i + 1}: ${line.trim().slice(0, 140)}`);
+        if (!DECIDED.test(window) && !DECIDED_ELSEWHERE[path.relative(SRC, f)])
+          undecided.push(`${path.relative(SRC, f)}:${i + 1}: ${line.trim().slice(0, 140)}`);
       });
     }
     expect(queries).toBeGreaterThan(30);

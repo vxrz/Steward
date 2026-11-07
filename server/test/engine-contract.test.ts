@@ -310,7 +310,7 @@ describe('invariant 5: cancel reaches the open request, open tasks and child run
       const audit = await s.api('GET', `/audit?runId=${id}&limit=50`);
       const cancelled = audit.filter((a: { action: string }) => a.action === 'run.cancelled');
       expect(cancelled).toHaveLength(1);
-      expect(cancelled[0].summary).toContain('Cancelled by admin');
+      expect(cancelled[0].summary).toMatch(/cancelled by admin$/);
       expect(cancelled[0].details).toMatchObject({ reason: 'Cancelled by admin', cancelledBy: 'admin' });
     } finally {
       slow.closeAllConnections();

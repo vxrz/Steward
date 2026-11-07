@@ -188,3 +188,9 @@ Each step is its own PR, with unit tests on SQLite and PostgreSQL and e2e on des
 6. In a step-through run a parallel `forEach` runs one item at a time, so there is one pause at a time. _Continue_ also ends _pause before each node_ (it runs to the next breakpoint).
 7. A sub-process run of a debug run has nobody to answer its decisions: they are skipped, and the recorded-answers rule applies from there.
 8. A live read of an AI node asks the model although the debug run is a dry run (dry runs otherwise use the sample answer). Its call is marked _debug_ in the usage log by joining the run, without a new column.
+9. After the security review of 0.10.0 (review c), decided by the owner:
+   - Variables copied from a run carry that run's data sources (`runSources`), so the AI gateway's allowed-data rule holds for them; typed or pasted sample data stays a run input.
+   - A debug run is hidden from everyone but its starter, the process's managers, administrators and auditors on every path: node inspection, `/scope` and `/evaluate` with a run id, run reports and their PDFs, and record links answer like a missing run.
+   - At most two single-node runs per person run at the same time (429 `DEBUG_NODE_BUSY`); they still do not queue behind other runs.
+   - Item 7 is extended: a simulated or skipped decision anywhere – in the run or in one of its sub-process runs – switches the whole run tree to recorded answers.
+   - Driving a paused run (_Continue_, _Step_, _Skip_, an answer) checks the person's rights again: `run` on the process and `use` on the platforms of the node it paused before. _Stop_ and breakpoints need no more than before.

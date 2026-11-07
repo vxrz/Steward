@@ -1078,7 +1078,8 @@
     "DEBUG_NOT_STARTER": "Nur die Person, die diesen Debug-Lauf gestartet hat, kann ihn steuern.",
     "DEBUG_NOT_A_DEBUG_RUN": "Das ist kein Debug-Lauf.",
     "DEBUG_NOT_RESUMABLE": "Ein Debug-Lauf kann nicht fortgesetzt werden – starten Sie einen neuen.",
-    "COMPARE_OTHER_PROCESS": "Nur Läufe desselben Prozesses lassen sich vergleichen."
+    "COMPARE_OTHER_PROCESS": "Nur Läufe desselben Prozesses lassen sich vergleichen.",
+    "DEBUG_NODE_BUSY": "{{max}} Ihrer Einzelknoten-Läufe laufen noch – warten Sie, bis einer fertig ist."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

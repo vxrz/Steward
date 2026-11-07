@@ -293,6 +293,7 @@ function stillVisible(u: UserInfo, a: HeldAbout | null): boolean {
   try {
     return runAs(au, () => {
       if (a.runId) {
+        // debug runs: one run by its id (a message that is being sent; debug runs send none)
         const r = db().get<{ process_id: string }>('SELECT process_id FROM runs WHERE id = ?', a.runId);
         if (!r || !processVisible(r.process_id)) return false;
       }
