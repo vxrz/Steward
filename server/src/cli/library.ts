@@ -98,6 +98,8 @@ export async function main(argv: string[], COMMAND = 'npm run library --'): Prom
   const c = palette(process.stdout);
   const [cmd, folderArg] = positionals as [string, string | undefined];
   if (cmd === 'schema') {
+    // the desktop executable has no source checkout to write into
+    if (!import.meta.dirname) return usageFailure(new UsageError('schema: only in a source checkout (npm run library -- schema)'), COMMAND);
     const file = path.resolve(import.meta.dirname, '../../../docs/libraries/steward-library-1.schema.json');
     const text = `${JSON.stringify(manifestJsonSchema(), null, 2)}\n`;
     if (values.check) {
@@ -182,5 +184,6 @@ export async function main(argv: string[], COMMAND = 'npm run library --'): Prom
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
-  process.exitCode = await main(process.argv.slice(2));
+  // no top-level await: the desktop executable bundles this file as CommonJS
+  void main(process.argv.slice(2)).then((code) => (process.exitCode = code));
 }
