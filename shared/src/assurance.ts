@@ -30,11 +30,12 @@ export interface ControlPoint {
   group: ControlPointGroup;
   /** The step-up actions of the routes this point governs (route config `stepUp.action`) */
   actions: readonly StepUpAction[];
-  supports: { fourEyes: boolean; stepUp: boolean };
+  /** teams: may be decided in a Microsoft Teams card (0.10.0, ADR 0013) – only points without a step-up */
+  supports: { fourEyes: boolean; stepUp: boolean; teams?: boolean };
   /** The floor: what is always enforced (the policy page shows it locked) */
   baseline: { fourEyes?: 'required'; stepUp?: true };
   /** The rule of a new installation – exactly what 0.4.0 enforced */
-  defaults: { fourEyes?: FourEyesLevel; stepUp: boolean };
+  defaults: { fourEyes?: FourEyesLevel; stepUp: boolean; teams?: boolean };
   /** The four-eyes levels an administrator can choose (points that support four-eyes) */
   fourEyesLevels?: readonly FourEyesLevel[];
   /** Where single items add to the rule */
@@ -142,9 +143,10 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
     key: 'run.decide',
     group: 'processes',
     actions: [],
-    supports: { fourEyes: true, stepUp: false },
+    supports: { fourEyes: true, stepUp: false, teams: true },
     baseline: {},
-    defaults: { fourEyes: 'optional', stepUp: false },
+    // approve-mode steps may be decided in a Microsoft Teams card (ADR 0013), also as the second person
+    defaults: { fourEyes: 'optional', stepUp: false, teams: true },
     fourEyesLevels: BOTH,
     overrides: 'processStep',
   },
@@ -173,10 +175,10 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
     key: 'mcp.write',
     group: 'mcp',
     actions: [],
-    supports: { fourEyes: true, stepUp: false },
+    supports: { fourEyes: true, stepUp: false, teams: true },
     baseline: {},
     // per platform: off / confirm (the token owner) / fourEyes (a second person); required: confirm becomes fourEyes
-    defaults: { fourEyes: 'optional', stepUp: false },
+    defaults: { fourEyes: 'optional', stepUp: false, teams: true },
     fourEyesLevels: BOTH,
     overrides: 'platformMcp',
   },
@@ -212,6 +214,8 @@ export interface PointRule {
   stepUp: boolean;
   maxAgeMinutes: number | null;
   mfa: boolean;
+  /** May be decided in Microsoft Teams (0.10.0, ADR 0013): only points that support it, never with a step-up */
+  teams?: boolean;
 }
 
 /** What counts as multi-factor in an ID token (RFC 8176 amr values, acr values of the provider). */
@@ -240,6 +244,7 @@ const pointRuleInput = z
     stepUp: z.boolean().optional(),
     maxAgeMinutes: z.number().int().min(1).max(ASSURANCE_LIMITS.maxAgeMinutes).nullable().optional(),
     mfa: z.boolean().optional(),
+    teams: z.boolean().optional(),
   })
   .strict();
 
@@ -268,6 +273,8 @@ export const assurancePolicyInput = z
         ctx.addIssue({ code: 'custom', path: ['points', key, 'fourEyes'], message: `"${key}" does not take four-eyes "${r.fourEyes}"` });
       if (!p.supports.stepUp && (r.stepUp || r.mfa || (r.maxAgeMinutes ?? null) !== null))
         ctx.addIssue({ code: 'custom', path: ['points', key, 'stepUp'], message: `"${key}" has no step-up` });
+      if (r.teams && (!p.supports.teams || r.stepUp))
+        ctx.addIssue({ code: 'custom', path: ['points', key, 'teams'], message: `"${key}" cannot be decided in Microsoft Teams` });
     }
   });
 export type AssurancePolicyInput = z.input<typeof assurancePolicyInput>;
@@ -284,6 +291,8 @@ export function instanceRule(p: ControlPoint, policy: Pick<AssurancePolicy, 'poi
     stepUp,
     maxAgeMinutes: stepUp ? (s.maxAgeMinutes ?? null) : null,
     mfa: stepUp && !!s.mfa,
+    // never with a step-up: Teams cannot show one (ADR 0013)
+    ...(p.supports.teams ? { teams: !stepUp && (s.teams ?? p.defaults.teams ?? false) } : {}),
   };
 }
 
@@ -294,6 +303,7 @@ export function baselineRule(p: ControlPoint): PointRule {
     stepUp: !!p.baseline.stepUp,
     maxAgeMinutes: null,
     mfa: false,
+    ...(p.supports.teams ? { teams: false } : {}),
   };
 }
 
@@ -321,7 +331,7 @@ export function strictestRule(rules: Omit<PointRule, 'fourEyes'>[]): Omit<PointR
 
 // ---------- tightening and loosening ----------
 
-export type RuleField = 'fourEyes' | 'stepUp' | 'maxAgeMinutes' | 'mfa';
+export type RuleField = 'fourEyes' | 'stepUp' | 'maxAgeMinutes' | 'mfa' | 'teams';
 export interface PolicyChange {
   /** A control point key, or "mfa.amrValues" / "mfa.acrValues" */
   point: string;
@@ -355,6 +365,9 @@ export function policyChanges(before: Pick<AssurancePolicy, 'points' | 'mfa'>, a
     if (b.stepUp && age !== b.maxAgeMinutes)
       out.push({ point: p.key, field: 'maxAgeMinutes', from: age, to: b.maxAgeMinutes, direction: ageLooser(b.maxAgeMinutes, age) ? 'loosen' : 'tighten' });
     if (b.stepUp && mfa !== b.mfa) out.push({ point: p.key, field: 'mfa', from: mfa, to: b.mfa, direction: b.mfa ? 'tighten' : 'loosen' });
+    // deciding in Microsoft Teams: allowing it loosens the rule (a second administrator approves), forbidding it tightens
+    if (p.supports.teams && !!a.teams !== !!b.teams)
+      out.push({ point: p.key, field: 'teams', from: !!a.teams, to: !!b.teams, direction: b.teams ? 'loosen' : 'tighten' });
   }
   for (const k of ['amrValues', 'acrValues'] as const) {
     const a = before.mfa[k].map((x) => x.toLowerCase());
@@ -374,6 +387,7 @@ function compact(p: ControlPoint, r: PointRule): Partial<PointRule> {
   if (r.stepUp !== d.stepUp) out.stepUp = r.stepUp;
   if (r.stepUp && r.maxAgeMinutes !== null) out.maxAgeMinutes = r.maxAgeMinutes;
   if (r.stepUp && r.mfa) out.mfa = true;
+  if (p.supports.teams && !!r.teams !== !!d.teams) out.teams = !!r.teams;
   return out;
 }
 
@@ -424,6 +438,7 @@ export function applyChanges(base: AssurancePolicy, changes: PolicyChange[]): As
       }
     } else if (ch.field === 'maxAgeMinutes') r.maxAgeMinutes = ch.to as number | null;
     else if (ch.field === 'mfa') r.mfa = ch.to as boolean;
+    else if (ch.field === 'teams') r.teams = ch.to as boolean;
   }
   return normalizePolicy({ version: base.version, points, mfa });
 }

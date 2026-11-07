@@ -63,7 +63,8 @@
     "stepUp": "Bestätigung",
     "maxAgeMinutes": "max. Alter",
     "mfa": "MFA",
-    "values": "Werte"
+    "values": "Werte",
+    "teams": "in Microsoft Teams entscheiden"
   },
   "values": {
     "on": "an",
@@ -294,5 +295,7 @@
         "description": "Ein höheres Monatsbudget für die Kosten eines Service, einer Anwendung oder eines Teams, eine andere Währung oder kein Budget mehr. Ein Budget zu senken braucht keine Bestätigung."
       }
     }
-  }
+  },
+  "teamsLabel": "Darf in Microsoft Teams entschieden werden",
+  "teamsAria": "{{point}}: darf in Microsoft Teams entschieden werden"
 }

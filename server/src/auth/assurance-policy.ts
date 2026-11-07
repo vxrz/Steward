@@ -90,6 +90,12 @@ export function pointRule(
   return effectiveRule(p, policy, item);
 }
 
+/** Whether the point may be decided in a Microsoft Teams card (ADR 0013): its switch, never with a step-up. */
+export const mayDecideInTeams = (key: string): boolean => {
+  const r = pointRule(key);
+  return r.teams === true && !r.stepUp;
+};
+
 /** Whether a second person is needed at a point – for an item that asks for it itself (`itemRequires`) or by the policy. */
 export const fourEyesRequired = (key: string, itemRequires = false): boolean => pointRule(key, { fourEyes: itemRequires }).fourEyes;
 

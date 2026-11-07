@@ -63,7 +63,8 @@
     "stepUp": "step-up",
     "maxAgeMinutes": "max. age",
     "mfa": "MFA",
-    "values": "values"
+    "values": "values",
+    "teams": "decided in Microsoft Teams"
   },
   "values": {
     "on": "on",
@@ -294,5 +295,7 @@
         "description": "A higher monthly cost budget of a service, application or team, another currency, or no budget any more. Lowering a budget needs no confirmation."
       }
     }
-  }
+  },
+  "teamsLabel": "May be decided in Microsoft Teams",
+  "teamsAria": "{{point}}: may be decided in Microsoft Teams"
 }
