@@ -1,0 +1,4 @@
+# TEST KEY of the publisher "example-publisher" – signs examples/libraries/*. NEVER trusted by default:
+# only add it on a test installation (Settings → Libraries → Trusted publishers). The private key was thrown away;
+# re-sign the example with a new throwaway key after a change (docs/LIBRARIES.md, "The example library").
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPN8wOb/pE2mG5AsXEm+B2fv4UJxfy4Feb7i5awTUhTi example-publisher TEST KEY - never trusted by default (Steward example library)

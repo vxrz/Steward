@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vxrz/Steward/blob/main/docs/libraries/steward-library-1.schema.json",
+  "title": "Steward library manifest (steward-library.yaml), format 1",
+  "description": "A named, versioned set of Steward items (processes, dashboards, monitors, record types, connector types) from one publisher. `steward library build` writes release.json from it; the publisher signs release.json with `ssh-keygen -Y sign -n steward-library`. See docs/LIBRARIES.md.",
+  "type": "object",
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "steward-library"
+    },
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "library": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$",
+      "description": "Stable id of the library, unique per publisher"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "publisher": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$",
+      "description": "The publisher id the signing key belongs to"
+    },
+    "release": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$",
+      "description": "This release (SemVer)"
+    },
+    "steward_min_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "The oldest Steward version that can install the release"
+    },
+    "licence": {
+      "description": "SPDX licence identifier, e.g. Apache-2.0",
+      "type": "string",
+      "maxLength": 100
+    },
+    "description": {
+      "default": "",
+      "type": "string",
+      "maxLength": 4000
+    },
+    "items": {
+      "minItems": 1,
+      "maxItems": 200,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "description": "A path inside the library folder, e.g. processes/guest-review.yaml"
+      },
+      "description": "Item files: processes, dashboards, monitors, record types, connector types (one per file)"
+    },
+    "references": {
+      "default": {
+        "platforms": [],
+        "processes": []
+      },
+      "description": "What the items need from the installation; mapped by the reviewer at install",
+      "type": "object",
+      "properties": {
+        "platforms": {
+          "default": [],
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$",
+                "description": "The name the items use for it"
+              },
+              "kind": {
+                "description": "Platforms: the platform kind it must be (e.g. entra)",
+                "type": "string",
+                "maxLength": 64
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "ref"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "processes": {
+          "default": [],
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$",
+                "description": "The name the items use for it"
+              },
+              "kind": {
+                "description": "Platforms: the platform kind it must be (e.g. entra)",
+                "type": "string",
+                "maxLength": 64
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "ref"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "changelog": {
+      "default": [],
+      "maxItems": 200,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "release": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "release",
+          "notes"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "format",
+    "version",
+    "library",
+    "name",
+    "publisher",
+    "release",
+    "steward_min_version",
+    "items"
+  ],
+  "additionalProperties": false
+}

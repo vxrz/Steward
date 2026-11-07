@@ -1,0 +1,12 @@
+kind: recordType
+key: AEX
+name: Access exception
+description: An exception from an access rule that a reviewer granted, with its owner and end date.
+workflow: decision
+template: |
+  ## Why the exception is needed
+
+  ## Until when
+fields:
+  - { key: owner, label: Owner, kind: text, required: true }
+  - { key: endsOn, label: Ends on, kind: date, required: true }
