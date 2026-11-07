@@ -2540,7 +2540,12 @@ async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: stri
 // Debug runs (ADR 0010): one node, step through. The same step functions as every run; no second executor.
 // ---------------------------------------------------------------------------
 
-const debugPauseMs = (): number => Math.max(1, getSettings().debugPauseMinutes ?? 30) * 60_000;
+let pauseMsForTests: number | null = null;
+/** For tests: how long a debug pause waits (null: the setting debugPauseMinutes). */
+export function setDebugPauseMsForTests(ms: number | null): void {
+  pauseMsForTests = ms;
+}
+const debugPauseMs = (): number => pauseMsForTests ?? Math.max(1, getSettings().debugPauseMinutes ?? 30) * 60_000;
 
 /** The node's resolved inputs for a pause preview (redacted by the caller); a failing expression shows its error. */
 async function previewInputs(node: FlowNode, ctx: RunContext): Promise<unknown> {

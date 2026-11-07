@@ -383,6 +383,13 @@ const EXPECT: Record<string, Access> = {
   'GET /api/runs/:id/inspect/:nodeId': ALL,
   'POST /api/runs/:id/cancel': RUN,
   'POST /api/runs/:id/resume': RUN,
+  // debugging (ADR 0010): comparing two runs needs view on both; debug runs need edit and run (an offline node edit only)
+  'GET /api/runs/compare': ALL,
+  'GET /api/runs/:id/last-good': ALL,
+  'GET /api/runs/:id/debug': ALL,
+  'POST /api/runs/:id/debug': DESIGN,
+  'POST /api/processes/:id/debug/node': DESIGN,
+  'POST /api/processes/:id/debug/runs': DESIGN,
   'GET /api/runs/:id/report.html': ALL,
   'GET /api/runs/:id/report.json': ALL,
   'GET /api/runs/:id/report.pdf': ALL,
@@ -1378,6 +1385,7 @@ const QUERY: Record<string, string> = {
   'GET /api/records/:id/timeline': '?from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z',
   'GET /api/link-targets': '?kind=record&q=',
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
+  'GET /api/runs/compare': '', // filled in beforeAll (needs the run id)
   'GET /api/ticket-references/open-counts': '?kind=service',
   'GET /api/compliance/coverage': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
   'GET /api/assurance/policy/as-of': '?at=2026-01-01T00:00:00Z',
@@ -1391,6 +1399,9 @@ const QUERY: Record<string, string> = {
 /** Valid bodies for changing routes, so a refusal is a permission decision and not a validation error. */
 const bodies = (): Record<string, unknown> => ({
   'POST /api/runs': { processId: fx.process, dryRun: true },
+  'POST /api/processes/:id/debug/node': { nodeId: fx.node, vars: { from: 'sample', vars: {} } },
+  'POST /api/processes/:id/debug/runs': { mode: 'test' },
+  'POST /api/runs/:id/debug': { type: 'debug.continue' },
   'PUT /api/owning-teams/:kind/:id': { teamIds: [] },
   'POST /api/owning-teams/bulk': { teamIds: [], resources: [] },
   'POST /api/schedules': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
@@ -1780,6 +1791,7 @@ beforeAll(async () => {
     assetLink,
   };
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
+  QUERY['GET /api/runs/compare'] = `?a=${run.id}&b=${run.id}`;
   // database schemas (#222): a read of the demo database platform, a tbls import for the matrix system
   fx.dbPlatform = platforms.find((p: { kind: string }) => p.kind === 'database').id;
   fx.connectPlatform = platforms.find((p: { kind: string }) => p.kind === 'kafka-connect').id;
