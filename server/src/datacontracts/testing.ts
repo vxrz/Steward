@@ -111,7 +111,7 @@ function prepare(contractId: string, opts: Pick<TestOptions, 'server'>): Target 
   if (!server) throw new HttpError(409, 'Choose the server to test: the contract names several (or none)', 'DATA_CONTRACT_SERVER_REQUIRED');
   const def = facts.servers.find((s) => s.server === server);
   if (!def) throw new HttpError(400, `"${server}" is not a server of the contract`, 'DATA_CONTRACT_LINK_SERVER', { server });
-  const dialect = DATA_CONTRACT_SERVER_DIALECTS[def.type];
+  const dialect = Object.hasOwn(DATA_CONTRACT_SERVER_DIALECTS, def.type) ? DATA_CONTRACT_SERVER_DIALECTS[def.type] : undefined;
   if (!dialect)
     throw new HttpError(409, `Servers of type ${def.type} cannot be tested by Steward yet`, 'DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED', {
       server,

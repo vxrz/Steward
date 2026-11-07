@@ -282,7 +282,7 @@ function checkLink(input: DataContractLinkInput, facts: DataContractFacts, u: Au
       if (!p.permissions.includes('use'))
         throw new HttpError(403, `You are not allowed to use platform "${p.name}"`, 'PLATFORM_USE_FORBIDDEN', { name: p.name });
       const type = facts.servers.find((s) => s.server === server)!.type;
-      const dialect = DATA_CONTRACT_SERVER_DIALECTS[type];
+      const dialect = Object.hasOwn(DATA_CONTRACT_SERVER_DIALECTS, type) ? DATA_CONTRACT_SERVER_DIALECTS[type] : undefined;
       const has = (p.config.database as { dialect?: string } | undefined)?.dialect;
       if (!dialect || (has && has !== dialect))
         throw new HttpError(400, `Server "${server}" (type ${type}) cannot be answered by "${p.name}"`, 'DATA_CONTRACT_SERVER_TYPE', {
