@@ -52,7 +52,7 @@ test('a link from a card opens the decision pre-selected; confirming decides, a 
     await adam.getByRole('dialog').getByLabel('Comment (stored in the protocol)').fill('checked in the ticket');
     await adam.getByRole('dialog').getByRole('button', { name: 'Approve', exact: true }).click();
     await expect(adam.getByText('Approved', { exact: true }).first()).toBeVisible();
-    await expect(adam).toHaveURL(new RegExp(`/runs/${w.runId}$`));
+    await expect(adam).toHaveURL((url) => url.pathname.endsWith(`/runs/${w.runId}`));
     const task = await json<{ status: string; decidedBy: string; decision: { approved: boolean; comment: string } }>(await admin.get(`/api/tasks/${w.taskId}`));
     expect(task).toMatchObject({ status: 'completed', decidedBy: 'adam', decision: { approved: true, comment: 'checked in the ticket' } });
 

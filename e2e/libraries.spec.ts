@@ -101,7 +101,7 @@ test('an administrator trusts a publisher, reviews and installs a signed release
     await expectAccessible(page, 'library release review');
     await page.getByTestId('library-install').first().click();
     // installed: the library page
-    await expect(page).toHaveURL(new RegExp(`/libraries/${f.library}$`));
+    await expect(page).toHaveURL((url) => url.pathname.endsWith(`/libraries/${f.library}`));
     await expect(page.getByRole('heading', { name: `E2E reviews ${f.tag}`, level: 1 })).toBeVisible();
     await expect(page.getByTestId('library-releases')).toContainText('Installed');
     await settle(page);
@@ -138,7 +138,7 @@ test('a designer reviews but may not manage publishers or hold a library', async
     await upload(designer, f);
     await expect(designer.getByTestId('library-install').first()).toBeEnabled();
     await designer.getByTestId('library-install').first().click();
-    await expect(designer).toHaveURL(new RegExp(`/libraries/${f.library}$`));
+    await expect(designer).toHaveURL((url) => url.pathname.endsWith(`/libraries/${f.library}`));
     await expect(designer.getByTestId('library-hold')).toHaveCount(0);
     await designer.goto('/settings/libraries');
     await expect(designer.getByText('Administrators manage the trusted publishers.')).toBeVisible();
@@ -161,7 +161,7 @@ test('libraries on a phone @mobile', async ({ page, apiAs }) => {
     await settle(page);
     await expectAccessible(page, 'library review (phone)');
     await page.getByTestId('library-install').last().click();
-    await expect(page).toHaveURL(new RegExp(`/libraries/${f.library}$`));
+    await expect(page).toHaveURL((url) => url.pathname.endsWith(`/libraries/${f.library}`));
     await expectNoHorizontalScroll(page);
     await expectAccessible(page, 'installed library (phone)');
     await page.goto('/libraries');

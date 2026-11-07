@@ -124,7 +124,7 @@ test('compare a failed run with the last good run', async ({ page, apiAs }) => {
     await page.getByRole('switch', { name: 'Only differences' }).click();
     await expect(table).toContainText('Double it');
     await page.getByRole('button', { name: 'Swap A and B' }).click();
-    await expect(page).toHaveURL(new RegExp(`a=${bad}`));
+    await expect(page).toHaveURL((url) => url.searchParams.get('a') === bad);
   } finally {
     await api.delete(`/api/processes/${proc.id}`);
   }
