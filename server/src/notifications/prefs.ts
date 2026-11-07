@@ -201,7 +201,7 @@ export function quietAdminView(): QuietHoursAdmin {
     .sort((a, b) => a.username.localeCompare(b.username));
   const channels = db()
     .all<{ target: string; n: number }>(
-      "SELECT target, COUNT(*) AS n FROM notification_outbox WHERE released_at IS NULL AND target NOT LIKE 'email:%' GROUP BY target ORDER BY target",
+      "SELECT target, COUNT(*) AS n FROM notification_outbox WHERE released_at IS NULL AND substr(target, 1, 6) <> 'email:' GROUP BY target ORDER BY target",
     )
     .map((r) => ({ target: r.target, label: r.target, held: Number(r.n) }));
   return { allowed: quietHoursAllowed(), users: list, channels };

@@ -111,8 +111,10 @@ export function holdMessage(h: HoldInput): void {
       );
       return;
     }
-    const n = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM notification_outbox WHERE target = ? AND released_at IS NULL', h.target)?.n ?? 0);
-    if (n >= QUIET_LIMITS.openPerTarget) foldOldest(h, at);
+    const openCount = () =>
+      Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM notification_outbox WHERE target = ? AND released_at IS NULL', h.target)?.n ?? 0);
+    // at most 500 open items per target: the oldest are folded into a count
+    for (let i = 0; i < 3 && openCount() >= QUIET_LIMITS.openPerTarget; i++) foldOldest(h, at);
     db().run(
       `INSERT INTO notification_outbox (id, target, user_id, item_key, event, reason, locale, states, about, first_at, last_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -137,12 +139,12 @@ const aboutJson = (a: HeldAbout | null | undefined) => (a && Object.keys(a).leng
 function foldOldest(h: HoldInput, at: string): void {
   const oldest =
     db().get<Row>(
-      "SELECT * FROM notification_outbox WHERE target = ? AND event = ? AND released_at IS NULL AND item_key NOT LIKE 'more:%' ORDER BY first_at LIMIT 1",
+      "SELECT * FROM notification_outbox WHERE target = ? AND event = ? AND released_at IS NULL AND substr(item_key, 1, 5) <> 'more:' ORDER BY first_at LIMIT 1",
       h.target,
       h.event,
     ) ??
     db().get<Row>(
-      "SELECT * FROM notification_outbox WHERE target = ? AND released_at IS NULL AND item_key NOT LIKE 'more:%' ORDER BY first_at LIMIT 1",
+      "SELECT * FROM notification_outbox WHERE target = ? AND released_at IS NULL AND substr(item_key, 1, 5) <> 'more:' ORDER BY first_at LIMIT 1",
       h.target,
     );
   if (!oldest) return;

@@ -264,6 +264,32 @@ describe('quiet hours: holding and the catch-up', () => {
   });
 });
 
+describe('limits', () => {
+  it('keeps at most 500 open items per target and folds the oldest into a count', async () => {
+    const at = new Date().toISOString();
+    for (let i = 0; i < 503; i++)
+      outbox.holdMessage({
+        target: 'team:limit',
+        itemKey: `k${i}`,
+        event: 'run.failed',
+        reason: 'quiet',
+        locale: 'en',
+        state: { ts: at, title: `Run ${i} failed` },
+      });
+    const rows = held('team:limit');
+    expect(rows).toHaveLength(500);
+    const more = rows.find((r) => r.item_key === 'more:run.failed')!;
+    expect(JSON.parse(more.states)[0].more).toBe(4);
+    const content = outbox.renderHeld(
+      dbm.db().all('SELECT * FROM notification_outbox WHERE target = ? AND released_at IS NULL', 'team:limit') as never,
+      'catchup',
+      'en',
+    )!;
+    expect(content.text).toContain('+ 4 more messages (run.failed)');
+    dbm.db().run("DELETE FROM notification_outbox WHERE target = 'team:limit'");
+  });
+});
+
 describe('digests', () => {
   it('collect a group hourly and send one digest when the hour began', async () => {
     await qara('PUT', '/me/notification-prefs', prefs({ digests: { timeZone: 'UTC', groups: { runs: { rhythm: 'hourly' } } } }));
