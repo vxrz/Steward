@@ -104,6 +104,8 @@ export const ROUTE_LIMITS = {
   credential: routeLimit('credential', 10),
   /** Inbound webhooks: machine traffic, per address; triggers, heartbeats and gateways have their own limits too */
   webhook: routeLimit('webhook', () => rateLimitPerMinute() * ADDRESS_FACTOR),
+  /** The map of sites' tiles, glyphs and sprites (#234): per user, so nobody bulk-downloads a tile source through Steward */
+  mapTiles: routeLimit('mapTiles', 600),
 } satisfies Record<string, RateLimitOptions>;
 
 /**

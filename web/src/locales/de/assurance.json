@@ -293,6 +293,12 @@
         "label": "Ein Kostenbudget erhöhen",
         "description": "Ein höheres Monatsbudget für die Kosten eines Service, einer Anwendung oder eines Teams, eine andere Währung oder kein Budget mehr. Ein Budget zu senken braucht keine Bestätigung."
       }
+    },
+    "plant": {
+      "mapSource": {
+        "label": "Ändern, woher die Standortkarte ihre Kacheln holt",
+        "description": "Eine neue Kachelquelle für die Standortkarte: OpenStreetMap, Hell/Dunkel, eine eigene URL oder ein API-Schlüssel, eine selbst bereitgestellte Datei oder der eigene Stil neu gelesen. Die Karte auszuschalten braucht keine Bestätigung."
+      }
     }
   }
 }

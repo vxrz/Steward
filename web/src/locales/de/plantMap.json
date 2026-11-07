@@ -1,0 +1,166 @@
+{
+  "title": "Karte",
+  "description": "Ihre {{type}} auf einer Karte, mit ihrem Zustand. Liste und Karte zeigen dieselben Standorte; die Markierungen folgen der Reihenfolge der Liste.",
+  "search": "Nach Name oder Kürzel suchen",
+  "listLabel": "{{type}} auf der Karte",
+  "mapLabel": "Karte der {{type}}",
+  "column": {
+    "state": "Zustand",
+    "position": "Auf der Karte"
+  },
+  "showNamed": "{{name}} auf der Karte zeigen",
+  "showOnMap": "Auf der Karte zeigen",
+  "noPosition": "Keine Position",
+  "noMatch": "Kein Standort passt zur Suche oder zum Filter.",
+  "emptyTitle": "Noch keine {{type}}",
+  "emptyText": "Standorte mit Position erscheinen hier als Markierungen.",
+  "filter": {
+    "state": "Zustand",
+    "all": "Alle Zustände",
+    "problems": "Offline oder Warnungen"
+  },
+  "state": {
+    "fail": "Offline",
+    "warn": "Warnung",
+    "unknown": "Unbekannt",
+    "ok": "Online",
+    "none": "Nicht überwacht"
+  },
+  "legend": "Was die Markierungen zeigen",
+  "pin": {
+    "offline_one": "{{count}} offline",
+    "offline_other": "{{count}} offline",
+    "checks_one": "{{count}} Prüfung schlägt fehl",
+    "checks_other": "{{count}} Prüfungen schlagen fehl",
+    "warn_one": "{{count}} Warnung",
+    "warn_other": "{{count}} Warnungen"
+  },
+  "cluster_one": "{{count}} Standort, {{state}} – hineinzoomen",
+  "cluster_other": "{{count}} Standorte, schlechtester Zustand: {{state}} – hineinzoomen",
+  "pinsLabel_one": "{{count}} Standort im Ausschnitt",
+  "pinsLabel_other": "{{count}} Standorte im Ausschnitt",
+  "capped": "{{shown}} von {{total}} Positionen werden gezeichnet; die Liste nennt alle Standorte.",
+  "controls": {
+    "zoomIn": "Hineinzoomen",
+    "zoomOut": "Herauszoomen",
+    "north": "Nach Norden ausrichten",
+    "cooperative": "Strg + Scrollen zoomt die Karte",
+    "cooperativeMac": "⌘ + Scrollen zoomt die Karte",
+    "cooperativeMobile": "Mit zwei Fingern verschieben Sie die Karte"
+  },
+  "attributionNewTab": " (öffnet sich in einem neuen Tab)",
+  "card": {
+    "assets_one": "{{count}} Anlage",
+    "assets_other": "{{count}} Anlagen",
+    "coverage": "KPI-Abdeckung {{pct}} %",
+    "noCoverage": "Keine KPI-Abdeckung",
+    "open": "Standort öffnen",
+    "structure": "Struktur",
+    "network": "OT-Netz"
+  },
+  "notice": {
+    "off": {
+      "title": "Die Karte ist aus",
+      "text": "Es wird nichts an einen Kartenanbieter gesendet. Ein Administrator kann die Karte einschalten; bis dahin zeigt die Liste alle Standorte."
+    },
+    "webgl": {
+      "title": "Dieser Browser kann die Karte nicht zeichnen",
+      "text": "Die Karte braucht WebGL 2, das dieser Browser oder virtuelle Desktop nicht bietet. Die Liste zeigt alle Standorte."
+    },
+    "load": {
+      "title": "Die Karte konnte nicht geladen werden",
+      "text": "Die Kachelquelle hat nicht geantwortet. Die Liste zeigt alle Standorte."
+    },
+    "reason": "Grund: {{reason}}",
+    "settings": "Karteneinstellungen"
+  },
+  "picker": {
+    "label": "Karte zur Wahl der Position",
+    "help": "Klicken Sie auf die Karte, um Breite und Länge zu setzen, oder geben Sie sie oben ein."
+  },
+  "widget": {
+    "notVisible": "Nicht sichtbar: Das Werksregister ist für Sie nicht freigegeben.",
+    "none": "Noch keine Standorte.",
+    "sites": "Standorte",
+    "open": "Karte öffnen"
+  },
+  "settings": {
+    "title": "Standortkarte",
+    "on": "An – {{source}}",
+    "off": "Aus",
+    "description": "Zeigt die Standorte auf einer Karte (Werk → Karte, die Standortseite, das Dashboard-Widget). Der Browser lädt alles von Steward; der Server von Steward holt die Kacheln, speichert sie zwischen und gibt die Adressen Ihrer Benutzer nie weiter.",
+    "offNote": "Die Karte ist aus: Es wird nichts gesendet. OpenStreetMap ist vorausgewählt – ein Klick schaltet sie ein.",
+    "from": "Kacheln von",
+    "sources": {
+      "off": {
+        "label": "Aus",
+        "privacy": "Nichts verlässt Steward."
+      },
+      "osm": {
+        "label": "OpenStreetMap",
+        "privacy": "Rasterkacheln. Der Server von Steward holt sie von tile.openstreetmap.org: Der Anbieter sieht die Adresse von Steward und die angesehenen Gebiete, nie die eines Benutzers. Für geringe Nutzung, wie es die Nutzungsrichtlinie der OpenStreetMap-Kacheln verlangt."
+      },
+      "openfreemap": {
+        "label": "Hell und dunkel (OpenFreeMap)",
+        "privacy": "Vektorkacheln, die dem Farbschema folgen. Der Server von Steward holt sie von tiles.openfreemap.org (OpenStreetMap-Daten, kein Schlüssel, keine Verfügbarkeitszusage)."
+      },
+      "own": {
+        "label": "Eigene Kachelquelle",
+        "privacy": "Eine Kachel-URL-Vorlage oder eine MapLibre-Stil-URL Ihres eigenen Servers oder Anbieters, wahlweise mit API-Schlüssel. Der Server von Steward holt von den Ursprüngen, die sie nennt."
+      },
+      "file": {
+        "label": "Selbst bereitgestellte Datei (PMTiles)",
+        "privacy": "Eine PMTiles-Datei im Kartenordner von Steward, Raster oder Vektor. Nichts verlässt Steward – für Netze ohne Internetzugang."
+      }
+    },
+    "own": {
+      "kind": "Art der Quelle",
+      "raster": "Rasterkacheln",
+      "style": "MapLibre-Stil",
+      "template": "Kachel-URL-Vorlage",
+      "templateHelp": "Mit {z}, {x} und {y}, zum Beispiel https://tiles.example.com/{z}/{x}/{y}.png",
+      "styleUrl": "Stil-URL",
+      "styleHelp": "Ein MapLibre-Stil (style.json). Steward übernimmt seine Quellen und Ebenen und liefert alles über die eigene Adresse aus.",
+      "attribution": "Quellenangabe",
+      "attributionHelp": "Der Text, den der Anbieter verlangt, zum Beispiel „© Example Maps“. Auf jeder Karte zu sehen.",
+      "maxZoom": "Höchste Zoomstufe",
+      "keyPlace": "API-Schlüssel",
+      "keyPlaces": {
+        "none": "Kein Schlüssel",
+        "query": "Als Query-Parameter",
+        "header": "Als Request-Header"
+      },
+      "paramName": "Name des Parameters",
+      "headerName": "Name des Headers",
+      "key": "Schlüssel",
+      "keyHelp": "Wird im Tresor gespeichert und vom Server von Steward hinzugefügt; der Browser sieht ihn nie.",
+      "keyStored": "Ein Schlüssel ist im Tresor gespeichert. Lassen Sie das Feld leer, um ihn zu behalten.",
+      "removeKey": "Gespeicherten Schlüssel entfernen",
+      "check": "Stil prüfen",
+      "checked_one": "Gelesen: {{count}} Ebene, {{kind}}. Von den Ursprüngen unten wird Steward holen.",
+      "checked_other": "Gelesen: {{count}} Ebenen, {{kind}}. Von den Ursprüngen unten wird Steward holen."
+    },
+    "file": {
+      "raster": "Raster",
+      "vector": "Vektor",
+      "unknown": "unbekannt",
+      "where": "Legen Sie PMTiles-Dateien ab in",
+      "none": "Dort liegt noch keine PMTiles-Datei. Wer Steward betreibt, legt sie ab (zum Beispiel einen regionalen Ausschnitt, erstellt mit pmtiles extract).",
+      "choose": "Kartendatei",
+      "placeholder": "Datei wählen",
+      "attributionFrom": "Die Datei nennt: {{text}}. Leer lassen, um das anzuzeigen.",
+      "attributionNone": "Die Datei nennt keine Quellenangabe: Geben Sie die ein, die ihre Daten verlangen."
+    },
+    "origins": "Der Server von Steward holt von:",
+    "noOrigins": "Nichts verlässt Steward.",
+    "reload": "Stil neu lesen",
+    "turnOff": "Karte ausschalten",
+    "save": "Speichern",
+    "turnOn": "Mit {{source}} einschalten",
+    "stepUp": "Wenn Sie ändern, woher die Kacheln kommen, bestätigen Sie, dass Sie es sind (Step-up); die Änderung wird im Audit-Log festgehalten.",
+    "saved": "Karteneinstellungen gespeichert",
+    "savedOff": "Die Karte ist aus",
+    "outbound": "Kartenkacheln (Werksregister): Der Abruf der Karte erreicht {{origins}} – nur für die Karte, nicht für Prozesse.",
+    "outboundNone": "Kartenkacheln (Werksregister): aus einer Datei im Datenordner – nichts verlässt Steward."
+  }
+}

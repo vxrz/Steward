@@ -102,6 +102,10 @@
     "vega": {
       "label": "Vega-Lite-Diagramm",
       "info": "Diagramm aus einer Vega-Lite-Spezifikation zu einem Datensatz, für Ansichten, die die anderen Widgets nicht abdecken"
+    },
+    "sitesMap": {
+      "label": "Standortkarte",
+      "info": "Die Standorte des Werksregisters auf einer Karte, mit ihrem Zustand (nur die Standorte, die der Leser sehen darf)"
     }
   },
   "editor": {

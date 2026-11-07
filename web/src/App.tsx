@@ -112,6 +112,7 @@ const PlantKpiPage = page(() => import('./pages/PlantKpi'), 'PlantKpiPage');
 const PlantExplorePage = page(() => import('./pages/PlantExplore'), 'PlantExplorePage');
 const PlantChecksPage = page(() => import('./pages/PlantChecks'), 'PlantChecksPage');
 const PlantNetworkPage = page(() => import('./pages/PlantNetwork'), 'PlantNetworkPage');
+const PlantMapPage = page(() => import('./pages/PlantMap'), 'PlantMapPage');
 
 const MAIN_ID = 'main-content';
 
@@ -328,6 +329,7 @@ function Shell({ status }: { status: AuthStatus }) {
                     {caps.plant && <Route path="/plant/kpis/:kpiId" element={<PlantKpiPage />} />}
                     {caps.plant && <Route path="/plant/explore" element={<PlantExplorePage />} />}
                     {caps.plant && <Route path="/plant/checks" element={<PlantChecksPage />} />}
+                    {caps.plant && <Route path="/plant/map" element={<PlantMapPage />} />}
                     <Route path="/plant" element={<Navigate to="/plant/sites" replace />} />
                     <Route path="/profile" element={<ProfilePage />} />
                     <Route path="/about" element={<AboutPage />} />
@@ -410,6 +412,7 @@ function Shell({ status }: { status: AuthStatus }) {
                     {caps.plant && <Route path="/plant/kpis/:kpiId" element={<PlantKpiPage />} />}
                     {caps.plant && <Route path="/plant/explore" element={<PlantExplorePage />} />}
                     {caps.plant && <Route path="/plant/checks" element={<PlantChecksPage />} />}
+                    {caps.plant && <Route path="/plant/map" element={<PlantMapPage />} />}
                     {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
                     {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
                     <Route path="/settings" element={<SettingsIndex />} />

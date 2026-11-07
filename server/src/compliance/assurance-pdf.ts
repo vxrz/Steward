@@ -69,6 +69,7 @@ export const POINT_LABELS: Record<ReportLang, Record<string, string>> = {
     'backup.settings': 'Change the backups',
     'migration.export': 'Export this instance',
     'migration.apply': 'Import an instance',
+    'plant.mapSource': 'Change where the map of sites fetches its tiles',
   },
   de: {
     'apiToken.create': 'Ein API-Token erstellen',
@@ -103,6 +104,7 @@ export const POINT_LABELS: Record<ReportLang, Record<string, string>> = {
     'backup.settings': 'Die Sicherungen ändern',
     'migration.export': 'Diese Instanz exportieren',
     'migration.apply': 'Eine Instanz importieren',
+    'plant.mapSource': 'Ändern, woher die Standortkarte ihre Kacheln holt',
   },
 };
 

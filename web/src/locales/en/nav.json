@@ -34,6 +34,7 @@
     "systemStatus": "System status",
     "plantSites": "Sites",
     "plantAssets": "Assets",
+    "plantMap": "Map",
     "plantProfiles": "Device profiles",
     "plantKpis": "KPI definitions",
     "plantExplore": "Explore data",

@@ -378,6 +378,12 @@ export const VARS = {
     description: 'Runs at the same time; more wait in status _queued_ (first come, first served) until one ends or waits for a decision. `0`: no limit',
     readme: true,
   }),
+  SM_MAP_CACHE_MB: v(int(256, 0, 1_000_000), {
+    group: 'Limits',
+    default: '256',
+    description:
+      'Disk cache of the map of sites (`<data>/cache/map/`, least recently used out), in MB; `0` = no disk cache. See [docs/PLANT.md](docs/PLANT.md#map)',
+  }),
   SM_EVENT_LOOP_WARN_MS: v(int(1000, 50), {
     group: 'Limits',
     default: '1000',

@@ -34,6 +34,7 @@
     "validate": "tsx server/src/cli/validate.ts",
     "openapi": "tsx server/src/cli/openapi.ts",
     "plant:schema": "tsx server/src/cli/plant-schema.ts",
+    "map:styles": "node scripts/map-styles.mjs",
     "config:docs": "tsx server/src/cli/config-docs.ts",
     "build:exe": "node scripts/build-exe.mjs",
     "desktop": "tsx server/src/desktop/launcher.ts",
@@ -53,6 +54,7 @@
     "@axe-core/playwright": "~4.14.0",
     "@eslint/js": "~10.0.1",
     "@playwright/test": "^1.64.1",
+    "@protomaps/basemaps": "5.7.2",
     "cross-env": "^7.0.3",
     "esbuild": "^0.28.2",
     "eslint": "~10.13.0",
@@ -68,7 +70,9 @@
     "typescript-eslint": "~8.71.2"
   },
   "overrides": {
-    "tinypool": "$tinypool"
+    "tinypool": "$tinypool",
+    "@maplibre/maplibre-gl-style-spec": "26.4.4",
+    "@maplibre/vt-pbf": "4.3.2"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,

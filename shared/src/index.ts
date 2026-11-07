@@ -57,6 +57,7 @@ export * from './plant.js';
 export * from './plantData.js';
 export * from './plantNetwork.js';
 export * from './plantViews.js';
+export * from './plantMap.js';
 export * from './layout.js';
 export * from './database.js';
 export * from './sqlcheck.js';

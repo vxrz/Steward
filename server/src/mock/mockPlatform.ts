@@ -27,6 +27,7 @@ import { mockChangedetection } from './mockChangedetection.js';
 import { mockDataContract } from './mockDataContract.js';
 import { mockEndoflife } from './mockEndoflife.js';
 import { mockRegistries } from './mockRegistries.js';
+import { mockMapTiles } from './mockMapTiles.js';
 import { mockUsageRoutes } from './mockUsage.js';
 
 /**
@@ -238,6 +239,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   await mockDataContract(app);
   await mockEndoflife(app);
   await mockRegistries(app);
+  await mockMapTiles(app);
 
   app.post('/reset', async () => {
     state = seed();

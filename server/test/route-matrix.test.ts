@@ -950,6 +950,16 @@ const EXPECT: Record<string, Access> = {
   // ---- the plant registry (#218, on in these fixtures): its switch is the administrators'; rights per site ----
   'GET /api/settings/plant': ADMIN,
   'PUT /api/settings/plant': ADMIN,
+  // the map of sites (#234): its source is the administrators' (a session); tiles for everyone who sees the registry
+  'GET /api/settings/plant/map': ADMIN,
+  'PUT /api/settings/plant/map': ADMIN,
+  'POST /api/settings/plant/map/check': ADMIN,
+  'GET /api/plant/map/sites': PLANT,
+  'GET /api/plant/map/status': PLANT,
+  'GET /api/plant/map/style.json': PLANT,
+  'GET /api/plant/map/tiles/:layer/:z/:x/:y': PLANT,
+  'GET /api/plant/map/glyphs/:fontstack/:range': PLANT,
+  'GET /api/plant/map/sprites/:sprite': PLANT,
   'GET /api/plant/config': PLANT,
   'GET /api/plant/schema': PLANT,
   'GET /api/plant/hierarchy': PLANT,
@@ -1032,6 +1042,14 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  'GET /api/settings/plant/map',
+  'PUT /api/settings/plant/map',
+  'POST /api/settings/plant/map/check',
+  'GET /api/plant/map/status',
+  'GET /api/plant/map/style.json',
+  'GET /api/plant/map/tiles/:layer/:z/:x/:y',
+  'GET /api/plant/map/glyphs/:fontstack/:range',
+  'GET /api/plant/map/sprites/:sprite',
   'POST /api/me/tokens',
   'POST /api/mcp-requests/:requestId/decision',
   'POST /api/users',
@@ -1175,6 +1193,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     harmless: { scope: 'installation', scopeId: '', tokensPerDay: 500, tokensPerMonth: null },
   },
   'PUT /api/backups/passphrase': 'always',
+  // where the map of sites fetches its tiles from (#234; the fixtures use OpenStreetMap, the demo's mock of it)
+  'PUT /api/settings/plant/map': { sensitive: { source: 'openfreemap' }, harmless: { source: 'osm' } },
   // raising a cost budget (#226; the fixtures set 1,000 USD a month for a service); lowering it needs no confirmation
   'PUT /api/costs/budgets': {
     get sensitive() {
@@ -1231,6 +1251,9 @@ const NO_POSITIVE = new Set([
   'GET /api/migration/imports/staged/:id', // no package uploaded
   'GET /api/migration/imports/:id', // nothing imported
   'GET /api/migration/imports/:id/history',
+  // the map's raster source (#234) has no glyphs and no sprite
+  'GET /api/plant/map/glyphs/:fontstack/:range',
+  'GET /api/plant/map/sprites/:sprite',
 ]);
 
 type Fx = Record<string, string>;
@@ -1310,6 +1333,10 @@ function fill(url: string): string {
       .replace(/:attId/g, 'att_none')
       .replace(/:evidenceId/g, 'tev_none')
       .replace(/:siteId/g, fx.site!)
+      // the map of sites (#234): the one tile of zoom 0
+      .replace('/:layer/:z/:x/:y', '/base/0/0/0')
+      .replace('/:fontstack/:range', '/Noto%20Sans%20Regular/0-255.pbf')
+      .replace(/:sprite$/, 'default.json')
       .replace(/:assetId/g, fx.asset!)
       .replace(/:nodeId/g, fx.plantNode!)
       .replace(/:buildingId/g, fx.building!)
@@ -1451,6 +1478,8 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/systems': { name: 'Matrix system x', kind: 'server' },
   'PUT /api/settings/plant': { enabled: true, enterprise: '', labels: {}, fields: {} },
+  'PUT /api/settings/plant/map': { source: 'osm' },
+  'POST /api/settings/plant/map/check': { kind: 'raster', url: 'https://tiles.example.com/{z}/{x}/{y}.png', attribution: 'Example tiles' },
   'POST /api/plant/sites': { id: 'matrix-new', name: 'Matrix new site' },
   'PUT /api/plant/sites/:siteId': { name: 'Matrix site' },
   'PUT /api/plant/sites/:siteId/access': { acl: [] },
@@ -1649,6 +1678,8 @@ beforeAll(async () => {
   await setup(s);
   // the plant registry module on (#218): in demo mode it loads its example enterprise with the demo data
   await s.api('PUT', '/settings/plant', { enabled: true, enterprise: '', labels: {}, fields: {} });
+  // the map of sites on (#234): OpenStreetMap, in demo mode the mock tile source of this server
+  await s.api('PUT', '/settings/plant/map', { source: 'osm' });
   await s.api('POST', '/demo/setup', {});
   await allowEmailDomains(s, ['example.com']);
   // a plant viewer (#218): the demo has none
