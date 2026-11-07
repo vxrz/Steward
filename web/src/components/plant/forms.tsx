@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { ActionIcon, Button, Group, Modal, NumberInput, Select, SimpleGrid, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { Suspense, useMemo, useState } from 'react';
+import { ActionIcon, Box, Button, Group, Modal, NumberInput, Select, SimpleGrid, Skeleton, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -30,6 +30,8 @@ import {
 import { get, notifyError, post, put } from '../../api';
 import { useFieldErrors } from '../common';
 import { plantKeys } from '../../queryKeys';
+import { MapChunkBoundary, PositionPicker } from './map/MapPanel';
+import { hasWebGl2 } from './map/mapShared';
 import { cleanRefs, FieldInputs, RefsEditor, refsValid, slugId, TranslationsInput, useNameOf, usePlantConfig, usePlantLabel } from './common';
 
 /** Every node of a site's tree, flat (pickers). */
@@ -123,6 +125,7 @@ export function SiteFormModal({ site, onClose, onSaved }: { site?: PlantSiteDeta
   const [fields, setFields] = useState<FieldValues>(site?.fields ?? {});
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState(false);
+  const webgl = useMemo(() => hasWebGl2(), []);
   const geoPartial = (lat === '') !== (lon === '');
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
@@ -232,6 +235,26 @@ export function SiteFormModal({ site, onClose, onSaved }: { site?: PlantSiteDeta
                 onChange={(x) => setZoom(typeof x === 'number' ? x : '')}
               />
             </SimpleGrid>
+            {/* the map of sites (#234), once it is on: a click on the map sets the position (typing stays possible) */}
+            {cfg.data?.map.on && webgl && (
+              <Box mt="xs">
+                <MapChunkBoundary fallback={null}>
+                  <Suspense fallback={<Skeleton height={220} radius="md" />}>
+                    <PositionPicker
+                      config={cfg.data.map}
+                      lat={lat === '' ? null : lat}
+                      lon={lon === '' ? null : lon}
+                      zoom={zoom === '' ? null : zoom}
+                      onPick={(p) => {
+                        setLat(p.lat);
+                        setLon(p.lon);
+                        if (zoom === '') setZoom(Math.min(Math.max(p.zoom, 0), 19));
+                      }}
+                    />
+                  </Suspense>
+                </MapChunkBoundary>
+              </Box>
+            )}
           </div>
           <Stack gap="xs" data-testid="contacts-editor">
             <Text size="sm" fw={500}>

@@ -171,9 +171,13 @@ test.describe('as a plant viewer', () => {
     const nav = sidebar(page);
     await expect(nav.getByRole('link', { name: 'Sites' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Assets' })).toBeVisible();
+    // the map of sites (#234): the same list for them, and the map once an administrator turned it on
+    await expect(nav.getByRole('link', { name: 'Map', exact: true })).toBeVisible();
     for (const name of ['Home', 'Processes', 'Services', 'Records', 'Dashboards', 'Monitors', 'Import'])
       await expect(nav.getByRole('link', { name, exact: true }), name).toHaveCount(0);
     await expectAccessible(page, 'plant sites for a plant viewer');
+    await page.goto('/plant/map');
+    await expect(page.getByTestId('map-site-list').getByRole('link', { name: 'Riverside Works', exact: true })).toBeVisible();
     // other pages are not there for them
     await page.goto('/services');
     await expect(page.getByText('Page not found', { exact: true })).toBeVisible();

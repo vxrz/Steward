@@ -47,6 +47,7 @@ export const NAMESPACES = [
   'plant',
   'plantNetwork',
   'plantViews',
+  'plantMap',
   'costs',
   'contracts',
 ] as const;

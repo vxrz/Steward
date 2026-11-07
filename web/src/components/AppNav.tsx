@@ -40,6 +40,7 @@ import {
   IconTicket,
   IconTool,
   IconEngine,
+  IconMap,
   IconCpu,
   IconListSearch,
   IconClipboardCheck,
@@ -92,6 +93,7 @@ export type NavKey =
   | 'plantKpis'
   | 'plantExplore'
   | 'plantChecks'
+  | 'plantMap'
   | 'plantImport';
 /** The areas of the sidebar (v0.4.0): Home has no heading; Plant only while its module is on (#218). */
 export type NavGroupKey = 'home' | 'operate' | 'automate' | 'catalogue' | 'plant' | 'compliance' | 'admin';
@@ -168,6 +170,8 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
     items: [
       { to: '/plant/sites', key: 'plantSites', icon: IconBuildingFactory2, when: plant },
       { to: '/plant/assets', key: 'plantAssets', icon: IconEngine, when: plant },
+      // the map of sites (#234): the list, and the map once an administrator turned it on
+      { to: '/plant/map', key: 'plantMap', icon: IconMap, when: plant },
       // part 2 (#219): the catalogues of the installation, the search and the checks
       { to: '/plant/profiles', key: 'plantProfiles', icon: IconCpu, when: plant },
       { to: '/plant/kpis', key: 'plantKpis', icon: IconGauge, when: plant },

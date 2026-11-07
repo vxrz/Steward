@@ -1,0 +1,122 @@
+/* The map of sites (#234): the map, the pins and clusters over it (HTML buttons, in list order), the attribution. */
+
+.pm-wrap {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-default);
+  min-height: 200px;
+}
+.pm-map {
+  position: absolute;
+  inset: 0;
+}
+.pm-pins {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.pm-pin,
+.pm-cluster {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--mantine-color-text);
+  background: var(--mantine-color-body);
+  border: 2px solid currentColor;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 30%);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pm-pin {
+  padding: 4px 8px 4px 5px;
+  border-radius: 999px 999px 999px 2px;
+  max-width: 160px;
+}
+.pm-pin[data-compact] {
+  padding: 4px;
+  border-radius: 999px;
+}
+.pm-cluster {
+  min-width: 34px;
+  height: 34px;
+  justify-content: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  border-width: 3px;
+}
+.pm-pin[data-state='fail'],
+.pm-cluster[data-state='fail'] {
+  border-color: var(--pv-fail);
+}
+.pm-pin[data-state='warn'],
+.pm-cluster[data-state='warn'] {
+  border-color: var(--pv-warn);
+}
+.pm-pin[data-state='unknown'],
+.pm-cluster[data-state='unknown'] {
+  border-color: var(--pv-unknown);
+}
+.pm-pin[data-state='ok'],
+.pm-cluster[data-state='ok'] {
+  border-color: var(--pv-ok);
+}
+.pm-pin[data-state='none'],
+.pm-cluster[data-state='none'] {
+  border-color: var(--mantine-color-gray-6);
+  border-style: dashed;
+}
+.pm-pin-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pm-pin:hover,
+.pm-cluster:hover {
+  background: var(--mantine-color-default-hover);
+}
+.pm-pin:focus-visible,
+.pm-cluster:focus-visible {
+  outline: 3px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+.pm-attribution {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  max-width: 100%;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: var(--mantine-color-text);
+  background: color-mix(in srgb, var(--mantine-color-body) 85%, transparent);
+  border-top-left-radius: var(--mantine-radius-sm);
+}
+.pm-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* MapLibre's own controls in the dark theme */
+[data-mantine-color-scheme='dark'] .pm-wrap .maplibregl-ctrl-group {
+  background: var(--mantine-color-dark-6);
+}
+[data-mantine-color-scheme='dark'] .pm-wrap .maplibregl-ctrl-group button + button {
+  border-top-color: var(--mantine-color-dark-4);
+}
+[data-mantine-color-scheme='dark'] .pm-wrap .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+.pm-wrap .maplibregl-ctrl-group button:focus-visible {
+  box-shadow: 0 0 0 3px var(--mantine-primary-color-filled);
+}

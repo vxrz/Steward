@@ -34,6 +34,7 @@
     "systemStatus": "Systemstatus",
     "plantSites": "Standorte",
     "plantAssets": "Anlagen",
+    "plantMap": "Karte",
     "plantProfiles": "Geräteprofile",
     "plantKpis": "KPI-Definitionen",
     "plantExplore": "Daten erkunden",

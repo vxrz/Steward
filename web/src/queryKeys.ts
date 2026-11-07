@@ -128,6 +128,10 @@ export const plantKeys = {
   assetNetwork: (assetId: string | null | undefined) => ['plant', 'assetNetwork', assetId] as const,
   // visualizations (#230)
   overview: ['plant', 'views', 'overview'] as const,
+  // the map of sites (#234)
+  mapSites: ['plant', 'map', 'sites'] as const,
+  mapStatus: ['plant', 'map', 'status'] as const,
+  mapSettings: ['plant', 'map', 'settings'] as const,
   coverage: (filter: string) => ['plant', 'views', 'coverage', filter] as const,
   structure: (siteId: string | null | undefined) => ['plant', 'views', 'structure', siteId] as const,
   flow: (assetId: string | null | undefined) => ['plant', 'views', 'flow', assetId] as const,

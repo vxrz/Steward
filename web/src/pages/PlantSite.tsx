@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActionIcon, Anchor, Badge, Box, Button, Grid, Group, Menu, Paper, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { IconBuilding, IconDots, IconDownload, IconEdit, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconBuilding, IconDots, IconDownload, IconEdit, IconMap, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   ASSET_STATUSES,
@@ -22,7 +22,17 @@ import { AccessEditor } from '../components/AccessEditor';
 import { confirmDanger } from '../components/confirm';
 import { fmtDate } from '../format';
 import { plantKeys } from '../queryKeys';
-import { AssetStatusBadge, FieldValuesView, MapLink, NotInSourceBadge, PreviewBadge, RefsView, useNameOf, usePlantLabel } from '../components/plant/common';
+import {
+  AssetStatusBadge,
+  FieldValuesView,
+  MapLink,
+  NotInSourceBadge,
+  PreviewBadge,
+  RefsView,
+  useNameOf,
+  usePlantConfig,
+  usePlantLabel,
+} from '../components/plant/common';
 import { AssetFormModal, BuildingFormModal, NodeFormModal, SiteFormModal } from '../components/plant/forms';
 import { SiteNetworkCard } from '../components/plant/network';
 import { PlantSiteTabPage, SiteTabs } from './plant/views/tabs';
@@ -34,9 +44,10 @@ type NodeDialog = { level: PlantLevel; parentId: string | null; node?: PlantNode
  * buildings (the spatial axis), its assets by status, contacts, external references, own fields, links and access.
  */
 export function PlantSitePage() {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantMap']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
+  const mapOn = usePlantConfig().data?.map.on === true;
   const { siteId, tab } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -52,6 +63,7 @@ export function PlantSitePage() {
   const saved = (x: PlantSiteDetail) => {
     qc.setQueryData(plantKeys.site(siteId), x);
     void qc.invalidateQueries({ queryKey: plantKeys.sites });
+    void qc.invalidateQueries({ queryKey: plantKeys.mapSites });
     void qc.invalidateQueries({ queryKey: plantKeys.hierarchy });
   };
   const refresh = () => void qc.invalidateQueries({ queryKey: plantKeys.site(siteId) });
@@ -323,7 +335,18 @@ export function PlantSitePage() {
                 <span className="mono">{s.id}</span>
               </Field>
               <Field label={t('site.position')}>
-                <MapLink geo={s.geo} name={nameOf(s)} />
+                <Stack gap={4} align="flex-start">
+                  <MapLink geo={s.geo} name={nameOf(s)} />
+                  {/* the map of sites (#234), once an administrator turned it on: the site with its own zoom */}
+                  {s.geo && mapOn && (
+                    <Anchor component={Link} to={`/plant/map?site=${encodeURIComponent(s.id)}`} size="sm" data-testid="show-on-map">
+                      <Group gap={4} wrap="nowrap" component="span">
+                        <IconMap size={14} aria-hidden />
+                        <span>{t('plantMap:showOnMap')}</span>
+                      </Group>
+                    </Anchor>
+                  )}
+                </Stack>
               </Field>
               <Field label={t('contacts.title')}>
                 {s.contacts.length === 0 ? (

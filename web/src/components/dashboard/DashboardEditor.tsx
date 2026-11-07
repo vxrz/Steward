@@ -54,6 +54,7 @@ function newWidget(type: WidgetType, existing: DashboardWidget[]): DashboardWidg
   // Default texts in the UI language – they become part of the dashboard like anything typed.
   if (type === 'markdown') w.text = i18n.t('dashboards:editor.defaultNotes');
   if (type === 'freshness') w.title = widgetLabel('freshness');
+  if (type === 'sitesMap') w.title = widgetLabel('sitesMap');
   if (type === 'vega') w.spec = structuredClone(VEGA_EXAMPLE_SPEC);
   return w;
 }
@@ -151,7 +152,7 @@ export function DashboardEditor({ value, onChange }: { value: DashboardDefinitio
                     onClick={() => {
                       const w = newWidget(type, widgets);
                       setWidgets([...widgets, w]);
-                      if (type !== 'freshness') setEditing(w);
+                      if (type !== 'freshness' && type !== 'sitesMap') setEditing(w);
                     }}
                   >
                     <Text size="sm" fw={500}>

@@ -71,6 +71,7 @@ import { AssurancePolicyPanel } from '../components/assurance/AssurancePolicyPan
 import { CiaScalePage } from './CiaScale';
 import { RulesPanel } from './Scorecard';
 import { PlantSettingsCard } from '../components/plant/PlantSettingsCard';
+import { MapTileOrigins, PlantMapSettingsGate } from '../components/plant/map/PlantMapSettingsCard';
 
 /**
  * Settings by area (#136). Each area has a stable URL (/settings/<area>); everything here is an instance setting that
@@ -294,8 +295,13 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
         </>
       );
     case 'modules':
-      // opt-in modules (#218): off by default, each with its own settings
-      return <PlantSettingsCard />;
+      // opt-in modules (#218): off by default, each with its own settings; the map of sites (#234) once the registry is on
+      return (
+        <>
+          <PlantSettingsCard />
+          <PlantMapSettingsGate />
+        </>
+      );
     case 'data':
       return (
         <>
@@ -429,6 +435,8 @@ function OutboundCard({ d }: { d: Draft }) {
         <Text size="xs" c="dimmed" data-testid="outbound-when-needed">
           {t('outbound.whenNeeded')}
         </Text>
+        {/* the map of sites (#234): its source's origins are allowed for the map's fetcher only, never for processes */}
+        <MapTileOrigins />
       </Stack>
     </Card>
   );
