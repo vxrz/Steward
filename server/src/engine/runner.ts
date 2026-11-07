@@ -26,7 +26,7 @@ import { currentActor, runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { tracePseudonym } from '../auth/login-audit.js';
 import { HttpError, newId, nowIso, parseJson, pathInside, sha256, sleep } from '../util.js';
-import { heldLibraryOf } from '../libraries/hold.js';
+import { heldLibraryOf } from '../libraries/lookup.js';
 import { getConnection } from '../platforms/service.js';
 import { openInputs, sealInputs, secretValuesOf } from './secret-inputs.js';
 import {

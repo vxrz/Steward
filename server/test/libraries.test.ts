@@ -258,6 +258,16 @@ describe('install, update, rollback', () => {
     expect(origins.find((o) => o.entityId === 'guest-review')).toMatchObject({ library: 'test-access-reviews', release: '1.0.0', changedLocally: false });
     const audit = (await s.api('GET', '/audit?action=library.installed&limit=5')) as any[];
     expect(audit[0].details).toMatchObject({ releaseSha256: expect.stringMatching(/^[0-9a-f]{64}$/), keyFingerprint: key.fingerprint });
+    // runs, their report and the version history name the release
+    const runId = ((await s.api('POST', '/runs', { processId: 'notify-owner', dryRun: true })) as any).id;
+    const run = await s.waitRun(runId, ['succeeded', 'failed']);
+    expect(run.libraryOrigin).toMatchObject({ library: 'test-access-reviews', release: '1.0.0', publisher: 'test-publisher', keyFingerprint: key.fingerprint });
+    const html = (await s.api('GET', `/runs/${runId}/report.html`)) as string;
+    expect(html).toContain('From library');
+    expect(html).toContain(key.fingerprint);
+    const { buildRunModel } = await import('../src/reports/model.js');
+    expect(buildRunModel(runId, { lang: 'en' } as never).process.library).toMatchObject({ library: 'test-access-reviews', keyRevoked: false });
+    expect(((await s.api('GET', '/processes/notify-owner/versions')) as any[])[0].origin).toMatchObject({ library: 'test-access-reviews', release: '1.0.0' });
   });
 
   it('refuses downgrades, replays and other content under a known version', async () => {

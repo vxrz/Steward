@@ -1,3 +1,4 @@
+import type { LibraryOrigin } from './libraries.js';
 import type { AiGatewaySettings } from './ai.js';
 import type { DatabaseSettings } from './database.js';
 import type { ErrorParams } from './errors.js';
@@ -817,6 +818,8 @@ export interface ProcessVersion {
   author: string;
   comment: string;
   createdAt: string;
+  /** The library release this version came from (0.10.0, ADR 0014) */
+  origin?: LibraryOrigin | null;
 }
 
 export interface ProcessTemplate {
@@ -963,6 +966,8 @@ export interface RunReportSection {
 }
 
 export interface RunDetail extends RunSummary {
+  /** The library release the process version came from (0.10.0, ADR 0014); null for a local version */
+  libraryOrigin?: (LibraryOrigin & { keyRevoked: boolean }) | null;
   inputs: Record<string, unknown>;
   bindings: Record<string, { platformId: string; platformName: string; baseUrl: string }>;
   definitionHash: string;

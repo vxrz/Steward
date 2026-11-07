@@ -1076,11 +1076,6 @@ export function listLibraryOrigins(kind?: LibraryItemKind): LibraryItemOrigin[] 
     });
 }
 
-/** The library origin of a process version (runs, reports, evidence), with the key's state now. */
-export function versionOrigin(processId: string, version: number): (LibraryOrigin & { keyRevoked: boolean }) | null {
-  const r = db().get<{ origin: string | null }>('SELECT origin FROM process_versions WHERE process_id = ? AND version = ?', processId, version);
-  const o = r?.origin ? parseJson<LibraryOrigin | null>(r.origin, null) : null;
-  return o ? { ...o, keyRevoked: keyStateOf(o.keyFingerprint) === 'revoked' } : null;
-}
+export { versionOrigin } from './lookup.js';
 
 export type { LibraryReleaseSource };

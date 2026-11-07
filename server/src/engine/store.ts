@@ -21,6 +21,7 @@ import type {
   TaskItem,
   TaskRecord,
 } from '@sm/shared';
+import { versionOrigin } from '../libraries/lookup.js';
 import { runOutcome } from '@sm/shared';
 import { db } from '../db.js';
 import { HttpError, canonicalJson, nowIso, parseJson, preview, sha256 } from '../util.js';
@@ -310,6 +311,7 @@ export function getRunDetail(id: string): RunDetail {
     inputs: parseJson(r.inputs, {}),
     bindings: parseJson(r.bindings, {}),
     definitionHash: r.definition_hash,
+    libraryOrigin: versionOrigin(r.process_id, r.process_version),
     steps: steps.map((s) => stepRecord(s)),
     logs: listLogs(id),
     tasks: listTasks({ runId: id }),
