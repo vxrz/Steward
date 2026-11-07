@@ -53,7 +53,7 @@ export function serviceUrlAllowed(url: string): boolean {
   return endpoints.serviceHosts.includes(u.hostname.toLowerCase());
 }
 
-/** A request to one of Microsoft's hosts (outbound policy and address safety apply; redirects with their rules). */
+/** A request to one of Microsoft's hosts (outbound policy and address safety apply; a redirect is an error). */
 export async function frameworkFetch(
   url: string,
   init: { method?: string; headers?: Record<string, string>; body?: string },
@@ -63,6 +63,8 @@ export async function frameworkFetch(
   await assertOutboundAllowed(url, ctx);
   const res = await fetchCheckingRedirects(url, { ...init, headers: { 'user-agent': BRAND.slug, ...init.headers }, signal: AbortSignal.timeout(10_000) }, ctx, {
     bodySecrets,
+    // no redirects: a hop would carry the bot's token or client assertion to another host (security review 0.10.0)
+    maxRedirects: 0,
   });
   const text = await res.text().catch(() => '');
   const parse = (): unknown => {

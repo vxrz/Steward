@@ -62,6 +62,19 @@ export function withDecisionRights(tasks: TaskRecord[]): TaskRecord[] {
   });
 }
 
+/** One task as the current user sees it (with its decision rights), or undefined when it is missing or hidden. */
+export function visibleTask(id: string): TaskRecord | undefined {
+  let t: TaskRecord;
+  try {
+    t = store.getTask(id);
+  } catch {
+    return undefined; // not found
+  }
+  const pid = t.processId ?? store.taskProcessId(t.id);
+  if (!processes.permissionsFor(pid).includes('view')) return undefined;
+  return withDecisionRights([t])[0];
+}
+
 export function visibleTasks(status?: string): TaskRecord[] {
   const visible = visibleProcessIds();
   return withDecisionRights(store.listTasks({ status }).filter((t) => visible.has(t.processId ?? store.taskProcessId(t.id))));

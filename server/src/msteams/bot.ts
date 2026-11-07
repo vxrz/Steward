@@ -197,8 +197,9 @@ async function cardAction(a: Activity, tenant: string, aad: string): Promise<Bot
   }
   const verb = action?.verb;
   const conversationKind = str(a.conversation?.conversationType, 20) || 'personal';
-  if (verb === 'refresh') return invokeCard(itemCard(l, data.kind, data.id, { viewer: user, refreshFor: eligibleAadIds(data.kind, data.id) }));
-  if (verb !== 'approve' && verb !== 'reject') return invokeCard(itemCard(l, data.kind, data.id, { viewer: user }));
+  const personal = conversationKind === 'personal';
+  if (verb === 'refresh') return invokeCard(itemCard(l, data.kind, data.id, { viewer: user, personal, refreshFor: eligibleAadIds(data.kind, data.id) }));
+  if (verb !== 'approve' && verb !== 'reject') return invokeCard(itemCard(l, data.kind, data.id, { viewer: user, personal }));
   const comment =
     str((action?.data as { comment?: unknown } | undefined)?.comment, 2000) || str((a.value?.data as { comment?: unknown } | undefined)?.comment, 2000);
   let outcome: TeamsOutcome;
@@ -215,9 +216,9 @@ async function cardAction(a: Activity, tenant: string, aad: string): Promise<Bot
   if (!outcome.ok) {
     refused(outcome.reason, { user: user.username, kind: data.kind, id: data.id });
     const note = outcome.reason === 'stale' ? t(l, 'teamsBot.changed') : undefined;
-    return invokeCard(itemCard(l, data.kind, data.id, { viewer: user, note, refreshFor: eligibleAadIds(data.kind, data.id) }));
+    return invokeCard(itemCard(l, data.kind, data.id, { viewer: user, personal, note, refreshFor: eligibleAadIds(data.kind, data.id) }));
   }
-  return invokeCard(itemCard(l, data.kind, data.id, { viewer: user }));
+  return invokeCard(itemCard(l, data.kind, data.id, { viewer: user, personal }));
 }
 
 /** Installation and conversation updates: where the bot is installed (audited). */

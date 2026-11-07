@@ -17,7 +17,7 @@ import { me } from '../auth/access.js';
 import { fourEyesRequired, noteFourEyes } from '../auth/assurance.js';
 import { permissionsFor } from '../processes/service.js';
 import { getPlatform } from '../platforms/service.js';
-import { requireRun, visibleTasks } from '../routes/helpers.js';
+import { requireRun, visibleTask } from '../routes/helpers.js';
 import * as store from './store.js';
 import type { RunSignal } from './engine.js';
 
@@ -115,7 +115,8 @@ export function authorizeSignal(
   s: RunSignal | { type: 'task.decide' | 'manual.complete' | 'manual.verify'; taskId: string },
 ): TaskRecord | undefined {
   if (s.type === 'task.decide' || s.type === 'manual.complete' || s.type === 'manual.verify') {
-    const t = visibleTasks().find((x) => x.id === s.taskId);
+    // the one task (not a search of the newest tasks: an older open step is decidable too)
+    const t = visibleTask(s.taskId);
     if (!t) throw new HttpError(404, 'Task not found', 'TASK_NOT_FOUND');
     const deny = (fallback: string) => {
       throw new HttpError(403, t.cannotDecideReason ?? fallback, t.cannotDecideCode ?? 'FORBIDDEN', t.cannotDecideParams);

@@ -64,7 +64,8 @@ export interface ManualVerification {
 }
 
 export type RunSignal =
-  | { type: 'task.decide'; taskId: string; decision: TaskDecision }
+  /** `audit`: extra details of the task.completed entry (a decision from a Microsoft Teams card: via, tenant, object id) */
+  | { type: 'task.decide'; taskId: string; decision: TaskDecision; audit?: Record<string, unknown> }
   | { type: 'manual.complete'; taskId: string; input: ManualCompletionInput }
   | { type: 'manual.verify'; taskId: string; input: ManualVerification }
   /** A person resumes an interrupted run */

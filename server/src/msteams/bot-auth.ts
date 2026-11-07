@@ -43,16 +43,35 @@ async function loadKeys(): Promise<void> {
   fetchedAt = Date.now();
 }
 
+/** While the metadata cannot be read: no new attempt before the backoff ends (1 minute, doubling up to 15). */
+let failedAt = 0;
+let backoffMs = 0;
+let warnedAt = 0;
+
 async function keyFor(kid: string): Promise<Jwk | undefined> {
   const now = Date.now();
   const stale = now - fetchedAt > REFRESH_ALWAYS_MS;
-  if (stale || (!keys.has(kid) && now - fetchedAt > REFRESH_UNKNOWN_MS)) {
-    fetching ??= loadKeys().finally(() => (fetching = null));
-    try {
-      await fetching;
-    } catch (err) {
-      logger.warn({ err: { message: (err as Error).message } }, 'Teams bot: the Bot Framework keys could not be read');
-    }
+  const wanted = stale || (!keys.has(kid) && now - fetchedAt > REFRESH_UNKNOWN_MS);
+  if (wanted && now - failedAt >= backoffMs) {
+    fetching ??= loadKeys()
+      .then(() => {
+        failedAt = 0;
+        backoffMs = 0;
+      })
+      .catch((err) => {
+        failedAt = Date.now();
+        backoffMs = Math.min(Math.max(backoffMs * 2, 60_000), 15 * 60_000);
+        // one warning per backoff interval, not one per request
+        if (Date.now() - warnedAt >= backoffMs) {
+          warnedAt = Date.now();
+          logger.warn(
+            { err: { message: (err as Error).message }, retryInSeconds: Math.round(backoffMs / 1000) },
+            'Teams bot: the Bot Framework keys could not be read',
+          );
+        }
+      })
+      .finally(() => (fetching = null));
+    await fetching;
   }
   return keys.get(kid);
 }
@@ -61,7 +80,13 @@ async function keyFor(kid: string): Promise<Jwk | undefined> {
 export function resetKeyCache(): void {
   keys = new Map();
   fetchedAt = 0;
+  failedAt = 0;
+  backoffMs = 0;
+  warnedAt = 0;
 }
+
+/** Tests: how often the metadata was asked for. */
+export const keyFetchState = () => ({ failedAt, backoffMs });
 
 const b64json = (s: string): Record<string, unknown> | null => {
   try {

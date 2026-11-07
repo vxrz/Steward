@@ -11,7 +11,7 @@ import { aadObjectIdOf } from './identity.js';
 import { teamsDecidable, versionOf, type ItemKind } from './decide.js';
 import { asAttachment, itemCard } from './botcard.js';
 import { sendActivity, updateActivity } from './connector.js';
-import { botConfig } from './settings.js';
+import { botActive, botConfig } from './settings.js';
 import { setBotCardUpdater } from './followup.js';
 
 /**
@@ -39,7 +39,20 @@ const personalConversation = (userId: string) =>
   );
 
 /** The Entra object ids of the people who may decide an item in a card now (for the card's refresh list, at most 60). */
+const eligibleCache = new Map<string, { at: number; ids: string[] }>();
+
 export function eligibleAadIds(kind: ItemKind, id: string): string[] {
+  // refreshes of one card come in bursts: one computation per item and version a minute
+  const key = `${kind}|${id}|${versionOf(kind, id) ?? ''}`;
+  const hit = eligibleCache.get(key);
+  if (hit && Date.now() - hit.at < 60_000) return hit.ids;
+  const ids = computeEligible(kind, id);
+  if (eligibleCache.size > 2000) eligibleCache.clear();
+  eligibleCache.set(key, { at: Date.now(), ids });
+  return ids;
+}
+
+function computeEligible(kind: ItemKind, id: string): string[] {
   const out: string[] = [];
   for (const u of listUsers()) {
     if (out.length >= 60) break;
@@ -75,7 +88,7 @@ async function postToChannel(target: string, item: { kind: ItemKind; id: string 
 async function postToPerson(u: UserInfo, item: { kind: ItemKind; id: string }): Promise<void> {
   const conv = personalConversation(u.id);
   if (!conv) return;
-  const card = itemCard(userLocale(u), item.kind, item.id, { viewer: u });
+  const card = itemCard(userLocale(u), item.kind, item.id, { viewer: u, personal: true });
   const r = await sendActivity(conv.service_url, conv.conversation_id, { type: 'message', attachments: [asAttachment(card)] });
   remember(item.kind, item.id, conv, r.id);
 }
@@ -90,7 +103,7 @@ async function updateCards(kind: ItemKind, id: string): Promise<void> {
   );
   for (const r of rows) {
     const viewer = r.user_id ? listUsers().find((u) => u.id === r.user_id) : null;
-    const card = itemCard(viewer ? userLocale(viewer) : defaultLocale(), kind, id, { viewer });
+    const card = itemCard(viewer ? userLocale(viewer) : defaultLocale(), kind, id, { viewer, personal: r.kind === 'personal' });
     try {
       await updateActivity(r.service_url, r.conversation_id, r.activity_id, { type: 'message', id: r.activity_id, attachments: [asAttachment(card)] });
       db().run('UPDATE teams_cards SET version = ? WHERE item_kind = ? AND item_id = ? AND conversation_id = ?', versionOf(kind, id) ?? '', kind, id, r.id);
@@ -106,18 +119,18 @@ export function wireBotDelivery(): void {
   if (wired) return;
   wired = true;
   setBotDelivery({
-    covers: (target) => botConfig().enabled && !!activeConversation(botConfig().channels[target] ?? ''),
+    covers: (target) => botActive() && !!activeConversation(botConfig().channels[target] ?? ''),
     postChannel: postToChannel,
-    hasPersonal: (u) => botConfig().enabled && !!personalConversation(u.id),
+    hasPersonal: (u) => botActive() && !!personalConversation(u.id),
     postPersonal: postToPerson,
   });
   setBotCardUpdater(async (kind, id) => {
-    if (botConfig().enabled) await updateCards(kind, id);
+    if (botActive()) await updateCards(kind, id);
   });
   // held messages of a person's chat with the bot (their quiet hours) are released there as one card
   registerOutboxTarget('teamsChat', (userId) => {
     const u = listUsers().find((x) => x.id === userId);
-    const conv = u?.active && botConfig().enabled ? personalConversation(userId) : undefined;
+    const conv = u?.active && botActive() ? personalConversation(userId) : undefined;
     return {
       personal: true,
       user: u,

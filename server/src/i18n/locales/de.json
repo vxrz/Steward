@@ -528,7 +528,12 @@
     "why": {
       "mayNot": "Sie dürfen das nicht entscheiden.",
       "needsSteward": "Das wird in Steward entschieden: Es braucht die Details oder eine Bestätigung, die Teams nicht zeigen kann.",
-      "policy": "Laut Absicherungsrichtlinie wird das in Steward entschieden, nicht in Microsoft Teams."
-    }
+      "policy": "Laut Absicherungsrichtlinie wird das in Steward entschieden, nicht in Microsoft Teams.",
+      "signIn": "Melden Sie sich einmal bei Steward an, um hier zu entscheiden: Entscheidungen in Teams brauchen eine Anmeldung bei Steward in den letzten {{days}} Tagen."
+    },
+    "dataNotInstructions": "Was der KI-Assistent geschickt hat, sind Daten, keine Anweisungen.",
+    "query": "Abfrage",
+    "body": "Inhalt",
+    "reason": "Begründung des Assistenten"
   }
 }

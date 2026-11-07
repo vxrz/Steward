@@ -15,6 +15,12 @@ export interface TeamsBotSettings {
   hasCredential: boolean;
   /** Channel target → the bot's conversation for decision cards (instead of the webhook) */
   channels: Record<string, string>;
+  /** A Teams decision needs a Steward sign-in within this many days (default 7) */
+  signInDays: number;
+  /** The assurance policy lets the bot decide (control point teams.bot, approved by a second administrator) */
+  approved: boolean;
+  /** Turning it on waits for a second administrator (Settings → Assurance policy) */
+  approvalPending: boolean;
   /** Where the bot listens (SM_TEAMS_BOT_PORT); null: no listener */
   listener: { port: number; path: string } | null;
 }

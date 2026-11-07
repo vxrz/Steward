@@ -189,8 +189,9 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
     actions: [],
     supports: { fourEyes: true, stepUp: false, teams: true },
     baseline: {},
-    // per platform: off / confirm (the token owner) / fourEyes (a second person); required: confirm becomes fourEyes
-    defaults: { fourEyes: 'optional', stepUp: false, teams: true },
+    // per platform: off / confirm (the token owner) / fourEyes (a second person); required: confirm becomes fourEyes.
+    // Not in Teams by default: Steward shows the concrete request (path, query, body), a card cannot (security review 0.10.0)
+    defaults: { fourEyes: 'optional', stepUp: false, teams: false },
     fourEyesLevels: BOTH,
     overrides: 'platformMcp',
   },
@@ -204,6 +205,16 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('cost.budget', 'catalogue', ['changeCostBudget']),
   // ---- system and data ----
   sp('notifications.delivery', 'system', ['changeNotificationDelivery']),
+  {
+    // the Teams bot takes decisions at all (ADR 0013, preview): turning it on loosens the policy – a second administrator
+    // approves it; the switches of run.decide and mcp.write then say which decisions
+    key: 'teams.bot',
+    group: 'system',
+    actions: [],
+    supports: { fourEyes: false, stepUp: false, teams: true },
+    baseline: {},
+    defaults: { stepUp: false, teams: false },
+  },
   sp('backup.settings', 'system', ['changeBackups']),
   sp('migration.export', 'system', ['exportMigration']),
   sp('migration.apply', 'system', ['applyMigration']),

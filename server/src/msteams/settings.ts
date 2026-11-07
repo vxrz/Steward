@@ -4,9 +4,12 @@ import { boundedRecord, type TeamsBotSettings } from '@sm/shared';
 import { audit } from '../audit.js';
 import { config } from '../config.js';
 import { vault } from '../vault.js';
-import { HttpError } from '../util.js';
 import { readSetting, writeSetting } from '../settings.js';
 import { getProvider } from '../auth/sso.js';
+import { db } from '../db.js';
+import { HttpError, parseJson } from '../util.js';
+import type { AuthUser } from '../auth/context.js';
+import { currentPolicy, pendingPolicyChange, pointRule, savePolicy } from '../auth/assurance.js';
 
 /**
  * The Teams bot (ADR 0013 stage 2, a preview, off by default): the Entra app id, the allowed tenants, the sign-in
@@ -26,6 +29,8 @@ interface Stored {
   credential: 'certificate' | 'secret';
   /** Channel target → the bot's conversation (teams_conversations.id) used for decision cards instead of the webhook */
   channels: Record<string, string>;
+  /** A Teams decision needs a Steward sign-in within this many days (roles and teams come from the last sign-in) */
+  signInDays: number;
 }
 
 export interface BotSecrets {
@@ -36,7 +41,16 @@ export interface BotSecrets {
   hmacKey: string;
 }
 
-const DEFAULTS: Stored = { enabled: false, appId: '', tenantIds: [], providerId: null, credential: 'certificate', channels: {} };
+export const SIGN_IN_DAYS = { default: 7, max: 30 } as const;
+const DEFAULTS: Stored = {
+  enabled: false,
+  appId: '',
+  tenantIds: [],
+  providerId: null,
+  credential: 'certificate',
+  channels: {},
+  signInDays: SIGN_IN_DAYS.default,
+};
 
 export const botConfig = (): Stored => ({ ...DEFAULTS, ...readSetting<Partial<Stored>>(CONFIG_KEY, {}) });
 
@@ -55,8 +69,11 @@ function saveSecrets(s: BotSecrets): void {
   writeSetting(SECRETS_KEY, { blob: vault().encrypt(s), keys });
 }
 
-/** The bot is on and can answer (configured, the vault unlocked). */
-export const botEnabled = (): boolean => botConfig().enabled;
+/** The assurance policy lets the bot take decisions at all (control point teams.bot – a second administrator turns it on). */
+export const botApproved = (): boolean => pointRule('teams.bot').teams === true;
+
+/** The bot takes decisions and posts cards: switched on here and approved in the assurance policy. */
+export const botActive = (): boolean => botConfig().enabled && botApproved();
 
 export function botSettingsView(): TeamsBotSettings {
   const c = botConfig();
@@ -70,6 +87,9 @@ export function botSettingsView(): TeamsBotSettings {
     credential: c.credential,
     hasCredential: c.credential === 'secret' ? keys.includes('clientSecret') : keys.includes('certificatePem') && keys.includes('privateKeyPem'),
     channels: c.channels,
+    signInDays: c.signInDays,
+    approved: botApproved(),
+    approvalPending: approvalPending(),
     listener: config.teamsBotPort ? { port: config.teamsBotPort, path: '/teams/bot/messages' } : null,
   };
 }
@@ -87,8 +107,18 @@ export const teamsBotInput = z
     certificatePem: z.string().max(20000).optional(),
     privateKeyPem: z.string().max(20000).optional(),
     channels: boundedRecord(z.string().max(64), 200).optional(),
+    /** omitted: keep */
+    signInDays: z.number().int().min(1).max(SIGN_IN_DAYS.max).optional(),
   })
   .strict();
+
+/** A loosening of the assurance policy that turns teams.bot on waits for a second administrator. */
+function approvalPending(): boolean {
+  const p = pendingPolicyChange();
+  if (!p) return false;
+  const row = db().get<{ changes: string }>('SELECT changes FROM assurance_policy_changes WHERE id = ?', p.id);
+  return parseJson<{ point: string }[]>(row?.changes, []).some((c) => c.point === 'teams.bot');
+}
 
 /** Whether the provider identifies people by Entra tid + oid (the only identifiers Teams sends). */
 export function providerUsesOid(providerId: string | null): boolean {
@@ -104,7 +134,7 @@ export function providerUsesOid(providerId: string | null): boolean {
 const CHANNEL_TARGET = /^(teams:instance|webhook:instance|team:[A-Za-z0-9_-]{1,64})$/;
 
 /** Saves the bot settings (step-up changeNotificationDelivery on the route; audited without secrets). */
-export function saveBotSettings(input: z.infer<typeof teamsBotInput>): TeamsBotSettings {
+export function saveBotSettings(input: z.infer<typeof teamsBotInput>, user: AuthUser | null): TeamsBotSettings {
   const before = botConfig();
   if (input.enabled && !input.appId) throw new HttpError(400, 'Enter the app id of the bot', 'TEAMS_BOT_APP_ID');
   if (input.enabled && !GUID.test(input.appId)) throw new HttpError(400, 'The app id is a GUID', 'TEAMS_BOT_APP_ID');
@@ -142,7 +172,20 @@ export function saveBotSettings(input: z.infer<typeof teamsBotInput>): TeamsBotS
     providerId: input.providerId,
     credential: input.credential,
     channels,
+    signInDays: input.signInDays ?? before.signInDays,
   };
+  // switching the bot on loosens the assurance policy (teams.bot): a second administrator approves it there
+  if (next.enabled && !botApproved() && !approvalPending()) {
+    const policy = currentPolicy();
+    savePolicy(
+      {
+        points: { ...policy.points, 'teams.bot': { ...(policy.points['teams.bot'] ?? {}), teams: true } },
+        mfa: policy.mfa,
+        comment: 'Teams bot switched on under Settings → Notifications',
+      },
+      user,
+    );
+  }
   writeSetting(CONFIG_KEY, next);
   saveSecrets(secrets);
   audit({

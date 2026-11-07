@@ -23,6 +23,7 @@ const PW = 'Teams-bot-password-1';
 
 let s: TestServer;
 let alma: Client;
+let admin2: Client;
 let bot: FastifyInstance;
 let mock: MockBotConnector;
 let dbm: typeof import('../src/db.js');
@@ -114,6 +115,11 @@ beforeAll(async () => {
   const key = identityKeys(providerId, { iss: `https://login.microsoftonline.com/${TENANT}/v2.0`, tid: TENANT, oid: ALMA_OID }, ['tid', 'oid']).key!;
   dbm.db().run('UPDATE users SET external_id = ? WHERE username = ?', key, 'alma');
   alma = await s.as('alma', PW);
+  // a second administrator approves loosenings of the assurance policy (switching the bot on is one)
+  const { temporaryPassword } = await s.api('POST', '/users', { username: 'admin2', roles: ['admin'] });
+  const first = await s.as('admin2', temporaryPassword);
+  await first('POST', '/auth/password', { current: temporaryPassword, next: 'Admin2-password-1' });
+  admin2 = await s.as('admin2', 'Admin2-password-1');
   const def = (name: string, fourEyes: boolean) => ({
     definition: {
       name,
@@ -168,6 +174,13 @@ describe('settings', () => {
     const a = (await s.api('GET', '/audit?action=teams.bot_settings_changed&limit=1'))[0];
     expect(a.summary).toContain('clientSecret changed');
     expect(JSON.stringify(a)).not.toContain('bot-secret-value');
+    // switching it on loosens the assurance policy (teams.bot): it waits for a second administrator
+    expect(saved).toMatchObject({ approved: false, approvalPending: true, signInDays: 7 });
+    const pending = (await s.api('GET', '/assurance/policy')).pending;
+    expect(pending.changes).toEqual([{ point: 'teams.bot', field: 'teams', from: false, to: true, direction: 'loosen' }]);
+    await expect(s.api('POST', `/assurance/policy/changes/${pending.id}/approve`, {})).rejects.toMatchObject({ status: 403 });
+    await admin2('POST', `/assurance/policy/changes/${pending.id}/approve`, {});
+    expect(await s.api('GET', '/settings/teams-bot')).toMatchObject({ approved: true, approvalPending: false });
   });
 });
 
@@ -298,7 +311,7 @@ describe('who clicks, and what can be decided in the card', () => {
     await s.api('POST', `/tasks/${t2}/complete`, { approved: false }).catch(() => undefined);
   });
 
-  it('MCP requests: the requester withdraws in the card; decided_via is recorded', async () => {
+  it('MCP requests: in Steward by default; with the switch on, the requester withdraws in the card and decided_via is recorded', async () => {
     const id = `mrq_bot${Date.now()}`;
     const now = new Date().toISOString();
     const later = new Date(Date.now() + 3_600_000).toISOString();
@@ -309,6 +322,13 @@ describe('who clicks, and what can be decided in the card', () => {
       now,
       later,
     );
+    // mcp.write is decided in Steward by default (the full request is shown there)
+    const before = await call(execute('reject', await dataOf('mcp_request', id)));
+    expect(JSON.stringify(before.body)).toContain('The assurance policy has this decided in Steward');
+    expect(dbm.db().get<{ status: string }>('SELECT status FROM mcp_requests WHERE id = ?', id)!.status).toBe('pending');
+    const policy = await s.api('GET', '/assurance/policy');
+    const asked = await s.api('PUT', '/assurance/policy', { points: { ...policy.policy.points, 'mcp.write': { teams: true } }, mfa: policy.policy.mfa });
+    await admin2('POST', `/assurance/policy/changes/${asked.pending.id}/approve`, {});
     const r = await call(execute('reject', await dataOf('mcp_request', id)));
     expect(r.status).toBe(200);
     expect(dbm.db().get('SELECT status, decided_by, decided_via FROM mcp_requests WHERE id = ?', id)).toEqual({
@@ -336,7 +356,7 @@ describe('who clicks, and what can be decided in the card', () => {
 describe('posting through the bot', () => {
   it('sends decision cards to the chosen channel conversation and the personal chat, and updates them when decided', async () => {
     const conv = dbm.db().get<{ id: string }>("SELECT id FROM teams_conversations WHERE conversation_id = '19:orders@thread.tacv2'")!;
-    const { preview: _p, hasCredential: _h, listener: _l, ...settings } = await s.api('GET', '/settings/teams-bot');
+    const { preview: _p, hasCredential: _h, listener: _l, approved: _a, approvalPending: _ap, ...settings } = await s.api('GET', '/settings/teams-bot');
     await s.api('PUT', '/settings/teams-bot', { ...settings, channels: { 'teams:instance': conv.id } });
     const notif = await s.api('GET', '/settings/notifications');
     await s.api('PUT', '/settings/notifications', {

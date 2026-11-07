@@ -32,7 +32,9 @@ Deciding inside Microsoft Teams cards ([TEAMS-APPROVALS.md](TEAMS-APPROVALS.md),
 - Without `SM_TEAMS_BOT_PORT` there is no bot listener at all; with the bot switched off in the settings, the route answers 404.
 - Every call needs a token signed by the Bot Framework for your app id, endorsed for Teams, for the activity's `serviceUrl` on a Teams service host, from an allowed tenant; bodies above 64 KB are refused before anything is parsed; replays (24 h) change nothing; per-tenant and per-user rate limits apply; refusals are audited at most once per reason in 10 minutes (`teams.action_refused`).
 - Outbound, the bot reaches `login.botframework.com`, `login.microsoftonline.com` and the Teams service host – add them to the outbound allow-list; address safety applies.
-- Only accounts linked by Entra `tid` + `oid` decide in a card; the assurance policy's _May be decided in Microsoft Teams_ can forbid it per control point, and nothing that needs a step-up is ever decided there.
+- Only accounts linked by Entra `tid` + `oid` decide in a card, and only after a **Steward sign-in within the last 7 days** (_Sign-in needed within_ in the bot settings): roles and teams of single sign-on accounts are refreshed at sign-in, so removing someone from an IdP group takes effect in Teams within that bound. Keep it short; disabling the Entra account stops Teams at once.
+- The bot takes decisions only once a second administrator turned on _Decide with the Teams bot_ in the assurance policy; _May be decided in Microsoft Teams_ can forbid it per control point (off for AI requests by default), and nothing that needs a step-up is ever decided there.
+- Calls to Microsoft follow no redirects, so the bot's token never reaches another host.
 - Prefer a **certificate** for the bot's credential (sealed with the vault, re-encrypted at key rotation). A stolen credential lets someone post as the bot, not approve.
 
 ## Request rate limits

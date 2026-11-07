@@ -1,5 +1,6 @@
 import {
   EVENT_DIGEST_GROUP,
+  OWNED_KINDS,
   QUIET_LIMITS,
   type DigestPrefs,
   type Locale,
@@ -15,8 +16,7 @@ import { newId, nowIso, parseJson } from '../util.js';
 import { runAs } from '../auth/context.js';
 import { getUser, toAuthUser } from '../auth/users.js';
 import { processPermissions } from '../auth/permissions.js';
-import { getPlatform } from '../platforms/service.js';
-import { monitorVisibility } from '../monitors/redact.js';
+import { canSeeResource } from '../auth/scope-routes.js';
 import { formatDateTime, t, type MessageKey } from '../i18n/index.js';
 import { failingChecks } from '../engine/check-alerts.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
@@ -114,7 +114,8 @@ export function holdMessage(h: HoldInput): void {
     const openCount = () =>
       Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM notification_outbox WHERE target = ? AND released_at IS NULL', h.target)?.n ?? 0);
     // at most 500 open items per target: the oldest are folded into a count
-    for (let i = 0; i < 3 && openCount() >= QUIET_LIMITS.openPerTarget; i++) foldOldest(h, at);
+    // (only decisions left: they all stay, the limit is exceeded rather than a decision hidden)
+    for (let i = 0; i < 3 && openCount() >= QUIET_LIMITS.openPerTarget; i++) if (!foldOldest(h, at)) break;
     db().run(
       `INSERT INTO notification_outbox (id, target, user_id, item_key, event, reason, locale, states, about, first_at, last_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -136,18 +137,26 @@ export function holdMessage(h: HoldInput): void {
 const aboutJson = (a: HeldAbout | null | undefined) => (a && Object.keys(a).length ? JSON.stringify(a) : null);
 
 /** Over the limit: the oldest row of the same event (else of the target) becomes a count ("+ 120 more failed checks"). */
-function foldOldest(h: HoldInput, at: string): void {
+function foldOldest(h: HoldInput, at: string): boolean {
+  // a decision waiting for someone is never folded into a count (security review 0.10.0): only other events are
+  const decisions = Object.entries(EVENT_DIGEST_GROUP)
+    .filter(([, g]) => g === 'decisions')
+    .map(([e]) => e);
+  const notDecision = `event NOT IN (${decisions.map(() => '?').join(', ')})`;
   const oldest =
+    (decisions.includes(h.event)
+      ? undefined
+      : db().get<Row>(
+          "SELECT * FROM notification_outbox WHERE target = ? AND event = ? AND released_at IS NULL AND substr(item_key, 1, 5) <> 'more:' ORDER BY first_at LIMIT 1",
+          h.target,
+          h.event,
+        )) ??
     db().get<Row>(
-      "SELECT * FROM notification_outbox WHERE target = ? AND event = ? AND released_at IS NULL AND substr(item_key, 1, 5) <> 'more:' ORDER BY first_at LIMIT 1",
+      `SELECT * FROM notification_outbox WHERE target = ? AND released_at IS NULL AND substr(item_key, 1, 5) <> 'more:' AND ${notDecision} ORDER BY first_at LIMIT 1`,
       h.target,
-      h.event,
-    ) ??
-    db().get<Row>(
-      "SELECT * FROM notification_outbox WHERE target = ? AND released_at IS NULL AND substr(item_key, 1, 5) <> 'more:' ORDER BY first_at LIMIT 1",
-      h.target,
+      ...decisions,
     );
-  if (!oldest) return;
+  if (!oldest) return false;
   db().run('DELETE FROM notification_outbox WHERE id = ?', oldest.id);
   const key = `more:${oldest.event}`;
   const more = db().get<Row>(
@@ -174,6 +183,7 @@ function foldOldest(h: HoldInput, at: string): void {
       oldest.first_at,
       at,
     );
+  return true;
 }
 
 // ---------- targets ----------
@@ -286,10 +296,9 @@ function stillVisible(u: UserInfo, a: HeldAbout | null): boolean {
         const r = db().get<{ process_id: string }>('SELECT process_id FROM runs WHERE id = ?', a.runId);
         if (!r || !processVisible(r.process_id)) return false;
       }
-      if (a.kind === 'process' && a.id && !processVisible(a.id)) return false;
-      // getPlatform answers 404 for a platform the reader may not see (caught below)
-      if (a.kind === 'platform' && a.id) getPlatform(a.id);
-      if (a.kind === 'monitor' && a.id && !monitorVisibility(au)(a.id)) return false;
+      // every kind a held message can be about (process, platform, monitor, credential, record, service, ticket …):
+      // the same access decision as its page; an unknown kind is left out (security review 0.10.0)
+      if (a.kind && a.id && !((OWNED_KINDS as readonly string[]).includes(a.kind) && canSeeResource(a.kind, a.id, au))) return false;
       return true;
     });
   } catch {

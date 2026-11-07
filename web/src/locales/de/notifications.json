@@ -321,6 +321,11 @@
     },
     "package": "Teams-App-Paket herunterladen",
     "saved": "Einstellungen des Teams-Bots gespeichert",
-    "packageNeedsAppId": "Speichern Sie die App-ID, um das Teams-App-Paket herunterzuladen."
+    "packageNeedsAppId": "Speichern Sie die App-ID, um das Teams-App-Paket herunterzuladen.",
+    "approvalNeeded": "Entscheidungen in Teams brauchen zusätzlich eine zweite Administratorin oder einen zweiten Administrator: Der Punkt „Mit dem Teams-Bot entscheiden“ der Absicherungsrichtlinie ist aus.",
+    "approvalPending": "Wartet darauf, dass eine zweite Administratorin oder ein zweiter Administrator „Mit dem Teams-Bot entscheiden“ in der Absicherungsrichtlinie freigibt. Bis dahin nimmt der Bot keine Entscheidungen entgegen und postet keine Karten.",
+    "toPolicy": "Absicherungsrichtlinie öffnen",
+    "signInDays": "Anmeldung nötig innerhalb von (Tagen)",
+    "signInDaysHint": "Eine Entscheidung in Teams braucht eine Anmeldung bei Steward innerhalb so vieler Tage: Rollen und Teams stammen aus dieser Anmeldung. Standard 7."
   }
 }
