@@ -1195,6 +1195,11 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'PUT /api/backups/passphrase': 'always',
   // where the map of sites fetches its tiles from (#234; the fixtures use OpenStreetMap, the demo's mock of it)
   'PUT /api/settings/plant/map': { sensitive: { source: 'openfreemap' }, harmless: { source: 'osm' } },
+  // checking a new address of an own source is the first step of a new source (the stored own source checks freely)
+  'POST /api/settings/plant/map/check': {
+    sensitive: { kind: 'raster', url: 'https://other-tiles.example.com/{z}/{x}/{y}.png', attribution: 'Example tiles' },
+    harmless: { kind: 'raster', url: 'https://tiles.example.com/{z}/{x}/{y}.png', attribution: 'Example tiles' },
+  },
   // raising a cost budget (#226; the fixtures set 1,000 USD a month for a service); lowering it needs no confirmation
   'PUT /api/costs/budgets': {
     get sensitive() {
@@ -1679,7 +1684,10 @@ beforeAll(async () => {
   // the plant registry module on (#218): in demo mode it loads its example enterprise with the demo data
   await s.api('PUT', '/settings/plant', { enabled: true, enterprise: '', labels: {}, fields: {} });
   // the map of sites on (#234): OpenStreetMap, in demo mode the mock tile source of this server
-  await s.api('PUT', '/settings/plant/map', { source: 'osm' });
+  await s.api('PUT', '/settings/plant/map', {
+    source: 'osm',
+    own: { kind: 'raster', url: 'https://tiles.example.com/{z}/{x}/{y}.png', attribution: 'Example tiles' },
+  });
   await s.api('POST', '/demo/setup', {});
   await allowEmailDomains(s, ['example.com']);
   // a plant viewer (#218): the demo has none

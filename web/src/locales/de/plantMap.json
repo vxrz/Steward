@@ -135,6 +135,7 @@
       "key": "Schlüssel",
       "keyHelp": "Wird im Tresor gespeichert und vom Server von Steward hinzugefügt; der Browser sieht ihn nie.",
       "keyStored": "Ein Schlüssel ist im Tresor gespeichert. Lassen Sie das Feld leer, um ihn zu behalten.",
+      "keyAgain": "Der gespeicherte Schlüssel gehört zur bisherigen Adresse: Geben Sie ihn für diese erneut ein.",
       "removeKey": "Gespeicherten Schlüssel entfernen",
       "check": "Stil prüfen",
       "checked_one": "Gelesen: {{count}} Ebene, {{kind}}. Von den Ursprüngen unten wird Steward holen.",

@@ -33,7 +33,18 @@ import { siteRights } from './access.js';
 import { requirePlant } from './settings.js';
 import { overview } from './views.js';
 import { openMapTilesLayers, protomapsLayers, rasterLayers, type Layer, type MapTheme } from './mapStyles.js';
-import { MapError, archiveOf, clearArchives, fetchMapFile, fetchStatus, pmtilesTile, resetFetchStatus, type Fetched, type Upstream } from './mapTiles.js';
+import {
+  MapError,
+  where,
+  archiveOf,
+  clearArchives,
+  fetchMapFile,
+  fetchStatus,
+  pmtilesTile,
+  resetFetchStatus,
+  type Fetched,
+  type Upstream,
+} from './mapTiles.js';
 
 /**
  * The map of sites (#234, ADR 0015): its settings (internal setting `plant.map`, the API key vault-encrypted in
@@ -443,6 +454,20 @@ export async function mapSprite(file: string): Promise<Fetched> {
   return fetchMapFile(upstreamOf(p, `${pathPart}${hi ? '@2x' : ''}${ext}${query}`, 'sprite'));
 }
 
+/**
+ * A tile, glyph or sprite answer for the reader: when the source fails, administrators read where and why (the address
+ * and path, a status), everybody else only that it failed – as GET /api/plant/map/status says.
+ */
+export async function forReader(fetchFile: () => Promise<Fetched>): Promise<Fetched> {
+  try {
+    return await fetchFile();
+  } catch (e) {
+    if (e instanceof HttpError && e.code === 'PLANT_MAP_UPSTREAM' && !isAdmin(currentUser()))
+      throw new HttpError(502, 'The map source did not answer as expected', 'PLANT_MAP_SOURCE_FAILED');
+    throw e;
+  }
+}
+
 export function mapStatus(): PlantMapStatus {
   requireMap();
   const s = fetchStatus();
@@ -560,7 +585,7 @@ const ID_OK = (s: string) => s.length > 0 && s.length <= 40 && [...s].every((c) 
  * to its tile template), its layers on those sources, its glyphs and sprite. Every URL is resolved against the style's
  * address; their origins become the source's origins. Everything else of the file is dropped.
  */
-async function readOwnStyle(styleUrl: string, key: Plan['key'], keyVal: string | null): Promise<OwnStyle> {
+async function readOwnStyle(styleUrl: string, key: Plan['key'], keyVal: string | null, keyOrigins?: string[]): Promise<OwnStyle> {
   const styleOrigin = new URL(styleUrl).origin;
   const origins = new Set<string>([styleOrigin]);
   const up = (url: string, kind: Upstream['kind']): Upstream => ({
@@ -568,6 +593,7 @@ async function readOwnStyle(styleUrl: string, key: Plan['key'], keyVal: string |
     kind,
     origins: [...origins],
     key: key && keyVal ? { ...key, value: keyVal } : null,
+    ...(keyOrigins ? { keyOrigins } : {}),
     stamp: `check|${Date.now()}`,
   });
   const style = parseJsonFile(await fetchMapFile(up(styleUrl, 'json')), 'style');
@@ -706,21 +732,42 @@ export function mapBody(body: unknown): MapSettingsInput | null {
   return b.success ? b.data : null;
 }
 
-/** Whether a change moves where tiles come from: a new source, URL, key or file, or the style read again. Off never asks. */
+/** The origins of a stored own source: its template's, or everything its style was read from. */
+function ownOrigins(o: OwnSettings | null): string[] {
+  if (!o) return [];
+  const own = originOfUrl(o.url);
+  const st = o.kind === 'style' ? readSetting<OwnStyle | null>(KEY_STYLE, null) : null;
+  return [...new Set([own, ...(st && st.url === o.url ? st.origins : [])])].sort();
+}
+
+/** Whether an own source differs from the stored one where it matters: kind, address, where the key goes, a new key. */
+function ownChanged(o: OwnSettings | null, b: NonNullable<MapSettingsInput['own']>): boolean {
+  return !o || o.kind !== b.kind || o.url !== b.url || o.keyPlace !== b.keyPlace || (b.keyPlace !== 'none' && o.keyName !== b.keyName) || b.key !== undefined;
+}
+
+/**
+ * Whether a change moves where tiles come from: a new source, a changed own source or file (also while another source
+ * is chosen – it is what the map uses once it is chosen), or the style read again. Turning the map off never asks: it
+ * keeps the stored own source and file as they are.
+ */
 export function changesMapSource(b: MapSettingsInput | null): boolean {
   if (!b) return true;
   if (b.source === 'off') return false;
   const s = stored();
-  if (b.reload) return true;
-  if (b.source !== s.source) return true;
-  if (b.source === 'own' && b.own) {
-    const o = s.own;
-    if (!o || o.kind !== b.own.kind || o.url !== b.own.url || o.keyPlace !== b.own.keyPlace || o.keyName !== b.own.keyName) return true;
-    if (b.own.key !== undefined) return true;
-  }
-  if (b.source === 'file' && b.file && b.file.name !== s.file?.name) return true;
+  if (b.reload || b.source !== s.source) return true;
+  if (b.own && ownChanged(s.own, b.own)) return true;
+  if (b.file && b.file.name !== s.file?.name) return true;
   return false;
 }
+
+/** The body of POST /api/settings/plant/map/check, if it parses (for the step-up rule). */
+export function checkBody(body: unknown): NonNullable<MapSettingsInput['own']> | null {
+  const b = mapSettingsInput.shape.own.unwrap().safeParse(body ?? {});
+  return b.success ? b.data : null;
+}
+
+/** A check reads a new address (or with a new key) – the step-up of a new source; the stored source checks freely. */
+export const checkNeedsStepUp = (b: NonNullable<MapSettingsInput['own']> | null): boolean => !b || ownChanged(stored().own, b);
 
 export async function mapSettingsView(): Promise<PlantMapSettingsView> {
   const s = stored();
@@ -745,19 +792,44 @@ function ownInput(b: NonNullable<MapSettingsInput['own']>): OwnSettings {
   return { kind: b.kind, url: b.url, attribution: b.attribution, keyPlace: b.keyPlace, keyName: b.keyPlace === 'none' ? '' : b.keyName, maxZoom: b.maxZoom };
 }
 
-/** POST /api/settings/plant/map/check: reads an own style (or checks a template) and says where it would fetch from. */
+/**
+ * POST /api/settings/plant/map/check: reads an own style (or checks a template) and says where it would fetch from. The
+ * stored API key is used only for the stored source's own address, and only towards its origins; a new address is
+ * read without it (a key for it is entered with the check). Audited, never with a key.
+ */
 export async function checkMapSource(b: NonNullable<MapSettingsInput['own']>): Promise<PlantMapCheck> {
   me();
   const o = ownInput({ ...b, attribution: b.attribution || '–' });
-  const keyVal = b.key !== undefined ? b.key || null : keyValue();
-  if (o.kind === 'raster') return { origins: [originOfUrl(o.url)], kind: 'raster', layers: 1, attribution: b.attribution };
-  const st = await readOwnStyle(o.url, o.keyPlace !== 'none' ? { place: o.keyPlace, name: o.keyName } : null, keyVal);
-  return {
-    origins: st.origins,
-    kind: Object.values(st.sources).some((x) => x.type === 'vector') ? 'vector' : 'raster',
-    layers: st.layers.length,
-    attribution: [b.attribution, ...st.attribution].filter(Boolean).join(' · '),
-  };
+  const s = stored();
+  const storedKey = b.key === undefined && !!s.own && hasKey() && !ownChanged(s.own, b);
+  const keyVal = b.key !== undefined ? b.key || null : storedKey ? keyValue() : null;
+  let result: PlantMapCheck | null = null;
+  try {
+    if (o.kind === 'raster') result = { origins: [originOfUrl(o.url)], kind: 'raster', layers: 1, attribution: b.attribution };
+    else {
+      const st = await readOwnStyle(
+        o.url,
+        o.keyPlace !== 'none' ? { place: o.keyPlace, name: o.keyName } : null,
+        keyVal,
+        storedKey ? ownOrigins(s.own) : undefined,
+      );
+      result = {
+        origins: st.origins,
+        kind: Object.values(st.sources).some((x) => x.type === 'vector') ? 'vector' : 'raster',
+        layers: st.layers.length,
+        attribution: [b.attribution, ...st.attribution].filter(Boolean).join(' · '),
+      };
+    }
+    return result;
+  } finally {
+    audit({
+      action: 'plant.map_source_checked',
+      entityType: 'settings',
+      entityId: 'plant.map',
+      summary: `Map of sites: ${o.kind === 'style' ? 'style' : 'tile template'} at ${originOfUrl(o.url)} checked${result ? '' : ' (it could not be used)'}`,
+      details: { kind: o.kind, origins: result?.origins ?? [originOfUrl(o.url)], storedKey, ok: !!result },
+    });
+  }
 }
 
 export async function updateMapSettings(b: MapSettingsInput): Promise<PlantMapSettingsView> {
@@ -768,29 +840,39 @@ export async function updateMapSettings(b: MapSettingsInput): Promise<PlantMapSe
   const next: Stored = { ...before, source: b.source, updatedAt: nowIso(), updatedBy: u.username };
   let newStyle: OwnStyle | null | undefined;
   let newKey: string | null | undefined;
-  if (b.own) {
-    next.own = ownInput(b.own);
-    if (b.own.key !== undefined) newKey = b.own.key || null;
+  // turning the map off keeps the stored own source, its key and the file as they are
+  const own = b.source === 'off' ? undefined : b.own;
+  const file = b.source === 'off' ? undefined : b.file;
+  if (own) {
+    next.own = ownInput(own);
+    if (own.key !== undefined) newKey = own.key || null;
+    // a stored key belongs to its address: another origin needs the key entered again
+    else if (before.own && hasKey() && originOfUrl(before.own.url) !== originOfUrl(next.own.url)) {
+      if (next.own.keyPlace !== 'none') throw new HttpError(400, 'Enter the API key again for the new address', 'PLANT_MAP_KEY_AGAIN');
+      newKey = null;
+    } else if (next.own.keyPlace === 'none' && hasKey()) newKey = null;
+    // a stored style of another address is read again before it is used
+    if (next.own.kind !== 'style' || readSetting<OwnStyle | null>(KEY_STYLE, null)?.url !== next.own.url) newStyle = b.source === 'own' ? undefined : null;
   }
   if (b.source === 'own') {
     if (!next.own) throw new MapError(400, 'Enter the tile source', 'PLANT_MAP_URL', { what: 'Tile URL' });
     if (next.own.kind === 'style') {
-      const same = before.own?.kind === 'style' && before.own.url === next.own.url && readSetting<OwnStyle | null>(KEY_STYLE, null);
+      const same = before.own?.kind === 'style' && readSetting<OwnStyle | null>(KEY_STYLE, null)?.url === next.own.url;
       if (!same || b.reload || newKey !== undefined || before.source !== 'own') {
         const keyVal = newKey !== undefined ? newKey : keyValue();
         newStyle = await readOwnStyle(next.own.url, next.own.keyPlace !== 'none' ? { place: next.own.keyPlace, name: next.own.keyName } : null, keyVal);
       }
     }
   }
-  if (b.file) {
-    if (!FILE_NAME_OK(b.file.name) || !fs.existsSync(path.join(mapsDir(), b.file.name)))
-      throw new MapError(400, `No map file "${b.file.name.slice(0, 200)}" in the maps folder`, 'PLANT_MAP_FILE');
-    const d = await describeFile(b.file.name);
+  if (file) {
+    if (!FILE_NAME_OK(file.name) || !fs.existsSync(path.join(mapsDir(), file.name)))
+      throw new MapError(400, `No map file "${file.name.slice(0, 200)}" in the maps folder`, 'PLANT_MAP_FILE');
+    const d = await describeFile(file.name);
     if (d.problem || d.kind === 'unknown') throw new MapError(400, d.problem ?? 'The file cannot be drawn', 'PLANT_MAP_FILE');
-    if (!b.file.attribution && !d.attribution) throw new HttpError(400, 'Enter the attribution of the map data (the file names none)', 'PLANT_MAP_ATTRIBUTION');
+    if (!file.attribution && !d.attribution) throw new HttpError(400, 'Enter the attribution of the map data (the file names none)', 'PLANT_MAP_ATTRIBUTION');
     next.file = {
       name: d.name,
-      attribution: b.file.attribution,
+      attribution: file.attribution,
       kind: d.kind,
       schema: d.schema,
       minZoom: d.minZoom,
@@ -801,6 +883,8 @@ export async function updateMapSettings(b: MapSettingsInput): Promise<PlantMapSe
   if (b.source === 'file' && !next.file) throw new MapError(400, 'Choose a map file', 'PLANT_MAP_FILE');
   writeSetting(KEY, next);
   if (newStyle !== undefined) writeSetting(KEY_STYLE, newStyle);
+  const ownBefore = before.own ? originOfUrl(before.own.url) : null;
+  const ownAfter = next.own ? originOfUrl(next.own.url) : null;
   if (newKey !== undefined) writeSetting(KEY_SECRET, newKey ? { blob: vault().encrypt(newKey) } : null);
   clearArchives();
   resetFetchStatus();
@@ -816,6 +900,13 @@ export async function updateMapSettings(b: MapSettingsInput): Promise<PlantMapSe
     details: {
       old: { source: before.source, origins: beforeOrigins, ...(before.file ? { file: before.file.name } : {}) },
       new: { source: next.source, origins: afterOrigins, ...(next.file ? { file: next.file.name } : {}) },
+      // the own source is what the map uses once it is chosen: its change is recorded whatever source is chosen now
+      ...(own && (ownBefore !== ownAfter || before.own?.url !== next.own?.url)
+        ? {
+            own: { old: ownBefore ? [ownBefore] : [], new: ownAfter ? [ownAfter] : [] },
+            ownUrl: { old: before.own ? where(before.own.url) : null, new: next.own ? where(next.own.url) : null },
+          }
+        : {}),
       ...(newKey !== undefined ? { apiKey: newKey ? 'set' : 'removed' } : {}),
       ...(newStyle ? { styleReadAt: newStyle.fetchedAt } : {}),
     },

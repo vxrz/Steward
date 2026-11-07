@@ -68,6 +68,8 @@ export interface Upstream {
   kind: FetchKind;
   origins: string[];
   key?: { place: 'query' | 'header'; name: string; value: string } | null;
+  /** The key goes only to these origins (a stored key: its own source's origins); default: every origin of `origins` */
+  keyOrigins?: string[];
   /** Part of the cache key: a new source never reads the old one's entries */
   stamp: string;
   /** Above zoom 12: the user whose own cache entry it is */
@@ -304,8 +306,8 @@ async function readLimited(res: Awaited<ReturnType<typeof fetch>>, max: number, 
   return Buffer.concat(chunks);
 }
 
-function withKey(url: string, key: Upstream['key']): { url: string; headers: Record<string, string> } {
-  if (!key) return { url, headers: {} };
+function withKey(url: string, key: Upstream['key'], keyOrigins?: string[]): { url: string; headers: Record<string, string> } {
+  if (!key || (keyOrigins && !keyOrigins.includes(originOf(url) ?? ''))) return { url, headers: {} };
   if (key.place === 'header') return { url, headers: Object.fromEntries([[key.name.toLowerCase(), key.value]]) };
   const u = new URL(url);
   u.searchParams.set(key.name, key.value);
@@ -325,7 +327,7 @@ async function send(
     await assertAddressSafe(url).catch((e: unknown) => {
       throw new MapError(502, `${where(url)}: ${(e as Error).message}`, 'PLANT_MAP_UPSTREAM', { reason: 'address' });
     });
-    const k = withKey(url, up.key);
+    const k = withKey(url, up.key, up.keyOrigins);
     let res: Awaited<ReturnType<typeof fetch>>;
     try {
       res = await withSlot(origin, () =>

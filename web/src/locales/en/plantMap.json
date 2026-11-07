@@ -135,6 +135,7 @@
       "key": "Key",
       "keyHelp": "Stored in the vault and added by Steward's server; the browser never sees it.",
       "keyStored": "A key is stored in the vault. Leave this empty to keep it.",
+      "keyAgain": "The stored key belongs to the previous address: enter it again for this one.",
       "removeKey": "Remove the stored key",
       "check": "Check the style",
       "checked_one": "Read: {{count}} layer, {{kind}}. The origins below are where Steward will fetch from.",
