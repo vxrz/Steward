@@ -6,24 +6,18 @@ import * as platforms from '../platforms/service.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
 import { manualForReader } from '../engine/manual.js';
-import { currentUser, type AuthUser } from '../auth/context.js';
-import { sameIdentity } from '../auth/aliases.js';
-import { decisionCheck, isAdmin, processPermissions, require } from '../auth/permissions.js';
+import { seesDebugRun, seesRun } from '../engine/visibility.js';
+import { currentUser } from '../auth/context.js';
+import { decisionCheck, processPermissions, require } from '../auth/permissions.js';
 
 // ---------- helpers ----------
 
-/**
- * Debug runs (ADR 0010) are a workbench, not a team record: only their starter, the process's managers, administrators
- * and auditors see them – everyone else gets "not found", as for a hidden process.
- */
-export function seesDebugRun(u: AuthUser | null, actor: string, perms: string[]): boolean {
-  return !!u && (sameIdentity(actor, u) || perms.includes('manage') || isAdmin(u) || u.roles.includes('auditor'));
-}
+export { seesDebugRun } from '../engine/visibility.js';
 
 export function requireRun(runId: string, perm: 'view' | 'run', what: string) {
   const r = store.runRow(runId);
   const perms = processes.permissionsFor(r.process_id);
-  if (!perms.includes('view') || (r.debug && !seesDebugRun(currentUser(), r.actor, perms))) throw new HttpError(404, `Run ${runId} not found`);
+  if (!seesRun(r, perms)) throw new HttpError(404, `Run ${runId} not found`);
   require(perms, perm, what);
   return r;
 }

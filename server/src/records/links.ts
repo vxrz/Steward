@@ -1,3 +1,4 @@
+import { seesRun } from '../engine/visibility.js';
 import { z } from 'zod';
 import { LINK_KINDS, type Backlink, type ItemLink, type LinkKind, type LinkTarget, type PlatformPermission, type AclEntry } from '@sm/shared';
 import { db } from '../db.js';
@@ -68,12 +69,12 @@ registerLinkKind('process', {
 
 registerLinkKind('run', {
   resolve(id) {
-    const r = db().get<{ process_id: string; process_name: string; started_at: string; status: string }>(
-      // debug runs: one run by its id (a link that exists)
-      'SELECT process_id, process_name, started_at, status FROM runs WHERE id = ?',
+    const r = db().get<{ process_id: string; process_name: string; started_at: string; status: string; actor: string; debug: string | null }>(
+      // debug runs: one run by its id, shown only to those who may see it (ADR 0010)
+      'SELECT process_id, process_name, started_at, status, actor, debug FROM runs WHERE id = ?',
       id,
     );
-    if (!r || !permissionsFor(r.process_id).includes('view')) return null;
+    if (!r || !seesRun(r, permissionsFor(r.process_id))) return null;
     return { label: `${r.process_name} · ${id}`, path: `/runs/${id}`, detail: `${r.status} · ${r.started_at}` };
   },
   search(q, limit) {

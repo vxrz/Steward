@@ -2,6 +2,8 @@ import { systemsForProcess } from '../catalogue/systems.js';
 import { forecastTo, type FlowNode, type NodeInspection, type ProcessDefinition } from '@sm/shared';
 import { db } from '../db.js';
 import { parseJson, preview } from '../util.js';
+import { HttpError } from '../util.js';
+import { seesRun } from './visibility.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
 import { metricForRun } from '../dashboards/datasets.js';
 import { builtinDatasetVisible } from '../dashboards/builtin.js';
@@ -116,7 +118,14 @@ export function reconstructVars(runId: string, def: ProcessDefinition, beforeNod
 /** Latest run of a process (or the given run, which must belong to it). */
 export function pickRun(processId: string, runId?: string): store.RunRow | undefined {
   if (runId) {
-    const r = store.runRow(runId);
+    let r: store.RunRow;
+    try {
+      r = store.runRow(runId);
+    } catch {
+      throw new HttpError(404, `Run ${runId} not found`);
+    }
+    // a run the caller may not see – a hidden debug run too (ADR 0010) – answers like a missing one
+    if (!seesRun(r, permissionsFor(r.process_id))) throw new HttpError(404, `Run ${runId} not found`);
     if (r.process_id !== processId) throw Object.assign(new Error(`Run ${runId} does not belong to process ${processId}`), { statusCode: 400 });
     return r;
   }

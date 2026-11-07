@@ -242,12 +242,22 @@ class RunContext {
     return out;
   }
 
+  /**
+   * A single-node debug run with variables and inputs copied from another run (ADR 0010): they may carry everything
+   * that run read, so its sources count here too – the AI allowed-data rule holds for copied data.
+   */
+  copiedFrom?: string;
+  private withCopied(own: Set<string>, of: (runId: string) => Set<string>): Set<string> {
+    if (this.copiedFrom) for (const x of of(this.copiedFrom)) own.add(x);
+    return own;
+  }
+
   /** Sources with ANY and INPUT expanded to what they stand for in this run: platform ids, INPUT, dataset:<key>. */
   expandSources(sources: Iterable<string>): Set<string> {
     const out = new Set<string>();
     for (const x of sources) {
-      if (x === ANY) for (const y of (this.anySources ??= runSources(this.runId))) out.add(y);
-      else if (x === INPUT) for (const y of (this.inputSourceSet ??= inputSources(this.runId))) out.add(y);
+      if (x === ANY) for (const y of (this.anySources ??= this.withCopied(runSources(this.runId), runSources))) out.add(y);
+      else if (x === INPUT) for (const y of (this.inputSourceSet ??= this.withCopied(inputSources(this.runId), inputSources))) out.add(y);
       else out.add(x);
     }
     return out;
@@ -708,7 +718,37 @@ export function nodeSlots(node: FlowNode): Set<string> {
   return out;
 }
 
-export async function startRun(
+/** Single-node debug runs per person at the same time (they never wait for a slot of SM_MAX_CONCURRENT_RUNS). */
+export const MAX_NODE_RUNS_PER_PERSON = 2;
+const nodeRunsOf = new Map<string, number>();
+function releaseNodeRun(actor: string): void {
+  const n = (nodeRunsOf.get(actor) ?? 1) - 1;
+  if (n > 0) nodeRunsOf.set(actor, n);
+  else nodeRunsOf.delete(actor);
+}
+
+type StartOpts = Parameters<typeof startRunInner>[1];
+
+export async function startRun(req: StartRunRequest, opts: StartOpts = {}): Promise<string> {
+  // a single node runs at once, never queued behind scheduled runs – but at most two per person at a time (reserved
+  // before anything is awaited, so parallel requests cannot slip past)
+  const nodeActor = opts.debug?.spec.kind === 'node' && !opts.parent ? (opts.actor ?? currentActor()) : null;
+  if (nodeActor) {
+    if ((nodeRunsOf.get(nodeActor) ?? 0) >= MAX_NODE_RUNS_PER_PERSON)
+      throw new HttpError(429, `${MAX_NODE_RUNS_PER_PERSON} of your single-node runs are still running – wait until one has finished`, 'DEBUG_NODE_BUSY', {
+        max: MAX_NODE_RUNS_PER_PERSON,
+      });
+    nodeRunsOf.set(nodeActor, (nodeRunsOf.get(nodeActor) ?? 0) + 1);
+  }
+  try {
+    return await startRunInner(req, { ...opts, nodeActor });
+  } catch (e) {
+    if (nodeActor) releaseNodeRun(nodeActor);
+    throw e;
+  }
+}
+
+async function startRunInner(
   req: StartRunRequest,
   opts: {
     trigger?: 'manual' | 'schedule' | 'subprocess' | 'webhook' | 'monitor' | 'debug';
@@ -720,6 +760,8 @@ export async function startRun(
     parent?: { runId: string; stepKey: string };
     /** A debug run (ADR 0010): never live */
     debug?: DebugStart;
+    /** Internal: the person whose single-node run slot this run holds until it ends */
+    nodeActor?: string | null;
   } = {},
 ): Promise<string> {
   if (!accepting && opts.trigger !== 'subprocess') throw new HttpError(503, 'Steward is shutting down: no new runs start now', 'SHUTTING_DOWN');
@@ -831,7 +873,7 @@ export async function startRun(
     pumpQueue();
     return runId;
   }
-  launch(runId, def, inputs, bindings, !!req.dryRun, actor, startedAt, store.emptyStats(), undefined, recorded, { debug, audited });
+  launch(runId, def, inputs, bindings, !!req.dryRun, actor, startedAt, store.emptyStats(), undefined, recorded, { debug, audited, nodeActor: opts.nodeActor });
   return runId;
 }
 
@@ -875,7 +917,7 @@ function launch(
   stats: RunStats,
   resumedBy?: string,
   recorded = false,
-  extra: { debug?: DebugStart; audited?: boolean } = {},
+  extra: { debug?: DebugStart; audited?: boolean; nodeActor?: string | null } = {},
 ): void {
   const ctx = new RunContext(runId, def, inputs, bindings, dryRun || recorded, actor, startedAt, stats);
   ctx.recorded = recorded;
@@ -887,7 +929,11 @@ function launch(
     if (extra.debug.spec.kind === 'node') {
       ctx.debugNode = extra.debug.seed ?? { vars: {} };
       ctx.rootVars = { ...ctx.debugNode.vars };
-      for (const k of Object.keys(ctx.rootVars)) ctx.taint(k, [INPUT]);
+      // variables copied from a run carry that run's sources; sample data a person typed or pasted is a run input
+      const src = extra.debug.spec.varsFrom === 'run' ? extra.debug.spec.varsRunId : undefined;
+      if (src) ctx.copiedFrom = src;
+      const sources = src ? [...runSources(src)] : [INPUT];
+      for (const k of Object.keys(ctx.rootVars)) ctx.taint(k, sources);
     } else if (!store.runRow(runId).parent_run_id) {
       // pauses only in the run the person steps through; its sub-process runs run without them
       ctx.gate = new DebugGate({ pauseBeforeEach: extra.debug.spec.pauseBeforeEach, breakpoints: extra.debug.spec.breakpoints });
@@ -895,6 +941,7 @@ function launch(
   }
   const done = execute(ctx).finally(() => {
     ctx.gate?.close();
+    if (extra.nodeActor) releaseNodeRun(extra.nodeActor);
     active.delete(runId);
     pumpQueue();
   });
@@ -934,7 +981,7 @@ export async function resumeRun(runId: string, actor = currentActor()): Promise<
 export async function cancelRun(runId: string, actor = currentActor(), reason = `Cancelled by ${actor}`): Promise<void> {
   const r = store.runRow(runId);
   if (['succeeded', 'failed', 'cancelled'].includes(r.status)) throw new HttpError(409, `Run already ${r.status}`);
-  const why = reason.slice(0, 500);
+  const why = cancelReasonText(reason);
   const a = active.get(runId);
   for (const t of store.listTasks({ runId, status: 'open' })) {
     try {
@@ -970,10 +1017,21 @@ export async function cancelRun(runId: string, actor = currentActor(), reason = 
         entityType: 'run',
         entityId: runId,
         runId,
-        summary: `Run cancelled: ${why}`,
+        summary: `Run cancelled by ${actor}${reasonTail(why, actor)}`,
         details: { reason: why, cancelledBy: actor },
       });
   }
+}
+
+/** A cancel reason as plain text: one line, no control characters, at most 500 characters. */
+export function cancelReasonText(reason: string): string {
+  const oneLine = [...reason].map((c) => (c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127 ? ' ' : c)).join('');
+  return oneLine.replace(/\s+/g, ' ').trim().slice(0, 500) || 'Cancelled';
+}
+
+/** The reason after "cancelled by <who>" – left out when it only repeats that (the default reason). */
+function reasonTail(reason: string, by: string): string {
+  return reason === `Cancelled by ${by}` ? '' : ` – reason: ${reason.slice(0, 200)}`;
 }
 
 /** An offline single-node debug run (never audited). */
@@ -1192,7 +1250,10 @@ async function execute(ctx: RunContext): Promise<void> {
     entityType: 'run',
     entityId: ctx.runId,
     runId: ctx.runId,
-    summary: `Run of "${ctx.def.name}" ${status}${error && status === 'failed' ? `: ${error.slice(0, 200)}` : ''}${reason ? `: ${reason.slice(0, 200)}` : ''}`,
+    // the entry's actor is the run's starter: who cancelled it is named in the summary, before the free-text reason
+    summary: `Run of "${ctx.def.name}" ${status}${error && status === 'failed' ? `: ${error.slice(0, 200)}` : ''}${
+      reason ? ` by ${ctx.cancelledBy ?? 'system'}${reasonTail(reason, ctx.cancelledBy ?? 'system')}` : ''
+    }`,
     details: {
       stats: ctx.stats,
       protocolHash: store.protocolHash(ctx.runId),
@@ -2674,11 +2735,24 @@ function debugSkip(ctx: RunContext, node: FlowNode, key: string, scope: string |
 /** From the first simulated or skipped decision on, the run answers from recordings only (ADR 0010). */
 function recordedOnlyFrom(ctx: RunContext, key: string, name: string): void {
   if (!ctx.debug || ctx.debug.recordedFrom) return;
-  ctx.debug.recordedFrom = key;
+  switchToRecorded(ctx, key, `"${name}" was answered while debugging, nobody really decided it`);
+  // the whole run tree – the run that stepped through and every sub-process run of it – answers from recordings only
+  // from now on (ADR 0010): a decision nobody really made never lets data leave Steward, wherever it was skipped
+  const root = store.ancestorChain(ctx.runId).at(-1)?.id ?? ctx.runId;
+  const from = ctx.runId === root ? key : `${ctx.runId}/${key}`;
+  for (const a of active.values()) {
+    if (a.ctx === ctx || !a.ctx.debug || a.ctx.debug.recordedFrom) continue;
+    if ((store.ancestorChain(a.ctx.runId).at(-1)?.id ?? a.ctx.runId) !== root) continue;
+    switchToRecorded(a.ctx, from, `a decision was answered while debugging in run ${ctx.runId}`);
+  }
+}
+
+function switchToRecorded(ctx: RunContext, from: string, why: string): void {
+  ctx.debug!.recordedFrom = from;
   ctx.recorded = true;
   ctx.dryRun = true;
-  store.setRunDebug(ctx.runId, ctx.debug);
-  ctx.log('warn', `From here on the run answers from recordings only: "${name}" was answered while debugging, nobody really decided it`, key);
+  store.setRunDebug(ctx.runId, ctx.debug!);
+  ctx.log('warn', `From here on the run answers from recordings only: ${why}`);
 }
 
 /** A decision, selection or manual step in a debug run: answered by the debugger (simulated), never a real task. */
