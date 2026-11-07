@@ -41,6 +41,7 @@ import { getSnapshot, subjectOf as schemaSubjectOf } from '../dbschema/service.j
 import { HttpError, newId, nowIso, parseJson, sha256, slugify } from '../util.js';
 import { diffContracts } from './diff.js';
 import { factsOf, parseContract, readContract, type OdcsDoc } from './odcs.js';
+import { assertSqlRules, contractDialects, sqlRules } from './sqlrules.js';
 
 /**
  * Data contracts (0.9.0, #221, docs/DATA-CONTRACTS.md): ODCS v3 contracts, every saved version, the changes between
@@ -556,6 +557,48 @@ function checkServicePlatform(platformId: string, u: AuthUser): Platform {
   return p;
 }
 
+/**
+ * A contract with SQL quality rules (docs/DATA-CONTRACTS.md#sql-quality-rules): every rule passes Steward's statement
+ * check for the DBMS of the contract's servers, and whoever saves it has the "use" right on every database platform
+ * linked to its servers – the service runs the SQL with that platform's credentials. A platform the caller may not see
+ * is not named.
+ */
+function checkSqlRules(doc: OdcsDoc, serverPlatformIds: string[], u: AuthUser): void {
+  const rules = sqlRules(doc);
+  if (!rules.length) return;
+  assertSqlRules(rules, contractDialects(doc));
+  for (const pid of new Set(serverPlatformIds)) {
+    const p = platformVisible(pid, u);
+    if (!p)
+      throw new HttpError(403, 'SQL quality rules need the "use" right on the database platforms linked to the contract', 'DATA_CONTRACT_SQL_NEEDS_USE', {
+        count: rules.length,
+      });
+    if (!p.permissions.includes('use'))
+      throw new HttpError(
+        403,
+        `SQL quality rules run with the credentials of "${p.name}": you need its "use" right to save them`,
+        'DATA_CONTRACT_SQL_NEEDS_USE_PLATFORM',
+        { name: p.name, count: rules.length },
+      );
+  }
+}
+
+const serverLinkTargets = (contractId: string): string[] =>
+  linkRows(contractId)
+    .filter((l) => l.kind === 'server')
+    .map((l) => l.target_id);
+
+/** Why a text that parses cannot be saved for its SQL rules (the editor's live check), or null. */
+function sqlProblemsOf(doc: OdcsDoc): DataContractLintFinding[] {
+  try {
+    assertSqlRules(sqlRules(doc), contractDialects(doc));
+    return [];
+  } catch (e) {
+    const err = e as HttpError & { params?: Record<string, unknown> };
+    return [{ path: String(err.params?.path ?? '/'), message: err.message, severity: 'error', source: 'yaml' }];
+  }
+}
+
 function insertVersion(
   contractId: string,
   version: number,
@@ -590,8 +633,13 @@ export function createContract(body: unknown): DataContractDetail {
   const u = me();
   requireCreate(u);
   const input = dataContractCreateInput.parse(body);
-  const { facts, lint } = readContract(input.yaml);
+  const { facts, lint, doc } = readContract(input.yaml);
   const links = input.links.map((l) => checkLink(dataContractLinkInput.parse(l), facts, u));
+  checkSqlRules(
+    doc,
+    links.filter((l) => l.kind === 'server').map((l) => l.target_id),
+    u,
+  );
   const settings = input.settings ?? {};
   if (settings.servicePlatformId) checkServicePlatform(settings.servicePlatformId, u);
   if (settings.testServer && !facts.servers.some((s) => s.server === settings.testServer))
@@ -650,12 +698,14 @@ export function previewVersion(id: string | null, yaml: string): DataContractPre
   if (id === null) {
     me();
     const p = parseContract(yaml);
-    if (p.problems.length) return { facts: null, lint: p.problems, diff: null, unchanged: false, needsChangeRecord: false };
+    const problems = p.problems.length ? p.problems : sqlProblemsOf(p.doc);
+    if (problems.length) return { facts: null, lint: problems, diff: null, unchanged: false, needsChangeRecord: false };
     return { facts: factsOf(p.doc), lint: readContract(yaml).lint, diff: null, unchanged: false, needsChangeRecord: false };
   }
   const { row } = visibleContract(id);
   const p = parseContract(yaml);
-  if (p.problems.length) return { facts: null, lint: p.problems, diff: null, unchanged: false, needsChangeRecord: false };
+  const problems = p.problems.length ? p.problems : sqlProblemsOf(p.doc);
+  if (problems.length) return { facts: null, lint: problems, diff: null, unchanged: false, needsChangeRecord: false };
   const cur = currentDoc(row);
   const diff = diffContracts(cur.doc, p.doc);
   return {
@@ -675,6 +725,7 @@ export function saveVersion(id: string, body: unknown): { contract: DataContract
   const { facts, lint, doc } = readContract(input.yaml);
   const cur = currentDoc(row);
   if (cur.yaml === input.yaml) return { contract: getContract(id), created: false, diff: null };
+  checkSqlRules(doc, serverLinkTargets(id), u);
   const diff = diffContracts(cur.doc, doc);
   let record: { id: string; number: string } | null = null;
   if (input.changeRecordId) record = checkChangeRecord(input.changeRecordId, u);

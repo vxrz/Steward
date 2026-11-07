@@ -992,7 +992,14 @@
     "DATA_CONTRACT_SERVER_TYPE": "Server “{{server}}” (type {{type}}) cannot be answered by “{{name}}”.",
     "DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED": "Servers of type {{type}} cannot be tested by Steward yet.",
     "DATA_CONTRACT_SERVICE_FAILED": "The data contract service answered HTTP {{status}}.",
-    "DATA_CONTRACT_VERSION_NOT_FOUND": "Version {{version}} not found."
+    "DATA_CONTRACT_VERSION_NOT_FOUND": "Version {{version}} not found.",
+    "DB_SQL_REFUSED_WORD_variable": "“{{word}}” is a variable the data contract service would fill in from its own environment – not allowed in SQL rules.",
+    "DATA_CONTRACT_SQL_REFUSED": "SQL quality rule “{{rule}}” ({{path}}) is refused: {{problem}}",
+    "DATA_CONTRACT_SQL_NEEDS_USE": "SQL quality rules need the “use” right on the database platforms linked to the contract.",
+    "DATA_CONTRACT_SQL_NEEDS_USE_PLATFORM": "SQL quality rules run with the credentials of “{{name}}”: you need its “use” right to save them.",
+    "DATA_CONTRACT_TLS_UNVERIFIED": "“{{name}}” asks for TLS ({{mode}}), but the data contract service cannot verify the certificate of this DBMS. Allow it under Platform → Database, or test with the CLI where it can verify.",
+    "DATA_CONTRACT_HOST_UNRESOLVED": "{{host}} does not resolve on Steward’s side. Steward tests only a host it can resolve and check.",
+    "DATA_CONTRACT_CHANGE_RECORD_USED": "{{number}} was already used for a version of a data contract. Each version needs its own change record."
   },
   "boundary": {
     "title": "Something went wrong on this page",

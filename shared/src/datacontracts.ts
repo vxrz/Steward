@@ -42,8 +42,10 @@ export const DATA_CONTRACT_LIMITS = {
   links: 200,
   /** A test report as stored (bytes); a larger one is cut and marked truncated */
   reportBytes: 2 * 1024 * 1024,
-  /** Test runs kept per contract (the newest) */
+  /** Test runs kept per contract: the newest real runs; failed ones (and errors) beyond them; dry runs on their own */
   runsKept: 500,
+  failedRunsKept: 500,
+  dryRunsKept: 100,
   note: 500,
   nameChars: 200,
   /** Rows of a dataset or a recorded response a draft looks at */

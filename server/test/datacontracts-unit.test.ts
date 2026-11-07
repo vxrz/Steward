@@ -299,6 +299,9 @@ describe('drafts and tests', () => {
       'datacontract-sqlserver-host': 'sql.example.internal',
       'datacontract-sqlserver-port': '1433',
       'datacontract-sqlserver-database': 'sales',
+      // TLS "verify": encrypted, the certificate checked (the CLI's SQL Server options)
+      'datacontract-sqlserver-encrypted-connection': 'true',
+      'datacontract-sqlserver-trust-server-certificate': 'false',
       'datacontract-sqlserver-username': 'reader',
       'datacontract-sqlserver-password': 'pw-123456',
     });

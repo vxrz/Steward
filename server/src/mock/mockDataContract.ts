@@ -28,6 +28,8 @@ interface Call {
   path: string;
   server: string | null;
   headerNames: string[];
+  /** The values of the datacontract-* headers that are not credentials (host, port, database, TLS options) */
+  settings?: Record<string, string>;
   credentialsMatched: boolean;
   contractId: string | null;
 }
@@ -197,6 +199,9 @@ export async function mockDataContract(app: FastifyInstance): Promise<void> {
       const headerNames = Object.keys(req.headers)
         .filter((k) => k.startsWith('datacontract-'))
         .sort();
+      const settings = Object.fromEntries(
+        headerNames.filter((k) => !k.endsWith('-username') && !k.endsWith('-password')).map((k) => [k, String(req.headers[k])]),
+      );
       if (!contract) {
         remember({ path: '/test', server, headerNames, credentialsMatched: false, contractId: null });
         return {
@@ -206,7 +211,14 @@ export async function mockDataContract(app: FastifyInstance): Promise<void> {
         };
       }
       const r = run(contract, server, req.headers);
-      remember({ path: '/test', server, headerNames, credentialsMatched: r.matched, contractId: typeof contract.id === 'string' ? contract.id : null });
+      remember({
+        path: '/test',
+        server,
+        headerNames,
+        settings,
+        credentialsMatched: r.matched,
+        contractId: typeof contract.id === 'string' ? contract.id : null,
+      });
       return r.body;
     });
     api.post('/datacontract/lint', async (req, reply) => {

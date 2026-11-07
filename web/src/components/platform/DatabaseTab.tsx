@@ -1,5 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Alert, Anchor, Button, Divider, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Text, TextInput, Textarea, Title } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Button,
+  Checkbox,
+  Divider,
+  Group,
+  NumberInput,
+  Paper,
+  Select,
+  SimpleGrid,
+  Stack,
+  Text,
+  TextInput,
+  Textarea,
+  Title,
+} from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { IconDeviceFloppy, IconInfoCircle } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -26,7 +42,7 @@ import { fmtNumber } from '../../format';
  */
 
 type Draft = Omit<DatabaseSettings, 'limits' | 'tls'> & {
-  tls: { mode: DbTlsMode; ca?: string; serverName?: string };
+  tls: { mode: DbTlsMode; ca?: string; serverName?: string; contractServiceUnverified?: boolean };
   limits: { timeoutSeconds?: number; maxRows?: number; maxMb?: number };
 };
 
@@ -55,7 +71,12 @@ export function DatabaseTab({ platform, readOnly }: { platform: Platform; readOn
     const body = {
       ...d,
       port: d.port || undefined,
-      tls: { mode: d.tls.mode, ca: d.tls.ca?.trim() ? d.tls.ca : undefined, serverName: d.tls.serverName?.trim() || undefined },
+      tls: {
+        mode: d.tls.mode,
+        ca: d.tls.ca?.trim() ? d.tls.ca : undefined,
+        serverName: d.tls.serverName?.trim() || undefined,
+        contractServiceUnverified: d.tls.contractServiceUnverified || undefined,
+      },
       poolSize: d.poolSize || undefined,
     };
     const parsed = databaseSettingsSchema.safeParse(body);
@@ -176,6 +197,15 @@ export function DatabaseTab({ platform, readOnly }: { platform: Platform; readOn
                   onChange={(e) => setTls({ serverName: e.currentTarget.value })}
                 />
               </SimpleGrid>
+            )}
+            {d.tls.mode !== 'off' && d.dialect !== 'sqlserver' && (
+              <Checkbox
+                label={t('database.contractServiceUnverified')}
+                description={t('database.contractServiceUnverifiedHint')}
+                checked={!!d.tls.contractServiceUnverified}
+                onChange={(e) => setTls({ contractServiceUnverified: e.currentTarget.checked })}
+                data-testid="database-contract-unverified"
+              />
             )}
           </Stack>
         </Paper>

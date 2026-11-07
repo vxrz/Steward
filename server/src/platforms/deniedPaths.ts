@@ -1,4 +1,5 @@
-import { CHANGEDETECTION_KIND, KAFKA_CONNECT_KIND, PVAULT_KIND, redactConnectAnswer } from '@sm/shared';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { CHANGEDETECTION_KIND, DATA_CONTRACT_SERVICE_KIND, KAFKA_CONNECT_KIND, PVAULT_KIND, redactConnectAnswer } from '@sm/shared';
 import { HttpError } from '../util.js';
 
 /**
@@ -139,11 +140,49 @@ export function deniedMethod(kind: string, method: string): string | null {
 }
 
 /**
+ * Kinds only Steward's own code calls with a changing method (0.9.0): the data contract service (#221) – its POST /test
+ * connects to any database with the credentials in the request's headers, its /lint and /export read what is sent –
+ * so only Steward's tests and its "Lint with the service" call it (datacontracts/testing.ts, inside `ownCall`). From
+ * process steps, the explorer, ad-hoc requests, the MCP gateway, monitors and recordings only GET and HEAD go through
+ * (the connection test reads /openapi.json); /test and /lint are refused whatever the method.
+ */
+const OWN_CALL_KINDS: ReadonlySet<string> = new Set([DATA_CONTRACT_SERVICE_KIND]);
+const OWN_CALL_PATHS = new Set(['test', 'lint']);
+const ownCalls = new AsyncLocalStorage<string>();
+
+/** Runs `fn` as Steward's own call to a kind of OWN_CALL_KINDS (its requests pass deniedOwnCall). */
+export function ownCall<T>(kind: string, fn: () => Promise<T>): Promise<T> {
+  return ownCalls.run(kind, fn);
+}
+
+/** Why a request to a kind only Steward calls is refused (not inside `ownCall` for that kind), or null. */
+export function deniedOwnCall(kind: string, url: string, method: string): string | null {
+  if (!OWN_CALL_KINDS.has(kind) || ownCalls.getStore() === kind) return null;
+  const m = method.trim().toUpperCase();
+  if (!READ_METHODS.has(m)) return `${m.slice(0, 10)} (only Steward's own tests and lint call this service)`;
+  let segs: string[] | null;
+  try {
+    segs = pathSegments(new URL(url).pathname);
+  } catch {
+    return 'an invalid URL';
+  }
+  if (!segs) return 'a path that cannot be decoded';
+  const hit = segs.find((x) => OWN_CALL_PATHS.has(x));
+  return hit ? `/${hit} (only Steward's own tests and lint call this service)` : null;
+}
+
+/**
  * The one check of a request of a platform kind (platformRequest for the request and every redirect hop with the
  * method that hop is sent with, recorded test runs): 403 PLATFORM_METHOD_DENIED for a changing method to a read-only
- * kind, 403 PLATFORM_PATH_DENIED when the kind never calls this URL.
+ * kind, 403 PLATFORM_PATH_DENIED when the kind never calls this URL – or only Steward's own code does (deniedOwnCall).
  */
 export function assertPathAllowed(kind: string, url: string, method: string): void {
+  const own = deniedOwnCall(kind, url, method);
+  if (own)
+    throw Object.assign(
+      new HttpError(403, `This request is refused for ${kind} platforms: ${own}`, 'PLATFORM_PATH_DENIED', { kind, reason: own.slice(0, 200) }),
+      { retryable: false },
+    );
   const m = deniedMethod(kind, method);
   if (m)
     throw Object.assign(new HttpError(403, `Steward only reads ${kind} platforms: ${m} is refused`, 'PLATFORM_METHOD_DENIED', { kind, method: m }), {
