@@ -142,6 +142,11 @@ export function RunTable({ runs, compact = false, footer }: { runs: RunSummary[]
               {r.recorded ? t('table.test') : t('table.dry')}
             </Badge>
           )}
+          {r.debug && (
+            <Badge ml={4} size="xs" color="grape" variant="light">
+              {t('trigger.debug')}
+            </Badge>
+          )}
         </>
       ),
     },
@@ -168,6 +173,11 @@ export function RunTable({ runs, compact = false, footer }: { runs: RunSummary[]
               {r.dryRun && (
                 <Badge size="xs" color="yellow" variant="light">
                   {r.recorded ? t('table.test') : t('table.dry')}
+                </Badge>
+              )}
+              {r.debug && (
+                <Badge size="xs" color="grape" variant="light">
+                  {t('trigger.debug')}
                 </Badge>
               )}
               <StatusBadge status={outcomeOf(r)} size="xs" />

@@ -38,6 +38,7 @@ const DashboardViewPage = page(() => import('./pages/DashboardView'), 'Dashboard
 const TasksPage = page(() => import('./pages/Tasks'), 'TasksPage');
 const RunsPage = page(() => import('./pages/Runs'), 'RunsPage');
 const RunDetailPage = page(() => import('./pages/RunDetail'), 'RunDetailPage');
+const RunComparePage = page(() => import('./pages/RunCompare'), 'RunComparePage');
 const ProcessesPage = page(() => import('./pages/Processes'), 'ProcessesPage');
 const ProcessEditorPage = page(() => import('./pages/ProcessEditor'), 'ProcessEditorPage');
 const SchedulesPage = page(() => import('./pages/Schedules'), 'SchedulesPage');
@@ -342,6 +343,7 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/mcp-requests" element={<McpRequestsPage />} />
                     <Route path="/mcp-requests/:id" element={<McpRequestDetailPage />} />
                     <Route path="/runs" element={<RunsPage />} />
+                    <Route path="/runs/compare" element={<RunComparePage />} />
                     <Route path="/runs/:id" element={<RunDetailPage />} />
                     <Route path="/processes" element={<ProcessesPage />} />
                     <Route path="/processes/:id" element={<ProcessEditorPage />} />

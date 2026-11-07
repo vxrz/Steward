@@ -1001,7 +1001,22 @@
     "DATA_CONTRACT_SQL_NEEDS_USE_PLATFORM": "SQL quality rules run with the credentials of “{{name}}”: you need its “use” right to save them.",
     "DATA_CONTRACT_TLS_UNVERIFIED": "“{{name}}” asks for TLS ({{mode}}), but the data contract service cannot verify the certificate of this DBMS. Allow it under Platform → Database, or test with the CLI where it can verify.",
     "DATA_CONTRACT_HOST_UNRESOLVED": "{{host}} does not resolve on Steward’s side. Steward tests only a host it can resolve and check.",
-    "DATA_CONTRACT_CHANGE_RECORD_USED": "{{number}} was already used for a version of a data contract. Each version needs its own change record."
+    "DATA_CONTRACT_CHANGE_RECORD_USED": "{{number}} was already used for a version of a data contract. Each version needs its own change record.",
+    "DEBUG_LIVE_RUN": "A debug run is a dry run or a test run, never a live run.",
+    "DEBUG_NODE_NOT_FOUND": "This node does not exist in the process.",
+    "DEBUG_NODE_INVALID": "The node has errors – fix them first.",
+    "DEBUG_NODE_NOT_RUNNABLE": "This node does not run on its own.",
+    "DEBUG_ANSWERS_REFUSED": "This node cannot run with these answers.",
+    "DEBUG_SAMPLE_SECRET": "The sample data at {{path}} looks like a credential. Use a secret input or a platform's credentials instead.",
+    "DEBUG_SAMPLE_TOO_LARGE": "Sample data is limited to 1 MB.",
+    "DEBUG_RUN_OTHER_PROCESS": "The run belongs to another process.",
+    "DEBUG_NOT_PAUSED": "The debug run is not paused.",
+    "DEBUG_NO_DECISION": "The debug run does not wait for an answer.",
+    "DEBUG_DECISION_OPEN": "Answer the decision or skip it.",
+    "DEBUG_NOT_STARTER": "Only the person who started this debug run can drive it.",
+    "DEBUG_NOT_A_DEBUG_RUN": "This is not a debug run.",
+    "DEBUG_NOT_RESUMABLE": "A debug run cannot be resumed – start a new one.",
+    "COMPARE_OTHER_PROCESS": "Only runs of the same process can be compared."
   },
   "boundary": {
     "title": "Something went wrong on this page",

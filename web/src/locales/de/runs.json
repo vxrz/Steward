@@ -15,7 +15,10 @@
     },
     "checks": "Prüfungen",
     "anyChecks": "Alle",
-    "failedChecks": "Mit Befunden (fehlgeschlagene Prüfungen)"
+    "failedChecks": "Mit Befunden (fehlgeschlagene Prüfungen)",
+    "kind": "Art",
+    "ordinaryRuns": "Normale Läufe",
+    "debugRuns": "Debug-Läufe"
   },
   "table": {
     "empty": "Noch keine Ausführungen.",
@@ -95,7 +98,8 @@
     "webhook": "Webhook",
     "webhookNamed": "Webhook-Auslöser „{{name}}“",
     "monitor": "Monitor",
-    "monitorNamed": "Monitor „{{name}}“"
+    "monitorNamed": "Monitor „{{name}}“",
+    "debug": "Debug"
   },
   "detail": {
     "description": "Ausführung <id>{{id}}</id> · <version>Version {{version}}</version> · gestartet von {{actor}} ({{trigger}}) {{date}} · {{duration}}",

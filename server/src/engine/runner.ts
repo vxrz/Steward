@@ -2780,7 +2780,12 @@ async function debugSignal(runId: string, s: DebugSignal, actor: string): Promis
   const a = active.get(runId);
   if (!a?.ctx.gate) throw new HttpError(409, `The debug run is ${r.status}`, 'DEBUG_NOT_PAUSED');
   a.ctx.gate.apply(s, actor);
-  if (s.type === 'debug.breakpoints') a.ctx.log('info', `Debug run: breakpoints set (${s.breakpoints.length})`);
+  if (s.type === 'debug.breakpoints' && a.ctx.debug) {
+    // what the run is (runs.debug) shows the breakpoints of now
+    a.ctx.debug.breakpoints = s.breakpoints;
+    store.setRunDebug(runId, a.ctx.debug);
+    a.ctx.log('info', `Debug run: breakpoints set (${s.breakpoints.length})`);
+  }
   // the run takes the next steps before the panel asks again
   await yieldToEventLoop();
   return { ok: true, paused: a.ctx.gate.paused };
