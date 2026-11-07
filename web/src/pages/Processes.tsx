@@ -42,6 +42,7 @@ import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { QueryState, StatusBadge } from '../components/common';
 import { AutomateTabs } from '../components/page/LinkTabs';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
+import { LibraryOriginBadge } from '../components/libraries/parts';
 import { RunDialog } from '../components/RunDialog';
 import { DescriptionText, descriptionPlain } from '../components/DescriptionText';
 import { TemplateGallery } from '../components/TemplateGallery';
@@ -282,6 +283,7 @@ export function ProcessesPage() {
                 v{p.currentVersion}
               </Badge>
               <GitOriginBadge kind="process" id={p.id} size="xs" />
+              <LibraryOriginBadge kind="process" id={p.id} size="xs" />
               {p.acl.length > 0 && (
                 <Badge size="xs" variant="light" color="orange" title={t('card.restrictedHint')}>
                   {t('card.restricted')}

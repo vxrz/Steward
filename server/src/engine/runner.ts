@@ -26,6 +26,7 @@ import { currentActor, runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { tracePseudonym } from '../auth/login-audit.js';
 import { HttpError, newId, nowIso, parseJson, pathInside, sha256, sleep } from '../util.js';
+import { heldLibraryOf } from '../libraries/lookup.js';
 import { getConnection } from '../platforms/service.js';
 import { openInputs, sealInputs, secretValuesOf } from './secret-inputs.js';
 import {
@@ -654,6 +655,12 @@ export async function startRun(
 ): Promise<string> {
   if (!accepting && opts.trigger !== 'subprocess') throw new HttpError(503, 'Steward is shutting down: no new runs start now', 'SHUTTING_DOWN');
   const proc = getProcess(req.processId, req.version);
+  // a library on hold (ADR 0014: its key was revoked, or it is suspect): no new runs of its processes until it is lifted
+  const held = heldLibraryOf(proc.id);
+  if (held)
+    throw new HttpError(409, `The library ${held} is on hold – its processes do not run until an administrator lifts the hold`, 'LIBRARY_HELD', {
+      library: held,
+    });
   const def = proc.definition;
   // a test run is a dry run whose platform calls are answered by recorded responses
   const recorded = !!req.recorded;

@@ -7,6 +7,7 @@ import {
   IconActivity,
   IconApps,
   IconArrowsDiff,
+  IconBooks,
   IconBrandGit,
   IconBroadcast,
   IconBuildingFactory2,
@@ -63,6 +64,7 @@ export type NavKey =
   | 'schedules'
   | 'triggers'
   | 'gitUpdates'
+  | 'libraries'
   | 'monitors'
   | 'platforms'
   | 'dataContracts'
@@ -124,6 +126,8 @@ export const AUTOMATE_TABS: NavItemDef[] = [
   { to: '/schedules', key: 'schedules', icon: IconCalendarTime, when: automation },
   { to: '/triggers', key: 'triggers', icon: IconWebhook, when: automation },
   { to: '/git-updates', key: 'gitUpdates', icon: IconBrandGit, cap: 'createProcesses' },
+  // shared procedure libraries (#238): signed releases, reviewed as a whole
+  { to: '/libraries', key: 'libraries', icon: IconBooks, cap: 'createProcesses' },
 ];
 
 /**
@@ -146,7 +150,7 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
   },
   {
     key: 'automate',
-    items: [{ to: '/processes', key: 'processes', icon: IconSitemap, also: ['/schedules', '/triggers', '/git-updates'] }],
+    items: [{ to: '/processes', key: 'processes', icon: IconSitemap, also: ['/schedules', '/triggers', '/git-updates', '/libraries'] }],
   },
   {
     key: 'catalogue',

@@ -50,6 +50,7 @@ export const NAMESPACES = [
   'plantMap',
   'costs',
   'contracts',
+  'libraries',
 ] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 

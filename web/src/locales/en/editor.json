@@ -852,7 +852,8 @@
     "view": "View",
     "title": "Version v{{version}}",
     "hashLine": "hash {{hash}}",
-    "restore": "Restore as working copy"
+    "restore": "Restore as working copy",
+    "fromLibrary": "Library {{library}} {{release}}"
   },
   "outputs": {
     "duplicate": "Duplicate name",

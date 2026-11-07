@@ -177,3 +177,14 @@ export const dataContractKeys = {
   runs: (id: string | null | undefined) => ['data-contracts', 'detail', id, 'runs'] as const,
   run: (id: string | null | undefined, runId: string | null | undefined) => ['data-contracts', 'detail', id, 'run', runId] as const,
 };
+
+/** Shared procedure libraries (#238): installed libraries and staged releases, one release's review, trusted publishers, origins. */
+export const libraryKeys = {
+  all: ['libraries'] as const,
+  list: ['libraries', 'list'] as const,
+  detail: (library: string | null | undefined) => ['libraries', 'detail', library] as const,
+  release: (id: string | null | undefined) => ['libraries', 'release', id] as const,
+  review: (id: string | null | undefined) => ['libraries', 'release', id, 'review'] as const,
+  publishers: ['libraries', 'publishers'] as const,
+  origins: (kind: string) => ['libraries', 'origins', kind] as const,
+};

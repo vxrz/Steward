@@ -299,6 +299,16 @@
         "label": "Ändern, woher die Standortkarte ihre Kacheln holt",
         "description": "Eine neue Kachelquelle für die Standortkarte: OpenStreetMap, Hell/Dunkel, eine eigene URL oder ein API-Schlüssel, eine selbst bereitgestellte Datei oder der eigene Stil neu gelesen. Die Karte auszuschalten braucht keine Bestätigung."
       }
+    },
+    "library": {
+      "publishers": {
+        "label": "Einem Bibliotheksherausgeber vertrauen",
+        "description": "Einen Herausgeber oder Schlüssel hinzufügen, einen entfernen, einen Herausgeber mehr Bibliotheken veröffentlichen lassen, das Ablaufdatum eines Schlüssels aufheben. Einen Schlüssel ausmustern oder widerrufen braucht keine Bestätigung."
+      },
+      "install": {
+        "label": "Eine Bibliotheksversion installieren",
+        "description": "Eine gemeinsame Bibliothek installieren, aktualisieren oder zurücksetzen. Mit Vier-Augen-Prinzip bestätigt eine zweite Person aus Gestaltung oder Administration die Installation."
+      }
     }
   }
 }

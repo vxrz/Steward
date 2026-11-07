@@ -97,6 +97,30 @@ backups of database _and_ `vault.json`, signed audit checkpoints shipped to a
 SIEM, and keeping Chromium current. Personal data and retention:
 [docs/PRIVACY.md](docs/PRIVACY.md).
 
+## Library publisher key
+
+Shared procedure libraries ([docs/LIBRARIES.md](docs/LIBRARIES.md)) are signed
+with OpenSSH keys (`ssh-keygen -Y sign -n steward-library`). Steward's own
+publisher key (`steward`) is meant to live on a maintainer's hardware key
+(`sk-ssh-ed25519`) and to be built in; CI only verifies, it never signs.
+
+**This version has no built-in publisher key**: no installation trusts a
+library publisher unless an administrator adds its key (Settings → Libraries).
+
+TODO (maintainer, by hand – it needs the hardware key):
+
+1. Create the key on the hardware key: `ssh-keygen -t ed25519-sk -O resident -O verify-required -C steward-library`.
+2. Publish its fingerprint here (`ssh-keygen -l -f <key>.pub`):
+   `SHA256:<to be added>`.
+3. Add the public key line to `BUILT_IN_PUBLISHER_KEYS` in `shared/src/libraries.ts`
+   (`{ publisher: 'steward', name: 'Steward', key: 'sk-ssh-ed25519@openssh.com AAAA…' }`).
+4. Before each release tag: `npm run library -- build` and `npm run library -- sign -f <key>`
+   for Steward's example library, and let the release workflow run `npm run library -- verify`
+   against the built-in key.
+
+The example library in `examples/libraries/` is signed with a test key
+(`examples/libraries/TEST-PUBLISHER-KEY.pub`) that is never trusted by default.
+
 ## How we keep Steward secure
 
 The CI runs secret scanning, dependency and container vulnerability scans,

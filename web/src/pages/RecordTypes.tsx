@@ -26,6 +26,7 @@ import { RECORD_FIELD_KINDS, RECORD_WORKFLOW_KEYS, RECORD_WORKFLOWS, type Record
 import { get, notifyError, post, put } from '../api';
 import { PageHeader } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
+import { LibraryOriginBadge } from '../components/libraries/parts';
 import { useRecordTypes, useTypeName } from '../components/records/common';
 import { fieldLabel, typeDescription } from '../components/records/builtin';
 import { TableColumnsEditor } from '../components/records/TableField';
@@ -72,7 +73,7 @@ export function RecordTypesPage() {
               <Table.Tr key={x.id} data-inactive={x.archived || undefined}>
                 <Table.Td className="mono">{x.key}</Table.Td>
                 <Table.Td>
-                  {typeName(x)} <GitOriginBadge kind="recordType" id={x.id} size="xs" />
+                  {typeName(x)} <GitOriginBadge kind="recordType" id={x.id} size="xs" /> <LibraryOriginBadge kind="recordType" id={x.id} size="xs" />
                   {x.archived && (
                     <Badge ml={6} size="xs" variant="outline" color="gray">
                       {t('types.archived')}

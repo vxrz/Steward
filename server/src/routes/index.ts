@@ -21,6 +21,7 @@ import { changedetectionRoutes } from '../changedetection/routes.js';
 import { credentialRoutes } from '../credentials/routes.js';
 import { reportScheduleRoutes } from './report-schedules.js';
 import { syncRoutes } from '../sync/routes.js';
+import { libraryRoutes } from '../libraries/routes.js';
 import { authRoutes } from './auth.js';
 import { userRoutes } from './users.js';
 import { settingsRoutes } from './settings.js';
@@ -72,6 +73,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await dutyRoutes(app);
   await scorecardRoutes(app);
   await syncRoutes(app);
+  // shared procedure libraries (#238, ADR 0014)
+  await libraryRoutes(app);
   await ticketRoutes(app);
   await dailySummaryRoutes(app);
   await complianceRoutes(app);

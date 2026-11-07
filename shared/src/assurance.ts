@@ -148,6 +148,18 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
     fourEyesLevels: BOTH,
     overrides: 'processStep',
   },
+  // shared procedure libraries (0.10.0, #238): trusting publishers and their keys; installing a release
+  sp('library.publishers', 'processes', ['changeTrustedPublishers'], true),
+  {
+    key: 'library.install',
+    group: 'processes',
+    actions: [],
+    supports: { fourEyes: true, stepUp: false },
+    baseline: {},
+    // off: the reviewer installs; required: a second designer or administrator confirms the install (libraries/install.ts)
+    defaults: { fourEyes: 'off', stepUp: false },
+    fourEyesLevels: ONOFF,
+  },
   {
     key: 'manualStep.verify',
     group: 'processes',

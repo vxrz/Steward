@@ -61,6 +61,7 @@ import { ThemeSettingsCard } from '../components/theme/ThemeSettingsCard';
 import { SystemStatusLink } from '../components/theme/SystemStatusLink';
 import { McpServerCard } from '../components/mcp/McpServerCard';
 import { GitSyncSettingsCard } from '../components/gitsync/GitSyncSettingsCard';
+import { LibrariesSettingsCard } from '../components/libraries/LibrariesSettingsCard';
 import { MigrationSettingsCard } from '../components/migration/MigrationSettingsCard';
 import { BackupSettingsCard } from '../components/backup/BackupSettingsCard';
 import { confirmDanger, confirmDialog } from '../components/confirm';
@@ -261,6 +262,7 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
         <>
           <TicketSettingsCard />
           <GitSyncSettingsCard />
+          <LibrariesSettingsCard />
           <MigrationSettingsCard />
           <EndOfLifeCard />
         </>

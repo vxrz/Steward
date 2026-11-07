@@ -39,6 +39,7 @@ import { DBSCHEMA_MIGRATIONS } from './migrations/dbschema.js';
 import { CHANGEDETECTION_MIGRATIONS } from './migrations/changedetection.js';
 import { COSTS_MIGRATIONS } from './migrations/costs.js';
 import { DATA_CONTRACT_MIGRATIONS } from './migrations/datacontracts.js';
+import { LIBRARY_MIGRATIONS } from './migrations/libraries.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -124,6 +125,7 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...CHANGEDETECTION_MIGRATIONS,
   ...COSTS_MIGRATIONS,
   ...DATA_CONTRACT_MIGRATIONS,
+  ...LIBRARY_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [

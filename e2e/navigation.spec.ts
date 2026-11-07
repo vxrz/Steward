@@ -51,7 +51,7 @@ test.describe('navigation (admin)', () => {
     await settle(page);
     await expect(sidebar(page).getByRole('link', { name: 'Processes', exact: true })).toHaveAttribute('aria-current', 'page');
     const tabs = page.getByRole('navigation', { name: 'Automate' });
-    await expect(tabs.getByRole('link')).toHaveText(['Processes', 'Schedules', 'Triggers', 'Git sync']);
+    await expect(tabs.getByRole('link')).toHaveText(['Processes', 'Schedules', 'Triggers', 'Git sync', 'Libraries']);
     await expect(tabs.getByRole('link', { name: 'Schedules' })).toHaveAttribute('aria-current', 'page');
     await tabs.getByRole('link', { name: 'Triggers' }).click();
     await expect(page).toHaveURL(/\/triggers$/);

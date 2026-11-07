@@ -451,6 +451,17 @@ export function RunDetailPage() {
               <Text size="xs" c="dimmed" className="mono">
                 {t('detail.definitionHash', { hash: r.definitionHash })}
               </Text>
+              {r.libraryOrigin && (
+                <Text size="xs" c={r.libraryOrigin.keyRevoked ? 'red' : 'dimmed'} style={{ overflowWrap: 'anywhere' }} data-testid="run-library-origin">
+                  {t('detail.libraryOrigin', {
+                    library: r.libraryOrigin.library,
+                    release: r.libraryOrigin.release,
+                    publisher: r.libraryOrigin.publisher,
+                    key: r.libraryOrigin.keyFingerprint,
+                  })}
+                  {r.libraryOrigin.keyRevoked ? ` – ${t('detail.libraryRevoked')}` : ''}
+                </Text>
+              )}
             </Stack>
           </Tabs.Panel>
 

@@ -295,6 +295,11 @@ export function setSchedulePause(id: string, pause: NotifyPause | null, reason?:
   return getSchedule(id);
 }
 
+/** After a schedule's `enabled` changed outside saveSchedule (a library on hold, libraries/install.ts): arm or disarm it. */
+export function rearmSchedule(id: string): void {
+  arm(id);
+}
+
 function disarm(id: string) {
   jobs.get(id)?.stop();
   jobs.delete(id);

@@ -50,6 +50,11 @@ export interface CommitCheck {
   signers: string[];
 }
 
+export interface TagRef {
+  name: string;
+  sha: string;
+}
+
 export interface GitApi {
   /** Head commit of the branch. */
   head(branch: string): Promise<CommitCheck>;
@@ -63,6 +68,11 @@ export interface GitApi {
   newCommits(base: string, head: string): Promise<CommitCheck[]>;
   /** All entries of the commit's tree (recursive) below `folder` ('' = everything). */
   tree(sha: string, folder: string): Promise<TreeEntry[]>;
+  /**
+   * The repository's tags with the commit each points to (annotated tags peeled), at most `max` – a library source
+   * in library mode follows its version tags (ADR 0014). More fail with GIT_TOO_MANY_TAGS.
+   */
+  tags(max: number): Promise<TagRef[]>;
   blob(sha: string, maxBytes: number): Promise<Buffer>;
 }
 
@@ -274,6 +284,35 @@ function tooManyCommits(count: number): HttpError {
   );
 }
 
+function tooManyTags(max: number): HttpError {
+  return new HttpError(413, `The repository has more than ${max} tags – Steward lists at most that many`, 'GIT_TOO_MANY_TAGS', { limit: max });
+}
+
+/** Tag names Steward reads: Git's rules for the characters it allows (no spaces, no "..", no control characters). */
+const tagNameOk = (n: string) => n.length > 0 && n.length <= 200 && !n.startsWith('/') && !n.includes('..') && /^[A-Za-z0-9._/+-]+$/.test(n);
+
+/** Pages of a tag list until a short page (or nothing more); names and commit ids checked. */
+async function pagedTags(
+  page: (n: number) => Promise<{ items: unknown[]; more?: boolean }>,
+  pick: (x: Record<string, unknown>) => { name?: unknown; sha?: unknown },
+  per: number,
+  max: number,
+): Promise<TagRef[]> {
+  const out: TagRef[] = [];
+  for (let n = 1; ; n++) {
+    const { items, more } = await page(n);
+    if (!Array.isArray(items)) throw new HttpError(502, 'Tags: unexpected answer of the Git host', 'GIT_BAD_RESPONSE');
+    for (const raw of items) {
+      const t = pick((raw ?? {}) as Record<string, unknown>);
+      if (typeof t.name !== 'string' || !tagNameOk(t.name)) continue;
+      out.push({ name: t.name, sha: checkSha(t.sha, 'Tags') });
+    }
+    if (out.length > max) throw tooManyTags(max);
+    if (!items.length || (more === undefined ? items.length < per : !more)) break;
+  }
+  return out;
+}
+
 function decodeBlob(j: { content?: string; encoding?: string }, max: number): Buffer {
   if (typeof j.content !== 'string') throw new HttpError(502, 'Blob: no content in the answer', 'GIT_BAD_RESPONSE');
   const buf = j.encoding === 'base64' ? Buffer.from(j.content.replace(/\s/g, ''), 'base64') : Buffer.from(j.content, 'utf8');
@@ -356,6 +395,16 @@ function forgejo(ref: RepoRef, token?: string): GitApi {
       const j = await c.json<{ content?: string; encoding?: string }>(`${repo}/git/blobs/${sha}`, 'File');
       return decodeBlob(j, max);
     },
+    async tags(max) {
+      // the tag list carries the (peeled) commit of every tag
+      const per = 50;
+      return pagedTags(
+        async (n) => ({ items: await c.json<unknown[]>(`${repo}/tags?limit=${per}&page=${n}`, 'Tags') }),
+        (x) => ({ name: x.name, sha: (x.commit as { sha?: unknown } | undefined)?.sha }),
+        per,
+        max,
+      );
+    },
   };
 }
 
@@ -417,6 +466,16 @@ function github(ref: RepoRef, token?: string): GitApi {
     async blob(sha, max) {
       const j = await c.json<{ content?: string; encoding?: string }>(`${repo}/git/blobs/${sha}`, 'File');
       return decodeBlob(j, max);
+    },
+    async tags(max) {
+      // GET /repos/{owner}/{repo}/tags: name and the commit (annotated tags peeled)
+      const per = 100;
+      return pagedTags(
+        async (n) => ({ items: await c.json<unknown[]>(`${repo}/tags?per_page=${per}&page=${n}`, 'Tags') }),
+        (x) => ({ name: x.name, sha: (x.commit as { sha?: unknown } | undefined)?.sha }),
+        per,
+        max,
+      );
     },
   };
 }
@@ -488,6 +547,19 @@ function gitlab(ref: RepoRef, token?: string): GitApi {
     },
     async blob(sha, max) {
       return (await c.get(`${project}/repository/blobs/${sha}/raw`, 'File', { max, accept: '*/*' })).body;
+    },
+    async tags(max) {
+      // GET /projects/:id/repository/tags: name and commit.id (the commit the tag points to)
+      const per = 100;
+      return pagedTags(
+        async (n) => {
+          const r = await c.get(`${project}/repository/tags?per_page=${per}&page=${n}`, 'Tags');
+          return { items: parseJsonBody<unknown[]>(r.body, 'Tags'), more: !!r.headers.get('x-next-page') };
+        },
+        (x) => ({ name: x.name, sha: (x.commit as { id?: unknown } | undefined)?.id }),
+        per,
+        max,
+      );
     },
   };
 }

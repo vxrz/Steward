@@ -1,0 +1,25 @@
+# A shared procedure library (0.10.0, ADR 0014, docs/LIBRARIES.md): a named, versioned set of items from one
+# publisher. `npm run library -- build` writes release.json from this folder; the publisher signs it with
+# `ssh-keygen -Y sign -n steward-library`. This example is signed with a TEST key (../TEST-PUBLISHER-KEY.pub) that no
+# installation trusts unless an administrator adds it by hand – never do that outside a test installation.
+format: steward-library
+version: 1
+library: example-access-reviews
+name: Access reviews (example)
+publisher: example-publisher
+release: 1.0.0
+steward_min_version: 0.10.0
+licence: Apache-2.0
+description: |
+  Guest reviews for an Entra ID tenant: the guest list with the last sign-in, the follow-up a second process does,
+  a monitor of app credentials and a record type for the exceptions the reviewers grant.
+items:
+  - processes/guest-review.yaml
+  - processes/review-follow-up.yaml
+  - monitors/app-credentials.yaml
+  - record-types/access-exception.yaml
+references:
+  platforms:
+    - { ref: idp, kind: microsoft-graph, description: The Entra ID tenant to review (Microsoft Graph) }
+changelog:
+  - { release: 1.0.0, notes: First release. }

@@ -188,7 +188,9 @@
     "expected": "erwartet: {{name}}",
     "moreFindings_one": "und {{count}} weiterer Befund",
     "moreFindings_other": "und {{count}} weitere Befunde",
-    "aiGenerated": "Mit {{models}} KI-generiert – prüfen Sie es, bevor Sie sich darauf verlassen"
+    "aiGenerated": "Mit {{models}} KI-generiert – prüfen Sie es, bevor Sie sich darauf verlassen",
+    "libraryOrigin": "Aus Bibliothek {{library}} {{release}} ({{publisher}}), signiert mit {{key}}",
+    "libraryRevoked": "mit einem widerrufenen Schlüssel signiert"
   },
   "emptyState": {
     "title": "Noch keine Ausführungen",

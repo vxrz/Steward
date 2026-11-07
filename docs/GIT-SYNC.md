@@ -5,6 +5,7 @@ Git sync keeps processes, dashboards, monitors and document types in a Git repos
 - **Optional.** Git sync is off until an administrator adds a source or turns on [Steward's example library](#stewards-example-library), which every installation has as a disabled source.
 - **Pull only.** Steward only reads the repository. It never pushes, and it never changes the repository (pushing changes back is planned, see issue #20).
 - **Nothing is applied by itself.** Every new or changed file waits in **Git sync**. A designer or administrator looks at the difference and accepts it (a new version) or rejects it.
+- **Two modes (0.10.0).** A source brings in **items** – one file each, reviewed on its own (this page) – or **library releases**: a signed, versioned set of items that follows the repository's version tags and is reviewed as a whole under _Automate → Libraries_ ([LIBRARIES.md](LIBRARIES.md)). Use items for your own repository, libraries for sharing between installations and publishers. An item source leaves folders with a `steward-library.yaml` alone.
 
 ## How it works
 
@@ -201,6 +202,8 @@ Use Git sync in two roles: Steward's example library as a source of **suggestion
 | `POST /api/sync-updates/:id/accept` `{ comment?, force? }`, `POST /api/sync-updates/:id/reject` `{ comment? }` | designers, administrators (and the right for the item) |
 | `GET /api/sync-origins[?kind=process]`                                                                         | everyone, for the items they can see                   |
 | `POST /api/hooks/sync/:id`                                                                                     | the Git host (webhook secret)                          |
+
+Library sources (`mode: library`, `allowPrereleases`) and their releases: [LIBRARIES.md](LIBRARIES.md).
 
 ## Demo and tests
 

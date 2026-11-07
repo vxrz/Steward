@@ -299,6 +299,16 @@
         "label": "Change where the map of sites fetches its tiles",
         "description": "A new tile source for the map of sites: OpenStreetMap, Light/Dark, an own URL or API key, a self-hosted file, or the own style read again. Turning the map off needs no confirmation."
       }
+    },
+    "library": {
+      "publishers": {
+        "label": "Trust a library publisher",
+        "description": "Adding a publisher or a key, removing one, letting a publisher publish more libraries, lifting a key's expiry. Retiring and revoking a key need no confirmation."
+      },
+      "install": {
+        "label": "Install a library release",
+        "description": "Installing, updating or rolling back a shared library. With four-eyes a second designer or administrator confirms the install."
+      }
     }
   }
 }

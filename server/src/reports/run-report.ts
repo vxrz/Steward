@@ -102,6 +102,18 @@ export async function renderRunReport(
     { label: t('duration'), value: tr.duration(m.run.durationMs) },
     { label: t('dryRun'), value: m.run.dryRun ? t('yes') : t('no'), tone: m.run.dryRun ? 'warning' : 'default' },
     { label: t('definitionHash'), value: m.process.definitionHash, mono: true, span: 2 },
+    // provenance (ADR 0014): the library release and the key that signed it
+    ...(m.process.library
+      ? [
+          {
+            label: t('library'),
+            value: `${m.process.library.library} ${m.process.library.release} (${m.process.library.publisher})${m.process.library.keyRevoked ? ` – ${t('libraryKeyRevoked')}` : ''}`,
+            tone: m.process.library.keyRevoked ? ('warning' as const) : ('default' as const),
+          },
+          { label: t('libraryKey'), value: m.process.library.keyFingerprint, mono: true },
+          { label: t('librarySha256'), value: m.process.library.releaseSha256, mono: true, span: 2 as const },
+        ]
+      : []),
   ]);
   if (m.process.description) {
     w.subheading(t('processDescription'));

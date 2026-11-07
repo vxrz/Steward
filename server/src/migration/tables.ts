@@ -51,6 +51,12 @@ export const NOT_MOVED: Record<string, string> = {
   sync_sources: 'instance-specific (Git sync is set up on the target again)',
   sync_items: 'belongs to the Git sync sources',
   sync_updates: 'belongs to the Git sync sources',
+  // shared procedure libraries (#238, ADR 0014): trust is pinned per installation; the installed items move as
+  // ordinary items (their process versions keep the library origin), sync_items with their library links do not
+  library_publishers: 'trust is pinned per installation: an administrator of the target trusts publishers again (step-up)',
+  library_keys: 'trust is pinned per installation: the keys are sealed with the vault of this installation',
+  library_releases: "releases are staged again on the target (Git source or upload); the items moved keep their versions' library origin",
+  library_installs: 'belongs to the library releases (not moved); the items stay as local items on the target',
   instance_imports: 'history of earlier moves (moving an instance that was itself imported is not supported yet)',
   imported_audit_log: 'history of earlier moves',
   audit_archives: "archives of this instance's own audit log (the files stay in its data folder; the target starts its own)",

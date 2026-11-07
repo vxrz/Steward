@@ -305,6 +305,8 @@ Where Steward is heading, and what it deliberately does not do: [`docs/ROADMAP.m
 
 Keep processes, dashboards, monitors and document types in a Git repository (Forgejo/Gitea, GitHub or GitLab) and bring changes into Steward after a review. An administrator adds a source under _Settings → Git sync_; Steward fetches it by hand, on a schedule or after a push webhook. Steward only reads the repository, validates every file and stages it in **Updates from Git**, where a designer reviews the diff and accepts it as a new version or rejects it. Local edits show as conflicts instead of being overwritten. Setup, token scopes and webhooks: [docs/GIT-SYNC.md](docs/GIT-SYNC.md).
 
+**Shared libraries (0.10.0):** a signed, versioned set of procedures from a publisher you trust – from a Git source in library mode or an uploaded `.zip` – reviewed as a whole, with what each process can do, and installed in one transaction; Steward checks the OpenSSH signature itself. See [docs/LIBRARIES.md](docs/LIBRARIES.md).
+
 ## PDF reports
 
 Steward creates PDF reports without a browser, also in the desktop executable.

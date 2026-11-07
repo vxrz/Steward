@@ -680,6 +680,23 @@ export async function createMonitor(
   input: MonitorInput,
   extra: { templateId?: string; templateVersion?: number; templateParams?: Record<string, unknown> } = {},
 ): Promise<MonitorSaveResult> {
+  requireCreate();
+  const template = input.isTemplate ? (await validateTemplate(input.definition)).def : undefined;
+  const r = createMonitorNow(input, extra, template);
+  engine.reloadMonitor(r.monitor.id);
+  return r;
+}
+
+/**
+ * createMonitor without its asynchronous part: a template's definition is validated before (validateTemplate) and
+ * passed as `template`. Joins a surrounding transaction (a library install applies all its items in one); the caller
+ * reloads the monitor in the engine after the commit.
+ */
+export function createMonitorNow(
+  input: MonitorInput,
+  extra: { templateId?: string; templateVersion?: number; templateParams?: Record<string, unknown> } = {},
+  template?: Record<string, unknown>,
+): MonitorSaveResult {
   const u = me();
   requireCreate();
   const id = newId('mon_');
@@ -687,9 +704,9 @@ export async function createMonitor(
   let def: MonitorDefinition | null = null;
   let name: string;
   if (input.isTemplate) {
-    const t = await validateTemplate(input.definition);
-    stored = t.def;
-    name = String(t.def.name ?? 'Template');
+    if (!template) throw new HttpError(400, 'Invalid template definition', 'TEMPLATE_INVALID', { context: 'shape' });
+    stored = template;
+    name = String(template.name ?? 'Template');
   } else {
     def = parseDefinitionInput(input.definition);
     const issues = definitionIssues(def);
@@ -736,11 +753,19 @@ export async function createMonitor(
       },
     });
   });
-  engine.reloadMonitor(id);
   return { monitor: getMonitor(id), secrets };
 }
 
 export async function updateMonitor(idOrKey: string, input: MonitorInput & { version?: number }): Promise<MonitorSaveResult> {
+  const r0 = requireMonitor(idOrKey, 'edit');
+  const template = r0.is_template ? (await validateTemplate(input.definition)).def : undefined;
+  const res = updateMonitorNow(idOrKey, input, template);
+  engine.reloadMonitor(res.monitor.id);
+  return res;
+}
+
+/** updateMonitor without its asynchronous part (see createMonitorNow); the caller reloads the monitor after the commit. */
+export function updateMonitorNow(idOrKey: string, input: MonitorInput & { version?: number }, template?: Record<string, unknown>): MonitorSaveResult {
   const r = requireMonitor(idOrKey, 'edit');
   if (input.version !== undefined && input.version !== r.version) {
     throw new HttpError(
@@ -762,8 +787,10 @@ export async function updateMonitor(idOrKey: string, input: MonitorInput & { ver
   let stored: Record<string, unknown>;
   let def: MonitorDefinition | null = null;
   const before = r.is_template ? null : loadMonitor(r).def;
-  if (r.is_template) stored = (await validateTemplate(input.definition)).def;
-  else {
+  if (r.is_template) {
+    if (!template) throw new HttpError(400, 'Invalid template definition', 'TEMPLATE_INVALID', { context: 'shape' });
+    stored = template;
+  } else {
     def = parseDefinitionInput(input.definition);
     const issues = definitionIssues(def);
     if (issues.length) throw invalidMonitor(issues, def);
@@ -817,7 +844,6 @@ export async function updateMonitor(idOrKey: string, input: MonitorInput & { ver
       },
     });
   });
-  engine.reloadMonitor(r.id);
   return { monitor: getMonitor(r.id), secrets };
 }
 
