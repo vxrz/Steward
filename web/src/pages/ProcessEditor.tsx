@@ -119,12 +119,14 @@ export function ProcessEditorPage() {
     return m;
   }, [debugOpen, debugRun.data]);
   const pausedNode = debugRun.data?.paused?.nodeId;
-  useEffect(() => {
-    if (pausedNode) setFocus((f) => ({ id: pausedNode, seq: (f?.seq ?? 0) + 1 }));
-  }, [pausedNode, debugRun.data?.paused?.stepKey]);
+
   const history = useDefHistory(def, setDef);
   // phones show the flow read-only: building it needs a larger screen
   const phone = useMediaQuery('(max-width: 48em)') ?? false;
+  // the paused node is centred on the canvas – not on a phone, where selecting it would cover the debug sheet
+  useEffect(() => {
+    if (pausedNode && !phone) setFocus((f) => ({ id: pausedNode, seq: (f?.seq ?? 0) + 1 }));
+  }, [pausedNode, phone, debugRun.data?.paused?.stepKey]);
   const { caps } = useMe();
   const editable = !!proc.data?.permissions.includes('edit') && !phone;
   useUndoKeys(editable && !!def, history.undo, history.redo);

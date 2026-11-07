@@ -4,6 +4,7 @@ import { ActionIcon, Alert, Anchor, Badge, Group, Paper, Select, SimpleGrid, Sta
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { IconArrowsLeftRight, IconChevronDown, IconChevronRight, IconLock } from '@tabler/icons-react';
 import type { CompareRow, CompareStepSide, CompareValue, RunCompareSide, RunComparison, RunSummary } from '@sm/shared';
 import { get } from '../api';
@@ -44,6 +45,21 @@ function Value({ v }: { v: CompareValue | undefined }) {
   );
 }
 
+/** A decision in words: approved or rejected (with the selection), an if's true/false, a loop's item count. */
+function decisionText(d: unknown, t: TFunction<'debug'>): string {
+  if (typeof d === 'boolean') return String(d);
+  if (d && typeof d === 'object') {
+    const o = d as { approved?: unknown; selectedKeys?: unknown; items?: unknown; simulated?: unknown };
+    if (typeof o.items === 'number') return t('compare.items', { count: o.items });
+    if (typeof o.approved === 'boolean') {
+      const sel = Array.isArray(o.selectedKeys) && o.selectedKeys.length ? ` (${t('compare.selected', { count: o.selectedKeys.length })})` : '';
+      return `${o.approved ? t('compare.approved') : t('compare.rejected')}${sel}${o.simulated ? ` · ${t('simulated')}` : ''}`;
+    }
+  }
+  const text = JSON.stringify(d) ?? '';
+  return text.length > 200 ? `${text.slice(0, 200)}…` : text;
+}
+
 /** What one run did at a step: status, decision, check, request, error. */
 function Side({ s }: { s?: CompareStepSide }) {
   const { t } = useTranslation('debug');
@@ -72,7 +88,7 @@ function Side({ s }: { s?: CompareStepSide }) {
       )}
       {decision !== undefined && decision !== null && (
         <Text size="xs" style={{ overflowWrap: 'anywhere' }}>
-          {t('compare.decision')}: <span className="mono">{typeof decision === 'object' ? JSON.stringify(decision).slice(0, 200) : String(decision)}</span>
+          {t('compare.decision')}: <span className="mono">{decisionText(decision, t)}</span>
           {s.task?.decidedBy ? ` · ${s.task.decidedBy}` : ''}
         </Text>
       )}
@@ -89,6 +105,7 @@ function Side({ s }: { s?: CompareStepSide }) {
       ) : (
         !s.check &&
         !s.request &&
+        (decision === undefined || decision === null) &&
         s.summary && (
           <Text size="xs" c="dimmed" lineClamp={2} style={{ overflowWrap: 'anywhere' }}>
             {s.summary}

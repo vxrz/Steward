@@ -130,31 +130,35 @@ test('compare a failed run with the last good run', async ({ page, apiAs }) => {
   }
 });
 
-test('compare and the debug panel on a phone @mobile', async ({ page, apiAs }) => {
-  const api = await apiAs('admin');
-  const proc = await createProcess(api, uniq('E2E compare phone'));
-  try {
-    const ids: string[] = [];
-    for (const mode of ['ok', 'bad']) {
-      const r = await json<{ id: string }>(await api.post('/api/runs', { data: { processId: proc.id, inputs: { mode }, dryRun: true } }));
-      ids.push((await waitForRun(api, r.id, ['succeeded', 'failed'])).id);
-    }
-    await page.goto(`/runs/compare?a=${ids[0]}&b=${ids[1]}`);
-    const cards = page.getByTestId('compare-cards');
-    await expect(cards).toContainText('Boom');
-    await expectNoHorizontalScroll(page);
-    await expectAccessible(page, 'compare runs (phone)');
+test.describe('on a phone', () => {
+  // another person than the desktop tests: one step-through run per person, and the tests run side by side
+  test.use({ storageState: authFile('dana') });
+  test('compare and the debug panel on a phone @mobile', async ({ page, apiAs }) => {
+    const api = await apiAs('dana');
+    const proc = await createProcess(api, uniq('E2E compare phone'));
+    try {
+      const ids: string[] = [];
+      for (const mode of ['ok', 'bad']) {
+        const r = await json<{ id: string }>(await api.post('/api/runs', { data: { processId: proc.id, inputs: { mode }, dryRun: true } }));
+        ids.push((await waitForRun(api, r.id, ['succeeded', 'failed'])).id);
+      }
+      await page.goto(`/runs/compare?a=${ids[0]}&b=${ids[1]}`);
+      const cards = page.getByTestId('compare-cards');
+      await expect(cards).toContainText('Boom');
+      await expectNoHorizontalScroll(page);
+      await expectAccessible(page, 'compare runs (phone)');
 
-    await page.goto(`/processes/${proc.id}`);
-    await page.getByTestId('open-debug').click();
-    const drawer = page.getByRole('dialog', { name: 'Step through' });
-    await drawer.getByTestId('debug-start').click();
-    await expect(drawer.getByTestId('debug-pause')).toContainText('Paused before Double it');
-    await expectNoHorizontalScroll(page);
-    await expectAccessible(page, 'debug panel (phone)');
-    await drawer.getByTestId('debug-stop').click();
-    await expect(drawer.getByText('Debug run stopped')).toBeVisible();
-  } finally {
-    await api.delete(`/api/processes/${proc.id}`);
-  }
+      await page.goto(`/processes/${proc.id}`);
+      await page.getByTestId('open-debug').click();
+      const drawer = page.getByRole('dialog', { name: 'Step through' });
+      await drawer.getByTestId('debug-start').click();
+      await expect(drawer.getByTestId('debug-pause')).toContainText('Paused before Double it');
+      await expectNoHorizontalScroll(page);
+      await expectAccessible(page, 'debug panel (phone)');
+      await drawer.getByTestId('debug-stop').click();
+      await expect(drawer.getByText('Debug run stopped')).toBeVisible();
+    } finally {
+      await api.delete(`/api/processes/${proc.id}`);
+    }
+  });
 });

@@ -112,7 +112,7 @@
     "compareLastGood": "Mit dem letzten guten Lauf vergleichen",
     "compareWith": "Mit einem anderen Lauf vergleichen",
     "note": "Ein Debug-Lauf: Er hat nichts veröffentlicht, keine Warnungen ausgelöst, keine Aufgaben erstellt und niemanden benachrichtigt. Er wird einige Tage aufbewahrt.",
-    "recordedFrom": "Ab {{key}} hat er nur aufgezeichnete Antworten verwendet."
+    "recordedFrom": "Ab Schritt „{{key}}“ hat er nur aufgezeichnete Antworten verwendet."
   },
   "compare": {
     "title": "Läufe vergleichen",
@@ -169,6 +169,12 @@
     "noDifferences": "Keine Unterschiede.",
     "step": "Schritt",
     "differences": "Unterschiede",
-    "varsBefore": "Variablen vor diesem Schritt"
+    "varsBefore": "Variablen vor diesem Schritt",
+    "approved": "Genehmigt",
+    "rejected": "Abgelehnt",
+    "items_one": "{{count}} Eintrag",
+    "items_other": "{{count}} Einträge",
+    "selected_one": "{{count}} ausgewählt",
+    "selected_other": "{{count}} ausgewählt"
   }
 }

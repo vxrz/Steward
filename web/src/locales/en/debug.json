@@ -112,7 +112,7 @@
     "compareLastGood": "Compare with the last good run",
     "compareWith": "Compare with another run",
     "note": "A debug run: it published nothing, raised no alerts, created no tasks and notified nobody. It is kept for a few days.",
-    "recordedFrom": "From {{key}} on it used recorded answers only."
+    "recordedFrom": "From step “{{key}}” on, it used recorded answers only."
   },
   "compare": {
     "title": "Compare runs",
@@ -169,6 +169,12 @@
     "noDifferences": "No differences.",
     "step": "Step",
     "differences": "Differs in",
-    "varsBefore": "Variables before this step"
+    "varsBefore": "Variables before this step",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "items_one": "{{count}} item",
+    "items_other": "{{count}} items",
+    "selected_one": "{{count}} selected",
+    "selected_other": "{{count}} selected"
   }
 }

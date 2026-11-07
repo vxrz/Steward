@@ -39,7 +39,7 @@ function useRemaining(until: string | undefined): string {
     return () => clearInterval(h);
   }, [until]);
   if (!until) return '';
-  const s = Math.max(0, Math.round((Date.parse(until) - now) / 1000));
+  const s = Math.max(0, Math.floor((Date.parse(until) - now) / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
