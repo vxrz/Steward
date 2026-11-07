@@ -84,7 +84,7 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
   app.get('/costs/platform/:id/imports', async (req) => listImports(platformParam(req)));
   app.post('/costs/platform/:id/imports/preview', imports, async (req) => previewImport(platformParam(req), req.body));
   app.post('/costs/platform/:id/imports', imports, async (req) => {
-    const out = importFromUi(platformParam(req), req.body);
+    const out = await importFromUi(platformParam(req), req.body);
     return { import: out.import, inserted: out.result.inserted, replaced: out.result.removed, corrections: out.result.corrections, warnings: out.warnings };
   });
 
@@ -126,7 +126,7 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
         if (!token) return answer(reply, REFUSED);
         return answer(
           reply,
-          importPush(token, { raw: Buffer.isBuffer(req.body) ? req.body : undefined, ip: req.ip, query: (req.query ?? {}) as Record<string, unknown> }),
+          await importPush(token, { raw: Buffer.isBuffer(req.body) ? req.body : undefined, ip: req.ip, query: (req.query ?? {}) as Record<string, unknown> }),
         );
       },
     );

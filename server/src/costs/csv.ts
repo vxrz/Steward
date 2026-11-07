@@ -4,7 +4,7 @@ import { HttpError } from '../util.js';
  * A small CSV reader for FOCUS files (RFC 4180): fields separated by a comma (or a semicolon or a tab, as the header
  * line shows), quoted fields with doubled quotes inside, CRLF, LF or CR line ends, a byte order mark at the start.
  * One pass over the characters – no regular expression on the input, so nothing can backtrack – with limits on the
- * rows, the columns and the characters of a cell. Rows are handed to `onRow` one by one (nothing else is kept).
+ * rows, the columns and the characters of a cell. Rows are handed over one by one (nothing else is kept).
  */
 
 export interface CsvLimits {
@@ -34,6 +34,24 @@ export function separatorOf(text: string): string {
  * lines are skipped. Returns the number of rows after the header.
  */
 export function readCsv(raw: string, limits: CsvLimits, onRow: (cells: string[], line: number, index: number) => void): number {
+  const rows = csvRows(raw, limits);
+  for (;;) {
+    const r = rows.next();
+    if (r.done) return r.value;
+    onRow(r.value.cells, r.value.line, r.value.index);
+  }
+}
+
+export interface CsvRow {
+  cells: string[];
+  /** The line where the row starts */
+  line: number;
+  /** -1 for the header, then 0, 1, … */
+  index: number;
+}
+
+/** The rows one by one (a caller can pause between them); returns the number of rows after the header. */
+export function* csvRows(raw: string, limits: CsvLimits): Generator<CsvRow, number, undefined> {
   const text = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
   const sep = separatorOf(text);
   let row: string[] = [];
@@ -50,15 +68,14 @@ export function readCsv(raw: string, limits: CsvLimits, onRow: (cells: string[],
     cell = '';
     afterQuote = false;
   };
-  const pushRow = () => {
+  /** The finished row, or null for an empty line */
+  const endRow = (): CsvRow | null => {
     pushCell();
-    const empty = row.length === 1 && row[0] === '';
-    if (!empty) {
-      if (index >= limits.rows) throw csvError(`The file has more than ${limits.rows} rows`, rowLine);
-      onRow(row, rowLine, index);
-      index++;
-    }
+    const cells = row;
     row = [];
+    if (cells.length === 1 && cells[0] === '') return null;
+    if (index >= limits.rows) throw csvError(`The file has more than ${limits.rows} rows`, rowLine);
+    return { cells, line: rowLine, index: index++ };
   };
   for (let i = 0; i < text.length; i++) {
     const c = text[i]!;
@@ -82,7 +99,8 @@ export function readCsv(raw: string, limits: CsvLimits, onRow: (cells: string[],
       pushCell();
     } else if (c === '\r' || c === '\n') {
       if (c === '\r' && text[i + 1] === '\n') i++;
-      pushRow();
+      const r = endRow();
+      if (r) yield r;
       line++;
       rowLine = line;
     } else if (c === '"') {
@@ -95,6 +113,9 @@ export function readCsv(raw: string, limits: CsvLimits, onRow: (cells: string[],
     }
   }
   if (quoted) throw csvError('A quoted cell is not closed', rowLine);
-  if (cell.length || row.length || afterQuote) pushRow();
+  if (cell.length || row.length || afterQuote) {
+    const r = endRow();
+    if (r) yield r;
+  }
   return Math.max(0, index);
 }

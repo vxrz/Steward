@@ -214,10 +214,17 @@ function PartDetails({ card: c, part }: { card: ServiceScorecardDetail; part: Sc
     return (
       <Stack gap={2}>
         <Text size="xs">
-          {k.thisMonth !== null && k.budget !== null
-            ? t('costs.summaryAmounts', { used: k.thisMonth, budget: k.budget, currency: k.currency, pct: k.budgetPct })
-            : t('costs.summary', { pct: k.budgetPct })}
+          {k.stateOnly || k.budgetPct === null
+            ? t(`costs.state.${k.status === 'attention' ? 'exceeded' : k.status === 'pending' ? 'warning' : 'ok'}`)
+            : k.thisMonth !== null && k.budget !== null
+              ? t('costs.summaryAmounts', { used: k.thisMonth, budget: k.budget, currency: k.currency, pct: k.budgetPct })
+              : t('costs.summary', { pct: k.budgetPct })}
         </Text>
+        {k.stateOnly && (
+          <Text size="xs" c="dimmed">
+            {t('costs.stateOnly')}
+          </Text>
+        )}
         {k.forecastPct !== null && <Text size="xs">{t('costs.forecast', { pct: k.forecastPct })}</Text>}
         <Anchor component={Link} to={`/costs/service/${c.serviceId}`} size="xs">
           {t('costs.open')}

@@ -14947,6 +14947,10 @@
                   "null"
                 ],
                 "description": "Decimal; null when the token owner may not see the service’s costs"
+              },
+              "stateOnly": {
+                "type": "boolean",
+                "description": "The token owner does not see every application of the service: only the status from the budget’s state (budgetPct, forecastPct and thisMonth are null)"
               }
             },
             "required": [
@@ -14955,7 +14959,8 @@
               "forecastPct",
               "currency",
               "thisMonth",
-              "budget"
+              "budget",
+              "stateOnly"
             ],
             "additionalProperties": false,
             "description": "Costs: the month’s costs against the service’s monthly cost budget (docs/COSTS.md)"
@@ -16115,6 +16120,10 @@
                         "string"
                       ],
                       "description": "Decimal; null when the token owner may not see the service’s costs"
+                    },
+                    "stateOnly": {
+                      "type": "boolean",
+                      "description": "The token owner does not see every application of the service: only the status from the budget’s state (budgetPct, forecastPct and thisMonth are null)"
                     }
                   },
                   "required": [
@@ -16123,7 +16132,8 @@
                     "forecastPct",
                     "currency",
                     "thisMonth",
-                    "budget"
+                    "budget",
+                    "stateOnly"
                   ],
                   "additionalProperties": false,
                   "description": "Costs: the month’s costs against the service’s monthly cost budget (docs/COSTS.md)"
@@ -18120,6 +18130,10 @@
                   "string"
                 ],
                 "description": "Decimal; null when the token owner may not see the service’s costs"
+              },
+              "stateOnly": {
+                "type": "boolean",
+                "description": "The token owner does not see every application of the service: only the status from the budget’s state (budgetPct, forecastPct and thisMonth are null)"
               }
             },
             "required": [
@@ -18128,7 +18142,8 @@
               "forecastPct",
               "currency",
               "thisMonth",
-              "budget"
+              "budget",
+              "stateOnly"
             ],
             "additionalProperties": false,
             "description": "Costs: the month’s costs against the service’s monthly cost budget (docs/COSTS.md)"
@@ -26595,7 +26610,7 @@
               "null",
               "number"
             ],
-            "description": "This month so far in percent of the monthly budget"
+            "description": "This month so far in percent of the monthly budget; null without a budget, or when the token owner does not see every application of the scope (then only budgetState)"
           },
           "budgetState": {
             "anyOf": [
@@ -26988,13 +27003,18 @@
                     "description": "This month so far – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
                   },
                   "pct": {
-                    "type": "number"
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "This month so far in percent of the budget; null with stateOnly"
                   },
                   "forecastPct": {
                     "type": [
                       "number",
                       "null"
-                    ]
+                    ],
+                    "description": "The forecast of the month in percent of the budget; null with stateOnly"
                   },
                   "state": {
                     "type": "string",
@@ -27003,6 +27023,10 @@
                       "warning",
                       "exceeded"
                     ]
+                  },
+                  "stateOnly": {
+                    "type": "boolean",
+                    "description": "The token owner does not see every application of the service or team: only the state is given (used, pct and forecastPct are null), since the budget covers them all"
                   },
                   "comment": {
                     "type": "string"
@@ -27025,6 +27049,7 @@
                   "pct",
                   "forecastPct",
                   "state",
+                  "stateOnly",
                   "comment",
                   "updatedAt",
                   "updatedBy"

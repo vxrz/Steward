@@ -422,6 +422,11 @@ export interface ScorecardCosts {
   /** The amounts – only for readers who may see the service's costs */
   thisMonth: string | null;
   budget: string | null;
+  /**
+   * The reader does not see every application of the service: only the budget's state (the status), no amounts and no
+   * percentages – the budget covers them all
+   */
+  stateOnly: boolean;
 }
 
 export interface ScorecardContractItem {

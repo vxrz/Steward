@@ -130,6 +130,8 @@
     "edit": "Change budget",
     "used": "{{used}} of {{amount}} this month",
     "usedPct": "{{pct}} % of the budget this month",
+    "amountOnly": "Budget: {{amount}} a month",
+    "stateOnly": "Only the budget's state is shown: some applications are hidden from you, and the budget covers them all.",
     "pctOf": "{{pct}} % of the budget",
     "forecast": "Forecast for the month: {{pct}} % of the budget",
     "changed": "Set by {{who}}, {{when}}",

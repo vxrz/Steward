@@ -1,9 +1,9 @@
 import type { CheckOf, MonitorStatus, StackVersion } from '@sm/shared';
 import { db } from '../db.js';
-import { runAs } from '../auth/context.js';
+import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
-import { catalogueVisibleNow } from '../records/access.js';
-import { HttpError } from '../util.js';
+import { canViewCatalogue, catalogueVisibleNow } from '../records/access.js';
+import { HttpError, parseJson } from '../util.js';
 import { CheckSetupError } from '../monitors/platforms.js';
 import { lifecycleOf, lifecycleSettings, releasesOf } from '../catalogue/lifecycle.js';
 import { productLabel } from '../catalogue/components.js';
@@ -15,7 +15,8 @@ import { watchOf, type WatchedEntry } from './service.js';
  *   down (majorAs)    a major release behind
  *   down (eolAs)      the release cycle in use reached its end of life
  *   degraded          more than maxMinors minor releases behind, or the first newer release older than maxDays
- * The application is resolved with the monitor owner's view: one they may not see answers like a missing one.
+ * The application and its systems are resolved with the monitor owner's view: an application they may not see answers
+ * like a missing one, a system they may not see is left out.
  */
 
 type AppRow = { id: string; name: string; owners: string; archived: number };
@@ -47,23 +48,35 @@ interface Row {
   dt_platform_id: string | null;
   dt_state: string | null;
   updated_by: string;
+  holder_owners: string | null;
 }
 
-/** The stack entries of an application: its components and the systems it runs on (with the environment of the link). */
-export function applicationEntries(appId: string): WatchedEntry[] {
+/**
+ * The stack entries of an application: its components and the systems it runs on (with the environment of the link) –
+ * as `viewer` sees them: a system they may not see is left out, neither named nor counted (like the application's page,
+ * catalogue/systems.ts systemLinksOf). No viewer (jobs, the dataset): every system.
+ */
+export function applicationEntries(appId: string, viewer: AuthUser | null = currentUser()): WatchedEntry[] {
   const rows = db().all<Row>(
     `SELECT 'component' AS holder_kind, c.id AS holder_id, c.name AS holder_name, c.environment, cs.product, cs.version, cs.source, cs.sbom_ref,
-            c.dt_platform_id, c.dt_state, c.updated_by
+            c.dt_platform_id, c.dt_state, c.updated_by, NULL AS holder_owners
      FROM component_stack cs JOIN application_components c ON c.id = cs.component_id WHERE c.application_id = ?
      UNION ALL
      SELECT 'system' AS holder_kind, s.id AS holder_id, s.name AS holder_name, l.environment, ss.product, ss.version, ss.source, ss.sbom_ref,
-            NULL AS dt_platform_id, NULL AS dt_state, s.updated_by
+            NULL AS dt_platform_id, NULL AS dt_state, s.updated_by, s.owners AS holder_owners
      FROM system_stack ss JOIN systems s ON s.id = ss.system_id JOIN application_systems l ON l.system_id = s.id WHERE l.application_id = ?
      ORDER BY holder_kind, holder_name, product`,
     appId,
     appId,
   );
-  return rows.map((r) => ({
+  const seen = new Map<string, boolean>();
+  const visible = (r: Row) => {
+    if (r.holder_kind === 'component' || !viewer) return true;
+    if (!seen.has(r.holder_id))
+      seen.set(r.holder_id, canViewCatalogue(viewer, { kind: 'system', id: r.holder_id, owners: parseJson<string[]>(r.holder_owners, []) }));
+    return seen.get(r.holder_id)!;
+  };
+  return rows.filter(visible).map((r) => ({
     holderKind: r.holder_kind,
     holderId: r.holder_id,
     holderName: r.holder_name,
@@ -87,23 +100,28 @@ export function versionBehindCheck(
 ): { status: MonitorStatus; message: string; value?: unknown } {
   const u = findUserByName(ctx.owner);
   if (!u || !u.active) throw new CheckSetupError(`the monitor owner ${ctx.owner} is missing or deactivated`);
-  const app = runAs(toAuthUser(u), () => {
-    const a = findApplication(c.application);
-    return a && catalogueVisibleNow('application', a) ? a : null;
-  });
+  // with the owner's rights also when the monitor engine calls it (no request): what they may not see stays out
+  const owner = toAuthUser(u);
+  return runAs(owner, () => ownerCheck(c, owner, ctx.now()));
+}
+
+function ownerCheck(c: CheckOf<'version-behind'>, owner: AuthUser, now: number): { status: MonitorStatus; message: string; value?: unknown } {
+  const a = findApplication(c.application);
+  const app = a && catalogueVisibleNow('application', a) ? a : null;
   if (!app) throw new CheckSetupError(`application ${c.application} does not exist or the monitor owner may not see it`);
   if (app.archived) return { status: 'unknown', message: `The application "${app.name}" is archived` };
   const env = (c.environment ?? '').trim().toLowerCase();
   const products = c.products?.length ? new Set(c.products) : null;
-  const entries = applicationEntries(app.id).filter(
+  const entries = applicationEntries(app.id, owner).filter(
     (e) => (!env || !e.environment || e.environment.toLowerCase() === env) && (!products || products.has(e.product)),
   );
   if (!entries.length) return { status: 'unknown', message: `"${app.name}" has no tech stack${env || products ? ' in this selection' : ''}` };
-  const now = ctx.now();
   const watch = watchOf(entries, now);
   const s = lifecycleSettings();
   const releases = releasesOf([...new Set(entries.map((e) => e.product))]);
   const findings: { status: MonitorStatus; text: string; product: string; holder: string; installed: string; newest: string | null; reason: string }[] = [];
+  /** entries with a finding (one can have two: end of life and a major release behind) */
+  const behind = new Set<WatchedEntry>();
   let known = 0;
   for (const e of entries) {
     const w: StackVersion | null = watch.get(`${e.holderKind}\u0000${e.holderId}\u0000${e.product}`)?.watch ?? null;
@@ -111,8 +129,10 @@ export function versionBehindCheck(
     if (w?.newest) known++;
     const name = `${productLabel(e.product)} ${e.version}`.trim();
     const where = e.environment ? `${e.holderName} (${e.environment})` : e.holderName;
-    const add = (status: MonitorStatus, reason: string, text: string) =>
+    const add = (status: MonitorStatus, reason: string, text: string) => {
+      behind.add(e);
       findings.push({ status, text: `${name} ${text} – ${where}`, product: e.product, holder: where, installed: e.version, newest: w?.newest ?? null, reason });
+    };
     if (c.eolAs !== 'ignore' && lc?.state === 'eol') add(c.eolAs, 'eol', `end of life${lc.eolFrom ? ` since ${lc.eolFrom}` : ''}`);
     if (!w?.newest || !w.behind) continue;
     const days = w.daysBehind !== null ? `, ${w.daysBehind} days` : '';
@@ -133,7 +153,7 @@ export function versionBehindCheck(
   return {
     status: worst,
     message:
-      `${findings.length} of ${entries.length} stack entries of "${app.name}": ${shown.join('; ')}${findings.length > 3 ? ` and ${findings.length - 3} more` : ''}`.slice(
+      `${behind.size} of ${entries.length} stack entries of "${app.name}": ${shown.join('; ')}${findings.length > 3 ? ` and ${findings.length - 3} more` : ''}`.slice(
         0,
         1000,
       ),

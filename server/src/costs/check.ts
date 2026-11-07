@@ -1,17 +1,19 @@
 import { fromMicros, toMicros, type CheckOf, type MonitorStatus } from '@sm/shared';
-import { runAs } from '../auth/context.js';
+import { runAs, type AuthUser } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { CheckSetupError } from '../monitors/platforms.js';
 import { HttpError } from '../util.js';
-import { scopeInfo } from './access.js';
+import { costSettings, scopeInfo } from './access.js';
 import { addMonths, monthOf, scopeMonths } from './query.js';
 
 /**
  * The monitor check "Cost change" (#226, docs/COSTS.md#monitor-check): the costs of a service, application, team or
  * platform against the period before – the last complete month against the month before (period "month"), or this
  * month so far against the same share of the month before ("monthToDate"). It fails when they rose by more than
- * `maxIncreasePct` percent or by more than `maxIncrease`. It runs with the monitor owner's rights: they must see the
- * scope; amounts appear in the message only when they may see them.
+ * `maxIncreasePct` percent or by more than `maxIncrease`. It runs with the monitor owner's rights – also when the
+ * monitor engine calls it without a request: they must see the scope, and a service or team counts only the
+ * applications they may see. Every monitor viewer reads the message and the value, so they carry amounts only when the
+ * owner may see them and "Hide amounts from viewers" is off; otherwise only the change in percent.
  */
 
 const SCOPE_LABEL = { service: 'Service', application: 'Application', team: 'Team', platform: 'Platform' } as const;
@@ -25,11 +27,17 @@ export function requireVisibleCostScope(check: string, c: Pick<CheckOf<'cost'>, 
 export function costCheck(c: CheckOf<'cost'>, ctx: { owner: string; now: () => number }): { status: MonitorStatus; message: string; value?: unknown } {
   const u = findUserByName(ctx.owner);
   if (!u || !u.active) throw new CheckSetupError(`the monitor owner ${ctx.owner} is missing or deactivated`);
-  const info = runAs(toAuthUser(u), () => scopeInfo(c.scope, c.target));
-  if (!info) throw new CheckSetupError(`${c.scope} ${c.target} does not exist or the monitor owner may not see it`);
-  const now = ctx.now();
+  const owner = toAuthUser(u);
+  return runAs(owner, () => ownerCheck(c, owner, ctx.now()));
+}
+
+function ownerCheck(c: CheckOf<'cost'>, owner: AuthUser, now: number): { status: MonitorStatus; message: string; value?: unknown } {
+  const found = scopeInfo(c.scope, c.target, owner);
+  if (!found) throw new CheckSetupError(`${c.scope} ${c.target} does not exist or the monitor owner may not see it`);
+  // every monitor viewer reads the result: no amounts while they are hidden from viewers
+  const info = { ...found, amounts: found.amounts && !costSettings().hideAmountsFromViewers };
   const month = monthOf(now);
-  const sums = scopeMonths(c.scope, c.target, addMonths(month, -2));
+  const sums = scopeMonths(c.scope, c.target, addMonths(month, -2), owner);
   const currency =
     c.currency ?? [...sums.entries()].map(([cur, m]) => [cur, [...m.values()].reduce((n, x) => n + x.e, 0)] as const).sort((a, b) => b[1] - a[1])[0]?.[0];
   const m = currency ? sums.get(currency) : undefined;

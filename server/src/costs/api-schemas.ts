@@ -21,7 +21,12 @@ export const CostOverviewRow = z.object({
   forecast: amount('The current month projected from its days so far'),
   changePct: z.number().nullable().describe('The forecast against the last month, in percent'),
   unassigned: amount('Platforms: the costs of this month that no application is linked to'),
-  budgetPct: z.number().nullable().describe('This month so far in percent of the monthly budget'),
+  budgetPct: z
+    .number()
+    .nullable()
+    .describe(
+      'This month so far in percent of the monthly budget; null without a budget, or when the token owner does not see every application of the scope (then only budgetState)',
+    ),
   budgetState: state.nullable(),
 });
 
@@ -87,9 +92,14 @@ export const CostScopeDetail = z.object({
       amount: amount('The monthly budget'),
       currency: z.string(),
       used: amount('This month so far'),
-      pct: z.number(),
-      forecastPct: z.number().nullable(),
+      pct: z.number().nullable().describe('This month so far in percent of the budget; null with stateOnly'),
+      forecastPct: z.number().nullable().describe('The forecast of the month in percent of the budget; null with stateOnly'),
       state,
+      stateOnly: z
+        .boolean()
+        .describe(
+          'The token owner does not see every application of the service or team: only the state is given (used, pct and forecastPct are null), since the budget covers them all',
+        ),
       comment: z.string(),
       updatedAt: ts(),
       updatedBy: z.string(),

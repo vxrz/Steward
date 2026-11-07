@@ -16,11 +16,11 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
-import { currentActor } from '../auth/context.js';
+import { currentActor, currentUser, type AuthUser } from '../auth/context.js';
 import { HttpError, newId, nowIso } from '../util.js';
-import { requireScope } from './access.js';
-import { parseFocus, summarize, type ParsedFocus } from './focus.js';
-import { ingest, mapper, remap, tagKeyOf, type IngestResult } from './store.js';
+import { requireScope, scopeInfo } from './access.js';
+import { parseFocusAsync, summarize, type ParsedFocus } from './focus.js';
+import { ingest, mapLines, mapper, remap, tagKeyOf, type IngestResult } from './store.js';
 
 /**
  * Cost sources per platform and FOCUS file imports (#226, docs/COSTS.md#sources). Who may manage a platform sets how
@@ -189,10 +189,6 @@ export function listImports(platformId: string): CostImport[] {
     .map(toImport);
 }
 
-function parsed(csv: string): ParsedFocus {
-  return parseFocus(csv);
-}
-
 /** Lines of earlier imports on this platform in the file's days (what mode "replace" removes). */
 function replaced(platformId: string, p: ParsedFocus): number {
   if (!p.periodStart || !p.periodEnd) return 0;
@@ -206,10 +202,20 @@ function replaced(platformId: string, p: ParsedFocus): number {
   );
 }
 
-function previewOf(platformId: string, p: ParsedFocus, fileName: string): CostImportPreview {
-  const map = mapper(platformId, 'focus');
+/**
+ * The preview counts as linked only lines of applications the caller may see: one they may not see (tied to the
+ * platform, say) counts as unassigned, like a name no application has – the preview never tells whether it exists.
+ */
+async function previewOf(platformId: string, p: ParsedFocus, fileName: string): Promise<CostImportPreview> {
+  const u = currentUser();
+  const links = await mapLines(mapper(platformId, 'focus', u), p.lines);
+  const seen = new Map<string, boolean>();
+  const visible = (id: string) => {
+    if (!seen.has(id)) seen.set(id, !!scopeInfo('application', id, u));
+    return seen.get(id)!;
+  };
   let assigned = 0;
-  for (const l of p.lines) if (map(l).applicationId) assigned++;
+  for (const l of links) if (l.applicationId && visible(l.applicationId)) assigned++;
   const dup = db().get<ImportRow>('SELECT * FROM cost_imports WHERE platform_id = ? AND sha256 = ? ORDER BY imported_at DESC LIMIT 1', platformId, p.sha256);
   return {
     fileName,
@@ -230,10 +236,10 @@ function previewOf(platformId: string, p: ParsedFocus, fileName: string): CostIm
 }
 
 /** What an import of this file would do – nothing is stored. */
-export function previewImport(platformId: string, body: unknown): CostImportPreview {
+export async function previewImport(platformId: string, body: unknown): Promise<CostImportPreview> {
   requireManage(platformId, 'import costs for this platform');
   const x = costImportInput.parse(body);
-  return previewOf(platformId, parsed(x.csv), x.fileName);
+  return previewOf(platformId, await parseFocusAsync(x.csv), x.fileName);
 }
 
 export interface ImportOutcome {
@@ -245,15 +251,20 @@ export interface ImportOutcome {
 /**
  * Imports a FOCUS file for a platform. The same file (SHA-256) twice is refused. Mode "replace" (default) replaces
  * the lines of earlier imports for the file's days – a corrected file; changed figures of closed periods are audited
- * as corrections. Audited with the file's SHA-256, size, rows, period and totals.
+ * as corrections. Audited with the file's SHA-256, size, rows, period and totals. Lines link with the rights of
+ * `importer` (the signed-in user; a push: the token's creator – store.ts, mapper). Reading and linking give the
+ * event loop a turn now and then; the writing is one transaction.
  */
-export function importFile(
+export async function importFile(
   platformId: string,
   input: { csv: string; fileName: string; mode: CostImportMode },
   via: { kind: 'ui' } | { kind: 'push'; tokenId: string; tokenName: string; ip: string },
   actor = currentActor(),
-): ImportOutcome {
-  const p = parsed(input.csv);
+  importer: AuthUser | null = currentUser(),
+): Promise<ImportOutcome> {
+  const p = await parseFocusAsync(input.csv);
+  const links = await mapLines(mapper(platformId, 'focus', importer), p.lines);
+  // after the pauses above: nothing awaits from here to the end of the transaction
   const pl = platformRow(platformId);
   const dup = db().get<{ id: string; imported_at: string }>(
     'SELECT id, imported_at FROM cost_imports WHERE platform_id = ? AND sha256 = ? LIMIT 1',
@@ -294,6 +305,7 @@ export function importFile(
       sourceName: pl.name,
       source: 'focus',
       lines: p.lines.map((l) => ({ ...l, key: `${id}|${l.key}` })),
+      links,
       window: input.mode === 'replace' && p.periodStart && p.periodEnd ? { from: p.periodStart, to: p.periodEnd } : null,
       actor,
       importId: id,
@@ -328,7 +340,7 @@ export function importFile(
 }
 
 /** The import of the web app (who may manage the platform). */
-export function importFromUi(platformId: string, body: unknown): ImportOutcome {
+export async function importFromUi(platformId: string, body: unknown): Promise<ImportOutcome> {
   requireManage(platformId, 'import costs for this platform');
   const x = costImportInput.parse(body);
   return importFile(platformId, { csv: x.csv, fileName: x.fileName, mode: x.mode }, { kind: 'ui' });

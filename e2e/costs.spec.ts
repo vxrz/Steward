@@ -150,3 +150,51 @@ test('costs on a phone @mobile', async ({ page, apiAs }) => {
   const p = await source(page, api, true);
   await api.delete(`/api/platforms/${p.id}`);
 });
+
+/** A service with an application olivia may not see: its budget shows her the state only (no figures to subtract). */
+async function stateOnly(loginAs: (u: 'olivia') => Promise<Page>, api: APIRequestContext, mobile: boolean) {
+  const team = await json<{ id: string }>(await api.post('/api/teams', { data: { name: uniq('Cost team') } }));
+  const mine = await json<{ id: string }>(await api.post('/api/applications', { data: { name: uniq('Olivia app'), owners: ['user:olivia'] } }));
+  const other = await json<{ id: string }>(await api.post('/api/applications', { data: { name: uniq('Other team app') } }));
+  const service = await json<{ id: string; name: string }>(
+    await api.post('/api/services', { data: { name: uniq('Shared service'), owners: ['user:olivia'] } }),
+  );
+  try {
+    expect((await api.put(`/api/owning-teams/application/${other.id}`, { data: { teamIds: [team.id] } })).ok()).toBe(true);
+    for (const a of [mine, other]) expect((await api.put(`/api/services/${service.id}/applications/${a.id}`, { data: {} })).ok()).toBe(true);
+    expect((await api.put('/api/costs/budgets', { data: { scope: 'service', scopeId: service.id, amount: '1000', currency: 'USD' } })).ok()).toBe(true);
+    const page = await loginAs('olivia');
+    await page.goto(`/costs/service/${service.id}`);
+    await expect(page.getByRole('heading', { name: service.name, level: 1 })).toBeVisible();
+    const budget = page.getByTestId('cost-budget');
+    await expect(budget.getByTestId('budget-state')).toHaveText('Within budget');
+    await expect(budget.getByTestId('budget-state-only')).toContainText('Only the budget');
+    await expect(budget).toContainText('Budget: US$1,000.00 a month');
+    await expect(budget).not.toContainText('this month');
+    await expect(budget.getByRole('progressbar')).toHaveCount(0);
+    await expectAccessible(page, 'costs: budget state only');
+    if (mobile) await expectNoHorizontalScroll(page);
+    // the scorecard part "Costs": the state, no percentage
+    await page.goto(`/services/${service.id}/scorecard`);
+    const part = page.getByTestId('part-costs');
+    await expect(part).toContainText('Within the budget this month');
+    await expect(part).toContainText('Only the budget');
+    await expect(part).not.toContainText('%');
+    await expectAccessible(page, 'scorecard: costs as state only');
+    if (mobile) await expectNoHorizontalScroll(page);
+  } finally {
+    await api.put('/api/costs/budgets', { data: { scope: 'service', scopeId: service.id, amount: null, currency: 'USD' } });
+    await api.delete(`/api/services/${service.id}`);
+    for (const a of [mine, other]) await api.post(`/api/applications/${a.id}/archive`, { data: { archived: true } });
+    await api.put(`/api/owning-teams/application/${other.id}`, { data: { teamIds: [] } });
+    await api.delete(`/api/teams/${team.id}`);
+  }
+}
+
+test('costs: a budget shows only its state to who does not see every application', async ({ apiAs, loginAs }) => {
+  await stateOnly(loginAs, await apiAs('admin'), false);
+});
+
+test('costs: budget state only on a phone @mobile', async ({ apiAs, loginAs }) => {
+  await stateOnly(loginAs, await apiAs('admin'), true);
+});

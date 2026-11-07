@@ -146,14 +146,14 @@ function teamApplications(teamId: string): string[] {
 }
 
 /**
- * What a scope covers. For a reader (`visibleOnly`, the default) a service or team covers only the applications they
- * may see – an application they may not see is neither named nor counted in its totals; budgets and their notices use
- * the whole scope (`visibleOnly: false`).
+ * What a scope covers. For a reader (`visibleOnly`, the default; `reader`, by default the signed-in user) a service or
+ * team covers only the applications they may see – an application they may not see is neither named nor counted in
+ * its totals; budgets and their notices use the whole scope (`visibleOnly: false`). No reader (a job): everything.
  */
-export function coverOf(scope: CostScope, id: string, visibleOnly = true): ScopeCover {
+export function coverOf(scope: CostScope, id: string, visibleOnly = true, reader: AuthUser | null = currentUser()): ScopeCover {
   if (scope === 'platform') return { applications: [], unassignedPlatforms: [], platform: id };
   if (scope === 'application') return { applications: [id], unassignedPlatforms: [], platform: null };
-  const u = visibleOnly ? currentUser() : null;
+  const u = visibleOnly ? reader : null;
   const seen = (appId: string) => !u || !!scopeInfo('application', appId, u);
   if (scope === 'service')
     return {
@@ -171,6 +171,16 @@ export function coverOf(scope: CostScope, id: string, visibleOnly = true): Scope
       .map((r) => r.resource_id),
     platform: null,
   };
+}
+
+/**
+ * Whether the reader sees every application a service or team covers (applications and platforms: always). Who does
+ * not gets only the state of its budget (under, 80 %, reached) – its figures cover the whole scope, so they would give
+ * away the costs of the applications left out by subtraction (docs/COSTS.md#budgets).
+ */
+export function seesWholeScope(scope: CostScope, id: string, reader: AuthUser | null = currentUser()): boolean {
+  if (!reader || scope === 'platform' || scope === 'application') return true;
+  return coverOf(scope, id, true, reader).applications.length === coverOf(scope, id, false).applications.length;
 }
 
 /** The WHERE part (on cost_records) of what a scope covers; `false` when it covers nothing. */

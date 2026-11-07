@@ -431,6 +431,8 @@
     "title100": "Kostenbudget erreicht: {{name}}",
     "body80": "{{name}} hat diesen Monat {{used}} von seinem Budget von {{limit}} gekostet ({{pct}} %). Die Prognose für den Monat: {{forecast}}.",
     "body100": "{{name}} hat diesen Monat {{used}} gekostet – das Budget von {{limit}} ist erreicht ({{pct}} %). Budgets halten nichts an; prüfen Sie die Kosten oder erhöhen Sie das Budget.",
+    "body80State": "{{name}} hat 80 % des monatlichen Kostenbudgets erreicht. Sie sehen nur den Stand des Budgets: Einige der Anwendungen sind für Sie nicht sichtbar.",
+    "body100State": "{{name}} hat das monatliche Kostenbudget erreicht. Sie sehen nur den Stand des Budgets: Einige der Anwendungen sind für Sie nicht sichtbar. Budgets halten nichts an.",
     "service": "Service „{{name}}“",
     "application": "Anwendung „{{name}}“",
     "team": "Team „{{name}}“",

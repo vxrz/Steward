@@ -254,6 +254,12 @@ export interface Lookup {
   refs?: 'releases' | 'tags';
 }
 
+/**
+ * Where a version was found, as the reader may see it: a platform they may not see ("Viewers see no platforms") is
+ * named by its kind only. Jobs (no reader) see every name.
+ */
+const platformLabel = (p: Platform, kind: string): string => (currentUser() && !p.permissions.length ? kind : p.name);
+
 interface Candidate {
   source: VersionSource;
   ref: string;
@@ -407,7 +413,7 @@ function candidatesOf(e: WatchedEntry, stored: StoredConfig | undefined, ctx: Pl
       out.push({
         source,
         ref,
-        where: dt.name,
+        where: platformLabel(dt, 'Dependency-Track'),
         scheme: schemeOf(cfg, ecosystemScheme(p.type)),
         pattern: '',
         lookup: { key: `dtrack:${dt.id}:${ref}`, source, ref, where: dt.name, actor: e.updatedBy, platformId: dt.id, purl: p },
@@ -436,7 +442,7 @@ function candidatesOf(e: WatchedEntry, stored: StoredConfig | undefined, ctx: Pl
       out.push({
         source,
         ref: name,
-        where: platform.name,
+        where: platformLabel(platform, 'Container registry'),
         scheme: schemeOf(cfg, 'loose'),
         pattern,
         lookup: { key: `oci:${platform.id}:${name}`, source, ref: name, where: platform.name, actor, platformId: platform.id, name },
@@ -469,7 +475,7 @@ function candidatesOf(e: WatchedEntry, stored: StoredConfig | undefined, ctx: Pl
       out.push({
         source,
         ref: repo,
-        where: platform.name,
+        where: platformLabel(platform, 'Git platform'),
         scheme: schemeOf(cfg, 'loose'),
         pattern: cfg.tagPattern,
         lookup: { key: `git:${platform.id}:${repo}:${refs}`, source, ref: repo, where: platform.name, actor, platformId: platform.id, name: repo, refs },
@@ -845,8 +851,10 @@ export function versionStatus(): VersionWatchStatus {
     )
     .filter((l) => keys.has(l.key));
   const eolAt = db().get<{ t: string | null }>('SELECT MAX(fetched_at) AS t FROM eol_products')?.t ?? null;
+  // internal mirror addresses and platform ids are for administrators (who change them)
+  const { registries: _r, ociPlatformIds: _o, gitPlatformId: _g, ...open } = s;
   return {
-    settings: s,
+    settings: canEditSettings() ? s : open,
     entries: entries.length,
     withNewest: watches.filter((w) => w.newest).length,
     current: watches.filter((w) => w.lag === 'current').length,

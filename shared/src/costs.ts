@@ -222,13 +222,18 @@ export interface CostBudget {
   /** The month's budget, in its currency (null when the reader may not see amounts) */
   amount: string | null;
   currency: string;
-  /** This month so far in the budget's currency */
+  /** This month so far in the budget's currency (null when the reader may not see amounts, or with `stateOnly`) */
   used: string | null;
-  /** used / amount in percent, one decimal */
-  pct: number;
-  /** The forecast of the month in percent of the budget */
+  /** used / amount in percent, one decimal (null with `stateOnly`) */
+  pct: number | null;
+  /** The forecast of the month in percent of the budget (null with `stateOnly`) */
   forecastPct: number | null;
   state: CostBudgetStateName;
+  /**
+   * The reader does not see every application of the service or team: the budget covers all of them, so only its
+   * state is given – no use, no percentages (they would give away the costs of the others by subtraction)
+   */
+  stateOnly: boolean;
   comment: string;
   updatedAt: string;
   updatedBy: string;
@@ -286,6 +291,7 @@ export interface CostOverviewRow {
   changePct: number | null;
   /** Platforms: what no application is linked to this month */
   unassigned: string | null;
+  /** This month so far in percent of the budget (null without a budget, or when the reader sees only its state) */
   budgetPct: number | null;
   budgetState: CostBudgetStateName | null;
 }

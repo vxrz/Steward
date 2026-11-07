@@ -148,6 +148,7 @@ For every tech stack entry – from an SBOM, a cluster's images, a repository's 
 - **The entry** (the badge or the details button): newest version, behind by, the release cycle's end of life, the findings in this package from Dependency-Track with their fixed version, and **what each source said** – also those after the one that won, with why a source did not apply (no package URL, blocked by the outbound policy, not read yet …).
 - **Where to look**, per entry, for whoever may change the application or system: _Automatic_, one source, or _Not watched_; the package URL, the image or repository on a platform the person may use, a **tag pattern** with `{version}` once (`{version}-alpine`, `v{version}`, `release-{version}`), releases or tags, the comparison rules and pre-releases. _Read now_ reads its sources at once. Changes are audited (`application.version_watch_changed`, `system.version_watch_changed`).
 - `GET /api/v1/applications/{id}` carries `watch` on every stack entry (`source`, `where`, `ref`, `newest`, `newestAt`, `lag`, `behind`, `daysBehind`, `checkedAt`, `error`).
+- _Where_ names the platform (Dependency-Track, container registry, Git platform) only for a reader who may see it; everybody else reads its kind (_Container registry_, _Dependency-Track_, _Git platform_) – viewers see no platforms.
 
 **Monitor check _Version behind_** ([MONITORS.md](MONITORS.md#check-types)): the stack of one application (its components and the systems it runs on), optionally one environment or some products – **down** (or degraded) when an entry is a major release behind or its cycle is past its end of life, **degraded** above `maxMinors` minor releases (default 2) or `maxDays` days behind. It judges the cache and calls nothing.
 
@@ -166,11 +167,11 @@ checks:
 
 **Dataset _Component versions_** (`catalogue.versions`) for dashboards and reports: one row per stack entry – application, component or system, environment, product, installed, newest, behind, days behind, end of life, source – with a status (serious: a major behind or past its end of life; warning: further behind than the settings allow) and the metrics `entries`, `current`, `major`, `minor`, `patch`, `eol`, `unknown`. Published every hour by the job. It names every application, so only administrators and auditors see it.
 
-**Scorecard part _Up to date_** (off by default, [SCORECARD.md](SCORECARD.md#the-scorecard)): attention when an entry is a major release behind, open when further behind than allowed.
+**Scorecard part _Up to date_** (off by default, [SCORECARD.md](SCORECARD.md#the-scorecard)): attention when an entry is a major release behind, open when further behind than allowed. A system the reader may not see is neither named nor counted – here, in the part _Tech stack_ and in the check _Version behind_ (which sees what its owner sees).
 
 **Messages**: event **New major release** (`stack.release`, [NOTIFICATIONS.md](NOTIFICATIONS.md)) to the owners of the application (else the administrators) or the people responsible for a system, once per product and major release. The newest major release known when an entry is first seen is the starting point – turning the watch on sends no flood. A cycle reaching its end of life is the event _Tech stack end of life_ above. Sent messages are audited (`application.major_release_notice_sent`, `system.major_release_notice_sent`).
 
-**Settings** (_Applications → Version watch_; status for everyone, changes by administrators, audited as `catalogue.versions_settings_changed`):
+**Settings** (_Applications → Version watch_; status for everyone, changes by administrators, audited as `catalogue.versions_settings_changed`). The registry addresses (mirrors) and the chosen platforms are shown to administrators only:
 
 | Setting                                | Default       | What it does                                                                                                                          |
 | -------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |

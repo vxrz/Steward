@@ -82,7 +82,7 @@ test('the tech stack shows the newest version and how far behind', async ({ page
   }
 });
 
-test('the version watch settings: the state of the sources, administrators change them', async ({ page }) => {
+test('the version watch settings: the state of the sources, administrators change them', async ({ page, loginAs }) => {
   await page.goto('/applications');
   await page.getByRole('button', { name: 'Version watch' }).click();
   const dialog = page.getByRole('dialog', { name: 'Version watch of the tech stack' });
@@ -90,7 +90,18 @@ test('the version watch settings: the state of the sources, administrators chang
   await expect(dialog.getByText('Only administrators change these settings.')).toBeVisible();
   await expect(dialog.getByRole('checkbox', { name: /Package registry/ })).toBeDisabled();
   await expect(dialog.getByRole('switch', { name: 'Count on the scorecard' })).toBeDisabled();
+  // the registry addresses (mirrors) and the platforms are for administrators
+  await expect(dialog.getByText('Package registries')).toHaveCount(0);
+  await expect(dialog.getByText('Container registries for images')).toHaveCount(0);
   await expectAccessible(page, 'version watch settings');
+  const admin = await loginAs('admin');
+  await admin.goto('/applications');
+  await admin.getByRole('button', { name: 'Version watch' }).click();
+  const own = admin.getByRole('dialog', { name: 'Version watch of the tech stack' });
+  await expect(own.getByText('Package registries')).toBeVisible();
+  await expect(own.getByText('Container registries for images')).toBeVisible();
+  await expect(own.getByRole('switch', { name: 'Count on the scorecard' })).toBeEnabled();
+  await expectAccessible(admin, 'version watch settings of an administrator');
 });
 
 test('versions on a phone: cards instead of the table @mobile', async ({ page, apiAs }) => {
