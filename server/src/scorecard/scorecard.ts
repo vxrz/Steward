@@ -67,7 +67,7 @@ import { isWellBehind, versionSettings, watchOf, type WatchedEntry } from '../ve
 import { applicationEntries } from '../versions/check.js';
 import { scopeInfo as costScopeInfo } from '../costs/access.js';
 import { budgetOf as costBudgetOf } from '../costs/query.js';
-import { contractStates, contractsLinkedTo, type ContractState } from '../datacontracts/service.js';
+import { contractRow, contractStates, contractsLinkedTo, permissionsOf as contractPermissions, type ContractState } from '../datacontracts/service.js';
 
 /**
  * The service scorecard (#86): per service its parts, each with its own status – no weighting.
@@ -660,9 +660,13 @@ function contractCtx(d: Data, viewer: AuthUser | null): ContractCtx {
   return { byApp, states: contractStates([...byApp.values()].flat(), viewer) };
 }
 
+/** The contracts that count for a service (those the reader may see). */
+const contractIdsOf = (d: Data, serviceId: string, ctx: ContractCtx): string[] =>
+  [...new Set((d.members.get(serviceId) ?? []).flatMap((a) => ctx.byApp.get(a) ?? []))].filter((id) => ctx.states.has(id));
+
 /** Attention: a last test that failed or an error finding; pending: never tested or other findings. */
 function contractsPart(d: Data, serviceId: string, ctx: ContractCtx): ScorecardContracts {
-  const ids = [...new Set((d.members.get(serviceId) ?? []).flatMap((a) => ctx.byApp.get(a) ?? []))];
+  const ids = contractIdsOf(d, serviceId, ctx);
   const states = ids.map((id) => ctx.states.get(id)).filter((x): x is ContractState => !!x);
   const bad = (s: ContractState) => s.result === 'failed' || s.result === 'error' || s.errors > 0;
   const items = states
@@ -695,6 +699,8 @@ export interface Computed {
   card: ServiceScorecard;
   /** Released documents that counted (snapshots) */
   documentIds: string[];
+  /** Data contracts that counted (snapshots: a reader who may not see one gets the part as hidden) */
+  contractIds: string[];
 }
 
 /**
@@ -741,6 +747,7 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
         contracts,
       },
       documentIds: ids,
+      contractIds: contractIdsOf(d, s.id, cc),
     };
   });
 }
@@ -795,6 +802,8 @@ export interface SnapshotRow {
   up_to_date?: ScorecardPartStatus;
   costs?: ScorecardPartStatus | null;
   contracts?: ScorecardPartStatus;
+  /** The contracts the snapshot counted (0.9.0; '[]' before) */
+  contract_ids?: string;
   document_ids: string;
   details: string;
   updated_at: string;
@@ -806,28 +815,45 @@ export function dayOf(t: number, tz = instanceTimeZone()): string {
   return `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`;
 }
 
-/** Whether the reader may read every document a snapshot counted (deleted documents do not hide anything). */
-function snapshotReader(u: AuthUser, rows: SnapshotRow[]): (r: SnapshotRow) => boolean {
+/** What of a snapshot the reader may see in full (deleted documents or contracts do not hide anything). */
+interface SnapshotView {
+  /** Every document it counted */
+  documents: boolean;
+  /** Every data contract it counted (#221): otherwise the part is "hidden", like the documentation */
+  contracts: boolean;
+}
+
+function snapshotReader(u: AuthUser, rows: SnapshotRow[]): (r: SnapshotRow) => SnapshotView {
   const ids = [...new Set(rows.flatMap((r) => parseJson<string[]>(r.document_ids, [])))];
   const hidden = new Set(
     documentRows(ids)
       .filter((r) => !canReadRecordRow(u, r))
       .map((r) => r.id),
   );
-  return (r) => !hidden.size || !parseJson<string[]>(r.document_ids, []).some((id) => hidden.has(id));
+  const contractIds = [...new Set(rows.flatMap((r) => parseJson<string[]>(r.contract_ids ?? '[]', [])))];
+  const hiddenContracts = new Set(
+    contractIds.filter((id) => {
+      const c = contractRow(id);
+      return !!c && !contractPermissions(c, u).includes('view');
+    }),
+  );
+  return (r) => ({
+    documents: !hidden.size || !parseJson<string[]>(r.document_ids, []).some((id) => hidden.has(id)),
+    contracts: !hiddenContracts.size || !parseJson<string[]>(r.contract_ids ?? '[]', []).some((id) => hiddenContracts.has(id)),
+  });
 }
 
-function pointOf(r: SnapshotRow, readable: boolean): ServiceScorecardHistoryPoint {
+function pointOf(r: SnapshotRow, view: SnapshotView): ServiceScorecardHistoryPoint {
   const parts = {
     duties: r.duties,
     availability: r.availability,
-    documentation: readable ? r.documentation : ('hidden' as const),
+    documentation: view.documents ? r.documentation : ('hidden' as const),
     protection: r.protection,
     lifecycle: r.lifecycle ?? 'none',
     vulnerabilities: r.vulnerabilities ?? 'none',
     upToDate: r.up_to_date ?? 'none',
     costs: r.costs ?? 'none',
-    contracts: r.contracts ?? 'none',
+    contracts: view.contracts ? (r.contracts ?? 'none') : ('hidden' as const),
   };
   return { day: r.day, attention: SCORECARD_PARTS.some((p) => parts[p] === 'attention'), parts };
 }
