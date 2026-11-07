@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
   Alert,
+  Anchor,
+  NumberInput,
   Badge,
   Button,
   Card,
@@ -21,6 +23,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { IconDownload } from '@tabler/icons-react';
+import { Link } from 'react-router-dom';
 import type { NotificationSettings, Team, TeamsBotConversation, TeamsBotSettings } from '@sm/shared';
 import { apiUrl, get, getOptional, notifyError, notifyOk, put } from '../../api';
 import { fmtRelative } from '../../format';
@@ -43,6 +46,7 @@ interface Draft {
   providerId: string | null;
   credential: 'certificate' | 'secret';
   channels: Record<string, string>;
+  signInDays: number;
 }
 
 const toDraft = (s: TeamsBotSettings): Draft => ({
@@ -52,6 +56,7 @@ const toDraft = (s: TeamsBotSettings): Draft => ({
   providerId: s.providerId,
   credential: s.credential,
   channels: s.channels,
+  signInDays: s.signInDays,
 });
 
 export function TeamsBotCard() {
@@ -136,6 +141,14 @@ export function TeamsBotCard() {
           </Alert>
         )}
         <Switch label={t('bot.enabled')} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
+        {s.enabled && !s.approved && (
+          <Alert color="yellow" variant="light" data-testid="teams-bot-approval">
+            {s.approvalPending ? t('bot.approvalPending') : t('bot.approvalNeeded')}{' '}
+            <Anchor component={Link} to="/settings/assurance">
+              {t('bot.toPolicy')}
+            </Anchor>
+          </Alert>
+        )}
         <TextInput
           label={t('bot.appId')}
           description={t('bot.appIdHint')}
@@ -150,6 +163,16 @@ export function TeamsBotCard() {
           value={d.tenantIds}
           onChange={(v) => setD({ ...d, tenantIds: v.map((x) => x.trim().toLowerCase()) })}
           maxTags={10}
+        />
+        <NumberInput
+          label={t('bot.signInDays')}
+          description={t('bot.signInDaysHint')}
+          min={1}
+          max={30}
+          allowDecimal={false}
+          value={d.signInDays}
+          onChange={(v) => typeof v === 'number' && setD({ ...d, signInDays: Math.min(30, Math.max(1, v)) })}
+          maw={420}
         />
         <Select
           label={t('bot.provider')}

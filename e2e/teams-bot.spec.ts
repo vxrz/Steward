@@ -27,11 +27,12 @@ test('the Teams bot settings: preview, off, and nothing installed yet', async ({
   await page.getByTestId('settings-save-bar').getByRole('button', { name: 'Reset' }).click();
 });
 
-test('the assurance policy: "May be decided in Microsoft Teams" on for decisions and AI requests', async ({ page }) => {
+test('the assurance policy: "May be decided in Microsoft Teams" on for decisions, off for AI requests and the bot itself', async ({ page }) => {
   await page.goto('/settings/assurance');
   await settle(page);
   await expect(page.getByTestId('assurance-teams-run.decide')).toBeChecked();
-  await expect(page.getByTestId('assurance-teams-mcp.write')).toBeChecked();
+  await expect(page.getByTestId('assurance-teams-mcp.write')).not.toBeChecked();
+  await expect(page.getByTestId('assurance-teams-teams.bot')).not.toBeChecked();
   await expect(page.getByTestId('assurance-teams-manualStep.verify')).toHaveCount(0);
   await expectAccessible(page, 'assurance policy with the Teams switch');
 });

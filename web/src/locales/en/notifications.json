@@ -321,6 +321,11 @@
     },
     "package": "Download the Teams app package",
     "saved": "Teams bot settings saved",
-    "packageNeedsAppId": "Save the app id to download the Teams app package."
+    "packageNeedsAppId": "Save the app id to download the Teams app package.",
+    "approvalNeeded": "Decisions in Teams also need a second administrator: the assurance policy point “Decide with the Teams bot” is off.",
+    "approvalPending": "Waiting for a second administrator to approve “Decide with the Teams bot” in the assurance policy. Until then, the bot takes no decisions and posts no cards.",
+    "toPolicy": "Open the assurance policy",
+    "signInDays": "Sign-in needed within (days)",
+    "signInDaysHint": "A Teams decision needs a Steward sign-in within this many days: roles and teams come from that sign-in. Default 7."
   }
 }
