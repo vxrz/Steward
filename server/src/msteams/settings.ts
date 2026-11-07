@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { TeamsBotSettings } from '@sm/shared';
+import { boundedRecord, type TeamsBotSettings } from '@sm/shared';
 import { audit } from '../audit.js';
 import { config } from '../config.js';
 import { vault } from '../vault.js';
@@ -86,7 +86,7 @@ export const teamsBotInput = z
     clientSecret: z.string().max(2000).optional(),
     certificatePem: z.string().max(20000).optional(),
     privateKeyPem: z.string().max(20000).optional(),
-    channels: z.record(z.string().max(120), z.string().max(64)).optional(),
+    channels: boundedRecord(z.string().max(64), 200).optional(),
   })
   .strict();
 

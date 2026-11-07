@@ -1001,7 +1001,14 @@
     "DATA_CONTRACT_SQL_NEEDS_USE_PLATFORM": "SQL-Qualitätsregeln laufen mit den Zugangsdaten von „{{name}}“: Zum Speichern brauchen Sie dort das Recht „Verwenden“.",
     "DATA_CONTRACT_TLS_UNVERIFIED": "„{{name}}“ verlangt TLS ({{mode}}), aber der Data-Contract-Dienst kann das Zertifikat dieses DBMS nicht prüfen. Erlauben Sie es unter Plattform → Datenbank oder testen Sie mit der CLI dort, wo sie prüfen kann.",
     "DATA_CONTRACT_HOST_UNRESOLVED": "{{host}} lässt sich auf Seiten von Steward nicht auflösen. Steward testet nur einen Host, den es auflösen und prüfen kann.",
-    "DATA_CONTRACT_CHANGE_RECORD_USED": "{{number}} wurde schon für eine Version eines Data Contracts verwendet. Jede Version braucht einen eigenen Änderungsantrag."
+    "DATA_CONTRACT_CHANGE_RECORD_USED": "{{number}} wurde schon für eine Version eines Data Contracts verwendet. Jede Version braucht einen eigenen Änderungsantrag.",
+    "QUIET_HOURS_ADMIN_ONLY": "Nur Administratoren sehen und ändern Ruhezeiten für alle.",
+    "TASK_DECIDED": "Dieser Schritt wurde bereits entschieden – laden Sie die Seite neu, um die Entscheidung zu sehen.",
+    "TEAMS_BOT_APP_ID": "Geben Sie die App-ID des Bots ein (eine GUID).",
+    "TEAMS_BOT_CERTIFICATE": "Das Zertifikat oder sein privater Schlüssel ist kein gültiges PEM.",
+    "TEAMS_BOT_CREDENTIAL": "Geben Sie die Anmeldedaten des Bots ein: ein Zertifikat mit privatem Schlüssel oder ein Geheimnis.",
+    "TEAMS_BOT_NEEDS_OID": "Der Anmeldeanbieter muss Personen per tid + oid erkennen (Voreinstellung Entra ID).",
+    "TEAMS_BOT_TENANT": "Geben Sie mindestens einen erlaubten Mandanten ein."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",
