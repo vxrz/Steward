@@ -6,10 +6,6 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [0.9.0] - 2026-11-07
-
-Steward 0.9.0 adds **data contracts**, **platform costs**, **Kafka Connect**, a **version watch** of the tech stack and **changedetection.io**, checks the outbound policy on **every redirect**, and lays the groundwork for several **identities per platform**. Data contracts in ODCS v3 are tested through the data contract service and checked by Steward itself, with breaking changes tied to change records. Costs from AWS, Snowflake, Confluent Cloud, the AI gateways and FOCUS files show what services, applications and teams cost, with budgets. Kafka Connect clusters, the newest versions of tech stack entries and changed vendor pages are watched read-only. Three security reviews of the new features found and fixed, among others, credentials that could be sent through another platform's connection, read-only rules that another platform could get around, and rights of the reader that costs and the version watch did not respect throughout; see _Check before updating_ under Changed and Security.
-
 ### Added
 
 - **Map of sites (plant registry, #234, [ADR 0015](docs/adr/0015-map-of-sites.md), [docs/PLANT.md](docs/PLANT.md#map))**: _Plant → Map_ shows the sites the reader may see as a list and on a map side by side (phones start with the list), with their state.
@@ -27,6 +23,13 @@ Steward 0.9.0 adds **data contracts**, **platform costs**, **Kafka Connect**, a 
   - **Provenance**: _From library_ badges on processes, monitors, dashboards and record types; the library release, key fingerprint and release SHA-256 in the version history, run details, run protocols (and so in evidence packs) and the audit log.
   - **Example**: `examples/libraries/example-access-reviews`, signed with a test key that is never trusted by default; `npm run validate` checks libraries.
   - **Update**: migrations `libraries-001-publishers-releases` (new tables) and `gitsync-004-library-mode` (new columns `sync_sources.mode`, `allow_prereleases`, `newest_seen`, `sync_items.release_id`, `process_versions.origin`) – additive. New internal routes below `/api/libraries`, `/api/library-releases`, `/api/library-publishers`, `/api/library-keys`, `/api/library-origins`; `/api/v1` is unchanged.
+
+## [0.9.0] - 2026-11-07
+
+Steward 0.9.0 adds **data contracts**, **platform costs**, **Kafka Connect**, a **version watch** of the tech stack and **changedetection.io**, checks the outbound policy on **every redirect**, and lays the groundwork for several **identities per platform**. Data contracts in ODCS v3 are tested through the data contract service and checked by Steward itself, with breaking changes tied to change records. Costs from AWS, Snowflake, Confluent Cloud, the AI gateways and FOCUS files show what services, applications and teams cost, with budgets. Kafka Connect clusters, the newest versions of tech stack entries and changed vendor pages are watched read-only. Three security reviews of the new features found and fixed, among others, credentials that could be sent through another platform's connection, read-only rules that another platform could get around, and rights of the reader that costs and the version watch did not respect throughout; see _Check before updating_ under Changed and Security.
+
+### Added
+
 - **Platform identities, step 1: one default identity per platform (#228, [ADR 0009](docs/adr/0009-platform-identities.md), [docs/PLATFORM-SIGN-IN.md](docs/PLATFORM-SIGN-IN.md#identities))**: the groundwork for several sets of credentials under one platform. Nothing changes for users yet.
   - **Default identity**: every platform has exactly one, holding its credentials and its MCP mode; it signs in with the platform's settings and is open to everybody with the _use_ right, as before. Saving credentials or the MCP gateway writes it. A new **Identities** tab on the platform page shows it read-only.
   - **Update**: migration `platforms-005-identities` (additive: a new table, `platforms.secrets` stays and is emptied) creates the default identities; at the first unlock each intact platform's credentials and MCP mode move to its sealed default identity (audited as `platform.identities_created`). A platform whose settings were changed outside Steward stays refused until an administrator confirms them, as before.
