@@ -17,8 +17,20 @@ import {
   TextInput,
 } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
-import { DEFAULT_TRIGGER_NOTIFY, MONITOR_STATUSES, type CheckDef, type OutputDef, type OutputType, type Platform, type ProcessSummary } from '@sm/shared';
+import {
+  DEFAULT_QUIET_HOURS,
+  DEFAULT_TRIGGER_NOTIFY,
+  MONITOR_STATUSES,
+  type CheckDef,
+  type OutputDef,
+  type OutputType,
+  type Platform,
+  type ProcessSummary,
+} from '@sm/shared';
 import { NotifyPolicyFields } from '../notify/NotifyPolicy';
+import { QuietHoursFields } from '../notifications/QuietHoursFields';
+import { useZoneList } from '../notifications/QuietHoursCard';
+import { browserZone } from '../notifications/DailySummaryCard';
 import { useTranslation } from 'react-i18next';
 import { Hint, KeyValueEditor } from '../common';
 import i18n from '../../i18n';
@@ -74,6 +86,7 @@ export interface OutputsEditorProps {
 
 export function OutputsEditor({ outputs, onChange, checks, platforms, processes, disabled }: OutputsEditorProps) {
   const update = (i: number, p: Partial<OutputDef>) => onChange(outputs.map((o, j) => (j === i ? ({ ...o, ...p } as OutputDef) : o)));
+  const zoneList = useZoneList(undefined);
   const add = (type: OutputType) => {
     let n = outputs.length + 1;
     while (outputs.some((o) => o.id === `${type}-${n}`)) n++;
@@ -137,6 +150,13 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
                   value={o.holdSeconds ?? ''}
                   onChange={(v) => update(i, { holdSeconds: num(v) })}
                 />
+                <Switch
+                  label={t('outputs.urgent')}
+                  description={t('outputs.urgentHint')}
+                  disabled={disabled}
+                  checked={!!o.urgent}
+                  onChange={(e) => update(i, { urgent: e.currentTarget.checked || undefined })}
+                />
               </>
             )}
             {o.type === 'webhook' && (
@@ -159,15 +179,30 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
                   }
                 />
                 {o.format === 'teams' ? (
-                  <Select
-                    label={t('outputs.teamsChannel')}
-                    description={t('outputs.teamsChannelHint')}
-                    required
-                    disabled={disabled}
-                    data={platformData('teams')}
-                    value={o.platform ?? null}
-                    onChange={(v) => update(i, { platform: v ?? undefined })}
-                  />
+                  <>
+                    <Select
+                      label={t('outputs.teamsChannel')}
+                      description={t('outputs.teamsChannelHint')}
+                      required
+                      disabled={disabled}
+                      data={platformData('teams')}
+                      value={o.platform ?? null}
+                      onChange={(v) => update(i, { platform: v ?? undefined })}
+                    />
+                    <Switch
+                      label={t('outputs.urgent')}
+                      description={t('outputs.urgentHint')}
+                      disabled={disabled}
+                      checked={!!o.urgent}
+                      onChange={(e) => update(i, { urgent: e.currentTarget.checked || undefined })}
+                    />
+                    <QuietHoursFields
+                      channel
+                      value={o.quietHours ?? { ...DEFAULT_QUIET_HOURS, timeZone: browserZone() }}
+                      onChange={(q) => update(i, { quietHours: q.enabled ? q : undefined })}
+                      zoneList={zoneList}
+                    />
+                  </>
                 ) : (
                   <>
                     <TextInput

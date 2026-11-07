@@ -65,6 +65,10 @@ _What counts as a change_ (on change): **a different message or severity** (defa
 
 **As configured** (default) uses the routes per event. **Only these channels** picks in the app, e-mail, Teams and webhook for this source; a channel the instance has turned off stays off. It applies to every message the source's runs cause: failed and resolved checks, failed runs and tasks waiting for a decision.
 
+### Urgent
+
+_Urgent – interrupts quiet hours_ (off by default) marks a source whose failures must reach people at night: failed runs and checks failing with severity `error` of this source break through [quiet hours](#quiet-hours-and-digests), with a footer that says why. A person or channel can still hold urgent messages (_Let urgent messages through_ off). The flag is part of the policy of schedules, webhook triggers and monitor process outputs, audited with it; monitor notification outputs and Teams outputs have the same switch for a change to _down_.
+
 ### Pause
 
 _Schedules_ and _Webhook triggers_ → _Pause messages_: until a time or until resumed, with a reason, optionally still in the app. A badge on the source shows the end and the reason; runs and checks go on as usual. A pause ends on its own; when it ends while a check still fails, one **Still failing after the pause** message per check says so, so nothing is lost silently. Monitor outputs keep their pause in the monitor's definition. Audited as `schedule.paused` / `schedule.resumed` and `trigger.paused` / `trigger.resumed` (with the reason; an ended pause by `system`). API: `POST /api/schedules/{id}/pause` with `{ until, reason, inApp }`, `POST /api/schedules/{id}/resume`, the same for `/api/triggers/{id}`; `notify` is part of schedules and triggers in the API (`/api/v1` too) and of monitor process outputs.
@@ -161,7 +165,7 @@ Once a day, a short summary of what concerns you. It is **off by default**; turn
 
 **Team default.** A team can set a daily summary for its members (_Users → Teams_ → settings → _Daily summary_). Members who have not saved their own settings get it – the profile card says _Default of team …_; with several teams, the first by name that sets one applies. Saving in the profile makes the settings your own (they always win), and _Back to the default_ removes them again.
 
-You choose the sections, the time of day and your time zone, the days (Monday to Friday, or every day), and whether it comes in the app only or also by e-mail. With _Send nothing on days without anything to report_ you get nothing on quiet days. **Preview** shows what it would contain right now, without sending anything.
+You choose the sections, the time of day and your time zone, the days (Monday to Friday, every day, or **once a week** on a chosen day – since 0.10.0), and whether it comes in the app only or also by e-mail. With _Send nothing on days without anything to report_ you get nothing on quiet days. **Preview** shows what it would contain right now, without sending anything.
 
 **E-mail** is sent only when e-mail is set up (SMTP), the event _Daily summary_ is routed to e-mail in _Settings → Notifications_, you turned on e-mail notifications, and your address's domain is allowed (see above). The profile card says why when one of these is missing. The e-mail has a compact HTML part and a plain text part, in your language, with links into Steward (`SM_PUBLIC_URL` or the base URL in the notification settings).
 
@@ -170,3 +174,39 @@ You choose the sections, the time of day and your time zone, the days (Monday to
 **When it is sent.** The notification job checks every five minutes. A summary is due once your local time passes the chosen time on a chosen day; if Steward was down at that time, it is sent within the next six hours, otherwise that day is skipped. Each person and local day is recorded before anything is sent, so a summary goes out at most once a day, also after a restart. "Since the last summary" means since the last one that was due (at most seven days back). While the vault is locked, summaries that include e-mail wait until it is unlocked.
 
 **One instance.** Steward assumes one server process per database. The once-a-day record is a database key, so two instances would still not send the same summary twice, but both would run the job.
+
+## Quiet hours and digests
+
+Since 0.10.0 ([ADR 0012](adr/0012-quiet-hours-and-digests.md)). **Quiet hours decide when** an interrupting message reaches you – never whether. **Nothing is dropped**: what arrives during quiet hours waits and comes as **one catch-up message** when they end; the app shows everything at once, always. Runs, checks, the audit log, reports and the daily summary are not affected.
+
+**Order.** The pause of a source, maintenance windows, a monitor's quiet reasons and the dry-run setting decide first whether a message goes out at all (as before). Quiet hours and digests then decide when.
+
+**What is held.** E-mail to a person, and posts in Teams format: the instance Teams channel, the instance webhook in format _Teams card_, a team's channel in Teams format and monitor outputs in Teams format. **JSON webhooks are never held** – they feed tickets and on-call tools that have their own rules. Steward does not escalate and has no on-call rota: point an on-call tool at a JSON webhook for paging.
+
+**Setting them.** _Profile → Quiet hours and digests_: on/off, the time zone ([IANA](https://www.iana.org/time-zones) name, prefilled from the browser), up to 14 times (days + from/until), whole days, and _Let urgent messages through_. A time whose end is not after its start runs past midnight and belongs to its start day: _weekdays 18:00–07:30_ is Monday 18:00 to Tuesday 07:30 … Friday 18:00 to Saturday 07:30; with Saturday and Sunday as whole days the weekend joins up to Monday 07:30. A week grid shows the result.
+
+- **Team default**: a team can set quiet hours and digests for its members (_Users → Teams_ → settings → _Quiet hours_), like the daily summary; the first team by name that sets one applies; _Back to the default_ removes your own.
+- **Channels**: the instance channels under _Settings → Notifications_ (Teams, and the webhook in Teams format), a team channel in Teams format in its team settings, a monitor output in Teams format in the monitor editor. Changing the quiet hours of the instance channels or of a team channel needs the step-up _change notification delivery_ and is audited (`notification.quiet_hours_changed`).
+- **Administrators** can switch quiet hours and digests off for everyone and see who uses them and how many messages wait – never the content (_Settings → Notifications → Quiet hours and digests_; held messages go out at the next tick). Audited as `notification.quiet_hours_switch`.
+
+**Time and daylight saving.** Quiet hours are evaluated on the local wall clock each time a message arrives and every five minutes – never stored as an instant. On the night the clocks go forward they are shorter in real time; an end time that does not exist that night ends at the first minute after the gap. On the night they go back they are longer; an end time that occurs twice ends at its first occurrence. Tested for Europe/Berlin, America/New_York and Australia/Lord_Howe (a 30-minute shift).
+
+**What breaks through** (sent at once, with a footer such as _Sent during your quiet hours: this request expires at 03:10_):
+
+- **emergency access** (`security.emergency`) – always;
+- a **decision that expires** inside the quiet hours or within an hour after them (today: AI requests). For a decision several people may take, it is held for someone in quiet hours **while another eligible decider is reachable**; when nobody is, it breaks through for everybody. Decision steps of processes have no deadline and are held;
+- messages of an **urgent source** (see [Urgent](#urgent)), unless _Let urgent messages through_ is off.
+
+**The catch-up message** goes out at the first check after the quiet hours end: _While you were away: 2 decisions waiting, 3 checks still failing_. Groups, most important first: _Decisions waiting for you_, _Still failing_, _Failed and passed again_, _Other_. Repeats of the same thing are one item with its start and latest state (a check that failed at 02:10 and passed at 05:40 is one item); "still failing" is the state at release. A decision someone else took meanwhile is left out and counted. When your daily summary e-mail is due within 60 minutes after the quiet hours end, the catch-up becomes its first section, _While you were away_, instead of a separate e-mail. Channels get the catch-up as one card.
+
+**Digests** (e-mail only): per event group – _Decisions_, _Runs and checks_, _Monitors and platforms_, _Reminders_, _Reports and releases_, _Budgets and costs_ – _immediately_ (default), _hourly_, _daily_ at a time or _weekly_ on a day and time. Decisions are immediately or hourly only (a run waits). Emergency access and urgent sources are never digested; an expiring decision breaks through a digest like it breaks through quiet hours. A digest due inside quiet hours is not sent; the catch-up takes its items. Digests are _the messages you would have got_; the daily summary stays _an overview of the state_.
+
+**Rights at release.** A held message goes out only when the person is still active, still has e-mail on and an allowed address, and may still see what the item is about (the process of a run, the platform, the monitor). Items that fail are left out (logged); the in-app copy is unaffected. Released messages use the same send path as immediate ones.
+
+**Limits and storage.** Held messages are kept in `notification_outbox` as the rendered text in the target's language – never a channel URL or a secret. At most 500 open items per target; beyond that the oldest of the same event are folded into a count. Released items are deleted after 7 days by the cleanup. Each catch-up or digest is claimed per target and period before it is sent (`notification_digest_sends`), so it goes out at most once, also after a restart. While the vault is locked nothing is released. The bell shows _Quiet hours until 07:30 · 4 messages held_.
+
+API: `GET`/`PUT`/`DELETE /api/me/notification-prefs`; administrators `GET`/`PUT /api/settings/quiet-hours`; the team settings (`quietHours`, `digests`, `channel.quietHours`) and `/api/settings/notifications` (`teams.quietHours`, `webhook.quietHours`) take the fields above.
+
+## Decisions from Microsoft Teams
+
+Since 0.10.0 ([ADR 0013](adr/0013-teams-approvals.md), set-up: [TEAMS-APPROVALS.md](TEAMS-APPROVALS.md)). Cards about decisions (`task.assigned`, `mcp.request`) show what is decided – process and step, platform, the change as `METHOD path_template`, who asked, since when, the expiry – and never a request body, run inputs or values. **Approve** and **Reject** open the decision in Steward with that choice pre-selected (`/runs/<run>?task=<task>&decide=approve`, `/mcp-requests/<id>?decide=reject`); nothing is decided until you confirm there. Select decisions, manual steps, verifications and proposals only get _Open_. When the decision is made (in Steward or in Teams), the run is cancelled or the request expires, a short **follow-up card** goes to the channels the card went to. E-mails carry the same facts and links. With the optional **Teams bot** (a preview), people can decide in the card itself.

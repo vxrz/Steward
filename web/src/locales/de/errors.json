@@ -1051,7 +1051,14 @@
     "FORBIDDEN_installLibraryItem": "Sie dürfen einen Eintrag dieser Version nicht anlegen oder ändern.",
     "FORBIDDEN_installConnector": "Nur die Administration installiert Connector-Typen.",
     "FORBIDDEN_holdLibrary": "Nur die Administration hält eine Bibliothek an.",
-    "FORBIDDEN_withdrawLibraryInstall": "Nur die anfragende Person oder die Administration zieht die Anfrage zurück."
+    "FORBIDDEN_withdrawLibraryInstall": "Nur die anfragende Person oder die Administration zieht die Anfrage zurück.",
+    "QUIET_HOURS_ADMIN_ONLY": "Nur Administratoren sehen und ändern Ruhezeiten für alle.",
+    "TASK_DECIDED": "Dieser Schritt wurde bereits entschieden – laden Sie die Seite neu, um die Entscheidung zu sehen.",
+    "TEAMS_BOT_APP_ID": "Geben Sie die App-ID des Bots ein (eine GUID).",
+    "TEAMS_BOT_CERTIFICATE": "Das Zertifikat oder sein privater Schlüssel ist kein gültiges PEM.",
+    "TEAMS_BOT_CREDENTIAL": "Geben Sie die Anmeldedaten des Bots ein: ein Zertifikat mit privatem Schlüssel oder ein Geheimnis.",
+    "TEAMS_BOT_NEEDS_OID": "Der Anmeldeanbieter muss Personen per tid + oid erkennen (Voreinstellung Entra ID).",
+    "TEAMS_BOT_TENANT": "Geben Sie mindestens einen erlaubten Mandanten ein."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

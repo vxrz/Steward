@@ -76,7 +76,9 @@
         "email": "E-Mail",
         "teams": "Teams",
         "webhook": "Webhook"
-      }
+      },
+      "urgent": "Dringend – unterbricht Ruhezeiten",
+      "urgentHint": "Fehlgeschlagene Läufe und Prüfungen mit Schweregrad Fehler erreichen Personen und Kanäle sofort, auch in ihrer Ruhezeit (außer sie haben das ausgeschaltet)."
     }
   },
   "emptyState": {

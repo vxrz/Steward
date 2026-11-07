@@ -98,7 +98,8 @@
     "days": "Days",
     "daysOptions": {
       "weekdays": "Monday to Friday",
-      "everyday": "Every day"
+      "everyday": "Every day",
+      "weekly": "Once a week"
     },
     "channel": "Where",
     "channelOptions": {
@@ -141,7 +142,8 @@
       "own": "Your own settings",
       "team": "Default of team {{team}}",
       "instance": "Instance default"
-    }
+    },
+    "weekday": "Day"
   },
   "newResources": {
     "title": "Owning team of new resources",

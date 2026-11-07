@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { IconArrowBackUp } from '@tabler/icons-react';
-import { DAILY_SUMMARY_SECTIONS, type DailySummaryContent, type DailySummaryPrefs, type DailySummaryState } from '@sm/shared';
+import { DAILY_SUMMARY_SECTIONS, WEEKDAYS, type DailySummaryContent, type DailySummaryPrefs, type DailySummaryState, type Weekday } from '@sm/shared';
 import { del, get, notifyError, notifyOk, put } from '../../api';
 import { fmtRelative } from '../../format';
 
@@ -30,7 +30,7 @@ export function DailySummaryFields({
   zoneList: string[];
   emailBlockedReason?: DailySummaryState['emailBlockedReason'];
 }) {
-  const { t } = useTranslation('profile');
+  const { t } = useTranslation(['profile', 'notifications']);
   return (
     <>
       <SimpleGrid cols={{ base: 1, sm: 3 }}>
@@ -45,12 +45,22 @@ export function DailySummaryFields({
         />
         <Select
           label={t('dailySummary.days')}
-          data={(['weekdays', 'everyday'] as const).map((x) => ({ value: x, label: t(`dailySummary.daysOptions.${x}`) }))}
+          data={(['weekdays', 'everyday', 'weekly'] as const).map((x) => ({ value: x, label: t(`dailySummary.daysOptions.${x}`) }))}
           value={d.days}
-          onChange={(v) => v && set({ days: v as DailySummaryPrefs['days'] })}
+          onChange={(v) => v && set({ days: v as DailySummaryPrefs['days'], ...(v === 'weekly' ? { weekday: d.weekday ?? 'mon' } : {}) })}
           allowDeselect={false}
         />
       </SimpleGrid>
+      {d.days === 'weekly' && (
+        <Select
+          label={t('dailySummary.weekday')}
+          maw={320}
+          data={WEEKDAYS.map((x) => ({ value: x, label: t(`notifications:quiet.daysLong.${x}`) }))}
+          value={d.weekday ?? 'mon'}
+          onChange={(v) => v && set({ weekday: v as Weekday })}
+          allowDeselect={false}
+        />
+      )}
       <Select
         label={t('dailySummary.channel')}
         maw={320}

@@ -72,6 +72,7 @@ export interface TriggerRow {
   notify_mode?: string;
   notify_reminder_hours?: number;
   notify_resolved?: number;
+  notify_urgent?: number;
   notify_change?: string;
   notify_channels?: string | null;
   notify_pause?: string | null;
@@ -273,12 +274,13 @@ function writeNotify(id: string, n: ScheduleNotify | undefined, before?: Trigger
   const change = n.change ?? kept.change ?? 'result';
   const channels = n.channels === undefined ? kept.channels : n.channels;
   db().run(
-    'UPDATE webhook_triggers SET notify_mode = ?, notify_reminder_hours = ?, notify_resolved = ?, notify_change = ?, notify_channels = ? WHERE id = ?',
+    'UPDATE webhook_triggers SET notify_mode = ?, notify_reminder_hours = ?, notify_resolved = ?, notify_change = ?, notify_channels = ?, notify_urgent = ? WHERE id = ?',
     n.mode,
     n.reminderHours,
     n.resolved ? 1 : 0,
     change,
     channels ? JSON.stringify(channels) : null,
+    (n.urgent === undefined ? kept.urgent : n.urgent) ? 1 : 0,
     id,
   );
   if (before && (kept.mode !== n.mode || kept.change !== change)) resetAlerts(`trigger:${id}`);

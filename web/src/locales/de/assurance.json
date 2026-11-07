@@ -63,7 +63,8 @@
     "stepUp": "Bestätigung",
     "maxAgeMinutes": "max. Alter",
     "mfa": "MFA",
-    "values": "Werte"
+    "values": "Werte",
+    "teams": "in Microsoft Teams entscheiden"
   },
   "values": {
     "on": "an",
@@ -310,5 +311,7 @@
         "description": "Eine gemeinsame Bibliothek installieren, aktualisieren oder zurücksetzen. Mit Vier-Augen-Prinzip bestätigt eine zweite Person aus Gestaltung oder Administration die Installation."
       }
     }
-  }
+  },
+  "teamsLabel": "Darf in Microsoft Teams entschieden werden",
+  "teamsAria": "{{point}}: darf in Microsoft Teams entschieden werden"
 }

@@ -55,6 +55,8 @@ import { PublicApiInfo, usePublicApi } from '../components/PublicApiInfo';
 import { ReportBrandingCard } from '../components/reports/ReportBrandingCard';
 import { CredentialReminderSettingsCard } from '../components/credentials/CredentialReminderSettingsCard';
 import { DailySummaryAdminCard } from '../components/notifications/DailySummaryAdminCard';
+import { QuietHoursAdminCard } from '../components/notifications/QuietHoursCard';
+import { TeamsBotCard } from '../components/notifications/TeamsBotCard';
 import { TicketSettingsCard } from '../components/tickets/TicketSettingsCard';
 import { VaultPassphraseCard } from '../components/security/VaultPassphraseCard';
 import { ThemeSettingsCard } from '../components/theme/ThemeSettingsCard';
@@ -272,6 +274,8 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
         <>
           <NotificationSettingsCard />
           <NotificationLookCard />
+          <QuietHoursAdminCard />
+          <TeamsBotCard />
           <DailySummaryAdminCard />
           <CredentialReminderSettingsCard />
         </>

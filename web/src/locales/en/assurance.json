@@ -63,7 +63,8 @@
     "stepUp": "step-up",
     "maxAgeMinutes": "max. age",
     "mfa": "MFA",
-    "values": "values"
+    "values": "values",
+    "teams": "decided in Microsoft Teams"
   },
   "values": {
     "on": "on",
@@ -310,5 +311,7 @@
         "description": "Installing, updating or rolling back a shared library. With four-eyes a second designer or administrator confirms the install."
       }
     }
-  }
+  },
+  "teamsLabel": "May be decided in Microsoft Teams",
+  "teamsAria": "{{point}}: may be decided in Microsoft Teams"
 }

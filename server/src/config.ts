@@ -103,6 +103,9 @@ export const config = {
   version: '0.9.0',
   host: env.SM_HOST,
   port: env.SM_PORT,
+  /** The Teams bot listener (ADR 0013): undefined = none */
+  teamsBotPort: env.SM_TEAMS_BOT_PORT as number | undefined,
+  teamsBotHost: env.SM_TEAMS_BOT_HOST ?? env.SM_HOST,
   dataDir,
   /**
    * SQLite file in the data directory (default) or PostgreSQL (SM_DATABASE_URL=postgres://…,

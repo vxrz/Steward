@@ -6,6 +6,7 @@ import {
   NOTIFICATION_CORNERS,
   NOTIFICATION_DRY_RUN_DELIVERY,
   NOTIFICATION_EVENTS,
+  quietHoursSchema,
   NOTIFICATION_FONTS,
   NOTIFICATION_HEADER_STYLES,
   NOTIFICATION_LOGO_ALIGNS,
@@ -17,6 +18,7 @@ import {
   type NotificationSettingsInput,
 } from '@sm/shared';
 import { HttpError, sha256 } from '../util.js';
+import { quietNow } from '../notifications/prefs.js';
 import { requireCapability } from '../auth/permissions.js';
 import { getUser, updateProfile } from '../auth/users.js';
 import { createToken, listTokens, revokeToken } from '../auth/tokens.js';
@@ -69,8 +71,14 @@ const notificationSettingsBody = z.object({
     from: z.string().max(255).default(''),
     password: z.string().max(1000).optional(),
   }),
-  teams: z.object({ enabled: z.boolean(), webhookUrl: z.string().max(2000).optional() }),
-  webhook: z.object({ enabled: z.boolean(), url: z.string().max(2000).optional(), format: z.enum(['json', 'teams']).optional() }),
+  // quiet hours of the instance channels (0.10.0, ADR 0012): omitted keeps them, null removes them
+  teams: z.object({ enabled: z.boolean(), webhookUrl: z.string().max(2000).optional(), quietHours: quietHoursSchema.nullable().optional() }),
+  webhook: z.object({
+    enabled: z.boolean(),
+    url: z.string().max(2000).optional(),
+    format: z.enum(['json', 'teams']).optional(),
+    quietHours: quietHoursSchema.nullable().optional(),
+  }),
   routes: z
     .object(Object.fromEntries(NOTIFICATION_EVENTS.map((e) => [e, channelList.optional()])))
     .partial()
@@ -87,7 +95,10 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
   // ---------- in-app notifications (plant viewers, #218, too: their own) ----------
   app.get('/notifications', { config: { access: ACCESS.plantViewer } }, async (req) => {
     const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(500).default(50) }).parse(req.query ?? {});
-    return listInApp(me().id, limit);
+    const list = listInApp(me().id, limit);
+    // quiet hours (ADR 0012): "Quiet hours until 07:30 · 4 messages held" in the bell
+    const q = quietNow(me().id);
+    return q.active ? { ...list, quiet: { until: q.until, held: q.held } } : list;
   });
   app.post('/notifications/read-all', { config: { access: ACCESS.plantViewer } }, async () => {
     markAllRead(me().id);

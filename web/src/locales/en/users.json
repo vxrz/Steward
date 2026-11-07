@@ -386,7 +386,8 @@
       "channel": "Channel",
       "resources": "New resources",
       "summary": "Daily summary",
-      "branding": "Report branding"
+      "branding": "Report branding",
+      "quiet": "Quiet hours"
     },
     "newResources": {
       "title": "New resources of members",
@@ -428,6 +429,9 @@
       "schedules_other": "{{count}} report schedules of the team:",
       "noSchedules": "No report schedule uses the team yet (choose the team in a report schedule).",
       "eyeDropper": "Pick a colour from the screen"
+    },
+    "quiet": {
+      "usesInstance": "Members use their own quiet hours and digests, or none."
     }
   }
 }

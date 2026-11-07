@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { Alert, Badge, Button, Code, Group, Paper, SegmentedControl, Stack, Table, Text, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
+import { DecideFromLinkModal, DecideNotPossible, useDecideParam } from '../components/DecideFromLink';
 import { IconCheck, IconRobot, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { MCP_REQUEST_LIMITS, type McpProposalSelection, type McpRequest } from '@sm/shared';
@@ -112,14 +113,18 @@ export function McpRequestDetailPage() {
   const [selection, setSelection] = useState<{ value: McpProposalSelection; count: number } | null>(null);
   const onSelection = useCallback((value: McpProposalSelection, count: number) => setSelection({ value, count }), []);
   const r = q.data;
-  const decide = async (approve: boolean) => {
+  // a card's Approve / Reject link (ADR 0013): the dialog opens with that choice; the person confirms
+  const link = useDecideParam();
+  const decide = async (approve: boolean, note = comment): Promise<boolean> => {
     setBusy(approve ? 'approve' : 'reject');
     try {
-      const body = { approve, comment, ...(approve && r?.proposal && selection ? { selection: selection.value } : {}) };
+      const body = { approve, comment: note, ...(approve && r?.proposal && selection ? { selection: selection.value } : {}) };
       qc.setQueryData(['mcp-request', id], await post<McpRequest>(`/mcp-requests/${id}/decision`, body));
       await qc.invalidateQueries({ queryKey: ['mcp-requests'] });
+      return true;
     } catch (e) {
       notifyError(e);
+      return false;
     } finally {
       setBusy(null);
     }
@@ -127,8 +132,18 @@ export function McpRequestDetailPage() {
   const back = [{ to: '/mcp-requests', label: t('requests.title') }];
   if (!r) return <QueryState query={q} />;
   const json = (v: unknown) => JSON.stringify(v, null, 2);
+  const linkDecidable = !!link.verb && !r.proposal && (link.verb === 'approve' ? r.canApprove : r.canReject);
   return (
     <>
+      {link.verb && linkDecidable && (
+        <DecideFromLinkModal
+          verb={link.verb}
+          title={what(r)}
+          commentMax={MCP_REQUEST_LIMITS.comment}
+          onConfirm={(approve, note) => decide(approve, note)}
+          onClose={link.clear}
+        />
+      )}
       <PageHeader
         back={back}
         title={<span className="mono">{what(r)}</span>}
@@ -140,6 +155,7 @@ export function McpRequestDetailPage() {
         }
       />
       <Stack maw={900}>
+        {link.verb && !linkDecidable && <DecideNotPossible onClose={link.clear} />}
         <Alert color="yellow" variant="light" p="xs">
           <Text size="sm">{t('requests.dataNotInstructions')}</Text>
         </Alert>
@@ -228,6 +244,7 @@ export function McpRequestDetailPage() {
           <Paper withBorder p="sm">
             <Text size="sm">
               {t('requests.decided', { user: r.decidedBy, when: fmtDate(r.decidedAt) })}
+              {r.decidedVia === 'teams' ? ` ${t('requests.viaTeams')}` : ''}
               {r.comment ? ` – ${r.comment}` : ''}
             </Text>
             {r.error && (

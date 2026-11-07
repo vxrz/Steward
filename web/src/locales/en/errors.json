@@ -1051,7 +1051,14 @@
     "FORBIDDEN_installLibraryItem": "You are not allowed to create or change an item of this release.",
     "FORBIDDEN_installConnector": "Only administrators install connector types.",
     "FORBIDDEN_holdLibrary": "Only administrators put a library on hold.",
-    "FORBIDDEN_withdrawLibraryInstall": "Only the person who asked or an administrator withdraws the request."
+    "FORBIDDEN_withdrawLibraryInstall": "Only the person who asked or an administrator withdraws the request.",
+    "QUIET_HOURS_ADMIN_ONLY": "Only administrators see and change quiet hours for everyone.",
+    "TASK_DECIDED": "This step was decided already – reload to see the decision.",
+    "TEAMS_BOT_APP_ID": "Enter the app id of the bot (a GUID).",
+    "TEAMS_BOT_CERTIFICATE": "The certificate or its private key is not valid PEM.",
+    "TEAMS_BOT_CREDENTIAL": "Enter the credential of the bot: a certificate with its private key, or a secret.",
+    "TEAMS_BOT_NEEDS_OID": "The sign-in provider must identify people by tid + oid (the Entra ID preset).",
+    "TEAMS_BOT_TENANT": "Enter at least one allowed tenant."
   },
   "boundary": {
     "title": "Something went wrong on this page",

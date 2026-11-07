@@ -73,6 +73,21 @@ describe('control-point catalogue and effective policy (unit)', () => {
     expect(effectiveRule(controlPoint('audit.export')!, age)).toMatchObject({ stepUp: true, maxAgeMinutes: 2, mfa: true });
   });
 
+  it('"May be decided in Microsoft Teams": on by default for run.decide and mcp.write, nowhere else, and turning it on loosens (ADR 0013)', () => {
+    const d = defaultAssurancePolicy();
+    expect(CONTROL_POINTS.filter((p) => p.supports.teams).map((p) => p.key)).toEqual(['run.decide', 'mcp.write']);
+    expect(instanceRule(controlPoint('run.decide')!, d).teams).toBe(true);
+    expect(instanceRule(controlPoint('mcp.write')!, d).teams).toBe(true);
+    // points with a step-up never take it
+    for (const p of CONTROL_POINTS.filter((x) => x.supports.stepUp)) expect(p.supports.teams, p.key).toBeFalsy();
+    expect(instanceRule(controlPoint('manualStep.verify')!, d).teams).toBeUndefined();
+    const off = normalizePolicy({ ...d, points: { 'run.decide': { teams: false } } });
+    expect(off.points).toEqual({ 'run.decide': { teams: false } });
+    expect(policyChanges(d, off)).toEqual([{ point: 'run.decide', field: 'teams', from: true, to: false, direction: 'tighten' }]);
+    expect(policyChanges(off, d)[0]!.direction).toBe('loosen');
+    expect(applyChanges(off, policyChanges(off, d)).points).toEqual({});
+  });
+
   it('tells tightening from loosening and splits a mixed change', () => {
     const cur = normalizePolicy({ ...defaultAssurancePolicy(), points: { 'audit.export': { maxAgeMinutes: 3 } } });
     const next = { ...cur, points: { 'record.approve': { stepUp: true, maxAgeMinutes: 2, mfa: true }, 'credentials.export': { stepUp: false } } };

@@ -1,11 +1,12 @@
 import type { FastifyRequest } from 'fastify';
 import { getSettings, passwordLoginMode } from '../settings.js';
 import { channelSecrets, getNotificationSettings } from '../notifications/settings.js';
+import { teamChannelQuietHours as storedTeamQuietHours } from '../notifications/team-channels.js';
 import { getPlatform } from '../platforms/service.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
 import { requireMonitor } from '../monitors/service.js';
 import { getUser, listTeams } from './users.js';
-import { MONITOR_PERMISSIONS, PLATFORM_PERMISSIONS, PROCESS_PERMISSIONS, type Role } from '@sm/shared';
+import { MONITOR_PERMISSIONS, PLATFORM_PERMISSIONS, PROCESS_PERMISSIONS, quietHoursSchema, type QuietHours, type Role } from '@sm/shared';
 import { DEFAULT_PLATFORM, DEFAULT_PROCESS } from './permissions.js';
 import { MONITOR_DEFAULTS } from '../monitors/model.js';
 
@@ -63,8 +64,23 @@ export function changesSignInOrOutbound(req: FastifyRequest): boolean {
  * as the instance channel does (see below). Keeping the stored URL (omitted) or removing it is not sensitive.
  */
 export function changesTeamChannel(req: FastifyRequest): boolean {
-  const url = obj(obj(body(req)).channel).url;
-  return typeof url === 'string' && url.trim() !== '';
+  const channel = obj(obj(body(req)).channel);
+  const url = channel.url;
+  if (typeof url === 'string' && url.trim() !== '') return true;
+  // its quiet hours (0.10.0, ADR 0012) change when messages reach the channel
+  if (!('quietHours' in channel)) return false;
+  const tid = (req.params as { id?: string }).id;
+  return tid ? quietHoursChanged(channel.quietHours, storedTeamQuietHours(tid)) : false;
+}
+
+/** Quiet hours in a body against the stored ones (normalised, so the order of keys does not matter). */
+export function quietHoursChanged(given: unknown, stored: QuietHours | null | undefined): boolean {
+  const norm = (v: unknown) => {
+    if (v === null || v === undefined) return 'null';
+    const p = quietHoursSchema.safeParse(v);
+    return p.success ? JSON.stringify(p.data) : 'invalid';
+  };
+  return norm(given) !== norm(stored ?? null);
 }
 
 /**
@@ -83,6 +99,8 @@ export function changesNotificationDelivery(req: FastifyRequest): boolean {
   const url = (v: unknown, stored: string | undefined) => typeof v === 'string' && v.trim() !== '' && v.trim() !== (stored ?? '');
   if (url(obj(b.teams).webhookUrl, secrets.teamsWebhookUrl) || url(obj(b.webhook).url, secrets.webhookUrl)) return true;
   if ('baseUrl' in b && text(b.baseUrl).replace(/\/+$/, '') !== (now.baseUrl ?? '')) return true;
+  // quiet hours of the instance channels (0.10.0, ADR 0012): they change when messages reach the channel
+  for (const ch of ['teams', 'webhook'] as const) if ('quietHours' in obj(b[ch]) && quietHoursChanged(obj(b[ch]).quietHours, now[ch].quietHours)) return true;
   const emergency = list(obj(b.routes)['security.emergency']);
   if (
     emergency &&

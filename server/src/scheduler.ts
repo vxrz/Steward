@@ -47,6 +47,7 @@ interface ScheduleRow {
   notify_mode?: ScheduleNotifyMode;
   notify_reminder_hours?: number;
   notify_resolved?: number;
+  notify_urgent?: number;
   notify_change?: string;
   notify_channels?: string | null;
   notify_pause?: string | null;
@@ -236,12 +237,13 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
     // missing in the input (an older client): unchanged
     if (input.catchUp !== undefined || !id) db().run('UPDATE schedules SET catch_up = ? WHERE id = ?', input.catchUp === 'once' ? 'once' : 'none', sid);
     db().run(
-      'UPDATE schedules SET notify_mode = ?, notify_reminder_hours = ?, notify_resolved = ?, notify_change = ?, notify_channels = ? WHERE id = ?',
+      'UPDATE schedules SET notify_mode = ?, notify_reminder_hours = ?, notify_resolved = ?, notify_change = ?, notify_channels = ?, notify_urgent = ? WHERE id = ?',
       notify.mode,
       notify.reminderHours,
       notify.resolved ? 1 : 0,
       notify.change ?? 'result',
       notify.channels ? JSON.stringify(notify.channels) : null,
+      notify.urgent ? 1 : 0,
       sid,
     );
     audit({

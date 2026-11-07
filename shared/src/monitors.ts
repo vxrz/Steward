@@ -7,6 +7,7 @@ import { PV_FINDING_KINDS } from './pvault.js';
  * are used to infer root causes and to suppress follow-up alerts.
  */
 import { notifyPolicySchema } from './notifyPolicy.js';
+import { quietHoursSchema } from './quietHours.js';
 import { z } from 'zod';
 import type { AclEntry } from './api.js';
 import { boundedRecord } from './zodLimits.js';
@@ -708,6 +709,8 @@ export const outputSchema = z.discriminatedUnion('type', [
     subscribers: z.array(z.string().max(200)).max(100).default([]),
     /** Wait this long before alerting, so a parent failing a little later still explains the failure (default 0) */
     holdSeconds: seconds(0, 3600).optional(),
+    /** Urgent – a change to down interrupts quiet hours (0.10.0, ADR 0012) */
+    urgent: z.boolean().optional(),
   }),
   z.object({
     ...outputBase,
@@ -719,6 +722,10 @@ export const outputSchema = z.discriminatedUnion('type', [
     path: z.string().max(2000).optional(),
     /** json: Steward's event payload (default); teams: an Adaptive Card for a Teams Workflows URL (#130) */
     format: z.enum(['json', 'teams']).optional(),
+    /** Teams format only: the channel's quiet hours (0.10.0, ADR 0012); JSON is never held */
+    quietHours: quietHoursSchema.optional(),
+    /** Teams format only: a change to down interrupts the quiet hours */
+    urgent: z.boolean().optional(),
   }),
   z.object({
     ...outputBase,

@@ -792,9 +792,14 @@ export async function cancelRun(runId: string, actor = currentActor()): Promise<
   if (['succeeded', 'failed', 'cancelled'].includes(r.status)) throw new HttpError(409, `Run already ${r.status}`);
   const a = active.get(runId);
   for (const t of store.listTasks({ runId, status: 'open' })) {
-    store.decideTask(t.id, 'cancelled', null, actor);
+    try {
+      store.decideTask(t.id, 'cancelled', null, actor);
+    } catch {
+      continue; // decided in the meantime (exactly once): its waiter was settled by that decision
+    }
     taskWaiters.get(t.id)?.(null);
     taskWaiters.delete(t.id);
+    decisionSettled(t.id, { status: 'cancelled', by: actor });
   }
   if (a) a.ctx.abort.abort();
   const queuedAt = runQueue.indexOf(runId);
@@ -811,13 +816,19 @@ export async function cancelRun(runId: string, actor = currentActor()): Promise<
   }
 }
 
-export async function completeTask(taskId: string, decision: TaskDecision, actor = currentActor()): Promise<void> {
+export async function completeTask(taskId: string, decision: TaskDecision, actor = currentActor(), auditExtra: Record<string, unknown> = {}): Promise<void> {
   const t = store.getTask(taskId);
   if (t.status !== 'open') throw new HttpError(409, `Task is ${t.status}`);
   if (t.mode === 'manual') throw new HttpError(400, 'Complete a manual step with its checklist and fields', 'TASK_IS_MANUAL');
   const validKeys = new Set(t.items.map((i) => i.key));
   const selectedKeys = (decision.selectedKeys ?? []).filter((k) => validKeys.has(k));
-  const d: TaskDecision = { approved: !!decision.approved, selectedKeys, comment: decision.comment?.slice(0, 4000) };
+  const d: TaskDecision = {
+    approved: !!decision.approved,
+    selectedKeys,
+    comment: decision.comment?.slice(0, 4000),
+    // decided from a card in Microsoft Teams (ADR 0013): stored with the decision, shown in protocols and evidence
+    ...(decision.via === 'teams' ? { via: 'teams' as const } : {}),
+  };
   const at = nowIso();
   db().tx(() => {
     store.decideTask(taskId, 'completed', d, actor);
@@ -829,12 +840,31 @@ export async function completeTask(taskId: string, decision: TaskDecision, actor
       runId: t.runId,
       summary:
         t.mode === 'approve'
-          ? `"${t.title}" ${d.approved ? 'approved' : 'rejected'}`
+          ? `"${t.title}" ${d.approved ? 'approved' : 'rejected'}${d.via === 'teams' ? ' via Microsoft Teams' : ''}`
           : `"${t.title}": ${selectedKeys.length} of ${t.items.length} items selected`,
-      details: { decision: d, unselectedKeys: t.items.map((i) => i.key).filter((k) => !selectedKeys.includes(k)) },
+      details: { decision: d, unselectedKeys: t.items.map((i) => i.key).filter((k) => !selectedKeys.includes(k)), ...auditExtra },
     });
   });
+  decisionSettled(taskId, {
+    status: d.approved || t.mode !== 'approve' ? (t.mode === 'approve' ? 'approved' : 'completed') : 'rejected',
+    by: actor,
+    at,
+    via: decision.via,
+  });
   await settleTask(taskId, t.runId, { decision: d, by: actor, at }, actor);
+}
+
+/**
+ * The outcome follows the decision cards to their channels (ADR 0013 stage 1, msteams/cards.ts), outside the
+ * deciding step; a failure there never touches the run.
+ */
+export function decisionSettled(
+  taskId: string,
+  o: { status: 'approved' | 'rejected' | 'completed' | 'cancelled'; by: string; at?: string; via?: 'teams' },
+): void {
+  setImmediate(() => {
+    void import('../msteams/followup.js').then((m) => m.taskSettled(taskId, o)).catch((err) => logger.warn({ err, taskId }, 'decision follow-up failed'));
+  });
 }
 
 /** Lets the waiting run continue after a task was decided (or replays the run when the server restarted meanwhile). */

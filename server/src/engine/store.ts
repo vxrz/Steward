@@ -809,15 +809,20 @@ export function returnManual(id: string, returned: ManualTaskState['returned'], 
   ).changes;
 }
 
+/**
+ * Decides an open task – exactly once: the row changes only while it is open (0.10.0, ADR 0013). A second way to decide
+ * (a card in Microsoft Teams) makes a real claim worth having; whoever comes second gets 409.
+ */
 export function decideTask(id: string, status: 'completed' | 'cancelled', decision: TaskDecision | null, by: string): void {
-  db().run(
-    'UPDATE run_tasks SET status = ?, decision = ?, decided_by = ?, decided_at = ? WHERE id = ?',
+  const r = db().run(
+    "UPDATE run_tasks SET status = ?, decision = ?, decided_by = ?, decided_at = ? WHERE id = ? AND status = 'open'",
     status,
     decision ? JSON.stringify(decision) : null,
     by,
     nowIso(),
     id,
   );
+  if (r.changes !== 1) throw new HttpError(409, 'The task was decided already', 'TASK_DECIDED');
 }
 
 // ---------- Artifacts ----------

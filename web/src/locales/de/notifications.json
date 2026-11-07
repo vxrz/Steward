@@ -9,7 +9,11 @@
     "settings": "Benachrichtigungseinstellungen",
     "unavailable": "Benachrichtigungen sind auf diesem Server nicht verfügbar.",
     "empty": "Keine neuen Benachrichtigungen.",
-    "unreadItem": "Ungelesen: {{title}}"
+    "quietUntil_one": "Ruhezeit bis {{time}} · {{count}} Nachricht zurückgehalten",
+    "quietUntil_other": "Ruhezeit bis {{time}} · {{count}} Nachrichten zurückgehalten",
+    "quiet_one": "Ruhezeit · {{count}} Nachricht zurückgehalten",
+    "quiet_other": "Ruhezeit · {{count}} Nachrichten zurückgehalten",
+    "unreadPrefix": "Ungelesen:"
   },
   "events": {
     "task": {
@@ -176,5 +180,147 @@
         "info": "Ein Test eines Datenvertrags Ihres Teams ist fehlgeschlagen (die Mitglieder und der Kanal des Eigentümer-Teams)"
       }
     }
+  },
+  "quiet": {
+    "title": "Ruhezeiten und Sammelnachrichten",
+    "intro": "Während der Ruhezeit warten E-Mails und kommen an ihrem Ende gesammelt in einer Nachricht. Nichts geht verloren, und die App zeigt alles sofort. Notfallzugang, dringende Quellen und Anfragen, die sonst verfallen würden, erreichen Sie trotzdem.",
+    "notAllowed": "Eine Administratorin oder ein Administrator hat Ruhezeiten und Sammelnachrichten für alle ausgeschaltet.",
+    "enabled": "Ruhezeit für meine E-Mails",
+    "enabledChannel": "Ruhezeit für diesen Kanal",
+    "timeZone": "Zeitzone",
+    "windows": "Zeiten",
+    "noWindows": "Keine Zeiten – nur die ganzen Tage unten sind ruhig.",
+    "windowDays": "Beginnt am",
+    "from": "Von",
+    "to": "Bis",
+    "addWindow": "Zeit hinzufügen",
+    "removeWindow": "Diese Zeit entfernen",
+    "windowHint": "Ein Ende vor dem Beginn geht über Mitternacht: Montag 18:00 bis 07:30 endet am Dienstagmorgen.",
+    "allDay": "Ganze Tage",
+    "gridLabel": "Ruhezeiten der Woche, Montag bis Sonntag",
+    "urgent": "Dringende Nachrichten durchlassen",
+    "urgentHint": "Fehlgeschlagene Läufe und Fehler von Quellen, die als dringend markiert sind, erreichen Sie sofort.",
+    "urgentHintChannel": "Fehlgeschlagene Läufe und Fehler von Quellen, die als dringend markiert sind, werden sofort gepostet.",
+    "digests": "Sammelnachrichten",
+    "digestsIntro": "Gesammelte E-Mails kommen als eine Nachricht im gewählten Rhythmus.",
+    "digestsOff": "Jede E-Mail kommt sofort. Wählen Sie einen Rhythmus, um eine Gruppe in einer Nachricht zu sammeln.",
+    "groups": {
+      "decisions": "Entscheidungen",
+      "runs": "Läufe und Prüfungen",
+      "monitors": "Monitore und Plattformen",
+      "reminders": "Erinnerungen",
+      "reports": "Berichte und Releases",
+      "costs": "Budgets und Kosten"
+    },
+    "groupHints": {
+      "decisions": "Entscheidungsschritte, KI-Anfragen, ausgelassene Pflichten. Ein Lauf wartet: höchstens stündlich.",
+      "runs": "Fehlgeschlagene Läufe und Prüfungen, ausgelassene Zeitpläne, veraltete Daten, Backups, Datenverträge.",
+      "monitors": "Monitorstatus, Verbindungstests von Plattformen, Ziele, Wartung.",
+      "reminders": "Zugangsdaten, Dokumentprüfungen, Tickets, Pflichten, Maßnahmen, Zugriffsänderungen.",
+      "reports": "Geplante Berichte, Supportende und neue Releases.",
+      "costs": "Token-Budgets für KI und Kostenbudgets."
+    },
+    "rhythms": {
+      "immediately": "Sofort",
+      "hourly": "Stündlich",
+      "daily": "Täglich",
+      "weekly": "Wöchentlich"
+    },
+    "weekday": "Tag",
+    "at": "Um",
+    "digestTimeZone": "Zeitzone der Sammelnachrichten",
+    "days": {
+      "mon": "Mo",
+      "tue": "Di",
+      "wed": "Mi",
+      "thu": "Do",
+      "fri": "Fr",
+      "sat": "Sa",
+      "sun": "So"
+    },
+    "daysLong": {
+      "mon": "Montag",
+      "tue": "Dienstag",
+      "wed": "Mittwoch",
+      "thu": "Donnerstag",
+      "fri": "Freitag",
+      "sat": "Samstag",
+      "sun": "Sonntag"
+    },
+    "saved": "Ruhezeiten und Sammelnachrichten gespeichert",
+    "resetDone": "Ruhezeiten und Sammelnachrichten: Es gilt wieder die Vorgabe",
+    "backToDefault": "Zurück zur Vorgabe",
+    "source": {
+      "own": "Ihre eigenen Einstellungen",
+      "team": "Vorgabe des Teams {{team}}",
+      "instance": "Aus (Vorgabe)"
+    },
+    "teamDefault": "Ruhezeiten und Sammelnachrichten für Mitglieder",
+    "teamDefaultIntro": "Mitglieder, die keine eigenen Einstellungen gespeichert haben, bekommen diese.",
+    "teamUseDefault": "Vorgabe für Mitglieder setzen",
+    "channelTitle": "Ruhezeit des Kanals",
+    "channelIntro": "Karten warten während der Ruhezeit und kommen an ihrem Ende als eine Karte. JSON-Webhooks werden nie zurückgehalten.",
+    "admin": {
+      "title": "Ruhezeiten und Sammelnachrichten",
+      "description": "Personen und Kanäle können E-Mails und Teams-Beiträge nachts zurückhalten und in Sammelnachrichten bündeln. Die App bekommt immer alles sofort; der Notfallzugang wird immer gemeldet. Sie sehen, wer sie nutzt – nie den Inhalt.",
+      "allowed": "Ruhezeiten und Sammelnachrichten erlauben",
+      "saved": "Einstellung zu Ruhezeiten gespeichert",
+      "none": "Noch niemand nutzt Ruhezeiten oder Sammelnachrichten. Jede Person stellt sie in ihrem Profil ein; Administratoren können eine Vorgabe für ein Team setzen.",
+      "user": "Person",
+      "quietHours": "Ruhezeit",
+      "held": "Jetzt zurückgehalten",
+      "off": "Aus",
+      "fromTeam": "Vorgabe des Teams",
+      "channelsHeld_one": "Gerade wird {{count}} Kanalnachricht zurückgehalten.",
+      "channelsHeld_other": "Gerade werden {{count}} Kanalnachrichten zurückgehalten."
+    }
+  },
+  "bot": {
+    "title": "Teams-Bot",
+    "preview": "Vorschau",
+    "intro": "Personen geben Entscheidungen direkt in der Teams-Karte frei, mit denselben Prüfungen wie in Steward. Dafür braucht es eine Entra-App, einen Azure Bot und eingehendes HTTPS von Microsoft zum Bot-Listener. Standardmäßig aus; ohne ihn öffnen Karten Steward (docs/TEAMS.md).",
+    "listener": "Der Bot lauscht auf Port {{port}} unter",
+    "noListener": "Kein Bot-Listener: Setzen Sie SM_TEAMS_BOT_PORT und starten Sie Steward neu. Nur dieser Port wird für Microsoft veröffentlicht.",
+    "enabled": "In Teams-Karten entscheiden",
+    "appId": "App-ID des Bots",
+    "appIdHint": "Die Anwendungs-ID (Client-ID) der Entra-App-Registrierung – eine GUID.",
+    "tenants": "Erlaubte Mandanten",
+    "tenantsHint": "Mandanten-IDs (GUIDs), deren Personen den Bot nutzen dürfen.",
+    "provider": "Anmeldeanbieter",
+    "providerHint": "Konten werden nur über diesen Entra-Anbieter erkannt, per tid + oid – nie über Namen oder E-Mail.",
+    "credential": "Anmeldedaten des Bots",
+    "credentials": {
+      "certificate": "Zertifikat (empfohlen)",
+      "secret": "Geheimnis"
+    },
+    "credentialStored": "Anmeldedaten sind gespeichert. Lassen Sie die Felder leer, um sie zu behalten.",
+    "credentialHint": "Damit meldet sich Steward bei Microsoft an, um Karten zu posten und zu aktualisieren.",
+    "secret": "Client-Geheimnis",
+    "certificate": "Zertifikat (PEM)",
+    "privateKey": "Privater Schlüssel (PEM)",
+    "unchanged": "unverändert",
+    "channels": "Entscheidungskarten in Kanälen",
+    "channelsHint": "Wählen Sie je Kanal die Unterhaltung des Bots statt des Webhooks. Andere Nachrichten bleiben beim Webhook.",
+    "channelsNone": "Installieren Sie die Teams-App zuerst in einem Kanal; er erscheint dann hier.",
+    "useWebhook": "Webhook verwenden (ohne Schaltflächen)",
+    "targets": {
+      "teams": "Teams-Kanal der Instanz",
+      "webhook": "Webhook der Instanz (Teams-Karte)",
+      "team": "Kanal des Teams {{team}}"
+    },
+    "installed": "Wo der Bot installiert ist",
+    "installedNone": "Noch nirgends. Laden Sie das App-Paket in Ihren Mandanten hoch und fügen Sie es einem Kanal oder Chat hinzu.",
+    "where": "Kanal oder Person",
+    "kind": "Art",
+    "since": "Seit",
+    "removed": "entfernt",
+    "notLinked": "nicht verknüpft",
+    "kinds": {
+      "channel": "Kanal",
+      "personal": "Persönlicher Chat"
+    },
+    "package": "Teams-App-Paket herunterladen",
+    "saved": "Einstellungen des Teams-Bots gespeichert",
+    "packageNeedsAppId": "Speichern Sie die App-ID, um das Teams-App-Paket herunterzuladen."
   }
 }

@@ -1,6 +1,6 @@
 # 0013. Approvals from Microsoft Teams
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-07
 - **Since:** 0.10.0 (#237), planned in stages (below)
 
@@ -53,7 +53,7 @@ Optional and **off by default**. Needs a Teams bot and an endpoint that Microsof
 
 #### The endpoint
 
-`POST /teams/bot/messages`, outside `/api`, with its own access kind `ACCESS.bot` in the route matrix. Where it is served is open question 3. Order of checks, cheap and non-revealing first:
+`POST /teams/bot/messages`, outside `/api`, with its own access kind `ACCESS.bot` in the route matrix. It is served on a separate, minimal listener (`SM_TEAMS_BOT_PORT`, decision 3 below). Order of checks, cheap and non-revealing first:
 
 1. bot off → 404; body over 64 KB → 413; not JSON → 415;
 2. no or bad token → 401 with no detail. The token must be signed by a current Bot Framework key (from its OpenID metadata, cached, refreshed at most every 5 minutes on an unknown key id), with issuer `https://api.botframework.com`, audience = the app id, and `exp`/`nbf` within 5 minutes of clock skew;
@@ -69,14 +69,14 @@ Rejections are audited at most once per reason every 10 minutes (`teams.action_r
 
 - Teams names the person by `from.aadObjectId` and the tenant. Steward builds the key `<provider>#iss=<issuer>#tid=<tenant>#oid=<object id>` for the configured provider and looks it up in `users.external_id`. The provider's issuer tenant must be the activity's tenant.
 - The account must be active and linked through that provider. Never by user principal name, e-mail or display name (the nOAuth rule in [SECURITY-HARDENING.md](../SECURITY-HARDENING.md)).
-- No match → the card says _Your Teams account is not linked to a Steward account_ and offers _Open in Steward_. Open question 4 asks whether other people get a way in.
+- No match → the card says _Your Teams account is not linked to a Steward account_ and offers _Open in Steward_. Nobody else gets a way in (decision 4 below).
 - The lookup happens on every action. No Steward session is created.
 
 #### What can be decided in the card
 
 Computed for each viewer when the card is refreshed, and again on every click:
 
-- **In the card**: approve-mode decisions (`run.decide`); MCP gateway and run requests in `confirm` mode; MCP requests in `fourEyes` mode and four-eyes decisions, where the clicker is the second person – see open question 2.
+- **In the card**: approve-mode decisions (`run.decide`); MCP gateway and run requests in `confirm` mode; MCP requests in `fourEyes` mode and four-eyes decisions, where the clicker is the second person and the control point allows it (_May be decided in Microsoft Teams_, decision 2 below).
 - **Never in the card**, only _Open in Steward_: select decisions, manual steps and their verification, proposals (`review`), and anything whose effective rule asks for a step-up (`requireStepUp` would refuse – `manualStep.verify` with step-up on, `platform.privilegedIdentity`).
 - **The check is the route's check.** A new `decideFromTeams(user, item, verb, version, comment)` runs under `runAs(user)` and calls what the routes call: for tasks `visibleTasks`, `canDecide`, `fourEyesRequired` / `noteFourEyes`, `completeTask(id, decision, actor)`; for MCP requests `decide()`, which checks `mayApprove`, expiry and the claim itself. A person who could not decide in Steward cannot decide in Teams.
 - **Stale cards**: the card's data carries `{ kind, id, version, sig }`. `version` is the task's round and stage, or the request's status. `sig` is an HMAC with a server key over kind, id and version, so card data cannot be edited to point at another item. A mismatch answers with the current card: _This changed – here is the current state_.
@@ -136,24 +136,24 @@ ALTER TABLE mcp_requests ADD COLUMN decided_via TEXT;   -- NULL = Steward, 'team
 ### Without an internet-facing Steward
 
 - **Stage 1 works fully.** Steward only sends. The buttons open Steward in the browser; that needs the company network or VPN, as every link in a message does today.
-- **Stage 2 needs inbound HTTPS from Microsoft** to the bot endpoint, and outbound access to Microsoft. Installations that allow neither stay on stage 1. Open question 3 lists the ways to publish only the endpoint.
+- **Stage 2 needs inbound HTTPS from Microsoft** to the bot endpoint, and outbound access to Microsoft. Installations that allow neither stay on stage 1. The bot listener (decision 3) is the only thing to publish.
 
 ## Security
 
-| Threat                                     | What stops it                                                                                                                                   |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Approval by link alone                     | Links only open a dialog; the decision is a `POST` in a signed-in session. No tokens in URLs. Link scanners that open URLs decide nothing.      |
-| Forged callback                            | Bot Framework signature, issuer, audience, expiry, `channelId`, allowed tenants – before anything else is read.                                 |
-| Steward's bot token sent to a foreign host | `serviceUrl` must equal the signed claim and be on the fixed Teams host list; outbound calls go through address safety and the outbound policy. |
-| Replay of a click                          | Activity id de-duplication (24 h), token expiry, card version + HMAC, and an exactly-once claim on the task or request.                         |
-| Old card, new round                        | The version check; the answer is the current card.                                                                                              |
-| Wrong person                               | Only Entra `tid` + `oid` through the configured provider; never names or addresses.                                                             |
-| Four-eyes bypassed                         | The same `checkFourEyes` / `secondPerson` with `sameIdentity` as in Steward.                                                                    |
-| Step-up bypassed                           | Nothing that needs a step-up is decided in the card.                                                                                            |
-| Information in a channel                   | No bodies, inputs or values; hidden-resource rules; buttons only for eligible viewers.                                                          |
-| Flooding the endpoint                      | Body limit, cheap checks first, rate limits, rate-limited audit, kill switch (bot off → 404).                                                   |
-| Stolen bot credential                      | Lets someone send messages as the bot, not approve: inbound calls need a token Microsoft signs. Vault, certificate preferred, changes audited.  |
-| Compromised Teams account                  | The same as a compromised Entra account in Steward's sign-in. Entra's conditional access governs both. Open question 2 lets the policy say no.  |
+| Threat                                     | What stops it                                                                                                                                         |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Approval by link alone                     | Links only open a dialog; the decision is a `POST` in a signed-in session. No tokens in URLs. Link scanners that open URLs decide nothing.            |
+| Forged callback                            | Bot Framework signature, issuer, audience, expiry, `channelId`, allowed tenants – before anything else is read.                                       |
+| Steward's bot token sent to a foreign host | `serviceUrl` must equal the signed claim and be on the fixed Teams host list; outbound calls go through address safety and the outbound policy.       |
+| Replay of a click                          | Activity id de-duplication (24 h), token expiry, card version + HMAC, and an exactly-once claim on the task or request.                               |
+| Old card, new round                        | The version check; the answer is the current card.                                                                                                    |
+| Wrong person                               | Only Entra `tid` + `oid` through the configured provider; never names or addresses.                                                                   |
+| Four-eyes bypassed                         | The same `checkFourEyes` / `secondPerson` with `sameIdentity` as in Steward.                                                                          |
+| Step-up bypassed                           | Nothing that needs a step-up is decided in the card.                                                                                                  |
+| Information in a channel                   | No bodies, inputs or values; hidden-resource rules; buttons only for eligible viewers.                                                                |
+| Flooding the endpoint                      | Body limit, cheap checks first, rate limits, rate-limited audit, kill switch (bot off → 404).                                                         |
+| Stolen bot credential                      | Lets someone send messages as the bot, not approve: inbound calls need a token Microsoft signs. Vault, certificate preferred, changes audited.        |
+| Compromised Teams account                  | The same as a compromised Entra account in Steward's sign-in. Entra's conditional access governs both. The policy switch lets an organisation say no. |
 
 ## Alternatives considered
 
@@ -191,24 +191,19 @@ Each step is its own PR.
 2. **Stage 2a – the endpoint.** Bot settings, the endpoint and its checks, the identity lookup, conversation tracking, card actions for decisions and MCP requests, audit. A mock Bot Connector with its own signing keys (`server/src/mock/mockBotConnector.ts`) in tests.
 3. **Stage 2b – posting through the bot.** Cards through the bot per channel target, personal chats, per-viewer refresh, card updates, the `teamsChat` target of ADR 0012. Docs: [NOTIFICATIONS.md](../NOTIFICATIONS.md) and a Teams bot set-up guide.
 
-## Open questions
+## Changed while building
 
-1. **What ships in 0.10.0?**
-   - **A. Stage 1 complete, stage 2 behind a setting marked _preview_ (recommended).** Why: stage 1 helps every installation at once and adds no inbound surface. Stage 2 is built and tested against the mock, but only a real tenant shows how Teams behaves; _preview_ says so, and off by default keeps the risk with those who choose it.
-   - **B. Stage 1 only.** Stage 2 after a pilot with one real tenant. The safest, but the issue's _done means_ includes stage 2.
-   - **C. Both, fully supported.** Promises more than a mock can prove.
+1. The bot route is served only by the separate listener, so the main app's route matrix does not list it and there is no `ACCESS.bot`; `server/test/teams-bot.test.ts` checks that the listener answers nothing but `POST /teams/bot/messages`.
+2. The assurance switch _May be decided in Microsoft Teams_ governs every decision of its control point in a card, not only four-eyes ones – a stricter organisation can keep a point in Steward altogether.
+3. Migration packages move neither the bot settings nor `teams_conversations`: the bot's messaging endpoint points to the source instance, so the target sets up its own bot and records its own conversations.
+4. The settings keys are `notifications.teamsBot` and `notifications.teamsBot.secrets` (setting keys need a known prefix); the HMAC key of the card data is generated on the first save and kept with the credential.
+5. Clicks are answered synchronously with the card in the invoke response; only help texts, new cards and card updates call the Bot Connector.
+6. `platform.privilegedIdentity` (ADR 0009 step 4) does not exist yet; the "never with a step-up" rule is generic (`instanceRule` forces it off for a point whose rule asks for a step-up).
+7. The decision entry point is `decideFromTeams()` in `server/src/msteams/decide.ts`; it calls the existing decision code (`completeTask`, `decide()` of MCP requests) and is the one place to switch to the engine command layer.
 
-2. **May four-eyes decisions be taken in the card, when the clicker is the second person?** (The issue says decisions needing "four-eyes by a second person" are never completed in the card.)
-   - **A. Yes, unless the assurance policy says no (recommended).** A new rule part per control point, _May be decided in Microsoft Teams_, on by default for `run.decide` and `mcp.write`, impossible for points with a step-up. Why: Steward checks the second person exactly as in the browser, with a verified Entra identity. Without it, the card would help only with decisions nobody needs to check. The policy, its history and the proof show the choice to auditors.
-   - **B. Yes, always** when no step-up applies. Simpler, no policy switch, but no way for a stricter organisation to say no.
-   - **C. Never** (the issue's wording). In-card approval would then cover only `confirm` requests and decisions without four-eyes.
+## Decided after review
 
-3. **Where is the bot endpoint served?**
-   - **A. A separate listener (recommended).** `SM_TEAMS_BOT_PORT` starts a second, minimal server with only `POST /teams/bot/messages`: no cookies, no static files, no other routes. Why: publishing that port to the internet cannot expose anything else, even if a reverse proxy rule is wrong.
-   - **B. A path on the main listener** (`<base path>/teams/bot/messages`), published alone by a reverse-proxy path rule. Less to run, but one proxy mistake exposes the whole app.
-   - **C. An outbound relay** (e.g. Azure Relay hybrid connections): no inbound port at all. Another Azure service and a protocol to implement; worth it only if A and B are not allowed.
-
-4. **Who can approve in Teams without an Entra single sign-on link?**
-   - **A. Nobody – only accounts linked by `tid` + `oid` (recommended).** Why: no new way to link accounts, nothing to protect beyond what single sign-on already proves. Others use the link to Steward.
-   - **B. A one-time pairing in the profile.** The bot shows a code in Teams, the person enters it in Steward (signed in, with a step-up), and Steward stores the Teams object id on the account. Covers local accounts, but it is a new credential-like link that must be audited, revocable and protected against phishing of the code.
-   - **C. Match by e-mail or user principal name.** Not acceptable: names and addresses can be reassigned or set by others (nOAuth). Listed only to rule it out.
+1. **What ships in 0.10.0?** Decided: stage 1 complete, and stage 2 behind a setting that is off by default and marked _preview_. Stage 2 is built and tested against a mock Bot Framework with its own signing keys; only a real tenant shows how Teams behaves.
+2. **May four-eyes decisions be taken in the card, when the clicker is the second person?** Decided: yes, unless the assurance policy says no. A new rule part per control point, _May be decided in Microsoft Teams_, is on by default for `run.decide` and `mcp.write` and impossible for points with a step-up; auditors see it in the policy, its history and the proof.
+3. **Where is the bot endpoint served?** Decided: a separate listener. `SM_TEAMS_BOT_PORT` starts a second, minimal server with only `POST /teams/bot/messages`: no cookies, no static files, no other routes.
+4. **Who can approve in Teams without an Entra single sign-on link?** Decided: nobody. Only accounts linked by `tid` + `oid` through the configured provider can decide in a card; everyone else uses the link to Steward.

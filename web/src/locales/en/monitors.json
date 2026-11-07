@@ -610,7 +610,9 @@
       "teams": "Teams card (Adaptive Card)"
     },
     "teamsChannel": "Teams channel",
-    "teamsChannelHint": "A platform of kind \"Microsoft Teams channel (Workflows)\": it keeps the Workflows URL encrypted, and its access list decides who may post there"
+    "teamsChannelHint": "A platform of kind \"Microsoft Teams channel (Workflows)\": it keeps the Workflows URL encrypted, and its access list decides who may post there",
+    "urgent": "Urgent – interrupts quiet hours",
+    "urgentHint": "A change to down reaches people and channels at once, also during their quiet hours (unless they turned that off)."
   },
   "heartbeat": {
     "endpoint": "Heartbeat endpoint",

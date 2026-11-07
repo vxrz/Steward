@@ -1,4 +1,11 @@
-import { NOTIFICATION_EVENTS, type NotificationChannel, type NotificationEvent, type NotificationSettings, type NotificationSettingsInput } from '@sm/shared';
+import {
+  NOTIFICATION_EVENTS,
+  type QuietHours,
+  type NotificationChannel,
+  type NotificationEvent,
+  type NotificationSettings,
+  type NotificationSettingsInput,
+} from '@sm/shared';
 import { config } from '../config.js';
 import { vault } from '../vault.js';
 import { audit } from '../audit.js';
@@ -12,8 +19,8 @@ import { HttpError } from '../util.js';
  */
 type StoredConfig = Omit<NotificationSettings, 'email' | 'teams' | 'webhook'> & {
   email: Omit<NotificationSettings['email'], 'hasPassword'>;
-  teams: { enabled: boolean };
-  webhook: { enabled: boolean; format?: 'json' | 'teams' };
+  teams: { enabled: boolean; quietHours?: QuietHours };
+  webhook: { enabled: boolean; format?: 'json' | 'teams'; quietHours?: QuietHours };
 };
 
 export interface ChannelSecrets {
@@ -97,8 +104,13 @@ export function getNotificationSettings(): NotificationSettings {
   const keys = secretKeys();
   return {
     email: { ...c.email, hasPassword: keys.includes('smtpPassword') },
-    teams: { enabled: c.teams.enabled, hasWebhookUrl: keys.includes('teamsWebhookUrl') },
-    webhook: { enabled: c.webhook.enabled, hasUrl: keys.includes('webhookUrl'), ...(c.webhook.format === 'teams' ? { format: 'teams' as const } : {}) },
+    teams: { enabled: c.teams.enabled, hasWebhookUrl: keys.includes('teamsWebhookUrl'), ...(c.teams.quietHours ? { quietHours: c.teams.quietHours } : {}) },
+    webhook: {
+      enabled: c.webhook.enabled,
+      hasUrl: keys.includes('webhookUrl'),
+      ...(c.webhook.format === 'teams' ? { format: 'teams' as const } : {}),
+      ...(c.webhook.quietHours ? { quietHours: c.webhook.quietHours } : {}),
+    },
     routes: c.routes,
     baseUrl: c.baseUrl,
     allowedEmailDomains: c.allowedEmailDomains,
@@ -121,6 +133,10 @@ export function normalizeEmailDomains(list: string[]): string[] {
 }
 
 const CHANNELS: NotificationChannel[] = ['inApp', 'email', 'teams', 'webhook'];
+
+/** Quiet hours of an instance channel (ADR 0012): omitted keeps the stored ones, null removes them. */
+const keptQuiet = (input: QuietHours | null | undefined, stored: QuietHours | undefined): { quietHours?: QuietHours } =>
+  input === undefined ? (stored ? { quietHours: stored } : {}) : input ? { quietHours: input } : {};
 
 function checkUrl(u: string | undefined, what: string): void {
   if (!u) return;
@@ -151,8 +167,12 @@ export function saveNotificationSettings(input: NotificationSettingsInput): Noti
       user: input.email.user?.trim() || undefined,
       from: input.email.from.trim(),
     },
-    teams: { enabled: input.teams.enabled },
-    webhook: { enabled: input.webhook.enabled, ...(input.webhook.format === 'teams' ? { format: 'teams' as const } : {}) },
+    teams: { enabled: input.teams.enabled, ...keptQuiet(input.teams.quietHours, storedConfig().teams.quietHours) },
+    webhook: {
+      enabled: input.webhook.enabled,
+      ...(input.webhook.format === 'teams' ? { format: 'teams' as const } : {}),
+      ...keptQuiet(input.webhook.quietHours, storedConfig().webhook.quietHours),
+    },
     routes,
     baseUrl: input.baseUrl?.trim().replace(/\/+$/, '') || undefined,
     allowedEmailDomains: input.allowedEmailDomains === undefined ? storedConfig().allowedEmailDomains : normalizeEmailDomains(input.allowedEmailDomains),
@@ -183,9 +203,22 @@ export function saveNotificationSettings(input: NotificationSettingsInput): Noti
   apply('webhookUrl', input.webhook.url?.trim(), 'webhook URL');
   if (next.teams.enabled && !secrets.teamsWebhookUrl) throw new HttpError(400, 'Teams: enter the webhook URL');
   if (next.webhook.enabled && !secrets.webhookUrl) throw new HttpError(400, 'Webhook: enter the URL');
+  const enabled = [next.email.enabled && 'e-mail', next.teams.enabled && 'Teams', next.webhook.enabled && 'webhook'].filter(Boolean);
+  const before0 = storedConfig();
   writeSetting(CONFIG_KEY, next);
   saveSecrets(secrets);
-  const enabled = [next.email.enabled && 'e-mail', next.teams.enabled && 'Teams', next.webhook.enabled && 'webhook'].filter(Boolean);
+  for (const ch of ['teams', 'webhook'] as const) {
+    const a = before0[ch].quietHours ?? null;
+    const b = next[ch].quietHours ?? null;
+    if (JSON.stringify(a) !== JSON.stringify(b))
+      audit({
+        action: 'notification.quiet_hours_changed',
+        entityType: 'settings',
+        entityId: `notifications:${ch}`,
+        summary: `Quiet hours of the instance ${ch === 'teams' ? 'Teams channel' : 'webhook (Teams format)'} ${b?.enabled ? `on (${b.timeZone})` : 'off'}`,
+        details: { target: ch === 'teams' ? 'teams:instance' : 'webhook:instance', from: a, to: b },
+      });
+  }
   audit({
     action: 'notification.settings_changed',
     entityType: 'settings',

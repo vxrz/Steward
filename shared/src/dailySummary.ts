@@ -1,4 +1,5 @@
 /** Optional daily summary per user (server/src/notifications/summary.ts, docs/NOTIFICATIONS.md). */
+import type { Weekday } from './quietHours.js';
 
 export const DAILY_SUMMARY_SECTIONS = [
   'runs',
@@ -27,7 +28,9 @@ export interface DailySummaryPrefs {
   time: string;
   /** IANA time zone, e.g. Europe/Berlin */
   timeZone: string;
-  days: 'weekdays' | 'everyday';
+  /** weekly (0.10.0): once a week, on `weekday` */
+  days: 'weekdays' | 'everyday' | 'weekly';
+  weekday?: Weekday;
   channel: 'inApp' | 'inAppEmail';
   sections: DailySummarySection[];
   /** Send nothing on days without anything to report */

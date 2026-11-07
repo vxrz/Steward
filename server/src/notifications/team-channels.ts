@@ -1,4 +1,4 @@
-import type { OwnedKind, TeamChannel } from '@sm/shared';
+import type { OwnedKind, QuietHours, TeamChannel } from '@sm/shared';
 import { db } from '../db.js';
 import { vault } from '../vault.js';
 import { parseJson } from '../util.js';
@@ -34,6 +34,22 @@ export interface ActiveTeamChannel {
   format: TeamChannel['format'];
   mode: TeamChannel['mode'];
   url: string;
+  /** Teams format only (0.10.0, ADR 0012) */
+  quietHours?: QuietHours;
+}
+
+/** The stored quiet hours of a team's channel (readable while the vault is locked). */
+export function teamChannelQuietHours(teamId: string): QuietHours | null {
+  const r = row(teamId);
+  return (r?.channel ? parseJson<StoredChannel | null>(r.channel, null)?.quietHours : null) ?? null;
+}
+
+/** A team's channel in Teams format with its URL (the outbox releases held messages to it), or null. */
+export function teamsFormatChannel(teamId: string): { url: string; quietHours: QuietHours | null } | null {
+  const r = row(teamId);
+  const c = r?.channel ? parseJson<StoredChannel | null>(r.channel, null) : null;
+  if (!c?.enabled || c.format !== 'teams' || !r?.channel_secret || !vault().unlocked) return null;
+  return { url: vault().decrypt<{ url: string }>(r.channel_secret).url, quietHours: c.quietHours ?? null };
 }
 
 /** The owning teams of what a message is about: a resource, or the process of a run. */
@@ -61,7 +77,7 @@ export function teamChannelsFor(teams: OwningTeam[]): { channels: ActiveTeamChan
     const c = r?.channel ? parseJson<StoredChannel | null>(r.channel, null) : null;
     if (!c?.enabled || !r?.channel_secret) continue;
     const url = vault().decrypt<{ url: string }>(r.channel_secret).url;
-    channels.push({ team: t, format: c.format, mode: c.mode, url });
+    channels.push({ team: t, format: c.format, mode: c.mode, url, ...(c.quietHours ? { quietHours: c.quietHours } : {}) });
   }
   const skipInstance = channels.length === teams.length && channels.every((c) => c.mode === 'instead');
   return { channels, skipInstance };
