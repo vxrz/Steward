@@ -50,6 +50,7 @@ function dirSize(dir: string): number {
 }
 
 export function maintenanceStatus(): MaintenanceStatus {
+  // debug runs: storage statistics and retention cover every run (debug runs go first, after retentionDebugRunDays)
   const runs = db().get<{ n: number; oldest: string | null }>('SELECT COUNT(*) AS n, MIN(started_at) AS oldest FROM runs')!;
   return {
     databaseBytes: db().sizeBytes(),
@@ -101,15 +102,19 @@ export async function deleteInBatches(table: string, where: string, params: unkn
 /** A run's rows, children first (evidence before its tasks); generated reports go with their run. */
 const RUN_TABLES = ['run_artifacts', 'run_task_evidence', 'run_tasks', 'run_logs', 'run_steps', 'reports'];
 
-/** Deletes finished runs that ended before `cutoff`, in small batches (a large cleanup does not block requests). */
-export async function deleteRunsBefore(cutoff: string): Promise<{ runs: number; artifacts: number }> {
+/**
+ * Deletes finished runs that ended before `cutoff`, in small batches (a large cleanup does not block requests).
+ * `debug`: only debug runs (ADR 0010, their own shorter retention).
+ */
+export async function deleteRunsBefore(cutoff: string, opts: { debug?: boolean } = {}): Promise<{ runs: number; artifacts: number }> {
   let runs = 0;
   let artifacts = 0;
   const statusList = FINISHED.map(() => '?').join(',');
   for (;;) {
     const ids = db()
       .all<{ id: string }>(
-        `SELECT id FROM runs WHERE status IN (${statusList}) AND finished_at IS NOT NULL AND finished_at < ? ORDER BY finished_at LIMIT ?`,
+        // debug runs: storage statistics and retention cover every run (debug runs go first, after retentionDebugRunDays)
+        `SELECT id FROM runs WHERE status IN (${statusList}) AND finished_at IS NOT NULL AND finished_at < ?${opts.debug ? ' AND debug IS NOT NULL' : ''} ORDER BY finished_at LIMIT ?`,
         ...FINISHED,
         cutoff,
         RUN_BATCH,
@@ -122,6 +127,7 @@ export async function deleteRunsBefore(cutoff: string): Promise<{ runs: number; 
         .map((r) => r.path);
       // Generated PDF reports go with their run (files below); the audit log keeps their report.generated entries.
       for (const t of RUN_TABLES) await deleteInBatches(t, 'run_id = ?', [id]);
+      // debug runs: storage statistics and retention cover every run (debug runs go first, after retentionDebugRunDays)
       db().run('DELETE FROM runs WHERE id = ?', id);
       deleteRunFiles(id, paths);
       artifacts += paths.length;
@@ -141,7 +147,11 @@ export async function runCleanup(opts: { manual?: boolean } = {}): Promise<LastC
   try {
     const s = getSettings();
     const now = Date.now();
-    const removed = s.retentionRunDays > 0 ? await deleteRunsBefore(new Date(now - s.retentionRunDays * DAY_MS).toISOString()) : { runs: 0, artifacts: 0 };
+    // debug runs first, after their own (shorter) retention; their audit entries stay (ADR 0003)
+    const debugDays = Math.max(1, s.retentionDebugRunDays ?? 7);
+    const debugRemoved = await deleteRunsBefore(new Date(now - debugDays * DAY_MS).toISOString(), { debug: true });
+    const kept = s.retentionRunDays > 0 ? await deleteRunsBefore(new Date(now - s.retentionRunDays * DAY_MS).toISOString()) : { runs: 0, artifacts: 0 };
+    const removed = { runs: kept.runs + debugRemoved.runs, artifacts: kept.artifacts + debugRemoved.artifacts };
     const notificationsDeleted =
       s.retentionNotificationDays > 0
         ? await deleteInBatches('notifications', 'read = 1 AND ts < ?', [new Date(now - s.retentionNotificationDays * DAY_MS).toISOString()])
@@ -172,6 +182,7 @@ export async function runCleanup(opts: { manual?: boolean } = {}): Promise<LastC
     const result: LastCleanup = {
       at: new Date(now).toISOString(),
       runsDeleted: removed.runs,
+      ...(debugRemoved.runs ? { debugRunsDeleted: debugRemoved.runs } : {}),
       artifactsDeleted: removed.artifacts,
       notificationsDeleted,
       ...(auditArchive && (auditArchive.archived.length || auditArchive.deleted)
@@ -185,10 +196,11 @@ export async function runCleanup(opts: { manual?: boolean } = {}): Promise<LastC
         actor: opts.manual ? undefined : 'system',
         action: 'maintenance.cleanup',
         entityType: 'maintenance',
-        summary: `Cleanup: ${removed.runs} run(s) older than ${s.retentionRunDays || '–'} days, ${removed.artifacts} artifact(s) and ${notificationsDeleted} read notification(s) deleted`,
+        summary: `Cleanup: ${kept.runs} run(s) older than ${s.retentionRunDays || '–'} days, ${debugRemoved.runs ? `${debugRemoved.runs} debug run(s) older than ${debugDays} days, ` : ''}${removed.artifacts} artifact(s) and ${notificationsDeleted} read notification(s) deleted`,
         details: {
           ...result,
           retentionRunDays: s.retentionRunDays,
+          retentionDebugRunDays: debugDays,
           retentionNotificationDays: s.retentionNotificationDays,
           retentionMonitorDays: monitorDays,
           monitorData,

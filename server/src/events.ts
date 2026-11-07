@@ -9,8 +9,27 @@ export type ScheduleSkipReason = 'overlap' | 'ownerMissing' | 'mayNotRun' | 'may
  * emit; consumers (notifications, metrics) subscribe. Listeners must never throw
  * into producers – emit() isolates them.
  */
+/** What a debug run is, on its events (ADR 0010): consumers that count, notify or report skip these runs. */
+export interface RunDebugMark {
+  kind: 'node' | 'step';
+  nodeId?: string;
+}
+
+/**
+ * The engine's event stream (ADR 0011: no second bus, no outbox in 0.10.0). `mode` and `debug` on run.started and
+ * run.finished are additive: live / dry / test, and null for an ordinary run.
+ */
 export interface DomainEvents {
-  'run.started': { runId: string; processId: string; processName: string; actor: string; trigger: string; dryRun: boolean };
+  'run.started': {
+    runId: string;
+    processId: string;
+    processName: string;
+    actor: string;
+    trigger: string;
+    dryRun: boolean;
+    mode?: 'live' | 'dry' | 'test';
+    debug?: RunDebugMark | null;
+  };
   'run.finished': {
     runId: string;
     processId: string;
@@ -22,8 +41,11 @@ export interface DomainEvents {
     status: 'succeeded' | 'failed' | 'cancelled';
     error?: string;
     durationMs: number;
+    mode?: 'live' | 'dry' | 'test';
+    debug?: RunDebugMark | null;
   };
-  'step.finished': { runId: string; processId: string; nodeType: string; status: string; durationMs: number };
+  /** `debug`: a step of a debug run (run metrics skip it) */
+  'step.finished': { runId: string; processId: string; nodeType: string; status: string; durationMs: number; debug?: boolean };
   'task.created': {
     taskId: string;
     runId: string;

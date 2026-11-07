@@ -6,9 +6,8 @@ import { logger } from '../log.js';
 import { nowIso, parseJson, sha256 } from '../util.js';
 import { runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
-import { permissionsFor } from '../processes/service.js';
-import { getPlatform } from '../platforms/service.js';
-import { startRun } from '../engine/runner.js';
+import { engine } from '../engine/index.js';
+import { startProblem } from '../engine/commands.js';
 import { addressAllowed, countRejection, evaluateMapping, pickHeaders, processArchived, triggerRow, type TriggerRow } from './service.js';
 
 /**
@@ -230,21 +229,11 @@ function ownerProblem(r: TriggerRow): { problem: string } | { user: ReturnType<t
   const owner = findUserByName(r.owner);
   if (!owner || !owner.active) return { problem: `owner ${r.owner} is missing or deactivated` };
   const user = toAuthUser(owner);
-  const problem = runAs(user, () => {
-    if (processArchived(r.process_id)) return 'the process is archived';
-    if (!permissionsFor(r.process_id).includes('run')) return `${user.username} may not run process ${r.process_id}`;
-    for (const pid of Object.values(parseJson<Record<string, string>>(r.bindings, {}))) {
-      let ok: boolean;
-      try {
-        ok = getPlatform(pid).permissions.includes('use');
-      } catch {
-        return `platform ${pid} no longer exists`;
-      }
-      if (!ok) return `${user.username} may not use platform ${pid}`;
-    }
-    return null;
-  });
-  return problem ? { problem } : { user };
+  if (processArchived(r.process_id)) return { problem: 'the process is archived' };
+  // the command layer's start check (ADR 0011), as the owner
+  const p = startProblem(user, { processId: r.process_id, bindings: parseJson<Record<string, string>>(r.bindings, {}) });
+  if (!p) return { user };
+  return { problem: p.code === 'processNotFound' || p.code === 'mayNotRun' ? `${user.username} may not run process ${r.process_id}` : p.text };
 }
 
 export async function handleHook(req: HookRequest): Promise<HookResponse> {
@@ -298,6 +287,7 @@ export async function handleHook(req: HookRequest): Promise<HookResponse> {
     return { status: 202, body: { skipped: 'not permitted' } };
   }
   if (r.skip_if_running) {
+    // debug runs: the trigger's own last run, by id (never a debug run)
     const last = r.last_run_id ? db().get<{ status: string }>('SELECT status FROM runs WHERE id = ?', r.last_run_id) : undefined;
     if (starting.has(r.id) || (last && ACTIVE.includes(last.status))) {
       recordFire(r, req, { ...base, outcome: 'skipped', reason: `previous run ${r.last_run_id ?? ''} is still ${last?.status ?? 'starting'}` });
@@ -307,18 +297,17 @@ export async function handleHook(req: HookRequest): Promise<HookResponse> {
   let runId: string;
   starting.add(r.id);
   try {
-    runId = await runAs(owner.user, () =>
-      startRun(
-        {
-          processId: r.process_id,
-          version: r.process_version ?? undefined,
-          inputs: mapped.inputs,
-          bindings: parseJson(r.bindings, {}),
-          dryRun: !!r.dry_run || !!test?.dryRun,
-        },
-        { trigger: 'webhook', actor: owner.user.username, webhook: { triggerId: r.id, triggerName: r.name, test: !!test } },
-      ),
-    );
+    ({ runId } = await runAs(owner.user, () =>
+      engine().start({
+        processId: r.process_id,
+        version: r.process_version ?? undefined,
+        inputs: mapped.inputs,
+        bindings: parseJson(r.bindings, {}),
+        mode: r.dry_run || test?.dryRun ? 'dry' : 'live',
+        actor: owner.user.username,
+        origin: { trigger: 'webhook', webhook: { triggerId: r.id, triggerName: r.name, test: !!test } },
+      }),
+    ));
   } catch (e) {
     recordFire(r, req, { ...base, outcome: 'failed', reason: `run could not be started: ${(e as Error).message}`.slice(0, 500) });
     return { status: 422, body: { error: 'Run could not be started' } };

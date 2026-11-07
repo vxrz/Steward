@@ -181,6 +181,7 @@ export function verifierRecipients(taskId: string): UserInfo[] {
 
 /** The person who started a run and the owner of its source (schedule, webhook trigger, monitor – #139). */
 function runPeople(runId: string, all: UserInfo[]): { actor?: UserInfo; scheduleOwner?: UserInfo; source: RunSource | null } {
+  // debug runs: one run by its id (a message that is being sent; debug runs send none)
   const r = db().get<{ actor: string }>('SELECT actor FROM runs WHERE id = ?', runId);
   const source = sourceOfRun(runId);
   if (!r) return { source };
@@ -504,7 +505,8 @@ export function onTaskReturned(e: DomainEvents['task.returned']): void {
 }
 
 export function onRunFinished(e: DomainEvents['run.finished']): void {
-  if (e.status !== 'failed') return;
+  // a debug run (ADR 0010) notifies nobody
+  if (e.status !== 'failed' || e.debug) return;
   const all = activeUsers();
   const { actor, scheduleOwner, source } = runPeople(e.runId, all);
   notify({
@@ -575,6 +577,7 @@ export function onCheckFailed(e: DomainEvents['check.failed']): void {
   const all = activeUsers();
   const { actor, scheduleOwner, source } = runPeople(e.runId, all);
   const owner = userNamed(processAccess(e.processId).owner, all);
+  // debug runs: one run by its id (a message that is being sent; debug runs send none)
   const runActor = db().get<{ actor: string }>('SELECT actor FROM runs WHERE id = ?', e.runId)?.actor;
   // runs of a source decided themselves whether this result is news (#127): each message goes out; others keep the hourly limit
   const decided = e.phase === 'new' || e.phase === 'changed' || e.phase === 'reminder' || e.phase === 'pauseEnded';
@@ -658,6 +661,7 @@ export function onCheckResolved(e: DomainEvents['check.resolved']): void {
   const all = activeUsers();
   const { actor, scheduleOwner, source } = runPeople(e.runId, all);
   const owner = userNamed(processAccess(e.processId).owner, all);
+  // debug runs: one run by its id (a message that is being sent; debug runs send none)
   const runActor = db().get<{ actor: string }>('SELECT actor FROM runs WHERE id = ?', e.runId)?.actor;
   notify({
     event: 'check.resolved',

@@ -1,6 +1,6 @@
 # 0011. Engine boundary: start, signal, cancel and query runs through one interface
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-07
 - **Since:** 0.10.0 (#239), step 1 only (below)
 
@@ -82,7 +82,7 @@ export interface RunEngine {
 
 An engine orders and persists execution. Everything that makes a run trustworthy stays in Steward's own code, in the active instance:
 
-- **Rights and assurance.** Who may start, decide, verify, resume, cancel; step-up and four-eyes (`noteFourEyes`, `checkFourEyes`). They run before a command reaches the engine (open question 1).
+- **Rights and assurance.** Who may start, decide, verify, resume, cancel; step-up and four-eyes (`noteFourEyes`, `checkFourEyes`). They run in the command layer (`engine/commands.ts`) before a command reaches the engine.
 - **Secrets.** `getConnection`, the vault, `$secret()`, the `Redactor`. An engine never receives a credential.
 - **Every check on a request.** The outbound policy (`assertOutboundAllowed`), the egress scan with the per-connection credential rule (`scanSecrets`, `run.secret_refused`, 0.9.0), the kind rules (`assertKindRules`, `assertBrowserDestination`), dry-run write skipping (`isMutating`), recordings (`findRecording`), and the read-only and operation-filter checks of ADR 0009 step 3 in `platformRequest`. They live in the step functions (`execHttp`, `execQuery`, `execAi`, `execBrowser`, …), and the step functions stay Steward's.
 - **The record.** `run_steps`, `run_tasks`, `run_logs`, `run_artifacts`, `run_task_evidence`, `protocolHash`, and the audit chain with its single writer (ADR 0003).
@@ -151,12 +151,12 @@ This record does not add Temporal or any other backend. It fixes what one would 
 **Negative**
 
 - An extra layer for a single implementation. It earns its keep through the contract tests and the callers it unifies, not through a second engine.
-- Eight callers change. Where their rights checks move (open question 1), some may become stricter.
+- Eight callers change. Their rights checks move into the command layer; some callers become stricter.
 
 **Risks**
 
 - The refactor could change the protocol in a way the hash would catch only for covered paths. Mitigation: golden hashes for every example process with recordings, plus `restart.test.ts` unchanged.
-- The interface could still be wrong for a real backend. Mitigation: the step-2 constraints above, and open question 3.
+- The interface could still be wrong for a real backend. Mitigation: the step-2 constraints above, and the spike (decided question 3).
 - Rules that live only in a caller today (the scheduler's owner checks, MCP's re-check at approval) could be lost when the caller moves. Mitigation: one PR per caller, each with its existing tests.
 
 ### Migration and rollout plan
@@ -165,7 +165,7 @@ Each step is its own PR. None changes what users see, except the reason in `run.
 
 1. **Interface and built-in engine.** `engine/engine.ts`, `engine/index.ts`, the built-in engine wrapping today's functions, `query`, `cancel` with a reason, the ESLint rule (with an allow-list of today's importers that shrinks with each step). Contract tests and golden hashes.
 2. **Callers move.** Routes (`processes.ts`, `dashboards.ts`, `demo.ts`), the scheduler, webhook triggers, monitor outputs, MCP, onboarding bundles, sub-processes (`execSubprocess` uses `start` with `origin.parent`), and `bootstrap.ts`/`main.ts` for `recover`, `stopAccepting`, `drain`, `interruptBusy`. The allow-list ends empty.
-3. **Rights in one place**, as decided under open question 1.
+3. **Rights in one place**: the command layer `engine/commands.ts`.
 4. **`docs/ARCHITECTURE.md`**: the boundary, the invariants and the step-2 constraints; a link to this record.
 
 ADR 0010 (debugging) builds on steps 1 and 2: its debug runs start with `start({ debug })` and are driven with `signal` and `query`.
@@ -177,17 +177,17 @@ ADR 0010 (debugging) builds on steps 1 and 2: its debug runs start with `start({
 - An engine never sees credentials, unredacted outputs, or the audit key. That is a design rule for any future backend, not only for this step.
 - `run.cancelled` with a reason, and `mode` on `run.started`, make the audit log say more, not less.
 
-## Open questions
+## Decided after review
 
-1. **Where do rights checks for runs live?**
-   - **A command layer in front of the engine (recommended).** A new `engine/commands.ts` with `authorizeStart(actor, cmd)` (process `run`, `use` on each bound platform and identity, slot requirements), `authorizeSignal` (`canDecide`, four-eyes) and `authorizeCancel`. Every caller uses it; the duplicated `requireBindingsUsable` and the hand-written loops go. A caller that checks less today becomes stricter; the PR that moves it lists the difference and the release notes say so. Why: Teams approvals (#237) and debugging (#235) need exactly these checks, and one copy cannot drift.
-   - **Leave them in the callers.** Strictly no behaviour change in 0.10.0. Each new caller writes its own check again.
-   - **Inside the engine.** The engine checks rights itself. Simple for callers, but every future engine would have to re-implement Steward's policy.
-2. **Is the in-process event emitter enough as the interface's event stream?**
-   - **Yes, for 0.10.0 (recommended).** `events.ts` stays; the interface only documents the event types and adds `mode`/`debug`. Why: with one process and the built-in engine nothing is lost that is not lost today, and an outbox is only needed when events come from somewhere else.
-   - **A durable outbox now.** A `run_events` table written in the step's transaction, read by notifications and reports. Notifications would survive a crash between commit and send. More tables and a delivery job for a gap nobody has reported.
-   - **Push to the web app.** Server-sent events for run pages instead of polling. Nice for debugging (ADR 0010), but a separate feature.
-3. **Do we try the interface against a real durable-execution SDK in 0.10.0?**
-   - **A time-boxed spike, not merged (recommended).** A few days in a branch: one example process as a Temporal workflow with activities, a decision signal and a cancel, against the interface above. Why: the boundary exists to make this possible; a short test is the cheapest way to find out whether `signal` and `query` are drawn in the right place. The result is a note in this record.
-   - **No spike.** The interface is checked only on paper and by the built-in engine. Faster, and enough if a backend may never come.
-   - **An experimental adapter behind a setting.** Shipped and documented as experimental. Users could try it, but it brings an SDK dependency and a support promise without a concrete need.
+1. **Where do rights checks for runs live?** Decided: a command layer in front of the engine. `engine/commands.ts` has `authorizeStart` (process `run`, `use` on each bound platform, slot requirements), `authorizeSignal` (`canDecide`, four-eyes) and `authorizeCancel`; every caller uses it, and the release notes name the callers that became stricter.
+2. **Is the in-process event emitter enough as the interface's event stream?** Decided: yes, for 0.10.0. `events.ts` stays; the interface documents the event types and `run.started`/`run.finished` gain `mode` and `debug`. No outbox, no push to the web app.
+3. **Do we try the interface against a real durable-execution SDK in 0.10.0?** Decided: a time-boxed spike in a separate branch, not merged (one example process as a Temporal workflow with a decision signal and a cancel). Its result becomes a note in this record.
+
+## Changed while building
+
+1. Steps 1–3 shipped together in 0.10.0: the interface, every caller moved (the ESLint allow-list is empty from the start), and the rights in `engine/commands.ts`.
+2. `RunEngine` has one more host call, `counts()` (active, busy and queued run ids), for the shutdown report in `bootstrap.ts`.
+3. A signal on a task that is no longer open is refused by the command layer with **403 `TASK_CLOSED`**, as the route answered before, not 409. The invariant holds: it changes nothing.
+4. The golden protocol hashes cover examples 70 (endpoint check) and 90 (sub-process building block) and a synthetic process with every control type. A parent run with a sub-process step is not in the golden set: its protocol holds the child's run id, which differs per run.
+5. Callers that became stricter: monitor outputs (now also `use` on the bound platforms) and sub-process steps (`use` on the child's platforms, for the run's actor); the demo setup goes through the same check. A schedule whose bound platform was deleted is skipped instead of failing.
+6. The durable-execution spike (decided question 3) was not part of this work; it remains open.

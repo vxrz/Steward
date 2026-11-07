@@ -66,7 +66,7 @@ export function buildSummaryModel(o: { processIds: string[]; from: string; to: s
     `SELECT r.id, r.process_id, r.process_name, r.status, r.dry_run, r.actor, r.started_at, r.finished_at, r.stats,
        (SELECT COUNT(*) FROM run_tasks t WHERE t.run_id = r.id AND t.status = 'completed') AS decisions,
        NULL AS protocol_hash
-     FROM runs r WHERE r.process_id IN (${marks}) AND r.started_at >= ? AND r.started_at < ? ORDER BY r.started_at, r.rowid`,
+     FROM runs r WHERE r.process_id IN (${marks}) AND r.debug IS NULL AND r.started_at >= ? AND r.started_at < ? ORDER BY r.started_at, r.rowid`,
     ...ids,
     o.from,
     o.to,

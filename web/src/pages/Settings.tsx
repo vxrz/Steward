@@ -39,7 +39,7 @@ import {
 } from '@tabler/icons-react';
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
-import { allowListEntryProblem, allowListLines, type ApiToken, type AuthStatus, type MaintenanceStatus, type Settings } from '@sm/shared';
+import { DEBUG_LIMITS, allowListEntryProblem, allowListLines, type ApiToken, type AuthStatus, type MaintenanceStatus, type Settings } from '@sm/shared';
 import { BRAND } from '../../../shared/src/brand';
 import { del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, PageHeader } from '../components/common';
@@ -496,6 +496,23 @@ function RetentionCard({ d }: { d: Draft }) {
             min={1}
             value={s.retentionMonitorDays ?? 30}
             onChange={(v) => setS({ ...s, retentionMonitorDays: typeof v === 'number' ? v : 30 })}
+          />
+          <NumberInput
+            label={t('retention.debugRuns')}
+            description={t('retention.debugRunsHint')}
+            min={DEBUG_LIMITS.retentionDays.min}
+            max={DEBUG_LIMITS.retentionDays.max}
+            value={s.retentionDebugRunDays ?? DEBUG_LIMITS.retentionDays.default}
+            onChange={(v) => setS({ ...s, retentionDebugRunDays: typeof v === 'number' ? v : DEBUG_LIMITS.retentionDays.default })}
+            data-testid="retention-debug-runs"
+          />
+          <NumberInput
+            label={t('retention.debugPause')}
+            description={t('retention.debugPauseHint')}
+            min={DEBUG_LIMITS.pauseMinutes.min}
+            max={DEBUG_LIMITS.pauseMinutes.max}
+            value={s.debugPauseMinutes ?? DEBUG_LIMITS.pauseMinutes.default}
+            onChange={(v) => setS({ ...s, debugPauseMinutes: typeof v === 'number' ? v : DEBUG_LIMITS.pauseMinutes.default })}
           />
         </SimpleGrid>
         <Text size="xs" c="dimmed">

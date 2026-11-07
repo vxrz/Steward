@@ -9,8 +9,9 @@ import { capabilities, isAdmin } from '../auth/permissions.js';
 import * as processes from '../processes/service.js';
 import * as datasets from '../dashboards/datasets.js';
 import * as dashboards from '../dashboards/service.js';
-import { startRun } from '../engine/runner.js';
-import { getPlatform } from '../platforms/service.js';
+import { engine } from '../engine/index.js';
+import { currentActor } from '../auth/context.js';
+import { startProblem } from '../engine/commands.js';
 import { parseJson } from '../util.js';
 import { builtinDatasetVisible } from '../dashboards/builtin.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
@@ -127,18 +128,18 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
     }
     for (const w of d.definition.widgets) if (w.type === 'checks' && w.process) procIds.add(w.process);
     for (const pid of procIds) {
-      const perms = processes.permissionsFor(pid);
-      if (!perms.includes('run')) {
+      // the command layer's start check (ADR 0011): run first, then use on the platforms of the last run (below)
+      if (startProblem(undefined, { processId: pid })) {
         skipped.push({ processId: pid, reason: 'no run permission' });
         continue;
       }
-      const active = db().get<{ id: string }>("SELECT id FROM runs WHERE process_id = ? AND status IN ('running', 'waiting') LIMIT 1", pid);
+      const active = db().get<{ id: string }>("SELECT id FROM runs WHERE process_id = ? AND status IN ('running', 'waiting') AND debug IS NULL LIMIT 1", pid);
       if (active) {
         skipped.push({ processId: pid, reason: `run ${active.id} is still active` });
         continue;
       }
       const last = db().get<{ inputs: string; bindings: string; dry_run: number }>(
-        'SELECT inputs, bindings, dry_run FROM runs WHERE process_id = ? ORDER BY started_at DESC LIMIT 1',
+        'SELECT inputs, bindings, dry_run FROM runs WHERE process_id = ? AND debug IS NULL ORDER BY started_at DESC LIMIT 1',
         pid,
       );
       if (!last) {
@@ -148,13 +149,20 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
       const bindings = Object.fromEntries(
         Object.entries(parseJson<Record<string, { platformId: string }>>(last.bindings, {})).map(([k, v]) => [k, v.platformId]),
       );
-      const forbidden = Object.values(bindings).find((p) => !getPlatform(p).permissions.includes('use'));
-      if (forbidden) {
-        skipped.push({ processId: pid, reason: `no permission to use platform ${forbidden}` });
+      const problem = startProblem(undefined, { processId: pid, bindings });
+      if (problem) {
+        skipped.push({ processId: pid, reason: problem.vars.platform ? `no permission to use platform ${problem.vars.platform}` : problem.text });
         continue;
       }
       try {
-        const runId = await startRun({ processId: pid, inputs: parseJson(last.inputs, {}), bindings, dryRun: !!last.dry_run });
+        const { runId } = await engine().start({
+          processId: pid,
+          inputs: parseJson(last.inputs, {}),
+          bindings,
+          mode: last.dry_run ? 'dry' : 'live',
+          actor: currentActor(),
+          origin: { trigger: 'manual' },
+        });
         started.push({ processId: pid, runId });
       } catch (e) {
         skipped.push({ processId: pid, reason: (e as Error).message });

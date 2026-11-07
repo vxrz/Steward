@@ -40,7 +40,7 @@ export const definitionHash = (d: ProcessDefinition): string => sha256(canonical
 
 function lastRun(processId: string): ProcessSummary['lastRun'] {
   const r = db().get<{ id: string; status: RunStatus; started_at: string; stats: string }>(
-    'SELECT id, status, started_at, stats FROM runs WHERE process_id = ? ORDER BY started_at DESC LIMIT 1',
+    'SELECT id, status, started_at, stats FROM runs WHERE process_id = ? AND debug IS NULL ORDER BY started_at DESC LIMIT 1',
     processId,
   );
   if (!r) return null;

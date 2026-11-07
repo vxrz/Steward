@@ -177,6 +177,10 @@ While you model a process, the platform is often not reachable yet, or you do no
 - **Never** used by real runs, dry runs or monitors that run on their schedule.
 - Recordings can hold **personal data**: everyone who may use the platform reads them (a run would fetch the same data); changing them needs `manage`. When a recording is saved, the platform's credentials and cached tokens are replaced by `***`, and headers with credentials or cookies (`Authorization`, `Cookie`, `Set-Cookie`, `X-API-Key` …) are dropped. At most 500 per platform, 1 MB body each. Audited as `platform.recording_added` / `_changed` / `_removed`; they move with migration packages and are removed with their platform.
 
+### Debugging a process
+
+**Run this node** (a tab beside a node's properties in the editor) tries one node with variables from an earlier run, sample data or run inputs – offline, with recorded responses or as a live read. **Debug** in the editor steps through a run of the saved version, pausing before each node or at breakpoints; decisions are answered in the panel, simulated. **Compare with the last good run** on a failed run shows what changed between two runs, step by step. Debug runs are never live, never publish, alert, create tasks or notify, and are seen only by their starter, the process's managers, administrators and auditors. See [docs/DEBUGGING.md](docs/DEBUGGING.md).
+
 ## Users, roles and access
 
 | Role     | Default rights                                                                                        |

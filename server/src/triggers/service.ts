@@ -83,6 +83,7 @@ export const SECRET_PREFIX = 'whs_';
 export const TRIGGER_ID_RE = /^wht_[A-Za-z0-9_-]{8,40}$/;
 export const hookPath = (id: string) => `/api/hooks/${id}`;
 
+// debug runs: the trigger's own last run, by id (never a debug run)
 const SELECT = `SELECT t.*, p.name AS process_name, (SELECT status FROM runs WHERE id = t.last_run_id) AS last_run_status
   FROM webhook_triggers t LEFT JOIN processes p ON p.id = t.process_id`;
 

@@ -281,6 +281,8 @@ export interface AiUsageEntry {
   promptFingerprint: string;
   inputFingerprint: string;
   actor: string;
+  /** The call came from a debug run (0.10.0, ADR 0010): the tokens were spent all the same */
+  debug?: boolean;
 }
 
 /** GET /api/platforms/:id/ai/usage: the gateway's budgets, its use this period and the top processes. */

@@ -69,6 +69,7 @@ registerLinkKind('process', {
 registerLinkKind('run', {
   resolve(id) {
     const r = db().get<{ process_id: string; process_name: string; started_at: string; status: string }>(
+      // debug runs: one run by its id (a link that exists)
       'SELECT process_id, process_name, started_at, status FROM runs WHERE id = ?',
       id,
     );
@@ -78,7 +79,7 @@ registerLinkKind('run', {
   search(q, limit) {
     return db()
       .all<{ id: string; process_id: string; process_name: string; started_at: string; status: string }>(
-        "SELECT id, process_id, process_name, started_at, status FROM runs WHERE lower(id) LIKE ? ESCAPE '\\' OR lower(process_name) LIKE ? ESCAPE '\\' ORDER BY started_at DESC LIMIT 200",
+        "SELECT id, process_id, process_name, started_at, status FROM runs WHERE debug IS NULL AND (lower(id) LIKE ? ESCAPE '\\' OR lower(process_name) LIKE ? ESCAPE '\\') ORDER BY started_at DESC LIMIT 200",
         like(q),
         like(q),
       )

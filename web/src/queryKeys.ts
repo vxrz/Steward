@@ -14,8 +14,8 @@
 export const runKeys = {
   /** Every run list (['runs', …]) */
   all: ['runs'] as const,
-  list: (status: unknown, processId: unknown, since: unknown, checks: unknown, pageSize: unknown) =>
-    ['runs', status, processId, since, checks, pageSize] as const,
+  list: (status: unknown, processId: unknown, since: unknown, checks: unknown, pageSize: unknown, debug: unknown = false) =>
+    ['runs', status, processId, since, checks, pageSize, debug] as const,
   /** The latest runs of a process (start page, process cards, the flow editor) */
   latest: (processId: string | null | undefined) => ['runs', 'latest', processId] as const,
   palette: ['runs', 'palette'] as const,
@@ -23,6 +23,12 @@ export const runKeys = {
   details: ['run'] as const,
   detail: (id: string | null | undefined) => ['run', id] as const,
   reports: (runId: string | null | undefined) => ['run-reports', runId] as const,
+  /** Comparing two runs (ADR 0010) */
+  compare: (a: string | null | undefined, b: string | null | undefined) => ['run', 'compare', a, b] as const,
+  /** The last good run before a run */
+  lastGood: (id: string | null | undefined) => ['run', id, 'last-good'] as const,
+  /** A step-through debug run's state (the panel polls it) */
+  debug: (id: string | null | undefined) => ['run', id, 'debug'] as const,
 };
 
 export const processKeys = {

@@ -34,6 +34,7 @@ import {
   IconFileExport,
   IconInfoCircle,
   IconPlayerPlay,
+  IconBug,
 } from '@tabler/icons-react';
 import { useMediaQuery } from '@mantine/hooks';
 import { useShellLayout } from '../layout';
@@ -58,6 +59,9 @@ import { fmtRelative } from '../format';
 import { issueText } from '../i18n/meta';
 import { DetailHeader } from '../components/page/DetailPage';
 import { processKeys } from '../queryKeys';
+import { NodeDebugPanel } from '../components/debug/NodeDebugPanel';
+import { DebugRunPanel, useDebugRun } from '../components/debug/DebugRunPanel';
+import type { NodeRunStatus } from '../components/flow/FlowNodeView';
 
 /** Drop undefined values so dirty-checking and saving see the same thing. */
 const normalize = (d: ProcessDefinition): ProcessDefinition => JSON.parse(JSON.stringify(d));
@@ -83,6 +87,7 @@ function postmanUrl(processId: string): string {
 
 export function ProcessEditorPage() {
   const { t, i18n } = useTranslation(['editor', 'common']);
+  const { t: tDebug } = useTranslation('debug');
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const proc = useQuery({ queryKey: processKeys.detail(id), queryFn: () => get<ProcessDetail>(`/processes/${id}`), enabled: !!id });
@@ -97,9 +102,32 @@ export function ProcessEditorPage() {
   const [focus, setFocus] = useState<{ id: string; seq: number } | null>(null);
   const [showRun, setShowRun] = useState(false);
   const lastRun = useLastRun(id ?? '', showRun && !!id);
+  // step through (ADR 0010): the debug panel, its run colours the canvas and the paused node is centred
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugRunId, setDebugRunId] = useState<string | null>(null);
+  const debugRun = useDebugRun(debugOpen ? debugRunId : null);
+  const debugStatus = useMemo(() => {
+    if (!debugOpen || !debugRun.data) return undefined;
+    const m = new Map<string, NodeRunStatus>();
+    for (const s of debugRun.data.steps) {
+      const cur = m.get(s.stepId) ?? { counts: {}, status: s.status };
+      cur.counts[s.status] = (cur.counts[s.status] ?? 0) + 1;
+      cur.status = s.status;
+      m.set(s.stepId, cur);
+    }
+    const p = debugRun.data.paused;
+    if (p) m.set(p.nodeId, { counts: { waiting: 1 }, status: 'waiting' });
+    return m;
+  }, [debugOpen, debugRun.data]);
+  const pausedNode = debugRun.data?.paused?.nodeId;
+
   const history = useDefHistory(def, setDef);
   // phones show the flow read-only: building it needs a larger screen
   const phone = useMediaQuery('(max-width: 48em)') ?? false;
+  // the paused node is centred on the canvas – not on a phone, where selecting it would cover the debug sheet
+  useEffect(() => {
+    if (pausedNode && !phone) setFocus((f) => ({ id: pausedNode, seq: (f?.seq ?? 0) + 1 }));
+  }, [pausedNode, phone, debugRun.data?.paused?.stepKey]);
   const { caps } = useMe();
   const editable = !!proc.data?.permissions.includes('edit') && !phone;
   useUndoKeys(editable && !!def, history.undo, history.redo);
@@ -255,6 +283,11 @@ export function ProcessEditorPage() {
               {t('page.exportYaml')}
             </Button>
             {caps.createProcesses && <DuplicateButton kind="process" id={p.id} />}
+            {p.permissions.includes('run') && p.permissions.includes('edit') && (
+              <Button size="xs" variant="default" leftSection={<IconBug size={14} />} onClick={() => setDebugOpen(true)} data-testid="open-debug">
+                {tDebug('panel.open')}
+              </Button>
+            )}
             {p.permissions.includes('run') && (
               <Button size="xs" variant="light" leftSection={<IconPlayerPlay size={14} />} onClick={onRun}>
                 {t('page.run')}
@@ -343,7 +376,12 @@ export function ProcessEditorPage() {
               historySeq={history.seq}
               issuesByNode={issuesByNode}
               warningsByNode={warningsByNode}
-              runStatus={showRun ? lastRun.statusByNode : undefined}
+              runStatus={debugStatus ?? (showRun ? lastRun.statusByNode : undefined)}
+              nodeDebug={
+                p.permissions.includes('edit')
+                  ? (n) => <NodeDebugPanel process={p} node={n} saved={p.definition.nodes.find((x) => x.id === n.id)} canRun={p.permissions.includes('run')} />
+                  : undefined
+              }
               focus={focus}
               toolbar={
                 <>
@@ -444,6 +482,7 @@ export function ProcessEditorPage() {
       </Modal>
 
       <RunDialog processId={p.id} opened={runOpen} onClose={() => setRunOpen(false)} />
+      {debugOpen && <DebugRunPanel process={p} opened={debugOpen} onClose={() => setDebugOpen(false)} runId={debugRunId} onRunId={setDebugRunId} />}
     </Box>
   );
 }

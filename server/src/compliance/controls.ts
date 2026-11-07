@@ -690,7 +690,7 @@ export function evidenceOf(tag: Pick<TagRow, 'kind' | 'target_id'>, p: Period, u
   switch (tag.kind) {
     case 'process': {
       const runs = db().all<{ id: string; process_name: string; status: string; started_at: string; finished_at: string | null }>(
-        `SELECT id, process_name, status, started_at, finished_at FROM runs WHERE process_id = ? AND dry_run = 0 AND ${inPeriodSql('started_at')} ORDER BY started_at DESC LIMIT 1000`,
+        `SELECT id, process_name, status, started_at, finished_at FROM runs WHERE process_id = ? AND dry_run = 0 AND debug IS NULL AND ${inPeriodSql('started_at')} ORDER BY started_at DESC LIMIT 1000`,
         tag.target_id,
         p.from,
         p.to,

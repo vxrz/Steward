@@ -71,6 +71,8 @@ export interface FlowEditorProps {
   height: string;
   /** View only: no dragging, wiring, adding or deleting; properties are shown disabled. */
   readOnly?: boolean;
+  /** "Run this node" (ADR 0010): the panel tab's content for the selected node, or nothing when not offered */
+  nodeDebug?: (node: FlowNode) => ReactNode;
 }
 
 const nodeTypes: NodeTypes = { flow: FlowNodeView };
@@ -115,8 +117,10 @@ function FlowEditorInner({
   toolbar,
   height,
   readOnly = false,
+  nodeDebug,
 }: FlowEditorProps) {
   const { t, i18n } = useTranslation('editor');
+  const { t: tDebug } = useTranslation('debug');
   const lang = i18n.language;
   const rf = useReactFlow();
   const isMobile = useMediaQuery('(max-width: 62em)') ?? false;
@@ -441,6 +445,11 @@ function FlowEditorInner({
             <Tabs.Tab value="run" rightSection={runStatus?.get(selectedNode.id) ? <RunDot status={runStatus.get(selectedNode.id)!.status} /> : undefined}>
               {t('flow.lastRun')}
             </Tabs.Tab>
+            {nodeDebug && selectedNode.type !== 'start' && (
+              <Tabs.Tab value="debug" data-testid="tab-run-node">
+                {tDebug('node.tab')}
+              </Tabs.Tab>
+            )}
           </Tabs.List>
           <Tabs.Panel value="props" pt="sm">
             {form}
@@ -448,6 +457,11 @@ function FlowEditorInner({
           <Tabs.Panel value="run" pt="sm">
             <NodeInspector processId={processId} nodeId={selectedNode.id} />
           </Tabs.Panel>
+          {nodeDebug && selectedNode.type !== 'start' && (
+            <Tabs.Panel value="debug" pt="sm">
+              {nodeDebug(selectedNode)}
+            </Tabs.Panel>
+          )}
         </Tabs>
       )}
     </Stack>

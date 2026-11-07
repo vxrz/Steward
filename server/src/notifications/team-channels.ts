@@ -59,6 +59,7 @@ export function teamsOf(about: { kind: OwnedKind; id: string } | undefined, runI
     return owningTeams(about.kind, about.id);
   }
   if (runId) {
+    // debug runs: one run by its id (a message that is being sent)
     const p = db().get<{ process_id: string }>('SELECT process_id FROM runs WHERE id = ?', runId);
     if (p) return owningTeams('process', p.process_id);
   }

@@ -35,7 +35,8 @@ import {
 import { DEMO_DB, DEMO_DB_HOST } from '../dbms/demo.js';
 import { createDashboard, listDashboardTemplates } from '../dashboards/service.js';
 import { listSchedules, saveSchedule } from '../scheduler.js';
-import { startRun } from '../engine/runner.js';
+import { engine } from '../engine/index.js';
+import { authorizeStart } from '../engine/commands.js';
 import { getProcess } from '../processes/service.js';
 import { setupMonitorDemo } from '../monitors/demo.js';
 import { getSettings, updateSettings } from '../settings.js';
@@ -743,9 +744,11 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
       createdNow = true;
     }
     // once per feeder schedule (a process with several schedules runs once per host)
-    const ran = !createdNow && db().get('SELECT 1 FROM runs WHERE process_id = ? LIMIT 1', f.process);
+    const ran = !createdNow && db().get('SELECT 1 FROM runs WHERE process_id = ? AND debug IS NULL LIMIT 1', f.process);
     if (!ran) {
-      await startRun({ processId: f.process, bindings, inputs: f.inputs ?? {}, dryRun: false });
+      // the command layer's start check (ADR 0011): the administrator setting up the demo
+      authorizeStart(undefined, { processId: f.process, bindings });
+      await engine().start({ processId: f.process, bindings, inputs: f.inputs ?? {}, mode: 'live', actor: currentActor(), origin: { trigger: 'manual' } });
       runs++;
     }
   }

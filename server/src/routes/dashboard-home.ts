@@ -24,7 +24,7 @@ function setupProgress(): DashboardSetup {
   return {
     platforms: count('SELECT COUNT(*) AS n FROM platforms'),
     processes: count('SELECT COUNT(*) AS n FROM processes'),
-    runs: count('SELECT COUNT(*) AS n FROM runs'),
+    runs: count('SELECT COUNT(*) AS n FROM runs WHERE debug IS NULL'),
     schedules: count('SELECT COUNT(*) AS n FROM schedules'),
     monitors: count('SELECT COUNT(*) AS n FROM monitors WHERE is_template = 0'),
     credentials: count('SELECT COUNT(*) AS n FROM credentials WHERE archived = 0'),
@@ -42,7 +42,7 @@ export async function dashboardHomeRoutes(app: FastifyInstance): Promise<void> {
     const failedChecks = store.failedCheckGroups((id) => visible.has(id));
     // 24 h counters from a range query (not capped by the recent-runs list)
     const last24 = db()
-      .all<{ process_id: string; status: RunStatus; stats: string }>('SELECT process_id, status, stats FROM runs WHERE started_at > ?', since)
+      .all<{ process_id: string; status: RunStatus; stats: string }>('SELECT process_id, status, stats FROM runs WHERE started_at > ? AND debug IS NULL', since)
       .filter((r) => visible.has(r.process_id));
     const failed24h = last24.filter((r) => r.status === 'failed').length;
     // runs that executed but whose checks found something (outcome "findings"; the status stays "succeeded")

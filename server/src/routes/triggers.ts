@@ -7,7 +7,7 @@ import { db } from '../db.js';
 import { currentUser } from '../auth/context.js';
 import { require } from '../auth/permissions.js';
 import { permissionsFor } from '../processes/service.js';
-import { getPlatform } from '../platforms/service.js';
+import { authorizeStart } from '../engine/commands.js';
 import * as triggers from '../triggers/service.js';
 import { handleHook, registerTestNonce } from '../triggers/hook.js';
 import { listTriggerExamples } from '../triggers/examples.js';
@@ -19,10 +19,6 @@ function requireProcessRun(processId: string) {
   const perms = permissionsFor(processId);
   if (!perms.includes('view')) throw new HttpError(404, `Process ${processId} not found`);
   require(perms, 'run', 'start this process from a webhook trigger');
-}
-
-function requireBindingsUsable(bindings: Record<string, string>) {
-  for (const pid of Object.values(bindings)) require(getPlatform(pid).permissions, 'use', `use platform ${pid}`);
 }
 
 const previewBody = z.object({
@@ -78,14 +74,16 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
   app.post('/triggers', async (req) => {
     const b = triggers.settingsSchema.parse(req.body);
     requireProcessRun(b.processId);
-    requireBindingsUsable(b.bindings);
+    // what each run of the trigger will need: the command layer's start check (ADR 0011)
+    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings });
     return triggers.createTrigger(b);
   });
   app.put('/triggers/:id', async (req) => {
     triggers.requireTriggerEdit(params(req).id!);
     const b = triggers.settingsSchema.parse(req.body);
     requireProcessRun(b.processId);
-    requireBindingsUsable(b.bindings);
+    // what each run of the trigger will need: the command layer's start check (ADR 0011)
+    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings });
     return triggers.updateTrigger(params(req).id!, b);
   });
   app.delete('/triggers/:id', async (req) => {

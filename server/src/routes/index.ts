@@ -3,6 +3,7 @@ import { dashboardRoutes } from './dashboards.js';
 import { datasetPublisherRoutes } from './dataset-publishers.js';
 import { opsRoutes } from './ops.js';
 import { engineExtrasRoutes } from './engine-extras.js';
+import { debugRoutes } from './debug.js';
 import { reportRoutes } from './reports.js';
 import { triggerRoutes } from './triggers.js';
 import { monitorRoutes } from '../monitors/routes.js';
@@ -59,6 +60,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await scopeRoutes(app);
   await opsRoutes(app);
   await engineExtrasRoutes(app);
+  await debugRoutes(app);
   await reportRoutes(app);
   await triggerRoutes(app);
   await monitorRoutes(app);

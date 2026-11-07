@@ -1063,7 +1063,22 @@
     "TEAMS_BOT_TENANT": "Geben Sie mindestens einen erlaubten Mandanten ein.",
     "LIBRARY_HELD_resume": "Die Bibliothek {{library}} ist angehalten: Was sie pausiert hat, bleibt aus, bis die Administration das Anhalten aufhebt.",
     "LIBRARY_HELD_uninstall": "Die Bibliothek {{library}} ist angehalten: Die Administration hebt das Anhalten auf, bevor sie deinstalliert werden kann.",
-    "LIBRARY_REQUEST_CHANGED": "Die Anfrage hat sich geändert, seit Sie sie angesehen haben – prüfen Sie sie erneut."
+    "LIBRARY_REQUEST_CHANGED": "Die Anfrage hat sich geändert, seit Sie sie angesehen haben – prüfen Sie sie erneut.",
+    "DEBUG_LIVE_RUN": "Ein Debug-Lauf ist ein Probelauf oder ein Testlauf, nie ein echter Lauf.",
+    "DEBUG_NODE_NOT_FOUND": "Diesen Knoten gibt es im Prozess nicht.",
+    "DEBUG_NODE_INVALID": "Der Knoten hat Fehler – beheben Sie diese zuerst.",
+    "DEBUG_NODE_NOT_RUNNABLE": "Dieser Knoten läuft nicht für sich allein.",
+    "DEBUG_ANSWERS_REFUSED": "Dieser Knoten kann mit diesen Antworten nicht laufen.",
+    "DEBUG_SAMPLE_SECRET": "Die Beispieldaten bei {{path}} sehen wie ein Zugangsdatum aus. Verwenden Sie stattdessen eine geheime Eingabe oder die Zugangsdaten einer Plattform.",
+    "DEBUG_SAMPLE_TOO_LARGE": "Beispieldaten dürfen höchstens 1 MB groß sein.",
+    "DEBUG_RUN_OTHER_PROCESS": "Der Lauf gehört zu einem anderen Prozess.",
+    "DEBUG_NOT_PAUSED": "Der Debug-Lauf ist nicht angehalten.",
+    "DEBUG_NO_DECISION": "Der Debug-Lauf wartet auf keine Antwort.",
+    "DEBUG_DECISION_OPEN": "Beantworten Sie die Entscheidung oder überspringen Sie sie.",
+    "DEBUG_NOT_STARTER": "Nur die Person, die diesen Debug-Lauf gestartet hat, kann ihn steuern.",
+    "DEBUG_NOT_A_DEBUG_RUN": "Das ist kein Debug-Lauf.",
+    "DEBUG_NOT_RESUMABLE": "Ein Debug-Lauf kann nicht fortgesetzt werden – starten Sie einen neuen.",
+    "COMPARE_OTHER_PROCESS": "Nur Läufe desselben Prozesses lassen sich vergleichen."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

@@ -6,15 +6,24 @@ import * as platforms from '../platforms/service.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
 import { manualForReader } from '../engine/manual.js';
-import { currentUser } from '../auth/context.js';
-import { decisionCheck, processPermissions, require } from '../auth/permissions.js';
+import { currentUser, type AuthUser } from '../auth/context.js';
+import { sameIdentity } from '../auth/aliases.js';
+import { decisionCheck, isAdmin, processPermissions, require } from '../auth/permissions.js';
 
 // ---------- helpers ----------
+
+/**
+ * Debug runs (ADR 0010) are a workbench, not a team record: only their starter, the process's managers, administrators
+ * and auditors see them – everyone else gets "not found", as for a hidden process.
+ */
+export function seesDebugRun(u: AuthUser | null, actor: string, perms: string[]): boolean {
+  return !!u && (sameIdentity(actor, u) || perms.includes('manage') || isAdmin(u) || u.roles.includes('auditor'));
+}
 
 export function requireRun(runId: string, perm: 'view' | 'run', what: string) {
   const r = store.runRow(runId);
   const perms = processes.permissionsFor(r.process_id);
-  if (!perms.includes('view')) throw new HttpError(404, `Run ${runId} not found`);
+  if (!perms.includes('view') || (r.debug && !seesDebugRun(currentUser(), r.actor, perms))) throw new HttpError(404, `Run ${runId} not found`);
   require(perms, perm, what);
   return r;
 }
@@ -65,13 +74,18 @@ export function visibleTasks(status?: string): TaskRecord[] {
  */
 export function visibleRuns(f: Parameters<typeof store.listRuns>[0]): RunSummary[] {
   const visible = visibleProcessIds();
+  const user = currentUser();
+  const perms = new Map<string, string[]>();
+  const permsOf = (pid: string) => perms.get(pid) ?? (perms.set(pid, processes.permissionsFor(pid)), perms.get(pid)!);
+  // debug runs (the Debug filter): only those this user may see
+  const sees = (r: RunSummary) => visible.has(r.processId) && (!r.debug || seesDebugRun(user, r.actor, permsOf(r.processId)));
   const limit = Math.min(f.limit ?? 100, 1000);
   const batch = Math.min(limit * 3, 1000);
   const out: RunSummary[] = [];
   let before = f.before;
   for (let i = 0; i < 20 && out.length < limit; i++) {
     const rows = store.listRuns({ ...f, before, limit: batch });
-    out.push(...rows.filter((r) => visible.has(r.processId)));
+    out.push(...rows.filter(sees));
     if (rows.length < batch) break;
     before = rows[rows.length - 1]!.startedAt;
   }

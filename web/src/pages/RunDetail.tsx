@@ -15,6 +15,8 @@ import {
   IconBoxMultiple,
   IconFileCertificate,
   IconSparkles,
+  IconBug,
+  IconArrowsLeftRight,
 } from '@tabler/icons-react';
 import { outcomeOf, topSeverity, type AuditEntry, type ProcessDetail, type RunChild, type RunDetail, type RunStepRecord } from '@sm/shared';
 import { get, notifyError, post, apiUrl } from '../api';
@@ -26,6 +28,7 @@ import { RunDialog } from '../components/RunDialog';
 import { GenerateReportDialog, RunReportsPanel, canReport } from '../components/reports/RunReports';
 import { DetailHeader } from '../components/page/DetailPage';
 import { processKeys, runKeys } from '../queryKeys';
+import { useMe } from '../auth';
 
 const ACTIVE = ['running', 'waiting', 'queued'];
 /** Long runs (for-each over thousands of items) render their steps and log lines in pages. */
@@ -36,6 +39,7 @@ const FINDINGS_SHOWN = 5;
 
 export function RunDetailPage() {
   const { t } = useTranslation(['runs', 'common']);
+  const { t: tDebug } = useTranslation('debug');
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const [rerun, setRerun] = useState(false);
@@ -54,6 +58,15 @@ export function RunDetailPage() {
     retry: false,
   });
   const canRun = !!proc.data?.permissions.includes('run');
+  const { username, isAdmin } = useMe();
+  // the last good run before a failed one (or one with findings): "Compare with the last good run" (ADR 0010)
+  const failedOrFindings = !!run.data && !run.data.debug && (run.data.status === 'failed' || outcomeOf(run.data) === 'findings');
+  const lastGood = useQuery({
+    queryKey: runKeys.lastGood(id),
+    queryFn: () => get<{ run: { id: string } | null }>(`/runs/${id}/last-good`),
+    enabled: failedOrFindings,
+    retry: false,
+  });
   // Child runs per step key: stable arrays keep the memoized step rows from re-rendering on every poll.
   const childrenByStep = useMemo(() => {
     const m = new Map<string, RunChild[]>();
@@ -77,6 +90,9 @@ export function RunDetailPage() {
   const findings = findingsOf(r);
   const failedChecks = checks.filter((s) => s.status === 'failed' && !s.error);
   const failedSteps = errorSteps(r);
+  // a debug run is driven and stopped by its starter (or an administrator); it is never run again from here
+  const debugRun = !!r.debug;
+  const mayStop = canRun && (!debugRun || r.actor === username || isAdmin);
 
   return (
     <>
@@ -90,6 +106,11 @@ export function RunDetailPage() {
             {r.dryRun && (
               <Badge color="yellow" variant="light" size="md">
                 {r.recorded ? t('detail.testRun') : t('common:status.dryrun')}
+              </Badge>
+            )}
+            {debugRun && (
+              <Badge color="grape" variant="light" size="md" leftSection={<IconBug size={12} />} data-testid="debug-badge">
+                {tDebug(r.debug!.kind === 'node' ? 'run.badgeNode' : 'run.badgeStep')}
               </Badge>
             )}
           </Group>
@@ -116,7 +137,19 @@ export function RunDetailPage() {
         }
         actions={
           <>
-            {canRun && ['queued', 'running', 'waiting', 'interrupted'].includes(r.status) && (
+            {lastGood.data?.run && (
+              <Button
+                size="xs"
+                variant="light"
+                component={Link}
+                to={`/runs/compare?a=${lastGood.data.run.id}&b=${r.id}`}
+                leftSection={<IconArrowsLeftRight size={14} />}
+                data-testid="compare-last-good"
+              >
+                {tDebug('run.compareLastGood')}
+              </Button>
+            )}
+            {mayStop && ['queued', 'running', 'waiting', 'interrupted'].includes(r.status) && (
               <Button size="xs" color="red" variant="light" leftSection={<IconPlayerStop size={14} />} onClick={() => action('cancel')}>
                 {t('detail.cancel')}
               </Button>
@@ -128,7 +161,7 @@ export function RunDetailPage() {
                 </Button>
               </Tooltip>
             )}
-            {canRun && (
+            {canRun && !debugRun && (
               <Button size="xs" variant="default" leftSection={<IconPlayerPlay size={14} />} onClick={() => setRerun(true)}>
                 {t('detail.runAgain')}
               </Button>
@@ -152,6 +185,10 @@ export function RunDetailPage() {
                 <Menu.Item component="a" href={apiUrl(`/runs/${r.id}/report.json`)}>
                   {t('detail.downloadJson')}
                 </Menu.Item>
+                <Menu.Divider />
+                <Menu.Item component={Link} to={`/runs/compare?a=${r.id}`} leftSection={<IconArrowsLeftRight size={14} />} data-testid="compare-with">
+                  {tDebug('run.compareWith')}
+                </Menu.Item>
               </Menu.Dropdown>
             </Menu>
           </>
@@ -170,6 +207,14 @@ export function RunDetailPage() {
                 values={{ step: r.parentStepKey ?? '', run: r.parentRunId }}
                 components={{ step: <span className="mono" />, run: <Anchor component={Link} to={`/runs/${r.parentRunId}`} className="mono" size="sm" /> }}
               />
+            </Text>
+          </Alert>
+        )}
+        {debugRun && (
+          <Alert color="grape" variant="light" p="xs" icon={<IconBug size={16} />} data-testid="debug-run-note">
+            <Text size="sm">
+              {tDebug('run.note')}
+              {r.debug!.recordedFrom ? ` ${tDebug('run.recordedFrom', { key: r.debug!.recordedFrom })}` : ''}
             </Text>
           </Alert>
         )}
@@ -567,6 +612,7 @@ function ChildRuns({ runs }: { runs: RunChild[] }) {
  */
 const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: string; step: RunStepRecord; childRuns?: RunChild[] }) {
   const { t } = useTranslation('runs');
+  const { t: tDebug } = useTranslation('debug');
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState<RunStepRecord | null>(null);
   const depth = step.key.split('/').length - 1;
@@ -594,6 +640,11 @@ const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: strin
         <Badge size="xs" variant="outline" color="gray">
           {step.type}
         </Badge>
+        {!!(step.output as { simulated?: boolean } | null)?.simulated && (
+          <Badge size="xs" variant="light" color="violet" data-testid="step-simulated">
+            {tDebug('simulated')}
+          </Badge>
+        )}
         <Text size="sm" fw={500} style={{ minWidth: 0 }} truncate>
           {step.name}
           {/\[\d+\]/.test(step.key) && (

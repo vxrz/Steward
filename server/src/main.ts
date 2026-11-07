@@ -21,7 +21,7 @@ import { warnEmailVerifiedProviders } from './auth/sso.js';
 import { flushFailedLoginAudit } from './auth/login-audit.js';
 import { shutdown, startBackground } from './bootstrap.js';
 import { InstanceLease, type LeaseWait } from './database/lease.js';
-import { stopAcceptingRuns } from './engine/runner.js';
+import { engine } from './engine/index.js';
 import { stopScheduler } from './scheduler.js';
 
 /** All platform secret values (and cached access tokens) – never part of an error report. */
@@ -138,7 +138,7 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
     // another instance may run now: stop at once, without writing (no drain – the other one recovers the runs)
     logger.fatal({ reason }, 'lost the database lease: stopping now');
     try {
-      stopAcceptingRuns();
+      engine().stopAccepting();
       stopScheduler();
     } catch {
       /* exiting anyway */

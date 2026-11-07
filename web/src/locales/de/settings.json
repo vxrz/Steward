@@ -76,7 +76,11 @@
     "notificationsHint": "Ungelesene bleiben immer erhalten.",
     "hint": "Ältere Ausführungen, gelesene Benachrichtigungen und der Monitor-Verlauf werden automatisch gelöscht. Das Audit-Log wird nie gekürzt.",
     "monitors": "Monitor-Verlauf aufbewahren (Tage)",
-    "monitorsHint": "Statuswechsel, Verfügbarkeitswerte und Prüfergebnisse der Monitore."
+    "monitorsHint": "Statuswechsel, Verfügbarkeitswerte und Prüfergebnisse der Monitore.",
+    "debugRuns": "Debug-Läufe aufbewahren (Tage)",
+    "debugRunsHint": "Debug-Läufe (ein Knoten, Schritt für Schritt) werden nach so vielen Tagen gelöscht (1–90), vor den übrigen Läufen. Ihre Audit-Einträge bleiben.",
+    "debugPause": "Debug-Pause (Minuten)",
+    "debugPauseHint": "Ein angehaltener Schritt-für-Schritt-Lauf wird nach so vielen Minuten beendet (1–240)."
   },
   "unattended": {
     "title": "Unbeaufsichtigter Betrieb",

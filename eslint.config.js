@@ -97,6 +97,27 @@ export default defineConfig(
     },
   },
 
+  // The engine boundary (ADR 0011): outside engine/ the run engine is reached through engine/index.ts (engine(), the
+  // command layer in engine/commands.ts), never engine/runner.ts – the executor stays replaceable. engine/store.ts is the
+  // record and stays importable.
+  {
+    files: ['server/src/**/*.ts'],
+    ignores: ['server/src/engine/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/engine/runner', '**/engine/runner.js'],
+              message: 'Use the engine boundary: engine() from engine/index.ts, rights checks from engine/commands.ts (ADR 0011).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // Tests: `any` for loosely typed API responses and test doubles is fine (CONTRIBUTING.md: "No `any`" applies to app code)
   {
     files: ['server/test/**', 'e2e/**'],

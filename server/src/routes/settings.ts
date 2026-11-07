@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { LOCALE_CODES, API_DOCS_MODES, PASSWORD_LOGIN_MODES, OUTBOUND_POLICIES, allowListEntryProblem } from '@sm/shared';
+import { LOCALE_CODES, API_DOCS_MODES, PASSWORD_LOGIN_MODES, OUTBOUND_POLICIES, DEBUG_LIMITS, allowListEntryProblem } from '@sm/shared';
 import { config } from '../config.js';
 import { audit } from '../audit.js';
 import { getSettings, passwordLoginFromEnv, passwordLoginMode, updateSettings } from '../settings.js';
@@ -36,6 +36,8 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
         browserHeadless: z.boolean().optional(),
         browserTimeoutMs: z.number().int().min(1000).optional(),
         retentionRunDays: z.number().int().min(0).max(3650).optional(),
+        retentionDebugRunDays: z.number().int().min(DEBUG_LIMITS.retentionDays.min).max(DEBUG_LIMITS.retentionDays.max).optional(),
+        debugPauseMinutes: z.number().int().min(DEBUG_LIMITS.pauseMinutes.min).max(DEBUG_LIMITS.pauseMinutes.max).optional(),
         retentionNotificationDays: z.number().int().min(1).max(3650).optional(),
         defaultLocale: z.enum(LOCALE_CODES).optional(),
         retentionMonitorDays: z.number().int().min(1).max(3650).optional(),

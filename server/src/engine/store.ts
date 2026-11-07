@@ -1,4 +1,5 @@
 import type {
+  DebugSpec,
   FailedCheckGroup,
   Column,
   RunChild,
@@ -59,6 +60,8 @@ export interface RunRow {
   outputs?: string | null;
   trigger_id?: string | null;
   trigger_name?: string | null;
+  /** Debug run (ADR 0010): JSON DebugSpec, NULL for ordinary runs */
+  debug?: string | null;
 }
 
 export interface StepRow {
@@ -150,7 +153,13 @@ function toSummary(r: RunRow & { open_tasks?: number }): RunSummary {
     stats,
     parentRunId: r.parent_run_id ?? null,
     parentStepKey: r.parent_step_key ?? null,
+    debug: r.debug ? parseJson<DebugSpec | null>(r.debug, null) : null,
   };
+}
+
+/** Stores what a debug run is (it changes once: when it switches to recorded answers only). */
+export function setRunDebug(runId: string, debug: DebugSpec): void {
+  db().run('UPDATE runs SET debug = ? WHERE id = ?', JSON.stringify(debug), runId);
 }
 
 /**
@@ -197,8 +206,10 @@ export function listRuns(f: {
   checks?: 'failed';
   /** `findings`: succeeded runs with failed checks; `succeeded`: succeeded runs without (see RunOutcome) */
   outcome?: 'succeeded' | 'findings';
+  /** Debug runs (ADR 0010): left out unless asked for; true lists only them */
+  debug?: boolean;
 }): RunSummary[] {
-  const where: string[] = [];
+  const where: string[] = [f.debug ? 'debug IS NOT NULL' : 'debug IS NULL'];
   const params: unknown[] = [];
   if (f.processId) (where.push('process_id = ?'), params.push(f.processId));
   if (f.status)
@@ -220,7 +231,7 @@ export function listRuns(f: {
     db()
       .all<RunRow & { open_tasks: number }>(
         `SELECT runs.*, (SELECT COUNT(*) FROM run_tasks t WHERE t.run_id = runs.id AND t.status = 'open') AS open_tasks
-       FROM runs ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY started_at DESC LIMIT ?`,
+       FROM runs WHERE ${where.join(' AND ')} ORDER BY started_at DESC LIMIT ?`,
         ...params,
       )
       .map(toSummary),
@@ -246,7 +257,8 @@ export interface RunPageFilter {
 }
 
 export function listRunsPage(f: RunPageFilter): RunSummary[] {
-  const where: string[] = [];
+  // the public API and MCP never list debug runs (ADR 0010: a workbench, not a team record)
+  const where: string[] = ['debug IS NULL'];
   const params: unknown[] = [];
   const inList = (col: string, vals: string[]) => (where.push(`${col} IN (${vals.map(() => '?').join(',')})`), params.push(...vals));
   if (f.processIds) {
@@ -264,7 +276,7 @@ export function listRunsPage(f: RunPageFilter): RunSummary[] {
   params.push(f.limit);
   return withFindings(
     db()
-      .all<RunRow>(`SELECT * FROM runs ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY started_at DESC, id DESC LIMIT ?`, ...params)
+      .all<RunRow>(`SELECT * FROM runs WHERE ${where.join(' AND ')} ORDER BY started_at DESC, id DESC LIMIT ?`, ...params)
       .map(toSummary),
   );
 }
@@ -913,7 +925,7 @@ export function protocolHash(runId: string): string {
 /**
  * Failed checks of the last `days` days, one entry per process and check step (#138): the latest failure, how often it
  * failed, since when it has been failing (since it last passed) and whether it passed again later. Informational
- * checks (`notify: false`) are left out. Most severe first, then the latest failure.
+ * checks (`notify: false`) and debug runs (ADR 0010) are left out. Most severe first, then the latest failure.
  */
 export function failedCheckGroups(visible: (processId: string) => boolean, days = 7, limit = 50): FailedCheckGroup[] {
   const from = new Date(Date.now() - days * 86400000).toISOString();
@@ -924,7 +936,7 @@ export function failedCheckGroups(visible: (processId: string) => boolean, days 
               MAX(CASE WHEN s.status = 'failed' THEN s.finished_at END) AS last_failed,
               MAX(CASE WHEN s.status = 'succeeded' THEN s.finished_at END) AS last_passed
        FROM run_steps s JOIN runs r ON r.id = s.run_id
-       WHERE s.type = 'check' AND s.status IN ('failed', 'succeeded') AND s.finished_at > ?
+       WHERE r.debug IS NULL AND s.type = 'check' AND s.status IN ('failed', 'succeeded') AND s.finished_at > ?
        GROUP BY r.process_id, s.step_id
        HAVING SUM(CASE WHEN s.status = 'failed' THEN 1 ELSE 0 END) > 0`,
       from,
@@ -935,7 +947,7 @@ export function failedCheckGroups(visible: (processId: string) => boolean, days 
   for (const g of groups) {
     const latest = db().get<{ run_id: string; process_name: string; name: string; output: string | null; finished_at: string }>(
       `SELECT s.run_id, r.process_name, s.name, s.output, s.finished_at FROM run_steps s JOIN runs r ON r.id = s.run_id
-       WHERE r.process_id = ? AND s.step_id = ? AND s.type = 'check' AND s.status = 'failed' AND s.finished_at = ?
+       WHERE r.debug IS NULL AND r.process_id = ? AND s.step_id = ? AND s.type = 'check' AND s.status = 'failed' AND s.finished_at = ?
        ORDER BY s.id DESC LIMIT 1`,
       g.process_id,
       g.step_id,
@@ -949,7 +961,7 @@ export function failedCheckGroups(visible: (processId: string) => boolean, days 
     const lastPassBefore = resolved
       ? (db().get<{ t: string | null }>(
           `SELECT MAX(s.finished_at) AS t FROM run_steps s JOIN runs r ON r.id = s.run_id
-           WHERE r.process_id = ? AND s.step_id = ? AND s.type = 'check' AND s.status = 'succeeded' AND s.finished_at > ? AND s.finished_at < ?`,
+           WHERE r.debug IS NULL AND r.process_id = ? AND s.step_id = ? AND s.type = 'check' AND s.status = 'succeeded' AND s.finished_at > ? AND s.finished_at < ?`,
           g.process_id,
           g.step_id,
           from,
@@ -958,7 +970,7 @@ export function failedCheckGroups(visible: (processId: string) => boolean, days 
       : g.last_passed;
     const streak = db().get<{ n: number; first: string }>(
       `SELECT COUNT(*) AS n, MIN(s.finished_at) AS first FROM run_steps s JOIN runs r ON r.id = s.run_id
-       WHERE r.process_id = ? AND s.step_id = ? AND s.type = 'check' AND s.status = 'failed' AND s.finished_at > ? AND s.finished_at <= ?`,
+       WHERE r.debug IS NULL AND r.process_id = ? AND s.step_id = ? AND s.type = 'check' AND s.status = 'failed' AND s.finished_at > ? AND s.finished_at <= ?`,
       g.process_id,
       g.step_id,
       lastPassBefore ?? from,
