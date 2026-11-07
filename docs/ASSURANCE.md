@@ -57,6 +57,10 @@ Every action that can require four-eyes and/or a step-up is a **control point** 
 
 **Defaults keep 0.4.0's behaviour:** every step-up of 0.4.0 is on with the age `SM_STEP_UP_MINUTES`, no multi-factor requirement, and the new step-up points (approving records, decisions in access checks and person reviews, verifying manual steps, closing firewall changes) are off.
 
+### May be decided in Microsoft Teams
+
+Since 0.10.0 ([ADR 0013](adr/0013-teams-approvals.md), [TEAMS-APPROVALS.md](TEAMS-APPROVALS.md)): `run.decide` and `mcp.write` have a switch **May be decided in Microsoft Teams**, on by default. With it, people linked by Entra `tid` + `oid` may take these decisions in a card of the Teams bot (a preview, off by default), also as the second person of four-eyes – the same checks as in the browser. A point with a step-up can never be decided in Teams (Teams cannot show a step-up). Turning the switch off tightens the policy at once; turning it on loosens it and waits for a second administrator. The proof of a decision taken in Teams records `via: "teams"` and no session.
+
 ## The effective rule
 
 For one item the rule is the strictest of three: **max(baseline, instance policy, item override)**.

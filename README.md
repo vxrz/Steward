@@ -358,6 +358,8 @@ _Tickets_ documents tickets that live elsewhere – incidents users reported thr
 
 Everyone can turn on an optional **daily summary** on their profile page (failed runs, decisions waiting, monitor changes, credentials due, their open tickets, documents, reports – only what they may see), in the app or by e-mail. See [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#daily-summary).
 
+**Quiet hours and digests** hold e-mails and Teams posts at night and collect them in one message – nothing is dropped, the app gets everything at once, and emergency access, urgent sources and expiring requests still break through ([docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#quiet-hours-and-digests)). **Decisions from Microsoft Teams**: cards with Approve / Reject that open the decision in Steward, and – as a preview behind a setting – deciding inside the card through a Teams bot ([docs/TEAMS-APPROVALS.md](docs/TEAMS-APPROVALS.md)).
+
 ## Compliance: access governance evidence
 
 For ISO/IEC 27001, IEC 62443-2-1 and NIS2 audits, _Compliance_ collects the evidence of how access is managed – Steward provides evidence, it does not make you compliant:

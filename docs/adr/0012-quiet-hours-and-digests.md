@@ -204,6 +204,15 @@ Each step is its own PR. Nothing changes until someone turns quiet hours on.
 
 Each step: tests on SQLite and PostgreSQL (time zones, daylight saving), e2e on desktop and phone with axe, [NOTIFICATIONS.md](../NOTIFICATIONS.md).
 
+## Changed while building
+
+1. The migration `notifications-002-quiet-hours` also adds `notify_urgent` to `schedules` and `webhook_triggers` (the urgent flag of their notification policy; monitor process outputs keep it in the definition).
+2. Monitor notification outputs and outputs in Teams format have no notification policy: they got their own _Urgent_ switch (a change to _down_ breaks through).
+3. The quiet hours (and the urgent switch) of a monitor output in Teams format are part of the monitor definition: changed with the monitor's edit right and audited with the monitor, without the step-up of the instance and team channels.
+4. A team default sets quiet hours and digests together: the first team by name that sets either gives both.
+5. A target that can no longer receive at release (its channel switched off or removed, the person's e-mail turned off) gets nothing; the held items are dropped with a log entry – the in-app copies stay. Visibility at release is checked for runs, processes, platforms and monitors; other items rely on the recipients chosen when they were held.
+6. All four rollout steps landed in 0.10.0 together, the `teamsChat:<userId>` target with the Teams bot of ADR 0013.
+
 ## Decided after review
 
 1. **What counts as urgent, so it breaks through quiet hours?** Decided: a flag on the source's notification policy, _Urgent – interrupts quiet hours_, on schedules, webhook triggers and monitor outputs. Failed runs and checks failing with severity `error` of such a source break through; the flag is visible on the source and audited with it.

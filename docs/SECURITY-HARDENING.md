@@ -24,6 +24,17 @@ Contents: [Where it runs](#where-it-runs) · [Network, TLS and reverse proxy](#n
 - Proxy settings: forward `Host` (or `X-Forwarded-Host`), `X-Forwarded-Proto`; allow request bodies as large as your uploads (60 MB covers record attachments, report PDFs and imports, see [INSTALL.md](INSTALL.md); migration packages need `SM_MIGRATION_MAX_MB`) – Steward sets the limit of each route itself (see [Request body limits](#request-body-limits)); do not cache `/api/` (Steward sends `Cache-Control: no-store`).
 - Firewall: only the proxy may reach Steward's port.
 
+### The Teams bot listener (preview)
+
+Deciding inside Microsoft Teams cards ([TEAMS-APPROVALS.md](TEAMS-APPROVALS.md), off by default) needs inbound HTTPS from Microsoft's Bot Connector. It gets a **listener of its own**, `SM_TEAMS_BOT_PORT` (bind address `SM_TEAMS_BOT_HOST`, default `SM_HOST`), that serves exactly `POST /teams/bot/messages` – no cookies, no sessions, no web app, no static files, no other route; everything else is 404.
+
+- **(must)** Publish **only this port** to the internet (or only the path `/teams/bot/messages` of it), with TLS; never Steward's main port. A wrong proxy rule on the bot port exposes nothing else.
+- Without `SM_TEAMS_BOT_PORT` there is no bot listener at all; with the bot switched off in the settings, the route answers 404.
+- Every call needs a token signed by the Bot Framework for your app id, endorsed for Teams, for the activity's `serviceUrl` on a Teams service host, from an allowed tenant; bodies above 64 KB are refused before anything is parsed; replays (24 h) change nothing; per-tenant and per-user rate limits apply; refusals are audited at most once per reason in 10 minutes (`teams.action_refused`).
+- Outbound, the bot reaches `login.botframework.com`, `login.microsoftonline.com` and the Teams service host – add them to the outbound allow-list; address safety applies.
+- Only accounts linked by Entra `tid` + `oid` decide in a card; the assurance policy's _May be decided in Microsoft Teams_ can forbid it per control point, and nothing that needs a step-up is ever decided there.
+- Prefer a **certificate** for the bot's credential (sealed with the vault, re-encrypted at key rotation). A stolen credential lets someone post as the bot, not approve.
+
 ## Request rate limits
 
 Steward limits how many requests one client can send, so a script or a stuck browser tab cannot keep the server busy (PDF rendering, exports, checks against platforms).

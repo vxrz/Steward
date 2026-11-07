@@ -191,6 +191,16 @@ Each step is its own PR.
 2. **Stage 2a – the endpoint.** Bot settings, the endpoint and its checks, the identity lookup, conversation tracking, card actions for decisions and MCP requests, audit. A mock Bot Connector with its own signing keys (`server/src/mock/mockBotConnector.ts`) in tests.
 3. **Stage 2b – posting through the bot.** Cards through the bot per channel target, personal chats, per-viewer refresh, card updates, the `teamsChat` target of ADR 0012. Docs: [NOTIFICATIONS.md](../NOTIFICATIONS.md) and a Teams bot set-up guide.
 
+## Changed while building
+
+1. The bot route is served only by the separate listener, so the main app's route matrix does not list it and there is no `ACCESS.bot`; `server/test/teams-bot.test.ts` checks that the listener answers nothing but `POST /teams/bot/messages`.
+2. The assurance switch _May be decided in Microsoft Teams_ governs every decision of its control point in a card, not only four-eyes ones – a stricter organisation can keep a point in Steward altogether.
+3. Migration packages move neither the bot settings nor `teams_conversations`: the bot's messaging endpoint points to the source instance, so the target sets up its own bot and records its own conversations.
+4. The settings keys are `notifications.teamsBot` and `notifications.teamsBot.secrets` (setting keys need a known prefix); the HMAC key of the card data is generated on the first save and kept with the credential.
+5. Clicks are answered synchronously with the card in the invoke response; only help texts, new cards and card updates call the Bot Connector.
+6. `platform.privilegedIdentity` (ADR 0009 step 4) does not exist yet; the "never with a step-up" rule is generic (`instanceRule` forces it off for a point whose rule asks for a step-up).
+7. The decision entry point is `decideFromTeams()` in `server/src/msteams/decide.ts`; it calls the existing decision code (`completeTask`, `decide()` of MCP requests) and is the one place to switch to the engine command layer.
+
 ## Decided after review
 
 1. **What ships in 0.10.0?** Decided: stage 1 complete, and stage 2 behind a setting that is off by default and marked _preview_. Stage 2 is built and tested against a mock Bot Framework with its own signing keys; only a real tenant shows how Teams behaves.
