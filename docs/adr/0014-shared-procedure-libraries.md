@@ -1,6 +1,6 @@
 # 0014. Shared procedure libraries: signed releases through Git
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-07
 - **Since:** 0.10.0 (#238)
 
@@ -32,14 +32,14 @@ What is missing: a unit larger than one file with a version, a signature that St
 
 ### What a library holds
 
-| Kind                           | Format                                           | Installed as                                               |
-| ------------------------------ | ------------------------------------------------ | ---------------------------------------------------------- |
-| Process                        | Process YAML/JSON, as _Export YAML_ writes       | a new process version                                      |
-| Dashboard                      | Dashboard YAML                                   | a dashboard                                                |
-| Monitor, monitor template      | `kind: monitor` / `kind: monitorTemplate`        | a monitor, **disabled**                                    |
-| Record type (document type)    | `kind: recordType`                               | a record type                                              |
-| Template bundle                | `examples/bundles` format, items of this library | a _Set up together_ entry; nothing is set up               |
-| Connector type (open question) | `steward-connector`, no credentials (as today)   | a connector type; platforms made from it earlier unchanged |
+| Kind                        | Format                                           | Installed as                                               |
+| --------------------------- | ------------------------------------------------ | ---------------------------------------------------------- |
+| Process                     | Process YAML/JSON, as _Export YAML_ writes       | a new process version                                      |
+| Dashboard                   | Dashboard YAML                                   | a dashboard                                                |
+| Monitor, monitor template   | `kind: monitor` / `kind: monitorTemplate`        | a monitor, **disabled**                                    |
+| Record type (document type) | `kind: recordType`                               | a record type                                              |
+| Template bundle             | `examples/bundles` format, items of this library | a _Set up together_ entry; nothing is set up               |
+| Connector type              | `steward-connector`, no credentials (as today)   | a connector type; platforms made from it earlier unchanged |
 
 - Item files use the formats Git sync and the importers already read, with the same validators (`parseFile` in `sync/items.ts`, `npm run validate`). One item per file.
 - **Not in a library:** platforms, identities, credentials, access lists, schedules, webhook triggers, report schedules, datasets (they are data a run publishes), settings. A library never makes anything run by itself.
@@ -74,7 +74,7 @@ changelog:
 
 - **References** are what the items need from the installation. A monitor or a template bundle names a platform by `ref`; a sub-process step may name a local process by `ref`. At install the reviewer maps each reference to a local platform or process, as for #102. The mapping is kept per installed library and reused by updates; only new references are asked.
 - **Process connection slots stay slots.** They are bound at run start, as today, with the identity rules of [0009](0009-platform-identities.md).
-- **Item ids** are the ids the files give (as in Git sync and the example library). An id that exists locally and did not come from this library is a conflict in the review (open question 4).
+- **Item ids** are the ids the files give (as in Git sync and the example library). An id that exists locally and did not come from this library is a conflict in the review (decided: never overwritten silently).
 - **Sub-processes inside a library** name the other item by its id. Version pins in library files are refused: version numbers are local. At install, Steward pins the child to the version this install created, so a release runs as it was tested. A local edit of the child shows a hint on the parent.
 
 ### Release and signature
@@ -88,12 +88,12 @@ changelog:
 ### Trusted publishers
 
 - _Settings → Libraries → Trusted publishers_: an administrator adds a **publisher** (id, name, contact) with one or more public keys (an `ssh-ed25519 AAAA…` line). Optional: the library ids it may publish (empty: any), and an expiry date per key.
-- A key is **active**, **retired** (rotated out: releases already staged or installed stay valid; new releases signed with it are refused) or **revoked** (compromised: also flags what is installed, open question 2). Revoking needs a reason.
+- A key is **active**, **retired** (rotated out: releases already staged or installed stay valid; new releases signed with it are refused) or **revoked** (compromised: also flags what is installed and offers _Hold_). Revoking needs a reason.
 - **Rotation:** add the new key, publish with it, retire the old key. A release is never signed by two keys; the publisher's list of keys is the local truth.
 - **A library belongs to its publisher.** The first install binds the library id to the publisher. A release of the same library id signed by another publisher's key is refused.
 - Trusted keys are sealed with the vault's integrity key (`checkMac('library_key', …)`): a key written into the database directly is not trusted.
 - Adding a publisher or key, removing one, and lifting an expiry are step-up actions: new action `changeTrustedPublishers`, control point `library.publishers` (group `processes`, step-up baseline, four-eyes `optional`). Signed-in session only; API tokens cannot change trust.
-- **Steward's own publisher** (`steward`) is part of the build (`shared/src/libraries.ts`), shown as _Built in_, and can be removed (open question 1).
+- **Steward's own publisher** (`steward`) is part of the build (`shared/src/libraries.ts`), shown as _Built in_, and can be removed.
 
 ### Distribution
 
@@ -143,7 +143,7 @@ changelog:
 - **Replay and downgrade:** the version is inside the signed `release.json` and must match the tag; Steward only stages releases above the installed one; rollback uses Steward's own stored copy.
 - **Mix and match:** one signature covers the list of all files and their hashes; an extra or missing file refuses the release.
 - **Impersonation:** a library id is bound to its publisher on first install; a publisher may be limited to named library ids; keys are sealed in the database; trust changes need a step-up and are audited.
-- **A stolen key** is the main risk. Revocation stops new releases at once and flags what is installed (open question 2). Hardware keys (`sk-ssh-ed25519`) are supported and recommended in the docs.
+- **A stolen key** is the main risk. Revocation stops new releases at once and flags what is installed; an administrator can _Hold_ the release. Hardware keys (`sk-ssh-ed25519`) are supported and recommended in the docs.
 - **Freeze:** Steward cannot tell that a publisher stopped publishing or that a Git host hides a newer release. The library page shows when the source was last checked and the newest release seen.
 - **Transport:** fetches use Git sync's outbound rules (no redirects, address pinning, size caps). The Git host is not trusted for integrity: a host that serves other files fails the signature check.
 
@@ -177,19 +177,9 @@ changelog:
 
 **Revisit** when publishers ask for keyless signing, when a library needs code (it does not today), or when Git sync learns to push (#20).
 
-## Open questions
+## Decided after review
 
-1. **Steward's own publisher key: trusted by default, and where does it live?**
-   - **A. Built in, on a maintainer's hardware key** (recommended): the `steward` key is part of the build and listed as _Built in_; the release checklist signs `examples/release.json` with an `sk-ssh-ed25519` key; CI only verifies. A stolen CI secret cannot sign, and the example library works without a setup step.
-   - **B. Built in, key as a CI secret:** fully automated releases, but anyone who controls the release workflow can sign what every installation trusts.
-   - **C. Not built in:** administrators add the fingerprint from `SECURITY.md` themselves. Most explicit, but every installation has one more step before the example library works.
-2. **What happens to installed releases when their key is revoked?**
-   - **A. Flag, block updates, let the administrator hold** (recommended): every installed release signed by the key is marked _signed by a revoked key_ on its items, runs and the scorecard; updates are refused; one action _Hold_ pauses the schedules, triggers and monitors of its items and refuses new runs until a release with a good key replaces it. Steward cannot know when a key was stolen, so a person decides.
-   - **B. Hold automatically:** safest, but one revocation can stop a company's access reviews at once.
-   - **C. Flag only:** least disruption, but easy to ignore.
-3. **May a library carry connector types?**
-   - **A. Yes, installed by administrators** (recommended): the review shows the base URL, token URL and trusted origins of each type in full; a newer release never changes platforms made from an older type. Without them a library for a tool Steward has no preset for is only half useful.
-   - **B. No, only references by platform kind** (the issue's list): smaller attack surface; the connector file is shared separately.
-4. **Item ids from different libraries: keep them or prefix them?**
-   - **A. Keep the ids the files give** (recommended): as Git sync and the example library do today, so existing example items link up; a clash is a conflict in the review and is never overwritten silently.
-   - **B. Always prefix with the library id** (`example-access-reviews-guest-review`): no clashes, but long ids, and the example library's existing items would change their ids.
+1. **Steward's own publisher key: trusted by default, and where does it live?** Decided: built in, on a maintainer's hardware key. The `steward` key is part of the build (a list in `shared/src/libraries.ts`) and shown as _Built in_; the release checklist signs `examples/release.json` with an `sk-ssh-ed25519` key, and CI only verifies.
+2. **What happens to installed releases when their key is revoked?** Decided: flag, block updates, let the administrator hold. Releases signed by the key are marked _signed by a revoked key_; updates are refused; one action _Hold_ pauses the schedules, triggers and monitors of the release's items and refuses new runs until a release with a good key replaces it.
+3. **May a library carry connector types?** Decided: yes, installed by administrators only. The review shows the base URL, token URL and trusted origins of each type in full; an update never changes platforms made from an existing type.
+4. **Item ids from different libraries: keep them or prefix them?** Decided: keep the ids the files give. A clash with an item that did not come from this library is a conflict in the review and is never overwritten silently.
