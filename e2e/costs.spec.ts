@@ -184,7 +184,8 @@ async function stateOnly(loginAs: (u: 'olivia') => Promise<Page>, api: APIReques
     if (mobile) await expectNoHorizontalScroll(page);
   } finally {
     await api.put('/api/costs/budgets', { data: { scope: 'service', scopeId: service.id, amount: null, currency: 'USD' } });
-    await api.delete(`/api/services/${service.id}`);
+    // services are archived, not deleted (an active service of olivia's would add a start page tile for later specs)
+    expect((await api.post(`/api/services/${service.id}/archive`, { data: { archived: true } })).ok()).toBe(true);
     for (const a of [mine, other]) await api.post(`/api/applications/${a.id}/archive`, { data: { archived: true } });
     await api.put(`/api/owning-teams/application/${other.id}`, { data: { teamIds: [] } });
     await api.delete(`/api/teams/${team.id}`);
