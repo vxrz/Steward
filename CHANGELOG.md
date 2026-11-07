@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-07
+
+Steward 0.9.0 adds **data contracts**, **platform costs**, **Kafka Connect**, a **version watch** of the tech stack and **changedetection.io**, checks the outbound policy on **every redirect**, and lays the groundwork for several **identities per platform**. Data contracts in ODCS v3 are tested through the data contract service and checked by Steward itself, with breaking changes tied to change records. Costs from AWS, Snowflake, Confluent Cloud, the AI gateways and FOCUS files show what services, applications and teams cost, with budgets. Kafka Connect clusters, the newest versions of tech stack entries and changed vendor pages are watched read-only. Three security reviews of the new features found and fixed, among others, credentials that could be sent through another platform's connection, read-only rules that another platform could get around, and rights of the reader that costs and the version watch did not respect throughout; see _Check before updating_ under Changed and Security.
+
 ### Added
 
 - **Platform identities, step 1: one default identity per platform (#228, [ADR 0009](docs/adr/0009-platform-identities.md), [docs/PLATFORM-SIGN-IN.md](docs/PLATFORM-SIGN-IN.md#identities))**: the groundwork for several sets of credentials under one platform. Nothing changes for users yet.
@@ -978,7 +982,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/vxrz/steward/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/vxrz/steward/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/vxrz/steward/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/vxrz/steward/compare/v0.5.1...v0.6.0
