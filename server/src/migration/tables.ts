@@ -161,6 +161,7 @@ export const HISTORY_COLUMNS: string[] = [
   'data_contract_versions.created_by',
   'data_contract_links.created_by',
   'data_contract_runs.actor',
+  'data_contract_kept_rules.deleted_by',
   'plant_profiles.created_by',
   'plant_profiles.updated_by',
   'plant_kpis.created_by',

@@ -18,7 +18,8 @@ export const ODCS_SCHEMA_VERSION = 'v3.0.2';
 /** The apiVersion a new draft gets. */
 export const ODCS_DRAFT_API_VERSION = 'v3.0.2';
 
-export const DATA_CONTRACT_PERMISSIONS = ['view', 'test', 'edit'] as const;
+/** manage: switch off "breaking changes need a change record" (administrators and approvers – who approve changes) */
+export const DATA_CONTRACT_PERMISSIONS = ['view', 'test', 'edit', 'manage'] as const;
 export type DataContractPermission = (typeof DATA_CONTRACT_PERMISSIONS)[number];
 
 export const DATA_CONTRACT_LIMITS = {

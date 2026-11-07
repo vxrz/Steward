@@ -88,4 +88,19 @@ export const DATA_CONTRACT_MIGRATIONS: NamedMigration[] = [
     name: 'datacontracts-002-scorecard',
     sql: `ALTER TABLE scorecard_snapshots ADD COLUMN contracts TEXT NOT NULL DEFAULT 'none';`,
   },
+  {
+    // the security review of 0.9.0: the contracts a snapshot counted (shown as hidden to a reader who may not see one
+    // of them, like document_ids), and the "breaking changes need a change record" rule of a deleted contract, kept
+    // by its ODCS id so that a new contract with that id (an import after deleting) starts with it
+    name: 'datacontracts-003-history-and-rules',
+    sql: `
+      ALTER TABLE scorecard_snapshots ADD COLUMN contract_ids TEXT NOT NULL DEFAULT '[]';
+      CREATE TABLE data_contract_kept_rules (
+        contract_key TEXT PRIMARY KEY,
+        require_change_record INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT NOT NULL,
+        deleted_by TEXT NOT NULL
+      );
+    `,
+  },
 ];

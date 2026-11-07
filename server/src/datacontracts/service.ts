@@ -139,7 +139,7 @@ export function contractRow(id: string): ContractRow | undefined {
 
 /** The rights of the caller (jobs without a caller: every right). */
 export function permissionsOf(r: Pick<ContractRow, 'id'>, u: AuthUser | null = currentUser()): DataContractPermission[] {
-  if (!u) return ['view', 'test', 'edit'];
+  if (!u) return ['view', 'test', 'edit', 'manage'];
   return contractAccess(u, r).permissions;
 }
 
@@ -644,6 +644,11 @@ export function createContract(body: unknown): DataContractDetail {
   if (settings.servicePlatformId) checkServicePlatform(settings.servicePlatformId, u);
   if (settings.testServer && !facts.servers.some((s) => s.server === settings.testServer))
     throw new HttpError(400, `"${settings.testServer}" is not a server of the contract`, 'DATA_CONTRACT_LINK_SERVER', { server: settings.testServer });
+  // a contract with this ODCS id was deleted while its breaking changes needed a change record: the new one starts with
+  // the rule (an administrator or approver can switch it off – setSettings)
+  const kept = !!db().get<{ require_change_record: number }>('SELECT require_change_record FROM data_contract_kept_rules WHERE contract_key = ?', facts.key)
+    ?.require_change_record;
+  const requireChangeRecord = !!settings.requireChangeRecord || kept;
   const id = newId('dct_');
   const ts = nowIso();
   db().tx(() => {
@@ -658,7 +663,7 @@ export function createContract(body: unknown): DataContractDetail {
       lintErrors(lint),
       settings.servicePlatformId ?? null,
       settings.testServer ?? null,
-      settings.requireChangeRecord ? 1 : 0,
+      requireChangeRecord ? 1 : 0,
       ts,
       u.username,
       ts,
@@ -671,8 +676,8 @@ export function createContract(body: unknown): DataContractDetail {
       action: 'contract.created',
       entityType: 'contract',
       entityId: id,
-      summary: `Data contract "${facts.name}" (${facts.key} ${facts.version}) created${lint.length ? ` – ${lintErrors(lint)} lint error(s)` : ''}`,
-      details: { key: facts.key, version: facts.version, sha256: sha256(input.yaml), links: links.length },
+      summary: `Data contract "${facts.name}" (${facts.key} ${facts.version}) created${lint.length ? ` – ${lintErrors(lint)} lint error(s)` : ''}${kept && !settings.requireChangeRecord ? ' – breaking changes need a change record, as for the deleted contract with this id' : ''}`,
+      details: { key: facts.key, version: facts.version, sha256: sha256(input.yaml), links: links.length, requireChangeRecord },
     });
   });
   return getContract(id);
@@ -690,6 +695,16 @@ function checkChangeRecord(recordId: string, u: AuthUser): { id: string; number:
   if (!r || !canReadRecordRow(u, r)) throw new HttpError(400, `Record ${recordId} not found`, 'RECORD_NOT_FOUND', { id: recordId });
   if (r.workflow !== 'change' || !APPROVED_CHANGE.includes(r.status))
     throw new HttpError(400, `${r.number} is not an approved change record`, 'DATA_CONTRACT_CHANGE_RECORD', { number: r.number });
+  // a change record covers one version of one contract: it cannot be used again, here or for another contract
+  if (db().get('SELECT 1 FROM data_contract_versions WHERE change_record_id = ?', r.id))
+    throw new HttpError(
+      409,
+      `${r.number} was already used for a version of a data contract – each version needs its own change record`,
+      'DATA_CONTRACT_CHANGE_RECORD_USED',
+      {
+        number: r.number,
+      },
+    );
   return { id: r.id, number: r.number, title: r.title };
 }
 
@@ -740,6 +755,8 @@ export function saveVersion(id: string, body: unknown): { contract: DataContract
     );
   const next = row.current_version + 1;
   db().tx(() => {
+    // the record was checked above: again within the transaction, so two saves cannot use one record
+    if (record) checkChangeRecord(record.id, u);
     insertVersion(id, next, input.yaml, facts, lint, diff, { note: input.note, changeRecordId: record?.id ?? null });
     db().run(
       'UPDATE data_contracts SET contract_key = ?, name = ?, status = ?, odcs_version = ?, current_version = ?, lint_errors = ?, updated_at = ?, updated_by = ? WHERE id = ?',
@@ -769,11 +786,16 @@ export function saveVersion(id: string, body: unknown): { contract: DataContract
 export function setSettings(id: string, body: unknown): DataContractDetail {
   const u = me();
   const { row, perms } = visibleContract(id);
-  requirePermission(perms, 'edit', 'change this data contract');
   const input = dataContractSettingsInput.parse(body);
+  // switching off "breaking changes need a change record" is the decision of who approves changes (manage) – who has
+  // only that right (an approver) changes nothing else
+  const switchedOff = !!row.require_change_record && !input.requireChangeRecord;
+  if (switchedOff) requirePermission(perms, 'manage', 'switch off the change record rule of this data contract');
   // a service the caller may not see is not named to them (null): it stays as it is unless they choose another one
   const hidden = !!row.service_platform_id && !platformVisible(row.service_platform_id, u);
   const service = input.servicePlatformId === null && hidden ? row.service_platform_id : (input.servicePlatformId ?? null);
+  const onlyTheRule = service === row.service_platform_id && (input.testServer || null) === row.test_server;
+  if (!(switchedOff && onlyTheRule)) requirePermission(perms, 'edit', 'change this data contract');
   if (service && service !== row.service_platform_id) checkServicePlatform(service, u);
   const facts = currentDoc(row).facts;
   if (input.testServer && !facts.servers.some((s) => s.server === input.testServer))
@@ -792,8 +814,11 @@ export function setSettings(id: string, body: unknown): DataContractDetail {
       action: 'contract.settings_changed',
       entityType: 'contract',
       entityId: id,
-      summary: `Data contract "${row.name}": test settings changed (service ${service ?? 'none'}, server ${input.testServer || 'the only one'}, change record for breaking changes ${input.requireChangeRecord ? 'required' : 'not required'})`,
+      summary: `Data contract "${row.name}": test settings changed (service ${service ?? 'none'}, server ${input.testServer || 'the only one'}, change record for breaking changes ${input.requireChangeRecord ? 'required' : 'not required'})${switchedOff ? ' – the change record rule was switched off' : ''}`,
+      details: { requireChangeRecord: { before: !!row.require_change_record, after: input.requireChangeRecord } },
     });
+    // switched off by who may decide it: a rule kept from a deleted contract with this ODCS id goes too
+    if (switchedOff) db().run('DELETE FROM data_contract_kept_rules WHERE contract_key = ?', row.contract_key);
   });
   return getContract(id);
 }
@@ -805,6 +830,16 @@ export function deleteContract(id: string): void {
     for (const t of ['data_contract_versions', 'data_contract_links', 'data_contract_runs']) db().run(`DELETE FROM ${t} WHERE contract_id = ?`, id);
     db().run('DELETE FROM data_contracts WHERE id = ?', id);
     forgetOwningTeams('contract', id);
+    // the change record rule outlives the contract: a new one with this ODCS id (an import) starts with it
+    if (row.require_change_record) {
+      db().run('DELETE FROM data_contract_kept_rules WHERE contract_key = ?', row.contract_key);
+      db().run(
+        'INSERT INTO data_contract_kept_rules (contract_key, require_change_record, deleted_at, deleted_by) VALUES (?, 1, ?, ?)',
+        row.contract_key,
+        nowIso(),
+        actorName(),
+      );
+    }
     audit({
       action: 'contract.deleted',
       entityType: 'contract',

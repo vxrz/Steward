@@ -228,7 +228,8 @@
     "requireChangeRecord": "Breaking changes need a change record",
     "requireChangeRecordHint": "A version with a breaking change is saved only with an approved change record.",
     "saved": "Test settings saved",
-    "notSaved": "Test settings not saved"
+    "notSaved": "Test settings not saved",
+    "requireChangeRecordLocked": "Switched on. Only approvers and administrators can switch it off."
   },
   "versions": {
     "title": "Versions",

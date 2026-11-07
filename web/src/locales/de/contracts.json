@@ -228,7 +228,8 @@
     "requireChangeRecord": "Inkompatible Änderungen brauchen einen Änderungsantrag",
     "requireChangeRecordHint": "Eine Version mit inkompatibler Änderung wird nur mit einem genehmigten Änderungsantrag gespeichert.",
     "saved": "Testeinstellungen gespeichert",
-    "notSaved": "Testeinstellungen nicht gespeichert"
+    "notSaved": "Testeinstellungen nicht gespeichert",
+    "requireChangeRecordLocked": "Eingeschaltet. Nur Genehmigende und Administratoren können es ausschalten."
   },
   "versions": {
     "title": "Versionen",

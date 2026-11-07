@@ -275,7 +275,8 @@ export const DEFAULT_CONTRACT: Record<Role, readonly DataContractPermission[]> =
   admin: DATA_CONTRACT_PERMISSIONS,
   designer: ['view', 'test', 'edit'],
   operator: ['view', 'test'],
-  approver: ['view'],
+  // approvers approve changes: they may also switch off the rule that breaking changes need a change record (0.9.0)
+  approver: ['view', 'manage'],
   auditor: ['view'],
   viewer: ['view'],
   status: [],
@@ -284,8 +285,9 @@ export const DEFAULT_CONTRACT: Record<Role, readonly DataContractPermission[]> =
 
 /**
  * The rights on a data contract (#221): without owning teams every role that works in Steward sees it, operators run
- * its tests, designers change it; with owning teams only their members do (with their instance and team roles),
- * auditors see it, administrators may do everything. Contracts have no access list.
+ * its tests, designers change it, approvers and administrators may switch off "breaking changes need a change record"
+ * (manage); with owning teams only their members do (with their instance and team roles), auditors see it,
+ * administrators may do everything. Contracts have no access list.
  */
 export function contractAccess(u: AuthUser | null, c: { id: string }): Decision<DataContractPermission> {
   const d = decide(u, { kind: 'contract', id: c.id, acl: [] }, DATA_CONTRACT_PERMISSIONS, DEFAULT_CONTRACT, 'view');

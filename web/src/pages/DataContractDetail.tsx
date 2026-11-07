@@ -253,6 +253,11 @@ function SettingsCard({ c, canEdit }: { c: DataContractDetail; canEdit: boolean 
     }
   };
   const usable = (platforms.data ?? []).filter((p) => p.permissions.includes('use') || p.id === c.servicePlatformId);
+  // switching the rule off is for who approves changes (the "manage" right): others can only switch it on – and who
+  // has only that right (an approver) can only switch it off
+  const canManage = c.permissions.includes('manage');
+  const locked = c.requireChangeRecord && !canManage;
+  const canSwitch = canEdit ? !locked : canManage && c.requireChangeRecord;
   return (
     <Paper withBorder p="md" data-testid="contract-settings">
       <Text fw={600} size="sm" mb="sm">
@@ -283,12 +288,13 @@ function SettingsCard({ c, canEdit }: { c: DataContractDetail; canEdit: boolean 
         />
         <Switch
           label={t('settings.requireChangeRecord')}
-          description={t('settings.requireChangeRecordHint')}
+          description={locked ? t('settings.requireChangeRecordLocked') : t('settings.requireChangeRecordHint')}
           checked={needsRecord}
           onChange={(e) => setNeedsRecord(e.currentTarget.checked)}
-          disabled={!canEdit}
+          disabled={!canSwitch}
+          data-testid="contract-require-change-record"
         />
-        {canEdit && (
+        {(canEdit || canSwitch) && (
           <Group>
             <Button size="xs" onClick={() => void save()} loading={busy} disabled={!dirty}>
               {t('common:save')}
