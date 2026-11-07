@@ -150,7 +150,8 @@ describe('notifications in the recipient language', () => {
     const hook = received.find((r) => r.path === '/hook');
     expect(hook?.body).toMatchObject({ event: 'task.assigned', locale: 'en', title: 'Decision needed: Approve cleanup' });
     const card = received.find((r) => r.path === '/teams')?.body.attachments[0].content;
-    expect(card.actions[0].title).toBe('Open in Steward');
+    // a decision card (ADR 0013): Approve and Reject open Steward pre-filled, then Open
+    expect(card.actions.map((a: { title: string }) => a.title)).toEqual(['Approve', 'Reject', 'Open in Steward']);
   });
 
   it('switches channel posts and users without a language when the default changes', async () => {
@@ -160,7 +161,11 @@ describe('notifications in the recipient language', () => {
     expect((await inbox(s.api)).find((n) => n.link === `/runs/${runId}`).title).toBe('Entscheidung erforderlich: Approve cleanup');
     const hook = received.find((r) => r.path === '/hook');
     expect(hook?.body).toMatchObject({ locale: 'de', title: 'Entscheidung erforderlich: Approve cleanup' });
-    expect(received.find((r) => r.path === '/teams')?.body.attachments[0].content.actions[0].title).toBe('In Steward öffnen');
+    expect(received.find((r) => r.path === '/teams')?.body.attachments[0].content.actions.map((a: { title: string }) => a.title)).toEqual([
+      'Freigeben',
+      'Ablehnen',
+      'In Steward öffnen',
+    ]);
     await s.api('PUT', '/settings', { defaultLocale: 'en' });
   });
 

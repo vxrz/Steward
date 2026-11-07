@@ -103,7 +103,7 @@ const titlesFor = async (runIds: string[]) =>
 describe('failed checks of scheduled runs', () => {
   it('new schedules notify on change: start, change, nothing while unchanged, a reminder after the interval', async () => {
     const sch = await schedule();
-    expect(sch.notify).toEqual({ mode: 'change', reminderHours: 4, resolved: false, change: 'result', channels: null, pause: null });
+    expect(sch.notify).toEqual({ mode: 'change', reminderHours: 4, resolved: false, change: 'result', channels: null, pause: null, urgent: false });
     received.length = 0;
     const r1 = await fire(sch, ['a']);
     const r2 = await fire(sch, ['a']);

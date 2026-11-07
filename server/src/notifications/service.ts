@@ -222,7 +222,8 @@ export function notify(n: Notice): void {
       try {
         const m = textIn(userLocale(u, fallback), u);
         // the app shows text only: the lead and the items go into the body
-        const pt = partsText(m.parts, { facts: false });
+        // a decision's Approve / Reject are links into the app: the entry itself opens the item
+        const pt = partsText(m.parts, { facts: false, actions: !n.decision });
         const body = [pt.before, m.body, pt.after].filter(Boolean).join('\n\n').slice(0, 4000);
         addInApp(u.id, { event: n.event, title: m.title, body, link: n.link, dedupeKey: `${n.event}:${n.inAppKey}` }, DEDUPE_WINDOW_MS);
       } catch (err) {
