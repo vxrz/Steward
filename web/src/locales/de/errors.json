@@ -840,6 +840,8 @@
     "PLANT_MAP_STYLE": "Der Stil kann nicht verwendet werden: {{detail}}",
     "PLANT_MAP_FILE": "Die Kartendatei kann nicht verwendet werden: {{detail}}",
     "PLANT_MAP_UPSTREAM": "Die Kachelquelle hat nicht wie erwartet geantwortet: {{detail}}",
+    "PLANT_MAP_SOURCE_FAILED": "Die Kartenquelle hat nicht wie erwartet geantwortet. Ein Administrator sieht den Grund unter Werk → Karte.",
+    "PLANT_MAP_KEY_AGAIN": "Geben Sie den API-Schlüssel erneut ein: Der gespeicherte Schlüssel gehört zur bisherigen Adresse.",
     "PLANT_SITE_NOT_FOUND": "Diesen Standort gibt es nicht (mehr), oder Sie dürfen ihn nicht sehen.",
     "PLANT_ASSET_NOT_FOUND": "Diese Anlage gibt es nicht (mehr), oder Sie dürfen sie nicht sehen.",
     "PLANT_NODE_NOT_FOUND": "Diesen Teil der Hierarchie gibt es nicht (mehr).",

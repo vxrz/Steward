@@ -84,11 +84,18 @@ export function PlantMapSettingsCard() {
   }));
   const chosenFile = v.files.find((f) => f.name === d.file.name);
   const keyNeeded = d.own.keyPlace !== 'none';
+  // a stored key belongs to its address: another origin needs it entered again (the server refuses it otherwise)
+  const originOf = (u: string) => {
+    try {
+      return new URL(u.replaceAll('{', '').replaceAll('}', '')).origin;
+    } catch {
+      return u;
+    }
+  };
+  const keyAgain = !!v.own?.hasKey && originOf(d.own.url.trim()) !== originOf(v.own.url);
+  const keyStored = !!v.own?.hasKey && !keyAgain;
   const ownValid =
-    d.own.url.trim().length > 0 &&
-    d.own.attribution.trim().length > 0 &&
-    (!keyNeeded || d.own.keyName.trim().length > 0) &&
-    (!keyNeeded || !!key || v.own?.hasKey);
+    d.own.url.trim().length > 0 && d.own.attribution.trim().length > 0 && (!keyNeeded || d.own.keyName.trim().length > 0) && (!keyNeeded || !!key || keyStored);
   const valid =
     d.source === 'own'
       ? ownValid
@@ -249,14 +256,15 @@ export function PlantMapSettingsCard() {
               <Stack gap={4}>
                 <PasswordInput
                   label={t('settings.own.key')}
-                  description={v.own?.hasKey ? t('settings.own.keyStored') : t('settings.own.keyHelp')}
+                  description={keyAgain ? t('settings.own.keyAgain') : keyStored ? t('settings.own.keyStored') : t('settings.own.keyHelp')}
+                  required={keyAgain}
                   leftSection={<IconShieldLock size={16} aria-hidden />}
                   value={key}
                   onChange={(e) => setKey(e.currentTarget.value)}
                   autoComplete="new-password"
                   disabled={removeKey}
                 />
-                {v.own?.hasKey && (
+                {keyStored && (
                   <Checkbox size="xs" label={t('settings.own.removeKey')} checked={removeKey} onChange={(e) => setRemoveKey(e.currentTarget.checked)} />
                 )}
               </Stack>

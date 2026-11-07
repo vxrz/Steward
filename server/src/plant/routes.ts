@@ -20,7 +20,10 @@ import { assetFlow, coverage, hostPlacement, overview, pointLineage, siteStructu
 import './links.js';
 import {
   changesMapSource,
+  checkBody,
   checkMapSource,
+  checkNeedsStepUp,
+  forReader,
   mapBody,
   mapGlyphs,
   mapSettingsInput,
@@ -104,11 +107,22 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     { config: { access: ACCESS.adminSession, stepUp: { action: 'changeMapSource', when: (req: FastifyRequest) => changesMapSource(mapBody(req.body)) } } },
     async (req) => updateMapSettings(mapSettingsInput.parse(req.body)),
   );
-  app.post('/settings/plant/map/check', { config: { access: ACCESS.adminSession, rateLimit: ROUTE_LIMITS.action } }, async (req) => {
-    requirePlant();
-    const own = mapSettingsInput.shape.own.unwrap().parse(req.body);
-    return checkMapSource(own);
-  });
+  // reading a new address is the first step of a new source: the same step-up (the stored source checks freely)
+  app.post(
+    '/settings/plant/map/check',
+    {
+      config: {
+        access: ACCESS.adminSession,
+        rateLimit: ROUTE_LIMITS.action,
+        stepUp: { action: 'changeMapSource', when: (req: FastifyRequest) => checkNeedsStepUp(checkBody(req.body)) },
+      },
+    },
+    async (req) => {
+      requirePlant();
+      const own = mapSettingsInput.shape.own.unwrap().parse(req.body);
+      return checkMapSource(own);
+    },
+  );
   app.get('/plant/map/sites', async () => mapSites());
   app.get('/plant/map/status', { config: { access: ACCESS.session } }, async () => mapStatus());
   app.get('/plant/map/style.json', { config: { access: ACCESS.session } }, async (req, reply) => {
@@ -119,10 +133,12 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     return mapStyle(q.theme, q.lang);
   });
   app.get('/plant/map/tiles/:layer/:z/:x/:y', mapFiles, async (req, reply) =>
-    sendMapFile(reply, await mapTile(p(req).layer!, p(req).z!, p(req).x!, p(req).y!)),
+    sendMapFile(reply, await forReader(() => mapTile(p(req).layer!, p(req).z!, p(req).x!, p(req).y!))),
   );
-  app.get('/plant/map/glyphs/:fontstack/:range', mapFiles, async (req, reply) => sendMapFile(reply, await mapGlyphs(p(req).fontstack!, p(req).range!)));
-  app.get('/plant/map/sprites/:sprite', mapFiles, async (req, reply) => sendMapFile(reply, await mapSprite(p(req).sprite!)));
+  app.get('/plant/map/glyphs/:fontstack/:range', mapFiles, async (req, reply) =>
+    sendMapFile(reply, await forReader(() => mapGlyphs(p(req).fontstack!, p(req).range!))),
+  );
+  app.get('/plant/map/sprites/:sprite', mapFiles, async (req, reply) => sendMapFile(reply, await forReader(() => mapSprite(p(req).sprite!))));
 
   // ---------- module ----------
   app.get('/plant/config', async () => svc.plantConfig());

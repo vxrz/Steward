@@ -1,3 +1,4 @@
+import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -363,5 +364,109 @@ describe('backups and the vault', () => {
     expect(files.some((f) => f.startsWith('cache/') || f.startsWith('maps/'))).toBe(false);
     const { ENCRYPTED_SETTINGS } = await import('../src/vault-rotation.js');
     expect(ENCRYPTED_SETTINGS.map((x) => x.key)).toContain('plant.mapKey');
+  });
+});
+
+/**
+ * Security review of 0.10.0 (map of sites): the style check never sends the stored key to an address the caller names and
+ * needs the step-up of a new source; turning the map off or keeping a source never rewrites the stored own source
+ * without one; a tile error tells a reader of the plant registry no upstream address.
+ */
+describe('security review', () => {
+  let evil: http.Server;
+  let evilPort = 0;
+  const evilSeen: { url: string; headers: http.IncomingHttpHeaders }[] = [];
+  beforeAll(async () => {
+    evil = http.createServer((req, res) => {
+      evilSeen.push({ url: req.url ?? '', headers: req.headers });
+      if ((req.url ?? '').includes('/fail/')) {
+        res.writeHead(500);
+        return res.end();
+      }
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ version: 8, sources: {}, layers: [] }));
+    });
+    await new Promise<void>((r) => evil.listen(0, '127.0.0.1', () => r()));
+    evilPort = (evil.address() as { port: number }).port;
+    // a stored own style with an API key (an administrator who confirmed it)
+    await setMap({
+      source: 'own',
+      own: { kind: 'style', url: `${mock()}/style.json`, attribution: 'Mock style', keyPlace: 'query', keyName: 'key', key: 'STORED-MAP-KEY-1' },
+    });
+  });
+  afterAll(() => evil?.close());
+  const unconfirmed = async () => {
+    const c = await s.as('admin', 'Admin-password-1', { autoStepUp: false });
+    await c('DELETE', '/auth/step-up').catch(() => undefined);
+    return c;
+  };
+  const stolen = () => evilSeen.some((r) => JSON.stringify(r).includes('STORED-MAP-KEY-1'));
+
+  it('the check of a new address needs a step-up and never gets the stored key; it is audited', async () => {
+    const c = await unconfirmed();
+    const evilStyle = { kind: 'style', url: `http://127.0.0.1:${evilPort}/style.json`, attribution: 'x', keyPlace: 'header', keyName: 'x-stolen' };
+    const refused = await c('POST', '/settings/plant/map/check', evilStyle).catch((e: { status: number; body: any }) => e);
+    expect(refused).toMatchObject({ status: 403, body: { code: 'STEP_UP_REQUIRED', stepUp: { action: 'changeMapSource' } } });
+    expect(evilSeen).toEqual([]);
+    // confirmed: the new address is read, but without the stored key (a key for it has to be entered)
+    await s.api('POST', '/settings/plant/map/check', evilStyle).catch(() => undefined);
+    await s.api('POST', '/settings/plant/map/check', { ...evilStyle, keyPlace: 'query', keyName: 'key' }).catch(() => undefined);
+    expect(evilSeen.length).toBeGreaterThan(0);
+    expect(stolen()).toBe(false);
+    const [entry] = await s.api('GET', '/audit?action=plant.map_source_checked');
+    expect(entry.details).toMatchObject({ origins: [`http://127.0.0.1:${evilPort}`], storedKey: false });
+    expect(JSON.stringify(entry)).not.toContain('STORED-MAP-KEY-1');
+  });
+
+  it('the check of the stored source needs no step-up and uses the stored key only there', async () => {
+    const c = await unconfirmed();
+    const r = await c('POST', '/settings/plant/map/check', {
+      kind: 'style',
+      url: `${mock()}/style.json`,
+      attribution: 'Mock style',
+      keyPlace: 'query',
+      keyName: 'key',
+    });
+    expect(r.origins).toEqual([new URL(s.base).origin]);
+    const [entry] = await s.api('GET', '/audit?action=plant.map_source_checked');
+    expect(entry.details).toMatchObject({ storedKey: true });
+    expect(stolen()).toBe(false);
+  });
+
+  it('turning the map off keeps the stored own source; changing it under another source needs a step-up', async () => {
+    const c = await unconfirmed();
+    const evilOwn = { kind: 'raster', url: `http://127.0.0.1:${evilPort}/{z}/{x}/{y}.png`, attribution: 'x', keyPlace: 'query', keyName: 'key' };
+    const off = await c('PUT', '/settings/plant/map', { source: 'off', own: evilOwn });
+    expect(off.source).toBe('off');
+    expect(off.own).toMatchObject({ kind: 'style', url: `${mock()}/style.json`, hasKey: true });
+    const [entry] = await s.api('GET', '/audit?action=plant.map_settings_changed');
+    expect(entry.summary).toBe('Map of sites turned off');
+    // another source with a changed own source: the step-up of a new source, audited with the own source's origins
+    const refused = await c('PUT', '/settings/plant/map', { source: 'osm', own: evilOwn }).catch((e: { status: number; body: any }) => e);
+    expect(refused).toMatchObject({ status: 403, body: { code: 'STEP_UP_REQUIRED' } });
+    const keyOnly = await c('PUT', '/settings/plant/map', {
+      source: 'osm',
+      own: { kind: 'style', url: `${mock()}/style.json`, attribution: 'Mock style', keyPlace: 'query', keyName: 'key', key: 'other' },
+    }).catch((e: { status: number; body: any }) => e);
+    expect(keyOnly).toMatchObject({ status: 403, body: { code: 'STEP_UP_REQUIRED' } });
+    // a stored key belongs to its address: another origin needs it entered again
+    expect(await status(setMap({ source: 'osm', own: evilOwn }))).toEqual({ status: 400, code: 'PLANT_MAP_KEY_AGAIN' });
+    const saved = await setMap({ source: 'osm', own: { ...evilOwn, key: 'NEW-KEY' } });
+    expect(saved.own).toMatchObject({ url: evilOwn.url, hasKey: true });
+    const [changed] = await s.api('GET', '/audit?action=plant.map_settings_changed');
+    expect(changed.details.own).toEqual({ old: [new URL(s.base).origin], new: [`http://127.0.0.1:${evilPort}`] });
+  });
+
+  it('a failing tile names the upstream address to administrators only', async () => {
+    await setMap({ source: 'own', own: { kind: 'raster', url: `http://127.0.0.1:${evilPort}/fail/{z}/{x}/{y}.png`, attribution: 'x', key: '' } });
+    const reader = await raw('pia', '/plant/map/tiles/base/1/0/0');
+    expect(reader.status).toBe(502);
+    const body = await reader.text();
+    expect(JSON.parse(body).code).toBe('PLANT_MAP_SOURCE_FAILED');
+    expect(body).not.toContain(String(evilPort));
+    expect(body).not.toContain('/fail/');
+    const admin = await raw('admin', '/plant/map/tiles/base/1/1/0');
+    expect(admin.status).toBe(502);
+    expect(await admin.text()).toContain(`127.0.0.1:${evilPort}/fail/1/1/0.png`);
   });
 });
