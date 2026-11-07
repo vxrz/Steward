@@ -274,5 +274,53 @@
       "channelsHeld_one": "Gerade wird {{count}} Kanalnachricht zurückgehalten.",
       "channelsHeld_other": "Gerade werden {{count}} Kanalnachrichten zurückgehalten."
     }
+  },
+  "bot": {
+    "title": "Teams-Bot",
+    "preview": "Vorschau",
+    "intro": "Personen geben Entscheidungen direkt in der Teams-Karte frei, mit denselben Prüfungen wie in Steward. Dafür braucht es eine Entra-App, einen Azure Bot und eingehendes HTTPS von Microsoft zum Bot-Listener. Standardmäßig aus; ohne ihn öffnen Karten Steward (docs/TEAMS.md).",
+    "listener": "Der Bot lauscht auf Port {{port}} unter",
+    "noListener": "Kein Bot-Listener: Setzen Sie SM_TEAMS_BOT_PORT und starten Sie Steward neu. Nur dieser Port wird für Microsoft veröffentlicht.",
+    "enabled": "In Teams-Karten entscheiden",
+    "appId": "App-ID des Bots",
+    "appIdHint": "Die Anwendungs-ID (Client-ID) der Entra-App-Registrierung – eine GUID.",
+    "tenants": "Erlaubte Mandanten",
+    "tenantsHint": "Mandanten-IDs (GUIDs), deren Personen den Bot nutzen dürfen.",
+    "provider": "Anmeldeanbieter",
+    "providerHint": "Konten werden nur über diesen Entra-Anbieter erkannt, per tid + oid – nie über Namen oder E-Mail.",
+    "credential": "Anmeldedaten des Bots",
+    "credentials": {
+      "certificate": "Zertifikat (empfohlen)",
+      "secret": "Geheimnis"
+    },
+    "credentialStored": "Anmeldedaten sind gespeichert. Lassen Sie die Felder leer, um sie zu behalten.",
+    "credentialHint": "Damit meldet sich Steward bei Microsoft an, um Karten zu posten und zu aktualisieren.",
+    "secret": "Client-Geheimnis",
+    "certificate": "Zertifikat (PEM)",
+    "privateKey": "Privater Schlüssel (PEM)",
+    "unchanged": "unverändert",
+    "channels": "Entscheidungskarten in Kanälen",
+    "channelsHint": "Wählen Sie je Kanal die Unterhaltung des Bots statt des Webhooks. Andere Nachrichten bleiben beim Webhook.",
+    "channelsNone": "Installieren Sie die Teams-App zuerst in einem Kanal; er erscheint dann hier.",
+    "useWebhook": "Webhook verwenden (ohne Schaltflächen)",
+    "targets": {
+      "teams": "Teams-Kanal der Instanz",
+      "webhook": "Webhook der Instanz (Teams-Karte)",
+      "team": "Kanal des Teams {{team}}"
+    },
+    "installed": "Wo der Bot installiert ist",
+    "installedNone": "Noch nirgends. Laden Sie das App-Paket in Ihren Mandanten hoch und fügen Sie es einem Kanal oder Chat hinzu.",
+    "where": "Kanal oder Person",
+    "kind": "Art",
+    "since": "Seit",
+    "removed": "entfernt",
+    "notLinked": "nicht verknüpft",
+    "kinds": {
+      "channel": "Kanal",
+      "personal": "Persönlicher Chat"
+    },
+    "package": "Teams-App-Paket herunterladen",
+    "saved": "Einstellungen des Teams-Bots gespeichert",
+    "packageNeedsAppId": "Speichern Sie die App-ID, um das Teams-App-Paket herunterzuladen."
   }
 }

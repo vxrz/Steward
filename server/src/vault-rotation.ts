@@ -28,6 +28,8 @@ export const ENCRYPTED_COLUMNS: { table: string; id: string; column: string; fil
 export const ENCRYPTED_SETTINGS: { key: string; file: string }[] = [
   { key: 'notifications.secrets', file: 'notifications/settings.ts' },
   { key: 'backup.key', file: 'backup/service.ts' },
+  // the Teams bot's credential and card key (ADR 0013)
+  { key: 'notifications.teamsBot.secrets', file: 'msteams/settings.ts' },
 ];
 
 export const KEY_ID_SETTING = 'vault.keyId';

@@ -274,5 +274,53 @@
       "channelsHeld_one": "{{count}} channel message is held right now.",
       "channelsHeld_other": "{{count}} channel messages are held right now."
     }
+  },
+  "bot": {
+    "title": "Teams bot",
+    "preview": "Preview",
+    "intro": "People approve decisions inside the Teams card, with the same checks as in Steward. Needs an Entra app, an Azure Bot and inbound HTTPS from Microsoft to the bot listener. Off by default; without it, cards open Steward (docs/TEAMS.md).",
+    "listener": "The bot listens on port {{port}} at",
+    "noListener": "No bot listener: set SM_TEAMS_BOT_PORT and restart Steward. Only that port is published to Microsoft.",
+    "enabled": "Decide in Teams cards",
+    "appId": "App id of the bot",
+    "appIdHint": "The application (client) id of the Entra app registration – a GUID.",
+    "tenants": "Allowed tenants",
+    "tenantsHint": "Tenant ids (GUIDs) whose people may use the bot.",
+    "provider": "Sign-in provider",
+    "providerHint": "Accounts are recognised only through this Entra provider, by tid + oid – never by name or e-mail.",
+    "credential": "Credential of the bot",
+    "credentials": {
+      "certificate": "Certificate (preferred)",
+      "secret": "Secret"
+    },
+    "credentialStored": "A credential is stored. Leave the fields empty to keep it.",
+    "credentialHint": "Steward signs in to Microsoft with it to post and update cards.",
+    "secret": "Client secret",
+    "certificate": "Certificate (PEM)",
+    "privateKey": "Private key (PEM)",
+    "unchanged": "unchanged",
+    "channels": "Decision cards in channels",
+    "channelsHint": "For each channel, choose the bot's conversation instead of the webhook. Other messages stay on the webhook.",
+    "channelsNone": "Install the Teams app in a channel first; it appears here.",
+    "useWebhook": "Use the webhook (no buttons)",
+    "targets": {
+      "teams": "Instance Teams channel",
+      "webhook": "Instance webhook (Teams card)",
+      "team": "Channel of team {{team}}"
+    },
+    "installed": "Where the bot is installed",
+    "installedNone": "Nowhere yet. Upload the app package to your tenant and add it to a channel or a chat.",
+    "where": "Channel or person",
+    "kind": "Kind",
+    "since": "Since",
+    "removed": "removed",
+    "notLinked": "not linked",
+    "kinds": {
+      "channel": "Channel",
+      "personal": "Personal chat"
+    },
+    "package": "Download the Teams app package",
+    "saved": "Teams bot settings saved",
+    "packageNeedsAppId": "Save the app id to download the Teams app package."
   }
 }

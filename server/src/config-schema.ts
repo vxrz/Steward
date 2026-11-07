@@ -81,6 +81,16 @@ function int(fallback: number, min: number, max = Number.MAX_SAFE_INTEGER) {
   });
 }
 
+/** A whole number within [min, max]; undefined when not set. */
+function optionalInt(min: number, max: number) {
+  return raw.transform((s, ctx): number | undefined => {
+    if (s === undefined) return undefined;
+    const n = Number(s);
+    if (!Number.isInteger(n) || n < min || n > max) return fail(ctx, `${quote(s)} is not a whole number from ${min} to ${max}`);
+    return n;
+  });
+}
+
 /** A number within [min, max] (decimals allowed). */
 function num(fallback: number, min: number, max: number) {
   return raw.transform((s, ctx) => {
@@ -212,6 +222,15 @@ export const VARS = {
     group: 'Server and network',
     description: "Extra allowed `Host` headers (comma-separated), e.g. the machine's DNS name when colleagues use it",
     readme: true,
+  }),
+  SM_TEAMS_BOT_PORT: v(optionalInt(1, 65535), {
+    group: 'Server and network',
+    description:
+      'Port of a second, minimal listener for the Microsoft Teams bot (preview, ADR 0013): it serves only `POST /teams/bot/messages` – no cookies, no web app, no other route. Not set: no bot listener. Publish only this port to the internet (docs/TEAMS.md).',
+  }),
+  SM_TEAMS_BOT_HOST: v(text(), {
+    group: 'Server and network',
+    description: 'Bind address of the Teams bot listener (default: `SM_HOST`). Uses `SM_TLS_CERT`/`SM_TLS_KEY` like the main listener.',
   }),
   SM_TLS_CERT: v(text(), {
     group: 'Server and network',

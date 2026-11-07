@@ -908,6 +908,11 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/me/notification-prefs': ALL,
   'GET /api/settings/quiet-hours': ADMIN,
   'PUT /api/settings/quiet-hours': ADMIN,
+  // ---- the Teams bot (ADR 0013, preview): administrators; the bot endpoint itself is on its own listener (teams-bot.test.ts) ----
+  'GET /api/settings/teams-bot': ADMIN,
+  'PUT /api/settings/teams-bot': ADMIN,
+  'GET /api/settings/teams-bot/conversations': ADMIN,
+  'GET /api/settings/teams-bot/package': ADMIN,
 
   // ---- OAuth sign-in for MCP clients (#12): off in the fixtures (discovery and endpoints answer 404) ----
   'GET /.well-known/oauth-protected-resource': PUBLIC,
@@ -1114,6 +1119,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   },
   'POST /api/me/tokens': 'always',
   'POST /api/vault/passphrase': 'always',
+  // the Teams bot (ADR 0013): its credential and where decisions can be taken
+  'PUT /api/settings/teams-bot': 'always',
   // adding an owning team gives its members their roles on the resource (#131)
   'PUT /api/owning-teams/:kind/:id': {
     get sensitive() {
@@ -1207,6 +1214,8 @@ const STEP_UP_BY_POLICY = [
 
 /** GET routes whose fixtures cannot give a 2xx (nothing to find); refusals are still checked. */
 const NO_POSITIVE = new Set([
+  // the Teams app package needs the bot's app id (none in the fixtures: 409)
+  'GET /api/settings/teams-bot/package',
   // OAuth sign-in for MCP clients is off in the fixtures (#12)
   'GET /.well-known/oauth-protected-resource',
   'GET /.well-known/oauth-protected-resource/api/mcp',
@@ -1535,6 +1544,7 @@ const bodies = (): Record<string, unknown> => ({
     digests: { timeZone: 'UTC', groups: {} },
   },
   'PUT /api/settings/quiet-hours': { allowed: true },
+  'PUT /api/settings/teams-bot': { enabled: false, appId: '', tenantIds: [], providerId: null, credential: 'secret' },
   'POST /api/report-schedules': REPORT_SCHEDULE,
   'PUT /api/report-schedules/:id': REPORT_SCHEDULE,
   'POST /api/dashboards': { text: 'name: Matrix\nwidgets: []\n' },

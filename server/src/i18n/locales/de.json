@@ -510,5 +510,25 @@
     },
     "mcpTitle": "KI-Assistent von {{user}}: {{what}}",
     "mcpChannelBody": "Ein KI-Assistent bittet um eine Änderung. Entscheiden Sie in Steward; ohne Entscheidung verfällt die Anfrage."
+  },
+  "teamsBot": {
+    "locked": "Steward ist gesperrt – versuchen Sie es später noch einmal.",
+    "notLinked": "Ihr Teams-Konto ist mit keinem Steward-Konto verknüpft. Öffnen Sie Steward, um zu entscheiden.",
+    "changed": "Das hat sich geändert – hier ist der aktuelle Stand.",
+    "failed": "Das konnte hier nicht entschieden werden. Öffnen Sie Steward und versuchen Sie es dort.",
+    "gone": "Dieser Eintrag ist nicht mehr verfügbar.",
+    "comment": "Kommentar (optional, wird im Protokoll gespeichert)",
+    "help": "Ich poste Entscheidungen, die auf Sie warten. Geben Sie sie in der Karte frei oder lehnen Sie sie ab; alles andere öffnen Sie in Steward.",
+    "helpNotLinked": "Ich poste Entscheidungen aus Steward. Ihr Teams-Konto ist noch mit keinem Steward-Konto verknüpft – melden Sie sich einmal mit Single Sign-on bei Steward an.",
+    "state": {
+      "decided": "Entschieden.",
+      "cancelled": "Nicht mehr nötig: Der Lauf wurde abgebrochen.",
+      "expired": "Ohne Entscheidung verfallen."
+    },
+    "why": {
+      "mayNot": "Sie dürfen das nicht entscheiden.",
+      "needsSteward": "Das wird in Steward entschieden: Es braucht die Details oder eine Bestätigung, die Teams nicht zeigen kann.",
+      "policy": "Laut Absicherungsrichtlinie wird das in Steward entschieden, nicht in Microsoft Teams."
+    }
   }
 }

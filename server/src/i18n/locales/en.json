@@ -510,5 +510,25 @@
     },
     "mcpTitle": "AI assistant of {{user}}: {{what}}",
     "mcpChannelBody": "An AI assistant asks for a change. Decide in Steward; without a decision the request expires."
+  },
+  "teamsBot": {
+    "locked": "Steward is locked – try again later.",
+    "notLinked": "Your Teams account is not linked to a Steward account. Open Steward to decide.",
+    "changed": "This changed – here is the current state.",
+    "failed": "This could not be decided here. Open Steward to try again.",
+    "gone": "This item is no longer available.",
+    "comment": "Comment (optional, stored in the protocol)",
+    "help": "I post decisions that wait for you. Approve or reject them in the card, or open Steward for everything else.",
+    "helpNotLinked": "I post decisions from Steward. Your Teams account is not linked to a Steward account yet – sign in to Steward with single sign-on once.",
+    "state": {
+      "decided": "Decided.",
+      "cancelled": "No longer needed: the run was cancelled.",
+      "expired": "Expired without a decision."
+    },
+    "why": {
+      "mayNot": "You may not decide this.",
+      "needsSteward": "This is decided in Steward: it needs the details or a confirmation that Teams cannot show.",
+      "policy": "The assurance policy has this decided in Steward, not in Microsoft Teams."
+    }
   }
 }

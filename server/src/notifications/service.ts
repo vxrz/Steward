@@ -97,6 +97,18 @@ export interface Notice {
   urgent?: boolean;
 }
 
+/** The Teams bot (ADR 0013 stage 2, msteams/delivery.ts): decision cards through the bot instead of the webhook. */
+export interface BotDelivery {
+  covers: (target: string) => boolean;
+  postChannel: (target: string, item: NonNullable<Notice['decision']>) => Promise<void>;
+  hasPersonal: (u: UserInfo) => boolean;
+  postPersonal: (u: UserInfo, item: NonNullable<Notice['decision']>) => Promise<void>;
+}
+let botDelivery: BotDelivery | null = null;
+export function setBotDelivery(b: BotDelivery | null): void {
+  botDelivery = b;
+}
+
 /** Set by the maintenance module (no import cycle): does a maintenance window pause the messages of this run? */
 let maintenancePause: ((runId: string) => boolean) | null = null;
 export function setMaintenancePause(fn: (runId: string) => boolean): void {
@@ -318,12 +330,32 @@ export function notify(n: Notice): void {
         queueEmail({ event: n.event, to: { address: addr }, message: message(fallback), rules, secrets });
     }
   }
+  // decision cards through the Teams bot where an administrator chose its conversation for a channel target (stage 2)
+  const byBot = (target: string): (() => Promise<void>) | null =>
+    n.decision && botDelivery?.covers(target) ? () => botDelivery!.postChannel(target, n.decision!) : null;
+  // … and to the personal chat of each decider who installed the app, with their quiet hours (target teamsChat:<user>)
+  if (n.decision && botDelivery)
+    for (const u of n.recipients) {
+      if (!botDelivery.hasPersonal(u)) continue;
+      const plan = deliveryPlan(
+        { personal: true, quietHours: personPrefs(u).quietHours, digests: null },
+        { event: n.event, urgent, expiresAt: n.expiresAt },
+        now,
+        {
+          allowed,
+        },
+      );
+      if (!plan.send) hold(`teamsChat:${u.id}`, plan, userLocale(u, fallback), u);
+      else if (claimSend(`teamsChat:${key}:${u.id}`, DEDUPE_WINDOW_MS))
+        jobs.push({ channel: 'teamsChat', to: u.username, send: () => botDelivery!.postPersonal(u, n.decision!) });
+    }
   if (external.includes('teams') && secrets.teamsWebhookUrl) {
     const plan = channelPlan(settings.teams.quietHours);
     if (!plan.send) hold('teams:instance', plan, fallback);
     else if (claimSend(`teams:${key}`, DEDUPE_WINDOW_MS)) {
       const msg = broke(message(fallback), plan, false, settings.teams.quietHours?.timeZone ?? 'UTC');
-      jobs.push({ channel: 'teams', target: 'teams:instance', send: () => sendTeams(secrets.teamsWebhookUrl!, msg) });
+      const bot = byBot('teams:instance');
+      jobs.push({ channel: 'teams', target: 'teams:instance', send: bot ?? (() => sendTeams(secrets.teamsWebhookUrl!, msg)) });
     }
   }
   if (external.includes('webhook') && secrets.webhookUrl) {
@@ -336,7 +368,7 @@ export function notify(n: Notice): void {
       jobs.push({
         channel: 'webhook',
         target: 'webhook:instance',
-        send: () => (asCard ? sendTeams(secrets.webhookUrl!, msg) : sendWebhook(secrets.webhookUrl!, msg)),
+        send: (asCard ? byBot('webhook:instance') : null) ?? (() => (asCard ? sendTeams(secrets.webhookUrl!, msg) : sendWebhook(secrets.webhookUrl!, msg))),
       });
     }
   }
@@ -351,7 +383,7 @@ export function notify(n: Notice): void {
     jobs.push({
       channel: `team:${c.team.name}`,
       target: `team:${c.team.id}`,
-      send: () => (c.format === 'teams' ? sendTeams(c.url, msg) : sendWebhook(c.url, msg)),
+      send: (c.format === 'teams' ? byBot(`team:${c.team.id}`) : null) ?? (() => (c.format === 'teams' ? sendTeams(c.url, msg) : sendWebhook(c.url, msg))),
     });
   }
   for (const j of jobs) {

@@ -13,6 +13,7 @@ import { backupRoutes } from '../backup/routes.js';
 import { ticketRoutes } from '../tickets/routes.js';
 import { dailySummaryRoutes } from '../notifications/summary-routes.js';
 import { notificationPrefsRoutes } from '../notifications/prefs-routes.js';
+import { teamsBotRoutes } from '../msteams/routes.js';
 import { complianceRoutes } from '../compliance/routes.js';
 import { migrationRoutes } from '../migration/routes.js';
 import { dutyRoutes } from '../duties/routes.js';
@@ -76,6 +77,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await ticketRoutes(app);
   await dailySummaryRoutes(app);
   await notificationPrefsRoutes(app);
+  await teamsBotRoutes(app);
   await complianceRoutes(app);
   await assuranceRoutes(app);
   await aiRoutes(app);

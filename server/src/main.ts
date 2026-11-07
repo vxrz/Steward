@@ -168,6 +168,8 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   // SM_PORT=0: the system picks a free port; everything that needs the real port (the instance proof,
   // the own-API outbound guard, links) reads config.port, and the start line below shows it.
   if (config.port === 0) config.port = (app.server.address() as AddressInfo).port;
+  // the Teams bot's own listener (ADR 0013, preview): only POST /teams/bot/messages
+  const botListener = await (await import('./msteams/listener.js')).startBotListener();
   // background jobs, event-loop monitor and backups now; recovery, scheduler and monitors once the vault is unlocked
   startBackground();
   await unlockFromEnv().catch((e) => {
@@ -197,6 +199,7 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
       flushFailedLoginAudit();
       removeInstanceFile();
       await app.close();
+      await botListener?.close();
       await Promise.race([flushNotifications(), new Promise((r) => setTimeout(r, 3000).unref())]);
       await shutdownTelemetry();
       await closeErrorReporting();
