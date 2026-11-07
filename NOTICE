@@ -22,3 +22,11 @@ Standard (ODCS) v3.0.2 (server/assets/odcs/odcs-json-schema-v3.0.2.json),
 Copyright The Bitol Contributors (https://github.com/bitol-io/open-data-contract-standard,
 schema/odcs-json-schema-v3.0.2.json at commit 448f7b93329ece7827897d7dd51e827a3e279460),
 licensed under the Apache License, Version 2.0 (licence text next to the file); unchanged.
+
+The map of sites draws vector PMTiles files in the Protomaps schema with styles
+generated from @protomaps/basemaps 5.7.2 (server/assets/map/protomaps-*.json),
+Copyright The Protomaps Authors (https://github.com/protomaps/basemaps), licensed
+under the BSD 3-Clause License (licence text next to the files); layers that need
+a sprite are left out. The web app bundles MapLibre GL JS (BSD 3-Clause,
+Copyright MapLibre contributors), the server reads PMTiles files with pmtiles
+(BSD 3-Clause); both are listed in the SBOM with their dependencies.

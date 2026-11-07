@@ -136,6 +136,17 @@ _Settings → Plant registry → Map_ (internal setting `plant.map`, administrat
 
 **Revisit** when installations need much more map traffic than a few people, or when someone needs layers beyond sites (assets inside a site, OT network overlays).
 
+## Changed while building
+
+1. **No glyphs or sprites are shipped.** MapLibre GL JS 6 draws labels with the browser's own fonts when a style names no glyphs URL, so Steward's light and dark styles name none and use no sprite (the Protomaps layers that need one – one-way arrows, road shields, points of interest – are left out). A self-hosted file still works with nothing else, and no font files need a licence check. An own style's glyphs and sprite are served through Steward as planned.
+2. **Exact versions.** The three libraries are pinned exactly (`6.15.0`, `4.5.0`, `5.7.2`), not `~6.15.0`. Two dependencies of MapLibre resolved to releases younger than two weeks (`@maplibre/maplibre-gl-style-spec` 26.5.1, `@maplibre/vt-pbf` 4.3.3); `overrides` in `package.json` keep them at 26.4.4 and 4.3.2, which satisfy MapLibre's ranges.
+3. **A control point of its own.** Changing the source is the new control point `plant.mapSource` (step-up action `changeMapSource`, on by default, not part of the baseline) instead of reusing `signIn.settings`: the assurance policy is the one place for such checks, and an administrator can see and tighten it on its own.
+4. **Refusals.** API tokens get `403 SESSION_REQUIRED` and status viewers `403 STATUS_VIEWER_ONLY` from the existing route guards, not `404`; while the map is off its routes answer `404 PLANT_MAP_OFF`.
+5. **Two more routes**: `GET /api/plant/map/status` (whether the source answered lately; the reason for administrators only) and `POST /api/settings/plant/map/check` (reads an own style and shows its origins before saving). Sprites are served at `/api/plant/map/sprites/:sprite` (`<id>[@2x].json|png`).
+6. **Cache details.** Freshness from `Cache-Control`/`Expires` (at least a minute, at most 30 days, 7 days when the source says nothing), revalidation with the `ETag`, a stale copy served when the source fails; at most 3 redirects within the source's origins. Backups and migration packages also leave `<data>/maps/` out.
+7. **Attribution** is drawn by Steward (MapLibre's attribution control is off), as plain text: no HTML from a style or file reaches the page.
+8. **Clusters** group sites closer than 56 px at the whole zoom level (a grid split close sites across cell borders).
+
 ## Decided after review
 
 1. **How do tiles reach the browser?** Decided: only through Steward. The CSP stays as it is, no user's IP address or API key goes outside, and the tile policy is met by caching and Steward's own `User-Agent`; the cost is server load and a disk cache.

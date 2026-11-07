@@ -64,8 +64,9 @@ test.describe('the map of sites', () => {
     await expectAccessible(page, 'map settings, off');
     await card.getByTestId('map-save').click();
     await expect(card.getByTestId('map-settings-state')).toHaveText('On – OpenStreetMap');
-    // the demo's OpenStreetMap is the mock tile source of this server
-    await expect(card.getByTestId('map-origins')).toContainText(origin());
+    // the demo's OpenStreetMap is the mock tile source of this server (its own port, also behind the test's proxy)
+    await expect(card.getByTestId('map-origins')).toContainText(/http:\/\/127\.0\.0\.1:\d+/);
+    await expect(card.getByTestId('map-origins')).not.toContainText('openstreetmap.org');
     await card.screenshot({ path: test.info().outputPath('map-settings.png') });
     await expect(page.getByTestId('outbound-map-origins')).toHaveCount(0); // on the Network area, not here
     await page.goto('/settings/security');
