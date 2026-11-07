@@ -15,6 +15,7 @@ export const NOTIFICATION_EVENTS = [
   'access.undocumented',
   'document.review',
   'stack.eol',
+  'stack.release',
   'duty.due',
   'duty.missed',
   'duty.exception',
@@ -27,6 +28,8 @@ export const NOTIFICATION_EVENTS = [
   'mcp.request',
   'platform.failing',
   'ai.budget',
+  'cost.budget',
+  'contract.failed',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -45,6 +48,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'access.undocumented': 'The access reconciliation found access changes without an access change entry',
   'document.review': 'A living document you review is due for its periodic review soon (or is overdue)',
   'stack.eol': 'A component of an application you own reaches the end of life of its release cycle soon (or reached it)',
+  'stack.release': 'A new major release of a product in the tech stack of an application or system you are responsible for',
   'duty.due': 'A service duty you are responsible for is due soon and not done yet',
   'duty.missed': 'A period of a mandatory or recommended service duty you are responsible for ended without a successful run',
   'duty.exception': 'Someone asked to skip a period of a service duty you are responsible for: a second person decides',
@@ -57,6 +61,8 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'mcp.request': 'An AI assistant asks to change something on a platform or to start a run, and you decide',
   'platform.failing': 'The periodic connection test of a platform you manage started failing',
   'ai.budget': 'An AI token budget reached 80 % or is used up (administrators; the gateway’s managers, the process owner)',
+  'cost.budget': 'The monthly cost budget of a service, application or team you own reached 80 % or 100 %',
+  'contract.failed': 'A test of a data contract your team owns failed (the owning team’s members and channel)',
 };
 
 export interface AppNotification {

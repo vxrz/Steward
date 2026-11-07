@@ -223,6 +223,16 @@
     "kafkaStuck": "Hängt nach (Minuten ohne Commit)",
     "kafkaSchema": "Erwartete Schema-Version",
     "kafkaSchemaHint": "Von <topic>-value in der Schema Registry; leer: nicht geprüft",
+    "connectConnector": "Connector",
+    "connectConnectorHint": "Leer: jeder Connector des Clusters",
+    "connectNotRunningAs": "Wenn ein Connector oder Task fehlschlug",
+    "connectPausedAs": "Wenn einer pausiert oder gestoppt ist",
+    "connectFailedMinutes": "Fehlgeschlagener Task alarmiert nach (Minuten)",
+    "connectFailedMinutesHint": "Leer: sofort; vorher eingeschränkt",
+    "connectMaxLag": "Höchster Rückstand eines Sinks (Nachrichten)",
+    "connectMaxLagHint": "Gelesen auf der Kafka-Plattform des Clusters; leer: nicht geprüft",
+    "connectQuiet": "Debezium-Topics ruhig nach (Minuten)",
+    "connectQuietHint": "Keine Nachricht auf einem Topic eines Debezium-Connectors; leer: nicht geprüft",
     "mqttTopic": "Topic oder Muster",
     "mqttTopicHint": "+ eine Ebene, # der Rest, z. B. plant/+/status",
     "mqttMode": "Was ankommen muss",
@@ -369,7 +379,93 @@
     "dbSchemaFailAs": "Wenn sie fehlschlägt",
     "dbSchemaNoData": "Ohne Snapshot",
     "dbSchemaRead": "Zuerst die Datenbank lesen",
-    "dbSchemaReadHint": "Liest das Schema bei jeder Prüfung (ein Snapshot, wenn es sich geändert hat). Aus: Es zählen nur die schon gespeicherten Lesevorgänge und Importe."
+    "dbSchemaReadHint": "Liest das Schema bei jeder Prüfung (ein Snapshot, wenn es sich geändert hat). Aus: Es zählen nur die schon gespeicherten Lesevorgänge und Importe.",
+    "versionApplication": "Anwendung",
+    "versionApplicationHint": "Ihre Komponenten und die Systeme, auf denen sie läuft, werden mit den neuesten Versionen der Versionsüberwachung verglichen",
+    "versionChooseApplication": "Anwendung wählen",
+    "versionNoApplication": "Keine Anwendung",
+    "versionEnvironment": "Umgebung",
+    "versionEnvironmentHint": "Nur diese Umgebung (und was allen dient); leer: alle",
+    "versionProducts": "Produkte",
+    "versionProductsHint": "Nur diese; leer: der ganze Tech-Stack",
+    "versionMaxMinors": "Eingeschränkt ab mehr als … Minor-Versionen Rückstand",
+    "versionMaxMinorsHint": "Standard 2",
+    "versionMaxDays": "Eingeschränkt ab mehr als … Tagen Rückstand",
+    "versionMaxDaysHint": "Seit der ersten neueren Version; leer: nicht geprüft",
+    "versionMajorAs": "Eine Hauptversion zurück",
+    "versionEolAs": "Release-Zyklus am Supportende",
+    "versionEolIgnore": "Nicht geprüft",
+    "pageWatchScope": "Welche Überwachungen",
+    "pageWatchScopeWatch": "Eine Überwachung",
+    "pageWatchScopeTag": "Mit einem Tag",
+    "pageWatchScopeAll": "Alle Überwachungen",
+    "pageWatchWatch": "Überwachung",
+    "pageWatchWatchHint": "So, wie Steward sie zuletzt aus changedetection.io gelesen hat",
+    "pageWatchNoWatch": "Keine solche Überwachung",
+    "pageWatchUuid": "UUID der Überwachung",
+    "pageWatchUuidHint": "Die UUID der Überwachung in changedetection.io (in der Adresse ihrer Bearbeitungsseite: /edit/<UUID>)",
+    "pageWatchNotRead": "Steward hat die Überwachungen dieser Plattform noch nicht gelesen: Lesen Sie sie im Reiter „Überwachungen“, um eine auszuwählen, oder geben Sie die UUID ein.",
+    "pageWatchUuidInvalid": "Keine UUID",
+    "pageWatchTag": "Tag",
+    "pageWatchTagHint": "Der Name des Tags in changedetection.io; Groß- und Kleinschreibung spielen keine Rolle",
+    "pageWatchChangedWithin": "Geändert innerhalb von (Stunden)",
+    "pageWatchChangedAs": "Eine Änderung gilt als",
+    "pageWatchInformational": "Information",
+    "pageWatchFailingAs": "Eine fehlerhafte Überwachung gilt als",
+    "pageWatchFailingAsHint": "Ihre letzte Prüfung schlug fehl (Abruffehler, Filter nicht gefunden) oder sie wurde nicht rechtzeitig geprüft",
+    "pageWatchMaxCheckAge": "Nicht geprüft seit (Stunden)",
+    "pageWatchMaxCheckAgeHint": "Gilt als fehlerhaft; leer: wird nicht beachtet",
+    "pageWatchPausedAs": "Pausierte Überwachungen",
+    "pageWatchPausedIgnore": "Nicht berücksichtigt",
+    "pageWatchChangedAsHint": "Information: Die Prüfung bleibt OK und nennt die Änderung",
+    "cost": {
+      "scope": "Kosten von",
+      "target": "Welche",
+      "targetEmpty": "Nichts, das Sie sehen dürfen",
+      "period": "Vergleich",
+      "periods": {
+        "month": "Letzter Monat mit dem Monat davor",
+        "monthToDate": "Dieser Monat bisher mit demselben Anteil des Monats davor"
+      },
+      "maxIncreasePct": "Gestiegen um mehr als (%)",
+      "maxIncrease": "oder um mehr als (Betrag)",
+      "maxIncreaseHint": "In der verglichenen Währung, z. B. 500",
+      "currency": "Währung",
+      "currencyHint": "Leer: die mit den höchsten Kosten",
+      "failAs": "Status, wenn sie stärker steigen",
+      "noData": "Status ohne Kosten zum Vergleichen",
+      "statuses": {
+        "down": "Ausgefallen",
+        "degraded": "Beeinträchtigt",
+        "unknown": "Unbekannt",
+        "up": "In Ordnung"
+      },
+      "scopes": {
+        "service": "Service",
+        "application": "Anwendung",
+        "team": "Team",
+        "platform": "Plattform"
+      }
+    },
+    "contract": "Datenvertrag",
+    "contractHint": "Die Prüfung läuft mit den Rechten des Monitor-Eigentümers: Er muss den Vertrag sehen (und für Tests ihn testen sowie Dienst und Datenbank nutzen dürfen)",
+    "chooseContract": "Datenvertrag wählen",
+    "noContract": "Kein Datenvertrag, den Sie sehen dürfen",
+    "contractMode": "Was geprüft wird",
+    "contractModes": {
+      "test": "Der Test (Datenvertragsdienst)",
+      "findings": "Stewards eigene Prüfungen"
+    },
+    "contractModeHints": {
+      "test": "Führt den Test des Vertrags aus; der vollständige Bericht wird beim Vertrag gespeichert",
+      "findings": "Kein Eigentümer, länger nicht getestet, letzter Test fehlgeschlagen, Spalten, die nicht mehr passen – ohne den Dienst"
+    },
+    "contractTestedWithin": "Nicht getestet seit (Tagen)",
+    "contractFailAs": "Ein fehlgeschlagener Test",
+    "contractErrorAs": "Ein Befund vom Typ Fehler",
+    "contractWarningAs": "Ein Test mit Warnungen",
+    "contractWarningFindingAs": "Ein Befund vom Typ Warnung",
+    "contractTestHint": "Ein Test liest Daten: Er erhält mindestens eine Minute, unabhängig vom Zeitlimit oben (höchstens 300 s). Ein Testlauf des Monitors (aufgezeichnete Antworten) ruft den Dienst nicht auf – er bewertet den zuletzt gespeicherten Lauf."
   },
   "detail": {
     "template": "Vorlage",
@@ -705,6 +801,10 @@
       "label": "Kafka-Topic",
       "help": "Neue Nachrichten auf einem Topic innerhalb von N Minuten, der Rückstand einer Consumer-Gruppe, eine hängende Gruppe, die Schema-Version"
     },
+    "kafka-connect": {
+      "label": "Kafka-Connect-Connectoren",
+      "help": "Connectoren und ihre Tasks laufen (RUNNING), ein Task ist seit N Minuten fehlgeschlagen, der Rückstand eines Sink-Connectors, ein Debezium-Connector, dessen Topics seit N Minuten keine Nachricht bekamen"
+    },
     "mqtt": {
       "label": "MQTT-Topics",
       "help": "Nachrichten auf einem MQTT-Topic innerhalb von N Minuten, verstummte Geräte (Topics eines Musters), verbundene Clients"
@@ -729,6 +829,10 @@
       "label": "Schwachstellen (Dependency-Track)",
       "help": "Ein Dependency-Track-Projekt hat nicht mehr offene kritische (oder hohe) Befunde als erlaubt und keinen fehlgeschlagenen Richtlinienverstoß"
     },
+    "version-behind": {
+      "label": "Versionsrückstand",
+      "help": "Der Tech-Stack einer Anwendung ist aktuell: eingeschränkt bei mehr Minor-Versionen oder Tagen Rückstand als erlaubt, ausgefallen bei einer Hauptversion Rückstand oder wenn der Release-Zyklus sein Supportende erreicht hat (Versionsüberwachung)"
+    },
     "entra": {
       "label": "Entra ID (über Microsoft Graph)",
       "help": "App-Registrierungen, deren Geheimnisse oder Zertifikate innerhalb von N Tagen ablaufen, oder der Dienststatus von Microsoft 365"
@@ -740,6 +844,18 @@
     "dynamodb": {
       "label": "DynamoDB-Tabelle",
       "help": "Eine DynamoDB-Tabelle auf einer AWS-Plattform: das neueste Element je Partitionsschlüssel ist aktuell genug, die Tabelle wurde im Zeitfenster beschrieben (CloudWatch), oder ihr Status, die Point-in-Time-Wiederherstellung und die Gültigkeitsdauer (TTL)"
+    },
+    "page-watch": {
+      "label": "Seitenüberwachung (changedetection.io)",
+      "help": "Überwachungen von changedetection.io: eine Seite hat sich in den letzten N Stunden geändert (zur Information oder beeinträchtigt), eine Überwachung, deren letzte Prüfung fehlschlug oder die zu lange nicht geprüft wurde"
+    },
+    "cost": {
+      "label": "Kostenänderung",
+      "help": "Die Kosten eines Service, einer Anwendung, eines Teams oder einer Plattform: um mehr als einen Prozentsatz oder einen Betrag gestiegen gegenüber dem Monat davor"
+    },
+    "data-contract": {
+      "label": "Datenvertrag",
+      "help": "Ein ODCS-Datenvertrag: Sein Test über den Datenvertragsdienst besteht (Warnungen stufen herab), oder Stewards eigene Prüfungen – Eigentümer, letzter Test, Spalten verknüpfter Datensätze und Tabellen – finden nichts"
     }
   },
   "newCheck": {
@@ -755,15 +871,20 @@
     "kubernetes": "Kubernetes-Deployments",
     "git": "Repository-Pipeline",
     "kafka": "Kafka-Topic",
+    "kafka-connect": "Connectoren laufen",
     "mqtt": "MQTT-Topics",
     "monitor": "Untermonitor",
     "snowflake": "Snowflake-Tabelle aktuell",
     "dependency-track": "Keine kritischen Schwachstellen",
+    "version-behind": "Tech-Stack aktuell",
     "entra": "App-Zugangsdaten gültig",
     "privilege-vault": "Tresor-Hygiene",
     "database": "Datenbank erreichbar",
     "dynamodb": "DynamoDB-Tabelle aktuell",
-    "db-schema": "Keine inkompatible Schemaänderung"
+    "db-schema": "Keine inkompatible Schemaänderung",
+    "page-watch": "Herstellerseiten überwacht",
+    "cost": "Kosten steigen nicht",
+    "data-contract": "Datenvertrag eingehalten"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"

@@ -41,6 +41,7 @@ import {
   IconEngine,
   IconCpu,
   IconGauge,
+  IconContract,
 } from '@tabler/icons-react';
 import type {
   ApplicationSummary,
@@ -85,6 +86,7 @@ const RECENT_ICONS: Record<RecentKind, Icon> = {
   asset: IconEngine,
   profile: IconCpu,
   kpi: IconGauge,
+  contract: IconContract,
 };
 
 interface TestResult {

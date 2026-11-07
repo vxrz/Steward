@@ -4,6 +4,8 @@ import { forgejoSpec, githubSpec, gitlabSpec } from './gitSpecs.js';
 import { prometheusSpec } from './prometheusSpec.js';
 import { graphSpec } from './graphSpec.js';
 import { pvaultSpec } from './pvaultSpec.js';
+import { kafkaConnectSpec } from './kafkaConnectSpec.js';
+import { changedetectionSpec } from './changedetectionSpec.js';
 import { readAsset } from '../reports/pdf/assets.js';
 
 /**
@@ -327,6 +329,25 @@ export const PRESETS: PlatformPreset[] = [
     docs: [{ title: 'Dependency-Track REST API', url: 'https://docs.dependencytrack.org/integrations/rest-api/' }],
   },
   {
+    kind: 'changedetection',
+    label: 'changedetection.io (page watches, read-only)',
+    description:
+      "A changedetection.io instance that runs separately – its own container, with its own browser for JavaScript pages – and watches pages without an API: vendor changelogs and release notes, terms and pricing pages, status pages, documentation. Steward reads its watches (title, URL, tags, last check, last change, errors, snapshot times) as components of the platform, links them to applications, services or vendors, and checks them in monitors (check \"Page watch\"); changedetection.io's notifications start processes through a webhook trigger. Read-only: Steward never writes and never reads page contents – only metadata and the link to the diff. Base URL: the instance's root (e.g. http://changedetection:5000 on the same Docker network); variable uiUrl: its address in the browser, for links, when it differs. API key: Settings → API in changedetection.io, sent as x-api-key. The outbound policy must allow the instance's host. Software versions are better watched by the version watch of the tech stack. See docs/CHANGEDETECTION.md.",
+    baseUrl: 'https://changes.example.com',
+    config: {
+      auth: { type: 'apiKey', apiKeyIn: 'header', apiKeyName: 'x-api-key' },
+      variables: { uiUrl: '' },
+      http: {},
+      testPath: '/api/v1/systeminfo',
+    },
+    secretFields: [{ key: 'apiKey', label: 'API key', help: 'Settings → API in changedetection.io (with "Require API key" on)', auth: 'apiKey' }],
+    docs: [
+      { title: 'changedetection.io API', url: 'https://changedetection.io/docs/api_v1/' },
+      { title: 'changedetection.io on GitHub', url: 'https://github.com/dgtlmoon/changedetection.io' },
+      { title: 'Notifications (Apprise URLs)', url: 'https://github.com/dgtlmoon/changedetection.io/wiki/Notification-configuration-notes' },
+    ],
+  },
+  {
     kind: 'kafka',
     label: 'Kafka cluster (Confluent, read-only)',
     description:
@@ -357,10 +378,36 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'kafka-connect',
+    label: 'Kafka Connect (connectors, read-only)',
+    description:
+      'A Kafka Connect cluster through its REST API, read-only (also with Debezium for change data capture): Steward reads the connectors with type, class, version, state and topics, their tasks with state, worker and the error of a failed task, and the installed plugins; monitors check that connectors and tasks run, a task that failed for N minutes, the lag of a sink connector and Debezium connectors whose topics got no message. Steward never creates, restarts, pauses or resumes a connector – changing requests are refused for this kind –, and every configuration it reads has its secret-looking values removed and is never stored. Base URL: the REST API (https://connect.example.com:8083); variable kafkaPlatform: the name or id of its Kafka platform (for topics and lag). Sign-in: basic (username/password), a bearer token, or a client certificate (tlsCertificate/tlsKey, mutual TLS). See docs/KAFKA.md.',
+    baseUrl: 'https://connect.example.com:8083',
+    config: {
+      auth: { type: 'none' },
+      variables: { kafkaPlatform: '' },
+      http: {},
+      testPath: '/connectors',
+    },
+    secretFields: [
+      { key: 'username', label: 'User name (basic)', auth: 'basic', help: 'A user of the REST API that may read connectors (docs/KAFKA.md)' },
+      { key: 'password', label: 'Password (basic)', auth: 'basic' },
+      { key: 'token', label: 'Bearer token', auth: 'bearer' },
+      { key: 'tlsCertificate', label: 'Client certificate (PEM, mutual TLS)' },
+      { key: 'tlsKey', label: 'Private key of the client certificate (PEM)' },
+      { key: 'tlsKeyPassphrase', label: 'Passphrase of the private key (optional)' },
+    ],
+    docs: [
+      { title: 'Kafka Connect REST API', url: 'https://kafka.apache.org/documentation/#connect_rest' },
+      { title: 'Debezium connectors', url: 'https://debezium.io/documentation/reference/stable/connectors/index.html' },
+      { title: 'Kafka Connect: externalizing secrets (KIP-297)', url: 'https://kafka.apache.org/documentation/#connect_configproviders' },
+    ],
+  },
+  {
     kind: 'confluent-cloud',
     label: 'Confluent Cloud API (access reviews)',
     description:
-      'The Confluent Cloud API (https://api.confluent.cloud) for access reviews: an access check of source "Confluent" snapshots the role bindings of an organisation, environment or cluster (IAM v2, by CRN) and – with the variables kafkaRestUrl (the cluster\'s REST endpoint, https://pkc-….confluent.cloud:443) and clusterId (lkc-…) and the cluster\'s own API key – its Kafka ACLs; users are named by their e-mail address, so person reviews include Confluent. Credentials: a Cloud API key and secret (not a cluster key) of a service account with a role that may list role bindings, users and service accounts. Read-only. For topics, consumer lag and schemas use a "Kafka cluster" platform. See docs/CONFLUENT.md.',
+      'The Confluent Cloud API (https://api.confluent.cloud) for access reviews: an access check of source "Confluent" snapshots the role bindings of an organisation, environment or cluster (IAM v2, by CRN) and – with the variables kafkaRestUrl (the cluster\'s REST endpoint, https://pkc-….confluent.cloud:443) and clusterId (lkc-…) and the cluster\'s own API key – its Kafka ACLs; users are named by their e-mail address, so person reviews include Confluent. Platform costs read the Costs API (the key needs OrganizationAdmin or BillingAdmin for it, docs/COSTS.md). Credentials: a Cloud API key and secret (not a cluster key) of a service account with a role that may list role bindings, users and service accounts. Read-only. For topics, consumer lag and schemas use a "Kafka cluster" platform. See docs/CONFLUENT.md.',
     baseUrl: 'https://api.confluent.cloud',
     config: {
       auth: { type: 'basic' },
@@ -481,6 +528,43 @@ export const PRESETS: PlatformPreset[] = [
       { title: 'endoflife.date API v1', url: 'https://endoflife.date/docs/api/v1/' },
       { title: 'endoflife.date products', url: 'https://endoflife.date/' },
     ],
+  },
+  {
+    kind: 'container-registry',
+    label: 'Container registry (image tags, read-only)',
+    description:
+      "A container registry with the OCI distribution API – GitHub Container Registry, Harbor, GitLab, Artifactory, Nexus, Azure, Google or Amazon registries: the version watch reads the tags of images (GET /v2/<image>/tags/list) to find newer versions of the tech stack (Applications → Version watch). Base URL: the registry itself (https://ghcr.io); variable registry: the host images name (ghcr.io); variable testImage: an image for the connection test. Anonymous for public images, or username and password (a read-only robot account or token). The registry's token flow is handled; credentials only go to the platform's own origins (add the token service under trusted origins if it has its own host). See docs/APPLICATIONS.md#version-watch.",
+    baseUrl: 'https://ghcr.io',
+    config: { auth: { type: 'none' }, variables: { registry: 'ghcr.io', testImage: '' }, http: {} },
+    secretFields: [
+      { key: 'username', label: 'Username (optional)', auth: 'basic' },
+      { key: 'password', label: 'Password or token (optional)', help: 'A read-only robot account or token: pull rights are enough', auth: 'basic' },
+    ],
+    docs: [
+      { title: 'OCI distribution specification: listing tags', url: 'https://github.com/opencontainers/distribution-spec/blob/main/spec.md#listing-tags' },
+    ],
+  },
+  {
+    kind: 'container-registry',
+    label: 'Docker Hub (image tags, read-only)',
+    description:
+      'Docker Hub for the version watch: the tags of official and other public images (docker.io/library/postgres …). No credentials needed for public images (Docker Hub limits anonymous requests); its token service auth.docker.io is a trusted origin. See docs/APPLICATIONS.md#version-watch.',
+    baseUrl: 'https://registry-1.docker.io',
+    config: {
+      auth: { type: 'none' },
+      variables: { registry: 'docker.io', testImage: 'library/alpine' },
+      http: { trustedOrigins: ['https://auth.docker.io'] },
+    },
+    secretFields: [
+      { key: 'username', label: 'Docker Hub user (optional)', auth: 'basic' },
+      {
+        key: 'password',
+        label: 'Access token (optional, read-only)',
+        help: 'A personal access token with "Public Repo Read-only" raises the request limit',
+        auth: 'basic',
+      },
+    ],
+    docs: [{ title: 'Docker Hub registry API', url: 'https://docs.docker.com/reference/api/registry/latest/' }],
   },
   {
     kind: 'zabbix',
@@ -646,6 +730,27 @@ export const PRESETS: PlatformPreset[] = [
       },
     ],
   },
+  // Data contracts (0.9.0, #221, docs/DATA-CONTRACTS.md): the datacontract CLI's API as its own container
+  {
+    kind: 'datacontract',
+    label: 'Data contract service (datacontract CLI API)',
+    description:
+      'The datacontract CLI run as a web service ("datacontract api", MIT, https://cli.datacontract.com) – its own container next to Steward. Steward sends the ODCS contracts saved under Catalogue → Data contracts to POST /test, with the credentials of the tested server from its vault in the CLI\'s datacontract-* headers (per request, never in the contract), and stores the test run as evidence; POST /lint checks a contract with the CLI\'s own lint. Start the service with DATACONTRACT_CLI_API_KEY and enter the same key here (sent as x-api-key). The tested server is a database platform of Steward linked to the contract. Compose example and network rules: docs/DATA-CONTRACTS.md.',
+    baseUrl: 'http://datacontract:4242',
+    config: {
+      auth: { type: 'apiKey', apiKeyIn: 'header', apiKeyName: 'x-api-key' },
+      variables: {},
+      // a test reads the data: it can take minutes
+      http: { timeoutMs: 300_000 },
+      testPath: '/openapi.json',
+    },
+    secretFields: [{ key: 'apiKey', label: 'API key', help: 'The value of DATACONTRACT_CLI_API_KEY of the service (sent as x-api-key)', auth: 'apiKey' }],
+    docs: [
+      { title: 'datacontract CLI: API', url: 'https://cli.datacontract.com/#api' },
+      { title: 'datacontract CLI: test', url: 'https://cli.datacontract.com/#test' },
+      { title: 'Open Data Contract Standard (ODCS) v3', url: 'https://bitol-io.github.io/open-data-contract-standard/' },
+    ],
+  },
   {
     kind: 'generic',
     label: 'Generic REST API',
@@ -683,4 +788,8 @@ export const PRESET_SPECS: Record<string, () => { name: string; content: string 
   'microsoft-graph': () => [{ name: 'Microsoft Graph (Entra ID read endpoints)', content: JSON.stringify(graphSpec(), null, 2) }],
   // metadata only, no value endpoint (#205); the value endpoints are refused for the kind (deniedPaths.ts)
   'privilege-vault': () => [{ name: 'IBM Verify Privilege Vault REST API (metadata)', content: JSON.stringify(pvaultSpec(), null, 2) }],
+  // the read endpoints (0.9.0, #223); changing ones are refused for the kind (deniedPaths.ts)
+  'kafka-connect': () => [{ name: 'Kafka Connect REST API (read endpoints)', content: JSON.stringify(kafkaConnectSpec(), null, 2) }],
+  // the read endpoints the kind allows (#242); writes, snapshots and diffs are refused (deniedPaths.ts)
+  changedetection: () => [{ name: 'changedetection.io API (read endpoints)', content: JSON.stringify(changedetectionSpec(), null, 2) }],
 };

@@ -105,6 +105,11 @@ export const databaseSettingsSchema = z
           .optional(),
         /** The name the certificate is checked against, when it differs from the host */
         serverName: z.string().trim().max(253).regex(HOST_RE).optional(),
+        /**
+         * Data contract tests (#221, docs/DATA-CONTRACTS.md#tls-and-the-tested-host): the data contract service cannot verify the certificate of
+         * PostgreSQL and MySQL – with TLS "verify" or "require" their tests are refused unless this is set (default off)
+         */
+        contractServiceUnverified: z.boolean().optional(),
       })
       .strict()
       .default({ mode: 'verify' }),

@@ -66,6 +66,38 @@
       "secretHelp": {
         "username": "Ein nur lesendes Login (docs/DATABASES.md): db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION"
       }
+    },
+    "kafka-connect-connectors-read-only": {
+      "description": "Ein Kafka-Connect-Cluster über seine REST-API, nur lesend (auch mit Debezium für Change Data Capture): Steward liest die Connectoren mit Typ, Klasse, Version, Zustand und Topics, ihre Tasks mit Zustand, Worker und dem Fehler eines fehlgeschlagenen Tasks sowie die installierten Plugins; Monitore prüfen, dass Connectoren und Tasks laufen, einen seit N Minuten fehlgeschlagenen Task, den Rückstand eines Sink-Connectors und Debezium-Connectoren, deren Topics keine Nachricht bekamen. Steward legt nie einen Connector an, startet, pausiert oder setzt ihn fort – ändernde Anfragen werden für diese Art abgelehnt –, und jede gelesene Konfiguration wird ohne geheim aussehende Werte gezeigt und nie gespeichert. Basis-URL: die REST-API (https://connect.example.com:8083); Variable kafkaPlatform: Name oder ID der zugehörigen Kafka-Plattform (für Topics und Rückstand). Anmeldung: Basic (username/password), ein Bearer-Token oder ein Client-Zertifikat (tlsCertificate/tlsKey, mutual TLS). Siehe docs/KAFKA.md.",
+      "secrets": {
+        "username": "Benutzername (Basic)",
+        "password": "Passwort (Basic)",
+        "token": "Bearer-Token",
+        "tlsCertificate": "Client-Zertifikat (PEM, mutual TLS)",
+        "tlsKey": "Privater Schlüssel des Client-Zertifikats (PEM)",
+        "tlsKeyPassphrase": "Passphrase des privaten Schlüssels (optional)"
+      },
+      "secretHelp": {
+        "username": "Ein Benutzer der REST-API, der Connectoren lesen darf (docs/KAFKA.md)"
+      }
+    },
+    "changedetection-io-page-watches-read-only": {
+      "description": "Eine changedetection.io-Instanz, die getrennt läuft – in einem eigenen Container, mit eigenem Browser für JavaScript-Seiten – und Seiten ohne API überwacht: Changelogs und Release Notes von Herstellern, Nutzungsbedingungen und Preisseiten, Statusseiten, Dokumentation. Steward liest ihre Überwachungen (Titel, URL, Tags, letzte Prüfung, letzte Änderung, Fehler, Zeitpunkte der Stände) als Komponenten der Plattform, verknüpft sie mit Anwendungen, Services oder Herstellern und prüft sie in Monitoren (Prüfung „Seitenüberwachung“); die Benachrichtigungen von changedetection.io starten Prozesse über einen Webhook-Trigger. Nur lesend: Steward schreibt nie und liest nie Seiteninhalte – nur Metadaten und den Link zu den Unterschieden. Basis-URL: die Wurzel der Instanz (z. B. http://changedetection:5000 im selben Docker-Netz); Variable uiUrl: ihre Adresse im Browser, für Links, wenn sie abweicht. API-Schlüssel: Settings → API in changedetection.io, gesendet als x-api-key. Die Ausgangsrichtlinie muss den Host der Instanz erlauben. Softwareversionen beobachtet die Versionsbeobachtung des Tech-Stacks besser. Siehe docs/CHANGEDETECTION.md.",
+      "secrets": {
+        "apiKey": "API-Schlüssel"
+      },
+      "secretHelp": {
+        "apiKey": "Settings → API in changedetection.io (mit „Require API key“)"
+      }
+    },
+    "data-contract-service-datacontract-cli-api": {
+      "description": "Die datacontract CLI als Webdienst („datacontract api“, MIT, https://cli.datacontract.com) – ein eigener Container neben Steward. Steward sendet die unter Katalog → Datenverträge gespeicherten ODCS-Verträge an POST /test, mit den Zugangsdaten des getesteten Servers aus seinem Tresor in den datacontract-*-Headern der CLI (je Anfrage, nie im Vertrag), und speichert den Testlauf als Nachweis; POST /lint prüft einen Vertrag mit der eigenen Prüfung der CLI. Starten Sie den Dienst mit DATACONTRACT_CLI_API_KEY und tragen Sie denselben Schlüssel hier ein (gesendet als x-api-key). Der getestete Server ist eine mit dem Vertrag verknüpfte Datenbank-Plattform von Steward. Compose-Beispiel und Netzwerkregeln: docs/DATA-CONTRACTS.md.",
+      "secrets": {
+        "apiKey": "API-Schlüssel"
+      },
+      "secretHelp": {
+        "apiKey": "Der Wert von DATACONTRACT_CLI_API_KEY des Dienstes (gesendet als x-api-key)"
+      }
     }
   },
   "title": "Plattformen",
@@ -178,6 +210,7 @@
       "database": "Datenbank",
       "schema": "Schema",
       "credentials": "Zugangsdaten",
+      "identities": "Identitäten",
       "specs": "API-Spezifikationen",
       "docs": "Dokumentation",
       "explorer": "Explorer",
@@ -186,7 +219,9 @@
       "mcp": "MCP",
       "recordings": "Aufgezeichnete Antworten",
       "ai": "KI-Modelle",
-      "aiUsage": "KI-Nutzung"
+      "aiUsage": "KI-Nutzung",
+      "connectors": "Connectoren",
+      "watches": "Überwachungen"
     },
     "deleteText": "Damit wird <b>{{name}}</b> einschließlich gespeicherter Zugangsdaten, API-Spezifikationen und Dokumente gelöscht. Prozesse und Zeitpläne, die sie verwenden, schlagen fehl, bis eine andere Plattform gewählt wird. Das Audit-Log bleibt erhalten.",
     "typeToConfirm": "Zur Bestätigung „{{name}}“ eingeben"
@@ -219,6 +254,40 @@
     "store": "Geheimnis speichern",
     "removeTitle": "Geheimnis entfernen",
     "removeText": "Geheimnis <b>{{key}}</b> entfernen? Prozesse, die es verwenden, schlagen fehl, bis es wieder gesetzt ist."
+  },
+  "identities": {
+    "info": "Eine Identität ist ein Satz Zugangsdaten dieser Plattform. Jede Plattform hat eine Standard-Identität: Anfragen verwenden sie, wenn sie keine andere nennen. Ihre Zugangsdaten finden Sie im Reiter Zugangsdaten, den Zugriff für MCP-Clients im Reiter MCP.",
+    "none": "Diese Plattform hat noch keine Identität. Bitten Sie einen Administrator, die Verbindungseinstellungen zu prüfen.",
+    "default": "Standard",
+    "readOnly": "Nur lesen",
+    "privileged": "Privilegiert",
+    "changedOutside": "Außerhalb von Steward geändert",
+    "signIn": "Anmeldung",
+    "ownSignIn": "Eigene Anmeldeeinstellungen",
+    "platformSignIn": "Die Anmeldeeinstellungen der Plattform ({{auth}})",
+    "credentials": "Gespeicherte Zugangsdaten",
+    "noCredentials": "Keine gespeichert",
+    "openCredentials": "Im Reiter Zugangsdaten ändern",
+    "mcpLabel": "MCP-Clients",
+    "openMcp": "Im Reiter MCP ändern",
+    "operations": "Operationen",
+    "allOperations": "Alle Operationen",
+    "filtered": "Nur ausgewählte Operationen",
+    "whoMayUse": "Wer sie verwenden darf",
+    "everyoneWithUse": "Alle mit dem Recht „Nutzen“ auf dieser Plattform",
+    "accessList": "Die Personen und Teams auf ihrer Zugriffsliste",
+    "you": "Sie",
+    "youMayUse": "Sie dürfen sie verwenden",
+    "youMayNotUse": "Sie dürfen sie nicht verwenden",
+    "mcp": {
+      "off": "Aus",
+      "read": "Nur lesen",
+      "writes": "Lesen und ändernde Aufrufe nach Freigabe ({{mode}})",
+      "writeModes": {
+        "confirm": "der Besitzer des Tokens bestätigt",
+        "fourEyes": "eine zweite Person gibt frei"
+      }
+    }
   },
   "settings": {
     "kind": "Art",
@@ -421,7 +490,17 @@
     "confirm": "Einstellungen geprüft – bestätigen",
     "confirmQuestion": "Die aktuellen Verbindungseinstellungen (Basis-URL {{url}}) bestätigen? Prüfen Sie vorher die Einstellungen und das Audit-Log.",
     "confirmed": "Einstellungen bestätigt",
-    "askAdmin": "Bitten Sie einen Administrator, die Einstellungen zu prüfen und zu bestätigen."
+    "askAdmin": "Bitten Sie einen Administrator, die Einstellungen zu prüfen und zu bestätigen.",
+    "review": {
+      "identity": "Identität „{{name}}“",
+      "mcp": "MCP-Clients: {{mode}}",
+      "credentials": "Gespeicherte Zugangsdaten: {{keys}}",
+      "reset": "Steward 0.9.0 verwendet diese Einstellungen einer Identität nicht – sie werden beim Bestätigen auf die der Plattform zurückgesetzt:",
+      "variables": "Variablen: {{vars}}",
+      "signIn": "Eigene Anmeldung: {{type}} bei {{url}}",
+      "flags": "Merkmale: {{flags}}",
+      "remove": "In Steward 0.9.0 gibt es nur die Standard-Identität – diese Identität wird beim Bestätigen entfernt."
+    }
   },
   "recordings": {
     "title": "Aufgezeichnete Antworten",
@@ -759,7 +838,9 @@
     "docsLink": "Nur lesende Rollen und was Steward ablehnt (docs/DATABASES.md)",
     "save": "Verbindung speichern",
     "saved": "Verbindung gespeichert",
-    "notSaved": "Die Verbindung konnte nicht gespeichert werden"
+    "notSaved": "Die Verbindung konnte nicht gespeichert werden",
+    "contractServiceUnverified": "Dem Data-Contract-Dienst die Verbindung ohne Zertifikatsprüfung erlauben",
+    "contractServiceUnverifiedHint": "Der Data-Contract-Dienst kann das Zertifikat von PostgreSQL und MySQL nicht prüfen. Ohne diese Einstellung werden Data-Contract-Tests dieser Plattform abgelehnt, solange TLS eingeschaltet ist. Standardmäßig aus; die Änderung wird protokolliert."
   },
   "schema": {
     "title": "Datenbankschema",
@@ -973,5 +1054,121 @@
       "secretHelp": "Hinterlegen Sie es als Geheimnis des CI-Jobs (STEWARD_PUSH_TOKEN) und schicken Sie mit einem dieser Befehle.",
       "done": "Fertig"
     }
+  },
+  "connect": {
+    "title": "Connectoren",
+    "help": "Was Steward zuletzt über die REST-API von Kafka Connect gelesen hat, nur lesend: Connectoren, ihre Tasks und die installierten Plugins. Stündlich gelesen und mit „Jetzt lesen“. Steward startet, pausiert oder setzt nie einen Connector fort.",
+    "readNow": "Jetzt lesen",
+    "readFailed": "Kafka Connect konnte nicht gelesen werden",
+    "read": "Gelesen {{when}}",
+    "worker": "Kafka Connect {{version}}",
+    "kafkaPlatform": "Kafka-Plattform:",
+    "kafkaPlatformMissing": "Die Variable kafkaPlatform nennt keine Kafka-Plattform, die Sie sehen dürfen – Topics und Rückstand lassen sich nicht verknüpfen.",
+    "kafkaPlatformNone": "Keine Kafka-Plattform verknüpft (Variable kafkaPlatform) – Topics werden nicht mit Topic-Komponenten verknüpft.",
+    "readError": "Das letzte Lesen schlug fehl ({{when}}) – die Connectoren sind vom Lesen davor",
+    "empty": "Noch nicht gelesen",
+    "emptyHint": "„Jetzt lesen“ liest die Connectoren, Tasks und Plugins des Clusters.",
+    "emptyRead": "Keine Connectoren",
+    "emptyReadHint": "Der Cluster hat keinen Connector, oder das Konto darf sie nicht auflisten.",
+    "who": "Wer die Plattform nutzen darf, liest sie.",
+    "summary_one": "{{count}} Connector, {{running}} laufen",
+    "summary_other": "{{count}} Connectoren, {{running}} laufen",
+    "failedTasks_one": "{{count}} Task fehlgeschlagen",
+    "failedTasks_other": "{{count}} Tasks fehlgeschlagen",
+    "plugins_one": "{{count}} installiertes Plugin",
+    "plugins_other": "{{count}} installierte Plugins",
+    "pluginClass": "Klasse",
+    "type": "Typ",
+    "version": "Version",
+    "types": {
+      "source": "Quelle",
+      "sink": "Senke",
+      "unknown": "Unbekannt"
+    },
+    "config": "Konfiguration",
+    "configOf": "Konfiguration von {{name}}",
+    "configTitle": "Konfiguration von {{name}}",
+    "configHint": "Jetzt aus Kafka Connect gelesen und nicht gespeichert. Werte, die geheim aussehen (Passwörter, Tokens, Schlüssel, Zugangsdaten, sasl.jaas.config …), sind entfernt; das Lesen steht im Audit-Log.",
+    "key": "Schlüssel",
+    "value": "Wert",
+    "removed": "entfernt",
+    "tasks_one": "{{count}} Task",
+    "tasks_other": "{{count}} Tasks",
+    "task": "Task {{id}} {{state}}",
+    "reads": "Liest",
+    "writes": "Schreibt",
+    "group": "Consumer-Gruppe",
+    "capture": "Erfasst {{dbms}} auf {{host}}:{{port}}",
+    "noDatabase": "Keine Datenbank-Plattform und kein System passt (oder Sie dürfen sie nicht sehen)",
+    "showErrors_one": "Fehler anzeigen",
+    "showErrors_other": "{{count}} Fehler anzeigen",
+    "hideErrors": "Fehler ausblenden",
+    "connectorError": "Connector",
+    "taskError": "Task {{id}}",
+    "failedSince": "fehlgeschlagen {{when}}",
+    "traceHint": "Gekürzt; Werte, die geheim aussehen, sind entfernt."
+  },
+  "watches": {
+    "intro": "Die Überwachungen von changedetection.io sind die Komponenten dieser Plattform: Steward liest Titel, Seite, Tags, letzte Prüfung, letzte Änderung und Fehler – nie die Inhalte der Seiten. Verknüpfen Sie eine Überwachung mit einer Anwendung, einem Service oder einem Hersteller; die Monitorprüfung „Seitenüberwachung“ bewertet sie.",
+    "lastReadFailed": "Das letzte Lesen ist fehlgeschlagen",
+    "failingCount": "{{count}} fehlerhaft",
+    "lastRead": "Gelesen {{when}} von {{who}} · {{count}} Überwachungen · stündlich neu gelesen",
+    "neverRead": "Noch nicht gelesen",
+    "open": "changedetection.io öffnen",
+    "readNow": "Jetzt lesen",
+    "read_one": "{{count}} Überwachung gelesen",
+    "read_other": "{{count}} Überwachungen gelesen",
+    "readFailed": "Lesen von changedetection.io fehlgeschlagen",
+    "emptyTitle": "Keine Überwachungen",
+    "emptyText": "changedetection.io hat noch keine Überwachungen. Legen Sie die zu überwachenden Seiten dort an; Steward zeigt sie hier beim nächsten Lesen.",
+    "notReadTitle": "Überwachungen noch nicht gelesen",
+    "notReadText": "Lesen Sie die Überwachungen einmal; danach liest Steward sie stündlich mit Ihren Rechten neu.",
+    "whoCanRead": "Personen, die diese Plattform nutzen dürfen, lesen ihre Überwachungen.",
+    "search": "Titel, Seite, Hersteller, Anwendung durchsuchen",
+    "filterTag": "Tag",
+    "allTags": "Alle Tags",
+    "filterState": "Zustand",
+    "allStates": "Alle Zustände",
+    "noMatch": "Keine Überwachung passt zu den Filtern.",
+    "tableLabel": "Überwachungen von changedetection.io",
+    "limited": "{{shown}} von {{total}} Überwachungen: Steward behält höchstens {{max}} pro Plattform.",
+    "col": {
+      "watch": "Überwachung",
+      "state": "Zustand",
+      "changed": "Letzte Änderung",
+      "checked": "Letzte Prüfung",
+      "links": "Verknüpft mit",
+      "actions": "Aktionen"
+    },
+    "state": {
+      "ok": "OK",
+      "failing": "Fehlerhaft",
+      "paused": "Pausiert",
+      "unchecked": "Noch nicht geprüft",
+      "removed": "Entfernt"
+    },
+    "never": "nie",
+    "changedChecked": "Geändert: {{changed}} · geprüft {{checked}}",
+    "hidden": "(für Sie nicht sichtbar)",
+    "vendorIs": "Hersteller: {{vendor}}",
+    "diff": "Unterschiede",
+    "diffOf": "Unterschiede von {{title}} in changedetection.io",
+    "history": "Verlauf",
+    "historyOf": "Verlauf von {{title}}",
+    "link": "Verknüpfen",
+    "linkOf": "{{title}} verknüpfen",
+    "linkTitle": "„{{title}}“ verknüpfen",
+    "linkIntro": "Die Überwachung erscheint dann bei der Anwendung oder dem Service (unter „Verwiesen von“), und der Hersteller nennt, wessen Seite es ist.",
+    "application": "Anwendung",
+    "service": "Service",
+    "vendor": "Hersteller",
+    "vendorHint": "Wessen Seite es ist, z. B. der Anbieter eines Cloud-Dienstes",
+    "linked": "Verknüpfungen gespeichert",
+    "historyTitle": "Verlauf von „{{title}}“",
+    "snapshots_one": "{{count}} Stand, {{changes}} Änderungen",
+    "snapshots_other": "{{count}} Stände, {{changes}} Änderungen",
+    "firstSnapshot": "erster Abruf",
+    "historyNote": "Nur die Zeitpunkte: Die Stände selbst bleiben in changedetection.io.",
+    "noChange": "noch keine Änderung"
   }
 }

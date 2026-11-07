@@ -9,6 +9,8 @@ import type { KafkaReader, RawMessage } from '../kafka/client.js';
  *   orders        3 partitions, new messages every minute, group order-service keeps up, group billing is stuck
  *   payments      no new message for 3 hours
  *   shop-events   compacted, 1 partition, retention -1
+ *   shop.public.orders, shop.public.customers   written by the Debezium connector shop-cdc of Kafka Connect (demo,
+ *                 mockKafkaConnect.ts); the sink connector orders-archive reads orders as group connect-orders-archive
  */
 
 export const DEMO_KAFKA = { username: 'DEMOKEY', password: 'demo-kafka-secret', registryKey: 'SRKEY', registrySecret: 'demo-registry-secret' };
@@ -75,10 +77,29 @@ function seed() {
       newest: now - 20 * MIN,
       messages: [{ partition: 0, offset: 54, at: now - 20 * MIN, key: 'cart-9', value: 'not json: cart 9 checked out' }],
     },
+    // change data capture of the shop database (Kafka Connect, #223)
+    'shop.public.orders': {
+      partitions: 1,
+      replication: 3,
+      configs: { 'cleanup.policy': 'delete', 'retention.ms': String(7 * 24 * 3600_000), 'min.insync.replicas': '2' },
+      ends: [1250],
+      newest: now - 2 * MIN,
+      messages: [],
+    },
+    'shop.public.customers': {
+      partitions: 1,
+      replication: 3,
+      configs: { 'cleanup.policy': 'compact', 'min.insync.replicas': '2' },
+      ends: [310],
+      newest: now - 50 * MIN,
+      messages: [],
+    },
   };
   const groups: Record<string, Group> = {
     'order-service': { state: 'Stable', committed: { orders: [4199, 4180, 4210] } },
     billing: { state: 'Stable', committed: { orders: [3100, 3050, 3122], payments: [900, 912] } },
+    // the sink connector orders-archive (Kafka Connect, #223): one of its two tasks failed
+    'connect-orders-archive': { state: 'Stable', committed: { orders: [4150, 4100, 4210] } },
   };
   return { topics, groups };
 }

@@ -550,7 +550,8 @@ export interface ItemLink {
  */
 export interface Backlink {
   linkId: string;
-  kind: 'record' | 'service' | 'credential' | 'application' | 'site' | 'asset';
+  /** page-watch: a watch of changedetection.io linked to the application or service (#242) */
+  kind: 'record' | 'service' | 'credential' | 'application' | 'site' | 'asset' | 'page-watch';
   id: string;
   label: string;
   note: string;

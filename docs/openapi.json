@@ -2464,6 +2464,128 @@
             },
             "description": "What the token owner may do with this platform"
           },
+          "identities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "default": {
+                  "type": "boolean",
+                  "description": "Requests that name no identity use the default identity; every platform has exactly one"
+                },
+                "readOnly": {
+                  "type": "boolean"
+                },
+                "privileged": {
+                  "type": "boolean"
+                },
+                "mcp": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "off",
+                        "read",
+                        "writes"
+                      ]
+                    },
+                    "writes": {
+                      "type": "string",
+                      "enum": [
+                        "confirm",
+                        "fourEyes"
+                      ],
+                      "description": "How changing calls are approved (with mode \"writes\"; with \"off\" the mode chosen before)"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Access for MCP clients through the platform gateway"
+                },
+                "operationFilter": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "preset": {
+                          "type": "string",
+                          "enum": [
+                            "read",
+                            "chosen"
+                          ]
+                        },
+                        "operations": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "specId": {
+                                "type": "string"
+                              },
+                              "method": {
+                                "type": "string"
+                              },
+                              "specPath": {
+                                "type": "string"
+                              },
+                              "operationId": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "specId",
+                              "method",
+                              "specPath"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "preset",
+                        "operations"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The operations the identity may call; null: all"
+                },
+                "mayUse": {
+                  "type": "boolean",
+                  "description": "Whether the token owner may use this identity"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "description",
+                "default",
+                "readOnly",
+                "privileged",
+                "mcp",
+                "operationFilter",
+                "mayUse"
+              ],
+              "additionalProperties": false,
+              "description": "One set of credentials of a platform (ADR 0009) – names and flags only. Credentials, sign-in settings and variables are never part of the API."
+            },
+            "description": "Its identities, the default first (names and flags only)"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -2484,6 +2606,7 @@
           "baseUrl",
           "authType",
           "permissions",
+          "identities",
           "createdAt",
           "updatedAt"
         ],
@@ -2501,10 +2624,144 @@
             "permissions": [
               "use"
             ],
+            "identities": [
+              {
+                "id": "pi_2bV9xLq0aYc1",
+                "name": "Default",
+                "description": "",
+                "default": true,
+                "readOnly": false,
+                "privileged": false,
+                "mcp": {
+                  "mode": "read"
+                },
+                "operationFilter": null,
+                "mayUse": true
+              }
+            ],
             "createdAt": "2026-09-01T08:15:00.000Z",
             "updatedAt": "2026-10-01T10:00:00.000Z"
           }
         ]
+      },
+      "PlatformIdentity": {
+        "title": "PlatformIdentity",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "default": {
+            "type": "boolean",
+            "description": "Requests that name no identity use the default identity; every platform has exactly one"
+          },
+          "readOnly": {
+            "type": "boolean"
+          },
+          "privileged": {
+            "type": "boolean"
+          },
+          "mcp": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "read",
+                  "writes"
+                ]
+              },
+              "writes": {
+                "type": "string",
+                "enum": [
+                  "confirm",
+                  "fourEyes"
+                ],
+                "description": "How changing calls are approved (with mode \"writes\"; with \"off\" the mode chosen before)"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "additionalProperties": false,
+            "description": "Access for MCP clients through the platform gateway"
+          },
+          "operationFilter": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "preset": {
+                    "type": "string",
+                    "enum": [
+                      "read",
+                      "chosen"
+                    ]
+                  },
+                  "operations": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "specId": {
+                          "type": "string"
+                        },
+                        "method": {
+                          "type": "string"
+                        },
+                        "specPath": {
+                          "type": "string"
+                        },
+                        "operationId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "specId",
+                        "method",
+                        "specPath"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "preset",
+                  "operations"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The operations the identity may call; null: all"
+          },
+          "mayUse": {
+            "type": "boolean",
+            "description": "Whether the token owner may use this identity"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "default",
+          "readOnly",
+          "privileged",
+          "mcp",
+          "operationFilter",
+          "mayUse"
+        ],
+        "additionalProperties": false,
+        "description": "One set of credentials of a platform (ADR 0009) – names and flags only. Credentials, sign-in settings and variables are never part of the API."
       },
       "Trigger": {
         "title": "Trigger",
@@ -3952,14 +4209,19 @@
               "kubernetes",
               "git",
               "kafka",
+              "kafka-connect",
               "mqtt",
               "snowflake",
               "database",
               "dynamodb",
               "db-schema",
+              "cost",
+              "data-contract",
               "dependency-track",
+              "version-behind",
               "entra",
               "privilege-vault",
+              "page-watch",
               "monitor"
             ]
           },
@@ -4377,14 +4639,19 @@
                     "kubernetes",
                     "git",
                     "kafka",
+                    "kafka-connect",
                     "mqtt",
                     "snowflake",
                     "database",
                     "dynamodb",
                     "db-schema",
+                    "cost",
+                    "data-contract",
                     "dependency-track",
+                    "version-behind",
                     "entra",
                     "privilege-vault",
+                    "page-watch",
                     "monitor"
                   ]
                 },
@@ -10057,6 +10324,145 @@
                           }
                         ],
                         "description": "End of life of the release cycle in use (from endoflife.date); null: no data for the product"
+                      },
+                      "watch": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "dtrack",
+                                      "registry",
+                                      "oci",
+                                      "git",
+                                      "endoflife"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The source that answered first (dtrack, registry, oci, git, endoflife); null: none"
+                              },
+                              "ref": {
+                                "type": "string",
+                                "description": "What was looked up: a package URL, an image, a repository, the product"
+                              },
+                              "where": {
+                                "type": "string",
+                                "description": "Where: npm, PyPI …, a platform’s name, endoflife.date"
+                              },
+                              "newest": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "The newest version, as the source names it (a tag keeps its suffix)"
+                              },
+                              "newestAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "When it was published, if the source says"
+                              },
+                              "lag": {
+                                "type": "string",
+                                "enum": [
+                                  "current",
+                                  "patch",
+                                  "minor",
+                                  "major",
+                                  "unknown"
+                                ],
+                                "description": "current, patch, minor, major or unknown"
+                              },
+                              "behind": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "major": {
+                                        "type": "integer"
+                                      },
+                                      "minor": {
+                                        "type": "integer"
+                                      },
+                                      "patch": {
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "required": [
+                                      "major",
+                                      "minor",
+                                      "patch"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The first part that differs"
+                              },
+                              "daysBehind": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Days since the first release newer than the installed one"
+                              },
+                              "checkedAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "error": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Why no source answered"
+                              },
+                              "configured": {
+                                "type": "boolean",
+                                "description": "The entry has its own setting"
+                              },
+                              "prereleases": {
+                                "type": "boolean",
+                                "description": "Pre-releases count"
+                              }
+                            },
+                            "required": [
+                              "source",
+                              "ref",
+                              "where",
+                              "newest",
+                              "newestAt",
+                              "lag",
+                              "behind",
+                              "daysBehind",
+                              "checkedAt",
+                              "error",
+                              "configured",
+                              "prereleases"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The newest version from the version watch and how far behind this one is; null: not watched"
                       }
                     },
                     "required": [
@@ -10469,6 +10875,145 @@
                           }
                         ],
                         "description": "End of life of the release cycle in use (from endoflife.date); null: no data for the product"
+                      },
+                      "watch": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "dtrack",
+                                      "registry",
+                                      "oci",
+                                      "git",
+                                      "endoflife"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The source that answered first (dtrack, registry, oci, git, endoflife); null: none"
+                              },
+                              "ref": {
+                                "type": "string",
+                                "description": "What was looked up: a package URL, an image, a repository, the product"
+                              },
+                              "where": {
+                                "type": "string",
+                                "description": "Where: npm, PyPI …, a platform’s name, endoflife.date"
+                              },
+                              "newest": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "The newest version, as the source names it (a tag keeps its suffix)"
+                              },
+                              "newestAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "When it was published, if the source says"
+                              },
+                              "lag": {
+                                "type": "string",
+                                "enum": [
+                                  "current",
+                                  "patch",
+                                  "minor",
+                                  "major",
+                                  "unknown"
+                                ],
+                                "description": "current, patch, minor, major or unknown"
+                              },
+                              "behind": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "major": {
+                                        "type": "integer"
+                                      },
+                                      "minor": {
+                                        "type": "integer"
+                                      },
+                                      "patch": {
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "required": [
+                                      "major",
+                                      "minor",
+                                      "patch"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The first part that differs"
+                              },
+                              "daysBehind": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Days since the first release newer than the installed one"
+                              },
+                              "checkedAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "error": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Why no source answered"
+                              },
+                              "configured": {
+                                "type": "boolean",
+                                "description": "The entry has its own setting"
+                              },
+                              "prereleases": {
+                                "type": "boolean",
+                                "description": "Pre-releases count"
+                              }
+                            },
+                            "required": [
+                              "source",
+                              "ref",
+                              "where",
+                              "newest",
+                              "newestAt",
+                              "lag",
+                              "behind",
+                              "daysBehind",
+                              "checkedAt",
+                              "error",
+                              "configured",
+                              "prereleases"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The newest version from the version watch and how far behind this one is; null: not watched"
                       }
                     },
                     "required": [
@@ -11053,6 +11598,145 @@
                     }
                   ],
                   "description": "End of life of the release cycle in use (from endoflife.date); null: no data for the product"
+                },
+                "watch": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "dtrack",
+                                "registry",
+                                "oci",
+                                "git",
+                                "endoflife"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The source that answered first (dtrack, registry, oci, git, endoflife); null: none"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "description": "What was looked up: a package URL, an image, a repository, the product"
+                        },
+                        "where": {
+                          "type": "string",
+                          "description": "Where: npm, PyPI …, a platform’s name, endoflife.date"
+                        },
+                        "newest": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "The newest version, as the source names it (a tag keeps its suffix)"
+                        },
+                        "newestAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "When it was published, if the source says"
+                        },
+                        "lag": {
+                          "type": "string",
+                          "enum": [
+                            "current",
+                            "patch",
+                            "minor",
+                            "major",
+                            "unknown"
+                          ],
+                          "description": "current, patch, minor, major or unknown"
+                        },
+                        "behind": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "major": {
+                                  "type": "integer"
+                                },
+                                "minor": {
+                                  "type": "integer"
+                                },
+                                "patch": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "major",
+                                "minor",
+                                "patch"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The first part that differs"
+                        },
+                        "daysBehind": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Days since the first release newer than the installed one"
+                        },
+                        "checkedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Why no source answered"
+                        },
+                        "configured": {
+                          "type": "boolean",
+                          "description": "The entry has its own setting"
+                        },
+                        "prereleases": {
+                          "type": "boolean",
+                          "description": "Pre-releases count"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "ref",
+                        "where",
+                        "newest",
+                        "newestAt",
+                        "lag",
+                        "behind",
+                        "daysBehind",
+                        "checkedAt",
+                        "error",
+                        "configured",
+                        "prereleases"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The newest version from the version watch and how far behind this one is; null: not watched"
                 }
               },
               "required": [
@@ -14065,6 +14749,319 @@
             ],
             "additionalProperties": false,
             "description": "Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects"
+          },
+          "upToDate": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: a stack entry a major release behind; pending: more minor releases or days behind than the version watch allows; none: not counted (turned off) or no entry with a known newest version"
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "Counted (version watch settings)"
+              },
+              "entries": {
+                "type": "integer",
+                "description": "Stack entries with a known newest version"
+              },
+              "major": {
+                "type": "integer",
+                "description": "Entries a major release behind"
+              },
+              "behind": {
+                "type": "integer",
+                "description": "Entries behind more than allowed, not by a major release"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "applicationId": {
+                      "type": "string"
+                    },
+                    "applicationName": {
+                      "type": "string"
+                    },
+                    "componentName": {
+                      "type": "string",
+                      "description": "The component or system"
+                    },
+                    "holder": {
+                      "type": "string",
+                      "enum": [
+                        "component",
+                        "system"
+                      ]
+                    },
+                    "environment": {
+                      "type": "string"
+                    },
+                    "production": {
+                      "type": "boolean"
+                    },
+                    "product": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string",
+                      "description": "Installed"
+                    },
+                    "newest": {
+                      "type": "string",
+                      "description": "The newest version, as the source names it"
+                    },
+                    "lag": {
+                      "type": "string",
+                      "enum": [
+                        "current",
+                        "patch",
+                        "minor",
+                        "major",
+                        "unknown"
+                      ]
+                    },
+                    "behind": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "major": {
+                              "type": "integer"
+                            },
+                            "minor": {
+                              "type": "integer"
+                            },
+                            "patch": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "major",
+                            "minor",
+                            "patch"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "daysBehind": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Days since the first newer release"
+                    }
+                  },
+                  "required": [
+                    "applicationId",
+                    "applicationName",
+                    "componentName",
+                    "holder",
+                    "environment",
+                    "production",
+                    "product",
+                    "label",
+                    "version",
+                    "newest",
+                    "lag",
+                    "behind",
+                    "daysBehind"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "The entries behind more than allowed, major first"
+              }
+            },
+            "required": [
+              "status",
+              "enabled",
+              "entries",
+              "major",
+              "behind",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "Up to date: how far the tech stack of the service’s applications is behind the newest versions (version watch)"
+          },
+          "costs": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: this month’s costs reached the service’s monthly cost budget; pending: 80 % of it, or the forecast of the month is above it; ok: below; none: no cost budget"
+              },
+              "budgetPct": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "This month so far in percent of the budget"
+              },
+              "forecastPct": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "The month’s forecast in percent of the budget"
+              },
+              "currency": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "thisMonth": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Decimal; null when the token owner may not see the service’s costs"
+              },
+              "budget": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Decimal; null when the token owner may not see the service’s costs"
+              },
+              "stateOnly": {
+                "type": "boolean",
+                "description": "The token owner does not see every application of the service: only the status from the budget’s state (budgetPct, forecastPct and thisMonth are null)"
+              }
+            },
+            "required": [
+              "status",
+              "budgetPct",
+              "forecastPct",
+              "currency",
+              "thisMonth",
+              "budget",
+              "stateOnly"
+            ],
+            "additionalProperties": false,
+            "description": "Costs: the month’s costs against the service’s monthly cost budget (docs/COSTS.md)"
+          },
+          "contracts": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: a linked data contract whose last test failed or with an error finding (columns missing in the source); pending: a contract never tested or with other findings; none: no data contract is linked to the service’s applications or their systems"
+              },
+              "contracts": {
+                "type": "integer",
+                "description": "Linked data contracts the token owner may see"
+              },
+              "failed": {
+                "type": "integer",
+                "description": "Contracts whose last test failed or with an error finding"
+              },
+              "untested": {
+                "type": "integer",
+                "description": "Contracts never tested"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "result": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "passed",
+                            "warning",
+                            "failed",
+                            "error"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The last test (dry runs left out); null: never tested"
+                    },
+                    "testedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    "findings": {
+                      "type": "integer",
+                      "description": "Steward’s own findings (no owner, not tested, columns, lint)"
+                    },
+                    "errors": {
+                      "type": "integer",
+                      "description": "Of them errors"
+                    }
+                  },
+                  "required": [
+                    "contractId",
+                    "name",
+                    "result",
+                    "testedAt",
+                    "findings",
+                    "errors"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "The contracts that are not ok, worst first"
+              }
+            },
+            "required": [
+              "status",
+              "contracts",
+              "failed",
+              "untested",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "Data contracts (ODCS v3) linked to the service’s applications or their systems: their last test and Steward’s own findings"
           }
         },
         "required": [
@@ -14078,7 +15075,10 @@
           "documentation",
           "protection",
           "lifecycle",
-          "vulnerabilities"
+          "vulnerabilities",
+          "upToDate",
+          "costs",
+          "contracts"
         ],
         "additionalProperties": false
       },
@@ -14922,6 +15922,319 @@
                   ],
                   "additionalProperties": false,
                   "description": "Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects"
+                },
+                "upToDate": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none"
+                      ],
+                      "description": "attention: a stack entry a major release behind; pending: more minor releases or days behind than the version watch allows; none: not counted (turned off) or no entry with a known newest version"
+                    },
+                    "enabled": {
+                      "type": "boolean",
+                      "description": "Counted (version watch settings)"
+                    },
+                    "entries": {
+                      "type": "integer",
+                      "description": "Stack entries with a known newest version"
+                    },
+                    "major": {
+                      "type": "integer",
+                      "description": "Entries a major release behind"
+                    },
+                    "behind": {
+                      "type": "integer",
+                      "description": "Entries behind more than allowed, not by a major release"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "applicationId": {
+                            "type": "string"
+                          },
+                          "applicationName": {
+                            "type": "string"
+                          },
+                          "componentName": {
+                            "type": "string",
+                            "description": "The component or system"
+                          },
+                          "holder": {
+                            "type": "string",
+                            "enum": [
+                              "component",
+                              "system"
+                            ]
+                          },
+                          "environment": {
+                            "type": "string"
+                          },
+                          "production": {
+                            "type": "boolean"
+                          },
+                          "product": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string",
+                            "description": "Installed"
+                          },
+                          "newest": {
+                            "type": "string",
+                            "description": "The newest version, as the source names it"
+                          },
+                          "lag": {
+                            "type": "string",
+                            "enum": [
+                              "current",
+                              "patch",
+                              "minor",
+                              "major",
+                              "unknown"
+                            ]
+                          },
+                          "behind": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "major": {
+                                    "type": "integer"
+                                  },
+                                  "minor": {
+                                    "type": "integer"
+                                  },
+                                  "patch": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "major",
+                                  "minor",
+                                  "patch"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "daysBehind": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Days since the first newer release"
+                          }
+                        },
+                        "required": [
+                          "applicationId",
+                          "applicationName",
+                          "componentName",
+                          "holder",
+                          "environment",
+                          "production",
+                          "product",
+                          "label",
+                          "version",
+                          "newest",
+                          "lag",
+                          "behind",
+                          "daysBehind"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The entries behind more than allowed, major first"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "enabled",
+                    "entries",
+                    "major",
+                    "behind",
+                    "items"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Up to date: how far the tech stack of the service’s applications is behind the newest versions (version watch)"
+                },
+                "costs": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none"
+                      ],
+                      "description": "attention: this month’s costs reached the service’s monthly cost budget; pending: 80 % of it, or the forecast of the month is above it; ok: below; none: no cost budget"
+                    },
+                    "budgetPct": {
+                      "type": [
+                        "null",
+                        "number"
+                      ],
+                      "description": "This month so far in percent of the budget"
+                    },
+                    "forecastPct": {
+                      "type": [
+                        "null",
+                        "number"
+                      ],
+                      "description": "The month’s forecast in percent of the budget"
+                    },
+                    "currency": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "thisMonth": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Decimal; null when the token owner may not see the service’s costs"
+                    },
+                    "budget": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Decimal; null when the token owner may not see the service’s costs"
+                    },
+                    "stateOnly": {
+                      "type": "boolean",
+                      "description": "The token owner does not see every application of the service: only the status from the budget’s state (budgetPct, forecastPct and thisMonth are null)"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "budgetPct",
+                    "forecastPct",
+                    "currency",
+                    "thisMonth",
+                    "budget",
+                    "stateOnly"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Costs: the month’s costs against the service’s monthly cost budget (docs/COSTS.md)"
+                },
+                "contracts": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none"
+                      ],
+                      "description": "attention: a linked data contract whose last test failed or with an error finding (columns missing in the source); pending: a contract never tested or with other findings; none: no data contract is linked to the service’s applications or their systems"
+                    },
+                    "contracts": {
+                      "type": "integer",
+                      "description": "Linked data contracts the token owner may see"
+                    },
+                    "failed": {
+                      "type": "integer",
+                      "description": "Contracts whose last test failed or with an error finding"
+                    },
+                    "untested": {
+                      "type": "integer",
+                      "description": "Contracts never tested"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "contractId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "result": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "passed",
+                                  "warning",
+                                  "failed",
+                                  "error"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The last test (dry runs left out); null: never tested"
+                          },
+                          "testedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "ISO 8601 timestamp (UTC)"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "findings": {
+                            "type": "integer",
+                            "description": "Steward’s own findings (no owner, not tested, columns, lint)"
+                          },
+                          "errors": {
+                            "type": "integer",
+                            "description": "Of them errors"
+                          }
+                        },
+                        "required": [
+                          "contractId",
+                          "name",
+                          "result",
+                          "testedAt",
+                          "findings",
+                          "errors"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The contracts that are not ok, worst first"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "contracts",
+                    "failed",
+                    "untested",
+                    "items"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Data contracts (ODCS v3) linked to the service’s applications or their systems: their last test and Steward’s own findings"
                 }
               },
               "required": [
@@ -14935,7 +16248,10 @@
                 "documentation",
                 "protection",
                 "lifecycle",
-                "vulnerabilities"
+                "vulnerabilities",
+                "upToDate",
+                "costs",
+                "contracts"
               ],
               "additionalProperties": false
             }
@@ -15108,6 +16424,78 @@
                           "none"
                         ],
                         "additionalProperties": false
+                      },
+                      "upToDate": {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "integer"
+                          },
+                          "attention": {
+                            "type": "integer"
+                          },
+                          "pending": {
+                            "type": "integer"
+                          },
+                          "none": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "attention",
+                          "pending",
+                          "none"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "costs": {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "integer"
+                          },
+                          "attention": {
+                            "type": "integer"
+                          },
+                          "pending": {
+                            "type": "integer"
+                          },
+                          "none": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "attention",
+                          "pending",
+                          "none"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "contracts": {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "integer"
+                          },
+                          "attention": {
+                            "type": "integer"
+                          },
+                          "pending": {
+                            "type": "integer"
+                          },
+                          "none": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "attention",
+                          "pending",
+                          "none"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -15116,7 +16504,10 @@
                       "documentation",
                       "protection",
                       "lifecycle",
-                      "vulnerabilities"
+                      "vulnerabilities",
+                      "upToDate",
+                      "costs",
+                      "contracts"
                     ],
                     "additionalProperties": false
                   }
@@ -15297,6 +16688,78 @@
                             "none"
                           ],
                           "additionalProperties": false
+                        },
+                        "upToDate": {
+                          "type": "object",
+                          "properties": {
+                            "ok": {
+                              "type": "integer"
+                            },
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "pending": {
+                              "type": "integer"
+                            },
+                            "none": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "ok",
+                            "attention",
+                            "pending",
+                            "none"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "costs": {
+                          "type": "object",
+                          "properties": {
+                            "ok": {
+                              "type": "integer"
+                            },
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "pending": {
+                              "type": "integer"
+                            },
+                            "none": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "ok",
+                            "attention",
+                            "pending",
+                            "none"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "contracts": {
+                          "type": "object",
+                          "properties": {
+                            "ok": {
+                              "type": "integer"
+                            },
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "pending": {
+                              "type": "integer"
+                            },
+                            "none": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "ok",
+                            "attention",
+                            "pending",
+                            "none"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -15305,7 +16768,10 @@
                         "documentation",
                         "protection",
                         "lifecycle",
-                        "vulnerabilities"
+                        "vulnerabilities",
+                        "upToDate",
+                        "costs",
+                        "contracts"
                       ],
                       "additionalProperties": false
                     }
@@ -15525,6 +16991,93 @@
                   "hidden"
                 ],
                 "additionalProperties": false
+              },
+              "upToDate": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "integer"
+                  },
+                  "attention": {
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "type": "integer"
+                  },
+                  "none": {
+                    "type": "integer"
+                  },
+                  "hidden": {
+                    "type": "integer",
+                    "description": "Relied on documents the token owner may not read"
+                  }
+                },
+                "required": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none",
+                  "hidden"
+                ],
+                "additionalProperties": false
+              },
+              "costs": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "integer"
+                  },
+                  "attention": {
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "type": "integer"
+                  },
+                  "none": {
+                    "type": "integer"
+                  },
+                  "hidden": {
+                    "type": "integer",
+                    "description": "Relied on documents the token owner may not read"
+                  }
+                },
+                "required": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none",
+                  "hidden"
+                ],
+                "additionalProperties": false
+              },
+              "contracts": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "integer"
+                  },
+                  "attention": {
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "type": "integer"
+                  },
+                  "none": {
+                    "type": "integer"
+                  },
+                  "hidden": {
+                    "type": "integer",
+                    "description": "Relied on documents the token owner may not read"
+                  }
+                },
+                "required": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none",
+                  "hidden"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -15533,7 +17086,10 @@
               "documentation",
               "protection",
               "lifecycle",
-              "vulnerabilities"
+              "vulnerabilities",
+              "upToDate",
+              "costs",
+              "contracts"
             ],
             "additionalProperties": false
           }
@@ -16377,6 +17933,319 @@
             "additionalProperties": false,
             "description": "Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects"
           },
+          "upToDate": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: a stack entry a major release behind; pending: more minor releases or days behind than the version watch allows; none: not counted (turned off) or no entry with a known newest version"
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "Counted (version watch settings)"
+              },
+              "entries": {
+                "type": "integer",
+                "description": "Stack entries with a known newest version"
+              },
+              "major": {
+                "type": "integer",
+                "description": "Entries a major release behind"
+              },
+              "behind": {
+                "type": "integer",
+                "description": "Entries behind more than allowed, not by a major release"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "applicationId": {
+                      "type": "string"
+                    },
+                    "applicationName": {
+                      "type": "string"
+                    },
+                    "componentName": {
+                      "type": "string",
+                      "description": "The component or system"
+                    },
+                    "holder": {
+                      "type": "string",
+                      "enum": [
+                        "component",
+                        "system"
+                      ]
+                    },
+                    "environment": {
+                      "type": "string"
+                    },
+                    "production": {
+                      "type": "boolean"
+                    },
+                    "product": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string",
+                      "description": "Installed"
+                    },
+                    "newest": {
+                      "type": "string",
+                      "description": "The newest version, as the source names it"
+                    },
+                    "lag": {
+                      "type": "string",
+                      "enum": [
+                        "current",
+                        "patch",
+                        "minor",
+                        "major",
+                        "unknown"
+                      ]
+                    },
+                    "behind": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "major": {
+                              "type": "integer"
+                            },
+                            "minor": {
+                              "type": "integer"
+                            },
+                            "patch": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "major",
+                            "minor",
+                            "patch"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "daysBehind": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Days since the first newer release"
+                    }
+                  },
+                  "required": [
+                    "applicationId",
+                    "applicationName",
+                    "componentName",
+                    "holder",
+                    "environment",
+                    "production",
+                    "product",
+                    "label",
+                    "version",
+                    "newest",
+                    "lag",
+                    "behind",
+                    "daysBehind"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "The entries behind more than allowed, major first"
+              }
+            },
+            "required": [
+              "status",
+              "enabled",
+              "entries",
+              "major",
+              "behind",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "Up to date: how far the tech stack of the service’s applications is behind the newest versions (version watch)"
+          },
+          "costs": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: this month’s costs reached the service’s monthly cost budget; pending: 80 % of it, or the forecast of the month is above it; ok: below; none: no cost budget"
+              },
+              "budgetPct": {
+                "type": [
+                  "null",
+                  "number"
+                ],
+                "description": "This month so far in percent of the budget"
+              },
+              "forecastPct": {
+                "type": [
+                  "null",
+                  "number"
+                ],
+                "description": "The month’s forecast in percent of the budget"
+              },
+              "currency": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "thisMonth": {
+                "type": [
+                  "null",
+                  "string"
+                ],
+                "description": "Decimal; null when the token owner may not see the service’s costs"
+              },
+              "budget": {
+                "type": [
+                  "null",
+                  "string"
+                ],
+                "description": "Decimal; null when the token owner may not see the service’s costs"
+              },
+              "stateOnly": {
+                "type": "boolean",
+                "description": "The token owner does not see every application of the service: only the status from the budget’s state (budgetPct, forecastPct and thisMonth are null)"
+              }
+            },
+            "required": [
+              "status",
+              "budgetPct",
+              "forecastPct",
+              "currency",
+              "thisMonth",
+              "budget",
+              "stateOnly"
+            ],
+            "additionalProperties": false,
+            "description": "Costs: the month’s costs against the service’s monthly cost budget (docs/COSTS.md)"
+          },
+          "contracts": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: a linked data contract whose last test failed or with an error finding (columns missing in the source); pending: a contract never tested or with other findings; none: no data contract is linked to the service’s applications or their systems"
+              },
+              "contracts": {
+                "type": "integer",
+                "description": "Linked data contracts the token owner may see"
+              },
+              "failed": {
+                "type": "integer",
+                "description": "Contracts whose last test failed or with an error finding"
+              },
+              "untested": {
+                "type": "integer",
+                "description": "Contracts never tested"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "result": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "passed",
+                            "warning",
+                            "failed",
+                            "error"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The last test (dry runs left out); null: never tested"
+                    },
+                    "testedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    "findings": {
+                      "type": "integer",
+                      "description": "Steward’s own findings (no owner, not tested, columns, lint)"
+                    },
+                    "errors": {
+                      "type": "integer",
+                      "description": "Of them errors"
+                    }
+                  },
+                  "required": [
+                    "contractId",
+                    "name",
+                    "result",
+                    "testedAt",
+                    "findings",
+                    "errors"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "The contracts that are not ok, worst first"
+              }
+            },
+            "required": [
+              "status",
+              "contracts",
+              "failed",
+              "untested",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "Data contracts (ODCS v3) linked to the service’s applications or their systems: their last test and Steward’s own findings"
+          },
           "history": {
             "type": "array",
             "items": {
@@ -16450,6 +18319,36 @@
                         "none",
                         "hidden"
                       ]
+                    },
+                    "upToDate": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none",
+                        "hidden"
+                      ]
+                    },
+                    "costs": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none",
+                        "hidden"
+                      ]
+                    },
+                    "contracts": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none",
+                        "hidden"
+                      ]
                     }
                   },
                   "required": [
@@ -16458,7 +18357,10 @@
                     "documentation",
                     "protection",
                     "lifecycle",
-                    "vulnerabilities"
+                    "vulnerabilities",
+                    "upToDate",
+                    "costs",
+                    "contracts"
                   ],
                   "additionalProperties": false
                 }
@@ -16485,6 +18387,9 @@
           "protection",
           "lifecycle",
           "vulnerabilities",
+          "upToDate",
+          "costs",
+          "contracts",
           "history"
         ],
         "additionalProperties": false
@@ -24637,6 +26542,548 @@
           "to"
         ],
         "additionalProperties": false
+      },
+      "CostOverviewRow": {
+        "title": "CostOverviewRow",
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "service",
+              "application",
+              "team",
+              "platform"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code (no conversion between currencies); empty when there are no costs yet"
+          },
+          "amountsVisible": {
+            "type": "boolean",
+            "description": "The token owner may see the amounts (else only percentages and states)"
+          },
+          "thisMonth": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "EffectiveCost of the current month so far – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+          },
+          "lastMonth": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "EffectiveCost of the last month – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+          },
+          "forecast": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The current month projected from its days so far – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+          },
+          "changePct": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "description": "The forecast against the last month, in percent"
+          },
+          "unassigned": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Platforms: the costs of this month that no application is linked to – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+          },
+          "budgetPct": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "description": "This month so far in percent of the monthly budget; null without a budget, or when the token owner does not see every application of the scope (then only budgetState)"
+          },
+          "budgetState": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "warning",
+                  "exceeded"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "scope",
+          "id",
+          "name",
+          "currency",
+          "amountsVisible",
+          "thisMonth",
+          "lastMonth",
+          "forecast",
+          "changePct",
+          "unassigned",
+          "budgetPct",
+          "budgetState"
+        ],
+        "additionalProperties": false
+      },
+      "CostScopeDetail": {
+        "title": "CostScopeDetail",
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "service",
+              "application",
+              "team",
+              "platform"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "amountsVisible": {
+            "type": "boolean"
+          },
+          "month": {
+            "type": "string",
+            "description": "The current month (UTC), YYYY-MM"
+          },
+          "currencies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "currency": {
+                  "type": "string"
+                },
+                "months": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "month": {
+                        "type": "string",
+                        "description": "YYYY-MM (UTC); the last one is the current month so far"
+                      },
+                      "amount": {
+                        "type": [
+                          "null",
+                          "string"
+                        ],
+                        "description": "EffectiveCost – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+                      },
+                      "billed": {
+                        "type": [
+                          "null",
+                          "string"
+                        ],
+                        "description": "BilledCost – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+                      }
+                    },
+                    "required": [
+                      "month",
+                      "amount",
+                      "billed"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "The 12 complete months before the current one, and the current one"
+                },
+                "thisMonth": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "This month so far – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+                },
+                "lastMonth": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The last month – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+                },
+                "forecast": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The current month projected from its days so far (from the 3rd day) – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+                },
+                "changePct": {
+                  "type": [
+                    "null",
+                    "number"
+                  ]
+                },
+                "trend": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "perMonth": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Change per month of the trend line – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+                        },
+                        "changePctPerMonth": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "confidence": {
+                          "type": "string",
+                          "enum": [
+                            "stable",
+                            "rough"
+                          ]
+                        },
+                        "months": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "perMonth",
+                        "changePctPerMonth",
+                        "confidence",
+                        "months"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Theil–Sen line through the complete months (at least 5)"
+                }
+              },
+              "required": [
+                "currency",
+                "months",
+                "thisMonth",
+                "lastMonth",
+                "forecast",
+                "changePct",
+                "trend"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "unassigned": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "currency": {
+                  "type": "string"
+                },
+                "thisMonth": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "This month – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+                },
+                "lastMonth": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Last month – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+                }
+              },
+              "required": [
+                "currency",
+                "thisMonth",
+                "lastMonth"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "byService": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "description": "FOCUS ProviderName"
+                },
+                "service": {
+                  "type": "string",
+                  "description": "FOCUS ServiceName"
+                },
+                "category": {
+                  "type": "string",
+                  "description": "FOCUS ServiceCategory"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "thisMonth": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "This month – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+                },
+                "lastMonth": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Last month – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+                }
+              },
+              "required": [
+                "provider",
+                "service",
+                "category",
+                "currency",
+                "thisMonth",
+                "lastMonth"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "application",
+                    "platform",
+                    "other",
+                    "unassigned"
+                  ]
+                },
+                "id": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Empty for \"other\" (what the token owner may not see) and unassigned lines of hidden platforms"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "thisMonth": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "This month – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+                },
+                "lastMonth": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Last month – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "name",
+                "currency",
+                "thisMonth",
+                "lastMonth"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The applications (of a service, team or platform) or platforms (of an application) behind the costs"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "platformId": {
+                  "type": "string"
+                },
+                "platformName": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "aws",
+                    "snowflake",
+                    "confluent",
+                    "ai",
+                    "focus"
+                  ]
+                },
+                "readAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                }
+              },
+              "required": [
+                "platformId",
+                "platformName",
+                "source",
+                "readAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "service",
+                      "application",
+                      "team"
+                    ]
+                  },
+                  "scopeId": {
+                    "type": "string"
+                  },
+                  "amount": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The monthly budget – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "used": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "This month so far – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
+                  },
+                  "pct": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "This month so far in percent of the budget; null with stateOnly"
+                  },
+                  "forecastPct": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "The forecast of the month in percent of the budget; null with stateOnly"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "ok",
+                      "warning",
+                      "exceeded"
+                    ]
+                  },
+                  "stateOnly": {
+                    "type": "boolean",
+                    "description": "The token owner does not see every application of the service or team: only the state is given (used, pct and forecastPct are null), since the budget covers them all"
+                  },
+                  "comment": {
+                    "type": "string"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "updatedBy": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "scope",
+                  "scopeId",
+                  "amount",
+                  "currency",
+                  "used",
+                  "pct",
+                  "forecastPct",
+                  "state",
+                  "stateOnly",
+                  "comment",
+                  "updatedAt",
+                  "updatedBy"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "canEditBudget": {
+            "type": "boolean"
+          },
+          "canManageSource": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "scope",
+          "id",
+          "name",
+          "amountsVisible",
+          "month",
+          "currencies",
+          "unassigned",
+          "byService",
+          "parts",
+          "sources",
+          "budget",
+          "canEditBudget",
+          "canManageSource"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
@@ -30739,7 +33186,7 @@
         "tags": [
           "Services"
         ],
-        "description": "Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – the optional fifth, the tech stack’s end of life (`lifecycle`, status \"none\" unless counted), and the sixth, the open findings and policy violations of the components’ Dependency-Track projects (`vulnerabilities`, status \"none\" when no component links a project), and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.",
+        "description": "Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – the optional fifth, the tech stack’s end of life (`lifecycle`, status \"none\" unless counted), the sixth, the open findings and policy violations of the components’ Dependency-Track projects (`vulnerabilities`, status \"none\" when no component links a project), the optional seventh, how far the tech stack is behind the newest versions (`upToDate`, version watch, status \"none\" unless counted), the eighth, the month’s costs against the service’s monthly cost budget (`costs`, status \"none\" without a budget), the ninth, the data contracts linked to its applications or their systems (`contracts`, status \"none\" when none is linked), and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.",
         "responses": {
           "200": {
             "description": "OK",
@@ -34278,6 +36725,195 @@
           }
         }
       }
+    },
+    "/costs": {
+      "get": {
+        "operationId": "listCosts",
+        "summary": "List the costs of services, applications, teams or platforms",
+        "tags": [
+          "Costs"
+        ],
+        "description": "One row per scope and currency (no conversion between currencies) with the current month so far, the last month, the forecast of the current month and the budget. Showback from AWS, Snowflake, Confluent Cloud, AI gateways and FOCUS files (docs/COSTS.md).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "service",
+                "application",
+                "team",
+                "platform"
+              ],
+              "default": "service"
+            },
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "description": "service, application, team or platform"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CostOverviewRow"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/costs/{scope}/{id}": {
+      "get": {
+        "operationId": "getCosts",
+        "summary": "Get the costs of a service, application, team or platform",
+        "tags": [
+          "Costs"
+        ],
+        "description": "The last 12 complete months and the current month so far per currency (EffectiveCost and BilledCost, FOCUS), the forecast, the trend, the costs by provider and service, the applications or platforms behind them, what no application is linked to (platforms), the sources and the monthly budget.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "scope",
+            "required": true,
+            "description": "service, application, team or platform"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "The id of the service, application, team or platform"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostScopeDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
     }
   },
   "servers": [
@@ -34362,6 +36998,10 @@
     {
       "name": "Database schemas",
       "description": "Schema snapshots of database platforms and systems (Steward reads or tbls imports), their changes marked breaking or not, and exports as DBML, SQL DDL or JSON"
+    },
+    {
+      "name": "Costs",
+      "description": "Platform costs (showback) per service, application, team and platform: 12 months, the current month, trend, forecast and budget, per currency, in FinOps FOCUS columns"
     }
   ],
   "externalDocs": {

@@ -73,7 +73,8 @@
     "rightsOfYou": "Runs execute with your rights (you are the owner). The secret is shown once after saving; it is stored encrypted and can be rotated at any time.",
     "create": "Create and show secret",
     "messages": "Messages",
-    "messagesHint": "Every failed check of every run notifies. For a sender that calls often, \"On change\" keeps the noise down."
+    "messagesHint": "Every failed check of every run notifies. For a sender that calls often, \"On change\" keeps the noise down.",
+    "mapExample": "Map: {{name}}"
   },
   "secret": {
     "title": "Secret of \"{{name}}\"",
@@ -85,7 +86,10 @@
     "curlHmac": "Test with curl (HMAC signature)",
     "gatus": "Gatus: custom alerting provider (config.yaml)",
     "hostsHint": "The host name of the URL must be listed in <c>{{name}}</c> when Gatus runs on another machine. More in <a>Gatus custom alerts</a> and {{doc}}.",
-    "stored": "I have stored the secret"
+    "stored": "I have stored the secret",
+    "senderUrl": "{{name}}: notification URL",
+    "senderBody": "{{name}}: notification body",
+    "senderDocs": "Paste both into {{name}} (a watch or a tag → Notifications, format plain text). The URL contains the secret; its host name must be listed in SM_ALLOWED_HOSTS. More in {{doc}}."
   },
   "test": {
     "action": "Send a test call",

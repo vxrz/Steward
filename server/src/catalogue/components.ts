@@ -16,9 +16,11 @@ import {
   type StackLifecycle,
   type StackProduct,
   type StackSource,
+  type StackVersion,
   type NamespaceReadout,
   type RepositoryReadout,
   type TopicReadout,
+  type TopicConnectorRef,
   type AwsReadout,
   type SnowflakeReadout,
   type DtrackReadout,
@@ -34,6 +36,7 @@ import {
   REPOSITORY_PATH_RE,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { topicConnectors } from '../kafkaconnect/service.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
@@ -46,6 +49,8 @@ import { lifecycleOf, lifecycleSettings, releasesOf } from './lifecycle.js';
 import { environmentList, environmentValue, isProduction, rankOf } from './environments.js';
 import { systemLinksOf } from './systems.js';
 import { ownerProblem } from '../monitors/platforms.js';
+// a cycle with the version watch (#241), used only at call time
+import { stackWatch } from '../versions/service.js';
 
 /**
  * Components of an application (#103): what it consists of – repositories, container images, Kafka topics,
@@ -154,6 +159,9 @@ export const isKnownProduct = (product: string): boolean => loadIndex().byId.has
 /** The name of a product of the list (its id when it is no longer on it); for jobs without a signed-in user. */
 export const productLabel = labelOf;
 
+/** The package URLs the product list names for a product (the version watch, #241). */
+export const productPurls = (product: string): string[] => loadIndex().byId.get(product)?.purls ?? [];
+
 // ---------- input ----------
 
 const stackEntryInput = z
@@ -241,7 +249,12 @@ export type StackHolder = { table: 'component_stack'; key: 'component_id'; id: s
 export const componentHolder = (id: string): StackHolder => ({ table: 'component_stack', key: 'component_id', id });
 export const systemHolder = (id: string): StackHolder => ({ table: 'system_stack', key: 'system_id', id });
 
-export const toEntry = (r: StackRow, releases: ReturnType<typeof releasesOf>, warnDays: number): StackEntry => ({
+export const toEntry = (
+  r: StackRow,
+  releases: ReturnType<typeof releasesOf>,
+  warnDays: number,
+  watch?: (holderId: string, product: string) => StackVersion | null,
+): StackEntry => ({
   product: r.product,
   label: labelOf(r.product),
   version: r.version,
@@ -250,6 +263,8 @@ export const toEntry = (r: StackRow, releases: ReturnType<typeof releasesOf>, wa
   setAt: r.set_at,
   setBy: r.set_by,
   lifecycle: lifecycleOf(r.product, r.version, releases, warnDays),
+  // the newest version (#241), from the version watch's cache
+  ...(watch ? { watch: watch(r.component_id ?? r.system_id ?? '', r.product) } : {}),
 });
 
 /** The stack of the components of one application, by component, with the end of life of each entry (#104). */
@@ -261,7 +276,11 @@ function stackOf(appId: string): Map<string, StackEntry[]> {
   );
   const releases = releasesOf([...new Set(rows.map((r) => r.product))]);
   const { warnDays } = lifecycleSettings();
-  for (const r of rows) out.set(r.component_id!, [...(out.get(r.component_id!) ?? []), toEntry(r, releases, warnDays)]);
+  const watch = stackWatch(
+    'component',
+    rows.map((r) => r.component_id!),
+  );
+  for (const r of rows) out.set(r.component_id!, [...(out.get(r.component_id!) ?? []), toEntry(r, releases, warnDays, watch)]);
   return out;
 }
 
@@ -308,7 +327,14 @@ export function componentsOf(appId: string): ApplicationComponent[] {
     .all<ComponentRow>('SELECT * FROM application_components WHERE application_id = ?', appId)
     .sort((a, b) => typeOrder(a.type) - typeOrder(b.type) || a.name.localeCompare(b.name) || rankOf(a.environment) - rankOf(b.environment));
   const stacks = stackOf(appId);
-  return rows.map((r) => toComponent(r, stacks.get(r.id) ?? []));
+  // Kafka topics (#223): the Kafka Connect connectors that use them, per Kafka platform
+  const connectors = new Map<string, Map<string, TopicConnectorRef[]>>();
+  for (const r of rows)
+    if (r.type === 'kafka-topic' && r.platform_id && !connectors.has(r.platform_id)) connectors.set(r.platform_id, topicConnectors(r.platform_id));
+  return rows.map((r) => {
+    const c = toComponent(r, stacks.get(r.id) ?? []);
+    return r.type === 'kafka-topic' && r.platform_id ? { ...c, connectors: connectors.get(r.platform_id)?.get(r.name) ?? [] } : c;
+  });
 }
 
 /** Number of components per application. */
@@ -537,7 +563,8 @@ export function stackOfHolder(h: StackHolder): StackEntry[] {
   const rows = db().all<StackRow>(`SELECT * FROM ${h.table} WHERE ${h.key} = ? ORDER BY product`, h.id);
   const releases = releasesOf([...new Set(rows.map((r) => r.product))]);
   const { warnDays } = lifecycleSettings();
-  return rows.map((r) => toEntry(r, releases, warnDays));
+  const watch = stackWatch(h.table === 'component_stack' ? 'component' : 'system', [h.id]);
+  return rows.map((r) => toEntry(r, releases, warnDays, watch));
 }
 
 const touchApplication = (id: string, u: AuthUser) => db().run('UPDATE applications SET updated_at = ?, updated_by = ? WHERE id = ?', nowIso(), u.username, id);

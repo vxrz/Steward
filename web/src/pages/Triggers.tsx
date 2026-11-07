@@ -35,6 +35,7 @@ import type {
   WebhookMappingPreview,
   WebhookTestResult,
   WebhookTrigger,
+  WebhookTriggerExample,
   WebhookTriggerSecret,
   WebhookTriggerSettings,
 } from '@sm/shared';
@@ -113,6 +114,24 @@ const GATUS_MAPPING: Record<string, string> = {
 };
 
 const AUTH_MODES: WebhookAuthMode[] = ['token', 'hmac', 'either'];
+
+/** Example triggers of the library (examples/triggers, 0.9.0): input mappings, sample payloads and sender setups. */
+function useTriggerExamples() {
+  return useQuery({ queryKey: ['triggers', 'examples'], queryFn: () => get<WebhookTriggerExample[]>('/triggers/examples'), staleTime: Infinity });
+}
+/** The example a trigger was set up from: every mapping of the example is in the trigger's mapping, unchanged. */
+const exampleOf = (mapping: Record<string, string>, examples: WebhookTriggerExample[] | undefined) =>
+  examples?.find((ex) => Object.entries(ex.inputMapping).every(([k, v]) => mapping[k] === v));
+/** The sender's URL of an example with the hook's address and the secret filled in. */
+function senderUrl(template: string, url: string, secret: string): string {
+  return template
+    .split('{post}')
+    .join(url.startsWith('https:') ? 'posts' : 'post')
+    .split('{hostPath}')
+    .join(url.replace(/^https?:\/\//, ''))
+    .split('{secret}')
+    .join(secret);
+}
 
 const hookUrl = (tr: Pick<WebhookTrigger, 'path'>) => appUrl(tr.path);
 
@@ -393,6 +412,9 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
     retry: false,
   });
   const gatusFits = inputs.some((i) => i.name in GATUS_MAPPING);
+  const examples = useTriggerExamples();
+  // examples whose mapped inputs the process has (e.g. "changedetection.io – Review a changed page")
+  const fitting = (examples.data ?? []).filter((ex) => Object.keys(ex.inputMapping).every((k) => inputs.some((i) => i.name === k)));
   const setMapping = (name: string, expr: string) => {
     const next = { ...d.inputMapping, [name]: expr };
     if (!expr.trim()) delete next[name];
@@ -436,20 +458,47 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
             <Text size="xs" c="dimmed">
               <Trans t={t} i18nKey="form.inputsHint" values={{ example: '"fixed value"' }} components={{ c: <Code /> }} />
             </Text>
-            {gatusFits && (
-              <Group>
-                <Button
-                  size="compact-xs"
-                  variant="light"
-                  onClick={() =>
-                    setD({
-                      ...d,
-                      inputMapping: Object.fromEntries(inputs.filter((i) => GATUS_MAPPING[i.name]).map((i) => [i.name, GATUS_MAPPING[i.name]!])),
-                    })
-                  }
-                >
-                  {t('form.mapGatus')}
-                </Button>
+            {(gatusFits || fitting.length > 0) && (
+              <Group gap="xs">
+                {fitting.map((ex) => (
+                  <Button
+                    key={ex.id}
+                    size="compact-xs"
+                    variant="light"
+                    onClick={() => {
+                      setD({
+                        ...d,
+                        inputMapping: Object.fromEntries(inputs.filter((i) => ex.inputMapping[i.name]).map((i) => [i.name, ex.inputMapping[i.name]!])),
+                        // a new trigger also takes the example's limits
+                        ...(draft.id
+                          ? {}
+                          : {
+                              authMode: ex.authMode,
+                              dedupeSeconds: ex.dedupeSeconds,
+                              skipIfRunning: ex.skipIfRunning,
+                              rateLimitPerMinute: ex.rateLimitPerMinute,
+                            }),
+                      });
+                      setSample(JSON.stringify(ex.samplePayload, null, 2));
+                    }}
+                  >
+                    {t('form.mapExample', { name: ex.name })}
+                  </Button>
+                ))}
+                {gatusFits && (
+                  <Button
+                    size="compact-xs"
+                    variant="light"
+                    onClick={() =>
+                      setD({
+                        ...d,
+                        inputMapping: Object.fromEntries(inputs.filter((i) => GATUS_MAPPING[i.name]).map((i) => [i.name, GATUS_MAPPING[i.name]!])),
+                      })
+                    }
+                  >
+                    {t('form.mapGatus')}
+                  </Button>
+                )}
               </Group>
             )}
             {inputs.length === 0 && (
@@ -590,13 +639,17 @@ function SecretModal({ created, onClose }: { created: WebhookTriggerSecret; onCl
   const { t } = useTranslation('triggers');
   const tr = created.trigger;
   const url = hookUrl(tr);
-  const sample = JSON.stringify({
-    event: 'TRIGGERED',
-    name: 'Historian API',
-    group: 'plant',
-    url: 'https://apps.example.com/historian/health',
-    errors: 'test',
-  });
+  // a trigger set up from an example (e.g. changedetection.io): its sample and how to set up the sender
+  const example = exampleOf(tr.inputMapping, useTriggerExamples().data);
+  const sample = JSON.stringify(
+    example?.samplePayload ?? {
+      event: 'TRIGGERED',
+      name: 'Historian API',
+      group: 'plant',
+      url: 'https://apps.example.com/historian/health',
+      errors: 'test',
+    },
+  );
   const curl =
     tr.authMode === 'hmac'
       ? `BODY='${sample}'\nSIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STEWARD_WEBHOOK_SECRET" | sed 's/^.* //')\ncurl -sS -X POST '${url}' \\\n  -H 'Content-Type: application/json' \\\n  -H "X-Steward-Signature: sha256=$SIG" \\\n  --data "$BODY"`
@@ -639,18 +692,33 @@ endpoints:
         <CopyBlock label={t('secret.secret')} text={created.secret} />
         <CopyBlock label={t('secret.url')} text={url} />
         <CopyBlock label={tr.authMode === 'hmac' ? t('secret.curlHmac') : t('secret.curl')} text={curl} />
-        {tr.authMode !== 'hmac' && <CopyBlock label={t('secret.gatus')} text={gatus} />}
-        <Text size="xs" c="dimmed">
-          <Trans
-            t={t}
-            i18nKey="secret.hostsHint"
-            values={{ name: 'SM_ALLOWED_HOSTS', doc: 'docs/GATUS.md' }}
-            components={{
-              c: <Code />,
-              a: <Anchor href="https://github.com/TwiN/gatus#configuring-custom-alerts" target="_blank" rel="noreferrer" size="xs" />,
-            }}
-          />
-        </Text>
+        {example?.sender && tr.authMode !== 'hmac' && (
+          <>
+            {example.sender.url && (
+              <CopyBlock label={t('secret.senderUrl', { name: example.sender.name })} text={senderUrl(example.sender.url, url, created.secret)} />
+            )}
+            {example.sender.body && <CopyBlock label={t('secret.senderBody', { name: example.sender.name })} text={example.sender.body} />}
+            {example.sender.docs && (
+              <Text size="xs" c="dimmed">
+                {t('secret.senderDocs', { name: example.sender.name, doc: example.sender.docs })}
+              </Text>
+            )}
+          </>
+        )}
+        {tr.authMode !== 'hmac' && !example && <CopyBlock label={t('secret.gatus')} text={gatus} />}
+        {!example && (
+          <Text size="xs" c="dimmed">
+            <Trans
+              t={t}
+              i18nKey="secret.hostsHint"
+              values={{ name: 'SM_ALLOWED_HOSTS', doc: 'docs/GATUS.md' }}
+              components={{
+                c: <Code />,
+                a: <Anchor href="https://github.com/TwiN/gatus#configuring-custom-alerts" target="_blank" rel="noreferrer" size="xs" />,
+              }}
+            />
+          </Text>
+        )}
         <Group justify="flex-end">
           <Button onClick={onClose}>{t('secret.stored')}</Button>
         </Group>
@@ -661,7 +729,13 @@ endpoints:
 
 function TestModal({ trigger, onClose }: { trigger: WebhookTrigger; onClose: () => void }) {
   const { t } = useTranslation(['triggers', 'common']);
+  const examples = useTriggerExamples();
   const [payload, setPayload] = useState(JSON.stringify(GATUS_SAMPLE, null, 2));
+  // the sample payload of the example the trigger was set up from
+  const exampleSample = exampleOf(trigger.inputMapping, examples.data)?.samplePayload;
+  useEffect(() => {
+    if (exampleSample) setPayload(JSON.stringify(exampleSample, null, 2));
+  }, [exampleSample]);
   const [dryRun, setDryRun] = useState(true);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<WebhookTestResult | null>(null);

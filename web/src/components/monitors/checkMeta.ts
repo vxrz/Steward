@@ -20,6 +20,11 @@ import {
   IconDatabase,
   IconTable,
   IconSchema,
+  IconArrowsExchange,
+  IconArrowBigUpLines,
+  IconFileDiff,
+  IconCoin,
+  IconContract,
 } from '@tabler/icons-react';
 import type { CheckDef, CheckType } from '@sm/shared';
 import i18n from '../../i18n';
@@ -37,14 +42,19 @@ export const CHECK_ICONS: Record<CheckType, typeof IconApi> = {
   kubernetes: IconBox,
   git: IconGitBranch,
   kafka: IconTopologyStar3,
+  'kafka-connect': IconArrowsExchange,
   mqtt: IconAntenna,
   snowflake: IconSnowflake,
   database: IconDatabase,
   dynamodb: IconTable,
   'db-schema': IconSchema,
+  cost: IconCoin,
+  'data-contract': IconContract,
   'dependency-track': IconShieldCheck,
+  'version-behind': IconArrowBigUpLines,
   entra: IconUserShield,
   'privilege-vault': IconLock,
+  'page-watch': IconFileDiff,
   monitor: IconHierarchy2,
 };
 
@@ -62,14 +72,19 @@ const DEFAULT_NAMES: Record<CheckType, string> = {
   kubernetes: 'Kubernetes deployments',
   git: 'Repository pipeline',
   kafka: 'Kafka topic',
+  'kafka-connect': 'Connectors running',
   mqtt: 'MQTT topics',
   snowflake: 'Snowflake table fresh',
   database: 'Database reachable',
   dynamodb: 'DynamoDB table fresh',
   'db-schema': 'No breaking schema change',
+  cost: 'Costs not rising',
+  'data-contract': 'Data contract holds',
   'dependency-track': 'No critical vulnerabilities',
+  'version-behind': 'Tech stack up to date',
   entra: 'App credentials valid',
   'privilege-vault': 'Vault hygiene',
+  'page-watch': 'Vendor pages watched',
   monitor: 'Sub-monitor',
 };
 
@@ -113,6 +128,8 @@ export function newCheck(type: CheckType, id: string): CheckDef {
       return { ...base, name, type, platform: '', repository: '', failedAs: 'down' } as CheckDef;
     case 'kafka':
       return { ...base, name, type, platform: '', topic: '', messagesWithinMinutes: 15, quietAs: 'down', stuckMinutes: 15 } as CheckDef;
+    case 'kafka-connect':
+      return { ...base, name, type, platform: '', notRunningAs: 'down', pausedAs: 'degraded', failedMinutes: 10, quietAs: 'degraded' } as CheckDef;
     case 'mqtt':
       return { ...base, name, type, platform: '', topic: '', mode: 'any', withinMinutes: 15, quietAs: 'down' } as CheckDef;
     case 'snowflake':
@@ -139,8 +156,14 @@ export function newCheck(type: CheckType, id: string): CheckDef {
       } as CheckDef;
     case 'db-schema':
       return { ...base, name, type, platform: '', mode: 'breaking', withinHours: 24, read: false, noData: 'unknown' } as CheckDef;
+    case 'cost':
+      return { ...base, name, type, scope: 'service', target: '', period: 'month', maxIncreasePct: 20, failAs: 'degraded', noData: 'unknown' } as CheckDef;
+    case 'data-contract':
+      return { ...base, name, type, contract: '', mode: 'test', testedWithinDays: 7, failAs: 'down', warningAs: 'degraded' } as CheckDef;
     case 'dependency-track':
       return { ...base, name, type, platform: '', project: '', maxCritical: 0, policyFail: true, failAs: 'down' } as CheckDef;
+    case 'version-behind':
+      return { ...base, name, type, application: '', maxMinors: 2, majorAs: 'down', eolAs: 'down' } as CheckDef;
     case 'entra':
       return { ...base, name, type, platform: '', mode: 'app-credentials', withinDays: 30, downWithinDays: 7 } as CheckDef;
     case 'privilege-vault':
@@ -155,6 +178,8 @@ export function newCheck(type: CheckType, id: string): CheckDef {
         maxFindings: 0,
         failAs: 'degraded',
       } as CheckDef;
+    case 'page-watch':
+      return { ...base, name, type, platform: '', changedWithinHours: 24, changedAs: 'up', failingAs: 'degraded', pausedAs: 'ignore' } as CheckDef;
     case 'monitor':
       return { ...base, name, type, monitor: '' } as CheckDef;
   }

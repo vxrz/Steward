@@ -152,6 +152,10 @@ export function UnifiedDiff({
   return (
     <Box
       data-testid="version-diff"
+      // it scrolls: reachable with the keyboard (axe scrollable-region-focusable)
+      tabIndex={0}
+      role="region"
+      aria-label={`${oldName} → ${newName}`}
       style={{
         border: '1px solid var(--mantine-color-default-border)',
         borderRadius: 6,

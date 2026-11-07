@@ -30,6 +30,8 @@ export const NOT_MOVED: Record<string, string> = {
   notification_stale: 'send bookkeeping of the source',
   eol_releases: 'a cache of endoflife.date (filled again on the target)',
   eol_products: 'a cache of endoflife.date (filled again on the target)',
+  version_lookups: 'a cache of what the version watch read from registries and platforms (read again on the target)',
+  version_notices: 'send bookkeeping of the source (a new major release already reported is not reported again)',
   prom_objective_readings: 'a cache of Prometheus figures for objectives (read again on the target)',
   backup_runs: 'instance-specific (the backups of the source; set up backups on the target)',
   aws_account_cache: 'a cache of what Steward read from AWS accounts (read again on the target)',
@@ -60,6 +62,8 @@ export const NOT_MOVED: Record<string, string> = {
   schema_migrations: 'maintained by the migrations',
   sqlite_sequence: 'SQLite internal',
   db_schema_push_tokens: 'push tokens of CI (#222), only their hashes: created again on the target, like API tokens',
+  cost_push_tokens: 'push tokens of CI for FOCUS cost files (#226), only their hashes: created again on the target, like API tokens',
+  cost_budget_notices: 'send bookkeeping of the source (a cost budget notice of the current month may be sent again on the target)',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -88,6 +92,8 @@ export const USER_REFS: UserRef[] = [
   { table: 'processes', column: 'owner', kind: 'username' },
   { table: 'processes', column: 'acl', kind: 'acl' },
   { table: 'platforms', column: 'acl', kind: 'acl' },
+  // an identity's own access list (0.9.0, ADR 0009; the default identity has none)
+  { table: 'platform_identities', column: 'acl', kind: 'acl' },
   { table: 'schedules', column: 'owner', kind: 'username' },
   { table: 'dashboards', column: 'owner', kind: 'username' },
   { table: 'monitors', column: 'owner', kind: 'username' },
@@ -95,6 +101,8 @@ export const USER_REFS: UserRef[] = [
   { table: 'monitors', column: 'definition', kind: 'monitorDefinition' },
   { table: 'monitor_gateways', column: 'owner', kind: 'username' },
   { table: 'gatus_sources', column: 'owner', kind: 'username' },
+  // changedetection.io (#242): the background read runs as the person who read the watches last
+  { table: 'cd_reads', column: 'read_by', kind: 'username' },
   { table: 'access_checks', column: 'owner', kind: 'username' },
   { table: 'webhook_triggers', column: 'owner', kind: 'username' },
   { table: 'report_schedules', column: 'owner', kind: 'username' },
@@ -127,6 +135,10 @@ export const USER_REFS: UserRef[] = [
 export const HISTORY_COLUMNS: string[] = [
   'ai_usage.actor',
   'ai_budgets.updated_by',
+  // platform costs (#226)
+  'cost_sources.updated_by',
+  'cost_imports.actor',
+  'cost_budgets.updated_by',
   // the plant registry (#218)
   'plant_sites.created_by',
   'plant_sites.updated_by',
@@ -141,6 +153,15 @@ export const HISTORY_COLUMNS: string[] = [
   // database schema snapshots and their settings (#222)
   'db_schema_snapshots.actor',
   'db_schema_settings.updated_by',
+  // links of changedetection.io watches (#242)
+  'cd_watches.linked_by',
+  // data contracts, their versions, links and test runs (#221)
+  'data_contracts.created_by',
+  'data_contracts.updated_by',
+  'data_contract_versions.created_by',
+  'data_contract_links.created_by',
+  'data_contract_runs.actor',
+  'data_contract_kept_rules.deleted_by',
   'plant_profiles.created_by',
   'plant_profiles.updated_by',
   'plant_kpis.created_by',
@@ -165,6 +186,10 @@ export const HISTORY_COLUMNS: string[] = [
   'platform_recordings.created_by',
   'platform_recordings.updated_by',
   'platform_health.updated_by',
+  'kafka_connect_readouts.read_by',
+  // platform identities (0.9.0, ADR 0009): who created and last changed one
+  'platform_identities.created_by',
+  'platform_identities.updated_by',
   'application_topic_prefixes.created_by',
   'application_components.updated_by',
   'application_components.sbom_imported_by',
@@ -184,6 +209,7 @@ export const HISTORY_COLUMNS: string[] = [
   'systems.updated_by',
   'systems.sbom_imported_by',
   'system_stack.set_by',
+  'stack_version_watch.set_by',
   'application_systems.created_by',
   'system_segments.created_by',
   'access_findings.resolved_by',
@@ -302,6 +328,7 @@ export const SETTINGS_MOVED = [
   'notifications.dailySummary',
   'notifications.look',
   'catalogue.lifecycle',
+  'catalogue.versions',
   'catalogue.environments',
   'plant.settings',
 ];

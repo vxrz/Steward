@@ -122,6 +122,10 @@
       "eol": {
         "label": "Tech stack end of life",
         "info": "A component of an application you own reaches the end of life of its release cycle soon (or reached it)"
+      },
+      "release": {
+        "label": "New major release",
+        "info": "A new major release of a product in the tech stack of an application or system you are responsible for"
       }
     },
     "measure": {
@@ -158,6 +162,18 @@
       "budget": {
         "label": "AI budget",
         "info": "An AI token budget reached 80 % or is used up (administrators; the gateway’s managers, the process owner)"
+      }
+    },
+    "cost": {
+      "budget": {
+        "label": "Cost budget",
+        "info": "The monthly cost budget of a service, application or team you own reached 80 % or 100 %"
+      }
+    },
+    "contract": {
+      "failed": {
+        "label": "Data contract test failed",
+        "info": "A test of a data contract your team owns failed (the owning team’s members and channel)"
       }
     }
   }

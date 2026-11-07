@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { fetch, Agent } from 'undici';
+import { Agent } from 'undici';
 import { AUTH_TYPES, CONNECTOR_FORMATS, type ConnectorPackage, type PlatformPreset } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -19,7 +19,7 @@ import {
 } from './service.js';
 import { platformRequest, resolveBaseUrl } from './http.js';
 import { PATH_PREFIX_MAX, isValidPathPrefix } from './pathPrefix.js';
-import { assertOutboundAllowed, guardedLookup } from './outbound.js';
+import { assertOutboundAllowed, fetchCheckingRedirects, guardedLookup, type OutboundContext } from './outbound.js';
 
 /**
  * Connector types: a configured platform saved as a reusable template
@@ -170,9 +170,19 @@ export async function fetchSpec(platformId: string, url: string): Promise<string
     if (!res.ok) throw new HttpError(400, `Download failed: HTTP ${res.status}`);
     return typeof res.body === 'string' ? res.body : JSON.stringify(res.body);
   }
-  if (!/^https:\/\//i.test(url) && !/^http:\/\/(127\.0\.0\.1|localhost)/i.test(url)) throw new HttpError(400, 'Only https URLs are allowed');
-  await assertOutboundAllowed(url, { platforms: () => listPlatforms(), resolveOrigin: (pl) => resolveBaseUrl(pl, getSecrets(pl.id)) });
-  const res = await fetch(url, { dispatcher: new Agent({ connect: { lookup: guardedLookup } }), signal: AbortSignal.timeout(30000) });
+  // plain http only to this machine – the host itself, not a prefix of it (http://localhost.example.com is another host)
+  let target: URL;
+  try {
+    target = new URL(url);
+  } catch {
+    throw new HttpError(400, 'Invalid specification URL');
+  }
+  const loopbackHost = target.hostname === '127.0.0.1' || target.hostname === 'localhost';
+  if (target.protocol !== 'https:' && !(target.protocol === 'http:' && loopbackHost)) throw new HttpError(400, 'Only https URLs are allowed');
+  const ctx: OutboundContext = { platforms: () => listPlatforms(), resolveOrigin: (pl) => resolveBaseUrl(pl, getSecrets(pl.id)) };
+  await assertOutboundAllowed(url, ctx);
+  // redirects are followed with the outbound policy on every hop (0.9.0)
+  const res = await fetchCheckingRedirects(url, { dispatcher: new Agent({ connect: { lookup: guardedLookup } }), signal: AbortSignal.timeout(30000) }, ctx);
   if (!res.ok) throw new HttpError(400, `Download failed: HTTP ${res.status}`);
   const text = await res.text();
   if (text.length > MAX_SPEC_BYTES) throw new HttpError(400, 'Specification is too large');

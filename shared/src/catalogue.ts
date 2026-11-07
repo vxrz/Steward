@@ -1,11 +1,13 @@
 import type { ImageProductRule, NamespaceReadout } from './kubernetes.js';
 import type { RepositoryReadout } from './git.js';
 import type { TopicReadout } from './kafka.js';
+import type { TopicConnectorRef } from './kafkaConnect.js';
 import type { AwsReadout } from './aws.js';
 import type { SnowflakeReadout } from './snowflake.js';
 import type { DtrackLink, DtrackReadout } from './dtrack.js';
 import type { Backlink, ItemLink, ReviewStatus, ServiceCriticality } from './records.js';
 import type { SegmentMember, SystemAttributes, SystemFirewall, SystemSegmentLink } from './network.js';
+import type { StackVersion } from './versions.js';
 
 /**
  * Applications in the service catalogue (#84): what people call a platform ("Insights Hub", "Industrial Edge")
@@ -266,6 +268,8 @@ export interface StackEntry {
   setBy: string;
   /** End of life of the release cycle in use (#104); null when there is no end-of-life data for the product */
   lifecycle: StackLifecycle | null;
+  /** The newest version and how far behind this one is (#241); null when the entry is not watched */
+  watch?: StackVersion | null;
 }
 
 // ---------- end of life (#104) ----------
@@ -341,6 +345,8 @@ export interface ApplicationComponent {
   repository?: RepositoryReadout | null;
   /** Kafka topic (#112): what Steward last read from its Kafka platform */
   topic?: TopicReadout | null;
+  /** Kafka topic (#223): the Kafka Connect connectors that use it, of Kafka Connect platforms the reader may see */
+  connectors?: TopicConnectorRef[];
   /** Cloud account on an AWS platform (#116): resources with the application tag, costs, IAM keys */
   aws?: AwsReadout | null;
   /** Snowflake database (#115): tables, freshness, failing tasks, warehouse credits */

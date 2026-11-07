@@ -16,11 +16,11 @@
  *   cannot starve runs and monitors of the platform's connection slots;
  * - every call (and every refusal) is written to the audit log, with control characters escaped.
  */
+import { defaultIdentityRows, parseMcp } from '../platforms/identities.js';
 import { z } from 'zod';
 import { boundedRecord, DATABASE_KIND, DB_CATALOGS, DB_LIMITS, MCP_REQUEST_LIMITS, type ApiOperation, type McpWriteMode, type Platform } from '@sm/shared';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
-import { db } from '../db.js';
 import * as platforms from '../platforms/service.js';
 import { Semaphore, platformRequest, resolveBaseUrl, secretValues } from '../platforms/http.js';
 import { assertOutboundAllowed } from '../platforms/outbound.js';
@@ -576,7 +576,8 @@ gatewayTools.push(
         throw new ToolError(`Rate limit of ${rate.limit} gateway calls per minute for this platform reached – retry after ${rate.retryAfterSeconds} s`);
       let secrets: Record<string, string>;
       try {
-        secrets = platforms.getSecrets(p.id);
+        // the default identity (ADR 0009: naming another one with the identity argument comes in step 2)
+        secrets = platforms.getConnection(p.id).secrets;
       } catch (e) {
         record('refused', 0, (e as Error).message);
         throw new ToolError((e as Error).message);
@@ -651,7 +652,8 @@ export async function executeGatewayCall(p: Platform, who: GatewayCaller, userId
 
   let secrets: Record<string, string>;
   try {
-    secrets = platforms.getSecrets(p.id); // refused when the connection settings were changed outside Steward
+    // the default identity (ADR 0009); refused when the platform or the identity was changed outside Steward
+    secrets = platforms.getConnection(p.id).secrets;
   } catch (e) {
     return refuseCall('refused', (e as Error).message);
   }
@@ -735,15 +737,7 @@ export async function executeGatewayCall(p: Platform, who: GatewayCaller, userId
   };
 }
 
-/** Gateway enabled-platform count for the status page. */
+/** Gateway enabled-platform count for the status page (the mode is on the default identity, ADR 0009). */
 export function gatewayPlatformCount(): number {
-  return db()
-    .all<{ config: string }>('SELECT config FROM platforms')
-    .filter((r) => {
-      try {
-        return JSON.parse(r.config)?.mcpGateway?.enabled === true;
-      } catch {
-        return false;
-      }
-    }).length;
+  return [...defaultIdentityRows().values()].filter((i) => parseMcp(i.mcp).mode !== 'off').length;
 }

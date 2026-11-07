@@ -33,6 +33,7 @@ import { DUTY_COMPONENTS } from '../../duties/api-schemas.js';
 import { SCORECARD_COMPONENTS } from '../../scorecard/api-schemas.js';
 import { PLANT_COMPONENTS } from '../../plant/api-schemas.js';
 import { DB_SCHEMA_COMPONENTS } from '../../dbschema/api-schemas.js';
+import { COST_COMPONENTS } from '../../costs/api-schemas.js';
 
 export const RUN_STATUSES = ['queued', 'running', 'waiting', 'succeeded', 'failed', 'cancelled', 'interrupted'] as const satisfies readonly RunStatus[];
 export const RUN_OUTCOMES = [...RUN_STATUSES, 'findings'] as const satisfies readonly RunOutcome[];
@@ -426,6 +427,31 @@ export const Trigger = z
   })
   .describe('Webhook trigger metadata. The secret, its prefix, the input mapping and the allowed addresses are not part of the API.');
 
+export const PlatformIdentity = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string(),
+    default: z.boolean().describe('Requests that name no identity use the default identity; every platform has exactly one'),
+    readOnly: z.boolean(),
+    privileged: z.boolean(),
+    mcp: z
+      .object({
+        mode: z.enum(['off', 'read', 'writes']),
+        writes: z.enum(['confirm', 'fourEyes']).optional().describe('How changing calls are approved (with mode "writes"; with "off" the mode chosen before)'),
+      })
+      .describe('Access for MCP clients through the platform gateway'),
+    operationFilter: z
+      .object({
+        preset: z.enum(['read', 'chosen']),
+        operations: z.array(z.object({ specId: z.string(), method: z.string(), specPath: z.string(), operationId: z.string().optional() })),
+      })
+      .nullable()
+      .describe('The operations the identity may call; null: all'),
+    mayUse: z.boolean().describe('Whether the token owner may use this identity'),
+  })
+  .describe('One set of credentials of a platform (ADR 0009) – names and flags only. Credentials, sign-in settings and variables are never part of the API.');
+
 export const Platform = z
   .object({
     id: z.string(),
@@ -436,6 +462,7 @@ export const Platform = z
     baseUrl: z.string().describe('Base URL without user info and query string'),
     authType: z.string().describe('Authentication method (none, basic, bearer, apiKey, oauth2_client_credentials, token_request, jwt, aws_sigv4)'),
     permissions: z.array(z.enum(PLATFORM_PERMISSIONS)).describe('What the token owner may do with this platform'),
+    identities: z.array(PlatformIdentity).describe('Its identities, the default first (names and flags only)'),
     createdAt: ts(),
     updatedAt: ts(),
   })
@@ -609,6 +636,7 @@ export const COMPONENTS: Record<string, ZodTypeAny> = {
   TaskDetail,
   Schedule,
   Platform,
+  PlatformIdentity,
   Trigger,
   Dataset,
   DatasetRow,
@@ -628,6 +656,7 @@ export const COMPONENTS: Record<string, ZodTypeAny> = {
   ...SCORECARD_COMPONENTS,
   ...PLANT_COMPONENTS,
   ...DB_SCHEMA_COMPONENTS,
+  ...COST_COMPONENTS,
 };
 
 /** Example values shown in the documentation. */
@@ -660,6 +689,19 @@ const EXAMPLES: Record<string, unknown> = {
     baseUrl: 'https://gateway.eu1.mindsphere.io',
     authType: 'oauth2_client_credentials',
     permissions: ['use'],
+    identities: [
+      {
+        id: 'pi_2bV9xLq0aYc1',
+        name: 'Default',
+        description: '',
+        default: true,
+        readOnly: false,
+        privileged: false,
+        mcp: { mode: 'read' },
+        operationFilter: null,
+        mayUse: true,
+      },
+    ],
     createdAt: '2026-09-01T08:15:00.000Z',
     updatedAt: '2026-10-01T10:00:00.000Z',
   },

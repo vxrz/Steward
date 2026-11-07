@@ -388,6 +388,33 @@ function untagged(sql: string, arg: (i: number) => string): { names: string[]; r
   return { error: `SQL compilation error: the demo does not know this statement (${sql.slice(0, 60)})` };
 }
 
+// ---------- costs (#226) ----------
+
+/** For tests: whether the organisation's usage views can be read (false: a reseller contract, no ORGANIZATION_USAGE). */
+let orgUsage = true;
+export function setSnowflakeOrgUsage(on: boolean): void {
+  orgUsage = on;
+}
+
+/** Daily usage of the demo account from `from` (YYYY-MM-DD) to yesterday: warehouses, storage and cloud services. */
+function dailyUsage(from: string): { day: string; service: string; credits: number; amount: number }[] {
+  const out: { day: string; service: string; credits: number; amount: number }[] = [];
+  const start = Date.parse(`${from.slice(0, 10)}T00:00:00Z`);
+  const today = Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+  if (!Number.isFinite(start)) return out;
+  for (let t = Math.max(start, today - 400 * DAY); t < today; t += DAY) {
+    const day = new Date(t).toISOString().slice(0, 10);
+    // a little more every month, weekends quieter
+    const growth = 1 + (t - (today - 400 * DAY)) / (400 * DAY) / 4;
+    const weekend = [0, 6].includes(new Date(t).getUTCDay()) ? 0.5 : 1;
+    const credits = Math.round(14 * growth * weekend * 100) / 100;
+    out.push({ day, service: 'WAREHOUSE_METERING', credits, amount: Math.round(credits * 3 * 100) / 100 });
+    out.push({ day, service: 'CLOUD_SERVICES', credits: 0.4, amount: 1.2 });
+    out.push({ day, service: 'STORAGE', credits: 0, amount: 2.35 });
+  }
+  return out;
+}
+
 export async function mockSnowflake(app: FastifyInstance): Promise<void> {
   app.post('/snowflake/api/v2/statements', async (req, reply) => {
     const bad = authProblem(req);
@@ -453,6 +480,27 @@ export async function mockSnowflake(app: FastifyInstance): Promise<void> {
         const hours = -Number(arg(2));
         return result(reply, ['CREDITS'], [[m ? String(hours <= 7 * 24 ? m.credits7 : m.credits30) : '0']]);
       }
+      case 'costs-currency':
+        if (!orgUsage)
+          return reply.code(422).send({
+            code: '002003',
+            message: "SQL compilation error:\nObject 'SNOWFLAKE.ORGANIZATION_USAGE.USAGE_IN_CURRENCY_DAILY' does not exist or not authorized.",
+          });
+        if (arg(2) !== DEMO_SNOWFLAKE.account && arg(3) !== DEMO_SNOWFLAKE.account)
+          return result(reply, ['USAGE_DATE', 'SERVICE_TYPE', 'BILLING_TYPE', 'CURRENCY', 'AMOUNT'], []);
+        return result(
+          reply,
+          ['USAGE_DATE', 'SERVICE_TYPE', 'BILLING_TYPE', 'CURRENCY', 'AMOUNT'],
+          dailyUsage(arg(1)).map((u) => [u.day, u.service, 'consumption', 'USD', u.amount.toFixed(6)]),
+        );
+      case 'costs-credits':
+        return result(
+          reply,
+          ['USAGE_DATE', 'SERVICE_TYPE', 'CREDITS'],
+          dailyUsage(arg(1))
+            .filter((u) => u.credits > 0)
+            .map((u) => [u.day, u.service, u.credits.toFixed(9)]),
+        );
       case 'users': {
         const r = untagged(sql.replace(/^\/\* steward:users \*\/\s*/, ''), arg);
         return 'error' in r ? reply.code(422).send({ code: '002003', message: r.error }) : result(reply, r.names, r.rows);

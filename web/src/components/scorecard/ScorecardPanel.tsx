@@ -171,6 +171,67 @@ function PartDetails({ card: c, part }: { card: ServiceScorecardDetail; part: Sc
       </Stack>
     );
   }
+  if (part === 'upToDate') {
+    const u = c.upToDate;
+    if (!u.entries)
+      return (
+        <Text size="xs" c="dimmed">
+          {t('upToDate.none')}
+        </Text>
+      );
+    return (
+      <Stack gap={2}>
+        <Text size="xs">{t('upToDate.summary', { entries: u.entries, major: u.major, behind: u.behind })}</Text>
+        {u.items.length > 0 && (
+          <List size="xs" spacing={0} data-testid="up-to-date-items">
+            {u.items.slice(0, 10).map((i) => (
+              <List.Item key={`${i.applicationId} ${i.holder} ${i.componentName} ${i.environment} ${i.product}`}>
+                <Anchor component={Link} to={`/applications/${i.applicationId}`} size="xs">
+                  {i.applicationName}
+                </Anchor>{' '}
+                {t(i.lag === 'major' ? 'upToDate.majorItem' : 'upToDate.behindItem', {
+                  component: i.environment ? `${i.componentName} (${i.environment})` : i.componentName,
+                  product: [i.label, i.version].filter(Boolean).join(' '),
+                  newest: i.newest,
+                  count: i.lag === 'major' ? (i.behind?.major ?? 1) : (i.behind?.minor ?? 0),
+                  days: i.daysBehind ?? '–',
+                })}
+              </List.Item>
+            ))}
+          </List>
+        )}
+      </Stack>
+    );
+  }
+  if (part === 'costs') {
+    const k = c.costs;
+    if (k.status === 'none')
+      return (
+        <Text size="xs" c="dimmed">
+          {t('costs.none')}
+        </Text>
+      );
+    return (
+      <Stack gap={2}>
+        <Text size="xs">
+          {k.stateOnly || k.budgetPct === null
+            ? t(`costs.state.${k.status === 'attention' ? 'exceeded' : k.status === 'pending' ? 'warning' : 'ok'}`)
+            : k.thisMonth !== null && k.budget !== null
+              ? t('costs.summaryAmounts', { used: k.thisMonth, budget: k.budget, currency: k.currency, pct: k.budgetPct })
+              : t('costs.summary', { pct: k.budgetPct })}
+        </Text>
+        {k.stateOnly && (
+          <Text size="xs" c="dimmed">
+            {t('costs.stateOnly')}
+          </Text>
+        )}
+        {k.forecastPct !== null && <Text size="xs">{t('costs.forecast', { pct: k.forecastPct })}</Text>}
+        <Anchor component={Link} to={`/costs/service/${c.serviceId}`} size="xs">
+          {t('costs.open')}
+        </Anchor>
+      </Stack>
+    );
+  }
   if (part === 'vulnerabilities') {
     const v = c.vulnerabilities;
     if (!v.projects)
@@ -201,6 +262,33 @@ function PartDetails({ card: c, part }: { card: ServiceScorecardDetail; part: Sc
                     </Anchor>
                   </>
                 )}
+              </List.Item>
+            ))}
+          </List>
+        )}
+      </Stack>
+    );
+  }
+  if (part === 'contracts') {
+    const k = c.contracts;
+    if (!k?.contracts)
+      return (
+        <Text size="xs" c="dimmed">
+          {t('contracts.none')}
+        </Text>
+      );
+    return (
+      <Stack gap={2}>
+        <Text size="xs">{t('contracts.summary', { count: k.contracts, failed: k.failed, untested: k.untested })}</Text>
+        {k.items.length > 0 && (
+          <List size="xs" spacing={0} data-testid="contract-items">
+            {k.items.slice(0, 10).map((i) => (
+              <List.Item key={i.contractId}>
+                <Anchor component={Link} to={`/data-contracts/${i.contractId}`} size="xs">
+                  {i.name}
+                </Anchor>{' '}
+                {i.result ? t(`contracts.results.${i.result}`) : t('contracts.never')}
+                {i.findings ? ` – ${t('contracts.findings', { count: i.findings })}` : ''}
               </List.Item>
             ))}
           </List>

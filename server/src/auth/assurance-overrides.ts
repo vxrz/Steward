@@ -1,4 +1,5 @@
 import { RECORD_WORKFLOWS, controlPoint, effectiveRule, type AssuranceOverride, type AssurancePolicy, type RecordWorkflowKey } from '@sm/shared';
+import { defaultIdentityRows, parseMcp } from '../platforms/identities.js';
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
 
@@ -94,8 +95,11 @@ export function listOverrides(policy: AssurancePolicy): AssuranceOverride[] {
   }
 
   // platforms: changing calls through MCP (mcp.write)
+  // the mode is on the default identity (0.9.0, ADR 0009)
+  const modes = defaultIdentityRows();
   for (const p of db().all<{ id: string; name: string; config: string }>('SELECT id, name, config FROM platforms ORDER BY name')) {
-    const writes = parseJson<{ mcpGateway?: { enabled?: boolean; writes?: string } }>(p.config, {}).mcpGateway?.writes;
+    const i = modes.get(p.id);
+    const writes = i ? parseMcp(i.mcp).writes : parseJson<{ mcpGateway?: { enabled?: boolean; writes?: string } }>(p.config, {}).mcpGateway?.writes;
     if (!writes || writes === 'off') continue;
     push({
       point: 'mcp.write',

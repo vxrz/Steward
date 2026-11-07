@@ -10,6 +10,7 @@ import { permissionsFor } from '../processes/service.js';
 import { getPlatform } from '../platforms/service.js';
 import * as triggers from '../triggers/service.js';
 import { handleHook, registerTestNonce } from '../triggers/hook.js';
+import { listTriggerExamples } from '../triggers/examples.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
@@ -67,6 +68,8 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- management ----------
   app.get('/triggers', async () => triggers.listTriggers());
+  // example triggers (examples/triggers, #242): mappings and sender setups the editor offers
+  app.get('/triggers/examples', async () => listTriggerExamples());
   app.get('/triggers/:id', async (req) => triggers.getTrigger(params(req).id!));
   app.get('/triggers/:id/fires', async (req) =>
     triggers.listFires(params(req).id!, z.object({ limit: z.coerce.number().int().min(1).max(500).default(50) }).parse(req.query ?? {}).limit),

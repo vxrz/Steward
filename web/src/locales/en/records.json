@@ -358,7 +358,8 @@
       "system": "System",
       "site": "Site",
       "asset": "Asset",
-      "conduit": "Conduit (OT network)"
+      "conduit": "Conduit (OT network)",
+      "page-watch": "Page watch"
     },
     "target": "Target",
     "search": "Type to search",

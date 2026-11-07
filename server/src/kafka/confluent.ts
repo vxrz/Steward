@@ -52,7 +52,14 @@ interface KafkaAcl {
 }
 
 /** Every item of a paged list: the first page from `path`, the next ones from metadata.next while it stays on `origin`. */
-async function pages<T>(platform: Platform, secrets: Record<string, string>, path: string, query: Record<string, string>, what: string): Promise<T[]> {
+/** Every item of a paged list (also the Costs API of platform costs, #226). */
+export async function confluentPages<T>(
+  platform: Platform,
+  secrets: Record<string, string>,
+  path: string,
+  query: Record<string, string>,
+  what: string,
+): Promise<T[]> {
   const base = await resolveBaseUrl(platform, secrets);
   const origin = new URL(base).origin;
   const out: T[] = [];
@@ -151,14 +158,14 @@ export function aclTarget(platform: Platform): { restUrl: string; clusterId: str
  */
 export async function confluentAccess(platform: Platform, secrets: Record<string, string>, crn: string): Promise<AccessSubject[]> {
   if (platform.kind !== CONFLUENT_KIND) throw new HttpError(400, 'The Confluent source needs a Confluent Cloud API platform', 'ACCESS_CHECK_CONFLUENT_SOURCE');
-  const bindings = await pages<RoleBinding>(platform, secrets, '/iam/v2/role-bindings', { crn_pattern: crn }, 'Confluent Cloud (role bindings)');
-  const users = await pages<CloudUser>(platform, secrets, '/iam/v2/users', {}, 'Confluent Cloud (users)');
-  const accounts = await pages<ServiceAccount>(platform, secrets, '/iam/v2/service-accounts', {}, 'Confluent Cloud (service accounts)');
+  const bindings = await confluentPages<RoleBinding>(platform, secrets, '/iam/v2/role-bindings', { crn_pattern: crn }, 'Confluent Cloud (role bindings)');
+  const users = await confluentPages<CloudUser>(platform, secrets, '/iam/v2/users', {}, 'Confluent Cloud (users)');
+  const accounts = await confluentPages<ServiceAccount>(platform, secrets, '/iam/v2/service-accounts', {}, 'Confluent Cloud (service accounts)');
   let acls: KafkaAcl[] = [];
   const target = aclTarget(platform);
   if (target && secrets.clusterApiKey && secrets.clusterApiSecret) {
     const cluster = clusterPlatform(platform, target.restUrl);
-    acls = await pages<KafkaAcl>(
+    acls = await confluentPages<KafkaAcl>(
       cluster,
       { username: secrets.clusterApiKey, password: secrets.clusterApiSecret },
       `/kafka/v3/clusters/${encodeURIComponent(target.clusterId)}/acls`,

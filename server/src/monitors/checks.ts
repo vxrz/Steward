@@ -6,9 +6,18 @@ import type { CheckOf, MonitorStatus, Platform } from '@sm/shared';
 import { evalExpr } from '../engine/expr.js';
 import { buildUrl, credentialsAllowed, platformRequest, type HttpResult } from '../platforms/http.js';
 import { findRecording, missingRecording } from '../platforms/recordings.js';
-import { assertAddressSafe, assertNetAllowed, assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
+import {
+  assertNetAllowed,
+  assertOutboundAllowed,
+  assertRedirectAllowed,
+  assertRedirectBodyClean,
+  egressSecretValues,
+  guardedLookup,
+  sameDestination,
+} from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
-import { AWS_KIND, BRAND, DATABASE_KIND, PVAULT_KIND, isGitPlatformKind, type PvFindingKind } from '@sm/shared';
+import { HttpError } from '../util.js';
+import { AWS_KIND, BRAND, CHANGEDETECTION_KIND, DATABASE_KIND, PVAULT_KIND, isGitPlatformKind, type PvFindingKind } from '@sm/shared';
 import { freshnessStatus, freshnessWindowSeconds, fmtAge, statusMatcher } from './logic.js';
 import { promInstant, seriesName } from '../platforms/prometheus.js';
 import { readNamespace } from '../catalogue/kubernetes.js';
@@ -249,7 +258,9 @@ async function monitorFetch(c: CheckOf<'http'>, signal: AbortSignal): Promise<Aw
   let method = c.method;
   let body: string | undefined = c.method === 'POST' ? (c.body ?? '') : undefined;
   const initialOrigin = new URL(c.url).origin;
+  const sent: string[] = [];
   for (let hop = 0; ; hop++) {
+    sent.push(url);
     const sameOrigin = new URL(url).origin === initialOrigin;
     const headers: Record<string, string> = { 'user-agent': `${BRAND.slug}-monitor` };
     if (sameOrigin) for (const [k, v] of Object.entries(c.headers ?? {})) headers[k] = v;
@@ -262,11 +273,16 @@ async function monitorFetch(c: CheckOf<'http'>, signal: AbortSignal): Promise<Aw
     } catch {
       return res;
     }
-    await assertAddressSafe(next.toString());
+    await res.body?.cancel().catch(() => undefined); // a redirect's body is not read: a failed cancel changes nothing
+    // the outbound policy on every hop (0.9.0, #243): a redirect that leaves the hosts already sent to must be allowed
+    await assertRedirectAllowed(next.toString(), sent, outboundContext());
     if (res.status === 303 || ((res.status === 301 || res.status === 302) && method !== 'GET' && method !== 'HEAD')) {
       method = 'GET';
       body = undefined;
     }
+    // 307/308 send the body again (0.9.0, the #243 rule): not with one of the check's header values (its credentials) to another origin
+    if (body && !sameDestination(next.toString(), sent))
+      assertRedirectBodyClean(body, egressSecretValues(c.headers ?? {}), { from: url, to: next.toString(), status: res.status });
     url = next.toString();
   }
 }
@@ -283,6 +299,9 @@ async function checkHttp(c: CheckOf<'http'>, ctx: ExecContext): Promise<RawResul
   try {
     res = await monitorFetch(c, AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)]));
   } catch (e) {
+    // a redirect the outbound policy refuses, or a 307/308 that would send a credential again: not allowed, as for the first URL
+    if (e instanceof HttpError && e.statusCode === 403)
+      return { status: 'unknown', message: `Target not allowed: ${e.message}`.slice(0, 300), durationMs: Date.now() - t0 };
     const err = e as Error & { cause?: Error & { code?: string } };
     const timedOut = err.name === 'TimeoutError' || err.name === 'AbortError';
     return {
@@ -786,10 +805,35 @@ async function checkDynamoDb(c: CheckOf<'dynamodb'>, ctx: ExecContext): Promise<
 // ---------- database schemas ----------
 
 /** Schema changes of a database platform or a system (#222): stored snapshots, optionally read first. */
+/** The monitor check "Data contract" (#221): datacontracts/check.ts. */
+async function checkDataContract(c: CheckOf<'data-contract'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { dataContractCheck } = await import('../datacontracts/check.js');
+  return { ...(await dataContractCheck(c, ctx)), durationMs: Date.now() - t0 };
+}
+
 async function checkDbSchema(c: CheckOf<'db-schema'>, ctx: ExecContext): Promise<RawResult> {
   const t0 = Date.now();
   const { dbSchemaCheck } = await import('../dbschema/check.js');
   return { ...(await dbSchemaCheck(c, ctx)), durationMs: Date.now() - t0 };
+}
+
+// ---------- version watch ----------
+
+/** The tech stack of an application against the newest versions (#241): from the version watch's cache, no call. */
+async function checkVersionBehind(c: CheckOf<'version-behind'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { versionBehindCheck } = await import('../versions/check.js');
+  return { ...versionBehindCheck(c, ctx), durationMs: Date.now() - t0 };
+}
+
+// ---------- platform costs ----------
+
+/** The costs of a service, application, team or platform against the period before (#226). */
+async function checkCost(c: CheckOf<'cost'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { costCheck } = await import('../costs/check.js');
+  return { ...costCheck(c, ctx), durationMs: Date.now() - t0 };
 }
 
 // ---------- Entra ID ----------
@@ -856,6 +900,81 @@ async function checkDtrack(c: CheckOf<'dependency-track'>, ctx: ExecContext): Pr
     durationMs: ms,
     value,
   };
+}
+
+// ---------- changedetection.io ----------
+
+/** The watch list of a platform, read at most once a minute (several checks of one instance share it). */
+const pageWatchSeen = new Map<string, { at: number; read: Awaited<ReturnType<import('../changedetection/client.js').CdClient['watches']>> }>();
+
+/** Watches of changedetection.io (#242): changed within N hours, failing, not checked for too long, paused. Metadata only. */
+async function checkPageWatch(c: CheckOf<'page-watch'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  if (platform.kind !== CHANGEDETECTION_KIND)
+    return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a changedetection.io platform` };
+  let read;
+  try {
+    const seen = pageWatchSeen.get(platform.id);
+    if (seen && ctx.now() - seen.at < 60_000 && ctx.now() >= seen.at) read = seen.read;
+    else {
+      const { CdClient } = await import('../changedetection/client.js');
+      read = await new CdClient(platform, secrets, AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)])).watches();
+      pageWatchSeen.set(platform.id, { at: ctx.now(), read });
+    }
+  } catch (e) {
+    return { status: 'unknown', message: `changedetection.io could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
+  }
+  const ms = Date.now() - t0;
+  const tag = c.tag?.trim().toLowerCase();
+  const watch = c.watch?.trim().toLowerCase();
+  const scope = watch
+    ? read.watches.filter((w) => w.uuid === watch)
+    : tag
+      ? read.watches.filter((w) => w.tags.some((x) => x.toLowerCase() === tag))
+      : read.watches;
+  const where = watch ? (scope[0] ? `"${scope[0].title}"` : `watch ${watch}`) : tag ? `tag "${c.tag}"` : 'all watches';
+  if (!scope.length)
+    return {
+      status: 'unknown',
+      message: watch
+        ? `changedetection.io has no watch ${watch}`
+        : tag
+          ? `changedetection.io has no watch with the tag "${c.tag}"`
+          : 'changedetection.io has no watches',
+      durationMs: ms,
+    };
+  const now = ctx.now();
+  const paused = scope.filter((w) => w.paused);
+  const active = scope.filter((w) => !w.paused);
+  const failing = active.filter((w) => w.lastError);
+  const stale = c.maxCheckAgeHours
+    ? active.filter((w) => !w.lastError && (!w.lastCheckedAt || now - Date.parse(w.lastCheckedAt) > c.maxCheckAgeHours! * 3_600_000))
+    : [];
+  const changed = scope.filter((w) => w.lastChangedAt && now - Date.parse(w.lastChangedAt) <= c.changedWithinHours * 3_600_000);
+  const value = { watches: scope.length, failing: failing.length, stale: stale.length, changed: changed.length, paused: paused.length };
+  const names = (list: typeof scope, extra?: (w: (typeof scope)[number]) => string) =>
+    list
+      .slice(0, 3)
+      .map((w) => `${w.title}${extra ? ` (${extra(w)})` : ''}`)
+      .join('; ') + (list.length > 3 ? ` and ${list.length - 3} more` : '');
+  const problems: string[] = [];
+  if (failing.length) problems.push(`${failing.length} failing: ${names(failing, (w) => (w.lastError ?? '').slice(0, 120))}`);
+  if (stale.length)
+    problems.push(
+      `${stale.length} not checked for more than ${c.maxCheckAgeHours} h: ${names(stale, (w) => (w.lastCheckedAt ? `last ${fmtAge((now - Date.parse(w.lastCheckedAt)) / 1000)} ago` : 'never'))}`,
+    );
+  const changes = changed.length
+    ? `${changed.length} changed in the last ${c.changedWithinHours} h: ${names(changed, (w) => `${fmtAge((now - Date.parse(w.lastChangedAt!)) / 1000)} ago`)}`
+    : `no change in the last ${c.changedWithinHours} h`;
+  const pausedText = paused.length ? `${paused.length} paused` : '';
+  const head = `changedetection.io: ${where}`;
+  const join = (...parts: string[]) => `${head} – ${parts.filter(Boolean).join('; ')}`.slice(0, 1000);
+  if (problems.length) return { status: c.failingAs, message: join(...problems, changes, pausedText), durationMs: ms, value };
+  if (paused.length && c.pausedAs === 'degraded')
+    return { status: 'degraded', message: join(`${pausedText} (they notice no change): ${names(paused)}`, changes), durationMs: ms, value };
+  if (changed.length && c.changedAs === 'degraded') return { status: 'degraded', message: join(changes, pausedText), durationMs: ms, value };
+  return { status: 'up', message: join(watch ? '' : `${active.length} without errors`, changes, pausedText), durationMs: ms, value };
 }
 
 // ---------- IBM Verify Privilege Vault ----------
@@ -1076,14 +1195,19 @@ type Active =
   | CheckOf<'kubernetes'>
   | CheckOf<'git'>
   | CheckOf<'kafka'>
+  | CheckOf<'kafka-connect'>
   | CheckOf<'mqtt'>
   | CheckOf<'snowflake'>
   | CheckOf<'database'>
   | CheckOf<'dynamodb'>
   | CheckOf<'db-schema'>
+  | CheckOf<'cost'>
+  | CheckOf<'data-contract'>
   | CheckOf<'dependency-track'>
+  | CheckOf<'version-behind'>
   | CheckOf<'entra'>
-  | CheckOf<'privilege-vault'>;
+  | CheckOf<'privilege-vault'>
+  | CheckOf<'page-watch'>;
 
 /** Runs an active check; heartbeat and sub-monitor checks are evaluated by the engine from stored state. */
 export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawResult> {
@@ -1117,14 +1241,25 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkDynamoDb(c, ctx);
       case 'db-schema':
         return await checkDbSchema(c, ctx);
+      case 'cost':
+        return await checkCost(c, ctx);
+      case 'data-contract':
+        return await checkDataContract(c, ctx);
       case 'dependency-track':
         return await checkDtrack(c, ctx);
+      case 'version-behind':
+        return await checkVersionBehind(c, ctx);
       case 'entra':
         return await checkEntra(c, ctx);
       case 'privilege-vault':
         return await checkPrivilegeVault(c, ctx);
+      case 'page-watch':
+        return await checkPageWatch(c, ctx);
       case 'kafka':
         return await checkKafka(c, ctx);
+      case 'kafka-connect':
+        // Kafka Connect (0.9.0, #223): connectors and tasks, a sink's lag, a Debezium connector's topics
+        return await (await import('../kafkaconnect/check.js')).checkKafkaConnect(c, ctx);
       case 'mqtt':
         return await checkMqtt(c, ctx);
     }

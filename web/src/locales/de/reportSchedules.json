@@ -62,6 +62,14 @@
     "ai": {
       "title": "Nutzung von KI-Modellen",
       "hint": "Aufrufe und Tokens pro Gateway, Modell und Prozess, abgelehnte und fehlgeschlagene Aufrufe, die Budgets – ein monatlicher Zeitplan ist der monatliche KI-Bericht"
+    },
+    "costs": {
+      "title": "Kosten",
+      "hint": "Kosten des Zeitraums je Service gegenüber dem Zeitraum davor, mit den Budgets (Showback; was Sie sehen dürfen)"
+    },
+    "contracts": {
+      "title": "Datenverträge",
+      "hint": "Die Tests des Berichtszeitraums je Vertrag (bestanden, Warnungen, fehlgeschlagen), der letzte Test, Stewards Befunde und die gespeicherten Versionen – die Verträge, die der Eigentümer sehen darf"
     }
   },
   "runNow": "Jetzt erstellen",
@@ -124,7 +132,14 @@
     "teamHint": "Das PDF verwendet das Berichts-Branding des Teams (Benutzer → Teams → Einstellungen). Wählen Sie eines der Teams des Eigentümers.",
     "teamNone": "Das Branding der Instanz",
     "gateways": "LLM-Gateways",
-    "allGateways": "Alle Gateways"
+    "allGateways": "Alle Gateways",
+    "costScope": "Kosten je",
+    "costScopes": {
+      "service": "Service",
+      "application": "Anwendung",
+      "team": "Team",
+      "platform": "Plattform"
+    }
   },
   "emptyState": {
     "title": "Noch keine Berichtszeitpläne",

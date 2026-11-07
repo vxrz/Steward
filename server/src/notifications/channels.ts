@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
-import { EnvHttpProxyAgent, fetch } from 'undici';
+import { EnvHttpProxyAgent } from 'undici';
+import { assertAddressSafe, fetchCheckingRedirects, guardedLookup, urlSecrets } from '../platforms/outbound.js';
 import type { Locale, NotificationSettings } from '@sm/shared';
 import type { ChannelSecrets } from './settings.js';
 import { BRAND } from '@sm/shared';
@@ -74,17 +75,32 @@ export function partsText(p: MessageParts | undefined, opts: { facts?: boolean }
 }
 
 const TIMEOUT_MS = 10000;
-// Honours HTTP(S)_PROXY / NO_PROXY like the platform client does without an explicit proxy.
-const dispatcher = new EnvHttpProxyAgent();
+// Honours HTTP(S)_PROXY / NO_PROXY like the platform client does without an explicit proxy; a direct connection
+// resolves through the address guard (no cloud-metadata or link-local address, the IP pinned) – also on a redirect.
+const dispatcher = new EnvHttpProxyAgent({ connect: { lookup: guardedLookup }, requestTls: { lookup: guardedLookup } } as never);
 
+/**
+ * POSTs to a webhook or Teams URL an administrator set up (0.9.0, #243). The URL itself is not checked against the
+ * outbound policy (administrators set it, SECURITY-HARDENING.md), but address safety applies to it and to every
+ * redirect: no cloud-metadata or link-local address, not Steward's own API. At most 5 redirects are followed, each
+ * target with the redirect rule of every other request (assertRedirectAllowed: the same origin, http → https on the
+ * same host, or a host the outbound policy allows); a 307/308 to another origin must not carry the URL's credential.
+ */
 async function postJson(url: string, payload: unknown): Promise<void> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'user-agent': BRAND.slug },
-    body: JSON.stringify(payload),
-    dispatcher,
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
+  await assertAddressSafe(url);
+  const { outboundContext } = await import('../platforms/policyContext.js');
+  const res = await fetchCheckingRedirects(
+    url,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'user-agent': BRAND.slug },
+      body: JSON.stringify(payload),
+      dispatcher,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    },
+    outboundContext(),
+    { bodySecrets: urlSecrets(url) },
+  );
   const text = await res.text().catch(() => '');
   if (!res.ok) throw new Error(`HTTP ${res.status}${text ? `: ${text.slice(0, 200)}` : ''}`);
 }

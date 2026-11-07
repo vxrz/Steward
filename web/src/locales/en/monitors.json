@@ -223,6 +223,16 @@
     "kafkaStuck": "Stuck after (minutes without a commit)",
     "kafkaSchema": "Expected schema version",
     "kafkaSchemaHint": "Of <topic>-value in the Schema Registry; empty: not checked",
+    "connectConnector": "Connector",
+    "connectConnectorHint": "Empty: every connector of the cluster",
+    "connectNotRunningAs": "When a connector or task failed",
+    "connectPausedAs": "When one is paused or stopped",
+    "connectFailedMinutes": "Failed task alarms after (minutes)",
+    "connectFailedMinutesHint": "Empty: at once; before that, degraded",
+    "connectMaxLag": "Most lag of a sink (messages)",
+    "connectMaxLagHint": "Read on the Kafka platform of the cluster; empty: not checked",
+    "connectQuiet": "Debezium topics quiet after (minutes)",
+    "connectQuietHint": "No message on any topic of a Debezium connector; empty: not checked",
     "mqttTopic": "Topic or pattern",
     "mqttTopicHint": "+ one level, # the rest, e.g. plant/+/status",
     "mqttMode": "What must arrive",
@@ -369,7 +379,93 @@
     "dbSchemaFailAs": "When it fails",
     "dbSchemaNoData": "Without a snapshot",
     "dbSchemaRead": "Read the database first",
-    "dbSchemaReadHint": "Reads the schema at every check (a snapshot when it changed). Off: only the reads and imports already stored count."
+    "dbSchemaReadHint": "Reads the schema at every check (a snapshot when it changed). Off: only the reads and imports already stored count.",
+    "versionApplication": "Application",
+    "versionApplicationHint": "Its components and the systems it runs on are checked against the newest versions the version watch knows",
+    "versionChooseApplication": "Choose an application",
+    "versionNoApplication": "No application",
+    "versionEnvironment": "Environment",
+    "versionEnvironmentHint": "Only this environment (and what serves all); empty: every one",
+    "versionProducts": "Products",
+    "versionProductsHint": "Only these; empty: the whole tech stack",
+    "versionMaxMinors": "Degraded above … minor releases behind",
+    "versionMaxMinorsHint": "Default 2",
+    "versionMaxDays": "Degraded when behind for more than … days",
+    "versionMaxDaysHint": "Since the first newer release; empty: not checked",
+    "versionMajorAs": "A major release behind",
+    "versionEolAs": "Release cycle at its end of life",
+    "versionEolIgnore": "Not checked",
+    "pageWatchScope": "Which watches",
+    "pageWatchScopeWatch": "One watch",
+    "pageWatchScopeTag": "With a tag",
+    "pageWatchScopeAll": "All watches",
+    "pageWatchWatch": "Watch",
+    "pageWatchWatchHint": "As Steward last read them from changedetection.io",
+    "pageWatchNoWatch": "No such watch",
+    "pageWatchUuid": "UUID of the watch",
+    "pageWatchUuidHint": "The UUID of the watch in changedetection.io (in the address of its edit page: /edit/<UUID>)",
+    "pageWatchNotRead": "Steward has not read the watches of this platform yet: read them on its Watches tab to pick one, or enter the UUID.",
+    "pageWatchUuidInvalid": "Not a UUID",
+    "pageWatchTag": "Tag",
+    "pageWatchTagHint": "The name of the tag in changedetection.io; case does not matter",
+    "pageWatchChangedWithin": "Changed within (hours)",
+    "pageWatchChangedAs": "A change counts as",
+    "pageWatchInformational": "Information",
+    "pageWatchFailingAs": "A failing watch counts as",
+    "pageWatchFailingAsHint": "Its last check failed (fetch error, filter not found) or it was not checked in time",
+    "pageWatchMaxCheckAge": "Not checked for (hours)",
+    "pageWatchMaxCheckAgeHint": "Counts as failing; empty: not looked at",
+    "pageWatchPausedAs": "Paused watches",
+    "pageWatchPausedIgnore": "Left out",
+    "pageWatchChangedAsHint": "Information: the check stays OK and names the change",
+    "cost": {
+      "scope": "Costs of",
+      "target": "Which",
+      "targetEmpty": "Nothing you may see",
+      "period": "Compare",
+      "periods": {
+        "month": "The last month with the month before",
+        "monthToDate": "This month so far with the same share of the month before"
+      },
+      "maxIncreasePct": "Up by more than (%)",
+      "maxIncrease": "or by more than (amount)",
+      "maxIncreaseHint": "In the currency compared, e.g. 500",
+      "currency": "Currency",
+      "currencyHint": "Empty: the one with the highest costs",
+      "failAs": "Status when it rises more",
+      "noData": "Status without costs to compare",
+      "statuses": {
+        "down": "Down",
+        "degraded": "Degraded",
+        "unknown": "Unknown",
+        "up": "Up"
+      },
+      "scopes": {
+        "service": "Service",
+        "application": "Application",
+        "team": "Team",
+        "platform": "Platform"
+      }
+    },
+    "contract": "Data contract",
+    "contractHint": "The check runs with the monitor owner's rights: they must see the contract (and, for tests, may test it and use its service and database)",
+    "chooseContract": "Choose a data contract",
+    "noContract": "No data contract you may see",
+    "contractMode": "What is checked",
+    "contractModes": {
+      "test": "The test (data contract service)",
+      "findings": "Steward's own checks"
+    },
+    "contractModeHints": {
+      "test": "Runs the contract's test; the full report is stored with the contract",
+      "findings": "No owner, not tested recently, last test failed, columns that no longer match – without the service"
+    },
+    "contractTestedWithin": "Not tested for (days)",
+    "contractFailAs": "A failed test",
+    "contractErrorAs": "An error finding",
+    "contractWarningAs": "A test with warnings",
+    "contractWarningFindingAs": "A warning finding",
+    "contractTestHint": "A test reads data: it gets at least a minute, whatever the time limit above says (at most 300 s). A test run of the monitor (recorded responses) does not call the service – it judges the last stored run."
   },
   "detail": {
     "template": "template",
@@ -705,6 +801,10 @@
       "label": "Kafka topic",
       "help": "New messages on a topic within N minutes, the lag of a consumer group, a group that is stuck, the schema version"
     },
+    "kafka-connect": {
+      "label": "Kafka Connect connectors",
+      "help": "Connectors and their tasks are RUNNING, a task failed for N minutes, the consumer lag of a sink connector, a Debezium connector whose topics got no message for N minutes"
+    },
     "mqtt": {
       "label": "MQTT topics",
       "help": "Messages on an MQTT topic within N minutes, devices (topics of a pattern) that went silent, connected clients"
@@ -729,6 +829,10 @@
       "label": "Vulnerabilities (Dependency-Track)",
       "help": "A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation"
     },
+    "version-behind": {
+      "label": "Version behind",
+      "help": "The tech stack of an application is up to date: degraded when more minor releases or days behind than allowed, down when a major release behind or the release cycle reached its end of life (version watch)"
+    },
     "entra": {
       "label": "Entra ID (Microsoft Graph)",
       "help": "App registrations whose secrets or certificates expire within N days, or the Microsoft 365 service health"
@@ -740,6 +844,18 @@
     "dynamodb": {
       "label": "DynamoDB table",
       "help": "A DynamoDB table on an AWS platform: the newest item per partition key is recent enough, the table had writes within the window (CloudWatch), or its status, point-in-time recovery and time to live"
+    },
+    "page-watch": {
+      "label": "Page watch (changedetection.io)",
+      "help": "Watches of changedetection.io: a page changed within the last N hours (informational or degraded), a watch whose last check failed or that was not checked for too long"
+    },
+    "cost": {
+      "label": "Cost change",
+      "help": "The costs of a service, application, team or platform: up by more than a percentage or an amount compared with the month before"
+    },
+    "data-contract": {
+      "label": "Data contract",
+      "help": "An ODCS data contract: its test through the data contract service passes (warnings degrade), or Steward’s own checks – owner, last test, columns of linked datasets and tables – find nothing"
     }
   },
   "newCheck": {
@@ -755,15 +871,20 @@
     "kubernetes": "Kubernetes deployments",
     "git": "Repository pipeline",
     "kafka": "Kafka topic",
+    "kafka-connect": "Connectors running",
     "mqtt": "MQTT topics",
     "monitor": "Sub-monitor",
     "snowflake": "Snowflake table fresh",
     "dependency-track": "No critical vulnerabilities",
+    "version-behind": "Tech stack up to date",
     "entra": "App credentials valid",
     "privilege-vault": "Vault hygiene",
     "database": "Database reachable",
     "dynamodb": "DynamoDB table fresh",
-    "db-schema": "No breaking schema change"
+    "db-schema": "No breaking schema change",
+    "page-watch": "Vendor pages watched",
+    "cost": "Costs not rising",
+    "data-contract": "Data contract holds"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}"

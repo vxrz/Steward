@@ -13,6 +13,8 @@ import { boundedRecord } from './zodLimits.js';
 import { DB_LIMITS } from './database.js';
 import { tagInput } from './tags.js';
 import { AWS_REGION_RE } from './aws.js';
+import { PAGE_WATCH_LIMITS, PAGE_WATCH_UUID_RE } from './changedetection.js';
+import { COST_CHECK_PERIODS, COST_SCOPES, currencyCode, toMicros } from './costs.js';
 
 // ---------- statuses ----------
 
@@ -54,14 +56,19 @@ export const CHECK_TYPES = [
   'kubernetes',
   'git',
   'kafka',
+  'kafka-connect',
   'mqtt',
   'snowflake',
   'database',
   'dynamodb',
   'db-schema',
+  'cost',
+  'data-contract',
   'dependency-track',
+  'version-behind',
   'entra',
   'privilege-vault',
+  'page-watch',
   'monitor',
 ] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
@@ -80,14 +87,30 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   checkmk: { label: 'CheckMk host or service', help: 'Current state of a host or service in CheckMk (OK, WARN, CRIT, UNKNOWN)' },
   kubernetes: { label: 'Kubernetes deployments', help: 'Deployments of a namespace are ready (e.g. 3/3) and no pod is crash-looping' },
   kafka: { label: 'Kafka topic', help: 'New messages on a topic within N minutes, the lag of a consumer group, a group that is stuck, the schema version' },
+  'kafka-connect': {
+    label: 'Kafka Connect connectors',
+    help: 'Connectors and their tasks are RUNNING, a task failed for N minutes, the consumer lag of a sink connector, a Debezium connector whose topics got no message for N minutes',
+  },
   mqtt: { label: 'MQTT topics', help: 'Messages on an MQTT topic within N minutes, devices (topics of a pattern) that went silent, connected clients' },
+  'data-contract': {
+    label: 'Data contract',
+    help: 'An ODCS data contract: its test through the data contract service passes (warnings degrade), or Steward’s own checks – owner, last test, columns of linked datasets and tables – find nothing',
+  },
   'dependency-track': {
     label: 'Vulnerabilities (Dependency-Track)',
     help: 'A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation',
   },
+  'version-behind': {
+    label: 'Version behind',
+    help: 'The tech stack of an application is up to date: degraded when more minor releases or days behind than allowed, down when a major release behind or the release cycle reached its end of life (version watch)',
+  },
   'privilege-vault': {
     label: 'Vault hygiene (IBM Verify Privilege Vault)',
     help: 'Secrets of IBM Verify Privilege Vault: failed heartbeats, passwords not rotated or expired, automatic changing off, no owner, privileged secrets without checkout or approval',
+  },
+  'page-watch': {
+    label: 'Page watch (changedetection.io)',
+    help: 'Watches of changedetection.io: a page changed within the last N hours (informational or degraded), a watch whose last check failed or that was not checked for too long',
   },
   snowflake: {
     label: 'Snowflake',
@@ -104,6 +127,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   'db-schema': {
     label: 'Database schema changes',
     help: 'The schema snapshots of a database platform or a system: no change, or no breaking change, within the last N hours; optionally reads the platform first',
+  },
+  cost: {
+    label: 'Cost change',
+    help: 'The costs of a service, application, team or platform: up by more than a percentage or an amount compared with the month before',
   },
   entra: {
     label: 'Entra ID (Microsoft Graph)',
@@ -378,6 +405,24 @@ export const checkSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     ...checkBase,
+    type: z.literal('version-behind'),
+    /** The application whose tech stack is checked: its id or name (#241) */
+    application: z.string().trim().min(1).max(200),
+    /** Only components and systems of this environment (and those of all environments); empty: every one */
+    environment: z.string().trim().max(60).optional(),
+    /** Only these products (endoflife.date ids); empty: the whole stack */
+    products: z.array(z.string().trim().min(1).max(100)).max(50).optional(),
+    /** Degraded above this many minor releases behind (default 2) */
+    maxMinors: z.number().int().min(0).max(1000).default(2),
+    /** Degraded when the first newer release came out more than this many days ago; unset: not checked */
+    maxDays: z.number().int().min(1).max(3650).optional(),
+    /** A major release behind: down (default) or degraded */
+    majorAs: z.enum(['down', 'degraded']).default('down'),
+    /** The release cycle reached its end of life: down (default), degraded, or not checked */
+    eolAs: z.enum(['down', 'degraded', 'ignore']).default('down'),
+  }),
+  z.object({
+    ...checkBase,
     type: z.literal('privilege-vault'),
     platform: platformRef,
     /** Only secrets of this folder and below (\IT\Servers); empty: all the service account may list (#205) */
@@ -393,6 +438,30 @@ export const checkSchema = z.discriminatedUnion('type', [
     maxFindings: z.number().int().min(0).max(100000).default(0),
     /** Status with more findings: degraded (default) or down; a finding on a privileged secret always counts */
     failAs: z.enum(['down', 'degraded']).default('degraded'),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('page-watch'),
+    /** A changedetection.io platform (#242) */
+    platform: platformRef,
+    /** One watch (its UUID); empty: the watches with the tag, or all watches */
+    watch: z
+      .string()
+      .trim()
+      .refine((v) => !v || PAGE_WATCH_UUID_RE.test(v), 'the UUID of a watch in changedetection.io')
+      .optional(),
+    /** The watches with this tag (its name in changedetection.io, case does not matter); ignored with a watch */
+    tag: z.string().trim().max(PAGE_WATCH_LIMITS.tag).optional(),
+    /** A change within this many hours is reported (default 24) … */
+    changedWithinHours: z.number().int().min(1).max(8760).default(24),
+    /** … as information (up, the default) or as degraded */
+    changedAs: z.enum(['up', 'degraded']).default('up'),
+    /** Status of a watch whose last check failed (fetch error, filter not found …) or that was not checked for too long */
+    failingAs: z.enum(['down', 'degraded']).default('degraded'),
+    /** Not checked for this many hours counts as failing (optional: an instance or watch that stopped checking) */
+    maxCheckAgeHours: z.number().int().min(1).max(8760).optional(),
+    /** Paused watches: left out (default), or degraded (a paused watch notices nothing) */
+    pausedAs: z.enum(['ignore', 'degraded']).default('ignore'),
   }),
   z.object({
     ...checkBase,
@@ -498,6 +567,46 @@ export const checkSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     ...checkBase,
+    type: z.literal('cost'),
+    /** What the costs are of (#226): a service, application, team or platform – by id */
+    scope: z.enum(COST_SCOPES),
+    target: z.string().trim().min(1).max(100),
+    /**
+     * month: the last complete month against the month before; monthToDate: this month so far against the same share of
+     * the month before
+     */
+    period: z.enum(COST_CHECK_PERIODS).default('month'),
+    /** The currency compared (default: the one with the highest costs) */
+    currency: currencyCode.optional(),
+    /** Fails when the costs rose by more than this many percent … */
+    maxIncreasePct: z.number().min(0).max(100_000).optional(),
+    /** … or by more than this amount (decimal, in the currency) */
+    maxIncrease: z
+      .string()
+      .trim()
+      .max(32)
+      .refine((v) => toMicros(v) !== null && toMicros(v)! >= 0, 'an amount like 500 or 500.50')
+      .optional(),
+    failAs: z.enum(['down', 'degraded']).default('degraded'),
+    /** Status without costs in the periods (default unknown) */
+    noData: z.enum(['unknown', 'up']).default('unknown'),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('data-contract'),
+    /** The data contract (its id, #221) */
+    contract: z.string().trim().min(1).max(100),
+    /** test: run its test through the data contract service; findings: Steward's own checks, without the service */
+    mode: z.enum(['test', 'findings']).default('test'),
+    /** findings: a contract not tested within this many days counts as a warning (default 7) */
+    testedWithinDays: z.number().int().min(1).max(365).default(7),
+    /** Status of a failed test or an error finding (default down) */
+    failAs: z.enum(['down', 'degraded']).default('down'),
+    /** Status of a test with warnings or a warning finding (default degraded) */
+    warningAs: z.enum(['degraded', 'up']).default('degraded'),
+  }),
+  z.object({
+    ...checkBase,
     type: z.literal('kafka'),
     platform: platformRef,
     /** The topic (#112) */
@@ -511,6 +620,25 @@ export const checkSchema = z.discriminatedUnion('type', [
     stuckMinutes: z.number().int().min(1).max(10080).default(15),
     /** degraded when the latest schema version of <topic>-value is another one */
     schemaVersion: z.number().int().min(1).optional(),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('kafka-connect'),
+    /** A Kafka Connect platform (#223) */
+    platform: platformRef,
+    /** One connector; empty: every connector of the cluster */
+    connector: z.string().trim().max(255).optional(),
+    /** Status of a connector or task that is FAILED, UNASSIGNED or RESTARTING (default down) */
+    notRunningAs: z.enum(['down', 'degraded']).default('down'),
+    /** Status of a PAUSED or STOPPED connector or task (default degraded) */
+    pausedAs: z.enum(['up', 'degraded', 'down']).default('degraded'),
+    /** A failed task counts as notRunningAs only once it has failed for this many minutes (degraded before) */
+    failedMinutes: z.number().int().min(1).max(10080).optional(),
+    /** Sink connectors: degraded above this consumer lag, read on the linked Kafka platform */
+    maxLag: z.number().int().min(0).optional(),
+    /** Debezium source connectors: quietAs when none of its topics got a message for this many minutes */
+    quietMinutes: z.number().int().min(1).max(43200).optional(),
+    quietAs: z.enum(['down', 'degraded']).default('degraded'),
   }),
   z.object({
     ...checkBase,
@@ -696,6 +824,8 @@ export function definitionIssues(def: MonitorDefinition, opts: { template?: bool
       issues.push({ path: `checks.${i}.crit`, message: `${c.mode} mode needs the CRIT level`, checkId: c.id });
     if (c.type === 'db-schema' && !c.platform === !c.system)
       issues.push({ path: `checks.${i}.platform`, message: 'name a database platform or a system (one of them)', checkId: c.id });
+    if (c.type === 'cost' && c.maxIncreasePct === undefined && c.maxIncrease === undefined)
+      issues.push({ path: `checks.${i}.maxIncreasePct`, message: 'a cost change check needs a percentage or an amount', checkId: c.id });
     if (c.type === 'db-schema' && c.read && !c.platform)
       issues.push({ path: `checks.${i}.read`, message: 'only a database platform can be read', checkId: c.id });
     if (c.type === 'freshness' && c.source === 'platform') {

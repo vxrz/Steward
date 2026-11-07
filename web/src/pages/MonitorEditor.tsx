@@ -98,14 +98,19 @@ const TRYABLE = new Set<CheckType>([
   'kubernetes',
   'git',
   'kafka',
+  'kafka-connect',
   'mqtt',
   'snowflake',
   'database',
   'dynamodb',
   'db-schema',
+  'cost',
+  'data-contract',
   'dependency-track',
+  'version-behind',
   'entra',
   'privilege-vault',
+  'page-watch',
 ]);
 
 /**

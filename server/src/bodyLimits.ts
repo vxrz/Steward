@@ -15,7 +15,7 @@
  * The route permission matrix test checks that only the routes named in LARGE_BODIES accept more than
  * the default, so a new route stays at 1 MB unless it is added here.
  */
-import { COMPONENT_LIMITS, DB_SCHEMA_LIMITS, PLANT_LIMITS, RECORDING_LIMITS, REPORT_LOGO_MAX_BYTES } from '@sm/shared';
+import { COMPONENT_LIMITS, COST_LIMITS, DATA_CONTRACT_LIMITS, DB_SCHEMA_LIMITS, PLANT_LIMITS, RECORDING_LIMITS, REPORT_LOGO_MAX_BYTES } from '@sm/shared';
 import { LIMITS as CATALOGUE_LIMITS } from './compliance/controls.js';
 import { MONITOR_IMPORT_LIMITS } from './monitors/model.js';
 import { IMPORT_LIMITS as RECORD_IMPORT_LIMITS } from './records/markdown-io.js';
@@ -45,6 +45,18 @@ export interface LargeBody {
 /** The only routes that accept bodies above DEFAULT_BODY_LIMIT. Routes pass `bodyLimit: LARGE_BODIES.<name>.bytes`. */
 export const LARGE_BODIES = {
   /** A recorded platform response (#105): RECORDING_LIMITS.bodyBytes (1 MB) as JSON, with headers and match */
+  /** A data contract as YAML (#221): DATA_CONTRACT_LIMITS.yamlBytes (1 MB) in a JSON body */
+  dataContracts: {
+    routes: [
+      'POST /api/data-contracts',
+      'POST /api/data-contracts/check',
+      'POST /api/data-contracts/import',
+      'POST /api/data-contracts/:id/check',
+      'POST /api/data-contracts/:id/versions',
+      'POST /api/data-contracts/:id/service-lint',
+    ],
+    bytes: jsonText(DATA_CONTRACT_LIMITS.yamlBytes),
+  },
   recordings: { routes: ['POST /api/platforms/:id/recordings', 'PUT /api/platforms/:id/recordings/:recId'], bytes: jsonText(RECORDING_LIMITS.bodyBytes) },
   /** Markdown files of records: RECORD_IMPORT_LIMITS.totalBytes (2 MB) together */
   recordsImport: { routes: ['POST /api/records/import'], bytes: jsonText(RECORD_IMPORT_LIMITS.totalBytes) },
@@ -107,6 +119,14 @@ export const LARGE_BODIES = {
   dbSchemaImport: {
     routes: ['POST /api/db-schemas/:kind/:id/import/preview', 'POST /api/db-schemas/:kind/:id/import', 'POST /api/hooks/db-schema/:kind/:id'],
     bytes: jsonText(DB_SCHEMA_LIMITS.importBytes + DB_SCHEMA_LIMITS.lintBytes, 16 * KIB),
+  },
+  /**
+   * A FOCUS cost file (#226): COST_LIMITS.importBytes (25 MB) of CSV as text in the web app's JSON body; the push
+   * endpoint for CI takes the file itself (only after its push token was checked; above 25 MB it is refused)
+   */
+  costImport: {
+    routes: ['POST /api/costs/platform/:id/imports/preview', 'POST /api/costs/platform/:id/imports', 'POST /api/hooks/costs/:platformId'],
+    bytes: jsonText(COST_LIMITS.importBytes, 16 * KIB),
   },
 } as const satisfies Record<string, LargeBody>;
 

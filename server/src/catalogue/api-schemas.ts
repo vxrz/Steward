@@ -5,6 +5,8 @@ import {
   CIA_SCALE_MODES,
   COMPONENT_TYPES,
   LIFECYCLE_STATES,
+  VERSION_LAGS,
+  VERSION_SOURCES,
   MAINTENANCE_FREQS,
   MAINTENANCE_TARGET_KINDS,
   REVIEW_STATUSES,
@@ -132,6 +134,21 @@ const StackLifecycleEntry = z.object({
   daysLeft: z.number().int().nullable().describe('Days until the end of life (negative: past)'),
 });
 
+const StackVersionEntry = z.object({
+  source: z.enum(VERSION_SOURCES).nullable().describe('The source that answered first (dtrack, registry, oci, git, endoflife); null: none'),
+  ref: z.string().describe('What was looked up: a package URL, an image, a repository, the product'),
+  where: z.string().describe('Where: npm, PyPI …, a platform’s name, endoflife.date'),
+  newest: z.string().nullable().describe('The newest version, as the source names it (a tag keeps its suffix)'),
+  newestAt: z.string().nullable().describe('When it was published, if the source says'),
+  lag: z.enum(VERSION_LAGS).describe('current, patch, minor, major or unknown'),
+  behind: z.object({ major: z.number().int(), minor: z.number().int(), patch: z.number().int() }).nullable().describe('The first part that differs'),
+  daysBehind: z.number().int().nullable().describe('Days since the first release newer than the installed one'),
+  checkedAt: z.string().nullable(),
+  error: z.string().nullable().describe('Why no source answered'),
+  configured: z.boolean().describe('The entry has its own setting'),
+  prereleases: z.boolean().describe('Pre-releases count'),
+});
+
 const StackEntry = z.object({
   product: z.string().describe('endoflife.date product id, e.g. nodejs'),
   label: z.string().describe('Product name, e.g. Node.js'),
@@ -141,6 +158,7 @@ const StackEntry = z.object({
   setAt: ts(),
   setBy: z.string(),
   lifecycle: StackLifecycleEntry.nullable().describe('End of life of the release cycle in use (from endoflife.date); null: no data for the product'),
+  watch: StackVersionEntry.nullable().optional().describe('The newest version from the version watch and how far behind this one is; null: not watched'),
 });
 
 export const ApplicationEntry = z.object({

@@ -65,10 +65,10 @@ export function snapshotScorecards(now = Date.now(), force = false): number | nu
   db().tx(() => {
     // services archived (or gone) since the last snapshot of today are left out of today's
     db().run('DELETE FROM scorecard_snapshots WHERE day = ?', day);
-    for (const { card: c, documentIds } of cards) {
+    for (const { card: c, documentIds, contractIds } of cards) {
       db().run(
-        `INSERT INTO scorecard_snapshots (day, service_id, service_name, owners, attention, duties, availability, documentation, protection, lifecycle, vulnerabilities, document_ids, details, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO scorecard_snapshots (day, service_id, service_name, owners, attention, duties, availability, documentation, protection, lifecycle, vulnerabilities, up_to_date, costs, contracts, contract_ids, document_ids, details, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         day,
         c.serviceId,
         c.serviceName,
@@ -80,6 +80,10 @@ export function snapshotScorecards(now = Date.now(), force = false): number | nu
         c.protection.status,
         c.lifecycle.status,
         c.vulnerabilities.status,
+        c.upToDate.status,
+        c.costs.status,
+        c.contracts.status,
+        JSON.stringify(contractIds),
         JSON.stringify(documentIds),
         JSON.stringify({
           duties: { mandatory: c.duties.mandatory, recommended: c.duties.recommended, optional: c.duties.optional },
@@ -99,6 +103,9 @@ export function snapshotScorecards(now = Date.now(), force = false): number | nu
             policyFail: c.vulnerabilities.policyFail,
             stale: c.vulnerabilities.stale,
           },
+          upToDate: { enabled: c.upToDate.enabled, entries: c.upToDate.entries, major: c.upToDate.major, behind: c.upToDate.behind },
+          costs: { budgetPct: c.costs.budgetPct, forecastPct: c.costs.forecastPct, currency: c.costs.currency },
+          contracts: { contracts: c.contracts.contracts, failed: c.contracts.failed, untested: c.contracts.untested },
         }),
         iso(now),
       );

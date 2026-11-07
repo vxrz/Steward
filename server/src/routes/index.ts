@@ -17,6 +17,7 @@ import { migrationRoutes } from '../migration/routes.js';
 import { dutyRoutes } from '../duties/routes.js';
 import { scorecardRoutes } from '../scorecard/routes.js';
 import { gatusRoutes } from '../gatus/routes.js';
+import { changedetectionRoutes } from '../changedetection/routes.js';
 import { credentialRoutes } from '../credentials/routes.js';
 import { reportScheduleRoutes } from './report-schedules.js';
 import { syncRoutes } from '../sync/routes.js';
@@ -34,8 +35,12 @@ import { postmanExportRoutes } from '../export/routes.js';
 import { assuranceRoutes } from './assurance.js';
 import { aiRoutes } from '../ai/routes.js';
 import { databaseRoutes } from '../dbms/routes.js';
+import { kafkaConnectRoutes } from '../kafkaconnect/routes.js';
 import { dbSchemaRoutes } from '../dbschema/routes.js';
+import { costRoutes } from '../costs/routes.js';
+import { dataContractRoutes } from '../datacontracts/routes.js';
 import { plantRoutes } from '../plant/routes.js';
+import { versionRoutes } from '../versions/routes.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await authRoutes(app);
@@ -55,10 +60,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await triggerRoutes(app);
   await monitorRoutes(app);
   await gatusRoutes(app);
+  // changedetection.io (#242): watches as components of the platform
+  await changedetectionRoutes(app);
   await credentialRoutes(app);
   await reportScheduleRoutes(app);
   await recordRoutes(app);
   await catalogueRoutes(app);
+  // the version watch of the tech stack (#241)
+  await versionRoutes(app);
   await backupRoutes(app);
   await dutyRoutes(app);
   await scorecardRoutes(app);
@@ -69,8 +78,13 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await assuranceRoutes(app);
   await aiRoutes(app);
   await databaseRoutes(app);
+  // Kafka Connect platforms (#223): connectors, tasks, plugins – read-only
+  await kafkaConnectRoutes(app);
   // database schemas (#222): snapshots, changes, tbls import, export
   await dbSchemaRoutes(app);
+  await costRoutes(app);
+  // data contracts (#221): ODCS v3 versions, links, tests through the data contract service
+  await dataContractRoutes(app);
   await migrationRoutes(app);
   await onboardingRoutes(app);
   await duplicateRoutes(app);

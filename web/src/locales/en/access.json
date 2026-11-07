@@ -44,7 +44,8 @@
       "monitor": "This monitor belongs to the whole instance: roles and its access list decide who may do what.",
       "dashboard": "This dashboard belongs to the whole instance: everybody signed in sees it; its owner and administrators change it.",
       "ticket": "This ticket reference belongs to the whole instance: everybody signed in sees it; designers, operators and its responsibles change it.",
-      "site": "This site belongs to the whole instance: roles and the access list decide who may see and manage it, its hierarchy and its assets."
+      "site": "This site belongs to the whole instance: roles and the access list decide who may see and manage it, its hierarchy and its assets.",
+      "contract": "This data contract belongs to the whole instance: everybody who works in Steward sees it; operators test it, designers change it."
     },
     "hintOwned": {
       "process": "Members of these teams have their roles in the team on this process. Everyone else sees it only through the access list below; administrators always, auditors may view.",
@@ -57,7 +58,8 @@
       "monitor": "Members of these teams have their roles in the team on this monitor. Everyone else sees it only through its access list; administrators always, auditors may view.",
       "dashboard": "Only members of these teams see this dashboard, besides its owner, administrators and auditors.",
       "ticket": "Only members of these teams see this ticket reference (designers and operators among them change it), besides its responsibles, administrators and auditors.",
-      "site": "Only members of these teams see this site with its hierarchy and assets (designers among them manage it), besides those on its access list, administrators and auditors."
+      "site": "Only members of these teams see this site with its hierarchy and assets (designers among them manage it), besides those on its access list, administrators and auditors.",
+      "contract": "Only members of these teams see this data contract (operators among them test it, designers change it), besides administrators and auditors. A failed test notifies them."
     },
     "saved": "Owning teams saved",
     "notSaved": "Owning teams not saved",
@@ -106,7 +108,8 @@
         "monitor": "Monitor",
         "dashboard": "Dashboard",
         "ticket": "Ticket reference",
-        "site": "Site"
+        "site": "Site",
+        "contract": "Data contract"
       }
     }
   },

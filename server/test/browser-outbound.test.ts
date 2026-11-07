@@ -125,4 +125,47 @@ describe('browser steps and the outbound policy', () => {
     },
     120_000,
   );
+  it.skipIf(!hasChromium)(
+    'never opens the origin of a read-only platform, nor puts another connection’s secret into a page (0.9.0)',
+    async () => {
+      const n = (id: string, type: string, extra: Record<string, unknown> = {}) => ({ id, type, x: 0, y: 0, ...extra });
+      const cdSrv = http.createServer((_req, res) => res.end('<html><body>changedetection.io</body></html>'));
+      await new Promise<void>((r) => cdSrv.listen(0, '127.0.0.1', r));
+      const cdOrigin = `http://127.0.0.1:${(cdSrv.address() as AddressInfo).port}`;
+      const cd = await s.api('POST', '/platforms', {
+        name: 'changedetection.io (browser test)',
+        kind: 'changedetection',
+        baseUrl: cdOrigin,
+        config: { auth: { type: 'apiKey', apiKeyIn: 'header', apiKeyName: 'x-api-key' }, variables: {}, http: { proxy: 'none' } },
+        secrets: { apiKey: 'cd-browser-SECRET-0042' },
+      });
+      const run = async (name: string, actions: unknown[]) => {
+        const p = await s.api('POST', '/processes', {
+          definition: {
+            name,
+            connections: [{ slot: 'portal' }, { slot: 'cd', kind: 'changedetection' }],
+            inputs: [],
+            nodes: [n('start', 'start'), n('open', 'browser', { connection: 'portal', actions })],
+            wires: [{ from: 'start', port: 'out', to: 'open' }],
+          },
+        });
+        const { id } = await s.api('POST', '/runs', { processId: p.id, bindings: { portal: platformId, cd: cd.id }, inputs: {} });
+        const r = await s.waitRun(id, ['succeeded', 'failed', 'cancelled']);
+        return { r, error: String(r.steps.find((x: any) => x.key === 'open')?.error ?? '') };
+      };
+      // the page could send anything to the read-only platform (a fetch with its key in evaluate): never opened
+      const nav = await run('Open the read-only platform', [{ action: 'goto', value: `${cdOrigin}/settings` }]);
+      expect(nav.error).toMatch(/belongs to a platform of kind changedetection/);
+      // the read-only platform's API key typed into the portal's page: refused before it is typed
+      const fill = await run('Fill a foreign secret', [
+        { action: 'goto', value: '/js' },
+        { action: 'evaluate', value: `{{ "fetch('/x', {headers: {k: '" & $secret('cd', 'apiKey') & "'}})" }}` },
+      ]);
+      expect(fill.error).toMatch(/contains a credential of connection "cd"/);
+      expect(JSON.stringify(fill.r)).not.toContain('cd-browser-SECRET-0042');
+      await s.api('DELETE', `/platforms/${cd.id}`);
+      cdSrv.close();
+    },
+    120_000,
+  );
 });

@@ -355,4 +355,37 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX system_segments_segment ON system_segments(segment_id);
     `,
   },
+  {
+    // #241 version watch: where to look for new versions of a tech stack entry (no row: automatic), what each lookup
+    // found (a cache, read again once a day by default), the "new major release" messages sent (once per target,
+    // product and major), and the date of each release cycle's latest release from endoflife.date
+    name: 'catalogue-013-version-watch',
+    sql: `
+      CREATE TABLE stack_version_watch (
+        holder_kind TEXT NOT NULL,
+        holder_id TEXT NOT NULL,
+        product TEXT NOT NULL,
+        config TEXT NOT NULL,
+        set_at TEXT NOT NULL,
+        set_by TEXT NOT NULL,
+        PRIMARY KEY (holder_kind, holder_id, product)
+      );
+      CREATE TABLE version_lookups (
+        key TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        ref TEXT NOT NULL,
+        versions TEXT NOT NULL DEFAULT '[]',
+        fetched_at TEXT NOT NULL,
+        error TEXT
+      );
+      CREATE TABLE version_notices (
+        target_id TEXT NOT NULL,
+        product TEXT NOT NULL,
+        major TEXT NOT NULL,
+        sent_at TEXT NOT NULL,
+        PRIMARY KEY (target_id, product, major)
+      );
+      ALTER TABLE eol_releases ADD COLUMN latest_date TEXT;
+    `,
+  },
 ];

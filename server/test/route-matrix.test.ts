@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { allowEmailDomains, authHeaders, loginCookie, setEnv, setup, startTestServer, type TestServer } from './helpers.js';
 import { tinyPng } from './png.js';
+import { DEFAULT_VERSION_SETTINGS } from '@sm/shared';
 
 /**
  * Route permission matrix: every route the server registers, called by every role.
@@ -264,9 +265,50 @@ const EXPECT: Record<string, Access> = {
   'POST /api/db-schemas/:kind/:id/push-tokens/:tokenId/rotate': ADMIN,
   'DELETE /api/db-schemas/:kind/:id/push-tokens/:tokenId': ADMIN,
   'POST /api/hooks/db-schema/:kind/:id': HOOK,
+  // platform costs (#226), here of the demo platform: the overview for everyone (each sees the scopes they may see), a
+  // platform's costs for who may see the platform and auditors; its source, imports and push tokens for its managers
+  'GET /api/costs': ALL,
+  'GET /api/costs/settings': ALL,
+  'PUT /api/costs/settings': ADMIN,
+  'PUT /api/costs/budgets': DESIGN,
+  'GET /api/costs/:scope/:id': RECON_READ,
+  'GET /api/costs/platform/:id/source': RECON_READ,
+  'PUT /api/costs/platform/:id/source': ADMIN,
+  'POST /api/costs/platform/:id/read': ADMIN,
+  'GET /api/costs/platform/:id/imports': RECON_READ,
+  'POST /api/costs/platform/:id/imports/preview': ADMIN,
+  'POST /api/costs/platform/:id/imports': ADMIN,
+  'GET /api/costs/platform/:id/push-tokens': ADMIN,
+  'POST /api/costs/platform/:id/push-tokens': ADMIN,
+  'POST /api/costs/platform/:id/push-tokens/:tokenId/rotate': ADMIN,
+  'DELETE /api/costs/platform/:id/push-tokens/:tokenId': ADMIN,
+  'POST /api/hooks/costs/:platformId': HOOK,
+  // data contracts (#221), here the demo's "Shop orders" (no owning team): everyone who works in Steward sees and checks
+  // them, operators test them, designers create and change them
+  'GET /api/data-contracts': ALL,
+  'POST /api/data-contracts': DESIGN,
+  'POST /api/data-contracts/check': ALL,
+  'POST /api/data-contracts/draft': ALL,
+  'POST /api/data-contracts/import': DESIGN,
+  'GET /api/data-contracts/:id': ALL,
+  'DELETE /api/data-contracts/:id': DESIGN,
+  'PUT /api/data-contracts/:id/settings': DESIGN,
+  'POST /api/data-contracts/:id/check': ALL,
+  'GET /api/data-contracts/:id/versions': ALL,
+  'POST /api/data-contracts/:id/versions': DESIGN,
+  'GET /api/data-contracts/:id/versions/:version': ALL,
+  'GET /api/data-contracts/:id/compare': ALL,
+  'GET /api/data-contracts/:id/export': ALL,
+  'POST /api/data-contracts/:id/links': DESIGN,
+  'DELETE /api/data-contracts/:id/links/:linkId': DESIGN,
+  'POST /api/data-contracts/:id/test': RUN,
+  'POST /api/data-contracts/:id/service-lint': ALL,
+  'GET /api/data-contracts/:id/runs': ALL,
+  'GET /api/data-contracts/:id/runs/:runId': ALL,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
+  'GET /api/platforms/:id/confirm-config': ADMIN,
   'POST /api/platforms/:id/confirm-config': ADMIN,
   'POST /api/platforms/:id/contract-check': ADMIN,
   'PUT /api/platforms/:id/secrets': ADMIN,
@@ -284,6 +326,10 @@ const EXPECT: Record<string, Access> = {
   'POST /api/platforms/:id/token/renew': ADMIN,
   // Kafka peek (#112): platform managers only, and only where the platform allows it
   'POST /api/platforms/:id/kafka/peek': ADMIN,
+  // Kafka Connect (#223): the readout for who sees the platform, "Read now" and a connector's configuration (audited) for who may use it
+  'GET /api/platforms/:id/kafka-connect': USE,
+  'POST /api/platforms/:id/kafka-connect/read': USE,
+  'GET /api/platforms/:id/kafka-connect/connectors/:name/config': USE,
   'GET /api/platforms/:id/specs': USE,
   'POST /api/platforms/:id/specs': ADMIN,
   'DELETE /api/platforms/:id/specs/:specId': ADMIN,
@@ -304,6 +350,11 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/gatus/sources/:platformId': ADMIN,
   'POST /api/gatus/sources/:platformId/scrape': USE,
   'GET /api/gatus/sources/:platformId/endpoints': USE,
+  // changedetection.io (#242): watches as components of the platform
+  'GET /api/changedetection/:platformId/watches': USE,
+  'POST /api/changedetection/:platformId/watches/read': USE,
+  'PUT /api/changedetection/:platformId/watches/:uuid/link': ADMIN,
+  'GET /api/changedetection/:platformId/watches/:uuid/history': USE,
 
   // ---- processes, runs, tasks, schedules, triggers ----
   'GET /api/templates': ALL,
@@ -355,6 +406,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/schedules/:id/run': RUN,
   'POST /api/cron/preview': ALL,
   'GET /api/triggers': ALL,
+  'GET /api/triggers/examples': ALL,
   'POST /api/triggers': RUN,
   'POST /api/triggers/preview-mapping': RUN,
   'GET /api/triggers/:id': ALL,
@@ -574,6 +626,13 @@ const EXPECT: Record<string, Access> = {
   'GET /api/catalogue/lifecycle': ALL,
   'PUT /api/catalogue/lifecycle': ADMIN,
   'POST /api/catalogue/lifecycle/refresh': DESIGN,
+  // version watch (#241): the status for everyone, settings for administrators, an entry for whoever may change its application
+  'GET /api/catalogue/versions': ALL,
+  'PUT /api/catalogue/versions': ADMIN,
+  'POST /api/catalogue/versions/refresh': DESIGN,
+  'GET /api/catalogue/versions/entry': ALL,
+  'PUT /api/catalogue/versions/entry': DESIGN,
+  'POST /api/catalogue/versions/entry/read': DESIGN,
   'POST /api/applications/:id/components': DESIGN,
   'PUT /api/applications/:id/components/:componentId': DESIGN,
   'DELETE /api/applications/:id/components/:componentId': DESIGN,
@@ -763,6 +822,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/plant/assets/:assetId/network': PLANT,
   // database schemas (#222): of the demo database platform (who sees it) and of the matrix system (everyone);
   'GET /api/v1/platforms/:platformId/schema/snapshots': USE,
+  // platform costs (#226): the overview for everyone (each sees what they may see); one scope as in the web app
+  'GET /api/v1/costs': ALL,
+  'GET /api/v1/costs/:scope/:id': RECON_READ,
   'GET /api/v1/platforms/:platformId/schema/snapshots/:snapshotId': USE,
   'GET /api/v1/platforms/:platformId/schema/snapshots/:snapshotId/export': USE,
   'GET /api/v1/platforms/:platformId/schema/changes': USE,
@@ -1113,6 +1175,15 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     harmless: { scope: 'installation', scopeId: '', tokensPerDay: 500, tokensPerMonth: null },
   },
   'PUT /api/backups/passphrase': 'always',
+  // raising a cost budget (#226; the fixtures set 1,000 USD a month for a service); lowering it needs no confirmation
+  'PUT /api/costs/budgets': {
+    get sensitive() {
+      return { scope: 'service', scopeId: fx.service, amount: '2000', currency: 'USD' };
+    },
+    get harmless() {
+      return { scope: 'service', scopeId: fx.service, amount: '500', currency: 'USD' };
+    },
+  },
 };
 
 /**
@@ -1185,10 +1256,19 @@ function fill(url: string): string {
       .replace(/\/schema\/snapshots\/:snapshotId/, '/schema/snapshots/latest')
       .replace(/\/api\/db-schemas\/([^/]+)\/([^/]+)\/snapshots\/:snapshotId/, '/api/db-schemas/$1/$2/snapshots/latest')
       .replace(/:platformId\/schema/, `${fx.dbPlatform}/schema`)
-      .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : fx.platform!)
+      // Kafka Connect (#223): the demo cluster and its Debezium connector
+      .replace(/\/api\/platforms\/:id\/kafka-connect/, `/api/platforms/${fx.connectPlatform}/kafka-connect`)
+      .replace(/:name\/config/, 'shop-cdc/config')
+      // platform costs (#226): the demo platform
+      .replace(/\/api\/(v1\/)?costs\/:scope\/:id/, `/api/$1costs/platform/${fx.platform}`)
+      .replace(/\/api\/costs\/platform\/:id/, `/api/costs/platform/${fx.platform}`)
+      .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : url.startsWith('/api/changedetection') ? fx.cdPlatform! : fx.platform!)
+      .replace(/:uuid/g, '7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e01')
       .replace(/:specId/g, fx.spec!)
       .replace(/:docId/g, fx.doc!)
       .replace(/:processId/g, fx.process!)
+      // a test run of the demo's data contract (#221)
+      .replace(/^\/api\/data-contracts\/:id\/runs\/:runId/, `/api/data-contracts/${fx.contract}/runs/${fx.contractRun}`)
       .replace(/:runId/g, fx.run!)
       .replace(/:stepId/g, fx.step!)
       .replace(/:nodeId/g, fx.node!)
@@ -1286,6 +1366,7 @@ function fill(url: string): string {
           notifications: 'notification',
           'sync-sources': 'syncSource',
           'sync-updates': 'syncUpdate',
+          'data-contracts': 'contract',
         };
         return seg(map[prefix] ?? '', `none_${prefix}`);
       })
@@ -1362,6 +1443,9 @@ const bodies = (): Record<string, unknown> => ({
   'PATCH /api/applications/:id/links/:linkId': { label: 'changed', note: 'n' },
   'POST /api/applications/:id/components': { type: 'other', name: `matrix ${Math.random()}` },
   'PUT /api/catalogue/lifecycle': { platformId: null, warnDays: 90, notify: true, scorecard: false },
+  'PUT /api/catalogue/versions': DEFAULT_VERSION_SETTINGS,
+  'PUT /api/catalogue/versions/entry': { holder: 'component', id: fx.component, product: 'nodejs', config: { source: 'endoflife' } },
+  'POST /api/catalogue/versions/entry/read': { holder: 'component', id: fx.component, product: 'nodejs' },
   'PUT /api/applications/:id/components/:componentId': { type: 'other', name: 'matrix component' },
   'POST /api/applications/:id/components/:componentId/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
@@ -1617,7 +1701,14 @@ beforeAll(async () => {
   const svcLink = await a('POST', `/services/${svc.id}/links`, { url: 'https://cmdb.example.com/2', label: 'x' });
   const application = await a('POST', '/applications', { name: 'Matrix application', owners: [] });
   const appLink = await a('POST', `/applications/${application.id}/links`, { url: 'https://cmdb.example.com/3', label: 'x' });
-  const component = (await a('POST', `/applications/${application.id}/components`, { type: 'repository', name: 'matrix component' })).components[0];
+  const component = (
+    await a('POST', `/applications/${application.id}/components`, {
+      type: 'repository',
+      name: 'matrix component',
+      stack: [{ product: 'nodejs', version: '24' }],
+    })
+  ).components[0];
+  QUERY['GET /api/catalogue/versions/entry'] = `?holder=component&id=${component.id}&product=nodejs`;
   await a('PUT', `/services/${svc.id}/applications/${application.id}`, { role: 'primary' });
   const system = await a('POST', '/systems', { name: 'Matrix system', kind: 'server' });
   const systemLink = (await a('POST', `/applications/${application.id}/systems`, { systemId: system.id, environment: 'dev' })).systems[0];
@@ -1691,6 +1782,11 @@ beforeAll(async () => {
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
   // database schemas (#222): a read of the demo database platform, a tbls import for the matrix system
   fx.dbPlatform = platforms.find((p: { kind: string }) => p.kind === 'database').id;
+  fx.connectPlatform = platforms.find((p: { kind: string }) => p.kind === 'kafka-connect').id;
+  // changedetection.io (#242): the demo platform, read by the demo setup
+  fx.cdPlatform = platforms.find((p: { kind: string }) => p.kind === 'changedetection').id;
+  // a cost budget (#226), so raising it is a sensitive change (STEP_UP)
+  await a('PUT', '/costs/budgets', { scope: 'service', scopeId: fx.service, amount: '1000', currency: 'USD' });
   const dbSnap = (await a('POST', `/db-schemas/platform/${fx.dbPlatform}/read`)).snapshot.id;
   const tbls = JSON.stringify({
     name: 'matrix',
@@ -1698,6 +1794,11 @@ beforeAll(async () => {
   });
   const sysSnap = (await a('POST', `/db-schemas/system/${system.id}/import`, { schema: tbls })).snapshot.id;
   QUERY['GET /api/db-schemas/:kind/:id/compare'] = `?from=${dbSnap}&to=${dbSnap}`;
+  // data contracts (#221): the demo's orders contract and its first test run
+  const contract = (await a('GET', '/data-contracts')).find((c: { key: string }) => c.key === 'shop-orders');
+  fx.contract = contract.id;
+  fx.contractRun = contract.lastRun.id;
+  QUERY['GET /api/data-contracts/:id/compare'] = '?from=1&to=1';
   QUERY['GET /api/v1/platforms/:platformId/schema/compare'] = `?from=${dbSnap}&to=${dbSnap}`;
   QUERY['GET /api/v1/systems/:systemId/schema/compare'] = `?from=${sysSnap}&to=${sysSnap}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;

@@ -29,7 +29,10 @@
     "documentation": "Documentation",
     "protection": "Protection need",
     "lifecycle": "Tech stack",
-    "vulnerabilities": "Vulnerabilities"
+    "vulnerabilities": "Vulnerabilities",
+    "upToDate": "Up to date",
+    "costs": "Costs",
+    "contracts": "Data contracts"
   },
   "windows": {
     "h1": "1 h",
@@ -186,5 +189,40 @@
     "error": "read failed: {{error}}",
     "readAt": "last read {{date}}",
     "open": "Open in Dependency-Track"
+  },
+  "upToDate": {
+    "none": "No newest versions known for the tech stack of the service's applications (version watch).",
+    "summary": "{{entries}} tech-stack entries with a known newest version: {{major}} a major release behind, {{behind}} further behind than allowed",
+    "majorItem_one": "{{component}}: {{product}} → {{newest}} – {{count}} major release behind",
+    "majorItem_other": "{{component}}: {{product}} → {{newest}} – {{count}} major releases behind",
+    "behindItem_one": "{{component}}: {{product}} → {{newest}} – {{count}} minor release behind for {{days}} days",
+    "behindItem_other": "{{component}}: {{product}} → {{newest}} – {{count}} minor releases behind for {{days}} days"
+  },
+  "costs": {
+    "none": "The service has no cost budget.",
+    "summary": "This month so far: {{pct}} % of the budget",
+    "summaryAmounts": "This month so far: {{used}} of {{budget}} {{currency}} ({{pct}} %)",
+    "state": {
+      "ok": "Within the budget this month",
+      "warning": "80 % of the budget reached this month",
+      "exceeded": "The budget is reached this month"
+    },
+    "stateOnly": "Only the budget's state: some applications of the service are hidden from you.",
+    "forecast": "Forecast for the month: {{pct}} % of the budget",
+    "open": "Show the costs"
+  },
+  "contracts": {
+    "none": "No data contract is linked to the service's applications or their systems.",
+    "summary_one": "{{count}} contract: {{failed}} failing, {{untested}} never tested",
+    "summary_other": "{{count}} contracts: {{failed}} failing, {{untested}} never tested",
+    "results": {
+      "passed": "last test passed",
+      "warning": "last test with warnings",
+      "failed": "last test failed",
+      "error": "last test could not run"
+    },
+    "never": "never tested",
+    "findings_one": "{{count}} finding",
+    "findings_other": "{{count}} findings"
   }
 }

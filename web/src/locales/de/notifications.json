@@ -122,6 +122,10 @@
       "eol": {
         "label": "Supportende im Tech-Stack",
         "info": "Eine Komponente einer Anwendung, die Sie verantworten, erreicht bald das Supportende ihres Release-Zyklus (oder hat es erreicht)"
+      },
+      "release": {
+        "label": "Neue Hauptversion",
+        "info": "Eine neue Hauptversion eines Produkts im Tech-Stack einer Anwendung oder eines Systems, für das Sie verantwortlich sind"
       }
     },
     "measure": {
@@ -158,6 +162,18 @@
       "budget": {
         "label": "KI-Budget",
         "info": "Ein Token-Budget für KI-Modelle hat 80 % erreicht oder ist aufgebraucht (Administratoren; die Verwalter des Gateways, der Eigentümer des Prozesses)"
+      }
+    },
+    "cost": {
+      "budget": {
+        "label": "Kostenbudget",
+        "info": "Das Monatsbudget für Kosten eines Service, einer Anwendung oder eines Teams, die Ihnen gehören, hat 80 % oder 100 % erreicht"
+      }
+    },
+    "contract": {
+      "failed": {
+        "label": "Test eines Datenvertrags fehlgeschlagen",
+        "info": "Ein Test eines Datenvertrags Ihres Teams ist fehlgeschlagen (die Mitglieder und der Kanal des Eigentümer-Teams)"
       }
     }
   }

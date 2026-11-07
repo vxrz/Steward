@@ -46,6 +46,12 @@ export const platformKeys = {
   recordings: (id: string | null | undefined) => ['platform-recordings', id] as const,
   /** LLM gateways (0.6.0): budgets, use and the latest calls; refreshed with the platform (prefix ['platform', id]) */
   aiUsage: (id: string | null | undefined) => ['platform', id, 'ai-usage'] as const,
+  /** Kafka Connect (0.9.0): the connectors Steward last read; a connector's configuration (read on request, never cached) */
+  kafkaConnect: (id: string | null | undefined) => ['platform', id, 'kafka-connect'] as const,
+  kafkaConnectConfig: (id: string | null | undefined, name: string) => ['platform', id, 'kafka-connect', 'config', name] as const,
+  /** changedetection.io (0.9.0): the watches as components of the platform (prefix ['platform', id]) */
+  watches: (id: string | null | undefined) => ['platform', id, 'watches'] as const,
+  watchHistory: (id: string | null | undefined, uuid: string) => ['platform', id, 'watches', uuid, 'history'] as const,
 };
 
 /** AI models (0.6.0): every budget (administrators and auditors) */
@@ -136,4 +142,34 @@ export const dbSchemaKeys = {
   compare: (kind: string, id: string | null | undefined, from: string | null | undefined, to: string | null | undefined) =>
     ['db-schema', kind, id, 'compare', from, to] as const,
   pushTokens: (kind: string, id: string | null | undefined) => ['db-schema', kind, id, 'push-tokens'] as const,
+};
+
+/** The version watch of the tech stack (#241): status and settings, one entry with what each source said. */
+export const versionKeys = {
+  all: ['catalogue-versions'] as const,
+  entry: (holder: string, id: string, product: string) => ['catalogue-versions', 'entry', holder, id, product] as const,
+};
+
+/** Platform costs (#226): the overview per kind, one scope, a platform's source, imports and push tokens. */
+export const costKeys = {
+  all: ['costs'] as const,
+  overview: (scope: string) => ['costs', 'overview', scope] as const,
+  detail: (scope: string, id: string | null | undefined) => ['costs', scope, id] as const,
+  source: (id: string | null | undefined) => ['costs', 'platform', id, 'source'] as const,
+  imports: (id: string | null | undefined) => ['costs', 'platform', id, 'imports'] as const,
+  pushTokens: (id: string | null | undefined) => ['costs', 'platform', id, 'push-tokens'] as const,
+  settings: ['costs', 'settings'] as const,
+};
+
+/** Data contracts (#221): the list, one contract, its versions, comparisons and test runs. */
+export const dataContractKeys = {
+  all: ['data-contracts'] as const,
+  list: ['data-contracts', 'list'] as const,
+  detail: (id: string | null | undefined) => ['data-contracts', 'detail', id] as const,
+  versions: (id: string | null | undefined) => ['data-contracts', 'detail', id, 'versions'] as const,
+  version: (id: string | null | undefined, v: number | null | undefined) => ['data-contracts', 'detail', id, 'version', v] as const,
+  compare: (id: string | null | undefined, from: number | null | undefined, to: number | null | undefined) =>
+    ['data-contracts', 'detail', id, 'compare', from, to] as const,
+  runs: (id: string | null | undefined) => ['data-contracts', 'detail', id, 'runs'] as const,
+  run: (id: string | null | undefined, runId: string | null | undefined) => ['data-contracts', 'detail', id, 'run', runId] as const,
 };

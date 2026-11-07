@@ -34,13 +34,19 @@ export function registerBuiltInJobs(): void {
   });
   // end of life of the tech stacks: daily refresh from endoflife.date and messages to application owners
   every5('end-of-life', 15 * MINUTE, () => import('../catalogue/lifecycle.js').then((m) => m.runLifecycleJob()));
+  // version watch of the tech stacks (#241): due lookups (once a day per source by default) and "new major release" messages
+  every5('version-watch', 20 * MINUTE, () => import('../versions/service.js').then((m) => m.runVersionJob()));
   // Kubernetes namespaces, repositories, Kafka topics, AWS accounts, Snowflake, Dependency-Track of applications (every few hours)
   every5('kubernetes', 30 * MINUTE, () => import('../catalogue/kubernetes.js').then((m) => m.runKubernetesJob()));
   every5('repositories', 30 * MINUTE, () => import('../catalogue/repositories.js').then((m) => m.runRepositoryJob()));
   every5('kafka', 30 * MINUTE, () => import('../kafka/service.js').then((m) => m.runKafkaJob()));
+  // Kafka Connect platforms (#223): connectors, tasks and plugins every hour
+  every5('kafka-connect', 15 * MINUTE, () => import('../kafkaconnect/service.js').then((m) => m.runKafkaConnectJob()));
   every5('aws', 30 * MINUTE, () => import('../aws/service.js').then((m) => m.runAwsJob()));
   every5('snowflake', 30 * MINUTE, () => import('../snowflake/service.js').then((m) => m.runSnowflakeJob()));
   every5('dependency-track', 30 * MINUTE, () => import('../dtrack/service.js').then((m) => m.runDtrackJob()));
+  // changedetection.io (#242): the watches of the platforms read before, every hour as the person who read them last
+  every5('changedetection', 10 * MINUTE, () => import('../changedetection/service.js').then((m) => m.runChangedetectionJob()));
   // credentials register entries linked to their IBM Verify Privilege Vault secret (#205): metadata every few hours
   every5('vault-links', 30 * MINUTE, () => import('../credentials/vault.js').then((m) => m.runVaultLinkJob()));
   // daily summaries of the people who turned them on (notifications/summary.ts)
@@ -61,6 +67,8 @@ export function registerBuiltInJobs(): void {
     const { env } = await import('../config.js');
     return import('../ai/dataset.js').then((m) => m.runAiUsageJob(env.SM_AI_USAGE_RETENTION_DAYS));
   });
+  // platform costs (#226): AWS, Snowflake and Confluent once a day, AI gateways hourly; budgets and their notices
+  every5('costs', 20 * MINUTE, () => import('../costs/jobs.js').then((m) => m.runCostsJob()));
   // assurance policy: requests to loosen it that no second administrator approved within 7 days expire (auth/assurance.ts)
   every5('assurance-policy-changes', MINUTE, () => import('../auth/assurance.js').then((m) => m.expirePolicyChanges()));
 

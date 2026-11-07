@@ -66,6 +66,38 @@
       "secretHelp": {
         "username": "A read-only login (docs/DATABASES.md): db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION"
       }
+    },
+    "kafka-connect-connectors-read-only": {
+      "description": "A Kafka Connect cluster through its REST API, read-only (also with Debezium for change data capture): Steward reads the connectors with type, class, version, state and topics, their tasks with state, worker and the error of a failed task, and the installed plugins; monitors check that connectors and tasks run, a task that failed for N minutes, the lag of a sink connector and Debezium connectors whose topics got no message. Steward never creates, restarts, pauses or resumes a connector – changing requests are refused for this kind –, and every configuration it reads has its secret-looking values removed and is never stored. Base URL: the REST API (https://connect.example.com:8083); variable kafkaPlatform: the name or id of its Kafka platform (for topics and lag). Sign-in: basic (username/password), a bearer token, or a client certificate (tlsCertificate/tlsKey, mutual TLS). See docs/KAFKA.md.",
+      "secrets": {
+        "username": "User name (basic)",
+        "password": "Password (basic)",
+        "token": "Bearer token",
+        "tlsCertificate": "Client certificate (PEM, mutual TLS)",
+        "tlsKey": "Private key of the client certificate (PEM)",
+        "tlsKeyPassphrase": "Passphrase of the private key (optional)"
+      },
+      "secretHelp": {
+        "username": "A user of the REST API that may read connectors (docs/KAFKA.md)"
+      }
+    },
+    "changedetection-io-page-watches-read-only": {
+      "description": "A changedetection.io instance that runs separately – its own container, with its own browser for JavaScript pages – and watches pages without an API: vendor changelogs and release notes, terms and pricing pages, status pages, documentation. Steward reads its watches (title, URL, tags, last check, last change, errors, snapshot times) as components of the platform, links them to applications, services or vendors, and checks them in monitors (check \"Page watch\"); changedetection.io's notifications start processes through a webhook trigger. Read-only: Steward never writes and never reads page contents – only metadata and the link to the diff. Base URL: the instance's root (e.g. http://changedetection:5000 on the same Docker network); variable uiUrl: its address in the browser, for links, when it differs. API key: Settings → API in changedetection.io, sent as x-api-key. The outbound policy must allow the instance's host. Software versions are better watched by the version watch of the tech stack. See docs/CHANGEDETECTION.md.",
+      "secrets": {
+        "apiKey": "API key"
+      },
+      "secretHelp": {
+        "apiKey": "Settings → API in changedetection.io (with \"Require API key\" on)"
+      }
+    },
+    "data-contract-service-datacontract-cli-api": {
+      "description": "The datacontract CLI run as a web service (\"datacontract api\", MIT, https://cli.datacontract.com) – its own container next to Steward. Steward sends the ODCS contracts saved under Catalogue → Data contracts to POST /test, with the credentials of the tested server from its vault in the CLI's datacontract-* headers (per request, never in the contract), and stores the test run as evidence; POST /lint checks a contract with the CLI's own lint. Start the service with DATACONTRACT_CLI_API_KEY and enter the same key here (sent as x-api-key). The tested server is a database platform of Steward linked to the contract. Compose example and network rules: docs/DATA-CONTRACTS.md.",
+      "secrets": {
+        "apiKey": "API key"
+      },
+      "secretHelp": {
+        "apiKey": "The value of DATACONTRACT_CLI_API_KEY of the service (sent as x-api-key)"
+      }
     }
   },
   "title": "Platforms",
@@ -178,6 +210,7 @@
       "database": "Database",
       "schema": "Schema",
       "credentials": "Credentials",
+      "identities": "Identities",
       "specs": "API specs",
       "docs": "Docs",
       "explorer": "Explorer",
@@ -186,7 +219,9 @@
       "mcp": "MCP",
       "recordings": "Recorded responses",
       "ai": "AI models",
-      "aiUsage": "AI usage"
+      "aiUsage": "AI usage",
+      "connectors": "Connectors",
+      "watches": "Watches"
     },
     "deleteText": "This deletes <b>{{name}}</b> including its stored credentials, API specs and documents. Processes and schedules that use it will fail until another platform is selected. The audit log is kept.",
     "typeToConfirm": "Type \"{{name}}\" to confirm"
@@ -219,6 +254,40 @@
     "store": "Store secret",
     "removeTitle": "Remove secret",
     "removeText": "Remove the secret <b>{{key}}</b>? Processes using it will fail until it is set again."
+  },
+  "identities": {
+    "info": "An identity is one set of credentials of this platform. Every platform has a default identity: requests use it unless they name another one. Its credentials are on the Credentials tab, its access for MCP clients on the MCP tab.",
+    "none": "This platform has no identity yet. Ask an administrator to review its connection settings.",
+    "default": "Default",
+    "readOnly": "Read only",
+    "privileged": "Privileged",
+    "changedOutside": "Changed outside Steward",
+    "signIn": "Sign-in",
+    "ownSignIn": "Its own sign-in settings",
+    "platformSignIn": "The platform’s sign-in settings ({{auth}})",
+    "credentials": "Stored credentials",
+    "noCredentials": "None stored",
+    "openCredentials": "Change on the Credentials tab",
+    "mcpLabel": "MCP clients",
+    "openMcp": "Change on the MCP tab",
+    "operations": "Operations",
+    "allOperations": "All operations",
+    "filtered": "Chosen operations only",
+    "whoMayUse": "Who may use it",
+    "everyoneWithUse": "Everyone with the “use” right on this platform",
+    "accessList": "The people and teams on its access list",
+    "you": "You",
+    "youMayUse": "You may use it",
+    "youMayNotUse": "You may not use it",
+    "mcp": {
+      "off": "Off",
+      "read": "Read only",
+      "writes": "Reads, and changing calls after approval ({{mode}})",
+      "writeModes": {
+        "confirm": "the token owner confirms",
+        "fourEyes": "a second person approves"
+      }
+    }
   },
   "settings": {
     "kind": "Kind",
@@ -421,7 +490,17 @@
     "confirm": "I reviewed the settings – confirm",
     "confirmQuestion": "Confirm the current connection settings (base URL {{url}})? Check the settings and the audit log first.",
     "confirmed": "Settings confirmed",
-    "askAdmin": "Ask an administrator to review and confirm the settings."
+    "askAdmin": "Ask an administrator to review and confirm the settings.",
+    "review": {
+      "identity": "Identity “{{name}}”",
+      "mcp": "MCP clients: {{mode}}",
+      "credentials": "Stored credentials: {{keys}}",
+      "reset": "Steward 0.9.0 does not use these settings of an identity – they go back to the platform’s when you confirm:",
+      "variables": "Variables: {{vars}}",
+      "signIn": "Its own sign-in: {{type}} at {{url}}",
+      "flags": "Flags: {{flags}}",
+      "remove": "Only the default identity exists in Steward 0.9.0 – this identity is removed when you confirm."
+    }
   },
   "recordings": {
     "title": "Recorded responses",
@@ -759,7 +838,9 @@
     "docsLink": "Read-only roles and what Steward refuses (docs/DATABASES.md)",
     "save": "Save connection",
     "saved": "Connection saved",
-    "notSaved": "The connection could not be saved"
+    "notSaved": "The connection could not be saved",
+    "contractServiceUnverified": "Allow the data contract service to connect without certificate verification",
+    "contractServiceUnverifiedHint": "The data contract service cannot verify the certificate of PostgreSQL and MySQL. Without this, data contract tests of this platform are refused while TLS is on. Off by default; the change is audited."
   },
   "schema": {
     "title": "Database schema",
@@ -973,5 +1054,121 @@
       "secretHelp": "Keep it as a secret of the CI job (STEWARD_PUSH_TOKEN) and push with one of these commands.",
       "done": "Done"
     }
+  },
+  "connect": {
+    "title": "Connectors",
+    "help": "What Steward last read from the Kafka Connect REST API, read-only: connectors, their tasks and the installed plugins. Read every hour and with Read now. Steward never restarts, pauses or resumes a connector.",
+    "readNow": "Read now",
+    "readFailed": "Kafka Connect could not be read",
+    "read": "Read {{when}}",
+    "worker": "Kafka Connect {{version}}",
+    "kafkaPlatform": "Kafka platform:",
+    "kafkaPlatformMissing": "The variable kafkaPlatform names no Kafka platform you may see – topics and lag cannot be linked.",
+    "kafkaPlatformNone": "No Kafka platform linked (variable kafkaPlatform) – topics are not linked to topic components.",
+    "readError": "The last read failed ({{when}}) – the connectors shown are from the read before",
+    "empty": "Not read yet",
+    "emptyHint": "Read now reads the connectors, tasks and plugins of the cluster.",
+    "emptyRead": "No connectors",
+    "emptyReadHint": "The cluster has no connector, or the account may not list them.",
+    "who": "Who may use the platform reads it.",
+    "summary_one": "{{count}} connector, {{running}} running",
+    "summary_other": "{{count}} connectors, {{running}} running",
+    "failedTasks_one": "{{count}} task failed",
+    "failedTasks_other": "{{count}} tasks failed",
+    "plugins_one": "{{count}} installed plugin",
+    "plugins_other": "{{count}} installed plugins",
+    "pluginClass": "Class",
+    "type": "Type",
+    "version": "Version",
+    "types": {
+      "source": "Source",
+      "sink": "Sink",
+      "unknown": "Unknown"
+    },
+    "config": "Configuration",
+    "configOf": "Configuration of {{name}}",
+    "configTitle": "Configuration of {{name}}",
+    "configHint": "Read from Kafka Connect now and not stored. Values that look secret (passwords, tokens, keys, credentials, sasl.jaas.config …) are removed; reading is recorded in the audit log.",
+    "key": "Key",
+    "value": "Value",
+    "removed": "removed",
+    "tasks_one": "{{count}} task",
+    "tasks_other": "{{count}} tasks",
+    "task": "Task {{id}} {{state}}",
+    "reads": "Reads",
+    "writes": "Writes",
+    "group": "Consumer group",
+    "capture": "Captures {{dbms}} on {{host}}:{{port}}",
+    "noDatabase": "No database platform or system matches (or you may not see it)",
+    "showErrors_one": "Show the error",
+    "showErrors_other": "Show {{count}} errors",
+    "hideErrors": "Hide errors",
+    "connectorError": "Connector",
+    "taskError": "Task {{id}}",
+    "failedSince": "failed {{when}}",
+    "traceHint": "Shortened; values that look secret are removed."
+  },
+  "watches": {
+    "intro": "The watches of changedetection.io are the components of this platform: Steward reads their title, page, tags, last check, last change and errors – never the page contents. Link a watch to an application, a service or a vendor; the monitor check \"Page watch\" judges them.",
+    "lastReadFailed": "The last read failed",
+    "failingCount": "{{count}} failing",
+    "lastRead": "Read {{when}} by {{who}} · {{count}} watches · read again every hour",
+    "neverRead": "Not read yet",
+    "open": "Open changedetection.io",
+    "readNow": "Read now",
+    "read_one": "{{count}} watch read",
+    "read_other": "{{count}} watches read",
+    "readFailed": "Reading changedetection.io failed",
+    "emptyTitle": "No watches",
+    "emptyText": "changedetection.io has no watches yet. Add the pages to watch there; Steward shows them here at the next read.",
+    "notReadTitle": "Watches not read yet",
+    "notReadText": "Read the watches once; Steward then reads them again every hour with your rights.",
+    "whoCanRead": "People who may use this platform read its watches.",
+    "search": "Search title, page, vendor, application",
+    "filterTag": "Tag",
+    "allTags": "All tags",
+    "filterState": "State",
+    "allStates": "All states",
+    "noMatch": "No watch matches the filters.",
+    "tableLabel": "Watches of changedetection.io",
+    "limited": "Showing {{shown}} of {{total}} watches: Steward keeps at most {{max}} per platform.",
+    "col": {
+      "watch": "Watch",
+      "state": "State",
+      "changed": "Last change",
+      "checked": "Last check",
+      "links": "Linked to",
+      "actions": "Actions"
+    },
+    "state": {
+      "ok": "OK",
+      "failing": "Failing",
+      "paused": "Paused",
+      "unchecked": "Not checked yet",
+      "removed": "Removed"
+    },
+    "never": "never",
+    "changedChecked": "Changed: {{changed}} · checked {{checked}}",
+    "hidden": "(not visible to you)",
+    "vendorIs": "Vendor: {{vendor}}",
+    "diff": "Diff",
+    "diffOf": "Diff of {{title}} in changedetection.io",
+    "history": "History",
+    "historyOf": "History of {{title}}",
+    "link": "Link",
+    "linkOf": "Link {{title}}",
+    "linkTitle": "Link “{{title}}”",
+    "linkIntro": "The watch then shows up with the application or service (under \"Linked from\"), and the vendor names whose page it is.",
+    "application": "Application",
+    "service": "Service",
+    "vendor": "Vendor",
+    "vendorHint": "Whose page it is, e.g. the vendor of a cloud service",
+    "linked": "Links saved",
+    "historyTitle": "History of “{{title}}”",
+    "snapshots_one": "{{count}} snapshot, {{changes}} changes",
+    "snapshots_other": "{{count}} snapshots, {{changes}} changes",
+    "firstSnapshot": "first fetch",
+    "historyNote": "Only the times: the snapshots themselves stay in changedetection.io.",
+    "noChange": "no change yet"
   }
 }

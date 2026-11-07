@@ -12,5 +12,6 @@ Short records of decisions that shape Steward's design: the context, what was de
 | [0006](0006-owning-teams-policy-module.md)             | Owning teams decided in one policy module               | Accepted |
 | [0007](0007-plant-registry.md)                         | The plant registry as an opt-in module                  | Accepted |
 | [0008](0008-database-platforms.md)                     | Database platforms: direct SQL, read-only               | Accepted |
+| [0009](0009-platform-identities.md)                    | Platform identities: several credentials per platform   | Accepted |
 
 New record: copy [template.md](template.md) to `NNNN-short-title.md`, fill it in, add it to the table, and link it from [ARCHITECTURE.md](../ARCHITECTURE.md) where it applies.

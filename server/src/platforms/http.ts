@@ -9,11 +9,13 @@ import { HttpError } from '../util.js';
 import { SpanKind, SpanStatusCode, injectTraceHeaders, withSpan } from '../telemetry.js';
 import { logger } from '../log.js';
 import { emit } from '../events.js';
-import { assertOutboundAllowed, guardedLookup } from './outbound.js';
+import { assertLiteralAddressSafe, assertOutboundAllowed, assertRedirectAllowed, assertRedirectBodyClean, guardedLookup, sameDestination } from './outbound.js';
 import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
 import { JWT_ALGS, certificateThumbprints, clientAssertion, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
 import { where as originAndPath } from './answers.js';
-import { assertPathAllowed, stripValues } from './deniedPaths.js';
+import { stripValues } from './deniedPaths.js';
+import { assertKindRules, destinationKinds } from './restrictedOrigins.js';
+import { defaultIdentityId } from './identities.js';
 
 export interface HttpRequest {
   method: string;
@@ -39,6 +41,26 @@ export interface HttpRequest {
   responseFile?: string;
   /** AWS SigV4 (#116): sign this request for another service or region than the platform's (one AWS account, many APIs). */
   aws?: { service: string; region: string };
+  /** Mutual TLS (0.9.0): the client certificate presented on this hop – set per hop for the platform's own origins only */
+  clientTls?: ClientTls;
+}
+
+/** A client certificate for mutual TLS (PEM). */
+export interface ClientTls {
+  cert: string;
+  key: string;
+  passphrase?: string;
+}
+
+/**
+ * Mutual TLS (0.9.0, #223): the client certificate in the platform's credentials tlsCertificate and tlsKey (PEM; an
+ * encrypted key with tlsKeyPassphrase). Presented only to the platform's own origins, like every other credential.
+ */
+export function clientTlsOf(secrets: Record<string, string>): ClientTls | undefined {
+  const cert = secrets.tlsCertificate?.trim();
+  const key = secrets.tlsKey?.trim();
+  if (!cert || !key) return undefined;
+  return { cert, key, ...(secrets.tlsKeyPassphrase ? { passphrase: secrets.tlsKeyPassphrase } : {}) };
 }
 
 export interface HttpResult {
@@ -62,21 +84,33 @@ interface CachedToken {
   refreshToken?: string;
 }
 
+/** Token and AWS role caches are per identity (0.9.0, ADR 0009): `platformId:identityId`. */
 const tokenCache = new Map<string, CachedToken>();
 const dispatcherCache = new Map<string, { stamp: string; dispatcher: Dispatcher }>();
 
-/** The cached access token of a platform (login or OAuth2), without the token itself. */
-export function tokenInfo(platformId: string): { fetchedAt: string; expiresAt: string } | null {
-  const t = tokenCache.get(platformId);
-  return t ? { fetchedAt: new Date(t.fetchedAt).toISOString(), expiresAt: new Date(t.expiresAt).toISOString() } : awsCredentialInfo(platformId);
+/** A platform object as getConnection gives it (with its identity), or as getPlatform does (the default identity). */
+type WithIdentity = Pick<Platform, 'id'> & { identityId?: string };
+
+/**
+ * The cache key of the identity a platform object is used with: getConnection sets `identityId`; a plain platform
+ * object (getPlatform) stands for the default identity, whose id is derived from the platform id.
+ */
+export function identityKey(p: WithIdentity): string {
+  return `${p.id}:${p.identityId ?? defaultIdentityId(p.id)}`;
+}
+
+/** The cached access token of a platform identity (login or OAuth2), without the token itself. */
+export function tokenInfo(p: WithIdentity): { fetchedAt: string; expiresAt: string } | null {
+  const t = tokenCache.get(identityKey(p));
+  return t ? { fetchedAt: new Date(t.fetchedAt).toISOString(), expiresAt: new Date(t.expiresAt).toISOString() } : awsCredentialInfo(p);
 }
 
 /**
  * The claims of the platform's cached access token when it is a JWT (Entra ID: roles = the application permissions with
  * admin consent, v0.5.0) – never the token itself; null without a cached JWT.
  */
-export function tokenClaims(platformId: string): Record<string, unknown> | null {
-  const t = tokenCache.get(platformId);
+export function tokenClaims(p: WithIdentity): Record<string, unknown> | null {
+  const t = tokenCache.get(identityKey(p));
   const parts = t?.header[1].replace(/^Bearer\s+/i, '').split('.');
   if (!parts || parts.length !== 3) return null;
   try {
@@ -99,39 +133,67 @@ export function usesCachedToken(p: Platform): boolean {
  */
 export async function renewToken(p: Platform, secrets: Record<string, string>, signal?: AbortSignal): Promise<{ fetchedAt: string; expiresAt: string }> {
   if (!usesCachedToken(p)) throw new Error('This platform does not log in for a token');
-  tokenCache.delete(p.id);
-  awsCache.delete(p.id);
+  tokenCache.delete(identityKey(p));
+  awsCache.delete(identityKey(p));
   if (p.config.auth?.type === 'aws_sigv4') await awsCredentials(p, secrets, signal);
   else await obtainAuthHeader(p, secrets, signal);
-  const info = tokenInfo(p.id);
+  const info = tokenInfo(p);
   if (!info) throw new Error('The login did not return a token');
   return info;
 }
 
-const invalidationListeners: ((platformId: string) => void)[] = [];
-/** Called whenever a platform's settings or credentials change or it is deleted (database connection pools, 0.7.0). */
-export function onPlatformInvalidated(fn: (platformId: string) => void): void {
+const invalidationListeners: ((platformId: string, identityId?: string) => void)[] = [];
+/**
+ * Called whenever a platform's settings or credentials change or it is deleted (database connection pools, 0.7.0);
+ * with an identity id when only that identity's credentials changed.
+ */
+export function onPlatformInvalidated(fn: (platformId: string, identityId?: string) => void): void {
   invalidationListeners.push(fn);
 }
 
+function dropKeys(map: Map<string, unknown>, platformId: string): void {
+  for (const k of [...map.keys()]) if (k.startsWith(`${platformId}:`)) map.delete(k);
+}
+
+/** Clears everything cached for a platform: the tokens and roles of all its identities, its TLS dispatcher. */
 export function invalidatePlatformCaches(platformId: string): void {
   for (const fn of invalidationListeners) fn(platformId);
-  tokenCache.delete(platformId);
-  awsCache.delete(platformId);
-  const d = dispatcherCache.get(platformId);
-  if (d) {
-    dispatcherCache.delete(platformId);
+  dropKeys(tokenCache, platformId);
+  dropKeys(awsCache, platformId);
+  for (const [key, d] of [...dispatcherCache]) {
+    // the platform's plain dispatcher and the client-certificate dispatchers of its identities (`${id}:${identity}|mtls`)
+    if (key !== platformId && !key.startsWith(`${platformId}:`)) continue;
+    dispatcherCache.delete(key);
     d.dispatcher.close().catch(() => undefined); // an old dispatcher: closing it is best effort
   }
 }
 
-function dispatcherFor(p: Platform): Dispatcher {
-  const stamp = p.updatedAt;
-  const hit = dispatcherCache.get(p.id);
+/** Clears what is cached for one identity (its credentials changed): its token, role, client-certificate dispatcher and database pool – not the platform's dispatcher. */
+export function invalidateIdentityCaches(platformId: string, identityId: string): void {
+  for (const fn of invalidationListeners) fn(platformId, identityId);
+  const key = identityKey({ id: platformId, identityId });
+  tokenCache.delete(key);
+  awsCache.delete(key);
+  const d = dispatcherCache.get(`${key}|mtls`);
+  if (d) {
+    dispatcherCache.delete(`${key}|mtls`);
+    d.dispatcher.close().catch(() => undefined); // an old dispatcher: closing it is best effort
+  }
+}
+
+function dispatcherFor(p: Platform, tls?: ClientTls): Dispatcher {
+  // a dispatcher with the client certificate is kept apart from the one without (hops to other origins), and per
+  // identity: two identities with their own certificates do not replace each other's dispatcher (0.9.0)
+  const key = tls ? `${identityKey(p)}|mtls` : p.id;
+  // compared in memory only (the dispatcher holds the same certificate and key)
+  const stamp = tls ? `${p.updatedAt}|${tls.cert}\u0000${tls.key}\u0000${tls.passphrase ?? ''}` : p.updatedAt;
+  const hit = dispatcherCache.get(key);
   if (hit && hit.stamp === stamp) return hit.dispatcher;
+  if (hit) hit.dispatcher.close().catch(() => undefined); // replaced: closing the old one is best effort
   const connect = {
     rejectUnauthorized: !p.config.http?.insecureTls,
     ...(p.config.http?.caPem ? { ca: p.config.http.caPem } : {}),
+    ...(tls ? { cert: tls.cert, key: tls.key, ...(tls.passphrase ? { passphrase: tls.passphrase } : {}) } : {}),
     // Resolve DNS ourselves, reject metadata/link-local addresses and pin the IP
     // for the connection so a name cannot be rebound after the policy check.
     lookup: guardedLookup,
@@ -142,7 +204,7 @@ function dispatcherFor(p: Platform): Dispatcher {
   if (proxy === 'none') dispatcher = new Agent({ connect });
   else if (proxy) dispatcher = new ProxyAgent({ uri: proxy, requestTls: connect });
   else dispatcher = new EnvHttpProxyAgent({ connect, requestTls: connect } as never);
-  dispatcherCache.set(p.id, { stamp, dispatcher });
+  dispatcherCache.set(key, { stamp, dispatcher });
   return dispatcher;
 }
 
@@ -286,7 +348,7 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
       method: req.method,
       headers,
       body,
-      dispatcher: dispatcherFor(p),
+      dispatcher: dispatcherFor(p, req.clientTls),
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       // Redirects are followed manually (see followRedirects) so credentials can be
       // re-evaluated per hop; undici only strips Authorization, not custom headers.
@@ -429,7 +491,7 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       return [(auth.apiKeyName || 'x-api-key').toLowerCase(), secrets.apiKey ?? ''];
     case 'oauth2_client_credentials':
     case 'token_request': {
-      const cached = tokenCache.get(p.id);
+      const cached = tokenCache.get(identityKey(p));
       if (cached && cached.expiresAt > Date.now() + 30000) return cached.header;
       let token: string;
       let expiresIn = 1800;
@@ -485,11 +547,11 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       const headerValue = await renderString(auth.headerValue || 'Bearer {{ token }}', { ...scope, token });
       const header: [string, string] = [headerName, headerValue];
       const now = Date.now();
-      tokenCache.set(p.id, { header, fetchedAt: now, expiresAt: now + expiresIn * 1000, ...(refreshToken ? { refreshToken } : {}) });
+      tokenCache.set(identityKey(p), { header, fetchedAt: now, expiresAt: now + expiresIn * 1000, ...(refreshToken ? { refreshToken } : {}) });
       return header;
     }
     case 'jwt': {
-      const cached = tokenCache.get(p.id);
+      const cached = tokenCache.get(identityKey(p));
       if (cached && cached.expiresAt > Date.now() + 30000) return cached.header;
       const cfg = auth.jwt ?? {};
       const alg = cfg.alg ?? 'RS256';
@@ -517,7 +579,7 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
         (auth.headerName || 'Authorization').toLowerCase(),
         await renderString(auth.headerValue || 'Bearer {{ token }}', { ...scope, token }),
       ];
-      tokenCache.set(p.id, { header, fetchedAt: Date.now(), expiresAt });
+      tokenCache.set(identityKey(p), { header, fetchedAt: Date.now(), expiresAt });
       return header;
     }
     case 'aws_sigv4':
@@ -584,7 +646,7 @@ async function awsCredentials(p: Platform, secrets: Record<string, string>, sign
     ...(secrets.sessionToken ? { sessionToken: secrets.sessionToken } : {}),
   };
   if (!aws.roleArn) return base;
-  const cached = awsCache.get(p.id);
+  const cached = awsCache.get(identityKey(p));
   if (cached && cached.expiration > Date.now() + 5 * 60_000) return cached;
   if (!/^arn:aws[a-z-]*:iam::\d{12}:role\/[\w+=,.@/-]{1,512}$/.test(aws.roleArn))
     throw new Error('The role ARN is not an IAM role (arn:aws:iam::123456789012:role/name)');
@@ -613,7 +675,7 @@ async function awsCredentials(p: Platform, secrets: Record<string, string>, sign
   );
   const creds = typeof r.body === 'string' ? parseAssumeRole(r.body) : null;
   if (!r.ok || !creds) throw new Error(`AssumeRole of ${aws.roleArn} failed with HTTP ${r.status}: ${short(r.body)}`);
-  awsCache.set(p.id, { ...creds, fetchedAt: Date.now() });
+  awsCache.set(identityKey(p), { ...creds, fetchedAt: Date.now() });
   return creds;
 }
 
@@ -628,8 +690,8 @@ async function signerFor(p: Platform, secrets: Record<string, string>, signal?: 
 }
 
 /** When the assumed role's credentials were fetched and end (like tokenInfo for logins). */
-export function awsCredentialInfo(platformId: string): { fetchedAt: string; expiresAt: string } | null {
-  const c = awsCache.get(platformId);
+export function awsCredentialInfo(p: WithIdentity): { fetchedAt: string; expiresAt: string } | null {
+  const c = awsCache.get(identityKey(p));
   return c ? { fetchedAt: new Date(c.fetchedAt).toISOString(), expiresAt: new Date(c.expiration).toISOString() } : null;
 }
 
@@ -776,6 +838,10 @@ const MAX_REDIRECTS = 5;
  * origins receives no auth header, no default headers and no user header whose
  * value contains one of the platform's secret values. undici's own redirect
  * handling only strips `Authorization`, not custom-named credential headers.
+ * Every redirect target goes through the outbound policy (0.9.0): the platform's
+ * own origins and redirects that stay on an origin already sent to pass, any
+ * other host must be allowed like a first request. A 307/308 to such another
+ * host is refused when the body it would send again carries a credential.
  */
 async function followRedirects(
   p: Platform,
@@ -790,12 +856,34 @@ async function followRedirects(
   let body = req.body;
   let sawHttps = /^https:/i.test(url);
   const leakValues = secretValues(secrets);
+  const sent: string[] = [];
+  let lastStatus = 0;
+  // credentials obtained for this request (an OAuth token, a Basic header): not in the platform's stored secrets
+  const obtained: string[] = [];
   for (let hop = 0; ; hop++) {
-    // paths the kind never calls (v0.5.0): a redirect cannot lead there either
-    assertPathAllowed(p.kind, url);
+    // paths the kind never calls (v0.5.0): a redirect cannot lead there either – checked with the method this hop is
+    // sent with (a 307/308 keeps a changing method, which a read-only kind refuses); the rules of the kind whose
+    // platform owns the hop's origin too (0.9.0)
+    await assertKindRules(p.kind, url, method);
+    // the pinning lookup is never asked for an IP literal: its address is checked here (0.9.0)
+    assertLiteralAddressSafe(url);
     const hopTrusted = await credentialsAllowed(p, secrets, url);
+    if (hop > 0) {
+      // the outbound policy on every redirect hop (0.9.0, #243), with the platform's own origins allowed as for the first request
+      await assertRedirectHop(p, url, sent, hopTrusted);
+      // a 307/308 sends the body again: not with a credential in it to a host outside the platform's own origins
+      if (!hopTrusted && body !== undefined && body !== null && !sameDestination(url, sent))
+        assertRedirectBodyClean(body, [...secretValues(secrets), ...obtained], {
+          from: sent[sent.length - 1]!,
+          to: url,
+          status: lastStatus,
+          platformName: p.name,
+        });
+    }
+    sent.push(url);
     // AWS SigV4: only requests to the platform's own origins are signed
     let sign: HttpRequest['sign'];
+    let clientTls: ClientTls | undefined;
     const headers: Record<string, string> = {};
     if (hopTrusted) for (const [k, v] of Object.entries(p.config.http?.defaultHeaders ?? {})) headers[k.toLowerCase()] = v;
     for (const [k, v] of Object.entries(req.headers ?? {})) {
@@ -809,7 +897,9 @@ async function followRedirects(
       }
       const auth = await obtainAuthHeader(p, secrets, signal);
       if (auth && !headers[auth[0]]) headers[auth[0]] = auth[1];
+      if (auth) obtained.push(auth[1], auth[1].replace(/^(Bearer|Basic|Token)\s+/i, ''));
       sign = await signerFor(p, secrets, signal, req.aws);
+      clientTls = clientTlsOf(secrets);
       if (p.config.auth?.type === 'apiKey' && p.config.auth.apiKeyIn === 'query' && hop === 0 && initialQuery) {
         /* the initial url already carries the query api key (buildUrl) */
       }
@@ -827,6 +917,7 @@ async function followRedirects(
         rawText: req.rawText,
         responseFile: req.responseFile,
         sign,
+        clientTls,
       },
       signal,
       attempt,
@@ -846,6 +937,7 @@ async function followRedirects(
       return res;
     }
     if (/^https:/i.test(url)) sawHttps = true;
+    lastStatus = res.status;
     // 301/302/303 turn the request into a bodyless GET; 307/308 preserve method and body.
     if (res.status === 303 || ((res.status === 301 || res.status === 302) && method !== 'GET' && method !== 'HEAD')) {
       method = 'GET';
@@ -868,6 +960,12 @@ async function assertAbsoluteAllowed(url: string): Promise<void> {
   await assertOutboundAllowed(url, outboundContext());
 }
 
+/** A redirect target of a platform request: the outbound policy as for the first request (outbound.ts). */
+async function assertRedirectHop(p: Platform, url: string, sent: string[], own: boolean): Promise<void> {
+  const { outboundContext } = await import('./policyContext.js');
+  await assertRedirectAllowed(url, sent, outboundContext(), { own, platformName: p.name });
+}
+
 /**
  * Perform an authenticated request against a platform.
  * Retries 429/502/503/504 and network errors (honouring Retry-After; POST/PATCH
@@ -882,8 +980,10 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
     query[p.config.auth.apiKeyName || 'api_key'] = secrets.apiKey ?? '';
   }
   const url = await buildUrl(p, secrets, req.url, query);
-  // paths the kind never calls, e.g. a vault's secret values (v0.5.0, deniedPaths.ts)
-  assertPathAllowed(p.kind, url);
+  // paths the kind never calls, e.g. a vault's secret values (v0.5.0, deniedPaths.ts); kinds that are only read
+  // (0.9.0: Kafka Connect #223, changedetection.io #242) refuse every method but GET/HEAD – the platform's kind and the
+  // kind of the platform whose origin the URL is (0.9.0, restrictedOrigins.ts)
+  await assertKindRules(p.kind, url, req.method);
   if (!trusted && /^https?:\/\//i.test(req.url)) await assertAbsoluteAllowed(url);
   if (!trusted) {
     let host = '';
@@ -911,8 +1011,8 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
     const release = await sem.acquire(signal);
     try {
       res = await send(attempt);
-      if (res.status === 401 && tokenCache.has(p.id)) {
-        tokenCache.delete(p.id);
+      if (res.status === 401 && tokenCache.has(identityKey(p))) {
+        tokenCache.delete(identityKey(p));
         res = await send(attempt);
       }
     } catch (e) {
@@ -923,8 +1023,11 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
     const retryable = error ? !!error.retryable : RETRYABLE_STATUS.has(res!.status);
     if (!retryable || !mayRetry || attempt > policy.maxRetries || signal?.aborted) {
       if (error) throw error;
-      // value keys of a vault's answers never leave this function (deniedPaths.ts)
-      const out = { ...res!, body: stripValues(p.kind, res!.body) };
+      // value keys of a vault's answers never leave this function (deniedPaths.ts) – also when another platform's
+      // request ended at the vault's origin (0.9.0)
+      let answer = stripValues(p.kind, res!.body);
+      for (const k of new Set([...(await destinationKinds(url)), ...(await destinationKinds(res!.url))])) if (k !== p.kind) answer = stripValues(k, answer);
+      const out = { ...res!, body: answer };
       return attempt > 1 ? { ...out, attempts: attempt } : out;
     }
     const delay = retryDelay(policy, attempt, res?.headers['retry-after']);
@@ -956,6 +1059,17 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
 /** Sensitive values that must never appear in logs for this platform. */
 /** Credential fields that identify rather than authenticate – masking them would corrupt ordinary data. */
 const IDENTIFIER_KEYS = /^(user(name)?|login|account|client_?id|tenant(_?id)?|email)$/i;
+
+/**
+ * The credential values of a platform's secrets – identifiers (user name, client id, tenant …) left out – of at least
+ * `min` characters: what may not appear in a request through another connection (0.9.0), where a short or
+ * identifying value would match ordinary text.
+ */
+export function credentialValues(secrets: Record<string, string>, min = 6): string[] {
+  return Object.entries(secrets)
+    .filter(([k, v]) => typeof v === 'string' && v.length >= min && !IDENTIFIER_KEYS.test(k))
+    .map(([, v]) => v);
+}
 
 export function secretValues(secrets: Record<string, string>): string[] {
   const vals = Object.entries(secrets)

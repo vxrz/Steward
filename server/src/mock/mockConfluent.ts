@@ -14,6 +14,10 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
  * erika CloudClusterAdmin of the cluster, the service account sa-orders (orders-service) DeveloperRead on the topic
  * orders and an ACL to read it, sa-billing an ACL to write payments; a binding of the unknown user u-gone is left over.
  * Request parameters are compared as plain strings (startsWith / equality) – no pattern is built from them.
+ *
+ * Costs (#226): GET /billing/v1/costs?start_date=&end_date= – daily lines of the cluster lkc-demo1 (CKUs, storage,
+ * network), a connector and the environment's Stream Governance, in US dollars; at most one month per request, like
+ * the real API.
  */
 
 export const DEMO_CONFLUENT = {
@@ -111,10 +115,10 @@ function authorized(req: FastifyRequest, reply: FastifyReply, cluster: boolean):
 const PAGE = 2;
 
 /** One page of a list, with metadata.next (absolute, like Confluent) while more follow. */
-function page<T>(req: FastifyRequest, path: string, all: T[], extra: Record<string, string> = {}) {
+function page<T>(req: FastifyRequest, path: string, all: T[], extra: Record<string, string> = {}, max = PAGE) {
   const q = req.query as Record<string, string | undefined>;
   const from = Math.max(0, Number(q.page_token ?? 0) || 0);
-  const size = Math.min(PAGE, Math.max(1, Number(q.page_size ?? PAGE) || PAGE));
+  const size = Math.min(max, Math.max(1, Number(q.page_size ?? max) || max));
   const data = all.slice(from, from + size);
   let next: string | null = null;
   if (from + size < all.length) {
@@ -127,8 +131,57 @@ function page<T>(req: FastifyRequest, path: string, all: T[], extra: Record<stri
   return { api_version: 'iam/v2', kind: 'List', metadata: { next, total_size: all.length }, data };
 }
 
+const DAY = 86_400_000;
+
+/** The demo organisation's daily cost lines between two dates (YYYY-MM-DD, end exclusive). */
+function costLines(start: string, end: string) {
+  const out: Record<string, unknown>[] = [];
+  const cluster = { id: DEMO_CONFLUENT.cluster, display_name: 'orders-cluster', environment: { id: DEMO_CONFLUENT.environment } };
+  for (let t = Date.parse(`${start}T00:00:00Z`); t < Date.parse(`${end}T00:00:00Z`); t += DAY) {
+    const day = new Date(t).toISOString().slice(0, 10);
+    const next = new Date(t + DAY).toISOString().slice(0, 10);
+    const line = (product: string, lineType: string, amount: number, resource: Record<string, unknown>) =>
+      out.push({
+        api_version: 'billing/v1',
+        kind: 'Cost',
+        start_date: day,
+        end_date: next,
+        granularity: 'DAILY',
+        product,
+        line_type: lineType,
+        network_access_type: 'INTERNET',
+        original_amount: amount,
+        discount_amount: 0,
+        amount,
+        resource,
+      });
+    line('KAFKA', 'KAFKA_NUM_CKUS', 36, cluster);
+    line('KAFKA', 'KAFKA_STORAGE', 4.25, cluster);
+    line('KAFKA', 'KAFKA_NETWORK_WRITE', 1.5, cluster);
+    line('CONNECT', 'CONNECT_CAPACITY', 7.2, { id: 'lcc-demo1', display_name: 'orders-sink', environment: { id: DEMO_CONFLUENT.environment } });
+    line('STREAM_GOVERNANCE', 'GOVERNANCE_BASE', 0.9, {
+      id: DEMO_CONFLUENT.environment,
+      display_name: 'demo',
+      environment: { id: DEMO_CONFLUENT.environment },
+    });
+  }
+  return out;
+}
+
 export async function mockConfluent(app: FastifyInstance): Promise<void> {
   const R = '/confluent';
+  app.get(`${R}/billing/v1/costs`, async (req, reply) => {
+    if (!authorized(req, reply, false)) return reply;
+    const q = req.query as Record<string, string | undefined>;
+    const start = String(q.start_date ?? '');
+    const end = String(q.end_date ?? '');
+    const s0 = Date.parse(`${start}T00:00:00Z`);
+    const e0 = Date.parse(`${end}T00:00:00Z`);
+    if (!Number.isFinite(s0) || !Number.isFinite(e0) || e0 <= s0)
+      return reply.code(400).send({ errors: [{ status: '400', detail: 'start_date and end_date (YYYY-MM-DD) are required, end after start' }] });
+    if (e0 - s0 > 31 * DAY) return reply.code(400).send({ errors: [{ status: '400', detail: 'the date range is at most one month' }] });
+    return { ...page(req, '/billing/v1/costs', costLines(start, end), { start_date: start, end_date: end }, 40), api_version: 'billing/v1', kind: 'CostList' };
+  });
   app.get(`${R}/iam/v2/users`, async (req, reply) =>
     authorized(req, reply, false)
       ? page(

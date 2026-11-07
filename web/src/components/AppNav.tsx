@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ActionIcon, Badge, Box, Collapse, Divider, Group, Indicator, NavLink, ScrollArea, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import {
+  IconCoin,
   IconActivity,
   IconApps,
   IconArrowsDiff,
@@ -30,6 +31,7 @@ import {
   IconReportAnalytics,
   IconRobot,
   IconServer,
+  IconContract,
   IconServer2,
   IconSettings,
   IconShieldCheck,
@@ -62,6 +64,7 @@ export type NavKey =
   | 'gitUpdates'
   | 'monitors'
   | 'platforms'
+  | 'dataContracts'
   | 'records'
   | 'services'
   | 'applications'
@@ -70,6 +73,7 @@ export type NavKey =
   | 'statusPages'
   | 'duties'
   | 'scorecard'
+  | 'costs'
   | 'credentials'
   | 'tickets'
   | 'reports'
@@ -149,11 +153,13 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/applications', key: 'applications', icon: IconApps },
       { to: '/systems', key: 'systems', icon: IconServer2 },
       { to: '/platforms', key: 'platforms', icon: IconServer },
+      { to: '/data-contracts', key: 'dataContracts', icon: IconContract },
       { to: '/credentials', key: 'credentials', icon: IconKey, when: credentialsRegister },
       { to: '/records', key: 'records', icon: IconFileCertificate },
       { to: '/tickets', key: 'tickets', icon: IconTicket },
       { to: '/duties', key: 'duties', icon: IconCalendarCheck },
       { to: '/scorecard', key: 'scorecard', icon: IconGauge },
+      { to: '/costs', key: 'costs', icon: IconCoin },
       { to: '/maintenance', key: 'maintenance', icon: IconTool },
     ],
   },

@@ -102,6 +102,10 @@ checks:
 
 `failAs` (`down` or `degraded`, default `down`) is the status when the limit is not met; a table that cannot be found is _unknown_.
 
+## Costs
+
+The platform's costs in money (0.9.0, [COSTS.md](COSTS.md#sources)): turned on under _Costs → the platform → Source_, Steward reads `SNOWFLAKE.ORGANIZATION_USAGE.USAGE_IN_CURRENCY_DAILY` once a day for the platform's account (`ACCOUNT_LOCATOR` or the name after `ORG-` in the variable `account`) – the organisation's usage views must be readable (`IMPORTED PRIVILEGES` on the `SNOWFLAKE` database in an account that has `ORGANIZATION_USAGE`; not for reseller contracts). Without them it reads the credits of `ACCOUNT_USAGE.METERING_DAILY_HISTORY` and multiplies them by the **price per credit** set on the source. The costs belong to the platform's application, else they are unassigned.
+
 ## Templates
 
 Example processes that call the SQL API themselves (`POST /api/v2/statements` on the Snowflake platform, statements with bind parameters, read-only):

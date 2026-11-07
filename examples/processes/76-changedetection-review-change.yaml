@@ -1,0 +1,146 @@
+name: "changedetection.io – Review a changed page (from a notification)"
+description: |
+  Started by a **webhook trigger** when changedetection.io notices that a
+  watched page changed – a vendor's terms, pricing page, release notes or
+  status page (changedetection.io notification `posts://…` →
+  `POST /api/hooks/<trigger id>`; the example trigger
+  examples/triggers/10-changedetection-review.yaml and docs/CHANGEDETECTION.md
+  have the notification URL and body to paste).
+
+  It looks the watch up in changedetection.io (metadata only: title, page,
+  last check, last error) and gives a person a review task "… changed" with
+  the link to the diff in changedetection.io: read the diff, decide whether it
+  matters, note a vendor ticket or a follow-up. The protocol keeps the link
+  to the diff, never the page content.
+
+  Safety: everything in the notification is untrusted. Its title and tags
+  (and the watch's page) appear in the task only as code, so they cannot add
+  links or formatting. The watch must exist
+  in the bound changedetection.io (looked up by its UUID), otherwise the run
+  fails without a task; the diff link is built from the platform's own
+  address (its variable uiUrl, else the base URL) – a link in the payload is
+  only used when it points to that same diff page.
+
+  Recommended schedule: none – started by a changedetection.io notification
+  (webhook trigger).
+tags: [vendor, review, webhook, changedetection]
+connections:
+  - slot: changedetection
+    kind: changedetection
+    description: The changedetection.io instance that sent the notification (the watch is looked up there)
+inputs:
+  - name: watchUuid
+    label: Watch UUID (token watch_uuid)
+    type: string
+    required: true
+    default: 7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e01
+  - name: watchTitle
+    label: Watch title (token watch_title)
+    type: string
+    default: Zentrova Cloud – Terms of service
+  - name: watchUrl
+    label: Page URL (token watch_url)
+    type: string
+    default: https://zentrova.example.com/legal/terms
+  - name: diffUrl
+    label: Diff link (token diff_url)
+    type: string
+    default: ""
+  - name: tags
+    label: Tags (token watch_tag, comma-separated)
+    type: string
+    default: vendor-terms
+steps:
+  - id: setup
+    type: set
+    name: Check the notification
+    values:
+      uuid: "{{ $lowercase($trim($string(inputs.watchUuid))) }}"
+      uuidOk: "{{ $contains(vars.uuid, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/) }}"
+      ui: "{{ $replace(conn.changedetection.vars.uiUrl ? conn.changedetection.vars.uiUrl : conn.changedetection.baseUrl, /\\/+$/, '') }}"
+      diff: "{{ vars.uuidOk ? vars.ui & '/diff/' & vars.uuid : '' }}"
+      # the payload's link (with the versions compared) only when it is the same diff page of this changedetection.io
+      diffLink: >-
+        {{ (
+          $p := $string(inputs.diffUrl);
+          $n := $length(vars.diff);
+          (vars.diff and $lowercase($substring($p, 0, $n)) = $lowercase(vars.diff) and $substring($p, $n, 1) in ['', '?']) ? $p : vars.diff
+        ) }}
+  - id: lookup
+    type: if
+    name: A watch UUID?
+    condition: "vars.uuidOk"
+    then:
+      - id: watch
+        type: http
+        name: Look the watch up in changedetection.io
+        connection: changedetection
+        method: GET
+        path: "/api/v1/watch/{{ vars.uuid }}"
+        expectStatus: [200, 404]
+        onError: continue
+        saveAs: watch
+  - id: known
+    type: if
+    name: Watch of this changedetection.io?
+    condition: "vars.watch.status = 200"
+    then:
+      - id: summary
+        type: set
+        name: What changedetection.io knows
+        values:
+          title: "{{ vars.watch.body.title ? vars.watch.body.title : (vars.watch.body.page_title ? vars.watch.body.page_title : inputs.watchTitle) }}"
+          page: "{{ vars.watch.body.link ? vars.watch.body.link : vars.watch.body.url }}"
+          lastChecked: "{{ vars.watch.body.last_checked ? $fromMillis(vars.watch.body.last_checked * 1000) : 'never' }}"
+          lastError: "{{ $type(vars.watch.body.last_error) = 'string' ? vars.watch.body.last_error : '' }}"
+          # text from outside (the payload's title and tags, the watch's page) goes into the task as code, one line,
+          # without backticks: a forged notification cannot plant a link or formatting next to the diff link
+          titleCode: >-
+            {{ $substring($replace($replace($string(vars.title), '`', "'"), /\s+/, ' '), 0, 300) }}
+          pageCode: >-
+            {{ $substring($replace($replace($string(vars.page), '`', "'"), /\s+/, ' '), 0, 2000) }}
+          tagsCode: >-
+            {{ inputs.tags ? $substring($replace($replace($string(inputs.tags), '`', "'"), /\s+/, ' '), 0, 300) : '' }}
+      - id: review
+        type: userTask
+        mode: manual
+        name: Review the change
+        title: "{{ vars.title }} changed"
+        instructions: |
+          changedetection.io noticed a change of `{{ vars.titleCode }}` (`{{ vars.pageCode }}`){{ vars.tagsCode ? ' – tags: `' & vars.tagsCode & '`' : '' }}.
+
+          1. Open the diff in changedetection.io: {{ vars.diffLink }}
+          2. Decide whether it matters for the services that depend on this vendor: terms, prices, end of support, outages, API changes.
+          3. If it does, open a ticket with the vendor or a change and add it as a ticket reference in Steward (*Tickets → New*, source "Vendor ticket").
+
+          Last check {{ vars.lastChecked }}{{ vars.lastError ? ' – last error: ' & vars.lastError : '' }}. Steward keeps only the link, never the page content.
+        assignees: [role:operator, role:admin]
+        checklist:
+          - Diff read in changedetection.io
+          - Impact on our services assessed
+        checklistAllRequired: true
+        fields:
+          - id: assessment
+            type: text
+            label: What changed and whether it matters
+            use: required
+          - id: vendorTicket
+            type: ticket
+            label: Vendor ticket or change, if one is needed
+            hint: e.g. VND-1234
+            use: optional
+          - id: followUp
+            type: link
+            label: Follow-up (record or document), if any
+            use: optional
+        evidence: "off"
+        saveAs: review
+      - id: reviewed
+        type: log
+        name: Reviewed
+        message: "Change of {{ vars.title }} reviewed – diff: {{ vars.diffLink }}"
+    else:
+      - id: unknown
+        type: fail
+        name: Not a watch of this changedetection.io
+        message: "The notification names no watch of {{ conn.changedetection.name }} ({{ vars.uuidOk ? 'watch ' & vars.uuid & ' not found' : 'no valid watch UUID' }}) – no review task was created."

@@ -287,6 +287,12 @@
         "label": "Ein KI-Token-Budget erhöhen",
         "description": "Mehr Tokens pro Tag oder Monat für die Installation, ein LLM-Gateway oder einen Prozess – oder keine Grenze mehr. Ein Budget zu senken braucht keine Bestätigung."
       }
+    },
+    "cost": {
+      "budget": {
+        "label": "Ein Kostenbudget erhöhen",
+        "description": "Ein höheres Monatsbudget für die Kosten eines Service, einer Anwendung oder eines Teams, eine andere Währung oder kein Budget mehr. Ein Budget zu senken braucht keine Bestätigung."
+      }
     }
   }
 }

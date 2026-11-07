@@ -62,6 +62,10 @@ checks:
 
 Up when the pipeline of the branch (default: the default branch) passed or is running; **down** when it failed (`failedAs: degraded` makes that degraded); **unknown** when the branch has no pipeline run or the branch does not exist. With `maxCritical` / `maxHigh` (GitHub Dependabot; `maxHigh` counts critical and high) more open alerts make it **degraded**. The message names the failing workflows: `Git: acme/shop-api@main – pipeline failed (CI)`.
 
+## Version watch
+
+The [version watch](APPLICATIONS.md#version-watch) can read the **releases** (or tags) of a repository for a stack entry: per entry (a platform the person may use and `owner/repository`), or for every product with an upstream repository on GitHub (`pkg:github/…` of the product list) through the GitHub platform chosen in its settings. Drafts are left out, releases marked as pre-release count only when pre-releases are turned on; a tag pattern (`v{version}`, `release-{version}`) picks the tags that are versions.
+
 ## Access reviews
 
 _Compliance → Access reconciliation → New_, a Git platform, source **Git** and the **scope**:

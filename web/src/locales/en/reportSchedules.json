@@ -62,6 +62,14 @@
     "ai": {
       "title": "AI usage",
       "hint": "Calls and tokens per gateway, model and process, refused and failed calls, the budgets – a monthly schedule is the monthly AI report"
+    },
+    "costs": {
+      "title": "Costs",
+      "hint": "Costs of the period per service against the period before, with the budgets (showback; what you may see)"
+    },
+    "contracts": {
+      "title": "Data contracts",
+      "hint": "The tests of the report period per contract (passed, warnings, failed), the last test, Steward’s findings and the versions saved – the contracts the owner may see"
     }
   },
   "runNow": "Generate now",
@@ -124,7 +132,14 @@
     "teamHint": "The PDF uses the team's report branding (Users → Teams → settings). Choose one of the owner's teams.",
     "teamNone": "The instance branding",
     "gateways": "LLM gateways",
-    "allGateways": "Every gateway"
+    "allGateways": "Every gateway",
+    "costScope": "Costs per",
+    "costScopes": {
+      "service": "Service",
+      "application": "Application",
+      "team": "Team",
+      "platform": "Platform"
+    }
   },
   "emptyState": {
     "title": "No report schedules yet",

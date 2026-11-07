@@ -55,6 +55,9 @@ import {
 } from './model.js';
 import { requireVisiblePlatform, resolvePlatformRef } from './platforms.js';
 import { requireVisibleSystem } from '../dbschema/check.js';
+import { requireVisibleApplication } from '../versions/check.js';
+import { requireVisibleCostScope } from '../costs/check.js';
+import { requireVisibleContract } from '../datacontracts/check.js';
 import { checkUptimes, monitorUptime } from './stats.js';
 import { coerceParams, renderTemplate } from './templates.js';
 import { checkExpressions, parseDefinitionInput, validateTemplate } from './validation.js';
@@ -327,6 +330,7 @@ const PLATFORM_KIND: Partial<Record<string, string>> = {
   prometheus: 'prometheus',
   kubernetes: 'kubernetes',
   kafka: 'kafka',
+  'kafka-connect': 'kafka-connect',
   mqtt: 'mqtt',
   snowflake: 'snowflake',
   database: 'database',
@@ -335,6 +339,7 @@ const PLATFORM_KIND: Partial<Record<string, string>> = {
   'dependency-track': 'dependency-track',
   entra: 'microsoft-graph',
   'privilege-vault': 'privilege-vault',
+  'page-watch': 'changedetection',
   zabbix: 'zabbix',
 };
 
@@ -461,6 +466,12 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
     }
     // the system of a schema check: one the editor may not see answers like a missing one
     if (c.type === 'db-schema' && c.system) requireVisibleSystem(c.name, c.system);
+    // the application of a version check (#241): one the editor may not see answers like a missing one
+    if (c.type === 'version-behind') requireVisibleApplication(c.name, c.application);
+    // the scope of a cost check: one the editor may not see answers like a missing one
+    if (c.type === 'cost') requireVisibleCostScope(c.name, c);
+    // the contract of a data contract check (#221): one the editor may not see answers like a missing one
+    if (c.type === 'data-contract') requireVisibleContract(c.name, c.contract);
     if (c.type === 'monitor') {
       const sub = monitorRow(c.monitor);
       if (!sub || !permissionsOfRow(sub).includes('view'))

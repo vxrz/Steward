@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Divider, Group, NumberInput, SegmentedControl, Select, Stack, Switch, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { Alert, Divider, Group, MultiSelect, NumberInput, SegmentedControl, Select, Stack, Switch, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -10,27 +10,39 @@ import {
   HIDDEN_MONITOR_REF,
   type CheckDef,
   type CheckOf,
+  type DataContractSummary,
   type DynamoDbMode,
   type MonitorSummary,
   type Platform,
   type SystemSummary,
+  type ApplicationSummary,
+  type StackProduct,
 } from '@sm/shared';
 import { get } from '../../api';
 import { ExpressionInput } from '../editor/ExpressionInput';
 import { Hint, JsonView, KeyValueEditor } from '../common';
 import { fmtDate, fmtRelative } from '../../format';
 import { checkTypeHelp, checkTypeLabel } from './status';
+import { PageWatchFields } from './PageWatchFields';
+import { CostCheckFields } from '../costs/CostCheckFields';
+import { dataContractKeys } from '../../queryKeys';
 
 type Patch = (p: Partial<CheckDef>) => void;
 
 /** Fields this form shows a problem on; the others are listed at the top. */
 const FORM_FIELDS = [
   'allowedCidrs',
+  'application',
+  'changedWithinHours',
+  'maxCheckAgeHours',
+  'tag',
+  'watch',
   'aspect',
   'assetId',
   'authMode',
   'body',
   'condition',
+  'contract',
   'degradedAfterMissed',
   'degradedAgeSeconds',
   'degradedMs',
@@ -134,6 +146,171 @@ function SystemSelect({ value, onChange, disabled, error }: { value: string; onC
       onChange={(v) => onChange(v ?? '')}
       nothingFoundMessage={t('form.dbSchemaNoSystem')}
     />
+  );
+}
+
+/** The application of a version check (#241): its name, so the definition works in every installation. */
+function VersionBehindFields({ c, set, disabled, err }: { c: CheckOf<'version-behind'>; set: Patch; disabled?: boolean; err: FieldError }) {
+  const { t } = useTranslation('monitors');
+  const apps = useQuery({ queryKey: ['applications', false], queryFn: () => get<ApplicationSummary[]>('/applications') });
+  const products = useQuery({ queryKey: ['stack-products'], queryFn: () => get<{ source: string; products: StackProduct[] }>('/catalogue/stack-products') });
+  const list = apps.data ?? [];
+  const known = list.find((a) => a.name.toLowerCase() === c.application.toLowerCase() || a.id === c.application);
+  return (
+    <>
+      <Select
+        label={t('form.versionApplication')}
+        description={t('form.versionApplicationHint')}
+        required
+        error={err('application')}
+        data-field="application"
+        searchable
+        disabled={disabled}
+        data={list.map((a) => ({ value: a.name, label: a.name }))}
+        value={known?.name ?? null}
+        placeholder={c.application && !known ? c.application : t('form.versionChooseApplication')}
+        onChange={(v) => set({ application: v ?? '' } as Partial<CheckDef>)}
+        nothingFoundMessage={t('form.versionNoApplication')}
+      />
+      <Group grow align="flex-start">
+        <TextInput
+          label={t('form.versionEnvironment')}
+          description={t('form.versionEnvironmentHint')}
+          disabled={disabled}
+          value={c.environment ?? ''}
+          onChange={(e) => set({ environment: e.currentTarget.value || undefined } as Partial<CheckDef>)}
+        />
+        <MultiSelect
+          label={t('form.versionProducts')}
+          description={t('form.versionProductsHint')}
+          searchable
+          clearable
+          limit={50}
+          maxValues={50}
+          disabled={disabled}
+          data={(products.data?.products ?? []).map((p) => ({ value: p.id, label: p.label }))}
+          value={c.products ?? []}
+          onChange={(v) => set({ products: v.length ? v : undefined } as Partial<CheckDef>)}
+        />
+      </Group>
+      <Group grow align="flex-start">
+        <NumberInput
+          data-field="maxMinors"
+          label={t('form.versionMaxMinors')}
+          description={t('form.versionMaxMinorsHint')}
+          min={0}
+          max={1000}
+          disabled={disabled}
+          value={c.maxMinors ?? 2}
+          onChange={(v) => set({ maxMinors: num(v) ?? 2 } as Partial<CheckDef>)}
+        />
+        <NumberInput
+          data-field="maxDays"
+          label={t('form.versionMaxDays')}
+          description={t('form.versionMaxDaysHint')}
+          min={1}
+          max={3650}
+          disabled={disabled}
+          value={c.maxDays ?? ''}
+          onChange={(v) => set({ maxDays: num(v) } as Partial<CheckDef>)}
+        />
+      </Group>
+      <Group grow align="flex-start">
+        <Select
+          label={t('form.versionMajorAs')}
+          allowDeselect={false}
+          disabled={disabled}
+          data={[
+            { value: 'down', label: t('status.down') },
+            { value: 'degraded', label: t('status.degraded') },
+          ]}
+          value={c.majorAs ?? 'down'}
+          onChange={(v) => set({ majorAs: v === 'degraded' ? 'degraded' : 'down' } as Partial<CheckDef>)}
+        />
+        <Select
+          label={t('form.versionEolAs')}
+          allowDeselect={false}
+          disabled={disabled}
+          data={[
+            { value: 'down', label: t('status.down') },
+            { value: 'degraded', label: t('status.degraded') },
+            { value: 'ignore', label: t('form.versionEolIgnore') },
+          ]}
+          value={c.eolAs ?? 'down'}
+          onChange={(v) => set({ eolAs: (v as 'down' | 'degraded' | 'ignore') ?? 'down' } as Partial<CheckDef>)}
+        />
+      </Group>
+    </>
+  );
+}
+
+/** A data contract (#221): its test through the data contract service, or Steward's own findings. */
+function DataContractFields({ c, set, disabled, err }: { c: CheckOf<'data-contract'>; set: Patch; disabled?: boolean; err: FieldError }) {
+  const { t } = useTranslation('monitors');
+  const contracts = useQuery({ queryKey: dataContractKeys.list, queryFn: () => get<DataContractSummary[]>('/data-contracts') });
+  const list = contracts.data ?? [];
+  const mode = c.mode ?? 'test';
+  return (
+    <>
+      <Select
+        label={t('form.contract')}
+        description={t('form.contractHint')}
+        required
+        error={err('contract')}
+        data-field="contract"
+        searchable
+        disabled={disabled}
+        data={list.map((x) => ({ value: x.id, label: `${x.name} (${x.key})` }))}
+        value={list.some((x) => x.id === c.contract) ? c.contract : null}
+        placeholder={c.contract && !list.some((x) => x.id === c.contract) ? c.contract : t('form.chooseContract')}
+        onChange={(v) => set({ contract: v ?? '' } as Partial<CheckDef>)}
+        nothingFoundMessage={t('form.noContract')}
+      />
+      <Group grow align="flex-start">
+        <Select
+          data-field="mode"
+          label={t('form.contractMode')}
+          description={t(`form.contractModeHints.${mode}`)}
+          allowDeselect={false}
+          disabled={disabled}
+          data={(['test', 'findings'] as const).map((m) => ({ value: m, label: t(`form.contractModes.${m}`) }))}
+          value={mode}
+          onChange={(v) => set({ mode: v === 'findings' ? 'findings' : 'test' } as Partial<CheckDef>)}
+        />
+        {mode === 'findings' && (
+          <NumberInput
+            data-field="testedWithinDays"
+            label={t('form.contractTestedWithin')}
+            min={1}
+            max={365}
+            disabled={disabled}
+            value={c.testedWithinDays ?? 7}
+            onChange={(v) => set({ testedWithinDays: num(v) ?? 7 } as Partial<CheckDef>)}
+          />
+        )}
+      </Group>
+      <Group grow align="flex-start">
+        <Select
+          data-field="failAs"
+          label={t(mode === 'test' ? 'form.contractFailAs' : 'form.contractErrorAs')}
+          allowDeselect={false}
+          disabled={disabled}
+          data={(['down', 'degraded'] as const).map((v) => ({ value: v, label: t(`status.${v}`) }))}
+          value={c.failAs ?? 'down'}
+          onChange={(v) => set({ failAs: (v as 'down' | 'degraded') ?? 'down' } as Partial<CheckDef>)}
+        />
+        <Select
+          data-field="warningAs"
+          label={t(mode === 'test' ? 'form.contractWarningAs' : 'form.contractWarningFindingAs')}
+          allowDeselect={false}
+          disabled={disabled}
+          data={(['degraded', 'up'] as const).map((v) => ({ value: v, label: t(`status.${v}`) }))}
+          value={c.warningAs ?? 'degraded'}
+          onChange={(v) => set({ warningAs: (v as 'degraded' | 'up') ?? 'degraded' } as Partial<CheckDef>)}
+        />
+      </Group>
+      {mode === 'test' && <Hint>{t('form.contractTestHint')}</Hint>}
+    </>
   );
 }
 
@@ -946,6 +1123,94 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
           />
         </>
       )}
+      {c.type === 'kafka-connect' && (
+        <>
+          <PlatformSelect
+            value={c.platform}
+            onChange={(v) => set({ platform: v })}
+            platforms={platforms}
+            kind="kafka-connect"
+            disabled={disabled}
+            error={err('platform')}
+          />
+          <TextInput
+            error={err('connector')}
+            data-field="connector"
+            label={t('form.connectConnector')}
+            description={t('form.connectConnectorHint')}
+            disabled={disabled}
+            value={c.connector ?? ''}
+            onChange={(e) => set({ connector: e.currentTarget.value || undefined })}
+            classNames={{ input: 'mono' }}
+          />
+          <Group grow align="flex-start">
+            <Select
+              label={t('form.connectNotRunningAs')}
+              data={[
+                { value: 'down', label: t('status.down') },
+                { value: 'degraded', label: t('status.degraded') },
+              ]}
+              value={c.notRunningAs ?? 'down'}
+              allowDeselect={false}
+              disabled={disabled}
+              onChange={(v) => v && set({ notRunningAs: v as 'down' | 'degraded' })}
+            />
+            <Select
+              label={t('form.connectPausedAs')}
+              data={[
+                { value: 'up', label: t('status.up') },
+                { value: 'degraded', label: t('status.degraded') },
+                { value: 'down', label: t('status.down') },
+              ]}
+              value={c.pausedAs ?? 'degraded'}
+              allowDeselect={false}
+              disabled={disabled}
+              onChange={(v) => v && set({ pausedAs: v as 'up' | 'down' | 'degraded' })}
+            />
+          </Group>
+          <NumberInput
+            error={err('failedMinutes')}
+            data-field="failedMinutes"
+            label={t('form.connectFailedMinutes')}
+            description={t('form.connectFailedMinutesHint')}
+            min={1}
+            disabled={disabled}
+            value={c.failedMinutes ?? ''}
+            onChange={(v) => set({ failedMinutes: num(v) })}
+          />
+          <NumberInput
+            error={err('maxLag')}
+            data-field="maxLag"
+            label={t('form.connectMaxLag')}
+            description={t('form.connectMaxLagHint')}
+            min={0}
+            disabled={disabled}
+            value={c.maxLag ?? ''}
+            onChange={(v) => set({ maxLag: num(v) })}
+          />
+          <NumberInput
+            error={err('quietMinutes')}
+            data-field="quietMinutes"
+            label={t('form.connectQuiet')}
+            description={t('form.connectQuietHint')}
+            min={1}
+            disabled={disabled}
+            value={c.quietMinutes ?? ''}
+            onChange={(v) => set({ quietMinutes: num(v) })}
+          />
+          <Select
+            label={t('form.quietAs')}
+            data={[
+              { value: 'down', label: t('status.down') },
+              { value: 'degraded', label: t('status.degraded') },
+            ]}
+            value={c.quietAs ?? 'degraded'}
+            allowDeselect={false}
+            disabled={disabled || c.quietMinutes === undefined}
+            onChange={(v) => v && set({ quietAs: v as 'down' | 'degraded' })}
+          />
+        </>
+      )}
       {c.type === 'dependency-track' && (
         <>
           <PlatformSelect
@@ -1001,6 +1266,19 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
             checked={c.policyFail ?? true}
             onChange={(e) => set({ policyFail: e.currentTarget.checked })}
           />
+        </>
+      )}
+      {c.type === 'page-watch' && (
+        <>
+          <PlatformSelect
+            value={c.platform}
+            onChange={(v) => set({ platform: v })}
+            platforms={platforms}
+            kind="changedetection"
+            disabled={disabled}
+            error={err('platform')}
+          />
+          <PageWatchFields check={c} set={set} platforms={platforms} disabled={disabled} err={err} />
         </>
       )}
       {c.type === 'entra' && (
@@ -1713,6 +1991,9 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
         </>
       )}
       {c.type === 'db-schema' && <DbSchemaFields c={c} set={set} platforms={platforms} disabled={disabled} err={err} />}
+      {c.type === 'version-behind' && <VersionBehindFields c={c} set={set} disabled={disabled} err={err} />}
+      {c.type === 'cost' && <CostCheckFields c={c} set={set} disabled={disabled} err={err} />}
+      {c.type === 'data-contract' && <DataContractFields c={c} set={set} disabled={disabled} err={err} />}
       {c.type === 'gatus' && (
         <>
           <PlatformSelect

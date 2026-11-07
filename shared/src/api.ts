@@ -296,6 +296,7 @@ export const OWNED_KINDS = [
   'dashboard',
   'ticket',
   'site',
+  'contract',
 ] as const;
 export type OwnedKind = (typeof OWNED_KINDS)[number];
 
@@ -414,6 +415,8 @@ export const STEP_UP_ACTIONS = [
   'closeFirewallChange',
   // 0.6.0 (#216): raising an AI token budget (or removing its limit)
   'changeAiBudget',
+  // 0.9.0 (#226): raising a monthly cost budget (or removing it)
+  'changeCostBudget',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 
@@ -605,6 +608,71 @@ export interface McpGatewayConfig {
   allowedPathPrefixes?: string[];
 }
 
+/**
+ * MCP mode of an identity (0.9.0, ADR 0009): off, read, or approved writes (`writes`: confirm or fourEyes). With mode
+ * off, `writes` keeps the approval mode chosen before (turning the gateway on again without one restores it).
+ */
+export const IDENTITY_MCP_MODES = ['off', 'read', 'writes'] as const;
+export type IdentityMcpMode = (typeof IDENTITY_MCP_MODES)[number];
+export interface IdentityMcp {
+  mode: IdentityMcpMode;
+  writes?: Exclude<McpWriteMode, 'off'>;
+}
+
+/**
+ * One set of credentials under a platform (0.9.0, #228, ADR 0009). Every platform has exactly one default identity;
+ * requests that name no identity use it. Never carries a secret, the sign-in settings or variables – only names and flags.
+ */
+export interface PlatformIdentity {
+  id: string;
+  platformId: string;
+  name: string;
+  description: string;
+  default: boolean;
+  readOnly: boolean;
+  privileged: boolean;
+  mcp: IdentityMcp;
+  /** null: every operation (no filter) */
+  operationFilter: { preset: 'read' | 'chosen'; operations: { specId: string; method: string; specPath: string; operationId?: string }[] } | null;
+  /** Whether the identity signs in with its own settings (false: the platform's sign-in settings) */
+  ownSignIn: boolean;
+  /** Names of its stored secrets (values are never returned) */
+  secretKeys: string[];
+  /** Integrity of its seal, as for the platform */
+  integrity: 'ok' | 'unsealed' | 'mismatch' | 'locked';
+  /** Whether the current user may use it (the default identity: the platform's "use") */
+  mayUse: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * What an administrator confirms for a platform whose settings were changed outside Steward (0.9.0,
+ * GET /platforms/:id/confirm-config): per identity what the platform page does not show. In this release a platform has
+ * only its default identity, which cannot have variables, its own sign-in, flags, an operation filter or a credential
+ * source: confirming resets them (action "reset") and removes every other identity (action "remove").
+ */
+export interface PlatformConfirmReview {
+  baseUrl: string;
+  integrity: 'ok' | 'unsealed' | 'mismatch' | 'locked';
+  identities: {
+    id: string;
+    name: string;
+    default: boolean;
+    integrity: 'ok' | 'unsealed' | 'mismatch' | 'locked';
+    mcp: IdentityMcp;
+    /** Names of its stored credentials (never values) */
+    secretKeys: string[];
+    /** Variables set on the identity (they would override the platform's) */
+    variables: Record<string, string>;
+    /** Its own sign-in settings: the type and where it signs in (origin and path) */
+    signIn: { type: string; url: string | null } | null;
+    /** Set flags: readOnly, privileged, operationFilter, credentialSource */
+    flags: string[];
+    action: 'keep' | 'reset' | 'remove';
+  }[];
+}
+
 export interface Platform {
   id: string;
   name: string;
@@ -627,6 +695,8 @@ export interface Platform {
   updatedAt: string;
   /** The latest connection test (from the audit log; GET /platforms only, null: never tested) */
   lastTest?: { at: string; ok: boolean } | null;
+  /** Its identities (0.9.0, ADR 0009), the default first – names and flags only */
+  identities?: PlatformIdentity[];
 }
 
 export interface PlatformPreset {

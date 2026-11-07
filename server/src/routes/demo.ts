@@ -12,6 +12,7 @@ import { DEMO_CHECKMK } from '../mock/mockCheckmk.js';
 import { DEMO_KUBERNETES } from '../mock/mockKubernetes.js';
 import { DEMO_GIT_PLATFORMS } from '../mock/mockGitPlatforms.js';
 import { DEMO_KAFKA } from '../mock/mockKafka.js';
+import { DEMO_KAFKA_CONNECT } from '../mock/mockKafkaConnect.js';
 import { DEMO_MQTT, startMqttSimulator } from '../mock/mockMqtt.js';
 import { DEMO_KAFKA_BOOTSTRAP } from '../kafka/client.js';
 import { DEMO_GATUS } from '../mock/mockGatus.js';
@@ -20,7 +21,17 @@ import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
 import { PRESETS, PRESET_SPECS } from '../platforms/presets.js';
 import { audit } from '../audit.js';
 import { createUser, findUserByName, saveTeam } from '../auth/users.js';
-import { DATABASE_KIND, LLM_GATEWAY_KIND, PVAULT_KIND, type AiGatewaySettings, type ComponentType, type Role } from '@sm/shared';
+import {
+  CHANGEDETECTION_KIND,
+  CONTAINER_REGISTRY_KIND,
+  DATABASE_KIND,
+  KAFKA_CONNECT_KIND,
+  LLM_GATEWAY_KIND,
+  PVAULT_KIND,
+  type AiGatewaySettings,
+  type ComponentType,
+  type Role,
+} from '@sm/shared';
 import { DEMO_DB, DEMO_DB_HOST } from '../dbms/demo.js';
 import { createDashboard, listDashboardTemplates } from '../dashboards/service.js';
 import { listSchedules, saveSchedule } from '../scheduler.js';
@@ -35,11 +46,14 @@ import { refreshLifecycle } from '../catalogue/lifecycle.js';
 import { currentActor } from '../auth/context.js';
 import { DEMO_AWS } from '../mock/mockAws.js';
 import { DEMO_DTRACK } from '../mock/mockDtrack.js';
+import { DEMO_CHANGEDETECTION } from '../mock/mockChangedetection.js';
 import { DEMO_SNOWFLAKE, setSnowflakePublicKey } from '../mock/mockSnowflake.js';
 import { DEMO_GRAPH } from '../mock/mockGraph.js';
 import { seedPlantDemo } from '../plant/demo.js';
 import { DEMO_PVAULT } from '../mock/mockPrivilegeVault.js';
+import { seedContractDemo } from '../datacontracts/demo.js';
 import { DEMO_LLM } from '../mock/mockLlmGateway.js';
+import { DEMO_CONFLUENT } from '../mock/mockConfluent.js';
 
 /** Creates demo platforms (pointing to the built-in mock) and imports all templates. */
 export const DEMO_USER_PASSWORD = 'Demo-password-1';
@@ -165,7 +179,31 @@ async function setupDemoApplications(platformByKind: Map<string, string>, actor:
   await Promise.all(reads);
   // the end of life of the stacks read from the repository and the namespace (endoflife.date demo)
   if (created) await refreshLifecycle().catch((err) => logger.warn({ err: (err as Error).message }, 'demo end-of-life data not read'));
+  // their newest versions (#241): the simulated registries
+  if (created)
+    await import('../versions/service.js')
+      .then((m) => m.refreshVersions({ force: true }))
+      .catch((err) => logger.warn({ err: (err as Error).message }, 'demo version watch not read'));
   return created;
+}
+
+/** Reads the demo changedetection.io once and links three watches (#242); the background job reads it again every hour. */
+async function setupChangedetectionDemo(platformId: string | undefined, actor: string): Promise<void> {
+  if (!platformId || db().get('SELECT 1 FROM cd_reads WHERE platform_id = ?', platformId)) return;
+  try {
+    const { refreshWatches, setWatchLink } = await import('../changedetection/service.js');
+    await refreshWatches(platformId, actor);
+    const app = (name: string) => db().get<{ id: string }>('SELECT id FROM applications WHERE name = ?', name)?.id ?? null;
+    const links: [string, string | null, string][] = [
+      ['7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e01', app('Webshop (demo)'), 'Zentrova Cloud'],
+      ['7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e02', app('Webshop (demo)'), 'Zentrova Cloud'],
+      ['7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e06', app('CRM (demo)'), 'Mailbrook'],
+      ['7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e04', null, 'Paylumen'],
+    ];
+    for (const [uuid, applicationId, vendor] of links) setWatchLink(platformId, uuid, { ...(applicationId ? { applicationId } : {}), vendor }, actor);
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'demo page watches not read');
+  }
 }
 
 export async function setupDemo(opts: { applications?: boolean } = {}): Promise<{
@@ -319,12 +357,31 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
       baseUrl: `${base}/schema-registry`,
       config: {
         auth: { type: 'basic' },
-        variables: { bootstrap: DEMO_KAFKA_BOOTSTRAP, sasl: 'plain', tls: 'true', peek: 'on' },
+        variables: { bootstrap: DEMO_KAFKA_BOOTSTRAP, sasl: 'plain', tls: 'true', peek: 'on', confluentClusterId: DEMO_CONFLUENT.cluster },
         http: { proxy: 'none' },
         testPath: '/subjects',
       },
       secrets: { ...DEMO_KAFKA },
     });
+    platforms++;
+  }
+  if (!existing.has('Kafka Connect (demo)')) {
+    // Kafka Connect (#223): a Debezium PostgreSQL source of the shop database and a sink of the topic orders, one task failed
+    const preset = PRESETS.find((x) => x.kind === KAFKA_CONNECT_KIND)!;
+    const kc = createPlatform({
+      name: 'Kafka Connect (demo)',
+      kind: KAFKA_CONNECT_KIND,
+      environment: 'demo',
+      description:
+        'Simulated Kafka Connect REST API served by the built-in mock: the Debezium connector shop-cdc reads the shop database, the sink orders-archive reads the topic orders (one task failed). Read-only. See docs/KAFKA.md.',
+      baseUrl: `${base}/kafka-connect`,
+      config: { auth: { type: 'basic' }, variables: { kafkaPlatform: 'Kafka (demo)' }, http: { proxy: 'none' }, testPath: preset.config.testPath },
+      secrets: { ...DEMO_KAFKA_CONNECT },
+    });
+    for (const sp of PRESET_SPECS[KAFKA_CONNECT_KIND]!()) addSpec(kc.id, sp.name, sp.content);
+    await import('../kafkaconnect/service.js')
+      .then((m) => m.refreshConnect(kc.id, currentActor()))
+      .catch((err) => logger.warn({ err: (err as Error).message }, 'demo Kafka Connect not read'));
     platforms++;
   }
   if (!existing.has('MQTT (demo)')) {
@@ -365,6 +422,26 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
       },
       secrets: { apiKey: DEMO_DTRACK.apiKey },
     });
+    platforms++;
+  }
+  if (!existing.has('changedetection.io (demo)')) {
+    // changedetection.io (#242): vendor terms, pricing, release notes, a failing status page and a paused watch
+    const cd = createPlatform({
+      name: 'changedetection.io (demo)',
+      kind: CHANGEDETECTION_KIND,
+      environment: 'demo',
+      description:
+        'Simulated changedetection.io served by the built-in mock: six watches of invented vendor pages – terms, pricing, release notes, a failing status page, a paused one. See docs/CHANGEDETECTION.md.',
+      baseUrl: `${base}/changedetection`,
+      config: {
+        auth: { type: 'apiKey', apiKeyIn: 'header', apiKeyName: 'x-api-key' },
+        variables: { uiUrl: '' },
+        http: { proxy: 'none' },
+        testPath: '/api/v1/systeminfo',
+      },
+      secrets: { apiKey: DEMO_CHANGEDETECTION.apiKey },
+    });
+    for (const sp of PRESET_SPECS[CHANGEDETECTION_KIND]!()) addSpec(cd.id, sp.name, sp.content);
     platforms++;
   }
   if (!existing.has('IBM Verify Privilege Vault (demo)')) {
@@ -414,6 +491,22 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
       baseUrl: `${base}/llm`,
       config: { ...preset.config, http: { ...preset.config.http, proxy: 'none' }, ai },
       secrets: { apiKey: DEMO_LLM.apiKey },
+    });
+    platforms++;
+  }
+  if (!existing.has('Confluent Cloud (demo)')) {
+    // Confluent Cloud (#226): the simulated Cloud API – role bindings for access reviews and the Costs API; the costs of
+    // its cluster lkc-demo1 belong to "Kafka (demo)" (variable confluentClusterId there)
+    const preset = PRESETS.find((x) => x.kind === 'confluent-cloud')!;
+    createPlatform({
+      name: 'Confluent Cloud (demo)',
+      kind: 'confluent-cloud',
+      environment: 'demo',
+      description:
+        'Simulated Confluent Cloud API served by the built-in mock: role bindings, users, service accounts and the Costs API. See docs/CONFLUENT.md and docs/COSTS.md.',
+      baseUrl: `${base}/confluent`,
+      config: { ...preset.config, http: { ...preset.config.http, proxy: 'none' } },
+      secrets: { username: DEMO_CONFLUENT.cloudKey, password: DEMO_CONFLUENT.cloudSecret },
     });
     platforms++;
   }
@@ -518,6 +611,30 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
     for (const s of PRESET_SPECS['endoflife-date']!()) addSpec(e.id, s.name, s.content);
     platforms++;
   }
+  if (!existing.has('Container registry (demo)')) {
+    // the version watch (#241): image tags from a simulated OCI registry (Docker Hub's token flow), for docker.io images
+    createPlatform({
+      name: 'Container registry (demo)',
+      kind: CONTAINER_REGISTRY_KIND,
+      environment: 'demo',
+      description:
+        'Simulated container registry (OCI distribution API with a token service) served by the built-in mock: tags of nginx, postgres, node and alpine for the version watch. A real installation uses Docker Hub, GHCR, Harbor …',
+      baseUrl: `${base}/registry`,
+      config: { auth: { type: 'none' }, variables: { registry: 'docker.io', testImage: 'library/alpine' }, http: { proxy: 'none' } },
+    });
+    platforms++;
+  }
+  // the version watch reads the simulated package registries (set once; an administrator's own choice stays)
+  const { readSetting, writeSetting } = await import('../settings.js');
+  if (readSetting<unknown>('catalogue.versions', null) === null) {
+    const registry = db().get<{ id: string }>("SELECT id FROM platforms WHERE name = 'Container registry (demo)'");
+    const { DEFAULT_VERSION_SETTINGS, PACKAGE_ECOSYSTEMS } = await import('@sm/shared');
+    writeSetting('catalogue.versions', {
+      ...DEFAULT_VERSION_SETTINGS,
+      registries: Object.fromEntries(PACKAGE_ECOSYSTEMS.map((e) => [e, `${base}/registries/${e}`])),
+      ociPlatformIds: registry ? [registry.id] : [],
+    });
+  }
   if (!existing.has('Web probe (demo)')) {
     createPlatform({
       name: 'Web probe (demo)',
@@ -597,6 +714,8 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
   );
   // ---- sample applications (components read once, end-of-life data), unless switched off ----
   const applications = opts.applications === false ? 0 : await setupDemoApplications(platformByKind, currentActor());
+  // ---- the watches of the simulated changedetection.io, read once and linked to the sample applications and vendors ----
+  await setupChangedetectionDemo(platformByKind.get(CHANGEDETECTION_KIND), currentActor());
 
   const scheduleNames = new Set(listSchedules().map((x) => x.name));
   let schedules = 0;
@@ -650,10 +769,23 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
     logger.warn({ err: (err as Error).message }, 'demo monitors not created');
   }
 
+  // ---- platform costs (#226): the connectors of the demo platforms read once ----
+  try {
+    await (await import('../costs/demo.js')).setupCostDemo(currentActor());
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'demo costs not read');
+  }
+
   // ---- access reconciliation of the simulated Insights Hub (baseline snapshot) ----
   await setupComplianceDemo(platformByKind.get('insights-hub'));
   // ---- access checks of Snowflake, AWS and GitHub, so person reviews span several platforms ----
   await setupAccessSourcesDemo(platformByKind);
+  // ---- data contracts (#221): the simulated data contract service and two contracts of the shop database ----
+  try {
+    await seedContractDemo(base);
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'data contract demo data not loaded');
+  }
   // ---- the plant registry's invented enterprise, when the module is on (plant/demo.ts) ----
   try {
     seedPlantDemo();

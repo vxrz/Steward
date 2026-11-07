@@ -22,11 +22,14 @@ import {
   IconTerminal2,
   IconTrash,
   IconGauge,
+  IconId,
   IconDatabase,
   IconSchema,
+  IconArrowsExchange,
+  IconFileDiff,
 } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { DATABASE_KIND, LLM_GATEWAY_KIND, type AclEntry, type Platform } from '@sm/shared';
+import { CHANGEDETECTION_KIND, DATABASE_KIND, KAFKA_CONNECT_KIND, LLM_GATEWAY_KIND, type AclEntry, type Platform } from '@sm/shared';
 import { apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
 import { AccessEditor } from '../components/AccessEditor';
 import { OwningTeams } from '../components/OwningTeams';
@@ -37,19 +40,23 @@ import { fmtNumber, fmtRelative } from '../format';
 import { KIND_COLORS } from './Platforms';
 import { SettingsTab } from '../components/platform/SettingsTab';
 import { CredentialsTab } from '../components/platform/CredentialsTab';
+import { IdentitiesTab } from '../components/platform/IdentitiesTab';
 import { SpecsTab } from '../components/platform/SpecsTab';
 import { DocsTab } from '../components/platform/DocsTab';
 import { ExplorerTab, type ExplorerPreset } from '../components/platform/ExplorerTab';
 import { GatusMetricsTab } from '../components/platform/GatusMetricsTab';
+import { WatchesTab } from '../components/platform/WatchesTab';
 import { RecordingsTab } from '../components/platform/RecordingsTab';
 import { AiModelsTab } from '../components/platform/AiModelsTab';
 import { AiUsageTab } from '../components/platform/AiUsageTab';
 import { DatabaseTab } from '../components/platform/DatabaseTab';
+import { KafkaConnectTab } from '../components/platform/KafkaConnectTab';
 import { SchemaView } from '../components/dbschema/SchemaView';
 import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { DetailHeader } from '../components/page/DetailPage';
+import { CostsButton } from '../components/costs/CostsButton';
 import { platformKeys } from '../queryKeys';
 import { GetStartedPanel, PlatformHealthPanel, TestHints } from '../components/platform/onboarding';
 
@@ -103,7 +110,11 @@ export function PlatformDetailPage() {
   const p = platform.data;
   // a database platform (0.7.0) opens on its connection; it has no API specification, explorer or HTTP sign-in
   const isDatabase = p.kind === DATABASE_KIND;
-  const activeTab = tab ?? (isDatabase ? 'database' : 'settings');
+  // a Kafka Connect platform (0.9.0) opens on its connectors
+  const isConnect = p.kind === KAFKA_CONNECT_KIND;
+  // changedetection.io (#242) opens on its watches, the components of the platform
+  const isChangedetection = p.kind === CHANGEDETECTION_KIND;
+  const activeTab = tab ?? (isDatabase ? 'database' : isConnect ? 'connectors' : isChangedetection ? 'watches' : 'settings');
   const canManage = p.permissions.includes('manage');
   const canUse = p.permissions.includes('use');
   // who sees the platform may export it for Postman (#204): its settings without the secrets
@@ -193,6 +204,7 @@ export function PlatformDetailPage() {
         }
         actions={
           <>
+            <CostsButton scope="platform" id={p.id} />
             {canUse && (
               <Button size="xs" leftSection={<IconPlugConnected size={14} />} onClick={runTest} loading={testing} variant="light">
                 {t('detail.test')}
@@ -329,11 +341,24 @@ export function PlatformDetailPage() {
               {t('detail.tabs.schema')}
             </Tabs.Tab>
           )}
+          {isConnect && (
+            <Tabs.Tab value="connectors" leftSection={<IconArrowsExchange size={16} />} data-testid="platform-tab-connectors">
+              {t('detail.tabs.connectors')}
+            </Tabs.Tab>
+          )}
+          {isChangedetection && (
+            <Tabs.Tab value="watches" leftSection={<IconFileDiff size={16} />} data-testid="platform-tab-watches">
+              {t('detail.tabs.watches')}
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="settings" leftSection={<IconSettings size={16} />}>
             {t('detail.tabs.settings')}
           </Tabs.Tab>
           <Tabs.Tab value="credentials" leftSection={<IconKey size={16} />}>
             {t('detail.tabs.credentials')}
+          </Tabs.Tab>
+          <Tabs.Tab value="identities" leftSection={<IconId size={16} />} data-testid="platform-tab-identities">
+            {t('detail.tabs.identities')}
           </Tabs.Tab>
           {!isDatabase && (
             <Tabs.Tab value="specs" leftSection={<IconApi size={16} />}>
@@ -391,11 +416,19 @@ export function PlatformDetailPage() {
             <SchemaView subject={{ kind: 'platform', id: p.id, name: p.name }} />
           </Tabs.Panel>
         )}
+        {isConnect && (
+          <Tabs.Panel value="connectors">
+            <KafkaConnectTab platform={p} />
+          </Tabs.Panel>
+        )}
         <Tabs.Panel value="settings">
           <SettingsTab platform={p} readOnly={!canManage} />
         </Tabs.Panel>
         <Tabs.Panel value="credentials">
           <CredentialsTab platform={p} readOnly={!canManage} />
+        </Tabs.Panel>
+        <Tabs.Panel value="identities">
+          <IdentitiesTab platform={p} onOpenTab={setTab} />
         </Tabs.Panel>
         <Tabs.Panel value="specs">
           <SpecsTab
@@ -417,6 +450,11 @@ export function PlatformDetailPage() {
         <Tabs.Panel value="recordings">
           <RecordingsTab platform={p} readOnly={!canManage} />
         </Tabs.Panel>
+        {isChangedetection && (
+          <Tabs.Panel value="watches">
+            <WatchesTab platform={p} />
+          </Tabs.Panel>
+        )}
         {p.kind === 'gatus' && (
           <Tabs.Panel value="metrics">
             <GatusMetricsTab platform={p} />

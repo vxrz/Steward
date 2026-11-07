@@ -16,6 +16,7 @@ import { capabilities, isAdmin } from './permissions.js';
 import {
   catalogueAccess,
   catalogueTeams,
+  contractAccess,
   owningTeams,
   plantOnly,
   platformAccess,
@@ -71,6 +72,8 @@ export function ownedResource(kind: OwnedKind, id: string): ResourceRow | undefi
   if (kind === 'ticket') return db().get<ResourceRow>("SELECT id, external_number || ' ' || title AS name, responsible FROM ticket_refs WHERE id = ?", id);
   // plant registry sites (#218): only while the module is on
   if (kind === 'site') return plantEnabled() ? db().get<ResourceRow>('SELECT id, name, acl FROM plant_sites WHERE id = ?', id) : undefined;
+  // data contracts (#221)
+  if (kind === 'contract') return db().get<ResourceRow>('SELECT id, name FROM data_contracts WHERE id = ?', id);
   return db().get<ResourceRow>(`SELECT id, name, owners FROM ${CATALOGUE_TABLES[kind]} WHERE id = ?`, id);
 }
 const resource = ownedResource;
@@ -89,6 +92,7 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
   if (kind === 'dashboard') return dashboardAccess(u, { id: r.id, owner: r.owner ?? null });
   if (kind === 'ticket') return ticketAccess(u, { id: r.id, responsible: r.responsible ?? '[]' });
   if (kind === 'site') return siteAccess(u, { id: r.id, acl: r.acl ?? '[]' });
+  if (kind === 'contract') return contractAccess(u, { id: r.id });
   if (!isCatalogue(kind)) return { permissions: [], reasons: [] };
   const d = catalogueAccess(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
   return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : [])], reasons: d.reasons };
@@ -106,6 +110,7 @@ const NOT_FOUND: Record<OwnedKind, [string, string]> = {
   dashboard: ['Dashboard not found', 'DASHBOARD_NOT_FOUND'],
   ticket: ['Ticket reference not found', 'TICKET_NOT_FOUND'],
   site: ['Site not found', 'PLANT_SITE_NOT_FOUND'],
+  contract: ['Data contract not found', 'DATA_CONTRACT_NOT_FOUND'],
 };
 const notFound = (kind: OwnedKind, id: string) => new HttpError(404, NOT_FOUND[kind][0], NOT_FOUND[kind][1], { id });
 

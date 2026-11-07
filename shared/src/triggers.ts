@@ -3,7 +3,9 @@
  * with the process inputs mapped from the request (e.g. a Gatus alert).
  */
 
+import { z } from 'zod';
 import type { ScheduleNotify } from './notifyPolicy.js';
+import { boundedRecord } from './zodLimits.js';
 
 /**
  * How a caller proves it knows the secret:
@@ -104,4 +106,49 @@ export interface WebhookTestResult {
   status: number;
   response: { runId?: string; skipped?: string; error?: string };
   inputs: Record<string, unknown>;
+}
+
+// ---------- example triggers (examples/triggers, 0.9.0) ----------
+
+/**
+ * An example webhook trigger (examples/triggers/*.yaml, #242): which process template it starts, the input mapping for
+ * the sender's payload, a sample payload for the preview and the test call, and how to set up the sender (its URL
+ * with the placeholders {post} – post or posts, as Steward's address is http or https –, {hostPath} – host and path of
+ * the hook – and {secret}, and the body it sends). The trigger editor offers the mapping when the chosen process has
+ * the inputs; the secret dialog shows the sender's setup with the real URL and secret.
+ */
+export const WEBHOOK_TRIGGER_EXAMPLE_KIND = 'webhookTrigger';
+export const webhookTriggerExampleSchema = z
+  .object({
+    kind: z.literal(WEBHOOK_TRIGGER_EXAMPLE_KIND),
+    name: z.string().trim().min(1).max(100),
+    description: z.string().max(5000).default(''),
+    /** The process template it starts: a file name of examples/processes without .yaml */
+    process: z.string().regex(/^[a-z0-9][a-z0-9-]{0,99}$/, 'a template file name without .yaml, e.g. 76-changedetection-review-change'),
+    authMode: z.enum(WEBHOOK_AUTH_MODES).default('token'),
+    dedupeSeconds: z.number().int().min(0).max(86400).default(60),
+    skipIfRunning: z.boolean().default(true),
+    rateLimitPerMinute: z.number().int().min(1).max(600).default(30),
+    /** Process input → JSONata over { body, headers, query } */
+    inputMapping: boundedRecord(z.string().min(1).max(2000), 100),
+    samplePayload: boundedRecord(z.unknown(), 100).default({}),
+    sender: z
+      .object({
+        name: z.string().trim().min(1).max(100),
+        url: z.string().max(500).optional(),
+        body: z.string().max(4000).optional(),
+        docs: z.string().max(200).optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export type WebhookTriggerExampleFile = z.infer<typeof webhookTriggerExampleSchema>;
+
+/** An example trigger as the trigger editor gets it. */
+export interface WebhookTriggerExample extends WebhookTriggerExampleFile {
+  /** Its file name (without .yaml) */
+  id: string;
+  /** The name of the process template (when it exists) */
+  processName: string | null;
 }

@@ -10,7 +10,9 @@ import { HttpError } from './util.js';
  * file uses the vault's encrypt() without being listed here – register new encrypted fields below.
  */
 export const ENCRYPTED_COLUMNS: { table: string; id: string; column: string; file: string }[] = [
+  // empty once a platform's credentials moved to its default identity (0.9.0, ADR 0009); kept for unconverted rows
   { table: 'platforms', id: 'id', column: 'secrets', file: 'platforms/service.ts' },
+  { table: 'platform_identities', id: 'id', column: 'secrets', file: 'platforms/service.ts' },
   { table: 'identity_providers', id: 'id', column: 'secret', file: 'auth/sso.ts' },
   { table: 'webhook_triggers', id: 'id', column: 'secret_enc', file: 'triggers/service.ts' },
   { table: 'runs', id: 'id', column: 'sealed_inputs', file: 'engine/secret-inputs.ts' },

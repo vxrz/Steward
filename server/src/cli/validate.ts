@@ -4,18 +4,19 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { BUNDLE_FORMATS, dashboardDefinitionSchema, validateProcess } from '@sm/shared';
+import { BUNDLE_FORMATS, WEBHOOK_TRIGGER_EXAMPLE_KIND, dashboardDefinitionSchema, validateProcess, webhookTriggerExampleSchema } from '@sm/shared';
 import { validateMonitorFile } from '../monitors/validation.js';
 import { plantFileSchema } from '../plant/format.js';
 import { bundleFileSchema, looksLikeBundle } from '../onboarding/bundleSchema.js';
 import { config } from '../config.js';
 import { MAX_DEFINITION_TEXT } from '../util.js';
 import { parseYaml } from '../yaml-safe.js';
+import { factsOf, lintContract, parseContract } from '../datacontracts/odcs.js';
 import { EXIT_FAILURE, EXIT_OK, UsageError, palette, parseCli, usageFailure } from './args.js';
 
 const COMMAND = 'npm run validate --';
 
-const HELP = `Validate Steward process, dashboard and monitor definitions (YAML or JSON).
+const HELP = `Validate Steward process, dashboard and monitor definitions and data contracts (YAML or JSON).
 
 Usage:
   npm run validate [-- [options] [path ...]]
@@ -41,7 +42,17 @@ Colours are only used on a terminal; NO_COLOR=1 turns them off.
 
 export interface FileResult {
   file: string;
-  kind: 'process' | 'dashboard' | 'monitor' | 'monitor template' | 'bundle' | 'template bundle' | 'plant registry' | 'unreadable';
+  kind:
+    | 'process'
+    | 'dashboard'
+    | 'monitor'
+    | 'monitor template'
+    | 'bundle'
+    | 'template bundle'
+    | 'plant registry'
+    | 'webhook trigger'
+    | 'data contract'
+    | 'unreadable';
   /** Nodes (process), widgets (dashboard) or checks (monitor). */
   ok: boolean;
   count?: number;
@@ -122,6 +133,24 @@ export async function validateFile(file: string): Promise<FileResult> {
       );
     return { file: rel, kind: 'plant registry', ok: true, count, errors: [], warnings: [] };
   }
+  // an example webhook trigger (0.9.0, examples/triggers): its format, and its mapping against the process template
+  if (obj && obj.kind === WEBHOOK_TRIGGER_EXAMPLE_KIND) return validateTriggerExample(file, rel, raw);
+  // an ODCS v3 data contract (#221, examples/data-contracts): read within the limits of Steward and checked against the
+  // JSON Schema of ODCS v3.0.2, as on save
+  if (obj && typeof obj === 'object' && obj.kind === 'DataContract') {
+    const p = parseContract(fs.readFileSync(file, 'utf8'));
+    const findings = p.problems.length ? p.problems : lintContract(p.doc);
+    const errors = findings.filter((f) => f.severity === 'error').map((f) => `${f.path}: ${f.message}`);
+    const count = p.problems.length ? undefined : factsOf(p.doc).schemas.length;
+    return {
+      file: rel,
+      kind: 'data contract',
+      ok: !errors.length,
+      count,
+      errors,
+      warnings: findings.filter((f) => f.severity !== 'error').map((f) => `${f.path}: ${f.message}`),
+    };
+  }
   if (obj && (obj.kind === 'monitor' || obj.kind === 'monitorTemplate')) {
     const r = await validateMonitorFile(obj);
     const kind = obj.kind === 'monitorTemplate' ? 'monitor template' : 'monitor';
@@ -142,6 +171,32 @@ export async function validateFile(file: string): Promise<FileResult> {
     errors: r.ok ? [] : r.issues.map((i) => `${i.nodeId ? `[${i.nodeId}] ` : ''}${i.path} ${i.message}`),
     warnings: r.warnings.map((w) => `${w.nodeId ? `[${w.nodeId}] ` : ''}${w.message}`),
   };
+}
+
+/** An example trigger: the format; the process template next to it (../processes) must exist and have the mapped inputs. */
+function validateTriggerExample(file: string, rel: string, raw: unknown): FileResult {
+  const r = webhookTriggerExampleSchema.safeParse(raw);
+  if (!r.success)
+    return { file: rel, kind: 'webhook trigger', ok: false, errors: r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`), warnings: [] };
+  const mapped = Object.keys(r.data.inputMapping);
+  const template = path.join(path.dirname(file), '..', 'processes', `${r.data.process}.yaml`);
+  if (!fs.existsSync(template))
+    return {
+      file: rel,
+      kind: 'webhook trigger',
+      ok: true,
+      count: mapped.length,
+      errors: [],
+      warnings: [`process template ${r.data.process} not found next to it`],
+    };
+  const def = validateProcess(parseYaml(fs.readFileSync(template, 'utf8'), { maxBytes: MAX_DEFINITION_TEXT }));
+  const inputs = new Set((def.definition?.inputs ?? []).map((i) => i.name));
+  const errors = def.ok
+    ? mapped.filter((k) => !inputs.has(k)).map((k) => `inputMapping.${k}: the process ${r.data.process} has no input ${k}`)
+    : [`process ${r.data.process} is not valid`];
+  const missing = (def.definition?.inputs ?? []).filter((i) => i.required && !mapped.includes(i.name) && i.default === undefined).map((i) => i.name);
+  if (missing.length) errors.push(`inputMapping: required inputs without a mapping or default: ${missing.join(', ')}`);
+  return { file: rel, kind: 'webhook trigger', ok: errors.length === 0, count: mapped.length, errors, warnings: [] };
 }
 
 export async function main(argv: string[]): Promise<number> {
@@ -192,7 +247,7 @@ export async function main(argv: string[]): Promise<number> {
       if (r.kind === 'bundle') out.push(`${c.dim('•')} ${r.file}: bundle (skipped)`);
       else
         out.push(
-          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : r.kind === 'plant registry' ? 'records' : 'nodes'}`,
+          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : r.kind === 'plant registry' ? 'records' : r.kind === 'webhook trigger' ? 'mapped inputs' : r.kind === 'data contract' ? 'schema objects' : 'nodes'}`,
         );
     }
     if (!values.quiet || !r.ok) for (const w of r.warnings) out.push(`  ${c.yellow('⚠')} ${w}`);

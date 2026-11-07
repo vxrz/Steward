@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { audit } from '../audit.js';
-import { confirmPlatformConfig } from '../platforms/integrity.js';
+import { confirmPlatformConfig, confirmReview } from '../platforms/integrity.js';
 import { HttpError } from '../util.js';
 import * as platforms from '../platforms/service.js';
 import * as connectors from '../platforms/connectors.js';
@@ -115,6 +115,12 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
   // Connection settings changed outside the application (configuration integrity): an administrator reviews and confirms them.
+  // what the confirmation seals and what it resets or removes (0.9.0): the identities' settings the platform page does not show
+  app.get('/platforms/:id/confirm-config', { config: { access: ACCESS.admin } }, async (req) => {
+    requireCapability(me(), 'createPlatforms', 'confirm platform settings');
+    requirePlatform(params(req).id!, 'manage', 'confirm the settings of this platform');
+    return confirmReview(params(req).id!);
+  });
   app.post('/platforms/:id/confirm-config', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'createPlatforms', 'confirm platform settings');
     requirePlatform(params(req).id!, 'manage', 'confirm the settings of this platform');
@@ -128,9 +134,11 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/platforms/:id/test', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const id = params(req).id!;
-    const p = requirePlatform(id, 'use', 'use this platform');
-    // the test itself (and its audit entry) is shared with the periodic connection test (v0.4.0, platforms/health.ts)
-    return runConnectionTest(p, platforms.getSecrets(id));
+    requirePlatform(id, 'use', 'use this platform');
+    // the test itself (and its audit entry) is shared with the periodic connection test (v0.4.0, platforms/health.ts);
+    // the old route tests the default identity (ADR 0009)
+    const c = platforms.getConnection(id);
+    return runConnectionTest(c.platform, c.secrets);
   });
 
   // Kafka (#112): the newest messages of a topic, for troubleshooting – off unless the platform allows it, platform managers only, audited
@@ -148,9 +156,10 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
   // Roles or permissions granted to the platform's technical user only appear in a new token: drop the cached one and log in again.
   app.post('/platforms/:id/token/renew', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const id = params(req).id!;
-    const p = requirePlatform(id, 'manage', 'get a new token for this platform');
+    requirePlatform(id, 'manage', 'get a new token for this platform');
+    // the default identity's token (ADR 0009)
+    const { platform: p, secrets } = platforms.getConnection(id);
     if (!usesCachedToken(p)) throw new HttpError(400, 'This platform does not log in for a token', 'PLATFORM_NO_TOKEN');
-    const secrets = platforms.getSecrets(id);
     try {
       const token = await renewToken(p, secrets);
       audit({
@@ -197,8 +206,8 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
       })
       .parse(req.body);
     const write = !(b.method === 'GET' || b.method === 'HEAD');
-    const p = requirePlatform(id, write ? 'manage' : 'use', write ? 'send changing requests to this platform' : 'use this platform');
-    const secrets = platforms.getSecrets(id);
+    requirePlatform(id, write ? 'manage' : 'use', write ? 'send changing requests to this platform' : 'use this platform');
+    const { platform: p, secrets } = platforms.getConnection(id);
     const res = await platformRequest(p, secrets, { method: b.method, url: b.path, query: b.query, headers: b.headers, body: b.body });
     audit({
       action: write ? 'api.adhoc_write' : 'api.adhoc_read',

@@ -9,6 +9,7 @@ import {
   OBJECTIVE_WINDOWS,
   REVIEW_STATUSES,
   SCORECARD_PART_STATUSES,
+  VERSION_LAGS,
 } from '@sm/shared';
 
 /** Response and query schemas of the availability objective and scorecard endpoints of the public API (#86). */
@@ -233,6 +234,75 @@ export const ScorecardServiceEntry = z.object({
         .describe('The components that are not ok, worst first'),
     })
     .describe('Vulnerabilities: open findings and policy violations of the components’ Dependency-Track projects'),
+  upToDate: z
+    .object({
+      status: partStatus().describe(
+        'attention: a stack entry a major release behind; pending: more minor releases or days behind than the version watch allows; none: not counted (turned off) or no entry with a known newest version',
+      ),
+      enabled: z.boolean().describe('Counted (version watch settings)'),
+      entries: z.number().int().describe('Stack entries with a known newest version'),
+      major: z.number().int().describe('Entries a major release behind'),
+      behind: z.number().int().describe('Entries behind more than allowed, not by a major release'),
+      items: z
+        .array(
+          z.object({
+            applicationId: z.string(),
+            applicationName: z.string(),
+            componentName: z.string().describe('The component or system'),
+            holder: z.enum(['component', 'system']),
+            environment: z.string(),
+            production: z.boolean(),
+            product: z.string(),
+            label: z.string(),
+            version: z.string().describe('Installed'),
+            newest: z.string().describe('The newest version, as the source names it'),
+            lag: z.enum(VERSION_LAGS),
+            behind: z.object({ major: z.number().int(), minor: z.number().int(), patch: z.number().int() }).nullable(),
+            daysBehind: z.number().int().nullable().describe('Days since the first newer release'),
+          }),
+        )
+        .describe('The entries behind more than allowed, major first'),
+    })
+    .describe('Up to date: how far the tech stack of the service’s applications is behind the newest versions (version watch)'),
+  costs: z
+    .object({
+      status: partStatus().describe(
+        'attention: this month’s costs reached the service’s monthly cost budget; pending: 80 % of it, or the forecast of the month is above it; ok: below; none: no cost budget',
+      ),
+      budgetPct: z.number().nullable().describe('This month so far in percent of the budget'),
+      forecastPct: z.number().nullable().describe('The month’s forecast in percent of the budget'),
+      currency: z.string().nullable(),
+      thisMonth: z.string().nullable().describe('Decimal; null when the token owner may not see the service’s costs'),
+      budget: z.string().nullable().describe('Decimal; null when the token owner may not see the service’s costs'),
+      stateOnly: z
+        .boolean()
+        .describe(
+          'The token owner does not see every application of the service: only the status from the budget’s state (budgetPct, forecastPct and thisMonth are null)',
+        ),
+    })
+    .describe('Costs: the month’s costs against the service’s monthly cost budget (docs/COSTS.md)'),
+  contracts: z
+    .object({
+      status: partStatus().describe(
+        'attention: a linked data contract whose last test failed or with an error finding (columns missing in the source); pending: a contract never tested or with other findings; none: no data contract is linked to the service’s applications or their systems',
+      ),
+      contracts: z.number().int().describe('Linked data contracts the token owner may see'),
+      failed: z.number().int().describe('Contracts whose last test failed or with an error finding'),
+      untested: z.number().int().describe('Contracts never tested'),
+      items: z
+        .array(
+          z.object({
+            contractId: z.string(),
+            name: z.string(),
+            result: z.enum(['passed', 'warning', 'failed', 'error']).nullable().describe('The last test (dry runs left out); null: never tested'),
+            testedAt: ts().nullable(),
+            findings: z.number().int().describe('Steward’s own findings (no owner, not tested, columns, lint)'),
+            errors: z.number().int().describe('Of them errors'),
+          }),
+        )
+        .describe('The contracts that are not ok, worst first'),
+    })
+    .describe('Data contracts (ODCS v3) linked to the service’s applications or their systems: their last test and Steward’s own findings'),
 });
 
 const PartCounts = z.object({ ok: z.number().int(), attention: z.number().int(), pending: z.number().int(), none: z.number().int() });
@@ -248,6 +318,9 @@ const RollupGroup = z.object({
     protection: PartCounts,
     lifecycle: PartCounts,
     vulnerabilities: PartCounts,
+    upToDate: PartCounts,
+    costs: PartCounts,
+    contracts: PartCounts,
   }),
 });
 
@@ -270,6 +343,9 @@ export const ScorecardTrendEntry = z.object({
     protection: TrendCounts,
     lifecycle: TrendCounts,
     vulnerabilities: TrendCounts,
+    upToDate: TrendCounts,
+    costs: TrendCounts,
+    contracts: TrendCounts,
   }),
 });
 
@@ -286,6 +362,9 @@ export const ServiceScorecardEntry = ScorecardServiceEntry.extend({
           protection: HistoryPart,
           lifecycle: HistoryPart,
           vulnerabilities: HistoryPart,
+          upToDate: HistoryPart,
+          costs: HistoryPart,
+          contracts: HistoryPart,
         }),
       }),
     )

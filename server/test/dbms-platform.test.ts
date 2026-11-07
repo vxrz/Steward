@@ -196,7 +196,8 @@ describe('the query step', () => {
     const { id } = await s.api('POST', '/runs', { processId: p.id, bindings: { db: db.id, api: other.id }, inputs: { value: 'leak-me-token-123' } });
     const r = await s.waitRun(id, DONE);
     expect(r.status).toBe('failed');
-    expect((await stepOf(r.id, 'q')).error).toContain('would send a secret of platform "Leaky API"');
+    // refused by the rule that a platform's credentials travel only through its own connection
+    expect((await stepOf(r.id, 'q')).error).toContain('contains a credential of connection "api" (platform "Leaky API")');
     await s.api('DELETE', `/platforms/${other.id}`);
   });
 

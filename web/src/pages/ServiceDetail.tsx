@@ -41,6 +41,7 @@ import { OpenMeasuresPanel } from '../components/records/IncidentReview';
 import { OwningTeams } from '../components/OwningTeams';
 import { DataTable } from '../components/DataTable';
 import { DetailPage } from '../components/page/DetailPage';
+import { CostsButton } from '../components/costs/CostsButton';
 import { LinkTabs } from '../components/page/LinkTabs';
 import { EnvironmentBadge } from '../components/catalogue/environments';
 
@@ -120,21 +121,24 @@ export function ServiceDetailPage() {
       }
       recent={{ label: s.name, kind: 'service', to: base }}
       actions={
-        (s.canEdit || canCreate) && (
-          <>
-            {canCreate && <DuplicateButton kind="service" id={s.id} />}
-            {s.canEdit && (
-              <>
-                <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}>
-                  {t('common:edit')}
-                </Button>
-                <Button size="xs" variant="default" leftSection={s.archived ? <IconArchiveOff size={14} /> : <IconArchive size={14} />} onClick={archive}>
-                  {s.archived ? t('restore') : t('archive')}
-                </Button>
-              </>
-            )}
-          </>
-        )
+        <>
+          <CostsButton scope="service" id={s.id} />
+          {(s.canEdit || canCreate) && (
+            <>
+              {canCreate && <DuplicateButton kind="service" id={s.id} />}
+              {s.canEdit && (
+                <>
+                  <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}>
+                    {t('common:edit')}
+                  </Button>
+                  <Button size="xs" variant="default" leftSection={s.archived ? <IconArchiveOff size={14} /> : <IconArchive size={14} />} onClick={archive}>
+                    {s.archived ? t('restore') : t('archive')}
+                  </Button>
+                </>
+              )}
+            </>
+          )}
+        </>
       }
       tabs={
         <LinkTabs

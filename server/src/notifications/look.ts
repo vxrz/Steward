@@ -287,6 +287,7 @@ const BAD_EVENTS = new Set([
   'access.undocumented',
   'backup.failed',
   'platform.failing',
+  'contract.failed',
 ]);
 const WARN_EVENTS = new Set([
   'task.assigned',
@@ -302,6 +303,7 @@ const WARN_EVENTS = new Set([
   'duty.ended',
   'measure.due',
   'ai.budget',
+  'cost.budget',
 ]);
 
 /** How a message reads at a glance: red for failures, orange for something to do, green when a monitor is up again. */

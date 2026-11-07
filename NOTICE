@@ -16,3 +16,9 @@ JSON Schema (server/test/fixtures/postman/collection-v2.1.0.schema.json),
 Copyright Postman, Inc. (https://github.com/postmanlabs/schemas), licensed
 under the Apache License, Version 2.0; bundled into one file with the
 comments removed (the file's "$comment" says what changed).
+
+Data contracts are checked against the JSON Schema of the Open Data Contract
+Standard (ODCS) v3.0.2 (server/assets/odcs/odcs-json-schema-v3.0.2.json),
+Copyright The Bitol Contributors (https://github.com/bitol-io/open-data-contract-standard,
+schema/odcs-json-schema-v3.0.2.json at commit 448f7b93329ece7827897d7dd51e827a3e279460),
+licensed under the Apache License, Version 2.0 (licence text next to the file); unchanged.

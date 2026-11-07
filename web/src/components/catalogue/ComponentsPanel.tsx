@@ -50,6 +50,7 @@ import { useFieldErrors } from '../common';
 import { confirmDanger } from '../confirm';
 import { fmtBytes, fmtDate, fmtNumber } from '../../format';
 import { LifecycleBadge } from './lifecycle';
+import { VersionBadge, VersionEntryModal } from './versions';
 import { EnvironmentBadge, EnvironmentInput, sortByEnvironment, useEnvironmentList } from './environments';
 import { CredentialEditor, type CredentialDraft } from '../credentials/CredentialEditor';
 import { platformKeys } from '../../queryKeys';
@@ -223,7 +224,7 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                     </Table.Td>
                   )}
                   <Table.Td>
-                    <StackBadges stack={c.stack} />
+                    <StackBadges stack={c.stack} holder={{ kind: 'component', id: c.id }} />
                   </Table.Td>
                   {editable && (
                     <Table.Td className="nowrap">
@@ -660,14 +661,37 @@ function DynamoDbTables({ platformId, resources }: { platformId: string; resourc
 }
 
 /** What Steward last read from a Kafka topic (#112): newest message, partitions, settings, consumer lag, schema. */
+/** The Kafka Connect connectors that read or write a topic (#223), of Kafka Connect platforms the reader may see. */
+function TopicConnectors({ component: c }: { component: ApplicationComponent }) {
+  const { t } = useTranslation('applications');
+  if (!c.connectors?.length) return null;
+  return (
+    <Text size="xs" c="dimmed" data-testid="topic-connectors">
+      {t('components.topic.connectors')}{' '}
+      {c.connectors.map((x, i) => (
+        <span key={`${x.platformId}/${x.connector}`}>
+          {i > 0 && ', '}
+          <Anchor component={Link} to={`/platforms/${x.platformId}?tab=connectors`} size="xs" title={x.platformName}>
+            {x.connector}
+          </Anchor>{' '}
+          ({t(`components.topic.connectorTypes.${x.type}`)}, {x.state})
+        </span>
+      ))}
+    </Text>
+  );
+}
+
 function TopicLine({ component: c }: { component: ApplicationComponent }) {
   const { t } = useTranslation('applications');
   const r = c.topic;
   if (!r)
     return (
-      <Text size="xs" c="dimmed">
-        {t('components.topic.notRead')}
-      </Text>
+      <>
+        <Text size="xs" c="dimmed">
+          {t('components.topic.notRead')}
+        </Text>
+        <TopicConnectors component={c} />
+      </>
     );
   const retention = r.configs['retention.ms'];
   const days = retention && Number(retention) > 0 ? Math.round(Number(retention) / 86_400_000) : null;
@@ -699,6 +723,7 @@ function TopicLine({ component: c }: { component: ApplicationComponent }) {
           {t('components.topic.schema', { subject: r.schema.subject, version: r.schema.version, type: r.schema.type })}
         </Text>
       )}
+      <TopicConnectors component={c} />
     </Stack>
   );
 }
@@ -764,9 +789,13 @@ export function SbomLine({ sbom }: { sbom: NonNullable<ApplicationComponent['sbo
   );
 }
 
-/** The stack of a component or system as end-of-life badges. */
-export function StackBadges({ stack }: { stack: StackEntry[] }) {
+/**
+ * The stack of a component or system as end-of-life badges; with the holder, the newest version next to an entry that
+ * is behind (#241), which opens the entry's version watch.
+ */
+export function StackBadges({ stack, holder }: { stack: StackEntry[]; holder?: { kind: 'component' | 'system'; id: string } }) {
   const { t } = useTranslation('applications');
+  const [open, setOpen] = useState<StackEntry | null>(null);
   if (stack.length === 0)
     return (
       <Text span size="sm" c="dimmed">
@@ -776,22 +805,27 @@ export function StackBadges({ stack }: { stack: StackEntry[] }) {
   return (
     <Group gap={4}>
       {stack.map((s) => (
-        <LifecycleBadge
-          key={s.product}
-          text={[s.label, s.version].filter(Boolean).join(' ')}
-          lifecycle={s.lifecycle}
-          variant={s.source === 'manual' ? 'outline' : 'light'}
-          extra={
-            s.source === 'sbom'
-              ? `${t('components.stackEditor.fromSbom')}: ${s.sbomRef}`
-              : s.source === 'cluster'
-                ? `${t('components.cluster.fromCluster')}: ${s.sbomRef}`
-                : s.source === 'repository'
-                  ? `${t('components.repository.fromFiles')}: ${s.sbomRef}`
-                  : t('components.stackEditor.manual')
-          }
-        />
+        <Group key={s.product} gap={2} wrap="nowrap">
+          <LifecycleBadge
+            text={[s.label, s.version].filter(Boolean).join(' ')}
+            lifecycle={s.lifecycle}
+            variant={s.source === 'manual' ? 'outline' : 'light'}
+            extra={
+              s.source === 'sbom'
+                ? `${t('components.stackEditor.fromSbom')}: ${s.sbomRef}`
+                : s.source === 'cluster'
+                  ? `${t('components.cluster.fromCluster')}: ${s.sbomRef}`
+                  : s.source === 'repository'
+                    ? `${t('components.repository.fromFiles')}: ${s.sbomRef}`
+                    : t('components.stackEditor.manual')
+            }
+          />
+          {holder && <VersionBadge entry={s} onOpen={() => setOpen(s)} />}
+        </Group>
       ))}
+      {open && holder && (
+        <VersionEntryModal holder={holder.kind} id={holder.id} product={open.product} lifecycle={open.lifecycle} onClose={() => setOpen(null)} />
+      )}
     </Group>
   );
 }

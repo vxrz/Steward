@@ -143,6 +143,9 @@ export interface AppStackRow {
   /** The component's or the system's name */
   holder: string;
   holder_kind: 'component' | 'system';
+  holder_id: string;
+  /** A system's owners (JSON; its own visibility), null for a component (the application's) */
+  holder_owners: string | null;
   environment: string;
   product: string;
   version: string;
@@ -151,11 +154,13 @@ export interface AppStackRow {
 /** The stack entries of all applications that are not archived, components first. */
 export function appStackRows(): AppStackRow[] {
   return db().all<AppStackRow>(
-    `SELECT a.id AS application_id, a.name AS application, a.owners, c.name AS holder, 'component' AS holder_kind, c.environment, cs.product, cs.version
+    `SELECT a.id AS application_id, a.name AS application, a.owners, c.name AS holder, 'component' AS holder_kind, c.id AS holder_id, NULL AS holder_owners,
+            c.environment, cs.product, cs.version
      FROM component_stack cs JOIN application_components c ON c.id = cs.component_id JOIN applications a ON a.id = c.application_id
      WHERE a.archived = 0
      UNION ALL
-     SELECT a.id AS application_id, a.name AS application, a.owners, s.name AS holder, 'system' AS holder_kind, l.environment, ss.product, ss.version
+     SELECT a.id AS application_id, a.name AS application, a.owners, s.name AS holder, 'system' AS holder_kind, s.id AS holder_id, s.owners AS holder_owners,
+            l.environment, ss.product, ss.version
      FROM system_stack ss JOIN systems s ON s.id = ss.system_id JOIN application_systems l ON l.system_id = s.id JOIN applications a ON a.id = l.application_id
      WHERE a.archived = 0
      ORDER BY application, holder_kind, holder, product`,
@@ -190,7 +195,7 @@ interface ApiRelease {
   eoasFrom?: unknown;
   isEol?: unknown;
   eolFrom?: unknown;
-  latest?: { name?: unknown } | null;
+  latest?: { name?: unknown; date?: unknown } | null;
 }
 
 const day = (v: unknown): string | null => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
@@ -233,8 +238,8 @@ export function refreshLifecycle(products = usedProducts()): Promise<{ refreshed
                 const cycle = text(x.name, 60);
                 if (!cycle) continue;
                 db().run(
-                  `INSERT INTO eol_releases (product, cycle, label, release_date, is_lts, eoas_from, eol_from, is_eol, latest)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+                  `INSERT INTO eol_releases (product, cycle, label, release_date, is_lts, eoas_from, eol_from, is_eol, latest, latest_date)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
                   product,
                   cycle,
                   text(x.label, 120),
@@ -244,6 +249,8 @@ export function refreshLifecycle(products = usedProducts()): Promise<{ refreshed
                   day(x.eolFrom),
                   x.isEol === true ? 1 : 0,
                   text(x.latest?.name, 60) || null,
+                  // the version watch (#241): when the cycle's latest release came out
+                  day(x.latest?.date),
                 );
               }
             });

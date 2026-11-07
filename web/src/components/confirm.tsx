@@ -37,7 +37,8 @@ export function confirmDialog({ action, message, title, confirmLabel, danger = t
       centered: true,
       size: 'md',
       children: (
-        <Text size="sm" data-testid="confirm-dialog-message">
+        // a div: a message may hold lists and paragraphs of its own
+        <Text size="sm" component="div" data-testid="confirm-dialog-message">
           {message}
         </Text>
       ),

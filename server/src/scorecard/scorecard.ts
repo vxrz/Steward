@@ -21,7 +21,12 @@ import {
   type ScorecardLifecycle,
   type ScorecardLifecycleItem,
   type ScorecardVulnerabilities,
+  type ScorecardCosts,
+  type ScorecardContracts,
   type ScorecardVulnerabilityItem,
+  type ScorecardUpToDate,
+  type ScorecardUpToDateItem,
+  type StackVersion,
   SCORECARD_LIMITS,
   type DtrackReadout,
   type ScorecardProtection,
@@ -58,6 +63,11 @@ import { ruleRows, ruleValid } from './rules.js';
 import { appStackRows, lifecycleOf, lifecycleSettings, releasesOf, type AppStackRow } from '../catalogue/lifecycle.js';
 import { environmentList } from '../catalogue/environments.js';
 import { productLabel } from '../catalogue/components.js';
+import { isWellBehind, versionSettings, watchOf, type WatchedEntry } from '../versions/service.js';
+import { applicationEntries } from '../versions/check.js';
+import { scopeInfo as costScopeInfo } from '../costs/access.js';
+import { budgetOf as costBudgetOf } from '../costs/query.js';
+import { contractRow, contractStates, contractsLinkedTo, permissionsOf as contractPermissions, type ContractState } from '../datacontracts/service.js';
 
 /**
  * The service scorecard (#86): per service its parts, each with its own status – no weighting.
@@ -73,6 +83,8 @@ import { productLabel } from '../catalogue/components.js';
  *   - Protection need (#84): attention when it is not rated – no applications, a dimension without a level,
  *     applications not rated or not counted (re-rating after a scale change), or the stored scale is not valid.
  *   - Tech stack (#104, optional): attention when a component is past its end of life.
+ *   - Up to date (#241, optional): attention when a stack entry is a major release behind, pending when more minor
+ *     releases or days behind than the version watch's settings allow.
  *   - Vulnerabilities (#119): from the Dependency-Track readouts of the applications' components – attention on open
  *     critical findings or failing policy violations; pending on open high findings, a failed or a stale read.
  *
@@ -441,12 +453,25 @@ interface LifecycleCtx {
   warnDays: number;
 }
 
-function lifecycleCtx(d: Data): LifecycleCtx {
+/** Whether `viewer` may see the holder of a stack entry: a system has its own visibility (no viewer: the snapshot, all). */
+function holderVisible(viewer: AuthUser | null): (r: Pick<AppStackRow, 'holder_kind' | 'holder_id' | 'holder_owners'>) => boolean {
+  const seen = new Map<string, boolean>();
+  return (r) => {
+    if (!viewer || r.holder_kind === 'component') return true;
+    if (!seen.has(r.holder_id))
+      seen.set(r.holder_id, canViewCatalogue(viewer, { kind: 'system', id: r.holder_id, owners: parseJson<string[]>(r.holder_owners, []) }));
+    return seen.get(r.holder_id)!;
+  };
+}
+
+function lifecycleCtx(d: Data, viewer: AuthUser | null): LifecycleCtx {
   const s = lifecycleSettings();
   const entries = new Map<string, AppStackRow[]>();
   if (!s.scorecard) return { enabled: false, entries, releases: new Map(), warnDays: s.warnDays, environments: [] };
   const apps = new Set([...d.members.values()].flat());
-  for (const r of appStackRows()) if (apps.has(r.application_id)) entries.set(r.application_id, [...(entries.get(r.application_id) ?? []), r]);
+  // systems the viewer may not see are neither named nor counted
+  const visible = holderVisible(viewer);
+  for (const r of appStackRows()) if (apps.has(r.application_id) && visible(r)) entries.set(r.application_id, [...(entries.get(r.application_id) ?? []), r]);
   const products = [...new Set([...entries.values()].flat().map((e) => e.product))];
   return {
     enabled: true,
@@ -498,6 +523,64 @@ function lifecyclePart(d: Data, serviceId: string, ctx: LifecycleCtx, now: numbe
   const eol = items.filter((i) => i.state === 'eol').length;
   const ending = items.length - eol;
   return { status: !entries ? 'none' : eol ? 'attention' : ending ? 'pending' : 'ok', enabled: true, entries, eol, ending, items };
+}
+
+// ---------- up to date (version watch, #241) ----------
+
+interface UpToDateCtx {
+  enabled: boolean;
+  /** Entries with a known newest version, per application */
+  entries: Map<string, { e: WatchedEntry; w: StackVersion }[]>;
+  environments: CatalogueEnvironment[];
+  settings: ReturnType<typeof versionSettings>;
+}
+
+function upToDateCtx(d: Data, viewer: AuthUser | null, now: number): UpToDateCtx {
+  const settings = versionSettings();
+  const entries = new Map<string, { e: WatchedEntry; w: StackVersion }[]>();
+  if (!settings.scorecard) return { enabled: false, entries, environments: [], settings };
+  // systems the viewer may not see are neither named nor counted
+  const all = [...new Set([...d.members.values()].flat())].flatMap((id) => applicationEntries(id, viewer));
+  for (const { entry, watch } of watchOf(all, now).values())
+    if (watch?.newest) entries.set(entry.applicationId, [...(entries.get(entry.applicationId) ?? []), { e: entry, w: watch }]);
+  return { enabled: true, entries, environments: environmentList(), settings };
+}
+
+/** Attention when an entry is a major release behind; pending when more minor releases or days behind than allowed. */
+function upToDatePart(d: Data, serviceId: string, ctx: UpToDateCtx): ScorecardUpToDate {
+  if (!ctx.enabled) return { status: 'none', enabled: false, entries: 0, major: 0, behind: 0, items: [] };
+  const items: ScorecardUpToDateItem[] = [];
+  let entries = 0;
+  for (const appId of d.members.get(serviceId) ?? [])
+    for (const { e, w } of ctx.entries.get(appId) ?? []) {
+      entries++;
+      if (!isWellBehind(w, ctx.settings)) continue;
+      items.push({
+        applicationId: appId,
+        applicationName: d.appNames.get(appId) ?? appId,
+        componentName: e.holderName,
+        holder: e.holderKind,
+        environment: e.environment,
+        production: isProductionEnvironment(ctx.environments, e.environment),
+        product: e.product,
+        label: productLabel(e.product),
+        version: e.version,
+        newest: w.newest!,
+        lag: w.lag,
+        behind: w.behind,
+        daysBehind: w.daysBehind,
+      });
+    }
+  items.sort(
+    (a, b) =>
+      Number(b.lag === 'major') - Number(a.lag === 'major') ||
+      Number(b.production) - Number(a.production) ||
+      (b.behind?.major ?? 0) - (a.behind?.major ?? 0) ||
+      (b.daysBehind ?? 0) - (a.daysBehind ?? 0),
+  );
+  const major = items.filter((i) => i.lag === 'major').length;
+  const behind = items.length - major;
+  return { status: !entries ? 'none' : major ? 'attention' : behind ? 'pending' : 'ok', enabled: true, entries, major, behind, items };
 }
 
 // ---------- vulnerabilities (Dependency-Track, #119) ----------
@@ -566,12 +649,73 @@ function vulnerabilitiesPart(d: Data, serviceId: string, ctx: Map<string, Dtrack
   return { status, projects, critical, high, policyFail, stale, items };
 }
 
+// ---------- data contracts (#221) ----------
+
+interface ContractCtx {
+  /** contract ids per application (linked to it or to one of its systems) */
+  byApp: Map<string, string[]>;
+  states: Map<string, ContractState>;
+}
+
+/** The data contracts linked to the members' applications or their systems, with their states as `viewer` may see them. */
+function contractCtx(d: Data, viewer: AuthUser | null): ContractCtx {
+  const apps = [...new Set([...d.members.values()].flat())];
+  const byApp = new Map<string, string[]>();
+  if (!apps.length) return { byApp, states: new Map() };
+  const direct = contractsLinkedTo('application', apps);
+  const systemsOf = new Map<string, string[]>();
+  for (const r of db().all<{ application_id: string; system_id: string }>(
+    `SELECT DISTINCT application_id, system_id FROM application_systems WHERE application_id IN (${apps.map(() => '?').join(', ')})`,
+    ...apps,
+  ))
+    systemsOf.set(r.application_id, [...(systemsOf.get(r.application_id) ?? []), r.system_id]);
+  const viaSystem = contractsLinkedTo('system', [...new Set([...systemsOf.values()].flat())]);
+  for (const a of apps) byApp.set(a, [...new Set([...(direct.get(a) ?? []), ...(systemsOf.get(a) ?? []).flatMap((s) => viaSystem.get(s) ?? [])])]);
+  return { byApp, states: contractStates([...byApp.values()].flat(), viewer) };
+}
+
+/** The contracts that count for a service (those the reader may see). */
+const contractIdsOf = (d: Data, serviceId: string, ctx: ContractCtx): string[] =>
+  [...new Set((d.members.get(serviceId) ?? []).flatMap((a) => ctx.byApp.get(a) ?? []))].filter((id) => ctx.states.has(id));
+
+/** Attention: a last test that failed or an error finding; pending: never tested or other findings. */
+function contractsPart(d: Data, serviceId: string, ctx: ContractCtx): ScorecardContracts {
+  const ids = contractIdsOf(d, serviceId, ctx);
+  const states = ids.map((id) => ctx.states.get(id)).filter((x): x is ContractState => !!x);
+  const bad = (s: ContractState) => s.result === 'failed' || s.result === 'error' || s.errors > 0;
+  const items = states
+    .filter((s) => bad(s) || !s.result || s.findings > 0 || s.result === 'warning')
+    .map((s) => ({ contractId: s.id, name: s.name, result: s.result, testedAt: s.testedAt, findings: s.findings, errors: s.errors }))
+    .sort((a, b) => Number(bad(ctx.states.get(b.contractId)!)) - Number(bad(ctx.states.get(a.contractId)!)) || a.name.localeCompare(b.name));
+  const failed = states.filter(bad).length;
+  const untested = states.filter((s) => !s.result).length;
+  const status: ScorecardPartStatus = !states.length ? 'none' : failed ? 'attention' : items.length ? 'pending' : 'ok';
+  return { status, contracts: states.length, failed, untested, items };
+}
+
 // ---------- scorecards ----------
+
+/**
+ * Costs (#226): the service's monthly cost budget against this month so far and the forecast. The amounts only for a
+ * reader who may see the service's costs (costs/access.ts); the state for everyone who sees the service – and only the
+ * state for a reader who does not see every application of the service (the budget covers them all).
+ */
+function costsPart(serviceId: string, viewer: AuthUser | null, now: number): ScorecardCosts {
+  const none: ScorecardCosts = { status: 'none', budgetPct: null, forecastPct: null, currency: null, thisMonth: null, budget: null, stateOnly: false };
+  const amounts = viewer ? (costScopeInfo('service', serviceId, viewer)?.amounts ?? false) : false;
+  const b = costBudgetOf('service', serviceId, amounts, now, viewer);
+  if (!b) return none;
+  const status: ScorecardPartStatus =
+    b.state === 'exceeded' ? 'attention' : b.state === 'warning' || (b.forecastPct !== null && b.forecastPct > 100) ? 'pending' : 'ok';
+  return { status, budgetPct: b.pct, forecastPct: b.forecastPct, currency: b.currency, thisMonth: b.used, budget: b.amount, stateOnly: b.stateOnly };
+}
 
 export interface Computed {
   card: ServiceScorecard;
   /** Released documents that counted (snapshots) */
   documentIds: string[];
+  /** Data contracts that counted (snapshots: a reader who may not see one gets the part as hidden) */
+  contractIds: string[];
 }
 
 /**
@@ -584,8 +728,10 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
   const oc: ObjCtx = { cache: readingCache(now), facts: sampleFacts(), platforms: platformLookup(), viewer };
   const docs = docCtx(d, viewer);
   const needs = protectionNeeds(d.services.map((s) => s.id));
-  const lc = lifecycleCtx(d);
+  const lc = lifecycleCtx(d, viewer);
   const vc = vulnerabilityCtx(d);
+  const uc = upToDateCtx(d, viewer, now);
+  const cc = contractCtx(d, viewer);
   return d.services.map((s) => {
     const duties = dutiesPart(d, s.id);
     const availability = availabilityPart(d, s.id, oc);
@@ -593,21 +739,30 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
     const protection = protectionPart(needs.get(s.id)!, (d.members.get(s.id) ?? []).length);
     const lifecycle = lifecyclePart(d, s.id, lc, now);
     const vulnerabilities = vulnerabilitiesPart(d, s.id, vc, now);
+    const upToDate = upToDatePart(d, s.id, uc);
+    const costs = costsPart(s.id, viewer, now);
+    const contracts = contractsPart(d, s.id, cc);
     return {
       card: {
         serviceId: s.id,
         serviceName: s.name,
         owners: parseJson<string[]>(s.owners, []),
         criticality: (s.criticality as ServiceCriticality | null) ?? null,
-        attention: [duties, availability, documentation, protection, lifecycle, vulnerabilities].some((p) => p.status === 'attention'),
+        attention: [duties, availability, documentation, protection, lifecycle, vulnerabilities, upToDate, costs, contracts].some(
+          (p) => p.status === 'attention',
+        ),
         duties,
         availability,
         documentation,
         protection,
         lifecycle,
         vulnerabilities,
+        upToDate,
+        costs,
+        contracts,
       },
       documentIds: ids,
+      contractIds: contractIdsOf(d, s.id, cc),
     };
   });
 }
@@ -659,6 +814,11 @@ export interface SnapshotRow {
   protection: ScorecardPartStatus;
   lifecycle?: ScorecardPartStatus;
   vulnerabilities?: ScorecardPartStatus;
+  up_to_date?: ScorecardPartStatus;
+  costs?: ScorecardPartStatus | null;
+  contracts?: ScorecardPartStatus;
+  /** The contracts the snapshot counted (0.9.0; '[]' before) */
+  contract_ids?: string;
   document_ids: string;
   details: string;
   updated_at: string;
@@ -670,25 +830,45 @@ export function dayOf(t: number, tz = instanceTimeZone()): string {
   return `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`;
 }
 
-/** Whether the reader may read every document a snapshot counted (deleted documents do not hide anything). */
-function snapshotReader(u: AuthUser, rows: SnapshotRow[]): (r: SnapshotRow) => boolean {
+/** What of a snapshot the reader may see in full (deleted documents or contracts do not hide anything). */
+interface SnapshotView {
+  /** Every document it counted */
+  documents: boolean;
+  /** Every data contract it counted (#221): otherwise the part is "hidden", like the documentation */
+  contracts: boolean;
+}
+
+function snapshotReader(u: AuthUser, rows: SnapshotRow[]): (r: SnapshotRow) => SnapshotView {
   const ids = [...new Set(rows.flatMap((r) => parseJson<string[]>(r.document_ids, [])))];
   const hidden = new Set(
     documentRows(ids)
       .filter((r) => !canReadRecordRow(u, r))
       .map((r) => r.id),
   );
-  return (r) => !hidden.size || !parseJson<string[]>(r.document_ids, []).some((id) => hidden.has(id));
+  const contractIds = [...new Set(rows.flatMap((r) => parseJson<string[]>(r.contract_ids ?? '[]', [])))];
+  const hiddenContracts = new Set(
+    contractIds.filter((id) => {
+      const c = contractRow(id);
+      return !!c && !contractPermissions(c, u).includes('view');
+    }),
+  );
+  return (r) => ({
+    documents: !hidden.size || !parseJson<string[]>(r.document_ids, []).some((id) => hidden.has(id)),
+    contracts: !hiddenContracts.size || !parseJson<string[]>(r.contract_ids ?? '[]', []).some((id) => hiddenContracts.has(id)),
+  });
 }
 
-function pointOf(r: SnapshotRow, readable: boolean): ServiceScorecardHistoryPoint {
+function pointOf(r: SnapshotRow, view: SnapshotView): ServiceScorecardHistoryPoint {
   const parts = {
     duties: r.duties,
     availability: r.availability,
-    documentation: readable ? r.documentation : ('hidden' as const),
+    documentation: view.documents ? r.documentation : ('hidden' as const),
     protection: r.protection,
     lifecycle: r.lifecycle ?? 'none',
     vulnerabilities: r.vulnerabilities ?? 'none',
+    upToDate: r.up_to_date ?? 'none',
+    costs: r.costs ?? 'none',
+    contracts: view.contracts ? (r.contracts ?? 'none') : ('hidden' as const),
   };
   return { day: r.day, attention: SCORECARD_PARTS.some((p) => parts[p] === 'attention'), parts };
 }

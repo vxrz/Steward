@@ -538,6 +538,7 @@ describe('monitor examples', () => {
       'new-critical-vulnerabilities',
       'entra-app-credentials',
       'crm-contacts-dynamodb',
+      'kafka-connect-shop',
     ]) {
       const m = ((await s.api('GET', '/monitors')) as any[]).find((x) => x.key === key);
       const def = (await s.api('GET', `/monitors/${m.id}`)).definition;

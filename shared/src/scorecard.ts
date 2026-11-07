@@ -1,6 +1,7 @@
 import type { CiaDimension } from './catalogue.js';
 import type { DutyLevel, DutyPeriodStatus } from './duties.js';
 import type { ReviewStatus, ServiceCriticality } from './records.js';
+import type { VersionBehind, VersionLag } from './versions.js';
 
 /**
  * Availability objectives and the service scorecard (#86).
@@ -155,8 +156,22 @@ export interface ObjectiveDetail extends ObjectiveSummary {
  * lifecycle: the tech stack's end of life (#104) – counted only when turned on (LifecycleSettings.scorecard), else "none".
  * vulnerabilities: Dependency-Track's findings and policy violations of the applications' components (#119) – "none"
  * when no component links a Dependency-Track project.
+ * upToDate: the version watch (#241) – counted only when turned on (VersionSettings.scorecard), else "none".
+ * costs: the month's costs of the service against its monthly cost budget (#226) – "none" without a budget.
+ * contracts: the data contracts linked to the service's applications or their systems (#221) – their last test and
+ * Steward's own findings; "none" when no contract is linked.
  */
-export const SCORECARD_PARTS = ['duties', 'availability', 'documentation', 'protection', 'lifecycle', 'vulnerabilities'] as const;
+export const SCORECARD_PARTS = [
+  'duties',
+  'availability',
+  'documentation',
+  'protection',
+  'lifecycle',
+  'vulnerabilities',
+  'upToDate',
+  'costs',
+  'contracts',
+] as const;
 export type ScorecardPart = (typeof SCORECARD_PARTS)[number];
 
 /**
@@ -358,6 +373,87 @@ export interface ScorecardVulnerabilities {
   items: ScorecardVulnerabilityItem[];
 }
 
+/** A tech stack entry that is behind the newest version (#241). */
+export interface ScorecardUpToDateItem {
+  applicationId: string;
+  applicationName: string;
+  /** The component's or system's name */
+  componentName: string;
+  holder: 'component' | 'system';
+  environment: string;
+  production: boolean;
+  product: string;
+  label: string;
+  version: string;
+  newest: string;
+  lag: VersionLag;
+  behind: VersionBehind | null;
+  daysBehind: number | null;
+}
+
+export interface ScorecardUpToDate {
+  /**
+   * attention: an entry a major release behind; pending: more minor releases or days behind than the version watch's
+   * settings allow; none: turned off, or no entry with a known newest version
+   */
+  status: ScorecardPartStatus;
+  /** The part is counted (turned on in the version watch settings) */
+  enabled: boolean;
+  /** Stack entries of the service's applications with a known newest version */
+  entries: number;
+  major: number;
+  /** Behind more than allowed, but not by a major release */
+  behind: number;
+  /** Major first, then production, then the longest behind */
+  items: ScorecardUpToDateItem[];
+}
+
+export interface ScorecardCosts {
+  /**
+   * attention: this month's costs reached the service's monthly budget; pending: 80 % of it, or the forecast of the
+   * month is above it; ok: below; none: the service has no cost budget
+   */
+  status: ScorecardPartStatus;
+  /** This month so far in percent of the budget */
+  budgetPct: number | null;
+  /** The month's forecast in percent of the budget */
+  forecastPct: number | null;
+  currency: string | null;
+  /** The amounts – only for readers who may see the service's costs */
+  thisMonth: string | null;
+  budget: string | null;
+  /**
+   * The reader does not see every application of the service: only the budget's state (the status), no amounts and no
+   * percentages – the budget covers them all
+   */
+  stateOnly: boolean;
+}
+
+export interface ScorecardContractItem {
+  contractId: string;
+  name: string;
+  /** The last test (dry runs left out); null: never tested */
+  result: 'passed' | 'warning' | 'failed' | 'error' | null;
+  testedAt: string | null;
+  /** Steward's own findings, and how many of them are errors */
+  findings: number;
+  errors: number;
+}
+
+export interface ScorecardContracts {
+  /**
+   * attention: a linked contract whose last test failed, or with an error finding (columns missing in the source);
+   * pending: a contract never tested or with other findings (no owner, not tested for 7 days, lint); none: no data
+   * contract is linked to the service's applications or their systems
+   */
+  status: ScorecardPartStatus;
+  contracts: number;
+  failed: number;
+  untested: number;
+  /** The contracts that are not ok, worst first */
+  items: ScorecardContractItem[];
+}
+
 export interface ServiceScorecard {
   serviceId: string;
   serviceName: string;
@@ -371,6 +467,9 @@ export interface ServiceScorecard {
   protection: ScorecardProtection;
   lifecycle: ScorecardLifecycle;
   vulnerabilities: ScorecardVulnerabilities;
+  upToDate: ScorecardUpToDate;
+  costs: ScorecardCosts;
+  contracts: ScorecardContracts;
 }
 
 export type ScorecardPartCounts = Record<ScorecardPartStatus, number>;

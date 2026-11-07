@@ -137,7 +137,8 @@ describe('cloud-account components on an AWS platform', () => {
     expect(r.resources.find((x: any) => x.service === 's3')).toMatchObject({ type: 'bucket', region: '' });
     expect(r.costs.error).toBeNull();
     expect(r.costs.months).toHaveLength(6);
-    expect(r.costs.months[0]).toMatchObject({ amount: 1840, currency: 'USD' });
+    // 13 months are read (the cost model, #226); the readout shows the last six – the first of them 7 months after the oldest
+    expect(r.costs.months[0]).toMatchObject({ amount: 2226.4, currency: 'USD' });
     expect(r.users.map((u: any) => u.userName)).toEqual(['ci-deploy']);
     expect(r.users[0].keys[0]).toMatchObject({ accessKeyId: 'AKIADEMOCIDEPLOY001', status: 'Active', lastService: 'ecs' });
     // processes see it as the readout of the component

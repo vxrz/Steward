@@ -8,7 +8,7 @@ import { nowIso, parseJson } from '../util.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
 import { platformPermissions } from '../auth/permissions.js';
 import { me } from '../auth/access.js';
-import { getPlatform, getSecrets } from './service.js';
+import { getConnection, getPlatform } from './service.js';
 import { runConnectionTest } from './testConnection.js';
 
 /**
@@ -151,7 +151,9 @@ async function testOne(h: HealthRow, now: number): Promise<void> {
   let ok: boolean;
   let message: string;
   try {
-    const r = await runConnectionTest(p, getSecrets(p.id), { periodic: true });
+    // the periodic test tests the default identity (ADR 0009)
+    const c = getConnection(p.id);
+    const r = await runConnectionTest(c.platform, c.secrets, { periodic: true });
     ok = r.ok;
     message = r.message;
   } catch (e) {

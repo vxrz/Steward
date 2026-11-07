@@ -9,6 +9,7 @@ import { mockPrometheus } from './mockPrometheus.js';
 import { mockKubernetes } from './mockKubernetes.js';
 import { mockGitPlatforms } from './mockGitPlatforms.js';
 import { mockSchemaRegistry } from './mockKafka.js';
+import { mockKafkaConnect } from './mockKafkaConnect.js';
 import { mockMqtt } from './mockMqtt.js';
 import { mockGatus } from './mockGatus.js';
 import { iotTimeseries, mockIotRoutes } from './mockIot.js';
@@ -22,7 +23,10 @@ import { mockGraph } from './mockGraph.js';
 import { mockPrivilegeVault } from './mockPrivilegeVault.js';
 import { mockLlmGateway } from './mockLlmGateway.js';
 import { mockDtrack } from './mockDtrack.js';
+import { mockChangedetection } from './mockChangedetection.js';
+import { mockDataContract } from './mockDataContract.js';
 import { mockEndoflife } from './mockEndoflife.js';
+import { mockRegistries } from './mockRegistries.js';
 import { mockUsageRoutes } from './mockUsage.js';
 
 /**
@@ -217,6 +221,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   await mockKubernetes(app);
   await mockGitPlatforms(app);
   await mockSchemaRegistry(app);
+  await mockKafkaConnect(app);
   await mockMqtt(app);
   await mockIotRoutes(app);
   await mockZabbix(app);
@@ -229,7 +234,10 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   await mockPrivilegeVault(app);
   await mockLlmGateway(app);
   await mockDtrack(app);
+  await mockChangedetection(app);
+  await mockDataContract(app);
   await mockEndoflife(app);
+  await mockRegistries(app);
 
   app.post('/reset', async () => {
     state = seed();
