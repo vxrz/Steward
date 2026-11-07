@@ -296,7 +296,7 @@ async function readLimited(res: Awaited<ReturnType<typeof fetch>>, max: number, 
 
 function withKey(url: string, key: Upstream['key']): { url: string; headers: Record<string, string> } {
   if (!key) return { url, headers: {} };
-  if (key.place === 'header') return { url, headers: { [key.name.toLowerCase()]: key.value } };
+  if (key.place === 'header') return { url, headers: Object.fromEntries([[key.name.toLowerCase(), key.value]]) };
   const u = new URL(url);
   u.searchParams.set(key.name, key.value);
   return { url: u.toString(), headers: {} };

@@ -655,11 +655,24 @@ async function readOwnStyle(styleUrl: string, key: Plan['key'], keyVal: string |
 
 // ---------- settings ----------
 
+const RESERVED_KEY_NAMES = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+  'host',
+  'cookie',
+  'content-length',
+  'transfer-encoding',
+  'connection',
+  'user-agent',
+]);
 const keyName = z
   .string()
   .trim()
   .max(60)
-  .refine((v) => !v || [...v].every((c) => /[A-Za-z0-9_-]/.test(c)), 'Letters, digits, - and _ only');
+  .refine((v) => !v || [...v].every((c) => /[A-Za-z0-9_-]/.test(c)), 'Letters, digits, - and _ only')
+  // never a property of every object, and never a header the connection itself needs
+  .refine((v) => !RESERVED_KEY_NAMES.has(v.toLowerCase()), 'This name cannot carry the key');
 
 export const mapSettingsInput = z
   .object({

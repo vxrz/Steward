@@ -219,6 +219,11 @@ describe('an own tile source', () => {
     });
     expect(await bad({ kind: 'raster', url: 'ftp://tiles.example.com/{z}/{x}/{y}.png', attribution: 'x' })).toEqual({ status: 400, code: 'PLANT_MAP_URL' });
     expect(await bad({ kind: 'raster', url: `${mock()}/osm/{z}/{x}/{y}.png`, attribution: '' })).toEqual({ status: 400, code: 'PLANT_MAP_ATTRIBUTION' });
+    for (const keyName of ['__proto__', 'Host', 'cookie'])
+      expect(await bad({ kind: 'raster', url: `${mock()}/osm/{z}/{x}/{y}.png`, attribution: 'x', keyPlace: 'header', keyName }), keyName).toEqual({
+        status: 400,
+        code: 'INVALID_INPUT',
+      });
     expect(await bad({ kind: 'raster', url: `${mock()}/osm/{z}/{x}/{y}.png`, attribution: 'x', keyPlace: 'query', keyName: '' })).toEqual({
       status: 400,
       code: 'PLANT_MAP_KEY_NAME',
