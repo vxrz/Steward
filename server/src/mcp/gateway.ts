@@ -26,7 +26,7 @@ import { Semaphore, platformRequest, resolveBaseUrl, secretValues } from '../pla
 import { assertOutboundAllowed } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { resolveRef } from '../platforms/openapi.js';
-import { Redactor } from '../engine/runner.js';
+import { Redactor } from '../engine/index.js';
 import { emit } from '../events.js';
 import { TokenBucketLimiter } from '../api/v1/rateLimit.js';
 import { pageArray } from '../api/v1/pagination.js';

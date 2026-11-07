@@ -91,6 +91,7 @@ export function runSources(runId: string): Set<string> {
   let id: string | null = runId;
   while (id && !seen.has(id) && seen.size < 20) {
     seen.add(id);
+    // debug runs: one run by its id (a debug run's own AI step reads its own run)
     const r: RunFacts | undefined = db().get<RunFacts>('SELECT process_id, process_version, inputs, bindings, parent_run_id FROM runs WHERE id = ?', id);
     if (!r) {
       out.add(INPUT).add(datasetSource('*'));
@@ -115,6 +116,7 @@ export function runSources(runId: string): Set<string> {
 
 /** What the inputs of a run may carry: the inputs – and for a sub-process run everything of its parent run. */
 export function inputSources(runId: string): Set<string> {
+  // debug runs: one run by its id (a debug run's own AI step reads its own run)
   const parent = db().get<{ parent_run_id: string | null }>('SELECT parent_run_id FROM runs WHERE id = ?', runId)?.parent_run_id;
   return new Set([INPUT, ...(parent ? runSources(parent) : [])]);
 }

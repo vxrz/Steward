@@ -51,6 +51,8 @@ export function registerBuiltInJobs(): void {
   every5('vault-links', 30 * MINUTE, () => import('../credentials/vault.js').then((m) => m.runVaultLinkJob()));
   // daily summaries of the people who turned them on (notifications/summary.ts)
   every5('daily-summary', 10 * MINUTE, () => import('../notifications/summary.js').then((m) => m.runDailySummaries()));
+  // quiet hours and digests (ADR 0012): the catch-up at the end of quiet hours, digests when they are due
+  every5('notification-outbox', 10 * MINUTE, () => import('../notifications/outbox.js').then((m) => m.runOutbox()));
   // maintenance windows: reminders, start and end messages (catalogue/maintenance.ts)
   every5('maintenance-windows', 2 * MINUTE, () => import('../catalogue/maintenance.js').then((m) => m.runMaintenanceJob()));
   // measures from incident reviews: due and overdue reminders (records/reviews.ts)

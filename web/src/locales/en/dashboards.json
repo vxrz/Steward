@@ -102,6 +102,10 @@
     "vega": {
       "label": "Vega-Lite chart",
       "info": "Chart from a Vega-Lite spec on a dataset, for views the other widgets do not cover"
+    },
+    "sitesMap": {
+      "label": "Sites map",
+      "info": "The sites of the plant registry on a map, with their state (only the sites the reader may see)"
     }
   },
   "editor": {

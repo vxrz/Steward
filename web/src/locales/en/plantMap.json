@@ -1,0 +1,167 @@
+{
+  "title": "Map",
+  "description": "Your {{type}} on a map, with their state. The list and the map show the same sites; the pins follow the list order.",
+  "search": "Search by name or code",
+  "listLabel": "{{type}} on the map",
+  "mapLabel": "Map of the {{type}}",
+  "column": {
+    "state": "State",
+    "position": "On the map"
+  },
+  "showNamed": "Show {{name}} on the map",
+  "showOnMap": "Show on the map",
+  "noPosition": "No position",
+  "noMatch": "No site matches the search or the filter.",
+  "emptyTitle": "No {{type}} yet",
+  "emptyText": "Sites with a position appear here as pins.",
+  "filter": {
+    "state": "State",
+    "all": "All states",
+    "problems": "Offline or warnings"
+  },
+  "state": {
+    "fail": "Offline",
+    "warn": "Warning",
+    "unknown": "Unknown",
+    "ok": "Online",
+    "none": "Not watched"
+  },
+  "legend": "What the pins show",
+  "pin": {
+    "offline_one": "{{count}} offline",
+    "offline_other": "{{count}} offline",
+    "checks_one": "{{count}} check failing",
+    "checks_other": "{{count}} checks failing",
+    "warn_one": "{{count}} warning",
+    "warn_other": "{{count}} warnings"
+  },
+  "cluster_one": "{{count}} site, {{state}} – zoom in",
+  "cluster_other": "{{count}} sites, worst: {{state}} – zoom in",
+  "pinsLabel_one": "{{count}} site in view",
+  "pinsLabel_other": "{{count}} sites in view",
+  "capped": "{{shown}} of {{total}} positions are drawn; the list names all sites.",
+  "controls": {
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "north": "Face north",
+    "cooperative": "Use Ctrl + scroll to zoom the map",
+    "cooperativeMac": "Use ⌘ + scroll to zoom the map",
+    "cooperativeMobile": "Use two fingers to move the map"
+  },
+  "attributionNewTab": " (opens in a new tab)",
+  "card": {
+    "assets_one": "{{count}} asset",
+    "assets_other": "{{count}} assets",
+    "coverage": "KPI coverage {{pct}} %",
+    "noCoverage": "No KPI coverage",
+    "open": "Open site",
+    "structure": "Structure",
+    "network": "OT network"
+  },
+  "notice": {
+    "off": {
+      "title": "The map is off",
+      "text": "Nothing is sent to a map provider. An administrator can turn the map on; until then the list shows every site."
+    },
+    "webgl": {
+      "title": "This browser cannot draw the map",
+      "text": "The map needs WebGL 2, which this browser or virtual desktop does not offer. The list shows every site."
+    },
+    "load": {
+      "title": "The map could not be loaded",
+      "text": "The tile source did not answer. The list shows every site."
+    },
+    "reason": "Reason: {{reason}}",
+    "settings": "Map settings"
+  },
+  "picker": {
+    "label": "Map to pick the position",
+    "help": "Click on the map to set latitude and longitude, or type them above."
+  },
+  "widget": {
+    "notVisible": "Not visible: the plant registry is not open to you.",
+    "none": "No sites yet.",
+    "sites": "sites",
+    "open": "Open the map"
+  },
+  "settings": {
+    "title": "Map of sites",
+    "on": "On – {{source}}",
+    "off": "Off",
+    "description": "Shows the sites on a map (Plant → Map, the site page, the dashboard widget). The browser loads everything from Steward; Steward's server fetches the tiles, caches them and never shares your users' addresses.",
+    "offNote": "The map is off: nothing is sent anywhere. OpenStreetMap is preselected – one click turns it on.",
+    "from": "Tiles from",
+    "sources": {
+      "off": {
+        "label": "Off",
+        "privacy": "Nothing leaves Steward."
+      },
+      "osm": {
+        "label": "OpenStreetMap",
+        "privacy": "Raster tiles. Steward's server fetches them from tile.openstreetmap.org: the provider sees Steward's address and the areas viewed, never a user's. For light use, as the OpenStreetMap tile usage policy asks."
+      },
+      "openfreemap": {
+        "label": "Light and dark (OpenFreeMap)",
+        "privacy": "Vector tiles that follow the theme. Steward's server fetches them from tiles.openfreemap.org (OpenStreetMap data, no key, no service level)."
+      },
+      "own": {
+        "label": "Own tile source",
+        "privacy": "A tile URL template or a MapLibre style URL of your own server or provider, optionally with an API key. Steward's server fetches from the origins it names."
+      },
+      "file": {
+        "label": "Self-hosted file (PMTiles)",
+        "privacy": "A PMTiles file in Steward's maps folder, raster or vector. Nothing leaves Steward – for networks without internet access."
+      }
+    },
+    "own": {
+      "kind": "Kind of source",
+      "raster": "Raster tiles",
+      "style": "MapLibre style",
+      "template": "Tile URL template",
+      "templateHelp": "With {z}, {x} and {y}, for example https://tiles.example.com/{z}/{x}/{y}.png",
+      "styleUrl": "Style URL",
+      "styleHelp": "A MapLibre style (style.json). Steward keeps its sources and layers and serves everything through its own address.",
+      "attribution": "Attribution",
+      "attributionHelp": "The text the provider asks to show, for example “© Example Maps”. Shown on every map.",
+      "maxZoom": "Highest zoom",
+      "keyPlace": "API key",
+      "keyPlaces": {
+        "none": "No key",
+        "query": "As a query parameter",
+        "header": "As a request header"
+      },
+      "paramName": "Parameter name",
+      "headerName": "Header name",
+      "key": "Key",
+      "keyHelp": "Stored in the vault and added by Steward's server; the browser never sees it.",
+      "keyStored": "A key is stored in the vault. Leave this empty to keep it.",
+      "keyAgain": "The stored key belongs to the previous address: enter it again for this one.",
+      "removeKey": "Remove the stored key",
+      "check": "Check the style",
+      "checked_one": "Read: {{count}} layer, {{kind}}. The origins below are where Steward will fetch from.",
+      "checked_other": "Read: {{count}} layers, {{kind}}. The origins below are where Steward will fetch from."
+    },
+    "file": {
+      "raster": "raster",
+      "vector": "vector",
+      "unknown": "unknown",
+      "where": "Put PMTiles files into",
+      "none": "No PMTiles file found there yet. Whoever runs Steward places it (for example a regional extract made with pmtiles extract).",
+      "choose": "Map file",
+      "placeholder": "Choose a file",
+      "attributionFrom": "The file says: {{text}}. Leave empty to show that.",
+      "attributionNone": "The file names no attribution: enter the one its data needs."
+    },
+    "origins": "Steward's server fetches from:",
+    "noOrigins": "Nothing leaves Steward.",
+    "reload": "Read the style again",
+    "turnOff": "Turn the map off",
+    "save": "Save",
+    "turnOn": "Turn on with {{source}}",
+    "stepUp": "Changing where tiles come from asks you to confirm it is you (step-up) and is written to the audit log.",
+    "saved": "Map settings saved",
+    "savedOff": "The map is off",
+    "outbound": "Map tiles (plant registry): the map's fetcher reaches {{origins}} – for the map only, not for processes.",
+    "outboundNone": "Map tiles (plant registry): from a file in the data folder – nothing leaves Steward."
+  }
+}

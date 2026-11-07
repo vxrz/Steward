@@ -1,0 +1,180 @@
+{
+  "simulated": "Simulated",
+  "decision": {
+    "approve": "Approve",
+    "reject": "Reject",
+    "comment": "Comment"
+  },
+  "node": {
+    "tab": "Run this node",
+    "intro": "Runs only this node, with the variables you choose. It runs like in a debug run: never live, nothing is published, nobody is notified.",
+    "newNode": "Save the process once before you run this new node.",
+    "unsaved": "Runs your unsaved changes",
+    "vars": "Variables",
+    "from": {
+      "run": "From a run",
+      "sample": "Sample data",
+      "inputs": "Run inputs"
+    },
+    "pickRun": "Run",
+    "pickRunPlaceholder": "Choose a run",
+    "noRuns": "No runs yet",
+    "sampleVars": "Variables (JSON)",
+    "sampleHint": "No passwords or keys – use a secret input or a platform's credentials instead.",
+    "notJson": "Not a JSON object",
+    "inputs": "Inputs (JSON)",
+    "answers": "Answers",
+    "answer": {
+      "offline": "Offline",
+      "recorded": "Recorded",
+      "live": "Live read"
+    },
+    "answerHint": {
+      "offline": "Nothing is contacted. Requests need a pasted answer.",
+      "recorded": "The platform's recorded responses answer, or a pasted answer.",
+      "live": "The request is really sent – only reads (GET, HEAD, queries, AI calls, browser steps without clicks)."
+    },
+    "reason": {
+      "needsRun": "Recorded and live answers need the right to run this process.",
+      "writes": "This node writes. You can only run it with recorded answers.",
+      "interacts": "This browser step clicks or types. It cannot run as a live read.",
+      "noPlatform": "This node calls no platform. Run it offline.",
+      "needsAnswer": "Offline, this node needs a pasted answer or a sample answer.",
+      "needsRecording": "This node needs its platform. Run it with recorded answers."
+    },
+    "paste": "Paste an answer",
+    "pasteStatus": "HTTP status",
+    "pasteBody": "Answer body (JSON)",
+    "pasteHint": "Used only for this run, never stored as a recording.",
+    "simulated": "Simulated answer",
+    "selectedKeys": "Selected item keys (comma-separated)",
+    "simulatedHint": "No task is created and nobody is asked. The step is marked simulated.",
+    "run": "Run this node",
+    "failed": "The node did not run",
+    "openRun": "Open the debug run",
+    "masked": "Masked in the source run: {{names}}",
+    "written": "Variables written",
+    "request": "Request",
+    "output": "Result"
+  },
+  "panel": {
+    "open": "Debug",
+    "title": "Step through",
+    "close": "Close the debug panel",
+    "signalFailed": "The debug run did not take the signal",
+    "notStarted": "The debug run did not start",
+    "intro": "Runs the saved version v{{version}} and pauses before the nodes you choose. Unsaved changes are not used.",
+    "inputs": "Inputs",
+    "mode": "Answers",
+    "modes": {
+      "test": "Recorded answers",
+      "dry": "Dry run"
+    },
+    "modeHint": {
+      "test": "The platforms' recorded responses answer; nothing is sent.",
+      "dry": "Reads are sent, writes are skipped."
+    },
+    "pauseBeforeEach": "Pause before each node",
+    "breakpoints": "Breakpoints",
+    "breakpointsHint": "Pause before these nodes",
+    "start": "Start debug run",
+    "openRun": "Open the run",
+    "recordedFrom": "A decision was simulated at {{key}}: from there on, only recorded answers are used.",
+    "notYours": "Only the person who started this debug run can drive it.",
+    "running": "Running …",
+    "finished": {
+      "succeeded": "Debug run succeeded",
+      "failed": "Debug run failed",
+      "cancelled": "Debug run stopped"
+    },
+    "again": "New debug run",
+    "steps": "Steps",
+    "noSteps": "No steps yet",
+    "waitsFor": "Waits for your answer: {{name}}",
+    "pausedBefore": "Paused before {{name}}",
+    "remainingHint": "The run is stopped when the pause times out",
+    "remaining": "{{time}} left",
+    "decision": "Decision",
+    "select": "Selected items",
+    "simulatedHint": "Your answer is simulated: no task, nobody notified. From here on only recorded answers are used.",
+    "answer": "Answer (simulated)",
+    "skip": "Skip this node",
+    "stop": "Stop",
+    "preview": "The node's inputs",
+    "previewHint": "$now(), $uuid() and the like may give another value when the node runs.",
+    "vars": "Variables",
+    "continue": "Continue",
+    "step": "Step"
+  },
+  "run": {
+    "badgeNode": "Debug: one node",
+    "badgeStep": "Debug run",
+    "compareLastGood": "Compare with the last good run",
+    "compareWith": "Compare with another run",
+    "note": "A debug run: it published nothing, raised no alerts, created no tasks and notified nobody. It is kept for a few days.",
+    "recordedFrom": "From step “{{key}}” on, it used recorded answers only."
+  },
+  "compare": {
+    "title": "Compare runs",
+    "emptyTitle": "Choose two runs",
+    "emptyText": "Open a run and choose “Compare with another run”, or “Compare with the last good run” on a failed one.",
+    "pickOther": "Compare with",
+    "pick": "Run {{label}}",
+    "swap": "Swap A and B",
+    "secret": "secret – not compared",
+    "masked": "masked",
+    "notReached": "not reached",
+    "attempts_one": "{{count}} attempt",
+    "attempts_other": "{{count}} attempts",
+    "decision": "Decision",
+    "passed": "Passed",
+    "notPassed": "Not passed",
+    "same": "Same",
+    "node": {
+      "added": "Node added",
+      "removed": "Node removed"
+    },
+    "differs": {
+      "path": "Path",
+      "status": "Status",
+      "decision": "Decision",
+      "check": "Check",
+      "request": "Request",
+      "error": "Error",
+      "duration": "Duration",
+      "vars": "Variables"
+    },
+    "variable": "Variable",
+    "sideLine": "v{{version}} · {{mode}} · {{date}} · {{duration}} · {{actor}}",
+    "mode": {
+      "live": "Run",
+      "dry": "Dry run",
+      "test": "Test run"
+    },
+    "cut": "Only the first 2,000 steps are compared.",
+    "summary": {
+      "steps_one": "{{count}} step",
+      "steps_other": "{{count}} steps",
+      "differing_one": "{{count}} differs",
+      "differing_other": "{{count}} differ",
+      "onlyA_one": "{{count}} only in A",
+      "onlyA_other": "{{count}} only in A",
+      "onlyB_one": "{{count}} only in B",
+      "onlyB_other": "{{count}} only in B"
+    },
+    "onlyDiff": "Only differences",
+    "hint": "Compared from the stored protocol: secrets stay masked, nothing is fetched again. Open a step to see its variables.",
+    "inputs": "Inputs",
+    "input": "Input",
+    "noDifferences": "No differences.",
+    "step": "Step",
+    "differences": "Differs in",
+    "varsBefore": "Variables before this step",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "items_one": "{{count}} item",
+    "items_other": "{{count}} items",
+    "selected_one": "{{count}} selected",
+    "selected_other": "{{count}} selected"
+  }
+}

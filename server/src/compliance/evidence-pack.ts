@@ -362,7 +362,7 @@ function platformItems(platformId: string, from: string, to: string, u: AuthUser
     finished_at: string | null;
     bindings: string;
   }>(
-    "SELECT id, process_id, process_name, status, started_at, finished_at, bindings FROM runs WHERE dry_run = 0 AND lower(bindings) LIKE lower(?) ESCAPE '\\' AND started_at >= ? AND started_at <= ? ORDER BY started_at DESC LIMIT 2000",
+    "SELECT id, process_id, process_name, status, started_at, finished_at, bindings FROM runs WHERE dry_run = 0 AND debug IS NULL AND lower(bindings) LIKE lower(?) ESCAPE '\\' AND started_at >= ? AND started_at <= ? ORDER BY started_at DESC LIMIT 2000",
     `%${likeEscape(JSON.stringify(platformId))}%`,
     from,
     to,

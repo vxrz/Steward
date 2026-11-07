@@ -23,4 +23,13 @@ export const ENGINE_MIGRATIONS: NamedMigration[] = [
     name: 'engine-003-test-runs',
     sql: `ALTER TABLE runs ADD COLUMN recorded INTEGER NOT NULL DEFAULT 0;`,
   },
+  {
+    // Debug runs (0.10.0, ADR 0010): what kind of debug run (JSON, NULL for ordinary runs) – one node or step through,
+    // never values; the partial index serves their shorter retention
+    name: 'engine-004-debug-runs',
+    sql: `
+      ALTER TABLE runs ADD COLUMN debug TEXT;
+      CREATE INDEX runs_debug ON runs(finished_at) WHERE debug IS NOT NULL;
+    `,
+  },
 ];

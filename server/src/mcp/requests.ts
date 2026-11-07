@@ -22,12 +22,16 @@ import { isAdmin } from '../auth/permissions.js';
 import { effectiveMcpMode, noteFourEyes, samePerson } from '../auth/assurance.js';
 import { findUserByName, listUsers, toAuthUser } from '../auth/users.js';
 import * as platforms from '../platforms/service.js';
-import { getProcess, permissionsFor } from '../processes/service.js';
-import { startRun } from '../engine/runner.js';
+import { getProcess } from '../processes/service.js';
+import { engine } from '../engine/index.js';
+import { startProblem } from '../engine/commands.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { ToolError, cap, defineTool, type ToolContext, type ToolDef } from './tooling.js';
 import { executeGatewayCall, writeDecision, type QueryValue } from './gateway.js';
 import { mcpRunRequests } from './config.js';
+import { t } from '../i18n/index.js';
+import { mcpCardParts } from '../msteams/cards.js';
+import { mcpSettled } from '../msteams/followup.js';
 import { me } from '../auth/access.js';
 
 /**
@@ -71,6 +75,8 @@ export interface Row {
   error: string | null;
   /** Proposals (#74): the proposed catalogue or mappings (JSON) */
   payload: string | null;
+  /** 0.10.0 (ADR 0013): 'teams' when decided in a Microsoft Teams card */
+  decided_via?: string | null;
 }
 
 /**
@@ -164,6 +170,7 @@ function toRequest(r: Row, u: AuthUser, detail = true): McpRequest {
     dryRun: !!r.dry_run,
     decidedBy: r.decided_by,
     decidedAt: r.decided_at,
+    decidedVia: r.decided_via === 'teams' ? 'teams' : null,
     comment: r.comment,
     executedAt: r.executed_at,
     resultStatus: r.result_status,
@@ -200,6 +207,7 @@ export function expireRequests(now = nowIso()): number {
       summary: `Request of ${r.requested_by}'s AI assistant expired without a decision: ${describe(r)}`,
       details: { kind: r.kind, requestedBy: r.requested_by, platformId: r.platform_id, processId: r.process_id },
     });
+    settledLater(r.id, { status: 'expired', at: now });
   }
   return rows.length;
 }
@@ -225,24 +233,43 @@ function notifyDeciders(r: Row): void {
       const review = r.mode === 'review';
       const expiry = review ? `${MCP_REQUEST_LIMITS.proposalExpiryDays} days` : `${MCP_REQUEST_LIMITS.expiryHours} hours`;
       const expiryDe = review ? `${MCP_REQUEST_LIMITS.proposalExpiryDays} Tagen` : `${MCP_REQUEST_LIMITS.expiryHours} Stunden`;
+      const platformName = r.platform_id ? (db().get<{ name: string }>('SELECT name FROM platforms WHERE id = ?', r.platform_id)?.name ?? null) : null;
       notify({
         event: 'mcp.request',
         recipients: deciders(r),
-        text: (locale) =>
-          locale === 'de'
+        // a person reads the assistant's reason; a channel card only what is decided (ADR 0013: never bodies or values)
+        personal: true,
+        text: (locale, u) => {
+          const parts = mcpCardParts(locale, { ...r, platformName });
+          if (!u)
+            return {
+              title: t(locale, 'teamsCard.mcpTitle', {
+                user: r.requested_by,
+                what: r.kind === 'gateway' ? `${r.method ?? ''} ${r.path_template ?? ''}`.trim() : (r.process_name ?? ''),
+              }),
+              body: t(locale, 'teamsCard.mcpChannelBody'),
+              parts,
+            };
+          return locale === 'de'
             ? {
                 title: `KI-Assistent von ${r.requested_by}: ${review ? 'Vorschlag zur Prüfung' : r.mode === 'confirm' ? 'Bitte bestätigen' : 'Freigabe nötig'}`,
                 body: `Der KI-Assistent (Token „${r.token_name}") ${review ? 'schlägt vor' : 'möchte'}: ${what}. Begründung des Assistenten: ${r.reason}. ${review ? 'Prüfen' : 'Entscheiden'} Sie in Steward unter KI-Anfragen; ohne Entscheidung verfällt die Anfrage nach ${expiryDe}.`,
+                parts,
               }
             : {
                 title: `${r.requested_by}'s AI assistant: ${review ? 'a proposal to review' : r.mode === 'confirm' ? 'please confirm' : 'approval needed'}`,
                 body: `The AI assistant (token "${r.token_name}") ${review ? 'proposes' : 'wants to'}: ${what}. The assistant's reason: ${r.reason}. ${review ? 'Review it' : 'Decide'} in Steward under AI requests; without a decision the request expires after ${expiry}.`,
-              },
+                parts,
+              };
+        },
         link: `/mcp-requests/${r.id}`,
         ...(r.platform_id ? { about: { kind: 'platform' as const, id: r.platform_id } } : {}),
         inAppKey: r.id,
         externalKey: `mcp-request:${r.id}`,
         data: { requestId: r.id, kind: r.kind },
+        // quiet hours (ADR 0012): a request that would expire inside them breaks through
+        expiresAt: r.expires_at,
+        decision: { kind: 'mcp_request', id: r.id },
       });
     })
     .catch((err) => logger.warn({ err }, 'could not notify about an MCP request'));
@@ -442,8 +469,10 @@ export function createRunRequest(ctx: ToolContext, a: { processId: string; input
   } catch {
     proc = null;
   }
-  if (!proc || !permissionsFor(a.processId).includes('view')) throw new ToolError(`Process ${a.processId} not found`);
-  if (!permissionsFor(a.processId).includes('run')) throw new ToolError(`You may not run "${proc.name}"`);
+  // the command layer's start check (ADR 0011); asked again at approval time, with the rights of then
+  const problem = proc ? startProblem(undefined, { processId: a.processId }) : null;
+  if (!proc || problem?.code === 'processNotFound') throw new ToolError(`Process ${a.processId} not found`);
+  if (problem) throw new ToolError(`You may not run "${proc.name}"`);
   const secret = (proc.definition.inputs ?? []).filter((i) => i.type === 'secret' && a.inputs && a.inputs[i.name] !== undefined).map((i) => i.name);
   if (secret.length) throw new ToolError(`Secret inputs (${secret.join(', ')}) cannot be given through MCP – start this run in Steward`);
   const r = base(ctx, 'run', 'confirm', a.reason);
@@ -498,8 +527,31 @@ export function getRequest(id: string): McpRequest {
   return toRequest(r, u);
 }
 
-/** Approve (runs it now, once, as the token owner – a proposal is applied as the reviewer) or reject a request. */
-export async function decide(id: string, input: { approve: boolean; comment: string; selection?: McpProposalSelection }): Promise<McpRequest> {
+/** Where a decision was taken: Microsoft Teams (ADR 0013), with who clicked there (never a session). */
+export interface DecidedVia {
+  via: 'teams';
+  teams: { tenantId: string; aadObjectId: string; conversationKind: string };
+}
+
+/** The outcome follows the decision cards (ADR 0013), outside the deciding step. */
+function settledLater(id: string, o: Parameters<typeof mcpSettled>[1]): void {
+  setImmediate(() => {
+    try {
+      mcpSettled(id, o);
+    } catch (err) {
+      logger.warn({ err, id }, 'decision follow-up failed');
+    }
+  });
+}
+
+/**
+ * Approve (runs it now, once, as the token owner – a proposal is applied as the reviewer) or reject a request. The one
+ * way to decide: the route and the Teams bot (msteams/decide.ts) both come here.
+ */
+export async function decide(
+  id: string,
+  input: { approve: boolean; comment: string; selection?: McpProposalSelection; via?: DecidedVia },
+): Promise<McpRequest> {
   expireRequests();
   const u = me();
   const r = rowOf(id);
@@ -513,11 +565,12 @@ export async function decide(id: string, input: { approve: boolean; comment: str
     db().tx(() => {
       if (
         db().run(
-          `UPDATE mcp_requests SET status = ?, decided_by = ?, decided_at = ?, comment = ? WHERE id = ? AND status = 'pending'`,
+          `UPDATE mcp_requests SET status = ?, decided_by = ?, decided_at = ?, comment = ?, decided_via = ? WHERE id = ? AND status = 'pending'`,
           status,
           u.username,
           nowIso(),
           comment,
+          input.via?.via ?? null,
           id,
         ).changes !== 1
       )
@@ -526,10 +579,11 @@ export async function decide(id: string, input: { approve: boolean; comment: str
         action: own ? 'mcp.request_withdrawn' : 'mcp.request_rejected',
         entityType: 'mcp_request',
         entityId: id,
-        summary: `${own ? 'Withdrawn' : 'Rejected'}: ${describe(r)} (asked by ${r.requested_by}'s AI assistant)${comment ? ` – ${comment.slice(0, 200)}` : ''}`,
-        details: { kind: r.kind, mode: r.mode, requestedBy: r.requested_by, comment },
+        summary: `${own ? 'Withdrawn' : 'Rejected'}${input.via ? ' via Microsoft Teams' : ''}: ${describe(r)} (asked by ${r.requested_by}'s AI assistant)${comment ? ` – ${comment.slice(0, 200)}` : ''}`,
+        details: { kind: r.kind, mode: r.mode, requestedBy: r.requested_by, comment, ...(input.via ?? {}) },
       });
     });
+    settledLater(id, { status: own ? 'withdrawn' : 'rejected', by: u.username, via: input.via?.via });
     return getRequest(id);
   }
   if (!mayApprove(u, r))
@@ -549,10 +603,11 @@ export async function decide(id: string, input: { approve: boolean; comment: str
   const at = nowIso();
   if (
     db().run(
-      "UPDATE mcp_requests SET status = 'approved', decided_by = ?, decided_at = ?, comment = ? WHERE id = ? AND status = 'pending' AND expires_at > ?",
+      "UPDATE mcp_requests SET status = 'approved', decided_by = ?, decided_at = ?, comment = ?, decided_via = ? WHERE id = ? AND status = 'pending' AND expires_at > ?",
       u.username,
       at,
       comment,
+      input.via?.via ?? null,
       id,
       at,
     ).changes !== 1
@@ -562,8 +617,8 @@ export async function decide(id: string, input: { approve: boolean; comment: str
     action: 'mcp.request_approved',
     entityType: 'mcp_request',
     entityId: id,
-    summary: `${r.mode === 'review' ? 'Accepted' : r.mode === 'confirm' ? 'Confirmed' : 'Approved'}: ${describe(r)} (asked by ${r.requested_by}'s AI assistant)${comment ? ` – ${comment.slice(0, 200)}` : ''}`,
-    details: { kind: r.kind, mode: r.mode, requestedBy: r.requested_by, comment },
+    summary: `${r.mode === 'review' ? 'Accepted' : r.mode === 'confirm' ? 'Confirmed' : 'Approved'}${input.via ? ' via Microsoft Teams' : ''}: ${describe(r)} (asked by ${r.requested_by}'s AI assistant)${comment ? ` – ${comment.slice(0, 200)}` : ''}`,
+    details: { kind: r.kind, mode: r.mode, requestedBy: r.requested_by, comment, ...(input.via ?? {}) },
   });
   const review = reviewOf(r);
   const outcome = review ? applyProposal(review, r, input.selection, u) : await execute(r);
@@ -592,8 +647,10 @@ export async function decide(id: string, input: { approve: boolean; comment: str
       runId: outcome.runId ?? null,
       error: outcome.error ?? null,
       ...(review ? { result: outcome.body ?? null } : {}),
+      ...(input.via ?? {}),
     },
   });
+  settledLater(id, { status: outcome.error ? 'failed' : 'approved', by: u.username, via: input.via?.via });
   return getRequest(id);
 }
 
@@ -620,8 +677,15 @@ async function execute(r: Row): Promise<{ status?: number; body?: unknown; runId
     return await runAs(asOwner, async () => {
       if (r.kind === 'run') {
         if (!mcpRunRequests()) return { error: 'Run requests were turned off in the meantime' };
-        if (!permissionsFor(r.process_id!).includes('run')) return { error: `${r.requested_by} may no longer run this process` };
-        const runId = await startRun({ processId: r.process_id!, inputs: parseJson(r.inputs, {}), dryRun: !!r.dry_run }, { actor: r.requested_by });
+        if (startProblem(asOwner, { processId: r.process_id! })) return { error: `${r.requested_by} may no longer run this process` };
+        const { runId } = await engine().start({
+          processId: r.process_id!,
+          inputs: parseJson(r.inputs, {}),
+          bindings: {},
+          mode: r.dry_run ? 'dry' : 'live',
+          actor: r.requested_by,
+          origin: { trigger: 'manual' },
+        });
         return { runId };
       }
       let p: Platform;

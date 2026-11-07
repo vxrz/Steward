@@ -40,7 +40,7 @@ export const definitionHash = (d: ProcessDefinition): string => sha256(canonical
 
 function lastRun(processId: string): ProcessSummary['lastRun'] {
   const r = db().get<{ id: string; status: RunStatus; started_at: string; stats: string }>(
-    'SELECT id, status, started_at, stats FROM runs WHERE process_id = ? ORDER BY started_at DESC LIMIT 1',
+    'SELECT id, status, started_at, stats FROM runs WHERE process_id = ? AND debug IS NULL ORDER BY started_at DESC LIMIT 1',
     processId,
   );
   if (!r) return null;
@@ -202,11 +202,19 @@ export function saveProcess(id: string, def: unknown, comment = ''): ProcessDeta
 export function listVersions(id: string): ProcessVersion[] {
   getProcess(id);
   return db()
-    .all<{ version: number; hash: string; author: string; comment: string; created_at: string }>(
-      'SELECT version, hash, author, comment, created_at FROM process_versions WHERE process_id = ? ORDER BY version DESC',
+    .all<{ version: number; hash: string; author: string; comment: string; created_at: string; origin: string | null }>(
+      'SELECT version, hash, author, comment, created_at, origin FROM process_versions WHERE process_id = ? ORDER BY version DESC',
       id,
     )
-    .map((v) => ({ version: v.version, hash: v.hash, author: v.author, comment: v.comment, createdAt: v.created_at }));
+    .map((v) => ({
+      version: v.version,
+      hash: v.hash,
+      author: v.author,
+      comment: v.comment,
+      createdAt: v.created_at,
+      // the library release a version came from (0.10.0, ADR 0014)
+      ...(v.origin ? { origin: parseJson<ProcessVersion['origin']>(v.origin, null) } : {}),
+    }));
 }
 
 export function archiveProcess(id: string): void {

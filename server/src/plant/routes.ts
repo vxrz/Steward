@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ASSET_STATUSES, PLANT_LIMITS } from '@sm/shared';
 import { ACCESS } from '../auth/access.js';
@@ -18,6 +18,24 @@ import { assignmentInput, deleteAssignment, getAssignment, putAssignment } from 
 import * as net from './network.js';
 import { assetFlow, coverage, hostPlacement, overview, pointLineage, siteStructure } from './views.js';
 import './links.js';
+import {
+  changesMapSource,
+  checkBody,
+  checkMapSource,
+  checkNeedsStepUp,
+  forReader,
+  mapBody,
+  mapGlyphs,
+  mapSettingsInput,
+  mapSettingsView,
+  mapSites,
+  mapSprite,
+  mapStatus,
+  mapStyle,
+  mapTile,
+  updateMapSettings,
+} from './map.js';
+import type { Fetched } from './mapTiles.js';
 
 /**
  * The plant registry's internal API (#218), mounted under /api. Every route answers 404 PLANT_MODULE_OFF while the
@@ -33,10 +51,24 @@ import './links.js';
  *   …       /api/plant/assets/:assetId/network, …/devices[/:deviceId], …/paths[/:pathId], …/checks
  *   GET     /api/plant/views/overview | /views/coverage, …/structure, …/flow, …/lineage   the visualizations (#230)
  *   POST    /api/plant/import/preview | /api/plant/import, GET /api/plant/imports, GET /api/plant/export
+ *   GET|PUT /api/settings/plant/map, POST …/map/check     the map's source (administrators, session; a new source asks for a step-up)
+ *   GET     /api/plant/map/sites | /map/status | /map/style.json   the map of sites (#234), what the reader may see
+ *   GET     /api/plant/map/tiles/:layer/:z/:x/:y, …/glyphs/:fontstack/:range, …/sprites/:sprite   served through Steward
  */
 
 const p = (req: FastifyRequest) => req.params as Record<string, string>;
 const imports = { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.plantImport.bytes };
+
+/** A tile, glyph range or sprite file: inert (nosniff, no scripts), cached by this browser only. */
+const sendMapFile = (reply: FastifyReply, f: Fetched) =>
+  reply
+    .header('cache-control', 'private, max-age=3600')
+    .header('x-content-type-options', 'nosniff')
+    .header('content-security-policy', "default-src 'none'; sandbox")
+    .type(f.type)
+    .send(f.body);
+/** Tiles need a signed-in browser session (no API tokens) and are limited per user. */
+const mapFiles = { config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.mapTiles } };
 
 const assetQuery = z.object({
   site: z.string().max(100).optional(),
@@ -64,6 +96,49 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
         }
     }),
   );
+
+  // ---------- the map of sites (#234): its source is the administrators'; changing it asks for a step-up ----------
+  app.get('/settings/plant/map', { config: { access: ACCESS.adminSession } }, async () => {
+    requirePlant();
+    return mapSettingsView();
+  });
+  app.put(
+    '/settings/plant/map',
+    { config: { access: ACCESS.adminSession, stepUp: { action: 'changeMapSource', when: (req: FastifyRequest) => changesMapSource(mapBody(req.body)) } } },
+    async (req) => updateMapSettings(mapSettingsInput.parse(req.body)),
+  );
+  // reading a new address is the first step of a new source: the same step-up (the stored source checks freely)
+  app.post(
+    '/settings/plant/map/check',
+    {
+      config: {
+        access: ACCESS.adminSession,
+        rateLimit: ROUTE_LIMITS.action,
+        stepUp: { action: 'changeMapSource', when: (req: FastifyRequest) => checkNeedsStepUp(checkBody(req.body)) },
+      },
+    },
+    async (req) => {
+      requirePlant();
+      const own = mapSettingsInput.shape.own.unwrap().parse(req.body);
+      return checkMapSource(own);
+    },
+  );
+  app.get('/plant/map/sites', async () => mapSites());
+  app.get('/plant/map/status', { config: { access: ACCESS.session } }, async () => mapStatus());
+  app.get('/plant/map/style.json', { config: { access: ACCESS.session } }, async (req, reply) => {
+    const q = z
+      .object({ theme: z.enum(['light', 'dark']).default('light'), lang: z.enum(['en', 'de']).default('en'), v: z.string().max(40).optional() })
+      .parse(req.query);
+    reply.header('cache-control', 'private, max-age=600');
+    return mapStyle(q.theme, q.lang);
+  });
+  app.get('/plant/map/tiles/:layer/:z/:x/:y', mapFiles, async (req, reply) =>
+    sendMapFile(reply, await forReader(() => mapTile(p(req).layer!, p(req).z!, p(req).x!, p(req).y!))),
+  );
+  app.get('/plant/map/glyphs/:fontstack/:range', mapFiles, async (req, reply) =>
+    sendMapFile(reply, await forReader(() => mapGlyphs(p(req).fontstack!, p(req).range!))),
+  );
+  app.get('/plant/map/sprites/:sprite', mapFiles, async (req, reply) => sendMapFile(reply, await forReader(() => mapSprite(p(req).sprite!))));
 
   // ---------- module ----------
   app.get('/plant/config', async () => svc.plantConfig());

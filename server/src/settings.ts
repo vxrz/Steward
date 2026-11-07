@@ -9,6 +9,9 @@ const DEFAULTS = (): Settings => ({
   browserTimeoutMs: 30000,
   // 400 days for new installations (0.2.4); installations from before keep "forever" (migration ops-005)
   retentionRunDays: 400,
+  // debug runs (0.10.0, ADR 0010): kept a week, a paused one waits at most half an hour
+  retentionDebugRunDays: 7,
+  debugPauseMinutes: 30,
   retentionNotificationDays: 30,
   defaultLocale: DEFAULT_LOCALE,
   retentionMonitorDays: 30,
@@ -126,6 +129,8 @@ export function updateSettings(patch: Partial<Settings>): Settings {
     'browserHeadless',
     'browserTimeoutMs',
     'retentionRunDays',
+    'retentionDebugRunDays',
+    'debugPauseMinutes',
     'retentionNotificationDays',
     'retentionMonitorDays',
     'defaultLocale',

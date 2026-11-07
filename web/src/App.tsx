@@ -38,6 +38,7 @@ const DashboardViewPage = page(() => import('./pages/DashboardView'), 'Dashboard
 const TasksPage = page(() => import('./pages/Tasks'), 'TasksPage');
 const RunsPage = page(() => import('./pages/Runs'), 'RunsPage');
 const RunDetailPage = page(() => import('./pages/RunDetail'), 'RunDetailPage');
+const RunComparePage = page(() => import('./pages/RunCompare'), 'RunComparePage');
 const ProcessesPage = page(() => import('./pages/Processes'), 'ProcessesPage');
 const ProcessEditorPage = page(() => import('./pages/ProcessEditor'), 'ProcessEditorPage');
 const SchedulesPage = page(() => import('./pages/Schedules'), 'SchedulesPage');
@@ -97,6 +98,10 @@ const MigrationPage = page(() => import('./pages/Migration'), 'MigrationPage');
 const BackupsPage = page(() => import('./pages/Backups'), 'BackupsPage');
 const GitUpdatesPage = page(() => import('./pages/GitUpdates'), 'GitUpdatesPage');
 const GitUpdateDetailPage = page(() => import('./pages/GitUpdates'), 'GitUpdateDetailPage');
+const LibrariesPage = page(() => import('./pages/Libraries'), 'LibrariesPage');
+const LibraryDetailPage = page(() => import('./pages/Libraries'), 'LibraryDetailPage');
+const LibraryReleasePage = page(() => import('./pages/LibraryRelease'), 'LibraryReleasePage');
+const LibraryPublishersPage = page(() => import('./pages/LibraryPublishers'), 'LibraryPublishersPage');
 const TicketsPage = page(() => import('./pages/Tickets'), 'TicketsPage');
 const TicketDetailPage = page(() => import('./pages/TicketDetail'), 'TicketDetailPage');
 const PlantSitesPage = page(() => import('./pages/PlantSites'), 'PlantSitesPage');
@@ -112,6 +117,7 @@ const PlantKpiPage = page(() => import('./pages/PlantKpi'), 'PlantKpiPage');
 const PlantExplorePage = page(() => import('./pages/PlantExplore'), 'PlantExplorePage');
 const PlantChecksPage = page(() => import('./pages/PlantChecks'), 'PlantChecksPage');
 const PlantNetworkPage = page(() => import('./pages/PlantNetwork'), 'PlantNetworkPage');
+const PlantMapPage = page(() => import('./pages/PlantMap'), 'PlantMapPage');
 
 const MAIN_ID = 'main-content';
 
@@ -328,6 +334,7 @@ function Shell({ status }: { status: AuthStatus }) {
                     {caps.plant && <Route path="/plant/kpis/:kpiId" element={<PlantKpiPage />} />}
                     {caps.plant && <Route path="/plant/explore" element={<PlantExplorePage />} />}
                     {caps.plant && <Route path="/plant/checks" element={<PlantChecksPage />} />}
+                    {caps.plant && <Route path="/plant/map" element={<PlantMapPage />} />}
                     <Route path="/plant" element={<Navigate to="/plant/sites" replace />} />
                     <Route path="/profile" element={<ProfilePage />} />
                     <Route path="/about" element={<AboutPage />} />
@@ -342,6 +349,7 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/mcp-requests" element={<McpRequestsPage />} />
                     <Route path="/mcp-requests/:id" element={<McpRequestDetailPage />} />
                     <Route path="/runs" element={<RunsPage />} />
+                    <Route path="/runs/compare" element={<RunComparePage />} />
                     <Route path="/runs/:id" element={<RunDetailPage />} />
                     <Route path="/processes" element={<ProcessesPage />} />
                     <Route path="/processes/:id" element={<ProcessEditorPage />} />
@@ -349,6 +357,9 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/triggers" element={<TriggersPage />} />
                     <Route path="/git-updates" element={<GitUpdatesPage />} />
                     <Route path="/git-updates/:id" element={<GitUpdateDetailPage />} />
+                    <Route path="/libraries" element={<LibrariesPage />} />
+                    <Route path="/libraries/releases/:id" element={<LibraryReleasePage />} />
+                    <Route path="/libraries/:library" element={<LibraryDetailPage />} />
                     <Route path="/monitors" element={<MonitorsPage />} />
                     <Route path="/monitors/new" element={<MonitorEditorPage />} />
                     <Route path="/monitors/wall" element={<MonitorWallPage />} />
@@ -410,10 +421,12 @@ function Shell({ status }: { status: AuthStatus }) {
                     {caps.plant && <Route path="/plant/kpis/:kpiId" element={<PlantKpiPage />} />}
                     {caps.plant && <Route path="/plant/explore" element={<PlantExplorePage />} />}
                     {caps.plant && <Route path="/plant/checks" element={<PlantChecksPage />} />}
+                    {caps.plant && <Route path="/plant/map" element={<PlantMapPage />} />}
                     {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
                     {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
                     <Route path="/settings" element={<SettingsIndex />} />
                     <Route path="/settings/git-sync" element={<GitSyncPage />} />
+                    <Route path="/settings/libraries" element={<LibraryPublishersPage />} />
                     <Route path="/settings/migration" element={<MigrationPage />} />
                     <Route path="/settings/backups" element={<BackupsPage />} />
                     <Route path="/profile" element={<ProfilePage />} />

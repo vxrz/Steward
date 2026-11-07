@@ -6,6 +6,7 @@ import { pipeline } from 'node:stream/promises';
 import { z } from 'zod';
 import {
   BRAND,
+  DEBUG_LIMITS,
   LOCALE_CODES,
   ROLES,
   boundedRecord,
@@ -836,10 +837,12 @@ const UNFINISHED_NOTE = 'Imported from another instance before it finished – i
  * without anyone here having decided to run them. Their open decisions are cancelled too. Returns their number.
  */
 export function cancelUnfinishedRuns(staging: Db): number {
+  // debug runs: an instance move cancels every unfinished run, debug runs too
   const ids = staging.all<{ id: string }>("SELECT id FROM runs WHERE status IN ('running', 'queued', 'waiting')").map((r) => r.id);
   const ts = nowIso();
   for (const id of ids) {
     staging.run("UPDATE run_tasks SET status = 'cancelled', decided_by = 'system', decided_at = ? WHERE run_id = ? AND status = 'open'", ts, id);
+    // debug runs: an instance move cancels every unfinished run, debug runs too
     staging.run("UPDATE runs SET status = 'cancelled', finished_at = ?, error = ? WHERE id = ?", ts, UNFINISHED_NOTE, id);
   }
   return ids.length;
@@ -1074,6 +1077,8 @@ export function checkedSettings(settings: Record<string, unknown>, dataDir: stri
     if (k === 'browserHeadless' || k === 'findingDismissFourEyes') ok = typeof v === 'boolean' ? v : undefined;
     else if (k === 'browserTimeoutMs') ok = int(v, 1000, 3_600_000) ? v : undefined;
     else if (k === 'retentionRunDays') ok = int(v, 0, 3650) ? v : undefined;
+    else if (k === 'retentionDebugRunDays') ok = int(v, DEBUG_LIMITS.retentionDays.min, DEBUG_LIMITS.retentionDays.max) ? v : undefined;
+    else if (k === 'debugPauseMinutes') ok = int(v, DEBUG_LIMITS.pauseMinutes.min, DEBUG_LIMITS.pauseMinutes.max) ? v : undefined;
     else if (k === 'retentionNotificationDays' || k === 'retentionMonitorDays') ok = int(v, 1, 3650) ? v : undefined;
     else if (k === 'defaultLocale') ok = typeof v === 'string' && (LOCALE_CODES as readonly string[]).includes(v) ? v : undefined;
     else if (k === 'theme.settings') ok = checkedThemeSettings(v) ?? undefined;

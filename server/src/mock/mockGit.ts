@@ -17,6 +17,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
  *   POST /mock/git/_commit {repo, branch?, files: {path: content | null}, signed?, signer?, email?, message?, objectFormat?} → {sha}
  *        (signer/email: the account that signed – default steward-bot; objectFormat 'sha256' for a new SHA-256 repository)
  *   POST /mock/git/_tag {repo, tag, branch? | sha?, annotated?}   creates or moves a tag (annotated: a tag object in between) → {sha}
+ *        (tag lists: GET …/tags on all three APIs, for library sources)
  *   POST /mock/git/_tamper {repo, path, content}   serves other content under the blob id of path at the head of main
  *   POST /mock/git/_reset
  *   GET  /mock/git/_calls?repo=…   requests seen per repository (whether a token was sent, never its value)
@@ -280,6 +281,13 @@ export async function mockGit(app: FastifyInstance): Promise<void> {
     if (!t) return reply.code(404).send({ message: 'tag not found' });
     return { name: p(req).tag, id: t.object ?? t.commit, message: '', commit: { sha: t.commit, url: '' } };
   });
+  // the tag list (library sources, ADR 0014): one page holds them all
+  const page = (req: FastifyRequest) => Number((req.query as { page?: string }).page ?? 1);
+  app.get(`${G}/tags`, async (req, reply) => {
+    const repo = access(req, reply, `${p(req).owner}/${p(req).repo}`, giteaToken);
+    if (!repo) return reply;
+    return page(req) > 1 ? [] : [...repo.tags].map(([name, t]) => ({ name, id: t.object ?? t.commit, commit: { sha: t.commit, url: '' } }));
+  });
   app.get(`${G}/git/commits/:sha`, async (req, reply) => {
     const repo = access(req, reply, `${p(req).owner}/${p(req).repo}`, giteaToken);
     if (!repo) return reply;
@@ -343,6 +351,11 @@ export async function mockGit(app: FastifyInstance): Promise<void> {
     if (!sha) return reply.code(404).send({ message: 'Branch not found' });
     const c = repo.commits.get(sha)!;
     return { name: p(req).branch, commit: githubCommit(c) };
+  });
+  app.get(`${H}/tags`, async (req, reply) => {
+    const repo = access(req, reply, `${p(req).owner}/${p(req).repo}`, githubToken);
+    if (!repo) return reply;
+    return page(req) > 1 ? [] : [...repo.tags].map(([name, t]) => ({ name, commit: { sha: t.commit, url: '' } }));
   });
   // refs/tags/<tag> → a commit (lightweight) or a tag object (annotated) that points to it
   app.get(`${H}/git/ref/tags/:tag`, async (req, reply) => {
@@ -418,6 +431,11 @@ export async function mockGit(app: FastifyInstance): Promise<void> {
     const sha = repo.branches.get(p(req).branch!);
     if (!sha) return reply.code(404).send({ message: '404 Branch Not Found' });
     return { name: p(req).branch, commit: gitlabCommit(repo.commits.get(sha)!) };
+  });
+  app.get(`${L}/repository/tags`, async (req, reply) => {
+    const repo = access(req, reply, p(req).project!, gitlabToken);
+    if (!repo) return reply;
+    return page(req) > 1 ? [] : [...repo.tags].map(([name, t]) => ({ name, target: t.object ?? t.commit, commit: gitlabCommit(repo.commits.get(t.commit)!) }));
   });
   app.get(`${L}/repository/tags/:tag`, async (req, reply) => {
     const repo = access(req, reply, p(req).project!, gitlabToken);

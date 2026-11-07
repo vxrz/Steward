@@ -42,7 +42,8 @@
     "decidedSelected_other": "{{count}} Einträge ausgewählt von <b>{{user}}</b> am {{date}}",
     "quoted": "„{{text}}“",
     "cancelled": "Abgebrochen",
-    "selectItem": "{{name}} auswählen"
+    "selectItem": "{{name}} auswählen",
+    "viaTeams": "(über Microsoft Teams)"
   },
   "emptyMineText": "Braucht ein laufender Prozess Ihre Freigabe oder Entscheidung, erscheint sie hier und in der Benachrichtigungsglocke.",
   "panelLabel": "Aufgabe: {{title}}",
@@ -108,5 +109,13 @@
     "rejectFail": "Ablehnen (Ausführung schlägt fehl)",
     "sendBack": "Zurückgeben",
     "verify": "Prüfung bestätigen"
+  },
+  "fromLink": {
+    "titleApprove": "„{{title}}“ freigeben?",
+    "titleReject": "„{{title}}“ ablehnen?",
+    "intro": "Sie kommen aus einer Nachricht. Entschieden ist erst, wenn Sie hier bestätigen.",
+    "switchToReject": "Stattdessen ablehnen",
+    "switchToApprove": "Stattdessen freigeben",
+    "notPossible": "Dies kann hier nicht mehr entschieden werden: Es wurde entschieden, abgebrochen oder ist verfallen, oder Sie dürfen es nicht entscheiden."
   }
 }

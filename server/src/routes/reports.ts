@@ -8,6 +8,7 @@ import { capabilities, require, requireCapability } from '../auth/permissions.js
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
 import { HttpError, sha256 } from '../util.js';
+import { seesRun } from '../engine/visibility.js';
 import * as branding from '../reports/branding.js';
 import * as reports from '../reports/service.js';
 import { initAutoReports } from '../reports/auto.js';
@@ -33,7 +34,8 @@ const params = (req: FastifyRequest) => req.params as Record<string, string>;
 function requireRunView(runId: string) {
   const r = store.runRow(runId);
   const perms = processes.permissionsFor(r.process_id);
-  if (!perms.includes('view')) throw new HttpError(404, `Run ${runId} not found`, 'RUN_NOT_FOUND', { id: runId });
+  // a debug run only for its starter, the process's managers, administrators and auditors (ADR 0010)
+  if (!seesRun(r, perms)) throw new HttpError(404, `Run ${runId} not found`, 'RUN_NOT_FOUND', { id: runId });
   require(perms, 'view', 'view this run');
   return r;
 }

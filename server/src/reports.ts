@@ -126,6 +126,7 @@ ${run.dryRun ? '<div class="dry"><strong>DRY RUN</strong> – write operations w
 <tr><td>Status</td><td>${run.outcome === 'findings' ? statusBadge('findings', 'completed with findings') : statusBadge(run.status)} ${run.error ? esc(run.error) : ''}</td></tr>
 <tr><td>Process</td><td>${esc(run.processName)} (<span class="mono">${esc(run.processId)}</span>) version ${run.processVersion}</td></tr>
 <tr><td>Definition hash</td><td class="mono">${esc(run.definitionHash)}</td></tr>
+${run.libraryOrigin ? `<tr><td>From library</td><td>${esc(run.libraryOrigin.library)} ${esc(run.libraryOrigin.release)} (${esc(run.libraryOrigin.publisher)}), key <span class="mono">${esc(run.libraryOrigin.keyFingerprint)}</span>, release.json SHA-256 <span class="mono">${esc(run.libraryOrigin.releaseSha256)}</span>${run.libraryOrigin.keyRevoked ? ' – <strong>signed by a revoked key</strong>' : ''}</td></tr>` : ''}
 <tr><td>Started by</td><td>${esc(run.actor)} (${esc(run.trigger)}${run.triggerName ? `: ${esc(run.triggerName)}` : ''})</td></tr>
 <tr><td>Started / finished</td><td>${fmtDate(run.startedAt)} / ${fmtDate(run.finishedAt)}</td></tr>
 <tr><td>Steps</td><td>${run.stats.steps} executed, ${Math.max(0, run.stats.failedSteps - run.stats.checksFailed)} failed · ${run.stats.writes} write call(s), ${run.stats.skippedWrites} simulated</td></tr>

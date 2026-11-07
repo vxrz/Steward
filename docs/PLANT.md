@@ -13,13 +13,14 @@ The plant registry documents the factories of the enterprise an installation ser
 - [Device profiles, data points and KPIs](#device-profiles-data-points-and-kpis)
 - [Part 3: OT network](#part-3-ot-network)
 - [Visualizations](#visualizations)
+- [Map](#map)
 - [YAML import and export](#yaml-import-and-export)
 - [Permissions](#permissions)
 - [API](#api)
 
 ## Turning it on
 
-_Settings → Modules → Plant registry_ (administrators): **Turn on the plant registry**, give the enterprise's name and save. The sidebar gets the area **Plant** with _Sites_, _Assets_, _Device profiles_, _KPI definitions_, _Explore data_, _Checks_ and – for whoever may manage a site – _Import_; documents, tickets, services and applications can link to sites and assets. Each site page leads to its **OT network** (since 0.8.0).
+_Settings → Modules → Plant registry_ (administrators): **Turn on the plant registry**, give the enterprise's name and save. The sidebar gets the area **Plant** with _Sites_, _Assets_, _Map_ (since 0.10.0), _Device profiles_, _KPI definitions_, _Explore data_, _Checks_ and – for whoever may manage a site – _Import_; documents, tickets, services and applications can link to sites and assets. Each site page leads to its **OT network** (since 0.8.0).
 
 Turning it off hides the area, the pages and the link kinds again; every route of the module answers `404` with the code `PLANT_MODULE_OFF` (also `/api/v1/plant/…`). The data stays and is back when the module is turned on again. Turning it on or off is audited (`plant.module_enabled`, `plant.module_disabled`).
 
@@ -267,6 +268,67 @@ _OT network → **Diagram**_ (also from a site's **Structure** and its OT networ
 _Plant → Sites_: every site's card (and a column of the table) shows its assets by status as a small bar, its **KPI coverage**, its **open checks** and – where assets link to monitors – their states, with links into the structure and the coverage matrix.
 
 The views read their data again every minute (live status may change; the documentation rarely does). Their internal routes are `GET /api/plant/views/overview`, `GET /api/plant/views/coverage?site=&area=&profile=&kpi=`, `GET /api/plant/sites/:siteId/structure`, `GET /api/plant/assets/:assetId/flow`, `GET /api/plant/profiles/:profileId/points/:pointId/lineage` and `GET /api/plant/sites/:siteId/network/placement` (which VLANs the hosts of the site's data paths are in, through the segments they are members of – hidden hosts and segments place nothing; the diagram draws the rest from `GET /api/plant/sites/:siteId/network`) – with the rights of the pages they picture.
+
+## Map
+
+![The map of sites: the list and the map side by side, pins with their state](images/plant/map.png)
+
+Since 0.10.0 (#234, [ADR 0015](adr/0015-map-of-sites.md)) _Plant → Map_ shows the sites the reader may see as a list and on a map side by side; phones start with the list (_Picture_ / _Table_). The search and the state filter apply to both. **The map is off until an administrator turns it on** – until then the page is the list, and nothing is sent to a map provider.
+
+### Turning it on
+
+_Settings → Modules → Map of sites_ (administrators, shown while the plant registry is on). _OpenStreetMap_ is preselected: **Turn on with OpenStreetMap** is one click, with what each choice sends where in front of you. Every choice:
+
+| Tiles from                     | What it is                                                                                                                                                          | What leaves Steward                                                                                                              | Attribution on the map                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| _Off_ (the default)            | the list only                                                                                                                                                       | nothing                                                                                                                          | –                                                           |
+| _OpenStreetMap_                | raster tiles of `tile.openstreetmap.org`, zoom 0–19, dimmed (not inverted) in the dark theme                                                                        | Steward's server asks `tile.openstreetmap.org` for the tiles people look at: the provider sees Steward's address, never a user's | © OpenStreetMap contributors (linked to its copyright page) |
+| _Light and dark (OpenFreeMap)_ | vector tiles of [OpenFreeMap](https://openfreemap.org) (OpenStreetMap data, OpenMapTiles schema, no key) in Steward's own light and dark style, following the theme | Steward's server asks `tiles.openfreemap.org`; a donation-funded service without a service level – a choice, not the default     | OpenFreeMap © OpenMapTiles · © OpenStreetMap contributors   |
+| _Own tile source_              | a raster URL template (`{z}`, `{x}`, `{y}`) or a [MapLibre style](https://maplibre.org/maplibre-style-spec/) URL, optionally with an API key                        | Steward's server asks the origins the template or style names (shown before saving with _Check the style_)                       | the text you enter (required) and the style's own           |
+| _Self-hosted file (PMTiles)_   | a [PMTiles](https://github.com/protomaps/PMTiles/blob/main/spec/v3/spec.md) v3 file in `<data>/maps/`, raster or vector                                             | nothing                                                                                                                          | the file's metadata, or the text you enter                  |
+
+- **Changing where tiles come from** – a new source, URL, API key or file, or _Read the style again_ – asks you to confirm it is you (**step-up**, control point `plant.mapSource` of the [assurance policy](ASSURANCE.md), on by default) and is audited as `plant.map_settings_changed` with the old and the new origins (never the key). This holds for the own tile source also while another source is chosen – it is what the map uses once it is chosen. Turning the map off never asks and keeps the stored own source, its key and the file as they are; changing only an attribution never asks either.
+- **Check the style** reads an own style before saving and shows its origins. Checking a new address is the first step of a new source: it asks for the same step-up. Every check is audited (`plant.map_source_checked`, with the origins, never the key).
+- **Own style URL:** Steward reads the style when it is saved (and on _Read the style again_), keeps its raster and vector sources (a [TileJSON](https://github.com/mapbox/tilejson-spec/tree/master/3.0.0) URL is read to its tile template) and the layers on them, its glyphs and sprite – and drops everything else (GeoJSON sources, metadata). The origins of all of these are the source's origins. Templates with `{s}` sub-domains, `{r}` or `{quadkey}` are refused: name one host.
+- **API key:** stored in the vault, added by Steward's server as the query parameter or request header you name, never sent to the browser, never shown again (_Remove the stored key_ clears it). A stored key belongs to its address: it is only sent to the stored source's own origins (also by _Check the style_), and a new address on another origin needs the key entered again (`PLANT_MAP_KEY_AGAIN`). It is re-encrypted with the vault's data key on a key rotation.
+- **Vector styles:** Steward's own light and dark styles for the OpenMapTiles schema (OpenFreeMap, many own servers) and – generated with `@protomaps/basemaps` (`npm run map:styles`) – for the Protomaps schema of PMTiles files. They name no glyphs URL and no sprite: MapLibre draws the labels with the browser's own fonts, so a self-hosted file needs nothing else.
+
+### Offline: a self-hosted PMTiles file
+
+For networks without internet access (neither the server nor the browsers), put a PMTiles file into the folder `maps` of Steward's data folder (`SM_DATA_DIR`, the settings card shows the path) and choose it under _Self-hosted file_. Steward lists the `*.pmtiles` files it finds there, with their kind (raster, or vector in the Protomaps or OpenMapTiles schema) and size; a file it cannot draw is listed with the reason. The file is not uploaded through the browser – a regional extract is often hundreds of megabytes – and the browser never downloads it: Steward reads single tiles from it with byte ranges.
+
+A regional extract of a Protomaps planet build (see the Protomaps documentation for where builds are published), with the [pmtiles CLI](https://docs.protomaps.com/pmtiles/cli):
+
+```sh
+# the area around your sites (west,south,east,north), up to zoom 15 – from a downloaded build or its URL
+pmtiles extract planet.pmtiles plants.pmtiles --bbox=8.9,50.6,12.2,52.6 --maxzoom=15
+# on Steward's machine (or volume): the data folder's maps/ folder
+cp plants.pmtiles /var/lib/steward/data/maps/
+```
+
+Do this on a machine with internet access and copy the file over. Mind the data's licence (OpenStreetMap: ODbL, attribution required) – the attribution from the file's metadata is shown, or the one you enter.
+
+### Privacy and the tile usage policy
+
+- **Tiles come through Steward.** The browser loads the style, the tiles, glyphs and sprites only from Steward (`/api/plant/map/…`); the content security policy does not change and names no map provider. A provider sees Steward's server address and the area tiles were asked for – never a user's address, and never a user's name.
+- **OpenStreetMap's [tile usage policy](https://operations.osmfoundation.org/policies/tiles/)** is met: Steward sends its own `User-Agent` (`Steward/<version> (+https://github.com/vxrz/steward)`), caches tiles as their caching headers allow (and asks again with their `ETag`), never prefetches or bulk-downloads (each user may load at most 600 tiles a minute; at most 2 parallel requests to `tile.openstreetmap.org`), and the attribution _© OpenStreetMap contributors_ is always on the map, linked to [the copyright page](https://www.openstreetmap.org/copyright). The tile servers are meant for light use, with no service level: for more than a few people looking at maps, use an own source or a PMTiles file.
+- **Exact positions** are visible to whoever sees the site, as on the site page – the map adds no right. A site that must not be located is restricted with its access list; the sites answer is filtered by the site rights, so a hidden site gives no pin, no count in a cluster and no tile request.
+- **Cache:** `<data>/cache/map/`, least recently used out, at most `SM_MAP_CACHE_MB` (default 256; `0` keeps nothing on disk). Tiles up to zoom 12 are shared between users; above zoom 12 every user has their own entries, so nobody can time answers to learn where others looked closely. Backups and migration packages leave the cache and the `maps` folder out.
+
+### Pins, clusters and the card
+
+- **Pins** are buttons in list order (Tab moves through them, Enter opens the card) with an icon and an accessible name that says the state (_Riverside Works, RVS, 1 check failing_); never colour alone. A legend under the map names every state.
+- **State of a site**: the worst of its assets' linked monitors and its failing plant checks – _Offline_ wins, then _Warning_ (a degraded monitor or a failing check), _Unknown_ (never shown as online), _Online_; a site nothing watches is _Not watched_ (neutral).
+- **Clusters** when sites are closer than about 56 px, also buttons (_2 sites, worst: Warning – zoom in_), counting only the sites the reader sees. At most 2,000 positions are drawn; the list names all.
+- **The card**: name, code, state, assets by status, KPI coverage, open checks, and links to the site, its structure and its OT network.
+- **Show on map** on the site page (and in the list) opens the map at the site with its own zoom. `prefers-reduced-motion` and _Animation off_ turn the fly-to into a jump.
+- **Position picker**: in the site form, a click on the map sets latitude and longitude (typing them stays possible, also with the map off).
+- **Dashboard widget _Sites map_**: the same map, small, for readers of the plant registry; others read _Not visible_. Status pages never show it.
+- **Without WebGL 2** (some virtual desktops) the page shows the list and says why; when the source fails, the list stays with _The map could not be loaded_ and, for administrators, the reason. A failing tile tells other readers only that the source failed (`PLANT_MAP_SOURCE_FAILED`), never its address.
+
+### Map API
+
+Internal routes: `GET|PUT /api/settings/plant/map` and `POST /api/settings/plant/map/check` (administrators, browser session), `GET /api/plant/map/sites` (the sites the reader may see, with position, state and counts), `GET /api/plant/map/status`, `GET /api/plant/map/style.json?theme=light|dark&lang=en|de`, `GET /api/plant/map/tiles/:layer/:z/:x/:y`, `…/glyphs/:fontstack/:range`, `…/sprites/:sprite` (signed-in browser sessions only – API tokens are refused; rate-limited per user). While the module is off they answer `404 PLANT_MODULE_OFF`, while the map is off `404 PLANT_MAP_OFF`. In the demo the built-in sources are a made-up tile source of the demo server (`/mock/map/…`) and the maps folder has a small raster file, so nothing real is fetched.
 
 ## YAML import and export
 

@@ -63,7 +63,8 @@
     "stepUp": "Bestätigung",
     "maxAgeMinutes": "max. Alter",
     "mfa": "MFA",
-    "values": "Werte"
+    "values": "Werte",
+    "teams": "in Microsoft Teams entscheiden"
   },
   "values": {
     "on": "an",
@@ -293,6 +294,30 @@
         "label": "Ein Kostenbudget erhöhen",
         "description": "Ein höheres Monatsbudget für die Kosten eines Service, einer Anwendung oder eines Teams, eine andere Währung oder kein Budget mehr. Ein Budget zu senken braucht keine Bestätigung."
       }
+    },
+    "plant": {
+      "mapSource": {
+        "label": "Ändern, woher die Standortkarte ihre Kacheln holt",
+        "description": "Eine neue Kachelquelle für die Standortkarte: OpenStreetMap, Hell/Dunkel, eine eigene URL oder ein API-Schlüssel, eine selbst bereitgestellte Datei oder der eigene Stil neu gelesen. Die Karte auszuschalten braucht keine Bestätigung."
+      }
+    },
+    "library": {
+      "publishers": {
+        "label": "Einem Bibliotheksherausgeber vertrauen",
+        "description": "Einen Herausgeber oder Schlüssel hinzufügen, einen entfernen, einen Herausgeber mehr Bibliotheken veröffentlichen lassen, das Ablaufdatum eines Schlüssels aufheben. Einen Schlüssel ausmustern oder widerrufen braucht keine Bestätigung."
+      },
+      "install": {
+        "label": "Eine Bibliotheksversion installieren",
+        "description": "Eine gemeinsame Bibliothek installieren, aktualisieren oder zurücksetzen. Mit Vier-Augen-Prinzip bestätigt eine zweite Person aus Gestaltung oder Administration die Installation."
+      }
+    },
+    "teams": {
+      "bot": {
+        "label": "Mit dem Teams-Bot entscheiden",
+        "description": "Der Teams-Bot (Vorschau) nimmt überhaupt Entscheidungen in Karten entgegen; die Teams-Schalter der Entscheidungspunkte sagen, welche."
+      }
     }
-  }
+  },
+  "teamsLabel": "Darf in Microsoft Teams entschieden werden",
+  "teamsAria": "{{point}}: darf in Microsoft Teams entschieden werden"
 }

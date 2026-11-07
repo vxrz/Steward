@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { refuseResumeWhileHeld } from '../libraries/lookup.js';
 import net from 'node:net';
 import jsonata from 'jsonata';
 import { z } from 'zod';
@@ -72,6 +73,7 @@ export interface TriggerRow {
   notify_mode?: string;
   notify_reminder_hours?: number;
   notify_resolved?: number;
+  notify_urgent?: number;
   notify_change?: string;
   notify_channels?: string | null;
   notify_pause?: string | null;
@@ -81,6 +83,7 @@ export const SECRET_PREFIX = 'whs_';
 export const TRIGGER_ID_RE = /^wht_[A-Za-z0-9_-]{8,40}$/;
 export const hookPath = (id: string) => `/api/hooks/${id}`;
 
+// debug runs: the trigger's own last run, by id (never a debug run)
 const SELECT = `SELECT t.*, p.name AS process_name, (SELECT status FROM runs WHERE id = t.last_run_id) AS last_run_status
   FROM webhook_triggers t LEFT JOIN processes p ON p.id = t.process_id`;
 
@@ -273,12 +276,13 @@ function writeNotify(id: string, n: ScheduleNotify | undefined, before?: Trigger
   const change = n.change ?? kept.change ?? 'result';
   const channels = n.channels === undefined ? kept.channels : n.channels;
   db().run(
-    'UPDATE webhook_triggers SET notify_mode = ?, notify_reminder_hours = ?, notify_resolved = ?, notify_change = ?, notify_channels = ? WHERE id = ?',
+    'UPDATE webhook_triggers SET notify_mode = ?, notify_reminder_hours = ?, notify_resolved = ?, notify_change = ?, notify_channels = ?, notify_urgent = ? WHERE id = ?',
     n.mode,
     n.reminderHours,
     n.resolved ? 1 : 0,
     change,
     channels ? JSON.stringify(channels) : null,
+    (n.urgent === undefined ? kept.urgent : n.urgent) ? 1 : 0,
     id,
   );
   if (before && (kept.mode !== n.mode || kept.change !== change)) resetAlerts(`trigger:${id}`);
@@ -290,6 +294,8 @@ export function createTrigger(raw: WebhookTriggerSettings): WebhookTriggerSecret
   const owner = currentUser()?.username;
   if (!owner) throw new HttpError(401, 'Please sign in');
   const s = validate(raw);
+  // a library on hold (ADR 0014): its triggers stay off until an administrator lifts the hold
+  if (s.enabled) refuseResumeWhileHeld({ processId: s.processId });
   const id = newId('wht_');
   const sec = newSecret();
   const ts = nowIso();
@@ -336,6 +342,7 @@ export function createTrigger(raw: WebhookTriggerSettings): WebhookTriggerSecret
 export function updateTrigger(id: string, raw: WebhookTriggerSettings): WebhookTrigger {
   const before = requireTriggerEdit(id);
   const s = validate(raw);
+  if (s.enabled) refuseResumeWhileHeld({ processId: s.processId });
   const prev = toTrigger(before);
   const changed = (Object.keys(auditable(s)) as (keyof ReturnType<typeof auditable>)[]).filter(
     (k) => JSON.stringify(auditable(s)[k]) !== JSON.stringify(auditable(prev)[k]),

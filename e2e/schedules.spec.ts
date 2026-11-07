@@ -45,6 +45,7 @@ test('operator creates a schedule, runs it now and deletes it', async ({ page, a
     change: 'state',
     channels: ['inApp', 'email'],
     pause: null,
+    urgent: false,
   });
 
   const row = page.getByRole('row').filter({ hasText: name });

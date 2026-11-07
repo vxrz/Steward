@@ -21,7 +21,7 @@ import { warnEmailVerifiedProviders } from './auth/sso.js';
 import { flushFailedLoginAudit } from './auth/login-audit.js';
 import { shutdown, startBackground } from './bootstrap.js';
 import { InstanceLease, type LeaseWait } from './database/lease.js';
-import { stopAcceptingRuns } from './engine/runner.js';
+import { engine } from './engine/index.js';
 import { stopScheduler } from './scheduler.js';
 
 /** All platform secret values (and cached access tokens) – never part of an error report. */
@@ -138,7 +138,7 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
     // another instance may run now: stop at once, without writing (no drain – the other one recovers the runs)
     logger.fatal({ reason }, 'lost the database lease: stopping now');
     try {
-      stopAcceptingRuns();
+      engine().stopAccepting();
       stopScheduler();
     } catch {
       /* exiting anyway */
@@ -168,6 +168,8 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   // SM_PORT=0: the system picks a free port; everything that needs the real port (the instance proof,
   // the own-API outbound guard, links) reads config.port, and the start line below shows it.
   if (config.port === 0) config.port = (app.server.address() as AddressInfo).port;
+  // the Teams bot's own listener (ADR 0013, preview): only POST /teams/bot/messages
+  const botListener = await (await import('./msteams/listener.js')).startBotListener();
   // background jobs, event-loop monitor and backups now; recovery, scheduler and monitors once the vault is unlocked
   startBackground();
   await unlockFromEnv().catch((e) => {
@@ -197,6 +199,7 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
       flushFailedLoginAudit();
       removeInstanceFile();
       await app.close();
+      await botListener?.close();
       await Promise.race([flushNotifications(), new Promise((r) => setTimeout(r, 3000).unref())]);
       await shutdownTelemetry();
       await closeErrorReporting();

@@ -12,6 +12,8 @@ import { z } from 'zod';
  * - channels: null = as configured (the routes per event); a list = only these channels (a channel turned off stays off).
  * - pause: no messages until a time (or until resumed), optionally still in the app; a pause that ends while a check
  *   still fails sends one "still failing" message.
+ * - urgent (0.10.0, ADR 0012): failed runs and checks failing with severity `error` of this source interrupt quiet
+ *   hours (people and channels can turn that off for themselves).
  */
 export const SCHEDULE_NOTIFY_MODES = ['change', 'every', 'off'] as const;
 export type ScheduleNotifyMode = (typeof SCHEDULE_NOTIFY_MODES)[number];
@@ -41,11 +43,21 @@ export interface ScheduleNotify {
   channels?: (typeof NOTIFY_CHANNELS)[number][] | null;
   /** Set and ended with the pause and resume actions (schedules, triggers) or in the definition (monitor outputs) */
   pause?: NotifyPause | null;
+  /** Urgent – interrupts quiet hours (default false) */
+  urgent?: boolean;
 }
 /** The policy of every source */
 export type NotifyPolicy = ScheduleNotify;
 
-export const DEFAULT_SCHEDULE_NOTIFY: ScheduleNotify = { mode: 'change', reminderHours: 4, resolved: false, change: 'result', channels: null, pause: null };
+export const DEFAULT_SCHEDULE_NOTIFY: ScheduleNotify = {
+  mode: 'change',
+  reminderHours: 4,
+  resolved: false,
+  change: 'result',
+  channels: null,
+  pause: null,
+  urgent: false,
+};
 /** Webhook triggers and monitor outputs start as before 0.2.4: every failed check notifies */
 export const DEFAULT_TRIGGER_NOTIFY: ScheduleNotify = { ...DEFAULT_SCHEDULE_NOTIFY, mode: 'every' };
 
@@ -71,6 +83,7 @@ export const notifyPolicySchema = z
       .nullable()
       .optional(),
     pause: notifyPauseSchema.nullable().optional(),
+    urgent: z.boolean().optional(),
   })
   .strict();
 

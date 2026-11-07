@@ -4,7 +4,19 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { BUNDLE_FORMATS, WEBHOOK_TRIGGER_EXAMPLE_KIND, dashboardDefinitionSchema, validateProcess, webhookTriggerExampleSchema } from '@sm/shared';
+import {
+  BUILT_IN_PUBLISHER_KEYS,
+  BUNDLE_FORMATS,
+  CONNECTOR_FORMATS,
+  LIBRARY_MANIFEST_FORMAT,
+  LIBRARY_RELEASE_FILE,
+  LIBRARY_RELEASE_FORMAT,
+  LIBRARY_SIGNATURE_FILE,
+  WEBHOOK_TRIGGER_EXAMPLE_KIND,
+  dashboardDefinitionSchema,
+  validateProcess,
+  webhookTriggerExampleSchema,
+} from '@sm/shared';
 import { validateMonitorFile } from '../monitors/validation.js';
 import { plantFileSchema } from '../plant/format.js';
 import { bundleFileSchema, looksLikeBundle } from '../onboarding/bundleSchema.js';
@@ -52,6 +64,10 @@ export interface FileResult {
     | 'plant registry'
     | 'webhook trigger'
     | 'data contract'
+    | 'library'
+    | 'library release'
+    | 'record type'
+    | 'connector type'
     | 'unreadable';
   /** Nodes (process), widgets (dashboard) or checks (monitor). */
   ok: boolean;
@@ -76,6 +92,20 @@ export async function validateFile(file: string): Promise<FileResult> {
     return { file: rel, kind: 'unreadable', ok: false, errors: [`cannot parse – ${(e as Error).message}`], warnings: [] };
   }
   const obj = raw as Record<string, unknown>;
+  // a shared procedure library (#238, examples/libraries): the folder of its manifest – items, release.json, signature
+  if (obj && typeof obj === 'object' && obj.format === LIBRARY_MANIFEST_FORMAT) return validateLibrary(file, rel);
+  // release.json is checked together with its manifest (above)
+  if (obj && typeof obj === 'object' && obj.format === LIBRARY_RELEASE_FORMAT)
+    return { file: rel, kind: 'library release', ok: true, errors: [], warnings: [] };
+  if (obj && typeof obj === 'object' && (CONNECTOR_FORMATS as readonly unknown[]).includes(obj.format)) {
+    try {
+      const { parseConnectorPackage } = await import('../platforms/connectors.js');
+      const pkg = parseConnectorPackage(raw);
+      return { file: rel, kind: 'connector type', ok: true, count: pkg.specs.length, errors: [], warnings: [] };
+    } catch (e) {
+      return { file: rel, kind: 'connector type', ok: false, errors: [(e as Error).message], warnings: [] };
+    }
+  }
   if (obj && typeof obj === 'object' && (BUNDLE_FORMATS as readonly unknown[]).includes(obj.format)) {
     return { file: rel, kind: 'bundle', ok: true, errors: [], warnings: [] };
   }
@@ -151,6 +181,15 @@ export async function validateFile(file: string): Promise<FileResult> {
       warnings: findings.filter((f) => f.severity !== 'error').map((f) => `${f.path}: ${f.message}`),
     };
   }
+  // a record type (Git sync and libraries: kind recordType)
+  if (obj && obj.kind === 'recordType') {
+    const { typeInput } = await import('../records/types.js');
+    const { kind: _k, ...rest } = obj;
+    const r = typeInput.safeParse(rest);
+    return r.success
+      ? { file: rel, kind: 'record type', ok: true, count: r.data.fields.length, errors: [], warnings: [] }
+      : { file: rel, kind: 'record type', ok: false, errors: r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`), warnings: [] };
+  }
   if (obj && (obj.kind === 'monitor' || obj.kind === 'monitorTemplate')) {
     const r = await validateMonitorFile(obj);
     const kind = obj.kind === 'monitorTemplate' ? 'monitor template' : 'monitor';
@@ -171,6 +210,62 @@ export async function validateFile(file: string): Promise<FileResult> {
     errors: r.ok ? [] : r.issues.map((i) => `${i.nodeId ? `[${i.nodeId}] ` : ''}${i.path} ${i.message}`),
     warnings: r.warnings.map((w) => `${w.nodeId ? `[${w.nodeId}] ` : ''}${w.message}`),
   };
+}
+
+/**
+ * A library folder: every item checks, release.json is what `npm run library -- build` writes now (not outdated),
+ * and a signature verifies – against the built-in keys or a TEST-PUBLISHER-KEY.pub next to the folder (a test key,
+ * named as such in the output: no installation trusts it by default).
+ */
+async function validateLibrary(file: string, rel: string): Promise<FileResult> {
+  const { buildRelease } = await import('../libraries/build.js');
+  const { readFolder, verifyRelease } = await import('../libraries/releases.js');
+  const { parsePublicKeyLine, sshFingerprint } = await import('../libraries/sshsig.js');
+  const dir = path.dirname(file);
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  let count: number | undefined;
+  try {
+    const files = readFolder(dir);
+    const built = await buildRelease(files);
+    count = built.items;
+    const current = files.get(LIBRARY_RELEASE_FILE)?.toString('utf8');
+    if (current === undefined) warnings.push(`${LIBRARY_RELEASE_FILE} is missing – run npm run library -- build ${path.relative(process.cwd(), dir)}`);
+    else if (current !== built.releaseJson) errors.push(`${LIBRARY_RELEASE_FILE} is outdated – run npm run library -- build, then sign again`);
+    else if (!files.has(LIBRARY_SIGNATURE_FILE)) warnings.push('not signed – an installation refuses it');
+    else {
+      const testKeyFile = path.join(path.dirname(dir), 'TEST-PUBLISHER-KEY.pub');
+      const test = fs.existsSync(testKeyFile)
+        ? fs
+            .readFileSync(testKeyFile, 'utf8')
+            .split(/\r?\n/)
+            .filter((l) => l.trim() && !l.startsWith('#'))
+        : [];
+      const publisher = (JSON.parse(current) as { publisher: string }).publisher;
+      const keys = [
+        ...BUILT_IN_PUBLISHER_KEYS.map((b) => ({ line: b.key, publisher: b.publisher, test: false })),
+        ...test.map((line) => ({ line, publisher, test: true })),
+      ].map((k) => {
+        const blob = parsePublicKeyLine(k.line).blob;
+        return {
+          id: k.test ? 'test' : 'builtin',
+          publisherId: k.publisher,
+          publisherName: k.publisher,
+          libraries: [],
+          blob,
+          fingerprint: sshFingerprint(blob),
+          state: 'active' as const,
+          expiresAt: null,
+          builtIn: !k.test,
+        };
+      });
+      const v = await verifyRelease(files, { keys });
+      if (!v.key.builtIn) warnings.push(`signed with the TEST key ${v.key.fingerprint} (TEST-PUBLISHER-KEY.pub) – no installation trusts it by default`);
+    }
+  } catch (e) {
+    errors.push((e as Error).message);
+  }
+  return { file: rel, kind: 'library', ok: !errors.length, count, errors, warnings };
 }
 
 /** An example trigger: the format; the process template next to it (../processes) must exist and have the mapped inputs. */
@@ -245,9 +340,10 @@ export async function main(argv: string[]): Promise<number> {
     if (!r.ok) out.push(`${c.red('✘')} ${r.file}: ${r.errors.join('; ')}`);
     else if (!values.quiet) {
       if (r.kind === 'bundle') out.push(`${c.dim('•')} ${r.file}: bundle (skipped)`);
+      else if (r.kind === 'library release') out.push(`${c.dim('•')} ${r.file}: library release (checked with its manifest)`);
       else
         out.push(
-          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : r.kind === 'plant registry' ? 'records' : r.kind === 'webhook trigger' ? 'mapped inputs' : r.kind === 'data contract' ? 'schema objects' : 'nodes'}`,
+          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : r.kind === 'plant registry' ? 'records' : r.kind === 'webhook trigger' ? 'mapped inputs' : r.kind === 'data contract' ? 'schema objects' : r.kind === 'library' ? 'items' : r.kind === 'record type' ? 'fields' : r.kind === 'connector type' ? 'API specs' : 'nodes'}`,
         );
     }
     if (!values.quiet || !r.ok) for (const w of r.warnings) out.push(`  ${c.yellow('⚠')} ${w}`);

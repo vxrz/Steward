@@ -30,13 +30,15 @@ export function RunsPage() {
   const [checks, setChecks] = useState<string | null>(params.get('checks') === 'failed' ? 'failed' : null);
   // ?within=24h (the start page's "Failed runs (24 h)" tile): runs started since then, fixed when chosen
   const [period, setPeriod] = useState<Period | null>(PERIODS.find((p) => p === params.get('within')) ?? null);
+  // ?debug=1: debug runs (ADR 0010) – left out otherwise; only their starters, managers, administrators and auditors see them
+  const [kind, setKind] = useState<string | null>(params.get('debug') === '1' ? 'debug' : null);
   const since = useMemo(() => (period ? new Date(Date.now() - PERIOD_MS[period]).toISOString() : null), [period]);
   // ?limit=50: a smaller page (1–1000)
   const pageSize = Math.min(Math.max(Number(params.get('limit')) || RUNS_PAGE, 1), 1000);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
   const runs = useInfiniteQuery({
-    queryKey: runKeys.list(status, processId, since, checks, pageSize),
+    queryKey: runKeys.list(status, processId, since, checks, pageSize, kind === 'debug'),
     initialPageParam: '',
     queryFn: ({ pageParam }) => {
       const qs = new URLSearchParams({
@@ -46,6 +48,7 @@ export function RunsPage() {
         ...(processId ? { processId } : {}),
         ...(since ? { since } : {}),
         ...(checks ? { checks } : {}),
+        ...(kind === 'debug' ? { debug: '1' } : {}),
         ...(pageParam ? { before: pageParam } : {}),
       });
       return get<RunSummary[]>(`/runs?${qs}`);
@@ -54,7 +57,7 @@ export function RunsPage() {
     refetchInterval: 4000,
   });
   const list = runs.data?.pages.flat() ?? [];
-  const filtered = !!(status || processId || period || checks);
+  const filtered = !!(status || processId || period || checks || kind);
   return (
     <ListPage
       title={t('list.title')}
@@ -64,7 +67,7 @@ export function RunsPage() {
           {t('list.summaryReport')}
         </Button>
       }
-      activeFilters={[status, processId, period, checks].filter(Boolean).length}
+      activeFilters={[status, processId, period, checks, kind].filter(Boolean).length}
       view="runs"
       filters={
         <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
@@ -108,6 +111,17 @@ export function RunsPage() {
             value={checks}
             onChange={setChecks}
             w={{ base: '100%', xs: 200 }}
+          />
+          <Select
+            size="xs"
+            label={t('list.kind')}
+            placeholder={t('list.ordinaryRuns')}
+            clearable
+            data={[{ value: 'debug', label: t('list.debugRuns') }]}
+            value={kind}
+            onChange={setKind}
+            w={{ base: '100%', xs: 180 }}
+            data-testid="runs-kind"
           />
         </Group>
       }

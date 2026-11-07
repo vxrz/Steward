@@ -15,7 +15,17 @@
  * The route permission matrix test checks that only the routes named in LARGE_BODIES accept more than
  * the default, so a new route stays at 1 MB unless it is added here.
  */
-import { COMPONENT_LIMITS, COST_LIMITS, DATA_CONTRACT_LIMITS, DB_SCHEMA_LIMITS, PLANT_LIMITS, RECORDING_LIMITS, REPORT_LOGO_MAX_BYTES } from '@sm/shared';
+import {
+  COMPONENT_LIMITS,
+  COST_LIMITS,
+  DATA_CONTRACT_LIMITS,
+  DEBUG_LIMITS,
+  DB_SCHEMA_LIMITS,
+  LIBRARY_LIMITS,
+  PLANT_LIMITS,
+  RECORDING_LIMITS,
+  REPORT_LOGO_MAX_BYTES,
+} from '@sm/shared';
 import { LIMITS as CATALOGUE_LIMITS } from './compliance/controls.js';
 import { MONITOR_IMPORT_LIMITS } from './monitors/model.js';
 import { IMPORT_LIMITS as RECORD_IMPORT_LIMITS } from './records/markdown-io.js';
@@ -58,6 +68,8 @@ export const LARGE_BODIES = {
     bytes: jsonText(DATA_CONTRACT_LIMITS.yamlBytes),
   },
   recordings: { routes: ['POST /api/platforms/:id/recordings', 'PUT /api/platforms/:id/recordings/:recId'], bytes: jsonText(RECORDING_LIMITS.bodyBytes) },
+  /** Running one node (ADR 0010): sample data up to DEBUG_LIMITS.sampleBytes (1 MB), the unsaved node and a pasted answer of the same size */
+  debugNode: { routes: ['POST /api/processes/:id/debug/node'], bytes: jsonText(2 * DEBUG_LIMITS.sampleBytes) },
   /** Markdown files of records: RECORD_IMPORT_LIMITS.totalBytes (2 MB) together */
   recordsImport: { routes: ['POST /api/records/import'], bytes: jsonText(RECORD_IMPORT_LIMITS.totalBytes) },
   /** A control catalogue (JSON, CSV or YAML): CATALOGUE_LIMITS.importBytes (1 MB) */
@@ -127,6 +139,11 @@ export const LARGE_BODIES = {
   costImport: {
     routes: ['POST /api/costs/platform/:id/imports/preview', 'POST /api/costs/platform/:id/imports', 'POST /api/hooks/costs/:platformId'],
     bytes: jsonText(COST_LIMITS.importBytes, 16 * KIB),
+  },
+  /** A library release as a .zip (0.10.0, #238): LIBRARY_LIMITS.maxUploadBytes (8 MB) as base64 in a JSON body */
+  libraryUpload: {
+    routes: ['POST /api/library-releases/upload'],
+    bytes: base64(LIBRARY_LIMITS.maxUploadBytes),
   },
 } as const satisfies Record<string, LargeBody>;
 

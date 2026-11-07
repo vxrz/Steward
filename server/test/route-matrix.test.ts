@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { allowEmailDomains, authHeaders, loginCookie, setEnv, setup, startTestServer, type TestServer } from './helpers.js';
 import { tinyPng } from './png.js';
+import { NOTIFY_OWNER, signedRelease, testKey, uploadBody } from './library-helpers.js';
 import { DEFAULT_VERSION_SETTINGS } from '@sm/shared';
 
 /**
@@ -22,6 +23,10 @@ import { DEFAULT_VERSION_SETTINGS } from '@sm/shared';
  * SM_ROUTE_MATRIX_OBSERVE=<file> also sends the changing requests of allowed roles and writes every
  * "route role status" line to <file> – a starting point when classifying new routes.
  */
+
+/** Test keys of the library fixtures (#238): generated per run, trusted only inside this test server */
+const MATRIX_KEY = testKey();
+const MATRIX_KEY_2 = testKey();
 
 type Role = 'admin' | 'designer' | 'operator' | 'approver' | 'auditor' | 'viewer' | 'status' | 'plant';
 const ROLES: Role[] = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer', 'status', 'plant'];
@@ -383,6 +388,13 @@ const EXPECT: Record<string, Access> = {
   'GET /api/runs/:id/inspect/:nodeId': ALL,
   'POST /api/runs/:id/cancel': RUN,
   'POST /api/runs/:id/resume': RUN,
+  // debugging (ADR 0010): comparing two runs needs view on both; debug runs need edit and run (an offline node edit only)
+  'GET /api/runs/compare': ALL,
+  'GET /api/runs/:id/last-good': ALL,
+  'GET /api/runs/:id/debug': ALL,
+  'POST /api/runs/:id/debug': DESIGN,
+  'POST /api/processes/:id/debug/node': DESIGN,
+  'POST /api/processes/:id/debug/runs': DESIGN,
   'GET /api/runs/:id/report.html': ALL,
   'GET /api/runs/:id/report.json': ALL,
   'GET /api/runs/:id/report.pdf': ALL,
@@ -868,6 +880,29 @@ const EXPECT: Record<string, Access> = {
   'POST /api/sync-updates/:id/accept': DESIGN,
   'POST /api/sync-updates/:id/reject': DESIGN,
   'GET /api/sync-origins': ALL,
+  // shared procedure libraries (#238, ADR 0014): releases and installs for designers, Hold and trust for administrators
+  'GET /api/libraries': DESIGN,
+  'GET /api/libraries/:library': DESIGN,
+  'POST /api/libraries/:library/rollback': DESIGN,
+  'POST /api/libraries/:library/uninstall': DESIGN,
+  'POST /api/libraries/:library/hold': ADMIN,
+  'GET /api/library-releases/:id': DESIGN,
+  'GET /api/library-releases/:id/review': DESIGN,
+  'POST /api/library-releases/:id/install': DESIGN,
+  'POST /api/library-releases/:id/approve': DESIGN,
+  'POST /api/library-releases/:id/withdraw': DESIGN,
+  'DELETE /api/library-releases/:id': DESIGN,
+  'POST /api/library-releases/upload': DESIGN,
+  'GET /api/library-origins': ALL,
+  'GET /api/library-publishers': ADMIN,
+  'POST /api/library-publishers': ADMIN,
+  'PUT /api/library-publishers/:id': ADMIN,
+  'DELETE /api/library-publishers/:id': ADMIN,
+  'POST /api/library-publishers/:id/keys': ADMIN,
+  'PUT /api/library-keys/:id': ADMIN,
+  'POST /api/library-keys/:id/retire': ADMIN,
+  'POST /api/library-keys/:id/revoke': ADMIN,
+  'DELETE /api/library-keys/:id': ADMIN,
   'POST /api/hooks/sync/:id': HOOK,
   'GET /api/v1/ticket-references': ALL,
   'GET /api/v1/ticket-references/:ticketId': ALL,
@@ -902,6 +937,17 @@ const EXPECT: Record<string, Access> = {
   'GET /api/me/new-resource-teams': ALL,
   'PUT /api/me/new-resource-teams': ALL,
   'GET /api/settings/daily-summary': ADMIN,
+  // ---- quiet hours and digests (ADR 0012): one's own; administrators see who uses them and switch them off ----
+  'GET /api/me/notification-prefs': ALL,
+  'PUT /api/me/notification-prefs': ALL,
+  'DELETE /api/me/notification-prefs': ALL,
+  'GET /api/settings/quiet-hours': ADMIN,
+  'PUT /api/settings/quiet-hours': ADMIN,
+  // ---- the Teams bot (ADR 0013, preview): administrators; the bot endpoint itself is on its own listener (teams-bot.test.ts) ----
+  'GET /api/settings/teams-bot': ADMIN,
+  'PUT /api/settings/teams-bot': ADMIN,
+  'GET /api/settings/teams-bot/conversations': ADMIN,
+  'GET /api/settings/teams-bot/package': ADMIN,
 
   // ---- OAuth sign-in for MCP clients (#12): off in the fixtures (discovery and endpoints answer 404) ----
   'GET /.well-known/oauth-protected-resource': PUBLIC,
@@ -950,6 +996,16 @@ const EXPECT: Record<string, Access> = {
   // ---- the plant registry (#218, on in these fixtures): its switch is the administrators'; rights per site ----
   'GET /api/settings/plant': ADMIN,
   'PUT /api/settings/plant': ADMIN,
+  // the map of sites (#234): its source is the administrators' (a session); tiles for everyone who sees the registry
+  'GET /api/settings/plant/map': ADMIN,
+  'PUT /api/settings/plant/map': ADMIN,
+  'POST /api/settings/plant/map/check': ADMIN,
+  'GET /api/plant/map/sites': PLANT,
+  'GET /api/plant/map/status': PLANT,
+  'GET /api/plant/map/style.json': PLANT,
+  'GET /api/plant/map/tiles/:layer/:z/:x/:y': PLANT,
+  'GET /api/plant/map/glyphs/:fontstack/:range': PLANT,
+  'GET /api/plant/map/sprites/:sprite': PLANT,
   'GET /api/plant/config': PLANT,
   'GET /api/plant/schema': PLANT,
   'GET /api/plant/hierarchy': PLANT,
@@ -1032,6 +1088,14 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  'GET /api/settings/plant/map',
+  'PUT /api/settings/plant/map',
+  'POST /api/settings/plant/map/check',
+  'GET /api/plant/map/status',
+  'GET /api/plant/map/style.json',
+  'GET /api/plant/map/tiles/:layer/:z/:x/:y',
+  'GET /api/plant/map/glyphs/:fontstack/:range',
+  'GET /api/plant/map/sprites/:sprite',
   'POST /api/me/tokens',
   'POST /api/mcp-requests/:requestId/decision',
   'POST /api/users',
@@ -1070,6 +1134,22 @@ const SESSION_ONLY = [
   'PUT /api/sync-sources/:id',
   'DELETE /api/sync-sources/:id',
   'POST /api/sync-sources/:id/rotate-webhook-secret',
+  'POST /api/libraries/:library/rollback',
+  'POST /api/libraries/:library/uninstall',
+  'POST /api/libraries/:library/hold',
+  'POST /api/library-releases/:id/install',
+  'POST /api/library-releases/:id/approve',
+  'POST /api/library-releases/:id/withdraw',
+  'DELETE /api/library-releases/:id',
+  'POST /api/library-releases/upload',
+  'POST /api/library-publishers',
+  'PUT /api/library-publishers/:id',
+  'DELETE /api/library-publishers/:id',
+  'POST /api/library-publishers/:id/keys',
+  'PUT /api/library-keys/:id',
+  'POST /api/library-keys/:id/retire',
+  'POST /api/library-keys/:id/revoke',
+  'DELETE /api/library-keys/:id',
   'POST /api/migration/export',
   'GET /api/migration/exports/:id/download',
   'POST /api/migration/imports/upload',
@@ -1108,6 +1188,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   },
   'POST /api/me/tokens': 'always',
   'POST /api/vault/passphrase': 'always',
+  // the Teams bot (ADR 0013): its credential and where decisions can be taken
+  'PUT /api/settings/teams-bot': 'always',
   // adding an owning team gives its members their roles on the resource (#131)
   'PUT /api/owning-teams/:kind/:id': {
     get sensitive() {
@@ -1175,6 +1257,25 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     harmless: { scope: 'installation', scopeId: '', tokensPerDay: 500, tokensPerMonth: null },
   },
   'PUT /api/backups/passphrase': 'always',
+  // where the map of sites fetches its tiles from (#234; the fixtures use OpenStreetMap, the demo's mock of it)
+  'PUT /api/settings/plant/map': { sensitive: { source: 'openfreemap' }, harmless: { source: 'osm' } },
+  // trusting a library publisher or key (#238, control point library.publishers); retiring and revoking need none
+  'POST /api/library-publishers': 'always',
+  'DELETE /api/library-publishers/:id': 'always',
+  'POST /api/library-publishers/:id/keys': 'always',
+  'DELETE /api/library-keys/:id': 'always',
+  // widening the library list (the fixture's publisher may publish matrix-library only); the same list is harmless
+  'PUT /api/library-publishers/:id': {
+    sensitive: { name: 'Matrix publisher', libraries: [] },
+    harmless: { name: 'Matrix publisher', libraries: ['matrix-library'] },
+  },
+  // lifting an expiry (the fixture's key is valid until 2099); an earlier date is harmless
+  'PUT /api/library-keys/:id': { sensitive: { expiresAt: null }, harmless: { expiresAt: '2098-01-01' } },
+  // checking a new address of an own source is the first step of a new source (the stored own source checks freely)
+  'POST /api/settings/plant/map/check': {
+    sensitive: { kind: 'raster', url: 'https://other-tiles.example.com/{z}/{x}/{y}.png', attribution: 'Example tiles' },
+    harmless: { kind: 'raster', url: 'https://tiles.example.com/{z}/{x}/{y}.png', attribution: 'Example tiles' },
+  },
   // raising a cost budget (#226; the fixtures set 1,000 USD a month for a service); lowering it needs no confirmation
   'PUT /api/costs/budgets': {
     get sensitive() {
@@ -1201,6 +1302,8 @@ const STEP_UP_BY_POLICY = [
 
 /** GET routes whose fixtures cannot give a 2xx (nothing to find); refusals are still checked. */
 const NO_POSITIVE = new Set([
+  // the Teams app package needs the bot's app id (none in the fixtures: 409)
+  'GET /api/settings/teams-bot/package',
   // OAuth sign-in for MCP clients is off in the fixtures (#12)
   'GET /.well-known/oauth-protected-resource',
   'GET /.well-known/oauth-protected-resource/api/mcp',
@@ -1231,6 +1334,9 @@ const NO_POSITIVE = new Set([
   'GET /api/migration/imports/staged/:id', // no package uploaded
   'GET /api/migration/imports/:id', // nothing imported
   'GET /api/migration/imports/:id/history',
+  // the map's raster source (#234) has no glyphs and no sprite
+  'GET /api/plant/map/glyphs/:fontstack/:range',
+  'GET /api/plant/map/sprites/:sprite',
 ]);
 
 type Fx = Record<string, string>;
@@ -1310,6 +1416,10 @@ function fill(url: string): string {
       .replace(/:attId/g, 'att_none')
       .replace(/:evidenceId/g, 'tev_none')
       .replace(/:siteId/g, fx.site!)
+      // the map of sites (#234): the one tile of zoom 0
+      .replace('/:layer/:z/:x/:y', '/base/0/0/0')
+      .replace('/:fontstack/:range', '/Noto%20Sans%20Regular/0-255.pbf')
+      .replace(/:sprite$/, 'default.json')
       .replace(/:assetId/g, fx.asset!)
       .replace(/:nodeId/g, fx.plantNode!)
       .replace(/:buildingId/g, fx.building!)
@@ -1328,6 +1438,7 @@ function fill(url: string): string {
                 ? fx.assetLink!
                 : fx.recordLink!,
       )
+      .replace(/:library/g, fx.library!)
       .replace(/:measureId/g, fx.measure!)
       .replace(/^\/api\/records\/:id\/(measures|timeline)/, (_m, rest: string) => `/api/records/${fx.review}/${rest}`)
       .replace(/:id/g, () => {
@@ -1366,6 +1477,9 @@ function fill(url: string): string {
           notifications: 'notification',
           'sync-sources': 'syncSource',
           'sync-updates': 'syncUpdate',
+          'library-releases': 'libraryRelease',
+          'library-publishers': 'libraryPublisher',
+          'library-keys': 'libraryKey',
           'data-contracts': 'contract',
         };
         return seg(map[prefix] ?? '', `none_${prefix}`);
@@ -1378,6 +1492,7 @@ const QUERY: Record<string, string> = {
   'GET /api/records/:id/timeline': '?from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z',
   'GET /api/link-targets': '?kind=record&q=',
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
+  'GET /api/runs/compare': '', // filled in beforeAll (needs the run id)
   'GET /api/ticket-references/open-counts': '?kind=service',
   'GET /api/compliance/coverage': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
   'GET /api/assurance/policy/as-of': '?at=2026-01-01T00:00:00Z',
@@ -1391,6 +1506,9 @@ const QUERY: Record<string, string> = {
 /** Valid bodies for changing routes, so a refusal is a permission decision and not a validation error. */
 const bodies = (): Record<string, unknown> => ({
   'POST /api/runs': { processId: fx.process, dryRun: true },
+  'POST /api/processes/:id/debug/node': { nodeId: fx.node, vars: { from: 'sample', vars: {} } },
+  'POST /api/processes/:id/debug/runs': { mode: 'test' },
+  'POST /api/runs/:id/debug': { type: 'debug.continue' },
   'PUT /api/owning-teams/:kind/:id': { teamIds: [] },
   'POST /api/owning-teams/bulk': { teamIds: [], resources: [] },
   'POST /api/schedules': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
@@ -1451,6 +1569,8 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/systems': { name: 'Matrix system x', kind: 'server' },
   'PUT /api/settings/plant': { enabled: true, enterprise: '', labels: {}, fields: {} },
+  'PUT /api/settings/plant/map': { source: 'osm' },
+  'POST /api/settings/plant/map/check': { kind: 'raster', url: 'https://tiles.example.com/{z}/{x}/{y}.png', attribution: 'Example tiles' },
   'POST /api/plant/sites': { id: 'matrix-new', name: 'Matrix new site' },
   'PUT /api/plant/sites/:siteId': { name: 'Matrix site' },
   'PUT /api/plant/sites/:siteId/access': { acl: [] },
@@ -1524,6 +1644,12 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/ticket-references/settings': { sources: [{ key: 'vendor', label: 'Vendor ticket', vendor: true }], reminderDays: null },
   'PUT /api/me/daily-summary': { enabled: false, time: '07:30', timeZone: 'UTC', days: 'weekdays', channel: 'inApp', sections: ['runs'], skipEmpty: true },
   'PUT /api/settings/daily-summary': { allowed: true },
+  'PUT /api/me/notification-prefs': {
+    quietHours: { enabled: false, timeZone: 'UTC', windows: [], allDay: [], urgentBreaksThrough: true },
+    digests: { timeZone: 'UTC', groups: {} },
+  },
+  'PUT /api/settings/quiet-hours': { allowed: true },
+  'PUT /api/settings/teams-bot': { enabled: false, appId: '', tenantIds: [], providerId: null, credential: 'secret' },
   'POST /api/report-schedules': REPORT_SCHEDULE,
   'PUT /api/report-schedules/:id': REPORT_SCHEDULE,
   'POST /api/dashboards': { text: 'name: Matrix\nwidgets: []\n' },
@@ -1560,6 +1686,13 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/tasks/:id/verify': { approved: true },
   'POST /api/sync-sources': SYNC_SOURCE,
   'PUT /api/sync-sources/:id': SYNC_SOURCE,
+  'POST /api/library-publishers': { id: 'matrix-publisher-2', name: 'Matrix publisher 2' },
+  'PUT /api/library-publishers/:id': { name: 'Matrix publisher', libraries: ['matrix-library'] },
+  'POST /api/library-publishers/:id/keys': { key: MATRIX_KEY_2.line },
+  'PUT /api/library-keys/:id': { expiresAt: '2098-01-01' },
+  'POST /api/library-keys/:id/revoke': { reason: 'matrix' },
+  'POST /api/libraries/:library/hold': { held: true },
+  'POST /api/library-releases/upload': { fileName: 'x.zip', content: 'UEsFBgAAAAAAAAAAAAAAAAAAAAAAAA==' },
   'POST /api/compliance/access-changes': {
     platformId: fx.platform,
     subjectId: 'x',
@@ -1649,6 +1782,11 @@ beforeAll(async () => {
   await setup(s);
   // the plant registry module on (#218): in demo mode it loads its example enterprise with the demo data
   await s.api('PUT', '/settings/plant', { enabled: true, enterprise: '', labels: {}, fields: {} });
+  // the map of sites on (#234): OpenStreetMap, in demo mode the mock tile source of this server
+  await s.api('PUT', '/settings/plant/map', {
+    source: 'osm',
+    own: { kind: 'raster', url: 'https://tiles.example.com/{z}/{x}/{y}.png', attribution: 'Example tiles' },
+  });
   await s.api('POST', '/demo/setup', {});
   await allowEmailDomains(s, ['example.com']);
   // a plant viewer (#218): the demo has none
@@ -1727,6 +1865,18 @@ beforeAll(async () => {
   ).source.id;
   await a('POST', `/sync-sources/${syncSource}/fetch`);
   const syncUpdate = (await a('GET', `/sync-updates?sourceId=${syncSource}`))[0].id;
+  // a library (#238): a trusted publisher limited to matrix-library, its key valid until 2099, release 1.0.0 installed and 1.1.0 staged
+  await a('POST', '/library-publishers', { id: 'matrix-publisher', name: 'Matrix publisher', libraries: ['matrix-library'] });
+  const libraryKey = (await a('POST', '/library-publishers/matrix-publisher/keys', { key: MATRIX_KEY.line, expiresAt: '2099-01-01' })).id;
+  const libSpec = {
+    library: 'matrix-library',
+    publisher: 'matrix-publisher',
+    items: { 'processes/n.yaml': NOTIFY_OWNER.replace('notify-owner', 'matrix-lib-proc') },
+    references: { platforms: [] },
+  };
+  const lib1 = await a('POST', '/library-releases/upload', await uploadBody(await signedRelease(MATRIX_KEY, libSpec)));
+  await a('POST', `/library-releases/${lib1.id}/install`, {});
+  const libraryRelease = (await a('POST', '/library-releases/upload', await uploadBody(await signedRelease(MATRIX_KEY, { ...libSpec, release: '1.1.0' })))).id;
   fx = {
     process: proc.id,
     run: run.id,
@@ -1772,6 +1922,10 @@ beforeAll(async () => {
     task: 'tsk_none',
     syncSource,
     syncUpdate,
+    library: 'matrix-library',
+    libraryRelease,
+    libraryPublisher: 'matrix-publisher',
+    libraryKey,
     site: 'matrix-site',
     asset: 'matrix-asset',
     plantNode: 'matrix-area',
@@ -1780,6 +1934,7 @@ beforeAll(async () => {
     assetLink,
   };
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
+  QUERY['GET /api/runs/compare'] = `?a=${run.id}&b=${run.id}`;
   // database schemas (#222): a read of the demo database platform, a tbls import for the matrix system
   fx.dbPlatform = platforms.find((p: { kind: string }) => p.kind === 'database').id;
   fx.connectPlatform = platforms.find((p: { kind: string }) => p.kind === 'kafka-connect').id;

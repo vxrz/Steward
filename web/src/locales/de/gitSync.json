@@ -33,7 +33,12 @@
     "settingsCard": "Prozesse, Dashboards, Monitore und Dokumentarten aus Forgejo, GitHub oder GitLab holen. Aus, bis Sie eine Quelle anlegen.",
     "builtIn": "Steward-Beispiele",
     "builtInHint": "Stewards eigene Beispielbibliothek am Tag dieser Version. Schalten Sie sie ein, um verbesserte Beispiele unter Änderungen der Git-Synchronisierung zu prüfen. Steward muss github.com erreichen (Einstellungen → Ausgehender Zugriff).",
-    "refTag": "Tag {{ref}}"
+    "refTag": "Tag {{ref}}",
+    "newestSeen": "Neueste Version beim Git-Host: {{release}}",
+    "noReleaseSeen": "Noch keine Version gesehen",
+    "toLibraries": "Bibliotheken",
+    "fetchedLibrary": "{{library}} {{release}} wartet unter Bibliotheken auf eine Prüfung",
+    "fetchedLibraryKnown": "Nichts Neues: {{library}} {{release}} ist bekannt"
   },
   "form": {
     "titleNew": "Neue Git-Quelle",
@@ -81,7 +86,17 @@
     },
     "tag": "Tag",
     "refHint": "{version} steht für die Steward-Version dieser Installation ({{version}}): v{version} folgt dem passenden Release und zieht nach einem Update mit.",
-    "refResolved": "Ruft {{ref}} ab"
+    "refResolved": "Ruft {{ref}} ab",
+    "mode": "Was die Quelle bringt",
+    "modes": {
+      "items": "Einträge (einer pro Datei)",
+      "library": "Bibliotheksversionen (signiert)"
+    },
+    "modeItemsHint": "Jede Datei ist ein Eintrag; jede Änderung wartet einzeln auf eine Prüfung.",
+    "modeLibraryHint": "Eine signierte Bibliothek: Das neueste Versions-Tag wird geprüft und wartet unter Bibliotheken auf die Prüfung der ganzen Version.",
+    "tagPattern": "Versions-Tags",
+    "tagPatternHint": "{version} steht für die Version, z. B. folgt v{version} v1.4.0, v1.5.0 …",
+    "allowPrereleases": "Auch Vorabversionen (1.5.0-rc.1)"
   },
   "secret": {
     "title": "Webhook-Secret",

@@ -47,6 +47,8 @@ interface BudgetRow {
 
 interface UsageRow {
   id: string;
+  /** 1: the call came from a debug run (joined on read) */
+  debug_run?: number | null;
   ts: string;
   day: string;
   month: string;
@@ -435,6 +437,7 @@ const toEntry = (r: UsageRow, showProcess: (id: string) => boolean): AiUsageEntr
     promptFingerprint: r.prompt_fingerprint,
     inputFingerprint: r.input_fingerprint,
     actor: shown ? r.actor : '',
+    ...(Number(r.debug_run) ? { debug: true } : {}),
   };
 };
 
@@ -543,7 +546,8 @@ export function usageEntries(f: { from?: string; to?: string; platformId?: strin
   const show = processVisibility();
   return db()
     .all<UsageRow>(
-      `SELECT * FROM ai_usage${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY ts DESC, id DESC LIMIT ?`,
+      // a call of a debug run (ADR 0010) is marked: its tokens were spent and count like any other
+      `SELECT u.*, (SELECT CASE WHEN r.debug IS NULL THEN 0 ELSE 1 END FROM runs r WHERE r.id = u.run_id) AS debug_run FROM ai_usage u${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY ts DESC, id DESC LIMIT ?`,
       ...params,
       Math.min(f.limit ?? 1000, 10_000),
     )

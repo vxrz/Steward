@@ -7,6 +7,7 @@ import {
   IconActivity,
   IconApps,
   IconArrowsDiff,
+  IconBooks,
   IconBrandGit,
   IconBroadcast,
   IconBuildingFactory2,
@@ -40,6 +41,7 @@ import {
   IconTicket,
   IconTool,
   IconEngine,
+  IconMap,
   IconCpu,
   IconListSearch,
   IconClipboardCheck,
@@ -62,6 +64,7 @@ export type NavKey =
   | 'schedules'
   | 'triggers'
   | 'gitUpdates'
+  | 'libraries'
   | 'monitors'
   | 'platforms'
   | 'dataContracts'
@@ -92,6 +95,7 @@ export type NavKey =
   | 'plantKpis'
   | 'plantExplore'
   | 'plantChecks'
+  | 'plantMap'
   | 'plantImport';
 /** The areas of the sidebar (v0.4.0): Home has no heading; Plant only while its module is on (#218). */
 export type NavGroupKey = 'home' | 'operate' | 'automate' | 'catalogue' | 'plant' | 'compliance' | 'admin';
@@ -122,6 +126,8 @@ export const AUTOMATE_TABS: NavItemDef[] = [
   { to: '/schedules', key: 'schedules', icon: IconCalendarTime, when: automation },
   { to: '/triggers', key: 'triggers', icon: IconWebhook, when: automation },
   { to: '/git-updates', key: 'gitUpdates', icon: IconBrandGit, cap: 'createProcesses' },
+  // shared procedure libraries (#238): signed releases, reviewed as a whole
+  { to: '/libraries', key: 'libraries', icon: IconBooks, cap: 'createProcesses' },
 ];
 
 /**
@@ -144,7 +150,7 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
   },
   {
     key: 'automate',
-    items: [{ to: '/processes', key: 'processes', icon: IconSitemap, also: ['/schedules', '/triggers', '/git-updates'] }],
+    items: [{ to: '/processes', key: 'processes', icon: IconSitemap, also: ['/schedules', '/triggers', '/git-updates', '/libraries'] }],
   },
   {
     key: 'catalogue',
@@ -168,6 +174,8 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
     items: [
       { to: '/plant/sites', key: 'plantSites', icon: IconBuildingFactory2, when: plant },
       { to: '/plant/assets', key: 'plantAssets', icon: IconEngine, when: plant },
+      // the map of sites (#234): the list, and the map once an administrator turned it on
+      { to: '/plant/map', key: 'plantMap', icon: IconMap, when: plant },
       // part 2 (#219): the catalogues of the installation, the search and the checks
       { to: '/plant/profiles', key: 'plantProfiles', icon: IconCpu, when: plant },
       { to: '/plant/kpis', key: 'plantKpis', icon: IconGauge, when: plant },

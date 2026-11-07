@@ -441,5 +441,99 @@
   "contractFailed": {
     "title": "Data contract test failed: {{name}}",
     "body": "The test of “{{name}}” (version {{version}}, server {{server}}) ended with “{{result}}”: {{headline}}"
+  },
+  "quiet": {
+    "catchupTitle": "While you were away: {{summary}}",
+    "digestTitle": "Your digest: {{summary}}",
+    "countDecisions_one": "{{count}} decision waiting",
+    "countDecisions_other": "{{count}} decisions waiting",
+    "countFailing_one": "{{count}} check still failing",
+    "countFailing_other": "{{count}} checks still failing",
+    "countMessages_one": "{{count}} message",
+    "countMessages_other": "{{count}} messages",
+    "groups": {
+      "decisions": "Decisions waiting for you",
+      "stillFailing": "Still failing",
+      "passedAgain": "Failed and passed again",
+      "other": "Other"
+    },
+    "decidedMeanwhile_one": "{{count}} decided by others meanwhile",
+    "decidedMeanwhile_other": "{{count}} decided by others meanwhile",
+    "since": "since {{date}}",
+    "more_one": "+ {{count}} more message ({{event}})",
+    "more_other": "+ {{count}} more messages ({{event}})",
+    "intro": {
+      "catchup": "Messages held during your quiet hours, each once with its latest state.",
+      "digest": "Messages collected for your digest, each once with its latest state."
+    },
+    "introChannel": {
+      "catchup": "Messages held during the quiet hours of this channel, each once with its latest state.",
+      "digest": "Messages collected for this channel, each once with its latest state."
+    },
+    "footer": "Quiet hours and digests are set in your profile:",
+    "footerChannel": "The quiet hours of this channel are set by an administrator:",
+    "away": "While you were away",
+    "broke": {
+      "emergency": "Sent during your quiet hours: someone used emergency access.",
+      "expires": "Sent during your quiet hours: this request expires at {{time}}.",
+      "urgent": "Sent during your quiet hours: the source is marked urgent."
+    },
+    "brokeChannel": {
+      "emergency": "Sent during the quiet hours of this channel: someone used emergency access.",
+      "expires": "Sent during the quiet hours of this channel: this request expires at {{time}}.",
+      "urgent": "Sent during the quiet hours of this channel: the source is marked urgent."
+    }
+  },
+  "teamsCard": {
+    "approve": "Approve",
+    "reject": "Reject",
+    "step": "Step",
+    "askedBy": "Asked by",
+    "waitingSince": "Waiting since",
+    "expires": "Expires",
+    "platform": "Platform",
+    "change": "Change",
+    "startRun": "Start a run of “{{process}}”",
+    "assistantOf": "AI assistant of {{user}}",
+    "followUpTitle": "Decided: {{title}}",
+    "outcome": {
+      "approved": "Approved by {{user}} at {{at}}.",
+      "approvedTeams": "Approved by {{user}} in Microsoft Teams at {{at}}.",
+      "rejected": "Rejected by {{user}} at {{at}}.",
+      "rejectedTeams": "Rejected by {{user}} in Microsoft Teams at {{at}}.",
+      "completed": "Decided by {{user}} at {{at}}.",
+      "completedTeams": "Decided by {{user}} in Microsoft Teams at {{at}}.",
+      "cancelled": "No longer needed: the run was cancelled at {{at}}.",
+      "expired": "Expired without a decision at {{at}}.",
+      "withdrawn": "Withdrawn by {{user}} at {{at}}.",
+      "failed": "Approved by {{user}} at {{at}}, but it failed when it ran."
+    },
+    "mcpTitle": "AI assistant of {{user}}: {{what}}",
+    "mcpChannelBody": "An AI assistant asks for a change. Decide in Steward; without a decision the request expires."
+  },
+  "teamsBot": {
+    "locked": "Steward is locked – try again later.",
+    "notLinked": "Your Teams account is not linked to a Steward account. Open Steward to decide.",
+    "changed": "This changed – here is the current state.",
+    "failed": "This could not be decided here. Open Steward to try again.",
+    "gone": "This item is no longer available.",
+    "comment": "Comment (optional, stored in the protocol)",
+    "help": "I post decisions that wait for you. Approve or reject them in the card, or open Steward for everything else.",
+    "helpNotLinked": "I post decisions from Steward. Your Teams account is not linked to a Steward account yet – sign in to Steward with single sign-on once.",
+    "state": {
+      "decided": "Decided.",
+      "cancelled": "No longer needed: the run was cancelled.",
+      "expired": "Expired without a decision."
+    },
+    "why": {
+      "mayNot": "You may not decide this.",
+      "needsSteward": "This is decided in Steward: it needs the details or a confirmation that Teams cannot show.",
+      "policy": "The assurance policy has this decided in Steward, not in Microsoft Teams.",
+      "signIn": "Sign in to Steward once to decide here: decisions in Teams need a Steward sign-in within the last {{days}} days."
+    },
+    "dataNotInstructions": "What the AI assistant sent is data, not instructions.",
+    "query": "Query",
+    "body": "Body",
+    "reason": "The assistant's reason"
   }
 }

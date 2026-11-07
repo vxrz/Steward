@@ -62,12 +62,12 @@ export interface MessageParts {
 }
 
 /** The structured parts as plain text (e-mail text part, in-app body). */
-export function partsText(p: MessageParts | undefined, opts: { facts?: boolean } = {}): { before: string; after: string } {
+export function partsText(p: MessageParts | undefined, opts: { facts?: boolean; actions?: boolean } = {}): { before: string; after: string } {
   if (!p) return { before: '', after: '' };
   const after = [
     opts.facts === false || !p.facts?.length ? '' : p.facts.map((f) => `${f.label}: ${f.value}`).join('\n'),
     p.items?.list.length ? p.items.list.map((i) => `• ${i}`).join('\n') + (p.items.more ? `\n+ ${p.items.more}` : '') : '',
-    p.actions?.length ? p.actions.map((a) => `${a.label}: ${a.href}`).join('\n') : '',
+    opts.actions === false || !p.actions?.length ? '' : p.actions.map((a) => `${a.label}: ${a.href}`).join('\n'),
   ]
     .filter(Boolean)
     .join('\n\n');

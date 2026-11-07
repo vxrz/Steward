@@ -6,15 +6,18 @@ import * as platforms from '../platforms/service.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
 import { manualForReader } from '../engine/manual.js';
+import { seesDebugRun, seesRun } from '../engine/visibility.js';
 import { currentUser } from '../auth/context.js';
 import { decisionCheck, processPermissions, require } from '../auth/permissions.js';
 
 // ---------- helpers ----------
 
+export { seesDebugRun } from '../engine/visibility.js';
+
 export function requireRun(runId: string, perm: 'view' | 'run', what: string) {
   const r = store.runRow(runId);
   const perms = processes.permissionsFor(r.process_id);
-  if (!perms.includes('view')) throw new HttpError(404, `Run ${runId} not found`);
+  if (!seesRun(r, perms)) throw new HttpError(404, `Run ${runId} not found`);
   require(perms, perm, what);
   return r;
 }
@@ -53,6 +56,19 @@ export function withDecisionRights(tasks: TaskRecord[]): TaskRecord[] {
   });
 }
 
+/** One task as the current user sees it (with its decision rights), or undefined when it is missing or hidden. */
+export function visibleTask(id: string): TaskRecord | undefined {
+  let t: TaskRecord;
+  try {
+    t = store.getTask(id);
+  } catch {
+    return undefined; // not found
+  }
+  const pid = t.processId ?? store.taskProcessId(t.id);
+  if (!processes.permissionsFor(pid).includes('view')) return undefined;
+  return withDecisionRights([t])[0];
+}
+
 export function visibleTasks(status?: string): TaskRecord[] {
   const visible = visibleProcessIds();
   return withDecisionRights(store.listTasks({ status }).filter((t) => visible.has(t.processId ?? store.taskProcessId(t.id))));
@@ -65,13 +81,18 @@ export function visibleTasks(status?: string): TaskRecord[] {
  */
 export function visibleRuns(f: Parameters<typeof store.listRuns>[0]): RunSummary[] {
   const visible = visibleProcessIds();
+  const user = currentUser();
+  const perms = new Map<string, string[]>();
+  const permsOf = (pid: string) => perms.get(pid) ?? (perms.set(pid, processes.permissionsFor(pid)), perms.get(pid)!);
+  // debug runs (the Debug filter): only those this user may see
+  const sees = (r: RunSummary) => visible.has(r.processId) && (!r.debug || seesDebugRun(user, r.actor, permsOf(r.processId)));
   const limit = Math.min(f.limit ?? 100, 1000);
   const batch = Math.min(limit * 3, 1000);
   const out: RunSummary[] = [];
   let before = f.before;
   for (let i = 0; i < 20 && out.length < limit; i++) {
     const rows = store.listRuns({ ...f, before, limit: batch });
-    out.push(...rows.filter((r) => visible.has(r.processId)));
+    out.push(...rows.filter(sees));
     if (rows.length < batch) break;
     before = rows[rows.length - 1]!.startedAt;
   }

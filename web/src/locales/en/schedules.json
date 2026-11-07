@@ -76,7 +76,9 @@
         "email": "E-mail",
         "teams": "Teams",
         "webhook": "Webhook"
-      }
+      },
+      "urgent": "Urgent – interrupts quiet hours",
+      "urgentHint": "Failed runs and checks failing with severity error reach people and channels at once, also during their quiet hours (unless they turned that off)."
     }
   },
   "emptyState": {

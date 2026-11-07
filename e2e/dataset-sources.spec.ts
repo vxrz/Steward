@@ -199,7 +199,8 @@ test('the freshness widget shows every source with its own schedule', async ({ p
     // weekly: not stale after the step's 3 hours, but after 2.5 weeks
     await expect(us).toContainText('weekly');
     await expect(us).toContainText(`stale after 17 days 12 h (from the schedule “${tag} weekly US”)`);
-    await expect(us.getByTestId('source-next-run')).toHaveText(/^next refresh in \d+ days?$/);
+    // a weekly schedule: in N days, or "tomorrow" on the day before its weekday
+    await expect(us.getByTestId('source-next-run')).toHaveText(/^next refresh (in \d+ days?|tomorrow)$/);
     await expect(widget.getByText('1440 min')).toHaveCount(0);
     await settle(page);
     await expectAccessible(page, 'freshness widget');

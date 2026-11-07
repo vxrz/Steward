@@ -1,4 +1,5 @@
 import { Cron } from 'croner';
+import { refuseResumeWhileHeld } from './libraries/lookup.js';
 import { openInputs, sealInputs } from './engine/secret-inputs.js';
 import {
   DEFAULT_SCHEDULE_NOTIFY,
@@ -14,10 +15,10 @@ import { policyOfColumns } from './engine/notify-source.js';
 import { resetAlerts } from './engine/check-alerts.js';
 import { db } from './db.js';
 import { audit } from './audit.js';
-import { startRun } from './engine/runner.js';
+import { engine } from './engine/index.js';
+import { startProblem } from './engine/commands.js';
 import { HttpError, newId, nowIso, parseJson } from './util.js';
 import { getProcess, permissionsFor } from './processes/service.js';
-import { getPlatform } from './platforms/service.js';
 import { currentUser, runAs } from './auth/context.js';
 import { findUserByName, toAuthUser } from './auth/users.js';
 import { isAdmin } from './auth/permissions.js';
@@ -47,6 +48,7 @@ interface ScheduleRow {
   notify_mode?: ScheduleNotifyMode;
   notify_reminder_hours?: number;
   notify_resolved?: number;
+  notify_urgent?: number;
   notify_change?: string;
   notify_channels?: string | null;
   notify_pause?: string | null;
@@ -86,6 +88,7 @@ function toSchedule(r: ScheduleRow): Schedule {
   };
 }
 
+// debug runs: the schedule's own last run, by id (never a debug run)
 const SELECT = `SELECT s.*, p.name AS process_name, (SELECT status FROM runs WHERE id = s.last_run_id) AS last_status
   FROM schedules s JOIN processes p ON p.id = s.process_id`;
 
@@ -177,6 +180,8 @@ type ScheduleInput = Omit<Schedule, 'id' | 'createdAt' | 'processName' | 'lastRu
 
 export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
   const proc = getProcess(input.processId);
+  // a library on hold (ADR 0014): its schedules stay off until an administrator lifts the hold
+  if (input.enabled) refuseResumeWhileHeld({ processId: input.processId });
   validateCron(input.cron, input.timezone);
   const sid = id ?? newId('sch_');
   // inputs of type "secret" are stored encrypted ("***" in the schedule and the audit log)
@@ -236,12 +241,13 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
     // missing in the input (an older client): unchanged
     if (input.catchUp !== undefined || !id) db().run('UPDATE schedules SET catch_up = ? WHERE id = ?', input.catchUp === 'once' ? 'once' : 'none', sid);
     db().run(
-      'UPDATE schedules SET notify_mode = ?, notify_reminder_hours = ?, notify_resolved = ?, notify_change = ?, notify_channels = ? WHERE id = ?',
+      'UPDATE schedules SET notify_mode = ?, notify_reminder_hours = ?, notify_resolved = ?, notify_change = ?, notify_channels = ?, notify_urgent = ? WHERE id = ?',
       notify.mode,
       notify.reminderHours,
       notify.resolved ? 1 : 0,
       notify.change ?? 'result',
       notify.channels ? JSON.stringify(notify.channels) : null,
+      notify.urgent ? 1 : 0,
       sid,
     );
     audit({
@@ -295,6 +301,11 @@ export function setSchedulePause(id: string, pause: NotifyPause | null, reason?:
   return getSchedule(id);
 }
 
+/** After a schedule's `enabled` changed outside saveSchedule (a library on hold, libraries/install.ts): arm or disarm it. */
+export function rearmSchedule(id: string): void {
+  arm(id);
+}
+
 function disarm(id: string) {
   jobs.get(id)?.stop();
   jobs.delete(id);
@@ -323,6 +334,7 @@ export async function fire(id: string, manual = false, opts: { catchUp?: boolean
   const r = db().get<ScheduleRow>('SELECT * FROM schedules WHERE id = ?', id);
   if (!r) return null;
   if (!r.allow_overlap && r.last_run_id) {
+    // debug runs: the schedule's own last run, by id (never a debug run)
     const last = db().get<{ status: string }>('SELECT status FROM runs WHERE id = ?', r.last_run_id);
     if (last && ['running', 'waiting', 'queued'].includes(last.status)) {
       audit({
@@ -348,19 +360,17 @@ export async function fire(id: string, manual = false, opts: { catchUp?: boolean
   const runner = manual ? currentUser() : owner && owner.active ? toAuthUser(owner) : null;
   // `text` is English (log and audit); code + vars let notifications say the same in the recipient's language.
   type Problem = { text: string; code: ScheduleSkipReason; vars: Record<string, string> };
+  // the command layer's start check (ADR 0011), as the owner
+  const sp = runner ? startProblem(runner, { processId: r.process_id, bindings: parseJson<Record<string, string>>(r.bindings, {}) }) : null;
   const problem: Problem | null = !runner
     ? { text: `owner ${r.owner ?? '(none)'} is missing or disabled`, code: 'ownerMissing', vars: { owner: r.owner ?? '–' } }
-    : runAs(runner, (): Problem | null => {
-        if (!permissionsFor(r.process_id).includes('run')) {
-          return { text: `${runner.username} may not run this process`, code: 'mayNotRun', vars: { user: runner.username } };
-        }
-        for (const pid of Object.values(parseJson<Record<string, string>>(r.bindings, {}))) {
-          if (!getPlatform(pid).permissions.includes('use')) {
-            return { text: `${runner.username} may not use platform ${pid}`, code: 'mayNotUsePlatform', vars: { user: runner.username, platform: pid } };
-          }
-        }
-        return null;
-      });
+    : !sp
+      ? null
+      : sp.code === 'mayNotUsePlatform' || sp.code === 'platformMissing'
+        ? { text: sp.text, code: 'mayNotUsePlatform', vars: { user: runner.username, platform: sp.vars.platform ?? '' } }
+        : sp.code === 'actorMissing'
+          ? { text: sp.text, code: 'ownerMissing', vars: { owner: r.owner ?? '–' } }
+          : { text: `${runner.username} may not run this process`, code: 'mayNotRun', vars: { user: runner.username } };
   if (problem) {
     logger.warn({ scheduleId: id, reason: problem.text }, 'schedule skipped');
     audit({ actor: 'scheduler', action: 'schedule.skipped', entityType: 'schedule', entityId: id, summary: `Schedule "${r.name}" skipped: ${problem.text}` });
@@ -368,11 +378,15 @@ export async function fire(id: string, manual = false, opts: { catchUp?: boolean
     return null;
   }
   try {
-    const runId = await runAs(runner, () =>
-      startRun(
-        { processId: r.process_id, inputs: openInputs(parseJson(r.inputs, {}), r.sealed_inputs), bindings: parseJson(r.bindings, {}), dryRun: !!r.dry_run },
-        { trigger: 'schedule', scheduleId: id, actor: runner!.username },
-      ),
+    const { runId } = await runAs(runner, () =>
+      engine().start({
+        processId: r.process_id,
+        inputs: openInputs(parseJson(r.inputs, {}), r.sealed_inputs),
+        bindings: parseJson(r.bindings, {}),
+        mode: r.dry_run ? 'dry' : 'live',
+        actor: runner!.username,
+        origin: { trigger: 'schedule', scheduleId: id },
+      }),
     );
     db().run('UPDATE schedules SET last_run_at = ?, last_run_id = ? WHERE id = ?', nowIso(), runId, id);
     if (opts.catchUp) {

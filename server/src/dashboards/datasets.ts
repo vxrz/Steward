@@ -173,6 +173,7 @@ function scheduleOfRun(runId: string): string | null {
   let id: string | null = runId;
   for (let i = 0; id && i < 20; i++) {
     const r: { schedule_id: string | null; parent_run_id: string | null } | undefined = db().get(
+      // debug runs: the publishing run by its id (debug runs never publish)
       'SELECT schedule_id, parent_run_id FROM runs WHERE id = ?',
       id,
     );
@@ -188,6 +189,7 @@ function scheduleOfRun(runId: string): string | null {
  * together; "instance" for a run without connections (or no run: monitor datasets).
  */
 export function sourceOfRun(runId: string, slot?: string): { id: string; platformIds: string[] } {
+  // debug runs: the publishing run by its id (debug runs never publish)
   const r = runId ? db().get<{ bindings: string }>('SELECT bindings FROM runs WHERE id = ?', runId) : undefined;
   const bindings = parseJson<Record<string, { platformId?: string }>>(r?.bindings, {});
   const bySlot = slot ? bindings[slot]?.platformId : undefined;

@@ -1,11 +1,13 @@
+import type { LibraryOrigin } from './libraries.js';
 import type { AiGatewaySettings } from './ai.js';
 import type { DatabaseSettings } from './database.js';
 import type { ErrorParams } from './errors.js';
 import type { ControlTagKind } from './compliance.js';
 import type { ScheduleNotify } from './notifyPolicy.js';
-import type { Column, ManualFieldType, ManualUse, ProcessDefinition } from './process.js';
+import type { Column, FlowNode, ManualFieldType, ManualUse, ProcessDefinition } from './process.js';
 import type { Locale } from './locales.js';
 import type { DailySummaryPrefs } from './dailySummary.js';
+import type { DigestPrefs, QuietHours } from './quietHours.js';
 import type {
   SsoConfigWarning,
   SsoGroupValues,
@@ -225,6 +227,8 @@ export interface TeamChannel {
   mode: (typeof TEAM_CHANNEL_MODES)[number];
   /** a URL is stored (never returned) */
   hasUrl: boolean;
+  /** Teams format only: the channel's quiet hours (0.10.0, ADR 0012) */
+  quietHours?: QuietHours;
 }
 /**
  * Which new resources of its members a team owns (#136): auto – once the team owns something (the default, so a team
@@ -256,6 +260,9 @@ export interface TeamSettings {
   newResources: TeamNewResourceMode;
   /** the daily summary its members get unless they chose their own; null: the instance default (off) */
   summary: DailySummaryPrefs | null;
+  /** quiet hours and digests its members get unless they chose their own (0.10.0, ADR 0012); null: off */
+  quietHours: QuietHours | null;
+  digests: DigestPrefs | null;
   /** null: reports use the instance branding */
   branding: TeamReportBranding | null;
   /** report schedules of the team (they use its branding) */
@@ -417,6 +424,10 @@ export const STEP_UP_ACTIONS = [
   'changeAiBudget',
   // 0.9.0 (#226): raising a monthly cost budget (or removing it)
   'changeCostBudget',
+  // 0.10.0 (#234): where the map of sites fetches its tiles from
+  'changeMapSource',
+  // 0.10.0 (#238): trusting a library publisher or key, removing one, widening its libraries, lifting an expiry
+  'changeTrustedPublishers',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 
@@ -815,6 +826,8 @@ export interface ProcessVersion {
   author: string;
   comment: string;
   createdAt: string;
+  /** The library release this version came from (0.10.0, ADR 0014) */
+  origin?: LibraryOrigin | null;
 }
 
 export interface ProcessTemplate {
@@ -878,8 +891,10 @@ export interface RunSummary {
   dryRun: boolean;
   /** Test run (#105): a dry run whose platform calls are answered by recorded responses */
   recorded: boolean;
-  trigger: 'manual' | 'schedule' | 'resume' | 'subprocess' | 'webhook' | 'monitor';
+  trigger: 'manual' | 'schedule' | 'resume' | 'subprocess' | 'webhook' | 'monitor' | 'debug';
   scheduleId?: string | null;
+  /** A debug run (0.10.0, ADR 0010): one node or a step-through run; null for ordinary runs */
+  debug?: DebugSpec | null;
   /** What started this run: the webhook trigger (trigger 'webhook') or the monitor (trigger 'monitor'), by id and name */
   triggerId?: string | null;
   triggerName?: string | null;
@@ -961,6 +976,8 @@ export interface RunReportSection {
 }
 
 export interface RunDetail extends RunSummary {
+  /** The library release the process version came from (0.10.0, ADR 0014); null for a local version */
+  libraryOrigin?: (LibraryOrigin & { keyRevoked: boolean }) | null;
   inputs: Record<string, unknown>;
   bindings: Record<string, { platformId: string; platformName: string; baseUrl: string }>;
   definitionHash: string;
@@ -994,6 +1011,209 @@ export interface StartRunRequest {
   dryRun?: boolean;
   /** Test run (#105): platform calls are answered by the platforms' recorded responses; implies a dry run */
   recorded?: boolean;
+}
+
+// ---------- Engine modes and debug runs (0.10.0, ADR 0010/0011) ----------
+
+/** How a run treats platforms: live; dry (writes skipped); test (answers from recordings, no writes). */
+export type RunMode = 'live' | 'dry' | 'test';
+
+/** Where a single-node debug run gets its answers: nothing is contacted; recordings (default); a live read. */
+export type DebugAnswers = 'offline' | 'recorded' | 'live';
+
+/** What a debug run is (stored in `runs.debug`): never values, only where they came from. */
+export interface DebugSpec {
+  kind: 'node' | 'step';
+  /** Single node: the node that runs */
+  nodeId?: string;
+  /** Single node: where the variables came from */
+  varsFrom?: 'run' | 'sample' | 'inputs';
+  /** Single node: the run the variables were taken from */
+  varsRunId?: string;
+  /** Single node: offline, recorded or live */
+  answers?: DebugAnswers;
+  /** Single node: the editor's unsaved node was run (the definition hash covers it) */
+  draft?: boolean;
+  /** Single node: a live read */
+  live?: boolean;
+  /** Single node: the answer was pasted (never stored as a recording) */
+  pasted?: boolean;
+  /** Step through: pause before every node */
+  pauseBeforeEach?: boolean;
+  /** Step through: pause before these nodes */
+  breakpoints?: string[];
+  /** The step key of the first simulated or skipped decision: from there on the run answers from recordings only */
+  recordedFrom?: string;
+}
+
+/** Limits of debug runs. */
+export const DEBUG_LIMITS = {
+  sampleBytes: 1024 * 1024,
+  breakpoints: 500,
+  pauseMinutes: { min: 1, max: 240, default: 30 },
+  retentionDays: { min: 1, max: 90, default: 7 },
+} as const;
+
+/** Signals to a paused step-through run (only its starter sends them). */
+export type DebugSignal =
+  | { type: 'debug.continue' }
+  | { type: 'debug.step' }
+  | { type: 'debug.skip' }
+  | { type: 'debug.stop' }
+  | { type: 'debug.breakpoints'; breakpoints: string[] }
+  /** The simulated answer of a decision, selection or manual step the run waits for */
+  | { type: 'debug.answer'; decision?: TaskDecision; manual?: DebugManualAnswer };
+
+export interface DebugManualAnswer {
+  /** Indexes of the checked checklist items */
+  checked?: number[];
+  fields?: Record<string, string>;
+  comment?: string;
+}
+
+/** A step-through run stopped before a node, or waiting for a simulated answer. */
+export interface DebugPause {
+  reason: 'breakpoint' | 'step' | 'each' | 'decision';
+  nodeId: string;
+  nodeType: string;
+  nodeName: string;
+  stepKey: string;
+  /** The variables now (redacted) */
+  vars: Record<string, unknown>;
+  /** The node's resolved inputs (request, query, body …), redacted; $now(), $uuid() and the like may give another value when it runs */
+  preview?: unknown;
+  /** The decision, selection or manual step to answer (reason 'decision') */
+  task?: {
+    mode: 'approve' | 'select' | 'manual';
+    title: string;
+    instructions?: string;
+    columns: { label: string }[];
+    items: TaskItem[];
+    checklist?: string[];
+    fields?: { id: string; label: string; type: string }[];
+  };
+  since: string;
+  expiresAt: string;
+}
+
+/** What the debug panel polls (GET /api/runs/:id/debug). */
+export interface DebugRunState {
+  runId: string;
+  status: RunStatus;
+  mode: RunMode;
+  debug: DebugSpec;
+  current: string[];
+  paused: DebugPause | null;
+  /** Only the starter drives the run */
+  canSignal: boolean;
+  steps: RunStepRecord[];
+  error?: string | null;
+}
+
+/** POST /api/processes/:id/debug/node */
+export interface DebugNodeRequest {
+  version?: number;
+  nodeId: string;
+  /** The editor's unsaved node (checked like a saved definition) */
+  node?: FlowNode;
+  vars:
+    | { from: 'run'; runId: string }
+    | { from: 'sample'; vars: Record<string, unknown>; inputs?: Record<string, unknown> }
+    | { from: 'inputs'; inputs: Record<string, unknown> };
+  answers?: DebugAnswers;
+  bindings?: Record<string, string>;
+  /** A pasted answer for this node's requests (http) */
+  answer?: { status: number; headers?: Record<string, string>; body?: unknown };
+  /** For a decision, selection or manual step node: the simulated answer */
+  decision?: TaskDecision;
+  manual?: DebugManualAnswer;
+}
+
+export interface DebugNodeResult {
+  runId: string;
+  status: RunStatus;
+  mode: RunMode;
+  answers: DebugAnswers;
+  step: RunStepRecord | null;
+  /** Variables the node wrote (redacted) */
+  written: Record<string, unknown>;
+  /** Variables that were masked in the source run ("***") */
+  masked: string[];
+  logs: RunLog[];
+  error?: string | null;
+}
+
+/** POST /api/processes/:id/debug/runs */
+export interface DebugRunRequest {
+  version?: number;
+  inputs?: Record<string, unknown>;
+  bindings?: Record<string, string>;
+  mode?: 'dry' | 'test';
+  pauseBeforeEach?: boolean;
+  breakpoints?: string[];
+}
+
+/** Why a node cannot run live in a single-node run (null: it can). */
+export type DebugLiveRefusal = 'writes' | 'interacts' | 'noPlatform' | null;
+
+// ---------- Comparing two runs (0.10.0, ADR 0010) ----------
+
+export const COMPARE_LIMITS = { activations: 2000, valueChars: 8000 } as const;
+
+export interface RunCompareSide {
+  id: string;
+  processVersion: number;
+  status: RunStatus;
+  outcome?: RunOutcome;
+  mode: RunMode;
+  startedAt: string;
+  finishedAt?: string | null;
+  actor: string;
+  durationMs: number | null;
+  /** More activations than COMPARE_LIMITS.activations: the rest is left out */
+  cut: boolean;
+}
+
+/** A value of one run in the comparison: masked ("***" in the protocol), secret (not compared), or the value (cut to COMPARE_LIMITS.valueChars) */
+export type CompareValue = { masked: true } | { secret: true } | { value: unknown; cut?: boolean } | null;
+
+export interface CompareStepSide {
+  status: StepStatus;
+  durationMs?: number | null;
+  decision?: unknown;
+  check?: { passed: boolean; severity?: string; message?: string };
+  task?: { decision: unknown; decidedBy: string | null; decidedAt: string | null };
+  request?: { method?: string; path?: string; status?: number; durationMs?: number; attempts?: number };
+  error?: string | null;
+  summary?: string | null;
+}
+
+export interface CompareRow {
+  key: string;
+  nodeId: string;
+  nodeName: string;
+  type: string;
+  /** Present in both runs, only in a, only in b */
+  presence: 'both' | 'a' | 'b';
+  /** The node exists in only one of the two versions */
+  node?: 'added' | 'removed';
+  a?: CompareStepSide;
+  b?: CompareStepSide;
+  /** Which aspects differ */
+  differs: ('path' | 'status' | 'decision' | 'check' | 'request' | 'error' | 'duration' | 'vars')[];
+  /** Variables before this node that differ (name → a / b) */
+  vars?: Record<string, { a: CompareValue; b: CompareValue }>;
+}
+
+export interface RunComparison {
+  processId: string;
+  processName: string;
+  a: RunCompareSide;
+  b: RunCompareSide;
+  /** Inputs side by side; secret inputs are "secret – not compared" */
+  inputs: Record<string, { a: CompareValue; b: CompareValue; same: boolean | null }>;
+  rows: CompareRow[];
+  summary: { steps: number; differing: number; onlyA: number; onlyB: number };
 }
 
 // ---------- Recorded platform responses (#105) ----------
@@ -1073,6 +1293,8 @@ export interface TaskDecision {
   approved: boolean;
   selectedKeys: string[];
   comment?: string;
+  /** Decided from a card in Microsoft Teams (0.10.0, ADR 0013); missing: in Steward */
+  via?: 'teams';
 }
 
 /** A manual step's settings, copied into the task when the run reached it (later edits of the process do not change it). */
@@ -1390,6 +1612,10 @@ export interface Settings {
   browserHeadless: boolean;
   /** Delete runs (journal, logs, evidence files) older than this many days; 0 = keep forever. The audit log is never pruned. */
   retentionRunDays: number;
+  /** Delete finished debug runs (ADR 0010) older than this many days (1–90, default 7); before the ordinary run cleanup */
+  retentionDebugRunDays: number;
+  /** A paused step-through debug run is cancelled after this many minutes (1–240, default 30) */
+  debugPauseMinutes: number;
   /** Delete read notifications older than this many days */
   retentionNotificationDays: number;
   /** Keep monitor status history, hourly samples and recent results this many days (default 30) */
@@ -1622,6 +1848,8 @@ export interface McpRequest {
   dryRun: boolean;
   decidedBy: string | null;
   decidedAt: string | null;
+  /** 'teams': decided in a Microsoft Teams card (0.10.0, ADR 0013) */
+  decidedVia?: 'teams' | null;
   comment: string;
   executedAt: string | null;
   /** HTTP status of the executed call */

@@ -34,7 +34,7 @@ import { applicableRule, sessionRef, stepUpRefusal, stepUpStatus, stepUpWindowMs
 import { currentPolicy, currentPolicyInfo, fourEyesRequired, pointRule, policyAsOf, writePolicy } from './assurance-policy.js';
 import { listOverrides } from './assurance-overrides.js';
 
-export { currentPolicy, effectiveMcpMode, fourEyesRequired, pointRule, policyAsOf } from './assurance-policy.js';
+export { currentPolicy, effectiveMcpMode, fourEyesRequired, mayDecideInTeams, pointRule, policyAsOf } from './assurance-policy.js';
 
 /**
  * Enforcement of the assurance policy (#210, docs/ASSURANCE.md): the one place that decides whether a control point
@@ -75,6 +75,8 @@ export interface AssuranceProof {
     mfa: boolean;
   };
   fourEyes?: { required: boolean; requesters: string[]; approver: string; checks: readonly string[] };
+  /** Decided in a Microsoft Teams card (ADR 0013): no Steward session, the person known by their Entra tid + oid */
+  via?: 'teams';
 }
 
 type Bag = { proofs: Record<string, unknown>[]; consumed: boolean };
@@ -254,10 +256,16 @@ export function assuranceStepUpStatus(u: AuthUser & { session: SessionMeta }, ac
 // ---------- four-eyes ----------
 
 /** Records the four-eyes part of an event (who asked, who decided) for the request's audit entries. */
-export function noteFourEyes(point: string, requesters: (string | null | undefined)[], approver: AuthUser, opts: { itemRequires?: boolean } = {}): void {
+export function noteFourEyes(
+  point: string,
+  requesters: (string | null | undefined)[],
+  approver: AuthUser,
+  opts: { itemRequires?: boolean; via?: 'teams' } = {},
+): void {
   const rule = pointRule(point, { fourEyes: !!opts.itemRequires });
   const p = proofFor(point, approver, { stepUp: rule.stepUp, maxAgeMinutes: rule.maxAgeMinutes, mfa: rule.mfa, fourEyes: rule.fourEyes });
   if (!p) return;
+  if (opts.via) p.via = opts.via;
   p.fourEyes = {
     required: rule.fourEyes,
     requesters: [...new Set(requesters.filter((x): x is string => !!x))],

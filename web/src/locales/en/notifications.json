@@ -9,7 +9,11 @@
     "settings": "Notification settings",
     "unavailable": "Notifications are not available on this server.",
     "empty": "You are all caught up.",
-    "unreadItem": "Unread: {{title}}"
+    "quietUntil_one": "Quiet hours until {{time}} · {{count}} message held",
+    "quietUntil_other": "Quiet hours until {{time}} · {{count}} messages held",
+    "quiet_one": "Quiet hours · {{count}} message held",
+    "quiet_other": "Quiet hours · {{count}} messages held",
+    "unreadPrefix": "Unread:"
   },
   "events": {
     "task": {
@@ -176,5 +180,152 @@
         "info": "A test of a data contract your team owns failed (the owning team’s members and channel)"
       }
     }
+  },
+  "quiet": {
+    "title": "Quiet hours and digests",
+    "intro": "During quiet hours, e-mails wait and arrive together in one message when they end. Nothing is lost, and the app shows everything at once. Emergency access, urgent sources and requests that would expire still reach you.",
+    "notAllowed": "An administrator switched quiet hours and digests off for everyone.",
+    "enabled": "Quiet hours for my e-mails",
+    "enabledChannel": "Quiet hours for this channel",
+    "timeZone": "Time zone",
+    "windows": "Times",
+    "noWindows": "No times – only the whole days below are quiet.",
+    "windowDays": "Starts on",
+    "from": "From",
+    "to": "Until",
+    "addWindow": "Add a time",
+    "removeWindow": "Remove this time",
+    "windowHint": "An end before the start runs past midnight: Monday 18:00 to 07:30 ends on Tuesday morning.",
+    "allDay": "Whole days",
+    "gridLabel": "Quiet times in the week, Monday to Sunday",
+    "urgent": "Let urgent messages through",
+    "urgentHint": "Failed runs and errors of sources marked urgent reach you at once.",
+    "urgentHintChannel": "Failed runs and errors of sources marked urgent are posted at once.",
+    "digests": "Digests",
+    "digestsIntro": "Collected e-mails arrive as one message in the rhythm you choose.",
+    "digestsOff": "Every e-mail arrives at once. Choose a rhythm to collect a group into one message.",
+    "groups": {
+      "decisions": "Decisions",
+      "runs": "Runs and checks",
+      "monitors": "Monitors and platforms",
+      "reminders": "Reminders",
+      "reports": "Reports and releases",
+      "costs": "Budgets and costs"
+    },
+    "groupHints": {
+      "decisions": "Decision steps, AI requests, skipped duties. A run waits: at most hourly.",
+      "runs": "Failed runs and checks, skipped schedules, stale data, backups, data contracts.",
+      "monitors": "Monitor status, platform connection tests, objectives, maintenance.",
+      "reminders": "Credentials, document reviews, tickets, duties, measures, access changes.",
+      "reports": "Scheduled reports, end of life and new releases.",
+      "costs": "AI token budgets and cost budgets."
+    },
+    "rhythms": {
+      "immediately": "Immediately",
+      "hourly": "Hourly",
+      "daily": "Daily",
+      "weekly": "Weekly"
+    },
+    "weekday": "Day",
+    "at": "At",
+    "digestTimeZone": "Time zone of the digests",
+    "days": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    },
+    "daysLong": {
+      "mon": "Monday",
+      "tue": "Tuesday",
+      "wed": "Wednesday",
+      "thu": "Thursday",
+      "fri": "Friday",
+      "sat": "Saturday",
+      "sun": "Sunday"
+    },
+    "saved": "Quiet hours and digests saved",
+    "resetDone": "Quiet hours and digests: the default applies again",
+    "backToDefault": "Back to the default",
+    "source": {
+      "own": "Your own settings",
+      "team": "Default of team {{team}}",
+      "instance": "Off (default)"
+    },
+    "teamDefault": "Quiet hours and digests for members",
+    "teamDefaultIntro": "Members who have not saved their own settings get these.",
+    "teamUseDefault": "Set a default for members",
+    "channelTitle": "Quiet hours of the channel",
+    "channelIntro": "Cards wait during quiet hours and arrive as one card when they end. JSON webhooks are never held.",
+    "admin": {
+      "title": "Quiet hours and digests",
+      "description": "People and channels can hold e-mails and Teams posts at night and collect them in digests. The app always gets everything at once; emergency access always goes out. You see who uses them – never the content.",
+      "allowed": "Allow quiet hours and digests",
+      "saved": "Quiet hours setting saved",
+      "none": "Nobody uses quiet hours or digests yet. Each person sets them in their profile; administrators can set a default for a team.",
+      "user": "Person",
+      "quietHours": "Quiet hours",
+      "held": "Held now",
+      "off": "Off",
+      "fromTeam": "team default",
+      "channelsHeld_one": "{{count}} channel message is held right now.",
+      "channelsHeld_other": "{{count}} channel messages are held right now."
+    }
+  },
+  "bot": {
+    "title": "Teams bot",
+    "preview": "Preview",
+    "intro": "People approve decisions inside the Teams card, with the same checks as in Steward. Needs an Entra app, an Azure Bot and inbound HTTPS from Microsoft to the bot listener. Off by default; without it, cards open Steward (docs/TEAMS.md).",
+    "listener": "The bot listens on port {{port}} at",
+    "noListener": "No bot listener: set SM_TEAMS_BOT_PORT and restart Steward. Only that port is published to Microsoft.",
+    "enabled": "Decide in Teams cards",
+    "appId": "App id of the bot",
+    "appIdHint": "The application (client) id of the Entra app registration – a GUID.",
+    "tenants": "Allowed tenants",
+    "tenantsHint": "Tenant ids (GUIDs) whose people may use the bot.",
+    "provider": "Sign-in provider",
+    "providerHint": "Accounts are recognised only through this Entra provider, by tid + oid – never by name or e-mail.",
+    "credential": "Credential of the bot",
+    "credentials": {
+      "certificate": "Certificate (preferred)",
+      "secret": "Secret"
+    },
+    "credentialStored": "A credential is stored. Leave the fields empty to keep it.",
+    "credentialHint": "Steward signs in to Microsoft with it to post and update cards.",
+    "secret": "Client secret",
+    "certificate": "Certificate (PEM)",
+    "privateKey": "Private key (PEM)",
+    "unchanged": "unchanged",
+    "channels": "Decision cards in channels",
+    "channelsHint": "For each channel, choose the bot's conversation instead of the webhook. Other messages stay on the webhook.",
+    "channelsNone": "Install the Teams app in a channel first; it appears here.",
+    "useWebhook": "Use the webhook (no buttons)",
+    "targets": {
+      "teams": "Instance Teams channel",
+      "webhook": "Instance webhook (Teams card)",
+      "team": "Channel of team {{team}}"
+    },
+    "installed": "Where the bot is installed",
+    "installedNone": "Nowhere yet. Upload the app package to your tenant and add it to a channel or a chat.",
+    "where": "Channel or person",
+    "kind": "Kind",
+    "since": "Since",
+    "removed": "removed",
+    "notLinked": "not linked",
+    "kinds": {
+      "channel": "Channel",
+      "personal": "Personal chat"
+    },
+    "package": "Download the Teams app package",
+    "saved": "Teams bot settings saved",
+    "packageNeedsAppId": "Save the app id to download the Teams app package.",
+    "approvalNeeded": "Decisions in Teams also need a second administrator: the assurance policy point “Decide with the Teams bot” is off.",
+    "approvalPending": "Waiting for a second administrator to approve “Decide with the Teams bot” in the assurance policy. Until then, the bot takes no decisions and posts no cards.",
+    "toPolicy": "Open the assurance policy",
+    "signInDays": "Sign-in needed within (days)",
+    "signInDaysHint": "A Teams decision needs a Steward sign-in within this many days: roles and teams come from that sign-in. Default 7."
   }
 }

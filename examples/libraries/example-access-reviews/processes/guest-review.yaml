@@ -1,0 +1,40 @@
+id: guest-review
+name: Guest review (library example)
+description: |
+  The guests (B2B users) of the tenant with their last sign-in, published as `library.entra.guests`; a reviewer
+  confirms the list, and the follow-up process (in the same library) notes the result. Reads Microsoft Graph only.
+tags: [access-review, entra-id, library]
+connections:
+  - slot: graph
+    kind: microsoft-graph
+    description: Entra ID tenant (Microsoft Graph, read-only)
+steps:
+  - id: readGuests
+    type: http
+    name: Guests with their last sign-in
+    connection: graph
+    method: GET
+    path: /v1.0/users
+    query:
+      $filter: "userType eq 'Guest'"
+      $select: id,displayName,userPrincipalName,signInActivity
+      $top: 999
+    saveAs: guests
+  - id: publish
+    type: publish
+    name: Publish the guests
+    dataset: library.entra.guests
+    title: Entra ID guests (library example)
+    rows: "vars.guests.body.value"
+    key: "id"
+  - id: count
+    type: check
+    name: The tenant has guests to review
+    severity: info
+    notify: false
+    condition: "$count(vars.guests.body.value) > 0"
+    message: "{{ $count(vars.guests.body.value) }} guests"
+  - id: followUp
+    type: subprocess
+    name: Note the result
+    process: review-follow-up

@@ -89,11 +89,14 @@ export function initMetrics(): Registry {
   on('mcp.tool', (e) => mcpTools.inc({ tool: e.tool, outcome: e.outcome }));
   on('mcp.gateway', (e) => mcpGateway.inc({ platform: e.platformId, outcome: e.outcome }));
 
+  // debug runs (ADR 0010) are no runs of the process in its metrics
   on('run.finished', (e) => {
+    if (e.debug) return;
     runs.inc({ process: e.processId, status: e.status, trigger: e.trigger });
     runDuration.observe({ process: e.processId }, e.durationMs / 1000);
   });
   on('step.finished', (e) => {
+    if (e.debug) return;
     stepDuration.observe({ type: e.nodeType, status: e.status }, Math.max(0, e.durationMs) / 1000);
   });
   on('http.request', (e) => {
@@ -106,7 +109,7 @@ export function initMetrics(): Registry {
     help: 'Runs that are running or waiting',
     registers: [registry],
     collect() {
-      this.set(db().get<{ n: number }>("SELECT COUNT(*) AS n FROM runs WHERE status IN ('queued', 'running', 'waiting')")!.n);
+      this.set(db().get<{ n: number }>("SELECT COUNT(*) AS n FROM runs WHERE status IN ('queued', 'running', 'waiting') AND debug IS NULL")!.n);
     },
   });
   new Gauge({

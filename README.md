@@ -177,6 +177,10 @@ While you model a process, the platform is often not reachable yet, or you do no
 - **Never** used by real runs, dry runs or monitors that run on their schedule.
 - Recordings can hold **personal data**: everyone who may use the platform reads them (a run would fetch the same data); changing them needs `manage`. When a recording is saved, the platform's credentials and cached tokens are replaced by `***`, and headers with credentials or cookies (`Authorization`, `Cookie`, `Set-Cookie`, `X-API-Key` …) are dropped. At most 500 per platform, 1 MB body each. Audited as `platform.recording_added` / `_changed` / `_removed`; they move with migration packages and are removed with their platform.
 
+### Debugging a process
+
+**Run this node** (a tab beside a node's properties in the editor) tries one node with variables from an earlier run, sample data or run inputs – offline, with recorded responses or as a live read. **Debug** in the editor steps through a run of the saved version, pausing before each node or at breakpoints; decisions are answered in the panel, simulated. **Compare with the last good run** on a failed run shows what changed between two runs, step by step. Debug runs are never live, never publish, alert, create tasks or notify, and are seen only by their starter, the process's managers, administrators and auditors. See [docs/DEBUGGING.md](docs/DEBUGGING.md).
+
 ## Users, roles and access
 
 | Role     | Default rights                                                                                        |
@@ -305,6 +309,8 @@ Where Steward is heading, and what it deliberately does not do: [`docs/ROADMAP.m
 
 Keep processes, dashboards, monitors and document types in a Git repository (Forgejo/Gitea, GitHub or GitLab) and bring changes into Steward after a review. An administrator adds a source under _Settings → Git sync_; Steward fetches it by hand, on a schedule or after a push webhook. Steward only reads the repository, validates every file and stages it in **Updates from Git**, where a designer reviews the diff and accepts it as a new version or rejects it. Local edits show as conflicts instead of being overwritten. Setup, token scopes and webhooks: [docs/GIT-SYNC.md](docs/GIT-SYNC.md).
 
+**Shared libraries (0.10.0):** a signed, versioned set of procedures from a publisher you trust – from a Git source in library mode or an uploaded `.zip` – reviewed as a whole, with what each process can do, and installed in one transaction; Steward checks the OpenSSH signature itself. See [docs/LIBRARIES.md](docs/LIBRARIES.md).
+
 ## PDF reports
 
 Steward creates PDF reports without a browser, also in the desktop executable.
@@ -357,6 +363,8 @@ _Costs_ shows what services, applications, teams and platforms cost per month �
 _Tickets_ documents tickets that live elsewhere – incidents users reported through ServiceNow and cases opened with vendors: source, number and link, status, who looks after it on our side, and the affected services, platforms, credentials and records. No workflow, just tracking with a history, optional "not checked for N days" reminders, a report section and a badge of open vendor tickets in the service catalogue. See [docs/TICKETS.md](docs/TICKETS.md).
 
 Everyone can turn on an optional **daily summary** on their profile page (failed runs, decisions waiting, monitor changes, credentials due, their open tickets, documents, reports – only what they may see), in the app or by e-mail. See [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#daily-summary).
+
+**Quiet hours and digests** hold e-mails and Teams posts at night and collect them in one message – nothing is dropped, the app gets everything at once, and emergency access, urgent sources and expiring requests still break through ([docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#quiet-hours-and-digests)). **Decisions from Microsoft Teams**: cards with Approve / Reject that open the decision in Steward, and – as a preview behind a setting – deciding inside the card through a Teams bot ([docs/TEAMS-APPROVALS.md](docs/TEAMS-APPROVALS.md)).
 
 ## Compliance: access governance evidence
 

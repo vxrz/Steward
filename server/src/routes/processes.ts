@@ -15,7 +15,8 @@ import { allAuditAscending } from '../audit.js';
 import { HttpError, MAX_DEFINITION_TEXT, rasterImageType } from '../util.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
-import { startRun, cancelRun, resumeRun, completeTask, completeManualTask, verifyManualTask } from '../engine/runner.js';
+import { engine, modeOf } from '../engine/index.js';
+import { authorizeCancel, authorizeSignal, authorizeStart } from '../engine/commands.js';
 import { addEvidence, evidenceForDownload, manualCompletionSchema, removeEvidence, verificationSchema } from '../engine/manual.js';
 import * as scheduler from '../scheduler.js';
 import { runReportHtml } from '../reports.js';
@@ -28,8 +29,7 @@ import { require, requireCapability } from '../auth/permissions.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { me } from '../auth/access.js';
-import { fourEyesRequired, noteFourEyes } from '../auth/assurance.js';
-import { requireRun, requirePlatform, withDecisionRights, visibleTasks, visibleRuns } from './helpers.js';
+import { requireRun, withDecisionRights, visibleTasks, visibleRuns } from './helpers.js';
 
 /** Query strings are validated like bodies: one value per parameter, bounded, numbers as numbers. */
 const versionQuery = z.object({ version: z.coerce.number().int().min(1).optional() });
@@ -50,6 +50,11 @@ const runsQuery = z.object({
   checks: z.enum(['failed']).optional(),
   /** `findings`: runs that completed with findings; `succeeded`: runs that succeeded without (the Runs page's status filter) */
   outcome: z.enum(['succeeded', 'findings']).optional(),
+  /** `1`: debug runs only (ADR 0010: they are left out otherwise, and only their starter, managers, administrators and auditors see them) */
+  debug: z
+    .enum(['0', '1'])
+    .transform((x) => x === '1')
+    .optional(),
 });
 
 function requireProcess(processId: string, perm: 'view' | 'run' | 'edit' | 'approve' | 'manage', what: string) {
@@ -57,10 +62,6 @@ function requireProcess(processId: string, perm: 'view' | 'run' | 'edit' | 'appr
   if (!perms.includes('view')) throw new HttpError(404, `Process ${processId} not found`);
   require(perms, perm, what);
   return perms;
-}
-
-function requireBindingsUsable(bindings: Record<string, string> | undefined) {
-  for (const pid of Object.values(bindings ?? {})) requirePlatform(pid, 'use', `use platform ${pid}`);
 }
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
@@ -143,9 +144,18 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
         recorded: z.boolean().optional(),
       })
       .parse(req.body) as StartRunRequest;
-    requireProcess(b.processId, 'run', 'run this process');
-    requireBindingsUsable(b.bindings);
-    return { id: await startRun(b) };
+    // the command layer (ADR 0011): process run, use on each bound platform
+    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings });
+    const { runId } = await engine().start({
+      processId: b.processId,
+      version: b.version,
+      inputs: b.inputs ?? {},
+      bindings: b.bindings ?? {},
+      mode: modeOf(b),
+      actor: currentActor(),
+      origin: { trigger: 'manual' },
+    });
+    return { id: runId };
   });
   app.get('/runs', async (req) => visibleRuns(runsQuery.parse(req.query ?? {})));
   app.get('/runs/:id', async (req) => {
@@ -158,13 +168,17 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     return store.getStepFull(params(req).id!, Number(params(req).stepId));
   });
   app.post('/runs/:id/cancel', async (req) => {
-    requireRun(params(req).id!, 'run', 'cancel this run');
-    await cancelRun(params(req).id!);
+    const id = params(req).id!;
+    authorizeCancel(id);
+    // the reason goes into run.cancelled (ADR 0011)
+    const b = z.object({ reason: z.string().trim().max(500).optional() }).parse(req.body ?? {});
+    await engine().cancel(id, b.reason || `Cancelled by ${currentActor()}`, currentActor());
     return { ok: true };
   });
   app.post('/runs/:id/resume', async (req) => {
-    requireRun(params(req).id!, 'run', 'resume this run');
-    await resumeRun(params(req).id!);
+    const id = params(req).id!;
+    authorizeSignal(id, { type: 'resume' });
+    await engine().signal(id, { type: 'resume' }, currentActor());
     return { ok: true };
   });
   app.get('/runs/:id/report.html', async (req, reply) => {
@@ -209,16 +223,16 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     const id = params(req).id!;
     const t = visibleTasks().find((x) => x.id === id);
     if (!t) throw new HttpError(404, 'Task not found', 'TASK_NOT_FOUND');
-    if (t.manual?.stage === 'verify') throw new HttpError(409, 'This step was completed and waits for its verification', 'TASK_WAITS_FOR_VERIFICATION');
-    if (!t.canDecide) throw new HttpError(403, t.cannotDecideReason ?? 'You may not decide this task', t.cannotDecideCode ?? 'FORBIDDEN', t.cannotDecideParams);
-    if (t.mode === 'manual') return { ok: true, ...(await completeManualTask(id, manualCompletionSchema.parse(req.body ?? {}))) };
-    const b = z
+    // the command layer: who may decide, and the four-eyes proof (the run's starter asked, this person decides)
+    authorizeSignal(t.runId, { type: t.mode === 'manual' ? 'manual.complete' : 'task.decide', taskId: id });
+    if (t.mode === 'manual') {
+      const input = manualCompletionSchema.parse(req.body ?? {});
+      return await engine().signal(t.runId, { type: 'manual.complete', taskId: id, input }, currentActor());
+    }
+    const decision = z
       .object({ approved: z.boolean(), selectedKeys: z.array(z.string().max(500)).max(10000).default([]), comment: z.string().max(5000).optional() })
       .parse(req.body) as TaskDecision;
-    // the assurance proof (auth/assurance.ts): the run's starter asked, this person decides
-    if (fourEyesRequired('run.decide', t.fourEyes)) noteFourEyes('run.decide', [t.startedBy], me(), { itemRequires: t.fourEyes });
-    await completeTask(id, b);
-    return { ok: true };
+    return await engine().signal(t.runId, { type: 'task.decide', taskId: id, decision }, currentActor());
   });
   // manual steps: the second person verifies (or sends back / rejects) what the first one entered
   // (a step-up when the assurance policy asks for one on verifying manual steps – off by default)
@@ -231,9 +245,9 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     const t = visibleTasks().find((x) => x.id === id);
     if (!t) throw new HttpError(404, 'Task not found', 'TASK_NOT_FOUND');
     if (t.mode !== 'manual' || t.manual?.stage !== 'verify') throw new HttpError(409, 'This step does not wait for a verification', 'TASK_NOT_IN_VERIFICATION');
-    if (!t.canDecide) throw new HttpError(403, t.cannotDecideReason ?? 'You may not verify this step', t.cannotDecideCode ?? 'FORBIDDEN', t.cannotDecideParams);
-    noteFourEyes('manualStep.verify', [t.manual.submission?.completedBy, ...(t.manual.submission?.evidence ?? []).map((e) => e.uploadedBy)], me());
-    return { ok: true, ...(await verifyManualTask(id, verificationSchema.parse(req.body))) };
+    authorizeSignal(t.runId, { type: 'manual.verify', taskId: id });
+    const input = verificationSchema.parse(req.body);
+    return await engine().signal(t.runId, { type: 'manual.verify', taskId: id, input }, currentActor());
   });
   /** A manual step the current user may work on now (only they add or remove its evidence). */
   const workableStep = (id: string) => {
@@ -285,15 +299,13 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   app.get('/schedules', async () => scheduler.listSchedules());
   app.post('/schedules', async (req) => {
     const b = scheduleBody.parse(req.body);
-    requireProcess(b.processId, 'run', 'schedule this process');
-    requireBindingsUsable(b.bindings);
+    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings });
     return scheduler.saveSchedule(b);
   });
   app.put('/schedules/:id', async (req) => {
     scheduler.requireScheduleEdit(params(req).id!);
     const b = scheduleBody.parse(req.body);
-    requireProcess(b.processId, 'run', 'schedule this process');
-    requireBindingsUsable(b.bindings);
+    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings });
     return scheduler.saveSchedule(b, params(req).id);
   });
   // pause and resume the messages of a schedule's runs (#139); runs and checks are not affected
@@ -312,8 +324,7 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   });
   app.post('/schedules/:id/run', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const s = scheduler.getSchedule(params(req).id!);
-    requireProcess(s.processId, 'run', 'run this process');
-    requireBindingsUsable(s.bindings);
+    authorizeStart(undefined, { processId: s.processId, bindings: s.bindings });
     const id = await scheduler.fire(s.id, true);
     if (!id) throw new HttpError(409, 'Run was not started – see audit log');
     return { id };

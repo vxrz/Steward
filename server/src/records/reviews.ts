@@ -316,7 +316,7 @@ export function timelineCandidates(recordId: string, from: string, to: string): 
     error: string | null;
   }>(
     `SELECT id, process_id, process_name, status, started_at, finished_at, error FROM runs
-     WHERE status IN ('failed', 'interrupted') AND dry_run = 0 AND COALESCE(finished_at, started_at) >= ? AND COALESCE(finished_at, started_at) < ?
+     WHERE status IN ('failed', 'interrupted') AND dry_run = 0 AND debug IS NULL AND COALESCE(finished_at, started_at) >= ? AND COALESCE(finished_at, started_at) < ?
      ORDER BY started_at LIMIT 2000`,
     w.from,
     w.to,

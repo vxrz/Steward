@@ -914,6 +914,25 @@ function VegaWidget({ w }: { w: DashboardWidget }) {
   );
 }
 
+/** The map of the plant registry's sites (#234): its own chunk, loaded only on dashboards that have one. */
+const SitesMapBody = lazy(() => import('../plant/map/SitesMapWidget'));
+function SitesMapWidget({ w }: { w: DashboardWidget }) {
+  const { t } = useTranslation(['dashboards', 'common']);
+  return (
+    <WidgetCard title={w.title || t('widgets.sitesMap.label')}>
+      <Suspense
+        fallback={
+          <Text size="sm" c="dimmed">
+            {t('common:loading')}
+          </Text>
+        }
+      >
+        <SitesMapBody />
+      </Suspense>
+    </WidgetCard>
+  );
+}
+
 // ---------------------------------------------------------------------------
 
 export function WidgetView({ w, datasets }: { w: DashboardWidget; datasets: string[] }) {
@@ -933,6 +952,8 @@ export function WidgetView({ w, datasets }: { w: DashboardWidget; datasets: stri
       return <FreshnessWidget w={w} datasets={datasets} />;
     case 'vega':
       return <VegaWidget w={w} />;
+    case 'sitesMap':
+      return <SitesMapWidget w={w} />;
     case 'markdown':
       return (
         <WidgetCard title={w.title}>
@@ -972,6 +993,7 @@ export function defaultWidth(type: DashboardWidget['type']): number {
     case 'status':
     case 'trend':
     case 'checks':
+    case 'sitesMap':
       return 6;
     default:
       return 12;

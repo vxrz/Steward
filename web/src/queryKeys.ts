@@ -14,8 +14,8 @@
 export const runKeys = {
   /** Every run list (['runs', …]) */
   all: ['runs'] as const,
-  list: (status: unknown, processId: unknown, since: unknown, checks: unknown, pageSize: unknown) =>
-    ['runs', status, processId, since, checks, pageSize] as const,
+  list: (status: unknown, processId: unknown, since: unknown, checks: unknown, pageSize: unknown, debug: unknown = false) =>
+    ['runs', status, processId, since, checks, pageSize, debug] as const,
   /** The latest runs of a process (start page, process cards, the flow editor) */
   latest: (processId: string | null | undefined) => ['runs', 'latest', processId] as const,
   palette: ['runs', 'palette'] as const,
@@ -23,6 +23,12 @@ export const runKeys = {
   details: ['run'] as const,
   detail: (id: string | null | undefined) => ['run', id] as const,
   reports: (runId: string | null | undefined) => ['run-reports', runId] as const,
+  /** Comparing two runs (ADR 0010) */
+  compare: (a: string | null | undefined, b: string | null | undefined) => ['run', 'compare', a, b] as const,
+  /** The last good run before a run */
+  lastGood: (id: string | null | undefined) => ['run', id, 'last-good'] as const,
+  /** A step-through debug run's state (the panel polls it) */
+  debug: (id: string | null | undefined) => ['run', id, 'debug'] as const,
 };
 
 export const processKeys = {
@@ -128,6 +134,10 @@ export const plantKeys = {
   assetNetwork: (assetId: string | null | undefined) => ['plant', 'assetNetwork', assetId] as const,
   // visualizations (#230)
   overview: ['plant', 'views', 'overview'] as const,
+  // the map of sites (#234)
+  mapSites: ['plant', 'map', 'sites'] as const,
+  mapStatus: ['plant', 'map', 'status'] as const,
+  mapSettings: ['plant', 'map', 'settings'] as const,
   coverage: (filter: string) => ['plant', 'views', 'coverage', filter] as const,
   structure: (siteId: string | null | undefined) => ['plant', 'views', 'structure', siteId] as const,
   flow: (assetId: string | null | undefined) => ['plant', 'views', 'flow', assetId] as const,
@@ -172,4 +182,15 @@ export const dataContractKeys = {
     ['data-contracts', 'detail', id, 'compare', from, to] as const,
   runs: (id: string | null | undefined) => ['data-contracts', 'detail', id, 'runs'] as const,
   run: (id: string | null | undefined, runId: string | null | undefined) => ['data-contracts', 'detail', id, 'run', runId] as const,
+};
+
+/** Shared procedure libraries (#238): installed libraries and staged releases, one release's review, trusted publishers, origins. */
+export const libraryKeys = {
+  all: ['libraries'] as const,
+  list: ['libraries', 'list'] as const,
+  detail: (library: string | null | undefined) => ['libraries', 'detail', library] as const,
+  release: (id: string | null | undefined) => ['libraries', 'release', id] as const,
+  review: (id: string | null | undefined) => ['libraries', 'release', id, 'review'] as const,
+  publishers: ['libraries', 'publishers'] as const,
+  origins: (kind: string) => ['libraries', 'origins', kind] as const,
 };

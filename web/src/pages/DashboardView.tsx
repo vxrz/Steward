@@ -9,6 +9,7 @@ import type { Dashboard, DashboardDefinition, DatasetStatus } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put, apiUrl } from '../api';
 import { DetailState } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
+import { LibraryOriginBadge } from '../components/libraries/parts';
 import { fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
@@ -128,6 +129,7 @@ export function DashboardViewPage() {
           <Group gap="xs" wrap="wrap">
             <span>{def.name}</span>
             <GitOriginBadge kind="dashboard" id={id} />
+            <LibraryOriginBadge kind="dashboard" id={id} />
           </Group>
         }
         description={

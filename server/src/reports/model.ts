@@ -53,7 +53,15 @@ export interface RunReportModel extends ReportContext {
     durationMs: number | null;
     stats: RunStats;
   };
-  process: { id: string; name: string; version: number; definitionHash: string; description: string | null };
+  process: {
+    id: string;
+    name: string;
+    version: number;
+    definitionHash: string;
+    description: string | null;
+    /** The library release this version came from (ADR 0014), with its signing key */
+    library?: { library: string; release: string; publisher: string; keyFingerprint: string; releaseSha256: string; keyRevoked: boolean } | null;
+  };
   connections: { slot: string; platformName: string; kind: string | null; environment: string | null }[];
   inputs: { name: string; label: string | null; value: string }[];
   steps: {
@@ -76,6 +84,8 @@ export interface RunReportModel extends ReportContext {
     instructions: string | null;
     decidedBy: Person | null;
     decidedAt: string | null;
+    /** Decided in a Microsoft Teams card (0.10.0, ADR 0013) */
+    viaTeams?: boolean;
     approved: boolean | null;
     selectedCount: number;
     total: number;
@@ -245,6 +255,7 @@ export function buildRunModel(runId: string, ctx: ReportContext): RunReportModel
         instructions: t.instructions ?? null,
         decidedBy: t.decidedBy ? person(t.decidedBy) : null,
         decidedAt: t.decidedAt ?? null,
+        viaTeams: t.decision?.via === 'teams',
         approved: t.status === 'completed' ? !!t.decision?.approved : null,
         selectedCount: t.status === 'completed' ? sel.size : 0,
         total: t.items.length,
@@ -322,7 +333,23 @@ export function buildRunModel(runId: string, ctx: ReportContext): RunReportModel
       durationMs: run.finishedAt ? Date.parse(run.finishedAt) - Date.parse(run.startedAt) : null,
       stats: run.stats,
     },
-    process: { id: run.processId, name: run.processName, version: run.processVersion, definitionHash: run.definitionHash, description },
+    process: {
+      id: run.processId,
+      name: run.processName,
+      version: run.processVersion,
+      definitionHash: run.definitionHash,
+      description,
+      library: run.libraryOrigin
+        ? (({ library, release, publisher, keyFingerprint, releaseSha256, keyRevoked }) => ({
+            library,
+            release,
+            publisher,
+            keyFingerprint,
+            releaseSha256,
+            keyRevoked,
+          }))(run.libraryOrigin)
+        : null,
+    },
     connections,
     inputs,
     steps,

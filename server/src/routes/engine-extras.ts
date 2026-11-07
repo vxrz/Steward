@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { EvaluateResult, ScopeHints } from '@sm/shared';
 import { HttpError } from '../util.js';
+import { seesRun } from '../engine/visibility.js';
 import { currentUser } from '../auth/context.js';
 import { require } from '../auth/permissions.js';
 import * as processes from '../processes/service.js';
@@ -26,7 +27,8 @@ function requireProcess(processId: string, perms: ('view' | 'run' | 'edit')[], w
 
 function requireRunView(runId: string) {
   const r = store.runRow(runId);
-  if (!processes.permissionsFor(r.process_id).includes('view')) throw new HttpError(404, `Run ${runId} not found`);
+  // a debug run only for its starter, the process's managers, administrators and auditors (ADR 0010)
+  if (!seesRun(r, processes.permissionsFor(r.process_id))) throw new HttpError(404, `Run ${runId} not found`);
   return r;
 }
 

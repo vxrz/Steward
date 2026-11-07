@@ -39,6 +39,8 @@ export function initAutoReports(): void {
   if (subscribed) return;
   subscribed = true;
   on('run.finished', (e) => {
+    // a debug run (ADR 0010) gets no automatic report and creates no access-change entries
+    if (e.debug) return;
     setImmediate(() =>
       asBackgroundPdf(() => {
         void autoReport(e.runId)

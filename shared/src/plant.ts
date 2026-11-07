@@ -1,3 +1,4 @@
+import type { PlantMapClient } from './plantMap.js';
 import type { AclEntry, AccessReason } from './api.js';
 import type { Backlink, ItemLink } from './records.js';
 import type { PlantCheck } from './plantData.js';
@@ -295,6 +296,8 @@ export interface PlantConfig {
   canManageSome: boolean;
   /** The signed-in person may add and change device profiles and KPI definitions (#219) */
   canManageCatalogue: boolean;
+  /** The map of sites (#234): off until an administrator turns it on */
+  map: PlantMapClient;
 }
 
 /** GET /api/plant/hierarchy: the sites with their trees and buildings (pickers and filters). */

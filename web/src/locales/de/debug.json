@@ -1,0 +1,180 @@
+{
+  "simulated": "Simuliert",
+  "decision": {
+    "approve": "Genehmigen",
+    "reject": "Ablehnen",
+    "comment": "Kommentar"
+  },
+  "node": {
+    "tab": "Knoten ausführen",
+    "intro": "Führt nur diesen Knoten aus, mit den Variablen Ihrer Wahl. Er läuft wie in einem Debug-Lauf: nie echt, nichts wird veröffentlicht, niemand benachrichtigt.",
+    "newNode": "Speichern Sie den Prozess einmal, bevor Sie diesen neuen Knoten ausführen.",
+    "unsaved": "Führt Ihre ungespeicherten Änderungen aus",
+    "vars": "Variablen",
+    "from": {
+      "run": "Aus einem Lauf",
+      "sample": "Beispieldaten",
+      "inputs": "Eingaben"
+    },
+    "pickRun": "Lauf",
+    "pickRunPlaceholder": "Lauf auswählen",
+    "noRuns": "Noch keine Läufe",
+    "sampleVars": "Variablen (JSON)",
+    "sampleHint": "Keine Passwörter oder Schlüssel – verwenden Sie stattdessen eine geheime Eingabe oder die Zugangsdaten einer Plattform.",
+    "notJson": "Kein JSON-Objekt",
+    "inputs": "Eingaben (JSON)",
+    "answers": "Antworten",
+    "answer": {
+      "offline": "Offline",
+      "recorded": "Aufgezeichnet",
+      "live": "Echt lesen"
+    },
+    "answerHint": {
+      "offline": "Nichts wird kontaktiert. Anfragen brauchen eine eingefügte Antwort.",
+      "recorded": "Die aufgezeichneten Antworten der Plattform antworten, oder eine eingefügte Antwort.",
+      "live": "Die Anfrage wird wirklich gesendet – nur Lesezugriffe (GET, HEAD, Abfragen, KI-Aufrufe, Browser-Schritte ohne Klicks)."
+    },
+    "reason": {
+      "needsRun": "Aufgezeichnete und echte Antworten brauchen das Recht, diesen Prozess auszuführen.",
+      "writes": "Dieser Knoten schreibt. Sie können ihn nur mit aufgezeichneten Antworten ausführen.",
+      "interacts": "Dieser Browser-Schritt klickt oder tippt. Er kann nicht echt lesend laufen.",
+      "noPlatform": "Dieser Knoten ruft keine Plattform auf. Führen Sie ihn offline aus.",
+      "needsAnswer": "Offline braucht dieser Knoten eine eingefügte Antwort oder eine Beispielantwort.",
+      "needsRecording": "Dieser Knoten braucht seine Plattform. Führen Sie ihn mit aufgezeichneten Antworten aus."
+    },
+    "paste": "Antwort einfügen",
+    "pasteStatus": "HTTP-Status",
+    "pasteBody": "Inhalt der Antwort (JSON)",
+    "pasteHint": "Gilt nur für diesen Lauf und wird nie als Aufzeichnung gespeichert.",
+    "simulated": "Simulierte Antwort",
+    "selectedKeys": "Schlüssel der ausgewählten Einträge (durch Komma getrennt)",
+    "simulatedHint": "Es entsteht keine Aufgabe und niemand wird gefragt. Der Schritt wird als simuliert markiert.",
+    "run": "Knoten ausführen",
+    "failed": "Der Knoten wurde nicht ausgeführt",
+    "openRun": "Debug-Lauf öffnen",
+    "masked": "Im Quell-Lauf maskiert: {{names}}",
+    "written": "Geschriebene Variablen",
+    "request": "Anfrage",
+    "output": "Ergebnis"
+  },
+  "panel": {
+    "open": "Debuggen",
+    "title": "Schritt für Schritt",
+    "close": "Debug-Bereich schließen",
+    "signalFailed": "Der Debug-Lauf hat das Signal nicht angenommen",
+    "notStarted": "Der Debug-Lauf wurde nicht gestartet",
+    "intro": "Führt die gespeicherte Version v{{version}} aus und hält vor den Knoten Ihrer Wahl an. Ungespeicherte Änderungen werden nicht verwendet.",
+    "inputs": "Eingaben",
+    "mode": "Antworten",
+    "modes": {
+      "test": "Aufgezeichnete Antworten",
+      "dry": "Probelauf"
+    },
+    "modeHint": {
+      "test": "Die aufgezeichneten Antworten der Plattformen antworten; nichts wird gesendet.",
+      "dry": "Lesezugriffe werden gesendet, Schreibzugriffe übersprungen."
+    },
+    "pauseBeforeEach": "Vor jedem Knoten anhalten",
+    "breakpoints": "Haltepunkte",
+    "breakpointsHint": "Vor diesen Knoten anhalten",
+    "start": "Debug-Lauf starten",
+    "openRun": "Lauf öffnen",
+    "recordedFrom": "Bei {{key}} wurde eine Entscheidung simuliert: ab dort werden nur aufgezeichnete Antworten verwendet.",
+    "notYours": "Nur die Person, die diesen Debug-Lauf gestartet hat, kann ihn steuern.",
+    "running": "Läuft …",
+    "finished": {
+      "succeeded": "Debug-Lauf erfolgreich",
+      "failed": "Debug-Lauf fehlgeschlagen",
+      "cancelled": "Debug-Lauf beendet"
+    },
+    "again": "Neuer Debug-Lauf",
+    "steps": "Schritte",
+    "noSteps": "Noch keine Schritte",
+    "waitsFor": "Wartet auf Ihre Antwort: {{name}}",
+    "pausedBefore": "Angehalten vor {{name}}",
+    "remainingHint": "Der Lauf wird beendet, wenn die Pause abläuft",
+    "remaining": "noch {{time}}",
+    "decision": "Entscheidung",
+    "select": "Ausgewählte Einträge",
+    "simulatedHint": "Ihre Antwort ist simuliert: keine Aufgabe, keine Benachrichtigung. Ab hier werden nur aufgezeichnete Antworten verwendet.",
+    "answer": "Antworten (simuliert)",
+    "skip": "Knoten überspringen",
+    "stop": "Beenden",
+    "preview": "Eingaben des Knotens",
+    "previewHint": "$now(), $uuid() und Ähnliches können beim Ausführen einen anderen Wert ergeben.",
+    "vars": "Variablen",
+    "continue": "Weiter",
+    "step": "Ein Schritt"
+  },
+  "run": {
+    "badgeNode": "Debug: ein Knoten",
+    "badgeStep": "Debug-Lauf",
+    "compareLastGood": "Mit dem letzten guten Lauf vergleichen",
+    "compareWith": "Mit einem anderen Lauf vergleichen",
+    "note": "Ein Debug-Lauf: Er hat nichts veröffentlicht, keine Warnungen ausgelöst, keine Aufgaben erstellt und niemanden benachrichtigt. Er wird einige Tage aufbewahrt.",
+    "recordedFrom": "Ab Schritt „{{key}}“ hat er nur aufgezeichnete Antworten verwendet."
+  },
+  "compare": {
+    "title": "Läufe vergleichen",
+    "emptyTitle": "Zwei Läufe auswählen",
+    "emptyText": "Öffnen Sie einen Lauf und wählen Sie „Mit einem anderen Lauf vergleichen“, bei einem fehlgeschlagenen Lauf „Mit dem letzten guten Lauf vergleichen“.",
+    "pickOther": "Vergleichen mit",
+    "pick": "Lauf {{label}}",
+    "swap": "A und B tauschen",
+    "secret": "geheim – nicht verglichen",
+    "masked": "maskiert",
+    "notReached": "nicht erreicht",
+    "attempts_one": "{{count}} Versuch",
+    "attempts_other": "{{count}} Versuche",
+    "decision": "Entscheidung",
+    "passed": "Bestanden",
+    "notPassed": "Nicht bestanden",
+    "same": "Gleich",
+    "node": {
+      "added": "Knoten hinzugefügt",
+      "removed": "Knoten entfernt"
+    },
+    "differs": {
+      "path": "Weg",
+      "status": "Status",
+      "decision": "Entscheidung",
+      "check": "Prüfung",
+      "request": "Anfrage",
+      "error": "Fehler",
+      "duration": "Dauer",
+      "vars": "Variablen"
+    },
+    "variable": "Variablenname",
+    "sideLine": "v{{version}} · {{mode}} · {{date}} · {{duration}} · {{actor}}",
+    "mode": {
+      "live": "Lauf",
+      "dry": "Probelauf",
+      "test": "Testlauf"
+    },
+    "cut": "Nur die ersten 2.000 Schritte werden verglichen.",
+    "summary": {
+      "steps_one": "{{count}} Schritt",
+      "steps_other": "{{count}} Schritte",
+      "differing_one": "{{count}} unterscheidet sich",
+      "differing_other": "{{count}} unterscheiden sich",
+      "onlyA_one": "{{count}} nur in A",
+      "onlyA_other": "{{count}} nur in A",
+      "onlyB_one": "{{count}} nur in B",
+      "onlyB_other": "{{count}} nur in B"
+    },
+    "onlyDiff": "Nur Unterschiede",
+    "hint": "Verglichen aus dem gespeicherten Protokoll: Geheimnisse bleiben maskiert, nichts wird neu abgerufen. Öffnen Sie einen Schritt, um seine Variablen zu sehen.",
+    "inputs": "Eingaben",
+    "input": "Eingabe",
+    "noDifferences": "Keine Unterschiede.",
+    "step": "Schritt",
+    "differences": "Unterschiede",
+    "varsBefore": "Variablen vor diesem Schritt",
+    "approved": "Genehmigt",
+    "rejected": "Abgelehnt",
+    "items_one": "{{count}} Eintrag",
+    "items_other": "{{count}} Einträge",
+    "selected_one": "{{count}} ausgewählt",
+    "selected_other": "{{count}} ausgewählt"
+  }
+}

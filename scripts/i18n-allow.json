@@ -195,7 +195,9 @@
       "Semantic Versioning",
       "Python (PEP 440)",
       "Maven",
-      "Releases"
+      "Releases",
+      "OpenStreetMap",
+      "{{count}} offline"
     ]
   }
 }

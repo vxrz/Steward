@@ -127,12 +127,16 @@ export function createTypeFromPlatform(platformId: string, opts: { kind?: string
   return store(pkg, 'connector.created');
 }
 
-export function importType(raw: unknown): PlatformPreset {
+/** A connector file (format steward-connector) as stored: validated, its kind normalised. Throws a 400 with the issues. */
+export function parseConnectorPackage(raw: unknown): ConnectorPackage {
   const parsed = packageSchema.safeParse(raw);
   if (!parsed.success)
     throw new HttpError(400, 'Not a valid connector file: ' + parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
-  const pkg = { ...parsed.data, kind: slugify(parsed.data.kind) } as ConnectorPackage;
-  return store(pkg, 'connector.imported');
+  return { ...parsed.data, kind: slugify(parsed.data.kind) } as ConnectorPackage;
+}
+
+export function importType(raw: unknown): PlatformPreset {
+  return store(parseConnectorPackage(raw), 'connector.imported');
 }
 
 export function deleteType(kind: string): void {

@@ -24,6 +24,19 @@ Contents: [Where it runs](#where-it-runs) · [Network, TLS and reverse proxy](#n
 - Proxy settings: forward `Host` (or `X-Forwarded-Host`), `X-Forwarded-Proto`; allow request bodies as large as your uploads (60 MB covers record attachments, report PDFs and imports, see [INSTALL.md](INSTALL.md); migration packages need `SM_MIGRATION_MAX_MB`) – Steward sets the limit of each route itself (see [Request body limits](#request-body-limits)); do not cache `/api/` (Steward sends `Cache-Control: no-store`).
 - Firewall: only the proxy may reach Steward's port.
 
+### The Teams bot listener (preview)
+
+Deciding inside Microsoft Teams cards ([TEAMS-APPROVALS.md](TEAMS-APPROVALS.md), off by default) needs inbound HTTPS from Microsoft's Bot Connector. It gets a **listener of its own**, `SM_TEAMS_BOT_PORT` (bind address `SM_TEAMS_BOT_HOST`, default `SM_HOST`), that serves exactly `POST /teams/bot/messages` – no cookies, no sessions, no web app, no static files, no other route; everything else is 404.
+
+- **(must)** Publish **only this port** to the internet (or only the path `/teams/bot/messages` of it), with TLS; never Steward's main port. A wrong proxy rule on the bot port exposes nothing else.
+- Without `SM_TEAMS_BOT_PORT` there is no bot listener at all; with the bot switched off in the settings, the route answers 404.
+- Every call needs a token signed by the Bot Framework for your app id, endorsed for Teams, for the activity's `serviceUrl` on a Teams service host, from an allowed tenant; bodies above 64 KB are refused before anything is parsed; replays (24 h) change nothing; per-tenant and per-user rate limits apply; refusals are audited at most once per reason in 10 minutes (`teams.action_refused`).
+- Outbound, the bot reaches `login.botframework.com`, `login.microsoftonline.com` and the Teams service host – add them to the outbound allow-list; address safety applies.
+- Only accounts linked by Entra `tid` + `oid` decide in a card, and only after a **Steward sign-in within the last 7 days** (_Sign-in needed within_ in the bot settings): roles and teams of single sign-on accounts are refreshed at sign-in, so removing someone from an IdP group takes effect in Teams within that bound. Keep it short; disabling the Entra account stops Teams at once.
+- The bot takes decisions only once a second administrator turned on _Decide with the Teams bot_ in the assurance policy; _May be decided in Microsoft Teams_ can forbid it per control point (off for AI requests by default), and nothing that needs a step-up is ever decided there.
+- Calls to Microsoft follow no redirects, so the bot's token never reaches another host.
+- Prefer a **certificate** for the bot's credential (sealed with the vault, re-encrypted at key rotation). A stolen credential lets someone post as the bot, not approve.
+
 ## Request rate limits
 
 Steward limits how many requests one client can send, so a script or a stuck browser tab cannot keep the server busy (PDF rendering, exports, checks against platforms).
@@ -37,6 +50,7 @@ Steward limits how many requests one client can send, so a script or a stuck bro
   | 30                                  | PDF reports (run, summary, record, branding preview, scheduled report _Run now_), report and evidence pack downloads, creating evidence packs, PDF and signature checks, bundle and audit exports, the credentials CSV, imports (bundle, records, catalogues, monitors, connector types), audit chain verification and checkpoints, maintenance clean-up, the daily summary preview, the demo setup |
   | 120                                 | Starting runs, schedules, monitor checks and access checks, refreshing dashboards, platform tests, requests and contract checks, Git fetches, Gatus scrapes, trigger tests and heartbeat test reports, test notifications, SSO discovery                                                                                                                                                            |
   | 10                                  | Password changes and resets, unlocking the vault, changing the master passphrase, the first setup                                                                                                                                                                                                                                                                                                   |
+  | 600                                 | The map of sites' tiles, glyphs and sprites, per user and route (`/api/plant/map/tiles/…`, `…/glyphs/…`, `…/sprites/…`; [PLANT.md](PLANT.md#map)): enough to look at maps, too few to download a tile source through Steward                                                                                                                                                                        |
   | 10 × the general limit, per address | Inbound webhooks (`/api/hooks/…`); triggers, heartbeats and monitor gateways keep their own limits on top. The web UI's files and its start-up reads before sign-in (page, built assets, manifest, theme, logo, error reporting set-up): a browser with an empty cache fetches dozens of them per page, and several people may share an address                                                     |
 
 - **Not counted here:** the public REST API `/api/v1` (its own per-token limit, `SM_API_RATE_LIMIT`, see [API.md](API.md#rate-limits)) and the MCP endpoint (`SM_MCP_RATE_LIMIT`), so their requests are not counted twice; `/api/health` and `/api/ready`, so probes keep working while someone else from the same address is limited; the demo's mock platforms.
@@ -187,6 +201,18 @@ Under **`allowList`** nothing is implicit: every destination of the second to fi
 
 A refused call says _Blocked by the outbound policy: <origin> is not a configured platform or on the allow-list_. A browser step names the origin it was redirected or navigated to: _blocked by the outbound policy: <origin> – add it to the platform's trusted origins or the allow-list_ (Chromium follows HTTP redirects itself: such a hop has already been sent when it is detected, and the step stops using the page).
 
+### The map's tile fetcher
+
+The map of sites (plant registry, [PLANT.md](PLANT.md#map), [ADR 0015](adr/0015-map-of-sites.md)) is off by default. Once an administrator turns it on, the browser loads the map's style, tiles, glyphs and sprites **only from Steward**, and Steward's server fetches them from the chosen source – the content security policy stays as it is (no map provider in it, no `unsafe-eval`; MapLibre's worker is a module file of Steward's own origin, `worker-src 'self'`). The fetcher is no open proxy:
+
+- **URLs only from the saved source:** the browser passes a layer name of the style and `z/x/y` (integers in range), a font stack the style uses and a glyph range, or a sprite name of the style – nothing else reaches an upstream URL. Only `GET`, no cookies, no body.
+- **Origins:** only the source's own origins (OpenStreetMap: `tile.openstreetmap.org`; Light/Dark: `tiles.openfreemap.org`; an own template or style: the origins it names, shown before saving). They are allowed for the map's fetcher only and are **not** part of the outbound policy – processes, monitors and webhooks cannot use them. _Settings → Security & sign-in → Outbound access_ lists them under _Map tiles_. Redirects are followed only within them (at most 3). **Address safety** always applies (no cloud metadata, no link-local, not Steward's own API; the address is pinned against DNS rebinding); behind `HTTPS_PROXY` restrict the proxy's egress as for every other call.
+- **Answers are checked:** content type (PNG, JPEG, WebP, vector tile, JSON), at most 2 MB per tile and 1 MB per style, TileJSON, glyph or sprite file, 10 seconds. They are served inert (`X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`) and only drawn by MapLibre. Attributions from files and styles are shown as plain text, never as HTML.
+- **Who may load tiles:** signed-in users who see the plant registry, in a browser session (API tokens are refused, status viewers never reach it), at most 600 a minute per user and route. At most 4 parallel upstream requests per origin, 2 for `tile.openstreetmap.org`.
+- **Secrets:** an own source's API key is stored in the vault, added server-side as the named query parameter or header, never sent to the browser, never logged (error messages and the source status name origin and path only – to administrators; other readers get only `PLANT_MAP_SOURCE_FAILED`) and never audited. A stored key is only sent to its own source's origins – also by _Check the style_; a new address on another origin needs the key entered again.
+- **Cache:** `<data>/cache/map/` (0600 files), at most `SM_MAP_CACHE_MB`; shared up to zoom 12, per user above it – so answer times cannot reveal where others looked closely. Not part of backups or migration packages.
+- **Changes:** a new source, URL, key or file needs a step-up (control point `plant.mapSource`) in a signed-in session and is audited with the old and new origins (`plant.map_settings_changed`) – also a changed own source while another source is chosen, and _Check the style_ of a new address (audited as `plant.map_source_checked`). Turning the map off keeps the stored own source and key unchanged. For networks without internet access choose a self-hosted PMTiles file: then nothing leaves Steward.
+
 - Error reporting (`SM_SENTRY_DSN`) and tracing (`OTEL_*`) are off by default. Events are scrubbed; traces carry no user names (a pseudonym), but URLs and host names of platforms. Point them at systems inside your company.
 
 ## Browser steps and Chromium
@@ -282,6 +308,18 @@ gh attestation verify oci://ghcr.io/vxrz/steward@sha256:<platform digest> --repo
 ```
 
 Run what you verified: pin the digest (`image: ghcr.io/vxrz/steward:0.2.1@sha256:…` in the compose file) or at least the version, so a later push to the tag cannot replace it unnoticed. The same commands work for the `-browser` tags.
+
+## Shared procedure libraries
+
+Libraries ([LIBRARIES.md](LIBRARIES.md), [ADR 0014](adr/0014-shared-procedure-libraries.md)) bring procedures from other installations and publishers. A signature proves that the files are the ones a trusted publisher's key signed – not that the procedures are good.
+
+- **Trust few publishers, pin their keys.** Compare each key's fingerprint (`SHA256:…`, as `ssh-keygen -l` prints it) with the publisher on a second channel; limit a publisher to its library ids; prefer hardware keys (`sk-ssh-ed25519`, a touch per signature) and set an expiry. Trust changes need a step-up (`library.publishers`) and are audited; keys are sealed with the vault's integrity key.
+- **Review the whole release.** _What it can do_ is computed from the steps (writes, access changes, browser and AI steps, platform kinds per slot). Connector types show their base URL, token URL and trusted origins in full – credentials of platforms made from them go there; only administrators install them.
+- **A dry run is not a guarantee:** a write step marked `mutating: false` runs in a dry run too. The review shows such steps as _marked as not changing anything_ – read them before a dry run.
+- **Run new library procedures as dry runs first,** with read-only identities ([ADR 0009](adr/0009-platform-identities.md)); monitors arrive switched off and nothing is scheduled by a library.
+- **Four-eyes on installs:** require it for `library.install` in the assurance policy when a second person should confirm every install, update and rollback.
+- **A stolen key:** revoke it at once (no step-up needed), install a release signed with the publisher's new key, and put the affected libraries **on hold** until then – the hold pauses their schedules, triggers and monitors and refuses runs.
+- **Freeze:** Steward cannot tell that a Git host hides a newer release. The library page shows when its source was last checked and the newest release seen.
 
 ## Known limits
 

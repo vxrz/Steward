@@ -67,6 +67,13 @@ export function NotifyPolicyFields({
       {value.mode !== 'off' && (
         <>
           <Switch label={t('form.notify.resolved')} checked={value.resolved} onChange={(e) => onChange({ ...value, resolved: e.currentTarget.checked })} />
+          <Switch
+            label={t('form.notify.urgent')}
+            description={t('form.notify.urgentHint')}
+            checked={!!value.urgent}
+            onChange={(e) => onChange({ ...value, urgent: e.currentTarget.checked })}
+            data-testid="notify-urgent"
+          />
           <Radio.Group
             label={t('form.notify.where')}
             description={t('form.notify.whereHint')}

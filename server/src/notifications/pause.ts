@@ -20,6 +20,7 @@ function reportPauseEnd(source: string, until: string): number {
   db().run('INSERT INTO notify_pause_ends (source, until, notified_at) VALUES (?, ?, ?)', source, until, nowIso());
   let sent = 0;
   for (const f of failingChecks(source)) {
+    // debug runs: one run by its id
     const run = db().get<{ process_id: string; process_name: string }>('SELECT process_id, process_name FROM runs WHERE id = ?', f.runId);
     if (!run) continue;
     emit('check.failed', {

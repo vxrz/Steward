@@ -76,7 +76,11 @@
     "notificationsHint": "Unread ones are always kept.",
     "hint": "Older runs, read notifications and monitor history are deleted automatically. The audit log is never pruned.",
     "monitors": "Keep monitor history (days)",
-    "monitorsHint": "Status changes, uptime samples and check results of monitors."
+    "monitorsHint": "Status changes, uptime samples and check results of monitors.",
+    "debugRuns": "Keep debug runs (days)",
+    "debugRunsHint": "Debug runs (one node, step through) are deleted after this many days (1–90), before the other runs. Their audit entries stay.",
+    "debugPause": "Debug pause (minutes)",
+    "debugPauseHint": "A paused step-through run is stopped after this many minutes (1–240)."
   },
   "unattended": {
     "title": "Unattended operation",

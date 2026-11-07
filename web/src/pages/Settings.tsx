@@ -39,7 +39,7 @@ import {
 } from '@tabler/icons-react';
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
-import { allowListEntryProblem, allowListLines, type ApiToken, type AuthStatus, type MaintenanceStatus, type Settings } from '@sm/shared';
+import { DEBUG_LIMITS, allowListEntryProblem, allowListLines, type ApiToken, type AuthStatus, type MaintenanceStatus, type Settings } from '@sm/shared';
 import { BRAND } from '../../../shared/src/brand';
 import { del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, PageHeader } from '../components/common';
@@ -55,12 +55,15 @@ import { PublicApiInfo, usePublicApi } from '../components/PublicApiInfo';
 import { ReportBrandingCard } from '../components/reports/ReportBrandingCard';
 import { CredentialReminderSettingsCard } from '../components/credentials/CredentialReminderSettingsCard';
 import { DailySummaryAdminCard } from '../components/notifications/DailySummaryAdminCard';
+import { QuietHoursAdminCard } from '../components/notifications/QuietHoursCard';
+import { TeamsBotCard } from '../components/notifications/TeamsBotCard';
 import { TicketSettingsCard } from '../components/tickets/TicketSettingsCard';
 import { VaultPassphraseCard } from '../components/security/VaultPassphraseCard';
 import { ThemeSettingsCard } from '../components/theme/ThemeSettingsCard';
 import { SystemStatusLink } from '../components/theme/SystemStatusLink';
 import { McpServerCard } from '../components/mcp/McpServerCard';
 import { GitSyncSettingsCard } from '../components/gitsync/GitSyncSettingsCard';
+import { LibrariesSettingsCard } from '../components/libraries/LibrariesSettingsCard';
 import { MigrationSettingsCard } from '../components/migration/MigrationSettingsCard';
 import { BackupSettingsCard } from '../components/backup/BackupSettingsCard';
 import { confirmDanger, confirmDialog } from '../components/confirm';
@@ -71,6 +74,7 @@ import { AssurancePolicyPanel } from '../components/assurance/AssurancePolicyPan
 import { CiaScalePage } from './CiaScale';
 import { RulesPanel } from './Scorecard';
 import { PlantSettingsCard } from '../components/plant/PlantSettingsCard';
+import { MapTileOrigins, PlantMapSettingsGate } from '../components/plant/map/PlantMapSettingsCard';
 
 /**
  * Settings by area (#136). Each area has a stable URL (/settings/<area>); everything here is an instance setting that
@@ -260,6 +264,7 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
         <>
           <TicketSettingsCard />
           <GitSyncSettingsCard />
+          <LibrariesSettingsCard />
           <MigrationSettingsCard />
           <EndOfLifeCard />
         </>
@@ -269,6 +274,8 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
         <>
           <NotificationSettingsCard />
           <NotificationLookCard />
+          <QuietHoursAdminCard />
+          <TeamsBotCard />
           <DailySummaryAdminCard />
           <CredentialReminderSettingsCard />
         </>
@@ -294,8 +301,13 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
         </>
       );
     case 'modules':
-      // opt-in modules (#218): off by default, each with its own settings
-      return <PlantSettingsCard />;
+      // opt-in modules (#218): off by default, each with its own settings; the map of sites (#234) once the registry is on
+      return (
+        <>
+          <PlantSettingsCard />
+          <PlantMapSettingsGate />
+        </>
+      );
     case 'data':
       return (
         <>
@@ -429,6 +441,8 @@ function OutboundCard({ d }: { d: Draft }) {
         <Text size="xs" c="dimmed" data-testid="outbound-when-needed">
           {t('outbound.whenNeeded')}
         </Text>
+        {/* the map of sites (#234): its source's origins are allowed for the map's fetcher only, never for processes */}
+        <MapTileOrigins />
       </Stack>
     </Card>
   );
@@ -482,6 +496,23 @@ function RetentionCard({ d }: { d: Draft }) {
             min={1}
             value={s.retentionMonitorDays ?? 30}
             onChange={(v) => setS({ ...s, retentionMonitorDays: typeof v === 'number' ? v : 30 })}
+          />
+          <NumberInput
+            label={t('retention.debugRuns')}
+            description={t('retention.debugRunsHint')}
+            min={DEBUG_LIMITS.retentionDays.min}
+            max={DEBUG_LIMITS.retentionDays.max}
+            value={s.retentionDebugRunDays ?? DEBUG_LIMITS.retentionDays.default}
+            onChange={(v) => setS({ ...s, retentionDebugRunDays: typeof v === 'number' ? v : DEBUG_LIMITS.retentionDays.default })}
+            data-testid="retention-debug-runs"
+          />
+          <NumberInput
+            label={t('retention.debugPause')}
+            description={t('retention.debugPauseHint')}
+            min={DEBUG_LIMITS.pauseMinutes.min}
+            max={DEBUG_LIMITS.pauseMinutes.max}
+            value={s.debugPauseMinutes ?? DEBUG_LIMITS.pauseMinutes.default}
+            onChange={(v) => setS({ ...s, debugPauseMinutes: typeof v === 'number' ? v : DEBUG_LIMITS.pauseMinutes.default })}
           />
         </SimpleGrid>
         <Text size="xs" c="dimmed">

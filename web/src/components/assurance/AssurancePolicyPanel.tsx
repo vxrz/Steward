@@ -271,6 +271,19 @@ function PointRow({
             <Text size="xs" c="dimmed" ff="monospace">
               {p.key}
             </Text>
+            {p.supports.teams && (
+              // ADR 0013: four-eyes decisions in a Teams card; never where a step-up applies
+              <Switch
+                size="xs"
+                mt={6}
+                label={t('teamsLabel')}
+                aria-label={t('teamsAria', { point: name })}
+                checked={!!rule.teams && !rule.stepUp}
+                disabled={rule.stepUp}
+                onChange={(e) => onChange({ teams: e.currentTarget.checked })}
+                data-testid={`assurance-teams-${p.key}`}
+              />
+            )}
           </div>
         </Group>
       </Table.Td>

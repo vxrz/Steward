@@ -1,0 +1,9 @@
+id: review-follow-up
+name: Guest review follow-up (library example)
+description: Notes that a guest review was done. Called by "Guest review (library example)"; the library pins its version.
+tags: [access-review, library]
+steps:
+  - id: note
+    type: log
+    name: Note the review
+    message: The guest review is done.

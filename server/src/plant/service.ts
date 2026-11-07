@@ -22,6 +22,7 @@ import { imageInfo, looksLikeSvg } from '../theme/service.js';
 import { HttpError, nowIso, parseJson, sha256 } from '../util.js';
 import { canCreateSites, canManageCatalogue, plantManagesSome, requireManage, siteRights, sitePermissions } from './access.js';
 import { cleanFields, plantSettings, requirePlant } from './settings.js';
+import { mapClient } from './map.js';
 import { assignmentValuesOf, profileRowOf, profileValuesOf, type AssignmentRow } from './data-model.js';
 import { deliveries } from './checks.js';
 import {
@@ -200,6 +201,7 @@ export function plantConfig(): PlantConfig {
     canCreateSites: canCreateSites(),
     canManageSome: plantManagesSome(),
     canManageCatalogue: canManageCatalogue(),
+    map: mapClient(),
   };
 }
 

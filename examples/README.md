@@ -6,6 +6,7 @@ Ready-to-use procedures, dashboards and monitors for **Siemens Insights Hub**, *
 - **Dashboards** (`dashboards/*.yaml`) appear under **Dashboards → From template**.
 - **Template bundles** (`bundles/*.yaml`) appear under **Processes → From template → Set up together**: processes, a dashboard, schedules and monitors set up in one go (see [Template bundles](#template-bundles)).
 - **Monitors** (`monitors/*.yaml`) appear under **Monitors → Import → From the example library**.
+- **Libraries** (`libraries/*/`, 0.10.0): a shared procedure library – a signed, versioned set of items installed after a review under **Automate → Libraries** ([docs/LIBRARIES.md](../docs/LIBRARIES.md)). The example is signed with a **test key** (`libraries/TEST-PUBLISHER-KEY.pub`) that no installation trusts by default.
 - **Example triggers** (`triggers/*.yaml`) are offered in the webhook trigger editor: their input mapping (_Map: …_) when the chosen process has the inputs, and the sender's setup in the secret dialog (see [Example triggers](#example-triggers)).
 - **Demo mode** (`npm run demo` → _Load demo data_) imports everything, creates two sample applications whose components point to the simulated platforms, schedules the read-only "feeder" processes and runs them once. The dashboards of the feeders fill within a minute or two. The dashboards and tables fed by reviews with a person in the loop (privileged access review, Snowflake project access review, Git member review) stay empty until you run such a review yourself.
 

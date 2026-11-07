@@ -528,7 +528,7 @@ registerReportSection<RunsConfig, RunsData>({
         .map((p) => p.id),
     );
     const rows = db().all<{ process_id: string; process_name: string; status: string; n: number }>(
-      'SELECT process_id, process_name, status, COUNT(*) AS n FROM runs WHERE started_at >= ? AND started_at < ? GROUP BY process_id, process_name, status',
+      'SELECT process_id, process_name, status, COUNT(*) AS n FROM runs WHERE started_at >= ? AND started_at < ? AND debug IS NULL GROUP BY process_id, process_name, status',
       new Date(ctx.from).toISOString(),
       new Date(ctx.to).toISOString(),
     );

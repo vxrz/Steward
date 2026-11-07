@@ -157,7 +157,7 @@ export function sumSeries(series: MetricSeries[]): MetricPoint[] {
 
 // ---------- Dashboards ----------
 
-export const WIDGET_TYPES = ['kpi', 'trend', 'status', 'table', 'checks', 'freshness', 'markdown', 'vega'] as const;
+export const WIDGET_TYPES = ['kpi', 'trend', 'status', 'table', 'checks', 'freshness', 'markdown', 'vega', 'sitesMap'] as const;
 export type WidgetType = (typeof WIDGET_TYPES)[number];
 
 export const WIDGET_INFO: Record<WidgetType, string> = {
@@ -169,6 +169,7 @@ export const WIDGET_INFO: Record<WidgetType, string> = {
   freshness: 'Age of every dataset on this dashboard and the next scheduled refresh',
   markdown: 'Free text (markdown subset)',
   vega: 'Chart from a Vega-Lite spec on a dataset, for views the other widgets do not cover',
+  sitesMap: 'The sites of the plant registry on a map, with their state (only the sites the reader may see)',
 };
 
 export const dashboardWidgetSchema = z
