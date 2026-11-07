@@ -64,6 +64,9 @@ export function scorecardRowProblems(table: string, r: Record<string, unknown>):
     if (r.contracts !== undefined && !oneOf(SCORECARD_PART_STATUSES, r.contracts)) p.push(`contracts "${String(r.contracts).slice(0, 20)}" is not a status`);
     if (!flag(r.attention)) p.push('attention is not 0 or 1');
     if (!jsonArray(r.document_ids, (x) => typeof x === 'string' && x.length <= 200)) p.push('document_ids is not a list of ids');
+    // the contracts a snapshot counted (0.9.0): no value in packages of older versions
+    if (r.contract_ids !== undefined && !jsonArray(r.contract_ids, (x) => typeof x === 'string' && x.length <= 200))
+      p.push('contract_ids is not a list of ids');
     if (!jsonArray(r.owners, (x) => typeof x === 'string' && x.length <= 130)) p.push('owners is not a list of subjects');
   }
   return p;

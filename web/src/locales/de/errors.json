@@ -994,7 +994,14 @@
     "DATA_CONTRACT_SERVER_TYPE": "Server „{{server}}“ (Typ {{type}}) kann nicht von „{{name}}“ beantwortet werden.",
     "DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED": "Server vom Typ {{type}} kann Steward noch nicht testen.",
     "DATA_CONTRACT_SERVICE_FAILED": "Der Datenvertragsdienst antwortete mit HTTP {{status}}.",
-    "DATA_CONTRACT_VERSION_NOT_FOUND": "Version {{version}} nicht gefunden."
+    "DATA_CONTRACT_VERSION_NOT_FOUND": "Version {{version}} nicht gefunden.",
+    "DB_SQL_REFUSED_WORD_variable": "„{{word}}“ ist eine Variable, die der Data-Contract-Dienst aus seiner eigenen Umgebung füllen würde – in SQL-Regeln nicht erlaubt.",
+    "DATA_CONTRACT_SQL_REFUSED": "Die SQL-Qualitätsregel „{{rule}}“ ({{path}}) wird abgelehnt: {{problem}}",
+    "DATA_CONTRACT_SQL_NEEDS_USE": "SQL-Qualitätsregeln brauchen das Recht „Verwenden“ für die Datenbank-Plattformen, die mit dem Vertrag verknüpft sind.",
+    "DATA_CONTRACT_SQL_NEEDS_USE_PLATFORM": "SQL-Qualitätsregeln laufen mit den Zugangsdaten von „{{name}}“: Zum Speichern brauchen Sie dort das Recht „Verwenden“.",
+    "DATA_CONTRACT_TLS_UNVERIFIED": "„{{name}}“ verlangt TLS ({{mode}}), aber der Data-Contract-Dienst kann das Zertifikat dieses DBMS nicht prüfen. Erlauben Sie es unter Plattform → Datenbank oder testen Sie mit der CLI dort, wo sie prüfen kann.",
+    "DATA_CONTRACT_HOST_UNRESOLVED": "{{host}} lässt sich auf Seiten von Steward nicht auflösen. Steward testet nur einen Host, den es auflösen und prüfen kann.",
+    "DATA_CONTRACT_CHANGE_RECORD_USED": "{{number}} wurde schon für eine Version eines Data Contracts verwendet. Jede Version braucht einen eigenen Änderungsantrag."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

@@ -144,3 +144,21 @@ test('a viewer sees contracts but cannot create, test or change them', async ({ 
   await settle(page);
   await expectAccessible(page, 'data contract: read only');
 });
+
+test('who approves changes may switch off the change record rule, editors may not', async ({ loginAs }) => {
+  // the demo's orders contract requires a change record for breaking changes
+  const approver = await loginAs('adam');
+  await approver.goto('/data-contracts');
+  await approver.getByRole('link', { name: 'Shop orders' }).first().click();
+  const rule = approver.getByTestId('contract-require-change-record');
+  await expect(rule).toBeChecked();
+  await expect(rule).toBeEnabled();
+  await expect(approver.getByTestId('contract-service')).toBeDisabled();
+  await settle(approver);
+  await expectAccessible(approver, 'data contract: settings of an approver');
+  const editor = await loginAs('dana');
+  await editor.goto('/data-contracts');
+  await editor.getByRole('link', { name: 'Shop orders' }).first().click();
+  await expect(editor.getByTestId('contract-require-change-record')).toBeDisabled();
+  await expect(editor.getByTestId('contract-settings')).toContainText('Only approvers and administrators can switch it off');
+});

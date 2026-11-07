@@ -838,7 +838,9 @@
     "docsLink": "Read-only roles and what Steward refuses (docs/DATABASES.md)",
     "save": "Save connection",
     "saved": "Connection saved",
-    "notSaved": "The connection could not be saved"
+    "notSaved": "The connection could not be saved",
+    "contractServiceUnverified": "Allow the data contract service to connect without certificate verification",
+    "contractServiceUnverifiedHint": "The data contract service cannot verify the certificate of PostgreSQL and MySQL. Without this, data contract tests of this platform are refused while TLS is on. Off by default; the change is audited."
   },
   "schema": {
     "title": "Database schema",

@@ -71,7 +71,7 @@ export function databaseSettings(p: Platform): DatabaseSettings {
 }
 
 const describeSettings = (s: DatabaseSettings) =>
-  `${DB_DIALECT_INFO[s.dialect].label} at ${s.host}:${dbPort(s)}/${s.database}, TLS ${s.tls.mode}${s.tls.ca?.trim() ? ' (own CA)' : ''}`;
+  `${DB_DIALECT_INFO[s.dialect].label} at ${s.host}:${dbPort(s)}/${s.database}, TLS ${s.tls.mode}${s.tls.ca?.trim() ? ' (own CA)' : ''}${s.tls.contractServiceUnverified ? ', data contract tests without certificate verification allowed' : ''}`;
 
 /** What the audit log keeps of the settings: everything but the CA certificate itself (its SHA-256). */
 const auditView = (s: DatabaseSettings | null) =>

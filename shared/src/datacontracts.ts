@@ -18,7 +18,8 @@ export const ODCS_SCHEMA_VERSION = 'v3.0.2';
 /** The apiVersion a new draft gets. */
 export const ODCS_DRAFT_API_VERSION = 'v3.0.2';
 
-export const DATA_CONTRACT_PERMISSIONS = ['view', 'test', 'edit'] as const;
+/** manage: switch off "breaking changes need a change record" (administrators and approvers – who approve changes) */
+export const DATA_CONTRACT_PERMISSIONS = ['view', 'test', 'edit', 'manage'] as const;
 export type DataContractPermission = (typeof DATA_CONTRACT_PERMISSIONS)[number];
 
 export const DATA_CONTRACT_LIMITS = {
@@ -31,6 +32,10 @@ export const DATA_CONTRACT_LIMITS = {
   /** Schema objects (tables, topics …) and their properties (all levels together) */
   schemaObjects: 500,
   properties: 20_000,
+  /** Quality rules (all schema objects and properties together) and values in the whole document (every mapping, list and
+   * scalar): generous for real contracts, they bound the JSON Schema check and the comparison of versions */
+  qualityRules: 10_000,
+  nodes: 250_000,
   /** Lint findings kept per version, changes listed per comparison (more are counted) */
   lintFindings: 200,
   changes: 2_000,
@@ -38,8 +43,10 @@ export const DATA_CONTRACT_LIMITS = {
   links: 200,
   /** A test report as stored (bytes); a larger one is cut and marked truncated */
   reportBytes: 2 * 1024 * 1024,
-  /** Test runs kept per contract (the newest) */
+  /** Test runs kept per contract: the newest real runs; failed ones (and errors) beyond them; dry runs on their own */
   runsKept: 500,
+  failedRunsKept: 500,
+  dryRunsKept: 100,
   note: 500,
   nameChars: 200,
   /** Rows of a dataset or a recorded response a draft looks at */
@@ -127,6 +134,8 @@ export const DATA_CONTRACT_CHANGE_KINDS = [
   'quality-changed',
   'server-added',
   'server-removed',
+  'server-changed',
+  'physical-name-changed',
   'status-changed',
   'version-changed',
 ] as const;
@@ -142,6 +151,8 @@ export const DATA_CONTRACT_BREAKING_REASONS = [
   'uniqueAdded',
   'qualityAdded',
   'qualityTightened',
+  'physicalNameChanged',
+  'serverChanged',
 ] as const;
 export type DataContractBreakingReason = (typeof DATA_CONTRACT_BREAKING_REASONS)[number];
 

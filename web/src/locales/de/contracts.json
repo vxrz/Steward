@@ -23,7 +23,9 @@
     "requiredAdded": "ein Feld wurde zur Pflicht",
     "uniqueAdded": "ein Feld wurde eindeutig",
     "qualityAdded": "eine Qualitätsregel kam hinzu",
-    "qualityTightened": "eine Qualitätsregel wurde verschärft"
+    "qualityTightened": "eine Qualitätsregel wurde verschärft",
+    "physicalNameChanged": "ein physischer Name hat sich geändert",
+    "serverChanged": "ein Server zeigt auf etwas anderes"
   },
   "changeKinds": {
     "schema-added": "Schema-Objekt hinzugefügt",
@@ -45,7 +47,9 @@
     "server-added": "Server hinzugefügt",
     "server-removed": "Server entfernt",
     "status-changed": "Status geändert",
-    "version-changed": "Version geändert"
+    "version-changed": "Version geändert",
+    "server-changed": "Server geändert",
+    "physical-name-changed": "physischer Name geändert"
   },
   "mdTitle": "Datenvertrag {{name}}: Version {{from}} → {{to}}",
   "mdSummary_one": "{{count}} Änderung, {{breaking}} inkompatibel.",
@@ -224,7 +228,8 @@
     "requireChangeRecord": "Inkompatible Änderungen brauchen einen Änderungsantrag",
     "requireChangeRecordHint": "Eine Version mit inkompatibler Änderung wird nur mit einem genehmigten Änderungsantrag gespeichert.",
     "saved": "Testeinstellungen gespeichert",
-    "notSaved": "Testeinstellungen nicht gespeichert"
+    "notSaved": "Testeinstellungen nicht gespeichert",
+    "requireChangeRecordLocked": "Eingeschaltet. Nur Genehmigende und Administratoren können es ausschalten."
   },
   "versions": {
     "title": "Versionen",

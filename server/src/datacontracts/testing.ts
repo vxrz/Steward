@@ -22,16 +22,19 @@ import { contractAccess, owningTeams } from '../auth/policy.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
 import { getConnection, getPlatform } from '../platforms/service.js';
 import { buildUrl, credentialsAllowed, platformRequest } from '../platforms/http.js';
-import { assertOutboundAllowed } from '../platforms/outbound.js';
+import { assertAddressSafe, assertOutboundAllowed } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
+import { ownCall } from '../platforms/deniedPaths.js';
 import { redactSecrets } from '../platforms/testConnection.js';
 import { assertDatabaseAllowed, databaseSettings } from '../dbms/service.js';
+import { assertNotOwnDatabase, resolveAddresses, type AddressLookup } from '../dbms/own.js';
 import { DEMO_DB_HOST } from '../dbms/demo.js';
 import { notify, titleName } from '../notifications/service.js';
 import { sourceOfRun } from '../engine/notify-source.js';
 import { t } from '../i18n/index.js';
 import { HttpError, newId, nowIso, sha256 } from '../util.js';
 import { currentDoc, getRun, lastRun, permissionsOf, visibleContract, type ContractRow, type RunRow } from './service.js';
+import { assertSqlRules, sqlRules } from './sqlrules.js';
 
 /**
  * Testing a data contract through the data contract service (#221, docs/DATA-CONTRACTS.md#testing): the datacontract
@@ -103,12 +106,12 @@ function prepare(contractId: string, opts: Pick<TestOptions, 'server'>): Target 
   requirePermission(perms, 'test', 'test this data contract');
   if (!row.service_platform_id) throw new HttpError(409, 'No data contract service is set for this contract', 'DATA_CONTRACT_NO_SERVICE');
   const service = usable(row.service_platform_id, DATA_CONTRACT_SERVICE_KIND, 'Data contract service');
-  const { facts, yaml, version } = currentDoc(row);
+  const { facts, yaml, version, doc } = currentDoc(row);
   const server = opts.server || row.test_server || (facts.servers.length === 1 ? facts.servers[0]!.server : '');
   if (!server) throw new HttpError(409, 'Choose the server to test: the contract names several (or none)', 'DATA_CONTRACT_SERVER_REQUIRED');
   const def = facts.servers.find((s) => s.server === server);
   if (!def) throw new HttpError(400, `"${server}" is not a server of the contract`, 'DATA_CONTRACT_LINK_SERVER', { server });
-  const dialect = DATA_CONTRACT_SERVER_DIALECTS[def.type];
+  const dialect = Object.hasOwn(DATA_CONTRACT_SERVER_DIALECTS, def.type) ? DATA_CONTRACT_SERVER_DIALECTS[def.type] : undefined;
   if (!dialect)
     throw new HttpError(409, `Servers of type ${def.type} cannot be tested by Steward yet`, 'DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED', {
       server,
@@ -136,18 +139,85 @@ function prepare(contractId: string, opts: Pick<TestOptions, 'server'>): Target 
       type: def.type,
       name: database.name,
     });
+  // SQL quality rules run with the database platform's credentials: only with a person's rights (the "use" right was
+  // checked above for whoever runs the test), and each one passes the statement check for this DBMS again
+  const rules = sqlRules(doc);
+  if (rules.length) {
+    if (!currentUser())
+      throw new HttpError(403, 'A contract with SQL quality rules is tested with the rights of a person', 'DATA_CONTRACT_SQL_NEEDS_USE', {
+        count: rules.length,
+      });
+    assertSqlRules(rules, [settings.dialect]);
+  }
+  assertTlsTestable(database, settings);
   return { row, yaml, version, server, service, database, settings };
 }
 
-/** The datacontract-* headers of the tested server: where to connect and how to sign in (from the vault). */
-export function serverHeaders(dialect: DatabaseSettings['dialect'], s: DatabaseSettings, secrets: Record<string, string>): Record<string, string> {
+/**
+ * TLS (docs/DATA-CONTRACTS.md#tls-and-the-tested-host): the CLI connects to PostgreSQL and MySQL without verifying the certificate (and
+ * PostgreSQL may fall back to no TLS), so a platform that asks for TLS ("verify" or "require") is tested only when it
+ * explicitly allows the service to connect without certificate verification. SQL Server gets its TLS settings in the
+ * CLI's headers (serverHeaders).
+ */
+function assertTlsTestable(p: Platform, s: DatabaseSettings): void {
+  if (s.dialect === 'sqlserver' || s.tls.mode === 'off' || s.tls.contractServiceUnverified) return;
+  // the demo database answers only in demo mode (the simulated service connects nowhere)
+  if (config.demo && s.host.toLowerCase() === DEMO_DB_HOST) return;
+  throw new HttpError(
+    409,
+    `"${p.name}" asks for TLS (${s.tls.mode}), but the data contract service cannot verify the certificate of ${s.dialect === 'mysql' ? 'MySQL' : 'PostgreSQL'} – allow it under Platform → Database, or test with the CLI where it can`,
+    'DATA_CONTRACT_TLS_UNVERIFIED',
+    { name: p.name, mode: s.tls.mode },
+  );
+}
+
+const bare = (h: string) => h.replace(/^\[|\]$/g, '');
+
+/**
+ * The host the service connects to (the datacontract-*-host header): Steward resolves the platform's host, refuses a
+ * name it cannot resolve, checks every address (Steward's own database, address safety) and sends the address it
+ * checked – so the service's own DNS cannot lead it elsewhere. SQL Server with "verify" checks the certificate against
+ * the name: there the name is sent (the CLI has no separate name for the certificate check) – see "split DNS" in
+ * docs/DATA-CONTRACTS.md#tls-and-the-tested-host.
+ */
+export async function testedHost(s: DatabaseSettings, lookup: AddressLookup = resolveAddresses): Promise<string> {
+  // the demo database answers only in demo mode and has no address
+  if (config.demo && s.host.toLowerCase() === DEMO_DB_HOST) return s.host;
+  await assertDatabaseAllowed(s);
+  const host = bare(s.host);
+  const port = s.port ?? (s.dialect === 'postgresql' ? 5432 : s.dialect === 'mysql' ? 3306 : 1433);
+  const addresses = await lookup(host);
+  if (!addresses.length)
+    throw new HttpError(409, `${host} does not resolve here – Steward tests only a host it can resolve and check`, 'DATA_CONTRACT_HOST_UNRESOLVED', { host });
+  for (const a of addresses) {
+    await assertNotOwnDatabase(a, port, s.database);
+    await assertAddressSafe(`http://${a.includes(':') ? `[${a}]` : a}:${port}`);
+  }
+  return s.dialect === 'sqlserver' && s.tls.mode === 'verify' ? s.host : addresses[0]!;
+}
+
+/**
+ * The datacontract-* headers of the tested server: where to connect (`host`: the address Steward checked, testedHost)
+ * and how to sign in (from the vault); for SQL Server its TLS settings as the CLI takes them (encrypt, trust the
+ * certificate – "require" does not verify it).
+ */
+export function serverHeaders(
+  dialect: DatabaseSettings['dialect'],
+  s: DatabaseSettings,
+  secrets: Record<string, string>,
+  host: string = s.host,
+): Record<string, string> {
   const p = HEADER_PREFIX[dialect as 'postgresql'];
   const port = s.port ?? (dialect === 'postgresql' ? 5432 : dialect === 'mysql' ? 3306 : 1433);
   const h: Record<string, string> = {
-    [`datacontract-${p}-host`]: s.host,
+    [`datacontract-${p}-host`]: host,
     [`datacontract-${p}-port`]: String(port),
     [`datacontract-${p}-database`]: s.database,
   };
+  if (dialect === 'sqlserver') {
+    h['datacontract-sqlserver-encrypted-connection'] = s.tls.mode === 'off' ? 'false' : 'true';
+    h['datacontract-sqlserver-trust-server-certificate'] = s.tls.mode === 'require' ? 'true' : 'false';
+  }
   if (secrets.username) h[`datacontract-${p}-username`] = secrets.username;
   if (secrets.password) h[`datacontract-${p}-password`] = secrets.password;
   return h;
@@ -210,9 +280,9 @@ export async function runContractTest(contractId: string, opts: TestOptions): Pr
   const { platform: service, secrets: serviceSecrets } = getConnection(x.service.id);
   const { secrets: dbSecrets } = getConnection(x.database.id);
   const allSecrets = maskable(serviceSecrets, dbSecrets);
-  // the tested server goes through the outbound policy as a connection of Steward's own would (the demo database
-  // answers only in demo mode and has no address)
-  if (!(config.demo && x.settings.host.toLowerCase() === DEMO_DB_HOST)) await assertDatabaseAllowed(x.settings);
+  // the tested server goes through the outbound policy as a connection of Steward's own would, and the service is sent
+  // the address Steward checked
+  const host = await testedHost(x.settings);
   await serviceUrl(service, serviceSecrets, '/test');
   const started = Date.now();
   const startedAt = nowIso();
@@ -220,21 +290,24 @@ export async function runContractTest(contractId: string, opts: TestOptions): Pr
   let judged: ReturnType<typeof judge>;
   try {
     const timeout = Math.min(Math.max(opts.timeoutMs ?? 120_000, 1_000), 300_000);
-    const res = await platformRequest(
-      service,
-      serviceSecrets,
-      {
-        method: 'POST',
-        url: '/test',
-        query: { server: x.server },
-        headers: { 'content-type': 'application/yaml', accept: 'application/json', ...serverHeaders(x.settings.dialect, x.settings, dbSecrets) },
-        body: x.yaml,
-        bodyType: 'text',
-        maxResponseBytes: 20 * 1024 * 1024,
-        // the headers carry the tested server's credentials: a redirect is answered, not followed
-        noRedirects: true,
-      },
-      AbortSignal.any([...(opts.signal ? [opts.signal] : []), AbortSignal.timeout(timeout)]),
+    // Steward's own call: /test is refused for this kind from steps, the explorer and the MCP gateway (deniedPaths.ts)
+    const res = await ownCall(DATA_CONTRACT_SERVICE_KIND, () =>
+      platformRequest(
+        service,
+        serviceSecrets,
+        {
+          method: 'POST',
+          url: '/test',
+          query: { server: x.server },
+          headers: { 'content-type': 'application/yaml', accept: 'application/json', ...serverHeaders(x.settings.dialect, x.settings, dbSecrets, host) },
+          body: x.yaml,
+          bodyType: 'text',
+          maxResponseBytes: 20 * 1024 * 1024,
+          // the headers carry the tested server's credentials: a redirect is answered, not followed
+          noRedirects: true,
+        },
+        AbortSignal.any([...(opts.signal ? [opts.signal] : []), AbortSignal.timeout(timeout)]),
+      ),
     );
     if (res.ok && res.body && typeof res.body === 'object') {
       report = res.body;
@@ -332,14 +405,25 @@ const maskable = (...all: Record<string, string>[]): Record<string, string> =>
       .map(([, v], i) => [`secret${i}`, v]),
   );
 
-/** Keeps the newest runs of a contract. */
+/**
+ * Keeps the evidence of a contract's tests (docs/DATA-CONTRACTS.md#limits): the newest real runs (runsKept), failed
+ * runs and errors beyond them (the newest failedRunsKept of those), and dry runs on their own (dryRunsKept) – many dry
+ * runs or passing runs do not push out the record of a failure.
+ */
 function pruneRuns(contractId: string): void {
-  const cut = db().get<{ started_at: string }>(
-    'SELECT started_at FROM data_contract_runs WHERE contract_id = ? ORDER BY started_at DESC, id DESC LIMIT 1 OFFSET ?',
-    contractId,
-    L.runsKept,
-  );
-  if (cut) db().run('DELETE FROM data_contract_runs WHERE contract_id = ? AND started_at <= ?', contractId, cut.started_at);
+  const cut = (where: string, keep: number) =>
+    db().get<{ started_at: string }>(
+      `SELECT started_at FROM data_contract_runs WHERE contract_id = ? AND ${where} ORDER BY started_at DESC, id DESC LIMIT 1 OFFSET ?`,
+      contractId,
+      keep,
+    )?.started_at;
+  const failed = "result IN ('failed', 'error')";
+  const dry = cut('dry_run = 1', L.dryRunsKept);
+  if (dry) db().run('DELETE FROM data_contract_runs WHERE contract_id = ? AND dry_run = 1 AND started_at <= ?', contractId, dry);
+  const real = cut('dry_run = 0', L.runsKept);
+  if (real) db().run(`DELETE FROM data_contract_runs WHERE contract_id = ? AND dry_run = 0 AND NOT ${failed} AND started_at <= ?`, contractId, real);
+  const bad = cut(`dry_run = 0 AND ${failed}`, L.failedRunsKept);
+  if (bad) db().run(`DELETE FROM data_contract_runs WHERE contract_id = ? AND dry_run = 0 AND ${failed} AND started_at <= ?`, contractId, bad);
 }
 
 // ---------- the service's lint ----------
@@ -351,20 +435,22 @@ export async function lintWithService(contractId: string, yaml?: string): Promis
   const { platform: service, secrets } = getConnection(usable(row.service_platform_id, DATA_CONTRACT_SERVICE_KIND, 'Data contract service').id);
   await serviceUrl(service, secrets, '/lint');
   const text = yaml ?? currentDoc(row).yaml;
-  const res = await platformRequest(
-    service,
-    secrets,
-    {
-      method: 'POST',
-      url: '/lint',
-      query: { all_errors: 'true' },
-      headers: { 'content-type': 'application/yaml' },
-      body: text,
-      bodyType: 'text',
-      maxResponseBytes: 5 * 1024 * 1024,
-      noRedirects: true,
-    },
-    AbortSignal.timeout(60_000),
+  const res = await ownCall(DATA_CONTRACT_SERVICE_KIND, () =>
+    platformRequest(
+      service,
+      secrets,
+      {
+        method: 'POST',
+        url: '/lint',
+        query: { all_errors: 'true' },
+        headers: { 'content-type': 'application/yaml' },
+        body: text,
+        bodyType: 'text',
+        maxResponseBytes: 5 * 1024 * 1024,
+        noRedirects: true,
+      },
+      AbortSignal.timeout(60_000),
+    ),
   );
   if (!res.ok || !res.body || typeof res.body !== 'object')
     throw new HttpError(502, `The data contract service answered HTTP ${res.status}`, 'DATA_CONTRACT_SERVICE_FAILED', { status: res.status });

@@ -838,7 +838,9 @@
     "docsLink": "Nur lesende Rollen und was Steward ablehnt (docs/DATABASES.md)",
     "save": "Verbindung speichern",
     "saved": "Verbindung gespeichert",
-    "notSaved": "Die Verbindung konnte nicht gespeichert werden"
+    "notSaved": "Die Verbindung konnte nicht gespeichert werden",
+    "contractServiceUnverified": "Dem Data-Contract-Dienst die Verbindung ohne Zertifikatsprüfung erlauben",
+    "contractServiceUnverifiedHint": "Der Data-Contract-Dienst kann das Zertifikat von PostgreSQL und MySQL nicht prüfen. Ohne diese Einstellung werden Data-Contract-Tests dieser Plattform abgelehnt, solange TLS eingeschaltet ist. Standardmäßig aus; die Änderung wird protokolliert."
   },
   "schema": {
     "title": "Datenbankschema",

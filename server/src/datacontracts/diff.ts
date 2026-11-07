@@ -53,23 +53,34 @@ const byName = (items: Obj[], key = 'name'): Map<string, Obj> => {
   return m;
 };
 
-/** Properties of a schema object by path, all levels (array items' properties belong to the array's path). */
-function propertiesByPath(schemaObject: Obj): Map<string, Obj> {
-  const out = new Map<string, Obj>();
+/**
+ * Properties of a schema object by path, all levels (array items' properties belong to the array's path), with the
+ * path of each one's parent property ('' on the top level).
+ */
+function propertiesByPath(schemaObject: Obj): { props: Map<string, Obj>; parent: Map<string, string> } {
+  const props = new Map<string, Obj>();
+  const parent = new Map<string, string>();
   const stack: [Obj, string][] = [[schemaObject, '']];
-  while (stack.length && out.size < DATA_CONTRACT_LIMITS.properties) {
+  while (stack.length && props.size < DATA_CONTRACT_LIMITS.properties) {
     const [x, prefix] = stack.pop()!;
     for (const p of list(x.properties)) {
       const name = str(p.name);
       if (!name) continue;
       const path = prefix ? `${prefix}.${name}` : name;
-      if (out.has(path)) continue;
-      out.set(path, p);
+      if (props.has(path)) continue;
+      props.set(path, p);
+      parent.set(path, prefix);
       stack.push([p, path]);
       if (isObj(p.items)) stack.push([p.items, path]);
     }
   }
-  return out;
+  return { props, parent };
+}
+
+/** Whether a parent property of `path` (any level) is in `set` – a walk up the parents, at most the nesting depth. */
+function hasAncestorIn(path: string, parent: Map<string, string>, set: Set<string>): boolean {
+  for (let p = parent.get(path); p; p = parent.get(p)) if (set.has(p)) return true;
+  return false;
 }
 
 // ---------- types ----------
@@ -159,6 +170,8 @@ function compareOptions(c: Collector, where: { schema: string; field: string }, 
 
 function compareProperty(c: Collector, schema: string, field: string, a: Obj, b: Obj): void {
   const where = { schema, field };
+  // another column behind the same name: consumers read other data
+  if (str(a.physicalName) !== str(b.physicalName)) c.add('physical-name-changed', where, str(a.physicalName), str(b.physicalName), 'physicalNameChanged');
   const la = str(a.logicalType);
   const lb = str(b.logicalType);
   if (la !== lb) {
@@ -193,17 +206,26 @@ function ruleKey(q: Obj): string {
   return str(q.id) ?? str(q.name) ?? `${str(q.type) ?? 'library'}:${str(q.rule) ?? str(q.metric) ?? str(q.query) ?? str(q.description) ?? ''}`;
 }
 
+/** Rules by key; rules with the same key are numbered (#2, #3 …) – a counter per key, so many alike stay linear. */
 function rulesByKey(v: unknown): Map<string, Obj> {
   const m = new Map<string, Obj>();
+  const next = new Map<string, number>();
   for (const q of list(v)) {
-    let k = ruleKey(q);
-    for (let i = 2; m.has(k); i++) k = `${ruleKey(q)} #${i}`;
+    const base = ruleKey(q);
+    let k = base;
+    if (m.has(k)) {
+      let i = next.get(base) ?? 2;
+      for (k = `${base} #${i}`; m.has(k); i++) k = `${base} #${i + 1}`;
+      next.set(base, i + 1);
+    }
     m.set(k, q);
   }
   return m;
 }
 
 const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+/** A threshold that is set but not a number (refused on save since 0.9.0): judged as changed, never as loosened */
+const odd = (v: unknown): boolean => v !== undefined && num(v) === undefined;
 const pair = (v: unknown): [number, number] | undefined =>
   Array.isArray(v) && v.length === 2 && typeof v[0] === 'number' && typeof v[1] === 'number' ? [Math.min(v[0], v[1]), Math.max(v[0], v[1])] : undefined;
 
@@ -213,6 +235,10 @@ function compareThresholds(a: Obj, b: Obj): 'same' | 'tighter' | 'looser' | 'cha
   let looser = false;
   const bound = (keys: string[], upper: boolean) => {
     for (const k of keys) {
+      if (odd(a[k]) || odd(b[k])) {
+        if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) tighter = looser = true;
+        continue;
+      }
       const x = num(a[k]);
       const y = num(b[k]);
       if (x === y) continue;
@@ -283,6 +309,9 @@ function compareQuality(c: Collector, schema: string, field: string | undefined,
 
 // ---------- the whole contract ----------
 
+/** What says where a server's data is (ODCS v3 server fields) */
+const SERVER_FIELDS = ['type', 'host', 'port', 'database', 'schema', 'catalog', 'project', 'dataset', 'account', 'location', 'path', 'topic'];
+
 export function diffContracts(a: OdcsDoc, b: OdcsDoc): DataContractDiff {
   const c = new Collector();
   if (str(a.version) !== str(b.version)) c.add('version-changed', {}, str(a.version), str(b.version));
@@ -290,7 +319,23 @@ export function diffContracts(a: OdcsDoc, b: OdcsDoc): DataContractDiff {
   const sa = byName(list(a.servers), 'server');
   const sb = byName(list(b.servers), 'server');
   for (const [name, s] of sa) if (!sb.has(name)) c.add('server-removed', { field: name }, str(s.type), null);
-  for (const [name, s] of sb) if (!sa.has(name)) c.add('server-added', { field: name }, null, str(s.type));
+  for (const [name, s] of sb) {
+    const before = sa.get(name);
+    if (!before) {
+      c.add('server-added', { field: name }, null, str(s.type));
+      continue;
+    }
+    // the same server name pointing elsewhere: consumers find the data somewhere else
+    const moved = SERVER_FIELDS.filter((k) => JSON.stringify(before[k] ?? null) !== JSON.stringify(s[k] ?? null));
+    if (moved.length)
+      c.add(
+        'server-changed',
+        { field: name },
+        moved.map((k) => `${k}: ${short(before[k]) ?? '–'}`).join(', '),
+        moved.map((k) => `${k}: ${short(s[k]) ?? '–'}`).join(', '),
+        'serverChanged',
+      );
+  }
   const oa = byName(list(a.schema));
   const ob = byName(list(b.schema));
   for (const name of oa.keys()) if (!ob.has(name)) c.add('schema-removed', { schema: name }, name, null, 'schemaRemoved');
@@ -298,16 +343,18 @@ export function diffContracts(a: OdcsDoc, b: OdcsDoc): DataContractDiff {
   for (const [name, before] of oa) {
     const after = ob.get(name);
     if (!after) continue;
+    if (str(before.physicalName) !== str(after.physicalName))
+      c.add('physical-name-changed', { schema: name }, str(before.physicalName), str(after.physicalName), 'physicalNameChanged');
     compareQuality(c, name, undefined, before.quality, after.quality);
-    const pa = propertiesByPath(before);
-    const pb = propertiesByPath(after);
-    const removed = [...pa.keys()].filter((p) => !pb.has(p)).sort();
+    const { props: pa, parent: parentA } = propertiesByPath(before);
+    const { props: pb, parent: parentB } = propertiesByPath(after);
+    const removed = new Set([...pa.keys()].filter((p) => !pb.has(p)));
     // a removed parent says it all: its children are not listed again
-    for (const p of removed)
-      if (!removed.some((r) => p.startsWith(`${r}.`))) c.add('field-removed', { schema: name, field: p }, str(pa.get(p)!.logicalType), null, 'fieldRemoved');
-    const added = [...pb.keys()].filter((p) => !pa.has(p)).sort();
-    for (const p of added) {
-      if (added.some((r) => p.startsWith(`${r}.`))) continue;
+    for (const p of [...removed].sort())
+      if (!hasAncestorIn(p, parentA, removed)) c.add('field-removed', { schema: name, field: p }, str(pa.get(p)!.logicalType), null, 'fieldRemoved');
+    const added = new Set([...pb.keys()].filter((p) => !pa.has(p)));
+    for (const p of [...added].sort()) {
+      if (hasAncestorIn(p, parentB, added)) continue;
       const prop = pb.get(p)!;
       c.add('field-added', { schema: name, field: p }, null, str(prop.logicalType), prop.required === true ? 'requiredAdded' : undefined);
     }
