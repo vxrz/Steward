@@ -1,6 +1,6 @@
 # 0010. Debugging procedures: one node, step through, compare two runs
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-07
 - **Since:** 0.10.0 (#235), planned in steps (below); builds on ADR [0011](0011-engine-boundary.md)
 
@@ -51,7 +51,7 @@ What is missing: one can evaluate an expression against a past run, but not exec
 {
   version?: number;            // the saved version; default current
   nodeId: string;
-  node?: FlowNode;             // the editor's unsaved node (open question 3)
+  node?: FlowNode;             // the editor's unsaved node (decided question 3)
   vars:
     | { from: 'run'; runId: string }                 // variables just before this node in that run
     | { from: 'sample'; vars: object; inputs?: object }
@@ -77,11 +77,11 @@ What is missing: one can evaluate an expression against a past run, but not exec
 - **The pause gate** sits in `runNode`, before `execNode`, for nodes that are not replayed. At a stop, `query` returns `paused`: the next node and its key, the current variables, and a preview of the node's resolved inputs (request, query, body). Everything passes through the run's `Redactor`. The preview says that `$now()`, `$uuid()` and similar may give another value when the node actually runs.
 - **Signals** (`signal(runId, …)`, only from the person who started the run): `debug.continue` (to the next breakpoint), `debug.step` (one node), `debug.skip` (the node is recorded as `skipped` with the summary "Skipped while debugging by <user>" and its pass-through ports fire, as for a false condition), `debug.stop` (cancel with a reason), `debug.breakpoints` (replace the list). An administrator may cancel any debug run.
 - A paused run counts as **waiting** (`beginWait`): it does not hold a concurrency slot.
-- The panel polls `GET /api/runs/:id/debug` (`query`) as the run page polls today. Push updates are not part of this step (ADR 0011, open question 2).
+- The panel polls `GET /api/runs/:id/debug` (`query`) as the run page polls today. Push updates are not part of this step (ADR 0011, decided question 2).
 
 ### Decisions and manual steps in debug runs
 
-As recommended under open question 2: no real task is created. The person debugging answers a decision, a selection or a manual step in the panel (or in the single-node request). The step's output carries `simulated: true` and `decidedBy` is the debugger; the protocol shows _Simulated_. **From the first simulated or skipped decision on, the rest of the run is answered from recordings or sample answers only** (the run's context answers like a test run from then on; `runs.debug.recordedFrom` holds the step key, and the run log says so). So a decision nobody really made never lets data leave Steward, and four-eyes stays meaningful: it guards real tasks, and debug runs never create one.
+As decided (question 2): no real task is created. The person debugging answers a decision, a selection or a manual step in the panel (or in the single-node request). The step's output carries `simulated: true` and `decidedBy` is the debugger; the protocol shows _Simulated_. **From the first simulated or skipped decision on, the rest of the run is answered from recordings or sample answers only** (the run's context answers like a test run from then on; `runs.debug.recordedFrom` holds the step key, and the run log says so). So a decision nobody really made never lets data leave Steward, and four-eyes stays meaningful: it guards real tasks, and debug runs never create one.
 
 ### Compare two runs
 
@@ -95,7 +95,7 @@ As recommended under open question 2: no real task is created. The person debugg
 
 ### Rights
 
-As recommended under open question 1:
+As decided (question 1):
 
 | Action                             | Needs                                                                                    |
 | ---------------------------------- | ---------------------------------------------------------------------------------------- |
@@ -107,7 +107,7 @@ As recommended under open question 1:
 | Variables from a previous run      | `view` on that run                                                                       |
 | Signal a paused debug run          | the person who started it                                                                |
 
-Rights are checked by the same start check as every run (ADR 0011, open question 1), at start and again for a sub-process child.
+Rights are checked by the same start check as every run (ADR 0011: the command layer), at start and again for a sub-process child.
 
 ### Audit
 
@@ -148,7 +148,7 @@ Rights are checked by the same start check as every run (ADR 0011, open question
 **Risks**
 
 - An aggregate that forgets the debug filter shows debug results as real. Mitigation: a unit test lists every query on `runs` outside `engine/` and fails when one has neither `debug IS NULL` nor a reason to include debug runs.
-- Sample data or copied variables with personal data stay for up to `retentionDebugRunDays`. Mitigation: the short default and open question 4.
+- Sample data or copied variables with personal data stay for up to `retentionDebugRunDays`. Mitigation: the short default, and debug runs are visible only to the starter, process managers, administrators and auditors (decided question 4).
 - A breakpoint preview could show a value that is not redacted (a secret built inside an expression). Mitigation: the preview uses the run's `Redactor`, which knows every value `$secret()` returned, and the egress scan still runs before sending.
 
 ### Migration and rollout plan
@@ -171,21 +171,9 @@ Each step is its own PR, with unit tests on SQLite and PostgreSQL and e2e on des
 - **No evidence, datasets or notifications.** Debug runs never publish datasets, raise check alerts, document access changes, notify, or count for scorecards, objectives, the daily summary or evidence packs.
 - **Secrets.** Sample data that looks like a credential is refused; secret inputs are sealed; variables from earlier runs are the redacted protocol values; previews and results pass through the run's `Redactor`; comparisons use stored, redacted data only and never compare secret inputs.
 
-## Open questions
+## Decided after review
 
-1. **Who may debug?**
-   - **`edit` and `run`, plus `use` for platforms (recommended).** Offline single-node runs need only `edit`; anything that contacts a platform or its recordings also needs `run` on the process and `use` on the platform; comparing needs `view`. Why: running a node is running the process with its credentials, and `run` is the right the policy already grants for that. Designers have both by default, so nobody loses anything.
-   - **`edit` only, plus `use` for live calls** (the issue's wording). Simpler. A person with `edit` but without `run` could then execute nodes with the platform's credentials.
-   - **A new process right `debug`.** Fine-grained, but one more right to explain, grant and migrate.
-2. **How are decisions and manual steps handled in debug runs?**
-   - **Simulated by the debugger; afterwards recorded answers only (recommended).** Why: debugging stays fast and private, no assignee is disturbed, and a decision nobody made cannot let data leave Steward.
-   - **Real tasks, as in dry runs today.** Assignees are notified, four-eyes applies, and the debugger waits for them. Faithful, but slow, and it spams the people who approve.
-   - **A debug run stops at the first decision.** Safe and simple, but processes with an early approval cannot be stepped through at all.
-3. **May a debug run execute unsaved changes?**
-   - **Single node yes, step-through no (recommended).** _Run this node_ may send the editor's unsaved node; it is checked like a saved definition, stored in the step's input, and `definition_hash` is the hash of the definition with that node. Step-through runs need a saved version. Why: trying one node is the main use of unsaved work, and the stored node keeps the record exact.
-   - **Saved versions only.** Every try is a new version: the record is simplest, but the version history fills with experiments.
-   - **Unsaved definitions everywhere.** Most convenient; whole runs would then execute graphs that exist nowhere but in a debug run's record.
-4. **Who sees debug runs?**
-   - **The starter, process managers (`manage`), administrators and auditors (recommended).** Why: sample data and copied variables may hold personal data, and a debug run is a workbench, not a team record. Auditors still see everything that touched a platform.
-   - **Everyone with `view` on the process,** like every other run. Transparent, and colleagues can pick up a colleague's debugging.
-   - **Only the starter, administrators and auditors.** Most private; process managers cannot see what was tried on their process.
+1. **Who may debug?** Decided: `edit` and `run`, plus `use` for platforms. Offline single-node runs need only `edit`; anything that contacts a platform or its recordings also needs `run` on the process and `use` on the platform; comparing needs `view`.
+2. **How are decisions and manual steps handled in debug runs?** Decided: simulated by the debugger in the debug panel and marked _Simulated_; from the first simulated or skipped decision on, the rest of the run uses recorded answers only. No real task is created.
+3. **May a debug run execute unsaved changes?** Decided: single node yes, step-through no. The unsaved node is checked like a saved definition, stored in the step's input, and `definition_hash` is the hash of the definition with that node.
+4. **Who sees debug runs?** Decided: the starter, process managers (`manage`), administrators and auditors. Everyone else does not see them, not even with `view` on the process.
