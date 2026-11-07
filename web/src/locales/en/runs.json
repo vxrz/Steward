@@ -188,7 +188,9 @@
     "expected": "expected: {{name}}",
     "moreFindings_one": "and {{count}} more finding",
     "moreFindings_other": "and {{count}} more findings",
-    "aiGenerated": "AI-generated with {{models}} – check it before you rely on it"
+    "aiGenerated": "AI-generated with {{models}} – check it before you rely on it",
+    "libraryOrigin": "From library {{library}} {{release}} ({{publisher}}), signed with {{key}}",
+    "libraryRevoked": "signed by a revoked key"
   },
   "emptyState": {
     "title": "No runs yet",

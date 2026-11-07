@@ -63,8 +63,9 @@ export interface VerifiedRelease {
   items: LibraryItem[];
 }
 
+/** A refused release: 422 with the code; `detail` carries the English specifics (file, key) for the translated text. */
 export function refusal(code: LibraryRefusal, message: string, ctx: Record<string, string | number> = {}): HttpError {
-  return new HttpError(422, message, code, ctx);
+  return new HttpError(422, message, code, { detail: message.slice(0, 500), ...ctx });
 }
 
 /** Limits of a file set before anything is parsed. */

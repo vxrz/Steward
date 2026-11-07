@@ -44,6 +44,7 @@ import { statusLabel } from '../components/common';
 import { useMe } from '../auth';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
+import { LibraryOriginBadge } from '../components/libraries/parts';
 import { RunDialog, loadBindings } from '../components/RunDialog';
 import { AccessEditor } from '../components/AccessEditor';
 import { OwningTeams } from '../components/OwningTeams';
@@ -201,6 +202,7 @@ export function ProcessEditorPage() {
             <span>{def.name || p.name}</span>
             <Badge variant="light">v{p.currentVersion}</Badge>
             <GitOriginBadge kind="process" id={p.id} />
+            <LibraryOriginBadge kind="process" id={p.id} />
             {dirty && (
               <Badge color="orange" variant="light">
                 {t('page.unsaved')}

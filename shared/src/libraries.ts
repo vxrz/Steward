@@ -257,7 +257,7 @@ export interface LibraryReview {
   changelog: LibraryChangelogEntry[];
   items: LibraryReviewItem[];
   references: { platforms: LibraryReferenceChoice[]; processes: LibraryReferenceChoice[] };
-  /** Why accepting is not possible now (needs Steward x.y.z, revoked key, not the reviewer's to decide, …) */
+  /** Why accepting is not possible now, as codes: needsVersion, revokedKey, installed, notPrevious, downgrade, rights, undeclaredProcess */
   blockers: string[];
   canInstall: boolean;
   /** The release has connector types: only administrators install it */
@@ -291,6 +291,8 @@ export interface LibraryOrigin {
 export interface LibraryItemOrigin {
   kind: LibraryItemKind;
   entityId: string;
+  /** The item's name in Steward */
+  name: string;
   library: string;
   libraryName: string;
   release: string;

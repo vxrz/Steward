@@ -55,8 +55,8 @@ export function LinkTabs({ tabs, active, label, mb = 'md', after }: { tabs: Link
   );
 }
 
-/** The Automate area's tabs above Processes, Schedules, Triggers and Git sync (only the ones the user may use). */
-export function AutomateTabs({ active }: { active: '/processes' | '/schedules' | '/triggers' | '/git-updates' }) {
+/** The Automate area's tabs above Processes, Schedules, Triggers, Git sync and Libraries (only the ones the user may use). */
+export function AutomateTabs({ active }: { active: '/processes' | '/schedules' | '/triggers' | '/git-updates' | '/libraries' }) {
   const { t } = useTranslation('nav');
   const { caps } = useMe();
   const tabs = useAutomateTabs(caps);

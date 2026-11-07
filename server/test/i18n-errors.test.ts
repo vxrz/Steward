@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
-import { SQL_PROBLEM_CODES, sqlProblemTextCode } from '@sm/shared';
+import { LIBRARY_REFUSALS, SQL_PROBLEM_CODES, sqlProblemTextCode } from '@sm/shared';
 
 // Server errors reach the web UI as { error, code, params }. The UI shows errors:codes.<code>
 // (translated, with the params filled in) and the English message only for unknown codes.
@@ -153,7 +153,10 @@ describe('server error codes', () => {
       'STEP_UP_REFUSED',
       'STEP_UP_SSO_FAILED',
       'STEP_UP_CANCELLED',
+      // refused library releases (libraries/releases.ts refusal(code, …)): checked below
+      ...LIBRARY_REFUSALS,
     ]);
+    for (const c of LIBRARY_REFUSALS) expect(en[c] && errorsJson('de')[c], `errors:codes.${c}`).toBeTruthy();
     const unused = Object.keys(en)
       .map((k) => k.replace(/_(?:[a-z][A-Za-z0-9-]*|right_[a-z]+)$/, ''))
       .map((k) => k.replace(/_(?:one|other)$/, ''))

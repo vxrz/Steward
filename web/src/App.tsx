@@ -97,6 +97,10 @@ const MigrationPage = page(() => import('./pages/Migration'), 'MigrationPage');
 const BackupsPage = page(() => import('./pages/Backups'), 'BackupsPage');
 const GitUpdatesPage = page(() => import('./pages/GitUpdates'), 'GitUpdatesPage');
 const GitUpdateDetailPage = page(() => import('./pages/GitUpdates'), 'GitUpdateDetailPage');
+const LibrariesPage = page(() => import('./pages/Libraries'), 'LibrariesPage');
+const LibraryDetailPage = page(() => import('./pages/Libraries'), 'LibraryDetailPage');
+const LibraryReleasePage = page(() => import('./pages/LibraryRelease'), 'LibraryReleasePage');
+const LibraryPublishersPage = page(() => import('./pages/LibraryPublishers'), 'LibraryPublishersPage');
 const TicketsPage = page(() => import('./pages/Tickets'), 'TicketsPage');
 const TicketDetailPage = page(() => import('./pages/TicketDetail'), 'TicketDetailPage');
 const PlantSitesPage = page(() => import('./pages/PlantSites'), 'PlantSitesPage');
@@ -349,6 +353,9 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/triggers" element={<TriggersPage />} />
                     <Route path="/git-updates" element={<GitUpdatesPage />} />
                     <Route path="/git-updates/:id" element={<GitUpdateDetailPage />} />
+                    <Route path="/libraries" element={<LibrariesPage />} />
+                    <Route path="/libraries/releases/:id" element={<LibraryReleasePage />} />
+                    <Route path="/libraries/:library" element={<LibraryDetailPage />} />
                     <Route path="/monitors" element={<MonitorsPage />} />
                     <Route path="/monitors/new" element={<MonitorEditorPage />} />
                     <Route path="/monitors/wall" element={<MonitorWallPage />} />
@@ -414,6 +421,7 @@ function Shell({ status }: { status: AuthStatus }) {
                     {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
                     <Route path="/settings" element={<SettingsIndex />} />
                     <Route path="/settings/git-sync" element={<GitSyncPage />} />
+                    <Route path="/settings/libraries" element={<LibraryPublishersPage />} />
                     <Route path="/settings/migration" element={<MigrationPage />} />
                     <Route path="/settings/backups" element={<BackupsPage />} />
                     <Route path="/profile" element={<ProfilePage />} />

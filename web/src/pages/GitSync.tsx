@@ -31,6 +31,7 @@ import {
   SYNC_KINDS,
   SYNC_LIMITS,
   SYNC_REF_TYPES,
+  SYNC_SOURCE_MODES,
   type SyncFetchResult,
   type SyncSource,
   type SyncSourceSecret,
@@ -85,7 +86,9 @@ export function GitSyncPage() {
       const r = await post<SyncFetchResult>(`/sync-sources/${s.id}/fetch`);
       notifyOk(
         [
-          t('sources.fetched', { commit: r.commit?.slice(0, 10) ?? '–', staged: r.staged, invalid: r.invalid, unchanged: r.unchanged }),
+          r.library
+            ? t(r.library.staged ? 'sources.fetchedLibrary' : 'sources.fetchedLibraryKnown', { library: r.library.library, release: r.library.release })
+            : t('sources.fetched', { commit: r.commit?.slice(0, 10) ?? '–', staged: r.staged, invalid: r.invalid, unchanged: r.unchanged }),
           r.autoAccepted ? t('sources.fetchedAuto', { count: r.autoAccepted }) : '',
         ]
           .filter(Boolean)
@@ -160,6 +163,11 @@ export function GitSyncPage() {
                       {t('sources.builtIn')}
                     </Badge>
                   )}
+                  {s.mode === 'library' && (
+                    <Badge variant="light" color="grape">
+                      {t('form.modes.library')}
+                    </Badge>
+                  )}
                   {!s.enabled && (
                     <Badge variant="light" color={TONE.neutral}>
                       {t('sources.disabled')}
@@ -180,8 +188,16 @@ export function GitSyncPage() {
                     {t('sources.builtInHint')}
                   </Text>
                 )}
+                {s.mode === 'library' && (
+                  <Text size="xs" c="dimmed">
+                    {s.newestSeen ? t('sources.newestSeen', { release: s.newestSeen }) : t('sources.noReleaseSeen')} ·{' '}
+                    <Anchor component={Link} to="/libraries" size="xs">
+                      {t('sources.toLibraries')}
+                    </Anchor>
+                  </Text>
+                )}
                 <Text size="xs" c="dimmed">
-                  {s.kinds.map((k) => t(`form.kind.${k}`)).join(', ')} ·{' '}
+                  {s.mode === 'library' ? t('form.modes.library') : s.kinds.map((k) => t(`form.kind.${k}`)).join(', ')} ·{' '}
                   {s.intervalMinutes ? t('sources.schedule', { count: s.intervalMinutes }) : t('sources.noSchedule')}
                   {s.webhookEnabled ? ` · ${t('sources.webhookOn')}` : ''}
                   {s.requireSignedCommits ? ` · ${t('form.requireSigned')}` : ''}
@@ -252,7 +268,8 @@ export function GitSyncPage() {
 
 function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onClose: () => void; onSaved: (r: SyncSourceSecret) => void }) {
   const { t } = useTranslation(['gitSync', 'common']);
-  const [d, setD] = useState<Draft>({ ...initial, refType: initial.refType ?? 'branch' });
+  const [d, setD] = useState<Draft>({ ...initial, refType: initial.refType ?? 'branch', mode: initial.mode ?? 'items' });
+  const library = d.mode === 'library';
   // the web app is built with the server's version (one release)
   const version = WEB_BUILD.version;
   const [busy, setBusy] = useState(false);
@@ -267,6 +284,8 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
     setBusy(true);
     const body = {
       name: d.name,
+      mode: d.mode ?? 'items',
+      allowPrereleases: !!d.allowPrereleases,
       provider: d.provider,
       repoUrl: d.repoUrl,
       apiUrl: d.apiUrl ?? '',
@@ -297,6 +316,22 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
     <Modal opened onClose={onClose} title={d.id ? t('form.titleEdit') : t('form.titleNew')} size="lg">
       <Stack gap="sm">
         <TextInput label={t('form.name')} required value={d.name} onChange={(e) => set('name', e.currentTarget.value)} data-autofocus error={v.error('name')} />
+        <Select
+          label={t('form.mode')}
+          description={library ? t('form.modeLibraryHint') : t('form.modeItemsHint')}
+          data={SYNC_SOURCE_MODES.map((m) => ({ value: m, label: t(`form.modes.${m}`) }))}
+          value={d.mode ?? 'items'}
+          allowDeselect={false}
+          onChange={(m) =>
+            m &&
+            setD((x) => ({
+              ...x,
+              mode: m as Draft['mode'],
+              ...(m === 'library' ? { refType: 'tag' as const, branch: x.branch.includes('{version}') ? x.branch : 'v{version}', autoAcceptNew: false } : {}),
+            }))
+          }
+          data-testid="source-mode"
+        />
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
           <Select
             label={t('form.provider')}
@@ -310,20 +345,26 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
             data={SYNC_REF_TYPES.map((r) => ({ value: r, label: t(`form.refTypes.${r}`) }))}
             value={d.refType}
             allowDeselect={false}
+            disabled={library}
             onChange={(v) => v && set('refType', v as Draft['refType'])}
           />
         </SimpleGrid>
         <TextInput
-          label={d.refType === 'tag' ? t('form.tag') : t('form.branch')}
+          label={library ? t('form.tagPattern') : d.refType === 'tag' ? t('form.tag') : t('form.branch')}
           required
           value={d.branch}
           onChange={(e) => set('branch', e.currentTarget.value)}
           description={
-            d.branch.includes('{version}')
-              ? `${t('form.refHint', { version })} ${t('form.refResolved', { ref: d.branch.replaceAll('{version}', version) })}`
-              : t('form.refHint', { version })
+            library
+              ? t('form.tagPatternHint')
+              : d.branch.includes('{version}')
+                ? `${t('form.refHint', { version })} ${t('form.refResolved', { ref: d.branch.replaceAll('{version}', version) })}`
+                : t('form.refHint', { version })
           }
         />
+        {library && (
+          <Switch label={t('form.allowPrereleases')} checked={!!d.allowPrereleases} onChange={(e) => set('allowPrereleases', e.currentTarget.checked)} />
+        )}
         <TextInput
           label={t('form.repoUrl')}
           description={t('form.repoUrlHint')}
@@ -341,13 +382,15 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
           onChange={(e) => set('folder', e.currentTarget.value)}
           placeholder="steward"
         />
-        <Checkbox.Group label={t('form.kinds')} value={d.kinds} onChange={(k) => set('kinds', k as Draft['kinds'])} required error={v.error('kinds')}>
-          <Group gap="md" mt={4}>
-            {SYNC_KINDS.map((k) => (
-              <Checkbox key={k} value={k} label={t(`form.kind.${k}`)} />
-            ))}
-          </Group>
-        </Checkbox.Group>
+        {!library && (
+          <Checkbox.Group label={t('form.kinds')} value={d.kinds} onChange={(k) => set('kinds', k as Draft['kinds'])} required error={v.error('kinds')}>
+            <Group gap="md" mt={4}>
+              {SYNC_KINDS.map((k) => (
+                <Checkbox key={k} value={k} label={t(`form.kind.${k}`)} />
+              ))}
+            </Group>
+          </Checkbox.Group>
+        )}
         <PasswordInput
           label={t('form.token')}
           description={d.hasToken && !d.removeToken ? t('form.tokenKeep') : t('form.tokenHint')}
@@ -389,12 +432,14 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
             clearable
           />
         )}
-        <Switch
-          label={t('form.autoAccept')}
-          description={t('form.autoAcceptHint')}
-          checked={d.autoAcceptNew}
-          onChange={(e) => set('autoAcceptNew', e.currentTarget.checked)}
-        />
+        {!library && (
+          <Switch
+            label={t('form.autoAccept')}
+            description={t('form.autoAcceptHint')}
+            checked={d.autoAcceptNew}
+            onChange={(e) => set('autoAcceptNew', e.currentTarget.checked)}
+          />
+        )}
         <Switch label={t('form.enabled')} checked={d.enabled} onChange={(e) => set('enabled', e.currentTarget.checked)} />
         <Group justify="flex-end" mt="sm">
           <Button variant="default" onClick={onClose}>

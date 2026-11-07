@@ -4,6 +4,7 @@ import {
   ActionIcon,
   Alert,
   Autocomplete,
+  Badge,
   Button,
   Code,
   Group,
@@ -484,7 +485,14 @@ export function VersionsPanel({
                 <Table.Td>{v.version === currentVersion ? t('versions.current', { version: v.version }) : `v${v.version}`}</Table.Td>
                 <Table.Td className="nowrap">{fmtDate(v.createdAt)}</Table.Td>
                 <Table.Td>{v.author}</Table.Td>
-                <Table.Td>{v.comment}</Table.Td>
+                <Table.Td>
+                  {v.origin && (
+                    <Badge size="xs" variant="light" color="teal" mr={6}>
+                      {t('versions.fromLibrary', { library: v.origin.library, release: v.origin.release })}
+                    </Badge>
+                  )}
+                  {v.comment}
+                </Table.Td>
                 <Table.Td className="mono">{v.hash.slice(0, 12)}</Table.Td>
                 <Table.Td>
                   <Button size="compact-xs" variant="light" onClick={() => open(v.version)}>

@@ -852,7 +852,8 @@
     "view": "Ansehen",
     "title": "Version v{{version}}",
     "hashLine": "Hash {{hash}}",
-    "restore": "Als Arbeitskopie wiederherstellen"
+    "restore": "Als Arbeitskopie wiederherstellen",
+    "fromLibrary": "Bibliothek {{library}} {{release}}"
   },
   "outputs": {
     "duplicate": "Name doppelt vergeben",

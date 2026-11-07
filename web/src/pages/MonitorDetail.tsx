@@ -31,6 +31,7 @@ import {
 import { api, apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
 import { DetailState, JsonView } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
+import { LibraryOriginBadge } from '../components/libraries/parts';
 import { AccessEditor } from '../components/AccessEditor';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MonitorGraph } from '../components/monitors/MonitorGraph';
@@ -123,6 +124,7 @@ export function MonitorDetailPage() {
               </Badge>
             )}
             <GitOriginBadge kind="monitor" id={m.id} />
+            <LibraryOriginBadge kind="monitor" id={m.id} />
           </Group>
         }
         description={

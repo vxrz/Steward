@@ -221,7 +221,7 @@ describe('install, update, rollback', () => {
     expect(review.references.platforms).toEqual([expect.objectContaining({ ref: 'idp', kind: 'microsoft-graph', mapped: graphId })]);
     // a designer may not create record types: the review says so before anything is tried
     expect(review.canInstall).toBe(false);
-    expect(review.blockers).toEqual(['Some items need more rights than you have']);
+    expect(review.blockers).toEqual(['rights']);
     expect(review.items.find((i: any) => i.kind === 'recordType').canDecide).toBe(false);
     expect(((await s.api('GET', `/library-releases/${rel1.id}/review`)) as any).canInstall).toBe(true);
     const lists = (await dana('GET', '/libraries')) as any;

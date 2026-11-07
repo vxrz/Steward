@@ -36,6 +36,7 @@ import type plantNetwork from '../locales/en/plantNetwork.json';
 import type plantViews from '../locales/en/plantViews.json';
 import type costs from '../locales/en/costs.json';
 import type contracts from '../locales/en/contracts.json';
+import type libraries from '../locales/en/libraries.json';
 import auth from '../locales/en/auth.json';
 import common from '../locales/en/common.json';
 import errors from '../locales/en/errors.json';
@@ -85,4 +86,5 @@ export interface Resources {
   plantViews: typeof plantViews;
   costs: typeof costs;
   contracts: typeof contracts;
+  libraries: typeof libraries;
 }

@@ -441,16 +441,17 @@ export async function reviewRelease(id: string): Promise<LibraryReview> {
   };
 }
 
+/** Why the reviewer cannot install now, as codes the web app translates (blockers.<code>). */
 function blockersOf(r: ReleaseRow, s: LibraryReleaseSummary, inst: InstallRow | undefined, items: LibraryReviewItem[]): string[] {
   const out: string[] = [];
-  if (s.needsVersion) out.push(`Needs Steward ${s.needsVersion} or newer`);
-  if (s.keyState === 'revoked') out.push('Signed by a revoked key');
-  if (r.state === 'installed') out.push('This release is installed');
+  if (s.needsVersion) out.push('needsVersion');
+  if (s.keyState === 'revoked') out.push('revokedKey');
+  if (r.state === 'installed') out.push('installed');
   else if (r.state === 'previous') {
-    if (!inst || inst.previous_release_id !== r.id) out.push('Only the release installed before the current one can be rolled back to');
-  } else if (r.state !== 'staged') out.push('An older release cannot be installed (downgrade)');
-  if (items.some((i) => i.status !== 'removed' && !i.canDecide && !(i.status === 'unchanged'))) out.push('Some items need more rights than you have');
-  if (items.some((i) => i.problems.length)) out.push('Some items name processes the library does not declare');
+    if (!inst || inst.previous_release_id !== r.id) out.push('notPrevious');
+  } else if (r.state !== 'staged') out.push('downgrade');
+  if (items.some((i) => i.status !== 'removed' && i.status !== 'unchanged' && !i.canDecide)) out.push('rights');
+  if (items.some((i) => i.problems.length)) out.push('undeclaredProcess');
   return out;
 }
 
@@ -1063,6 +1064,7 @@ export function listLibraryOrigins(kind?: LibraryItemKind): LibraryItemOrigin[] 
       return {
         kind: r.kind,
         entityId: r.entity_id,
+        name: (isSyncKind(r.kind) ? localById(r.kind, r.entity_id) : connectorLocal(r.entity_id))?.name ?? r.entity_id,
         library: r.library,
         libraryName: r.name,
         release: r.release_version,
