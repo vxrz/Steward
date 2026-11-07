@@ -185,12 +185,8 @@ function dispatcherFor(p: Platform, tls?: ClientTls): Dispatcher {
   // a dispatcher with the client certificate is kept apart from the one without (hops to other origins), and per
   // identity: two identities with their own certificates do not replace each other's dispatcher (0.9.0)
   const key = tls ? `${identityKey(p)}|mtls` : p.id;
-  const stamp = tls
-    ? `${p.updatedAt}|${crypto
-        .createHash('sha256')
-        .update(`${tls.cert}\u0000${tls.key}\u0000${tls.passphrase ?? ''}`)
-        .digest('hex')}`
-    : p.updatedAt;
+  // compared in memory only (the dispatcher holds the same certificate and key)
+  const stamp = tls ? `${p.updatedAt}|${tls.cert}\u0000${tls.key}\u0000${tls.passphrase ?? ''}` : p.updatedAt;
   const hit = dispatcherCache.get(key);
   if (hit && hit.stamp === stamp) return hit.dispatcher;
   if (hit) hit.dispatcher.close().catch(() => undefined); // replaced: closing the old one is best effort

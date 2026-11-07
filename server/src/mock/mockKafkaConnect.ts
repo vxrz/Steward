@@ -144,12 +144,13 @@ export async function mockKafkaConnect(app: FastifyInstance): Promise<void> {
   const R = '/kafka-connect';
   const one = (req: FastifyRequest, reply: FastifyReply): [string, Connector] | null => {
     const name = (req.params as { name: string }).name;
-    const c = Object.hasOwn(connectors, name) ? connectors[name] : undefined;
-    if (!c) {
-      void reply.code(404).send({ error_code: 404, message: `Connector ${name} not found` });
+    // the mock's own key, not the requested text: answers never echo the URL
+    const key = Object.keys(connectors).find((k) => k === name);
+    if (key === undefined) {
+      void reply.code(404).send({ error_code: 404, message: 'Connector not found' });
       return null;
     }
-    return [name, c];
+    return [key, connectors[key]!];
   };
   app.get(`${R}/`, async (req, reply) =>
     authorized(req, reply) ? { version: '3.9.0', commit: 'a1b2c3d4e5f60718', kafka_cluster_id: 'demo-cluster-0001' } : reply,
