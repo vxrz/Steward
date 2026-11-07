@@ -585,6 +585,7 @@ export function maintenanceForMonitor(monitorId: string, now = Date.now()): { id
 export function maintenancePausesRun(runId: string, now = Date.now()): boolean {
   const list = activeNow(now).filter((a) => a.row.pause_messages);
   if (!list.length) return false;
+  // debug runs: one run by its id
   const bindings = parseJson<Record<string, string>>(db().get<{ bindings: string }>('SELECT bindings FROM runs WHERE id = ?', runId)?.bindings ?? '{}', {});
   const platforms = Object.values(bindings).filter((x): x is string => typeof x === 'string');
   return list.some((a) => platforms.some((p) => a.reach.platforms.has(p)));

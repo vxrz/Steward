@@ -348,6 +348,7 @@ function contentAuthors(r: RecordRow): string[] {
     const performer = f.performedBy?.trim().replace(/ \(run [^)]*\)$/, '');
     if (performer) names.add(performer);
     if (f.origin === 'run' && f.runId) {
+      // debug runs: one run by its id (a link that exists)
       const run = db().get<{ actor: string }>('SELECT actor FROM runs WHERE id = ?', f.runId);
       if (run?.actor) names.add(run.actor);
       for (const t of db().all<{ decided_by: string | null }>("SELECT decided_by FROM run_tasks WHERE run_id = ? AND mode = 'approve'", f.runId))

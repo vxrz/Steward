@@ -120,7 +120,11 @@ export function pickRun(processId: string, runId?: string): store.RunRow | undef
     if (r.process_id !== processId) throw Object.assign(new Error(`Run ${runId} does not belong to process ${processId}`), { statusCode: 400 });
     return r;
   }
-  const latest = db().get<{ id: string }>('SELECT id FROM runs WHERE process_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1', processId);
+  const latest = db().get<{ id: string }>(
+    // the editor's "last run": never a debug run
+    'SELECT id FROM runs WHERE process_id = ? AND debug IS NULL ORDER BY started_at DESC, rowid DESC LIMIT 1',
+    processId,
+  );
   return latest ? store.runRow(latest.id) : undefined;
 }
 

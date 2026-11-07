@@ -39,6 +39,7 @@ export function viewableRun(id: string): store.RunRow {
   } catch {
     throw notFound(`Run ${id}`);
   }
-  if (!processes.permissionsFor(r.process_id).includes('view')) throw notFound(`Run ${id}`);
+  // debug runs (ADR 0010) stay in the app: never served here
+  if (r.debug || !processes.permissionsFor(r.process_id).includes('view')) throw notFound(`Run ${id}`);
   return r;
 }

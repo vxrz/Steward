@@ -302,7 +302,7 @@ function runsSection(c: Ctx): Section & { failed: number; findings: number } {
   );
   const rows = db()
     .all<{ id: string; process_id: string; process_name: string; status: RunStatus; dry_run: number; started_at: string; error: string | null; stats: string }>(
-      'SELECT id, process_id, process_name, status, dry_run, started_at, error, stats FROM runs WHERE started_at >= ? AND started_at < ? ORDER BY started_at DESC',
+      'SELECT id, process_id, process_name, status, dry_run, started_at, error, stats FROM runs WHERE started_at >= ? AND started_at < ? AND debug IS NULL ORDER BY started_at DESC',
       c.since,
       c.until,
     )

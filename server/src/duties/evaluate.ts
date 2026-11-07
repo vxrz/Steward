@@ -156,7 +156,7 @@ function judge(
 ): Omit<Evaluated, 'closed' | 'closedAt' | 'row'> {
   const runs = db()
     .all<RunRow>(
-      'SELECT id, status, started_at, finished_at, process_version, definition_hash FROM runs WHERE process_id = ? AND dry_run = 0 AND started_at >= ? AND started_at < ? ORDER BY started_at, id',
+      'SELECT id, status, started_at, finished_at, process_version, definition_hash FROM runs WHERE process_id = ? AND dry_run = 0 AND debug IS NULL AND started_at >= ? AND started_at < ? ORDER BY started_at, id',
       d.process_id,
       iso(Math.max(p.start, since)),
       iso(g),
@@ -175,6 +175,7 @@ function judge(
   const final = now >= g;
   // retention deleted the run that counted: the stored evidence stays
   const keep =
+    // debug runs: whether a run that closed a duty still exists (by id)
     !done && !late && row && (row.status === 'done' || row.status === 'late') && row.run_id && !db().get('SELECT 1 FROM runs WHERE id = ?', row.run_id);
   const failedRuns = Math.max(failed.length, row?.failed_runs ?? 0);
   if (keep)
