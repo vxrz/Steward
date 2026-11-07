@@ -9,11 +9,11 @@
     "settings": "Benachrichtigungseinstellungen",
     "unavailable": "Benachrichtigungen sind auf diesem Server nicht verfügbar.",
     "empty": "Keine neuen Benachrichtigungen.",
-    "unreadItem": "Ungelesen: {{title}}",
     "quietUntil_one": "Ruhezeit bis {{time}} · {{count}} Nachricht zurückgehalten",
     "quietUntil_other": "Ruhezeit bis {{time}} · {{count}} Nachrichten zurückgehalten",
     "quiet_one": "Ruhezeit · {{count}} Nachricht zurückgehalten",
-    "quiet_other": "Ruhezeit · {{count}} Nachrichten zurückgehalten"
+    "quiet_other": "Ruhezeit · {{count}} Nachrichten zurückgehalten",
+    "unreadPrefix": "Ungelesen:"
   },
   "events": {
     "task": {

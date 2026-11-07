@@ -1,4 +1,20 @@
-import { ActionIcon, Badge, Box, Button, Center, Drawer, Group, Indicator, Loader, ScrollArea, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
+import {
+  ActionIcon,
+  Badge,
+  Box,
+  Button,
+  Center,
+  Drawer,
+  Group,
+  Indicator,
+  Loader,
+  ScrollArea,
+  Stack,
+  Text,
+  Tooltip,
+  UnstyledButton,
+  VisuallyHidden,
+} from '@mantine/core';
 import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { useNavigate } from 'react-router-dom';
 import { IconBell, IconBellOff, IconChecks, IconMoon, IconSettings } from '@tabler/icons-react';
@@ -117,8 +133,9 @@ export function NotificationCenter() {
                   border: '1px solid var(--mantine-color-default-border)',
                   background: n.read ? undefined : 'var(--mantine-color-blue-light)',
                 }}
-                aria-label={n.read ? n.title : t('center.unreadItem', { title: n.title })}
               >
+                {/* the visible text is the accessible name (WCAG 2.5.3); unread ones are marked for screen readers */}
+                {!n.read && <VisuallyHidden>{t('center.unreadPrefix')}</VisuallyHidden>}
                 <Group gap="xs" wrap="nowrap" align="flex-start">
                   <Box
                     mt={6}

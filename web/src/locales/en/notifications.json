@@ -9,11 +9,11 @@
     "settings": "Notification settings",
     "unavailable": "Notifications are not available on this server.",
     "empty": "You are all caught up.",
-    "unreadItem": "Unread: {{title}}",
     "quietUntil_one": "Quiet hours until {{time}} · {{count}} message held",
     "quietUntil_other": "Quiet hours until {{time}} · {{count}} messages held",
     "quiet_one": "Quiet hours · {{count}} message held",
-    "quiet_other": "Quiet hours · {{count}} messages held"
+    "quiet_other": "Quiet hours · {{count}} messages held",
+    "unreadPrefix": "Unread:"
   },
   "events": {
     "task": {
