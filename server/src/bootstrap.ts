@@ -1,6 +1,6 @@
 import { config } from './config.js';
 import { logger } from './log.js';
-import { recoverRuns, stopAcceptingRuns, drainRuns, interruptBusyRuns, busyRunIds, queuedRunIds, activeRunIds } from './engine/runner.js';
+import { engine } from './engine/index.js';
 import * as scheduler from './scheduler.js';
 import { startMonitorEngine, stopMonitorEngine } from './monitors/engine.js';
 import { startGatusScraper, stopGatusScraper } from './gatus/metrics.js';
@@ -46,7 +46,7 @@ export function startBackground(): void {
 export async function startUnlocked(): Promise<void> {
   if (unlockedStarted || shuttingDown()) return;
   unlockedStarted = true;
-  await recoverRuns();
+  await engine().recover();
   scheduler.startScheduler();
   startMonitorEngine();
   startGatusScraper();
@@ -84,10 +84,11 @@ export function shutdown(graceMs = config.shutdownGraceMs): Promise<ShutdownRepo
 async function doShutdown(graceMs: number): Promise<ShutdownReport> {
   const t0 = Date.now();
   setLifecyclePhase('stopping');
-  stopAcceptingRuns();
-  const busy = busyRunIds();
+  engine().stopAccepting();
+  const counts = engine().counts();
+  const busy = counts.busy;
   logger.info(
-    { graceSeconds: Math.round(graceMs / 1000), runningRuns: busy.length, activeRuns: activeRunIds().length, queuedRuns: queuedRunIds().length },
+    { graceSeconds: Math.round(graceMs / 1000), runningRuns: busy.length, activeRuns: counts.active.length, queuedRuns: counts.queued.length },
     'shutting down: no new runs; waiting for running steps',
   );
   scheduler.stopScheduler();
@@ -105,7 +106,7 @@ async function doShutdown(graceMs: number): Promise<ShutdownReport> {
   };
   // the grace period is shared: runs, background jobs and running monitor checks end side by side
   const [left, jobsRunning] = await Promise.all([
-    safely('waiting for runs', drainRuns(graceMs), busyRunIds()),
+    safely('waiting for runs', engine().drain(graceMs), engine().counts().busy),
     safely('stopping background jobs', stopJobs(graceMs), []),
     safely('stopping the monitor engine', stopMonitorEngine(), undefined),
   ]);
@@ -113,11 +114,17 @@ async function doShutdown(graceMs: number): Promise<ShutdownReport> {
   stopEventLoopMonitor();
   // database platforms (0.7.0): their pooled connections
   await safely('closing database connections', closeAllPools(), undefined);
-  const interrupted = left.length ? interruptBusyRuns() : [];
+  const interrupted = left.length ? engine().interruptBusy() : [];
   // the last moment the scheduler was alive: fires after it count as missed at the next start
   scheduler.recordAlive();
   setLifecyclePhase('stopped');
-  const report: ShutdownReport = { drained: busy.length - interrupted.length, interrupted, queued: queuedRunIds().length, jobsRunning, ms: Date.now() - t0 };
+  const report: ShutdownReport = {
+    drained: busy.length - interrupted.length,
+    interrupted,
+    queued: engine().counts().queued.length,
+    jobsRunning,
+    ms: Date.now() - t0,
+  };
   logger[interrupted.length || jobsRunning.length ? 'warn' : 'info'](report, 'background work stopped');
   return report;
 }

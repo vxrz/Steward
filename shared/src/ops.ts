@@ -224,6 +224,8 @@ export interface MaintenanceStatus {
   lastCleanup?: {
     at: string;
     runsDeleted: number;
+    /** Of these, debug runs past their own retention (0.10.0, ADR 0010) */
+    debugRunsDeleted?: number;
     artifactsDeleted: number;
     notificationsDeleted: number;
     /** Audit archives written by this cleanup (0.4.0) */

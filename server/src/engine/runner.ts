@@ -17,6 +17,11 @@ import {
   type TaskDecision,
   type TaskItem,
   type TaskRecord,
+  type DebugPause,
+  type DebugSignal,
+  type DebugSpec,
+  type RunMode,
+  validateProcess,
 } from '@sm/shared';
 import { audit } from '../audit.js';
 import { config } from '../config.js';
@@ -50,7 +55,7 @@ import {
   type OutboundContext,
   type SecretBinding,
 } from '../platforms/outbound.js';
-import { getProcess, permissionsFor } from '../processes/service.js';
+import { definitionHash, getProcess, permissionsFor } from '../processes/service.js';
 import { evalBool, evalExpr, evalList, render, renderString, stringify, type Bindings, type EvalOptions } from './expr.js';
 import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
 import { openBrowser, type BrowserSession } from './browser.js';
@@ -69,6 +74,9 @@ import { applicationInputValue, applicationsInputValue } from '../catalogue/comp
 import { systemsForProcess } from '../catalogue/systems.js';
 import { checkOutcome } from './check-alerts.js';
 import { runAiStep } from '../ai/step.js';
+import { modeOf, modeOfRow, type DebugNodeSeed, type RunEngine, type RunSignal, type RunState, type SignalResult, type StartCommand } from './engine.js';
+import { DebugGate, type GateAction } from './debug-gate.js';
+import { startProblem } from './commands.js';
 
 // ---------------------------------------------------------------------------
 // Run context
@@ -141,6 +149,17 @@ const varScope = new AsyncLocalStorage<{ ctx: RunContext; vars: Record<string, u
 class RunContext {
   /** Test run (#105): platform calls are answered by recorded responses (always also a dry run). */
   recorded = false;
+  /** A debug run (ADR 0010): one node or a step-through run; never a live run */
+  debug?: DebugSpec;
+  /** Single-node debug run: the pasted answer, the simulated decision */
+  debugNode?: DebugNodeSeed;
+  /** Step-through debug run: the pause gate */
+  gate?: DebugGate;
+  /** Written to the audit log: false for an offline single-node run, which touches nothing (like the expression assistant) */
+  audited = true;
+  /** Why the run was cancelled, and by whom (the run.cancelled entry says so) */
+  cancelReason?: string;
+  cancelledBy?: string;
   /** Run-level variables (outside parallel loop bodies). */
   rootVars: Record<string, unknown> = {};
   journal: Map<string, store.StepRow>;
@@ -466,6 +485,7 @@ async function startQueued(runId: string): Promise<void> {
         store.emptyStats(),
         undefined,
         !!r.recorded,
+        r.debug ? { debug: { spec: parseJson<DebugSpec>(r.debug, { kind: 'step' }) } } : {},
       ),
     );
   } catch (e) {
@@ -529,19 +549,32 @@ export function interruptBusyRuns(): string[] {
   return ids;
 }
 
+/**
+ * For tests: what a restart leaves of a waiting run – the run only in the record. Its context and task waiters are
+ * dropped (never resolved), so a later decision replays the run from its journal.
+ */
+export async function forgetRunForTests(runId: string): Promise<void> {
+  const a = active.get(runId);
+  if (!a) return;
+  a.ctx.interrupted = true;
+  for (const t of store.listTasks({ runId, status: 'open' })) taskWaiters.delete(t.id);
+  active.delete(runId);
+}
+
 /** For tests: start accepting runs again after a simulated shutdown. */
 export function resumeAcceptingRuns(): void {
   accepting = true;
   pumpQueue();
 }
 
-function coerceInputs(defs: InputDef[], raw: Record<string, unknown>): Record<string, unknown> {
+/** `lenient`: a missing required input is left empty (a single-node debug run needs only what its node reads). */
+function coerceInputs(defs: InputDef[], raw: Record<string, unknown>, lenient = false): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const d of defs) {
     let v = raw[d.name];
     if (v === undefined || v === '' || v === null) v = d.default;
     if (v === undefined || v === '' || v === null) {
-      if (d.required) throw new HttpError(400, `Input "${d.label ?? d.name}" is required`);
+      if (d.required && !lenient) throw new HttpError(400, `Input "${d.label ?? d.name}" is required`);
       // applications: empty means every application that is not archived
       out[d.name] =
         d.type === 'applications'
@@ -628,9 +661,22 @@ export function parseCsv(text: string): Record<string, string>[] {
   return rows.filter((r) => r.some((x) => x.trim() !== '')).map((r) => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? '').trim()])));
 }
 
-async function resolveBindings(def: ProcessDefinition, requested: Record<string, string>): Promise<Record<string, Binding>> {
+/**
+ * `only`: the slots to resolve (a single-node debug run resolves only its node's slots); `offline`: no slot is resolved,
+ * each gets a placeholder without credentials that answers only from a pasted answer or a sample answer.
+ */
+async function resolveBindings(
+  def: ProcessDefinition,
+  requested: Record<string, string>,
+  o: { only?: Set<string>; offline?: boolean } = {},
+): Promise<Record<string, Binding>> {
   const out: Record<string, Binding> = {};
   for (const slot of def.connections) {
+    if (o.only && !o.only.has(slot.slot)) continue;
+    if (o.offline) {
+      out[slot.slot] = { platform: offlinePlatform(slot.slot, slot.kind), secrets: {}, baseUrl: OFFLINE_BASE };
+      continue;
+    }
     const pid = requested[slot.slot];
     if (!pid) throw new HttpError(400, `Select a platform for connection "${slot.slot}"`);
     // the platform with its default identity (0.9.0, ADR 0009: choosing another one per slot comes in step 2)
@@ -640,50 +686,94 @@ async function resolveBindings(def: ProcessDefinition, requested: Record<string,
   return out;
 }
 
+/** The placeholder of an offline single-node run: nothing behind it is ever contacted. */
+const OFFLINE_BASE = 'https://offline.invalid';
+function offlinePlatform(slot: string, kind?: string): Platform {
+  return { id: `offline:${slot}`, name: `${slot} (offline)`, kind: kind ?? 'generic', baseUrl: OFFLINE_BASE, config: { variables: {} } } as unknown as Platform;
+}
+
+/** The debug part of a start: what is stored (`spec`) and, for a single node, its seed. */
+export interface DebugStart {
+  spec: DebugSpec;
+  seed?: DebugNodeSeed;
+}
+
+/** The slots a node uses (a single-node debug run resolves only these). */
+export function nodeSlots(node: FlowNode): Set<string> {
+  const out = new Set<string>();
+  const c = (node as { connection?: unknown }).connection;
+  if (typeof c === 'string' && c) out.add(c);
+  if (node.type === 'subprocess') for (const v of Object.values(node.connections ?? {})) out.add(v);
+  return out;
+}
+
 export async function startRun(
   req: StartRunRequest,
   opts: {
-    trigger?: 'manual' | 'schedule' | 'subprocess' | 'webhook' | 'monitor';
+    trigger?: 'manual' | 'schedule' | 'subprocess' | 'webhook' | 'monitor' | 'debug';
     scheduleId?: string;
     /** Webhook trigger (trigger 'webhook') or monitor (trigger 'monitor', with the output id) that started the run */
     webhook?: { triggerId: string; triggerName: string; test?: boolean; output?: string };
     actor?: string;
     /** Sub-process: the run and step (activation key) that started this run */
     parent?: { runId: string; stepKey: string };
+    /** A debug run (ADR 0010): never live */
+    debug?: DebugStart;
   } = {},
 ): Promise<string> {
   if (!accepting && opts.trigger !== 'subprocess') throw new HttpError(503, 'Steward is shutting down: no new runs start now', 'SHUTTING_DOWN');
+  const debug = opts.debug;
+  if (debug && !req.dryRun && !req.recorded) throw new HttpError(400, 'A debug run is a dry run or a test run, never a live run', 'DEBUG_LIVE_RUN');
   const proc = getProcess(req.processId, req.version);
-  const def = proc.definition;
+  let def = proc.definition;
+  let defHash = proc.definitionHash;
+  const node = debug?.spec.kind === 'node' ? debugNodeOf(def, debug) : undefined;
+  if (node && debug?.seed?.node) {
+    // the editor's unsaved node: checked like a saved definition; the run's definition hash covers it
+    const checked = validateProcess({ ...def, nodes: def.nodes.map((n) => (n.id === node.id ? node : n)) });
+    if (!checked.ok || !checked.definition) {
+      throw Object.assign(new HttpError(400, 'Invalid node: ' + checked.issues.map((x) => `${x.path}: ${x.message}`).join('; '), 'DEBUG_NODE_INVALID'), {
+        issues: checked.issues,
+      });
+    }
+    def = checked.definition;
+    defHash = definitionHash(def);
+  }
   // a test run is a dry run whose platform calls are answered by recorded responses
   const recorded = !!req.recorded;
   if (recorded) req = { ...req, dryRun: true };
-  const inputs = coerceInputs(def.inputs ?? [], req.inputs ?? {});
+  const inputs = coerceInputs(def.inputs ?? [], req.inputs ?? {}, !!node);
   // inputs of type "secret": only stored encrypted, "***" in the protocol and the audit log
   const { visible: storedInputs, sealed } = sealInputs(def.inputs, inputs);
-  const bindings = await resolveBindings(def, req.bindings ?? {});
+  const offline = debug?.spec.answers === 'offline';
+  const bindings = await resolveBindings(def, req.bindings ?? {}, node ? { only: nodeSlots(node), offline } : {});
   const runId = newId('run_');
   const actor = opts.actor ?? currentActor();
   const startedAt = nowIso();
   const bindingInfo = Object.fromEntries(
     Object.entries(bindings).map(([k, b]) => [k, { platformId: b.platform.id, platformName: b.platform.name, baseUrl: b.baseUrl }]),
   );
-  // all slots taken (or others waiting before it, or shutting down: a sub-process run then starts after the restart)
-  const queued = !accepting || runQueue.length > 0 || !slotFree();
+  // all slots taken (or others waiting before it, or shutting down: a sub-process run then starts after the restart);
+  // a single-node debug run executes one node at once
+  const queued = !node && (!accepting || runQueue.length > 0 || !slotFree());
   const busy = busyRunIds().length;
+  // an offline single node touches nothing: like the expression assistant, it is not audited (it is still stored)
+  const audited = !(node && offline);
+  const mode = modeOf(req);
+  const trigger = opts.trigger ?? 'manual';
   db().tx(() => {
     db().run(
-      `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, dry_run, recorded, trigger, schedule_id, actor, inputs, bindings, started_at, stats, parent_run_id, parent_step_key, trigger_id, trigger_name, trigger_output, sealed_inputs)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, dry_run, recorded, trigger, schedule_id, actor, inputs, bindings, started_at, stats, parent_run_id, parent_step_key, trigger_id, trigger_name, trigger_output, sealed_inputs, debug)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       runId,
       proc.id,
       proc.name,
       req.version ?? proc.currentVersion,
-      proc.definitionHash,
+      defHash,
       queued ? 'queued' : 'running',
       req.dryRun ? 1 : 0,
       recorded ? 1 : 0,
-      opts.trigger ?? 'manual',
+      trigger,
       opts.scheduleId ?? null,
       actor,
       JSON.stringify(storedInputs),
@@ -696,21 +786,26 @@ export async function startRun(
       opts.webhook?.triggerName ?? null,
       opts.webhook?.output ?? null,
       sealed,
+      debug ? JSON.stringify(debug.spec) : null,
     );
+    if (!audited) return;
+    const kindText = debug ? (debug.spec.kind === 'node' ? `Debug run of node "${debug.spec.nodeId}" (${debug.spec.answers})` : 'Debug run') : '';
     audit({
       actor,
       action: 'run.started',
       entityType: 'process',
       entityId: proc.id,
       runId,
-      summary: `${recorded ? 'Test run' : req.dryRun ? 'Dry run' : 'Run'} of "${proc.name}" v${req.version ?? proc.currentVersion} started (${opts.trigger ?? 'manual'}${opts.parent ? ` by run ${opts.parent.runId}` : ''}${opts.webhook ? ` "${opts.webhook.triggerName}"${opts.webhook.test ? ', test' : ''}` : ''})${queued ? (accepting ? `; queued: ${busy} of at most ${config.maxConcurrentRuns} runs are running` : '; queued: Steward is shutting down, it starts after the restart') : ''}`,
+      summary: `${kindText ? `${kindText}${recorded ? ', test run' : ', dry run'}` : recorded ? 'Test run' : req.dryRun ? 'Dry run' : 'Run'} of "${proc.name}" v${req.version ?? proc.currentVersion} started (${trigger}${opts.parent ? ` by run ${opts.parent.runId}` : ''}${opts.webhook ? ` "${opts.webhook.triggerName}"${opts.webhook.test ? ', test' : ''}` : ''})${queued ? (accepting ? `; queued: ${busy} of at most ${config.maxConcurrentRuns} runs are running` : '; queued: Steward is shutting down, it starts after the restart') : ''}`,
       details: {
         ...(queued ? { queued: true } : {}),
         inputs: storedInputs,
         bindings: bindingInfo,
-        definitionHash: proc.definitionHash,
+        definitionHash: defHash,
         dryRun: !!req.dryRun,
         ...(recorded ? { recorded: true } : {}),
+        // mode on run.started (ADR 0011); debug: what kind of debug run and where its variables came from – never values
+        ...(debug ? { mode, debug: debugDetails(debug.spec) } : {}),
         scheduleId: opts.scheduleId,
         ...(opts.webhook ? { triggerId: opts.webhook.triggerId, test: !!opts.webhook.test } : {}),
         ...(opts.parent ? { parentRunId: opts.parent.runId, parentStepKey: opts.parent.stepKey } : {}),
@@ -729,8 +824,37 @@ export async function startRun(
     pumpQueue();
     return runId;
   }
-  launch(runId, def, inputs, bindings, !!req.dryRun, actor, startedAt, store.emptyStats(), undefined, recorded);
+  launch(runId, def, inputs, bindings, !!req.dryRun, actor, startedAt, store.emptyStats(), undefined, recorded, { debug, audited });
   return runId;
+}
+
+/** The node a single-node debug run executes (the editor's unsaved node takes its place). */
+function debugNodeOf(def: ProcessDefinition, debug: DebugStart): FlowNode {
+  const id = debug.spec.nodeId ?? '';
+  const saved = def.nodes.find((n) => n.id === id);
+  const draft = debug.seed?.node;
+  if (draft && draft.id !== id) throw new HttpError(400, 'The unsaved node must keep its id', 'DEBUG_NODE_INVALID');
+  const n = draft ?? saved;
+  if (!n) throw new HttpError(404, `Node ${id.slice(0, 100)} not found`, 'DEBUG_NODE_NOT_FOUND');
+  if (n.type === 'start' || n.type === 'note') throw new HttpError(400, 'This node does not run on its own', 'DEBUG_NODE_NOT_RUNNABLE');
+  return n;
+}
+
+/** The audit details of a debug run: kind, node, answers, where the variables came from – never their values. */
+function debugDetails(d: DebugSpec): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries({
+      kind: d.kind,
+      nodeId: d.nodeId,
+      answers: d.answers,
+      varsFrom: d.varsFrom,
+      varsRunId: d.varsRunId,
+      draft: d.draft,
+      pasted: d.pasted,
+      pauseBeforeEach: d.pauseBeforeEach,
+      breakpoints: d.breakpoints?.length,
+    }).filter(([, v]) => v !== undefined),
+  );
 }
 
 function launch(
@@ -744,12 +868,26 @@ function launch(
   stats: RunStats,
   resumedBy?: string,
   recorded = false,
+  extra: { debug?: DebugStart; audited?: boolean } = {},
 ): void {
   const ctx = new RunContext(runId, def, inputs, bindings, dryRun || recorded, actor, startedAt, stats);
   ctx.recorded = recorded;
   ctx.redactor.add(...secretValuesOf(def.inputs, inputs));
   ctx.resumedBy = resumedBy;
+  ctx.audited = extra.audited ?? true;
+  if (extra.debug) {
+    ctx.debug = { ...extra.debug.spec };
+    if (extra.debug.spec.kind === 'node') {
+      ctx.debugNode = extra.debug.seed ?? { vars: {} };
+      ctx.rootVars = { ...ctx.debugNode.vars };
+      for (const k of Object.keys(ctx.rootVars)) ctx.taint(k, [INPUT]);
+    } else if (!store.runRow(runId).parent_run_id) {
+      // pauses only in the run the person steps through; its sub-process runs run without them
+      ctx.gate = new DebugGate({ pauseBeforeEach: extra.debug.spec.pauseBeforeEach, breakpoints: extra.debug.spec.breakpoints });
+    }
+  }
   const done = execute(ctx).finally(() => {
+    ctx.gate?.close();
     active.delete(runId);
     pumpQueue();
   });
@@ -761,6 +899,8 @@ export async function resumeRun(runId: string, actor = currentActor()): Promise<
   if (active.has(runId)) return;
   const r = store.runRow(runId);
   if (!['waiting', 'interrupted'].includes(r.status)) throw new HttpError(409, `Run is ${r.status}`);
+  // a debug run lives in one session of its debugger: it is never resumed (ADR 0010)
+  if (r.debug) throw new HttpError(409, 'A debug run cannot be resumed – start a new one', 'DEBUG_NOT_RESUMABLE');
   const proc = getProcess(r.process_id, r.process_version);
   const bindingInfo = parseJson<Record<string, { platformId: string }>>(r.bindings, {});
   const bindings = await resolveBindings(proc.definition, Object.fromEntries(Object.entries(bindingInfo).map(([k, v]) => [k, v.platformId])));
@@ -780,28 +920,54 @@ export async function resumeRun(runId: string, actor = currentActor()): Promise<
   );
 }
 
-export async function cancelRun(runId: string, actor = currentActor()): Promise<void> {
+/**
+ * Cancels a run with a reason (ADR 0011: the run.cancelled entry says why): its open tasks, the step's open request
+ * (AbortSignal), its place in the queue and its unfinished sub-process runs.
+ */
+export async function cancelRun(runId: string, actor = currentActor(), reason = `Cancelled by ${actor}`): Promise<void> {
   const r = store.runRow(runId);
   if (['succeeded', 'failed', 'cancelled'].includes(r.status)) throw new HttpError(409, `Run already ${r.status}`);
+  const why = reason.slice(0, 500);
   const a = active.get(runId);
   for (const t of store.listTasks({ runId, status: 'open' })) {
     store.decideTask(t.id, 'cancelled', null, actor);
     taskWaiters.get(t.id)?.(null);
     taskWaiters.delete(t.id);
   }
-  if (a) a.ctx.abort.abort();
+  if (a) {
+    a.ctx.cancelReason ??= why;
+    a.ctx.cancelledBy ??= actor;
+    a.ctx.abort.abort();
+  }
   const queuedAt = runQueue.indexOf(runId);
   if (queuedAt >= 0) runQueue.splice(queuedAt, 1);
   // sub-process runs started by this run are cancelled with it
   for (const child of store.unfinishedChildRuns(runId)) {
-    await cancelRun(child, actor).catch((e) => logger.warn({ err: e, runId: child }, 'could not cancel sub-process run'));
+    await cancelRun(child, actor, `Parent run ${runId} was cancelled: ${why}`).catch((e) =>
+      logger.warn({ err: e, runId: child }, 'could not cancel sub-process run'),
+    );
   }
   if (a) {
     await a.done.catch(() => undefined); // the earlier run reports its own failure
   } else {
     store.setRunStatus(runId, 'cancelled', { finished: true });
-    audit({ actor, action: 'run.cancelled', entityType: 'run', entityId: runId, runId, summary: 'Run cancelled' });
+    if (!isOfflineNodeRun(r))
+      audit({
+        actor,
+        action: 'run.cancelled',
+        entityType: 'run',
+        entityId: runId,
+        runId,
+        summary: `Run cancelled: ${why}`,
+        details: { reason: why, cancelledBy: actor },
+      });
   }
+}
+
+/** An offline single-node debug run (never audited). */
+function isOfflineNodeRun(r: store.RunRow): boolean {
+  const d = r.debug ? parseJson<DebugSpec | null>(r.debug, null) : null;
+  return d?.kind === 'node' && d.answers === 'offline';
 }
 
 export async function completeTask(taskId: string, decision: TaskDecision, actor = currentActor()): Promise<void> {
@@ -866,12 +1032,26 @@ export async function verifyManualTask(
   return { outcome: input.approved ? 'verified' : settled ? 'failed' : 'returned' };
 }
 
-/** On startup: resume waiting runs, mark in-flight ones as interrupted; queued runs keep their place and start when a slot is free. */
+/**
+ * On startup: resume waiting runs, mark in-flight ones as interrupted; queued runs keep their place and start when a
+ * slot is free. Debug runs are cancelled instead (ADR 0010): a paused or half-done debug run belongs to a session of
+ * its debugger that is gone.
+ */
 export async function recoverRuns(): Promise<void> {
   accepting = true;
-  const rows = db().all<{ id: string; status: string }>("SELECT id, status FROM runs WHERE status IN ('running', 'queued', 'waiting') ORDER BY started_at, id");
+  const rows = db().all<{ id: string; status: string; debug: string | null }>(
+    "SELECT id, status, debug FROM runs WHERE status IN ('running', 'queued', 'waiting') ORDER BY started_at, id",
+  );
   for (const r of rows) {
     if (active.has(r.id)) continue; // already re-attached (e.g. by a resumed parent run)
+    if (r.debug) {
+      try {
+        await cancelRun(r.id, 'system', 'Steward restarted');
+      } catch (e) {
+        logger.warn({ err: e, runId: r.id }, 'could not cancel the debug run');
+      }
+      continue;
+    }
     if (r.status === 'queued') {
       if (!runQueue.includes(r.id)) runQueue.push(r.id);
       continue;
@@ -899,18 +1079,22 @@ export async function recoverRuns(): Promise<void> {
   pumpQueue();
 }
 
+/** The run's mode now (a debug run switches to test after a simulated decision). */
+const ctxMode = (ctx: RunContext): RunMode => (ctx.recorded ? 'test' : ctx.dryRun ? 'dry' : 'live');
+
+/** What the events of a debug run say about it (consumers skip debug runs). */
+const debugEvent = (ctx: RunContext) => (ctx.debug ? { kind: ctx.debug.kind, ...(ctx.debug.nodeId ? { nodeId: ctx.debug.nodeId } : {}) } : null);
+
 async function execute(ctx: RunContext): Promise<void> {
   let status: 'succeeded' | 'failed' | 'cancelled' = 'succeeded';
   let error: string | undefined;
   const run = store.runRow(ctx.runId);
   const log = logger.child({ runId: ctx.runId, processId: run.process_id, processVersion: run.process_version });
   const t0 = Date.now();
-  log.info({ trigger: run.trigger, actor: ctx.actor, dryRun: ctx.dryRun, resumed: ctx.journal.size > 0 }, 'run started');
+  log.info({ trigger: run.trigger, actor: ctx.actor, dryRun: ctx.dryRun, resumed: ctx.journal.size > 0, debug: ctx.debug?.kind }, 'run started');
   const evBase = { runId: ctx.runId, processId: run.process_id, processName: ctx.def.name, actor: ctx.actor, trigger: run.trigger, dryRun: ctx.dryRun };
-  emit('run.started', evBase);
+  emit('run.started', { ...evBase, mode: ctxMode(ctx), debug: debugEvent(ctx) });
   try {
-    const start = ctx.def.nodes.find((n) => n.type === 'start');
-    if (!start) throw new Error('Process has no start node');
     await withSpan(
       `run ${ctx.def.name}`,
       {
@@ -920,12 +1104,18 @@ async function execute(ctx: RunContext): Promise<void> {
         'sm.run.trigger': run.trigger,
         'sm.run.dry_run': ctx.dryRun,
         'sm.run.resumed': ctx.journal.size > 0,
+        ...(ctx.debug ? { 'sm.run.debug': ctx.debug.kind } : {}),
         // a pseudonym, not the user name (traces go to a collector outside the audit boundary)
         'enduser.pseudo.id': tracePseudonym(ctx.actor),
       },
-      () => runNode(start, ctx, null),
+      async () => {
+        if (ctx.debug?.kind === 'node') return execDebugNode(ctx);
+        const start = ctx.def.nodes.find((n) => n.type === 'start');
+        if (!start) throw new Error('Process has no start node');
+        await runNode(start, ctx, null);
+      },
     );
-    await evaluateOutputs(ctx);
+    if (ctx.debug?.kind !== 'node') await evaluateOutputs(ctx);
   } catch (e) {
     if (e instanceof Cancelled || ctx.signal.aborted) {
       status = 'cancelled';
@@ -946,16 +1136,33 @@ async function execute(ctx: RunContext): Promise<void> {
   }
   store.setRunStatus(ctx.runId, status, { error: error ?? null, finished: true });
   log[status === 'failed' ? 'warn' : 'info']({ status, error, durationMs: Date.now() - t0, stats: ctx.stats }, 'run finished');
-  emit('run.finished', { ...evBase, scheduleId: run.schedule_id ?? null, status, error, durationMs: Date.now() - t0 });
+  emit('run.finished', {
+    ...evBase,
+    scheduleId: run.schedule_id ?? null,
+    status,
+    error,
+    durationMs: Date.now() - t0,
+    mode: ctxMode(ctx),
+    debug: debugEvent(ctx),
+  });
   if (error && status === 'failed') ctx.log('error', `Run failed: ${error}`);
+  if (status === 'cancelled' && ctx.cancelReason) ctx.log('warn', `Cancelled: ${ctx.cancelReason}`);
+  if (!ctx.audited) return;
+  const reason = status === 'cancelled' ? (ctx.cancelReason ?? 'Cancelled') : undefined;
   audit({
     actor: ctx.actor,
     action: `run.${status}`,
     entityType: 'run',
     entityId: ctx.runId,
     runId: ctx.runId,
-    summary: `Run of "${ctx.def.name}" ${status}${error && status === 'failed' ? `: ${error.slice(0, 200)}` : ''}`,
-    details: { stats: ctx.stats, protocolHash: store.protocolHash(ctx.runId), dryRun: ctx.dryRun },
+    summary: `Run of "${ctx.def.name}" ${status}${error && status === 'failed' ? `: ${error.slice(0, 200)}` : ''}${reason ? `: ${reason.slice(0, 200)}` : ''}`,
+    details: {
+      stats: ctx.stats,
+      protocolHash: store.protocolHash(ctx.runId),
+      dryRun: ctx.dryRun,
+      ...(reason ? { reason, cancelledBy: ctx.cancelledBy ?? null } : {}),
+      ...(ctx.debug ? { debug: debugDetails(ctx.debug), ...(ctx.debug.recordedFrom ? { recordedFrom: ctx.debug.recordedFrom } : {}) } : {}),
+    },
   });
 }
 
@@ -983,7 +1190,14 @@ function finishStep(
   f: { status: StepStatus; output?: unknown; summary?: string; error?: string; startedMs: number },
 ): void {
   store.finishStep(ctx.runId, key, f);
-  emit('step.finished', { runId: ctx.runId, processId: ctx.processId, nodeType, status: f.status, durationMs: Date.now() - f.startedMs });
+  emit('step.finished', {
+    runId: ctx.runId,
+    processId: ctx.processId,
+    nodeType,
+    status: f.status,
+    durationMs: Date.now() - f.startedMs,
+    ...(ctx.debug ? { debug: true } : {}),
+  });
 }
 
 const MAX_ACTIVATIONS = 200000;
@@ -1010,6 +1224,20 @@ async function runNode(node: FlowNode, ctx: RunContext, scope: string | null): P
   if (ctx.signal.aborted) throw new Cancelled();
   if (node.type === 'note') return;
   const key = activationKey(ctx, scope, node.id);
+  // step through (ADR 0010): the pause gate, before a node that is not replayed; a decision pauses at itself
+  if (ctx.gate && node.type !== 'start' && node.type !== 'userTask' && !ctx.journal.has(key)) {
+    const reason = ctx.gate.reasonFor(node.id);
+    if (reason) {
+      const action = await debugPause(ctx, node, key, reason);
+      if (action.type === 'stop') throw new Cancelled();
+      if (action.type === 'skip') {
+        for (const port of debugSkip(ctx, node, key, scope, action.by)) {
+          for (const next of outgoing(ctx.nodes, ctx.def.wires, node.id, port)) await runNode(next, ctx, scope);
+        }
+        return;
+      }
+    }
+  }
   const ports = await withSpan(
     `node ${node.type} ${node.id}`,
     { 'sm.node.id': node.id, 'sm.node.type': node.type, 'sm.step.key': key, 'sm.run.id': ctx.runId },
@@ -1096,6 +1324,8 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
   }
 
   if (isControl) return execControl(node, ctx, scope, key, name, journaled);
+  // debug runs: a decision or manual step is answered by the debugger, never by a real task (ADR 0010)
+  if (ctx.debug && node.type === 'userTask') return execDebugUserTask(node, ctx, scope, key, name);
 
   const started = Date.now();
   store.upsertStep(ctx.runId, { key, parentKey: scope, stepId: node.id, type: node.type, name, status: 'running' });
@@ -1226,8 +1456,25 @@ async function execControl(
       if (node.maxItems && items.length > node.maxItems) throw new Error(`${items.length} items exceed the safety limit of ${node.maxItems}`);
       store.updateStepInput(ctx.runId, key, { decision: ctx.redactor.apply(items) });
     }
+    if (ctx.debug?.kind === 'node') {
+      // a single node: the item list is the result, the body does not run
+      const output = { count: items.length, items: ctx.redactor.apply(items.slice(0, 50)) };
+      finishStep(ctx, key, node.type, {
+        status: 'succeeded',
+        summary: `${items.length} item(s) – the body does not run in a single-node run`,
+        startedMs: started,
+        output,
+      });
+      if (node.saveAs) {
+        ctx.vars[node.saveAs] = { count: items.length };
+        ctx.taint(node.saveAs, [ANY]);
+      }
+      return ['done'];
+    }
     const body = outgoing(ctx.nodes, ctx.def.wires, node.id, 'each');
-    const concurrency = Math.max(1, Math.min(node.concurrency ?? 1, 20));
+    // stepping through, a parallel loop runs one item at a time (one pause at a time)
+    const concurrency = ctx.gate ? 1 : Math.max(1, Math.min(node.concurrency ?? 1, 20));
+    if (ctx.gate && (node.concurrency ?? 1) > 1) ctx.log('info', `Debug run: "${name}" runs its items one at a time`, key);
     let output: { count: number; results?: Record<string, unknown>[] };
     if (concurrency > 1) {
       const results = await runItemsInParallel(node, ctx, key, items, body, concurrency);
@@ -1367,9 +1614,9 @@ async function execSubprocess(step: NodeOf<'subprocess'>, ctx: RunContext, key: 
       );
     }
     if (chain.length > MAX_SUBPROCESS_DEPTH) throw new Error(`Sub-processes are nested too deeply (limit ${MAX_SUBPROCESS_DEPTH})`);
-    if (!actorPermissions(ctx.actor, step.process).includes('run')) {
-      throw new Error(`${ctx.actor} may not run process "${step.process}" (needs the "run" right)`);
-    }
+    // the command layer's start check (ADR 0011), with the rights of the run's actor: run on the child …
+    const denied = startProblem(ctx.actor, { processId: step.process });
+    if (denied) throw new Error(`${ctx.actor} may not run process "${step.process}" (needs the "run" right)`);
     const proc = getProcess(step.process, step.version);
     const bindings: Record<string, string> = {};
     for (const slot of proc.definition.connections) {
@@ -1378,12 +1625,21 @@ async function execSubprocess(step: NodeOf<'subprocess'>, ctx: RunContext, key: 
       if (!b) throw new Error(`Sub-process connection "${slot.slot}" needs connection "${parentSlot}" of this process, which is not bound`);
       bindings[slot.slot] = b.platform.id;
     }
+    // … and (since 0.10.0) use on every platform the child is bound to
+    const unusable = startProblem(ctx.actor, { processId: step.process, bindings });
+    if (unusable) throw new Error(`Sub-process "${step.process}": ${unusable.text}`);
     const inputs = (await ctx.render(step.inputs ?? {})) as Record<string, unknown>;
     const request = { process: step.process, version: step.version ?? proc.currentVersion, inputs, bindings };
     store.updateStepInput(ctx.runId, key, ctx.redactor.apply(request));
     const id = await startRun(
       { processId: step.process, version: step.version, inputs, bindings, dryRun: ctx.dryRun, recorded: ctx.recorded },
-      { trigger: 'subprocess', actor: ctx.actor, parent: { runId: ctx.runId, stepKey: key } },
+      {
+        trigger: 'subprocess',
+        actor: ctx.actor,
+        parent: { runId: ctx.runId, stepKey: key },
+        // the child of a debug run is a debug run in the same mode, without pauses (ADR 0010)
+        ...(ctx.debug ? { debug: { spec: { kind: 'step' as const, ...(ctx.debug.recordedFrom ? { recordedFrom: ctx.debug.recordedFrom } : {}) } } } : {}),
+      },
     );
     store.updateStepInput(ctx.runId, key, ctx.redactor.apply({ ...request, childRunId: id }));
     ctx.log('info', `Started sub-process run ${id} of "${proc.name}"${ctx.dryRun ? ' (dry run)' : ''}`, key);
@@ -1497,8 +1753,9 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
       // what the messages say (#144): optional, and a problem here never fails the check
       const content = await checkContent(ctx, step, passed, key);
       if (passed) ctx.stats.checksPassed++;
-      else {
-        ctx.stats.checksFailed++;
+      else ctx.stats.checksFailed++;
+      // a debug run records the result in its protocol only: no check.failed entry, no alert, no message (ADR 0010)
+      if (!passed && !ctx.debug) {
         audit({
           actor: ctx.actor,
           action: 'check.failed',
@@ -1510,22 +1767,23 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
       }
       // whether this result notifies: the schedule's setting and the check's state (#127)
       const run = store.runRow(ctx.runId);
-      checkOutcome({
-        runId: ctx.runId,
-        processId: run.process_id,
-        processName: ctx.def.name,
-        scheduleId: run.schedule_id ?? null,
-        check: step.name || step.id,
-        passed,
-        severity,
-        message,
-        dryRun: ctx.dryRun,
-        notify: step.notify,
-        checkId: step.id,
-        ...content,
-        betterWhen: step.betterWhen ?? 'lower',
-        runbook: step.runbook ?? ctx.def.runbook ?? null,
-      });
+      if (!ctx.debug)
+        checkOutcome({
+          runId: ctx.runId,
+          processId: run.process_id,
+          processName: ctx.def.name,
+          scheduleId: run.schedule_id ?? null,
+          check: step.name || step.id,
+          passed,
+          severity,
+          message,
+          dryRun: ctx.dryRun,
+          notify: step.notify,
+          checkId: step.id,
+          ...content,
+          betterWhen: step.betterWhen ?? 'lower',
+          runbook: step.runbook ?? ctx.def.runbook ?? null,
+        });
       if (!passed && step.failRun) throw new Error(message);
       return {
         status: passed ? 'succeeded' : 'failed',
@@ -1560,6 +1818,8 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
       };
     }
     case 'wait':
+      if (ctx.debug?.kind === 'node')
+        return { summary: `Would wait ${step.seconds}s (not waited in a single-node run)`, output: { wouldWaitSeconds: step.seconds } };
       await sleep(step.seconds * 1000, ctx.signal).catch(() => {
         throw new Cancelled();
       });
@@ -1703,8 +1963,10 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
     secretBindings(ctx, step.connection).filter((x) => x.foreign),
   );
 
+  // a single-node debug run's pasted answer stands in for the platform (it is never stored as a recording)
+  const pasted = ctx.debugNode?.answer;
   // test run: a write with a recorded response gets that answer; without one it is skipped as in a dry run
-  const replayWrite = writes && ctx.recorded && !!findRecording(b.platform.id, { method: step.method, url: p, query, body });
+  const replayWrite = writes && ctx.recorded && (!!pasted || !!findRecording(b.platform.id, { method: step.method, url: p, query, body }));
   if (writes && ctx.dryRun && !replayWrite) {
     ctx.stats.skippedWrites++;
     ctx.log('info', `${ctx.recorded ? 'TEST RUN – no recorded response, would call' : 'DRY RUN – would call'} ${step.method} ${requestInfo.url}`, key, body);
@@ -1726,6 +1988,14 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
   const accept = (s: number) => (step.expectStatus?.length ? step.expectStatus.includes(s) : s >= 200 && s < 300);
   let lastRecording: string | null = null;
   const replay = (url: string, q: Record<string, unknown>): HttpResult => {
+    if (pasted) {
+      if (lastRecording === 'pasted')
+        return { status: pasted.status, ok: pasted.status < 400, headers: pasted.headers ?? {}, body: [], durationMs: 0, url } as HttpResult;
+      lastRecording = 'pasted';
+      ctx.log('info', `DEBUG RUN – pasted answer for ${step.method} ${url} → HTTP ${pasted.status}`, key);
+      if (!accept(pasted.status)) throw new Error(`HTTP ${pasted.status} from ${step.method} ${url} (pasted): ${snippet(pasted.body)}`);
+      return { status: pasted.status, ok: pasted.status < 400, headers: pasted.headers ?? {}, body: pasted.body ?? null, durationMs: 0, url } as HttpResult;
+    }
     const hit = findRecording(b.platform.id, { method: step.method, url, query: q, body });
     if (!hit) throw missingRecording(b.platform.name, step.method, url, q);
     // the same recording for the next page: the recording has no more pages
@@ -1936,7 +2206,8 @@ async function execAi(step: NodeOf<'ai'>, ctx: RunContext, key: string): Promise
     processVersion: store.runRow(ctx.runId).process_version ?? null,
     stepKey: key,
     actor: ctx.actor,
-    dryRun: ctx.dryRun,
+    // a live read of one AI node (ADR 0010) asks the model: the tokens are spent and count against the budgets
+    dryRun: ctx.dryRun && !ctx.debug?.live,
     recorded: ctx.recorded,
     def: ctx.def,
     gateway: { platform: b.platform, secrets: b.secrets },
@@ -2058,13 +2329,18 @@ async function execPublish(step: NodeOf<'publish'>, ctx: RunContext, key: string
   // another process must not fail or overwrite the owner's data – e.g. previewing a
   // second instance of a template that publishes the same key – so it returns a preview.
   const owner = datasetOwner(step.dataset);
-  if (ctx.dryRun && owner && owner !== run.process_id) {
+  // a debug run never publishes (ADR 0010): the preview a dry run of another process gets
+  if (ctx.debug || (ctx.dryRun && owner && owner !== run.process_id)) {
     const statusCounts: Record<string, number> = {};
     for (const r of rows) if (r._status) statusCounts[r._status] = (statusCounts[r._status] ?? 0) + 1;
     const counts = Object.entries(statusCounts)
       .map(([k, n]) => `${n} ${k}`)
       .join(', ');
-    ctx.log('info', `DRY RUN – "${step.dataset}" is owned by another process; it was not written`, key);
+    ctx.log(
+      'info',
+      ctx.debug ? `DEBUG RUN – "${step.dataset}" was not written` : `DRY RUN – "${step.dataset}" is owned by another process; it was not written`,
+      key,
+    );
     return {
       status: 'dryrun',
       output: { dataset: step.dataset, rows: rows.length, statusCounts, metrics, dryRun: true },
@@ -2149,7 +2425,8 @@ async function execAccessChange(step: NodeOf<'accessChange'>, ctx: RunContext, k
   return { output, summary: `${entries.length} access change(s) (${step.kind}) on ${b.platform.name} – documented when the run ends` };
 }
 
-async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: string): Promise<LeafResult> {
+/** What a decision, selection or manual step shows: its title, instructions and (selection) items. */
+async function taskView(step: NodeOf<'userTask'>, ctx: RunContext) {
   const title = await ctx.str(step.title);
   const instructions = step.instructions ? await ctx.str(step.instructions) : undefined;
   let rawItems: unknown[] = [];
@@ -2167,6 +2444,11 @@ async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: stri
       });
     }
   }
+  return { title, instructions, rawItems, items, columns };
+}
+
+async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: string): Promise<LeafResult> {
+  const { title, instructions, rawItems, items, columns } = await taskView(step, ctx);
   let task = store.findTask(ctx.runId, key);
   if (!task) {
     const id = newId('task_');
@@ -2253,6 +2535,314 @@ async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: stri
     summary: `${by} selected ${selected.length} of ${rawItems.length}`,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Debug runs (ADR 0010): one node, step through. The same step functions as every run; no second executor.
+// ---------------------------------------------------------------------------
+
+const debugPauseMs = (): number => Math.max(1, getSettings().debugPauseMinutes ?? 30) * 60_000;
+
+/** The node's resolved inputs for a pause preview (redacted by the caller); a failing expression shows its error. */
+async function previewInputs(node: FlowNode, ctx: RunContext): Promise<unknown> {
+  try {
+    switch (node.type) {
+      case 'http': {
+        const b = ctx.bindings[node.connection];
+        return {
+          method: node.method,
+          url: joinUrl(b?.baseUrl ?? '', await ctx.str(node.path)),
+          query: await ctx.render(node.query ?? {}), // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
+          headers: await ctx.render(node.headers ?? {}), // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
+          ...(node.body !== undefined ? { body: await ctx.render(node.body) } : {}), // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
+          write: isMutating(node),
+        };
+      }
+      case 'query':
+        return { sql: node.sql, params: node.params?.length ? await ctx.render(node.params) : [] }; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
+      case 'set':
+        return { values: await ctx.render(node.values ?? {}) }; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
+      case 'if':
+        return { condition: node.condition, result: await ctx.bool(node.condition) };
+      case 'check':
+        return { condition: node.condition, passes: await ctx.bool(node.condition) };
+      case 'forEach': {
+        const items = await ctx.list(node.items);
+        return { items: items.length, first: items.slice(0, 5) };
+      }
+      case 'log':
+        return { message: await ctx.str(node.message) };
+      case 'subprocess':
+        return { process: node.process, inputs: await ctx.render(node.inputs ?? {}) }; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
+      default:
+        return undefined;
+    }
+  } catch (e) {
+    return { error: ctx.redactor.apply((e as Error).message) };
+  }
+}
+
+/** Waits at the gate before a node (or for a simulated answer). The run counts as waiting: it holds no slot. */
+async function debugPause(ctx: RunContext, node: FlowNode, key: string, reason: DebugPause['reason'], task?: DebugPause['task']): Promise<GateAction> {
+  const gate = ctx.gate!;
+  const now = Date.now();
+  const ms = debugPauseMs();
+  const pause: DebugPause = {
+    reason,
+    nodeId: node.id,
+    nodeType: node.type,
+    nodeName: node.name || node.id,
+    stepKey: key,
+    vars: ctx.redactor.apply(structuredClone(ctx.vars)),
+    ...(reason !== 'decision' ? { preview: ctx.redactor.apply(await previewInputs(node, ctx)) } : {}),
+    ...(task ? { task: ctx.redactor.apply(task) } : {}),
+    since: new Date(now).toISOString(),
+    expiresAt: new Date(now + ms).toISOString(),
+  };
+  ctx.log(
+    'info',
+    reason === 'decision' ? `Debug run: waiting for the simulated answer of "${pause.nodeName}"` : `Debug run: paused before "${pause.nodeName}"`,
+    key,
+  );
+  ctx.beginWait();
+  try {
+    const action = await gate.wait(pause, {
+      timeoutMs: ms,
+      signal: ctx.signal,
+      onTimeout: () =>
+        void cancelRun(ctx.runId, 'system', 'debug pause timed out').catch((e) =>
+          logger.warn({ err: e, runId: ctx.runId }, 'could not cancel the paused debug run'),
+        ),
+    });
+    if (action.type === 'run') ctx.log('info', `Debug run: ${action.how === 'step' ? 'one step' : 'continued'} (${action.by})`, key);
+    else if (action.type === 'skip') ctx.log('info', `Debug run: skipped by ${action.by}`, key);
+    return action;
+  } finally {
+    ctx.endWait();
+  }
+}
+
+/** "Skip this node": recorded as skipped, its pass-through ports fire (as for a false condition). */
+function debugSkip(ctx: RunContext, node: FlowNode, key: string, scope: string | null, by: string): string[] {
+  store.upsertStep(ctx.runId, { key, parentKey: scope, stepId: node.id, type: node.type, name: node.name || node.id, status: 'running' });
+  finishStep(ctx, key, node.type, { status: 'skipped', summary: `Skipped while debugging by ${by}`, startedMs: Date.now() });
+  if (node.type === 'userTask') recordedOnlyFrom(ctx, key, node.name || node.id);
+  return skipPorts(node);
+}
+
+/** From the first simulated or skipped decision on, the run answers from recordings only (ADR 0010). */
+function recordedOnlyFrom(ctx: RunContext, key: string, name: string): void {
+  if (!ctx.debug || ctx.debug.recordedFrom) return;
+  ctx.debug.recordedFrom = key;
+  ctx.recorded = true;
+  ctx.dryRun = true;
+  store.setRunDebug(ctx.runId, ctx.debug);
+  ctx.log('warn', `From here on the run answers from recordings only: "${name}" was answered while debugging, nobody really decided it`, key);
+}
+
+/** A decision, selection or manual step in a debug run: answered by the debugger (simulated), never a real task. */
+async function execDebugUserTask(step: NodeOf<'userTask'>, ctx: RunContext, scope: string | null, key: string, name: string): Promise<string[]> {
+  const started = Date.now();
+  store.upsertStep(ctx.runId, { key, parentKey: scope, stepId: step.id, type: step.type, name, status: 'running' });
+  let action: GateAction;
+  const view = await taskView(step, ctx);
+  if (ctx.debugNode) {
+    action = { type: 'answer', by: ctx.actor, decision: ctx.debugNode.decision, manual: ctx.debugNode.manual };
+  } else if (ctx.gate) {
+    const spec = step.mode === 'manual' ? manualSpec(step) : undefined;
+    store.setStepStatus(ctx.runId, key, 'waiting');
+    action = await debugPause(ctx, step, key, 'decision', {
+      mode: step.mode,
+      title: view.title,
+      ...(view.instructions ? { instructions: view.instructions } : {}),
+      columns: view.columns.map((c) => ({ label: c.label })),
+      items: view.items,
+      ...(spec ? { checklist: spec.checklist, fields: spec.fields.map((f) => ({ id: f.id, label: f.label, type: f.type })) } : {}),
+    });
+    store.setStepStatus(ctx.runId, key, 'running');
+  } else {
+    // a sub-process run of a debug run has nobody to answer: it uses the recorded answers rule at once
+    action = { type: 'skip', by: 'system' };
+  }
+  if (action.type === 'stop') {
+    finishStep(ctx, key, step.type, { status: 'failed', error: 'Cancelled', startedMs: started });
+    throw new Cancelled();
+  }
+  if (action.type === 'skip') return debugSkip(ctx, step, key, scope, action.by === 'system' ? ctx.actor : action.by);
+  if (action.type !== 'answer') throw new Error('unexpected debug action');
+  const by = action.by;
+  const at = nowIso();
+  let output: Record<string, unknown>;
+  let summary: string;
+  let ports: string[];
+  if (step.mode === 'manual') {
+    const spec = manualSpec(step);
+    const m = action.manual ?? {};
+    output = {
+      completed: true,
+      completedBy: by,
+      completedAt: at,
+      checklist: spec.checklist.map((item, i) => ({ item, checked: !!m.checked?.includes(i) })),
+      fields: Object.fromEntries(
+        Object.entries(m.fields ?? {})
+          .filter(([k]) => spec.fields.some((f) => f.id === k))
+          .map(([k, v]) => [k, String(v).slice(0, 4000)]),
+      ),
+      comment: (m.comment ?? '').slice(0, 4000),
+      simulated: true,
+    };
+    summary = `Simulated: completed by ${by}`;
+    ports = successPorts(step, output);
+  } else {
+    const d = action.decision;
+    if (!d) throw new StepFailure(`Step "${name}" needs a simulated decision in a debug run`, key);
+    if (step.mode === 'approve') {
+      output = { approved: !!d.approved, comment: d.comment?.slice(0, 4000) ?? '', decidedBy: by, decidedAt: at, simulated: true };
+      summary = `Simulated: ${d.approved ? 'approved' : 'rejected'} by ${by}`;
+      if (!d.approved && !hasWires(ctx, step.id, 'rejected')) {
+        finishStep(ctx, key, step.type, { status: 'failed', error: `Rejected by ${by} (simulated)`, output, startedMs: started });
+        recordedOnlyFrom(ctx, key, name);
+        throw new StepFailure(`Step "${name}" failed: Rejected by ${by} (simulated)`, key);
+      }
+    } else {
+      const valid = new Set(view.items.map((i) => i.key));
+      const sel = new Set((d.selectedKeys ?? []).filter((k) => valid.has(k)));
+      output = {
+        approved: true,
+        selected: view.rawItems.filter((_, i) => sel.has(view.items[i]!.key)),
+        unselected: view.rawItems.filter((_, i) => !sel.has(view.items[i]!.key)),
+        selectedKeys: [...sel],
+        comment: d.comment?.slice(0, 4000) ?? '',
+        decidedBy: by,
+        decidedAt: at,
+        simulated: true,
+      };
+      summary = `Simulated: ${by} selected ${sel.size} of ${view.rawItems.length}`;
+    }
+    ports = successPorts(step, output);
+  }
+  const redacted = ctx.redactor.apply(output);
+  db().tx(() => {
+    finishStep(ctx, key, step.type, { status: 'succeeded', output: redacted, summary, startedMs: started });
+    ctx.stats.steps++;
+    store.saveStats(ctx.runId, ctx.stats);
+  });
+  applyOutput(step, ctx, redacted, 'succeeded');
+  recordedOnlyFrom(ctx, key, name);
+  return ports;
+}
+
+/** A single-node debug run: the node runs once with the given variables; wires are not followed. */
+async function execDebugNode(ctx: RunContext): Promise<void> {
+  const node = ctx.nodes.get(ctx.debug!.nodeId ?? '');
+  if (!node) throw new Error(`Node ${ctx.debug!.nodeId} not found`);
+  await execNode(node, ctx, null, activationKey(ctx, null, node.id));
+}
+
+/** The record first; only the queue position and a debug pause come from memory (ADR 0011). */
+function queryRun(runId: string): RunState {
+  const r = store.runRow(runId);
+  const current = db()
+    .all<{ key: string }>("SELECT key FROM run_steps WHERE run_id = ? AND status IN ('running', 'waiting') ORDER BY id", runId)
+    .map((x) => x.key);
+  const waitingTasks = store.listTasks({ runId, status: 'open' }).map((t) => ({
+    taskId: t.id,
+    stepKey: t.stepKey,
+    mode: t.mode,
+    ...(t.manual?.stage === 'work' || t.manual?.stage === 'verify' ? { stage: t.manual.stage } : {}),
+  }));
+  const a = active.get(runId);
+  const q = runQueue.indexOf(runId);
+  const mode = a ? ctxMode(a.ctx) : modeOfRow(r);
+  return {
+    runId,
+    status: r.status,
+    mode,
+    current,
+    waitingTasks,
+    ...(q >= 0 ? { queuePosition: q + 1 } : {}),
+    ...(a?.ctx.gate?.paused ? { paused: a.ctx.gate.paused } : {}),
+  };
+}
+
+/** A debug signal from the run's starter (checked by the command layer before). */
+async function debugSignal(runId: string, s: DebugSignal, actor: string): Promise<SignalResult> {
+  const r = store.runRow(runId);
+  if (!r.debug) throw new HttpError(409, 'Not a debug run', 'DEBUG_NOT_A_DEBUG_RUN');
+  if (s.type === 'debug.stop') {
+    await cancelRun(runId, actor, `Stopped while debugging by ${actor}`);
+    return { ok: true, paused: null };
+  }
+  const a = active.get(runId);
+  if (!a?.ctx.gate) throw new HttpError(409, `The debug run is ${r.status}`, 'DEBUG_NOT_PAUSED');
+  a.ctx.gate.apply(s, actor);
+  if (s.type === 'debug.breakpoints') a.ctx.log('info', `Debug run: breakpoints set (${s.breakpoints.length})`);
+  // the run takes the next steps before the panel asks again
+  await yieldToEventLoop();
+  return { ok: true, paused: a.ctx.gate.paused };
+}
+
+/** One step-through run per person at a time: starting another one stops the first (also one still queued). */
+async function stopOtherStepRuns(actor: string): Promise<void> {
+  const ids = db()
+    .all<{ id: string; debug: string }>(
+      "SELECT id, debug FROM runs WHERE actor = ? AND debug IS NOT NULL AND parent_run_id IS NULL AND status IN ('queued', 'running', 'waiting')",
+      actor,
+    )
+    .filter((r) => parseJson<DebugSpec | null>(r.debug, null)?.kind === 'step')
+    .map((r) => r.id);
+  for (const id of ids)
+    await cancelRun(id, actor, 'Replaced by a new debug run').catch((e) => logger.warn({ err: e, runId: id }, 'could not stop the earlier debug run'));
+}
+
+/** The built-in engine (ADR 0011): today's runner behind the engine interface. */
+export const builtinEngine: RunEngine = {
+  id: 'builtin',
+  async start(cmd: StartCommand) {
+    if (cmd.debug?.kind === 'step' && !cmd.origin.parent) await stopOtherStepRuns(cmd.actor);
+    const runId = await startRun(
+      {
+        processId: cmd.processId,
+        version: cmd.version,
+        inputs: cmd.inputs,
+        bindings: cmd.bindings,
+        dryRun: cmd.mode !== 'live',
+        recorded: cmd.mode === 'test',
+      },
+      {
+        trigger: cmd.origin.trigger,
+        scheduleId: cmd.origin.scheduleId,
+        webhook: cmd.origin.webhook,
+        parent: cmd.origin.parent,
+        actor: cmd.actor,
+        ...(cmd.debug ? { debug: { spec: cmd.debug, seed: cmd.debugSeed } } : {}),
+      },
+    );
+    return { runId, status: store.runRow(runId).status === 'queued' ? 'queued' : 'running' };
+  },
+  async signal(runId: string, s: RunSignal, actor: string): Promise<SignalResult> {
+    switch (s.type) {
+      case 'task.decide':
+        await completeTask(s.taskId, s.decision, actor);
+        return { ok: true };
+      case 'manual.complete':
+        return { ok: true, ...(await completeManualTask(s.taskId, s.input, actor)) };
+      case 'manual.verify':
+        return { ok: true, ...(await verifyManualTask(s.taskId, s.input, actor)) };
+      case 'resume':
+        await resumeRun(runId, actor);
+        return { ok: true };
+      default:
+        return debugSignal(runId, s, actor);
+    }
+  },
+  cancel: (runId, reason, actor) => cancelRun(runId, actor, reason),
+  query: queryRun,
+  recover: recoverRuns,
+  stopAccepting: stopAcceptingRuns,
+  drain: (graceMs) => drainRuns(graceMs),
+  interruptBusy: interruptBusyRuns,
+  counts: () => ({ active: activeRunIds(), busy: busyRunIds(), queued: queuedRunIds() }),
+};
 
 /** A finished manual step: its entry becomes the node's output (vars.<saveAs>); a rejected verification with onReject "fail" fails the run. */
 function manualOutput(t: TaskRecord, ctx: RunContext, key: string, decision: TaskDecision, by: string): LeafResult {

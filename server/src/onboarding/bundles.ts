@@ -19,7 +19,8 @@ import { logger } from '../log.js';
 import { HttpError, slugify } from '../util.js';
 import { parseYaml } from '../yaml-safe.js';
 import { capabilities } from '../auth/permissions.js';
-import { currentUser } from '../auth/context.js';
+import { currentActor, currentUser } from '../auth/context.js';
+import { authorizeStart, startProblem } from '../engine/commands.js';
 import { me } from '../auth/access.js';
 import { getPlatform } from '../platforms/service.js';
 import { createProcess, getProcess, listTemplates, permissionsFor, saveProcess } from '../processes/service.js';
@@ -375,11 +376,20 @@ export async function setupBundle(id: string, req: TemplateBundleSetupRequest): 
 
   // one dry run per process: it simulates every change and writes the full protocol
   if (toRun.length) {
-    const { startRun } = await import('../engine/runner.js');
+    const { engine } = await import('../engine/index.js');
     for (const r of toRun) {
       try {
-        if (!permissionsFor(r.processId).includes('run')) throw new HttpError(403, 'You may not run this process', 'FORBIDDEN', { context: 'runProcess' });
-        const runId = await startRun({ processId: r.processId, inputs: r.inputs, bindings: r.bindings, dryRun: true });
+        // the command layer's start check (ADR 0011): run, and use on the bound platforms
+        if (startProblem(undefined, { processId: r.processId, bindings: r.bindings }))
+          throw new HttpError(403, 'You may not run this process', 'FORBIDDEN', { context: 'runProcess' });
+        const { runId } = await engine().start({
+          processId: r.processId,
+          inputs: r.inputs ?? {},
+          bindings: r.bindings ?? {},
+          mode: 'dry',
+          actor: currentActor(),
+          origin: { trigger: 'manual' },
+        });
         items.push({ type: 'dryRun', source: r.processId, name: r.name, action: 'started', id: runId, link: `/runs/${runId}` });
       } catch (e) {
         items.push({ type: 'dryRun', source: r.processId, name: r.name, action: 'failed', id: null, link: `/processes/${r.processId}`, message: msg(e) });
@@ -412,15 +422,14 @@ export async function turnOnBundle(id: string, input: z.infer<typeof turnOnInput
   const b = loadBundles().find((x) => x.id === id);
   if (!b) throw new HttpError(404, `Template bundle ${id} not found`, 'BUNDLE_NOT_FOUND', { id: id.slice(0, 100) });
   const scheduler = await import('../scheduler.js');
-  const { requirePlatform } = await import('../routes/helpers.js');
   const mon = await import('../monitors/service.js');
   const items: TemplateBundleSetupItem[] = [];
   for (const sid of input.schedules) {
     try {
       scheduler.requireScheduleEdit(sid);
       const s = scheduler.getSchedule(sid);
-      if (!permissionsFor(s.processId).includes('run')) throw new HttpError(403, 'You may not run this process', 'FORBIDDEN', { context: 'runProcess' });
-      for (const pid of Object.values(s.bindings ?? {})) requirePlatform(pid, 'use', `use platform ${pid}`);
+      if (startProblem(undefined, { processId: s.processId })) throw new HttpError(403, 'You may not run this process', 'FORBIDDEN', { context: 'runProcess' });
+      authorizeStart(undefined, { processId: s.processId, bindings: s.bindings });
       const { id: _id, createdAt: _c, processName: _p, lastRunAt: _l, lastRunId: _r, lastRunStatus: _s, nextRunAt: _n, ...rest } = s;
       const saved = scheduler.saveSchedule({ ...rest, enabled: true }, sid);
       items.push({ type: 'schedule', source: saved.processId, name: saved.name, action: 'updated', id: saved.id, link: '/schedules', message: 'on' });

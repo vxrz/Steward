@@ -316,6 +316,8 @@ export const SETTINGS_MOVED = [
   'browserHeadless',
   'browserTimeoutMs',
   'retentionRunDays',
+  'retentionDebugRunDays',
+  'debugPauseMinutes',
   'retentionNotificationDays',
   'retentionMonitorDays',
   'defaultLocale',

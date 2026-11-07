@@ -22,8 +22,9 @@ import { isAdmin } from '../auth/permissions.js';
 import { effectiveMcpMode, noteFourEyes, samePerson } from '../auth/assurance.js';
 import { findUserByName, listUsers, toAuthUser } from '../auth/users.js';
 import * as platforms from '../platforms/service.js';
-import { getProcess, permissionsFor } from '../processes/service.js';
-import { startRun } from '../engine/runner.js';
+import { getProcess } from '../processes/service.js';
+import { engine } from '../engine/index.js';
+import { startProblem } from '../engine/commands.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { ToolError, cap, defineTool, type ToolContext, type ToolDef } from './tooling.js';
 import { executeGatewayCall, writeDecision, type QueryValue } from './gateway.js';
@@ -442,8 +443,10 @@ export function createRunRequest(ctx: ToolContext, a: { processId: string; input
   } catch {
     proc = null;
   }
-  if (!proc || !permissionsFor(a.processId).includes('view')) throw new ToolError(`Process ${a.processId} not found`);
-  if (!permissionsFor(a.processId).includes('run')) throw new ToolError(`You may not run "${proc.name}"`);
+  // the command layer's start check (ADR 0011); asked again at approval time, with the rights of then
+  const problem = proc ? startProblem(undefined, { processId: a.processId }) : null;
+  if (!proc || problem?.code === 'processNotFound') throw new ToolError(`Process ${a.processId} not found`);
+  if (problem) throw new ToolError(`You may not run "${proc.name}"`);
   const secret = (proc.definition.inputs ?? []).filter((i) => i.type === 'secret' && a.inputs && a.inputs[i.name] !== undefined).map((i) => i.name);
   if (secret.length) throw new ToolError(`Secret inputs (${secret.join(', ')}) cannot be given through MCP – start this run in Steward`);
   const r = base(ctx, 'run', 'confirm', a.reason);
@@ -620,8 +623,15 @@ async function execute(r: Row): Promise<{ status?: number; body?: unknown; runId
     return await runAs(asOwner, async () => {
       if (r.kind === 'run') {
         if (!mcpRunRequests()) return { error: 'Run requests were turned off in the meantime' };
-        if (!permissionsFor(r.process_id!).includes('run')) return { error: `${r.requested_by} may no longer run this process` };
-        const runId = await startRun({ processId: r.process_id!, inputs: parseJson(r.inputs, {}), dryRun: !!r.dry_run }, { actor: r.requested_by });
+        if (startProblem(asOwner, { processId: r.process_id! })) return { error: `${r.requested_by} may no longer run this process` };
+        const { runId } = await engine().start({
+          processId: r.process_id!,
+          inputs: parseJson(r.inputs, {}),
+          bindings: {},
+          mode: r.dry_run ? 'dry' : 'live',
+          actor: r.requested_by,
+          origin: { trigger: 'manual' },
+        });
         return { runId };
       }
       let p: Platform;

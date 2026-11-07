@@ -8,9 +8,9 @@ import { runAs } from '../auth/context.js';
 import { findUserByName, listUsers, toAuthUser } from '../auth/users.js';
 import { matches } from '../auth/permissions.js';
 import { notify } from '../notifications/service.js';
-import { permissionsFor } from '../processes/service.js';
 import { platformRequest, secretValues } from '../platforms/http.js';
-import { startRun } from '../engine/runner.js';
+import { engine } from '../engine/index.js';
+import { startProblem } from '../engine/commands.js';
 import { evalExpr } from '../engine/expr.js';
 import { platformFor } from './platforms.js';
 import { zabbixSend } from './zabbix.js';
@@ -450,6 +450,7 @@ async function startProcesses(o: Extract<OutputDef, { type: 'process' }>, m: Loa
   for (const e of events) {
     const prev = outState(m.id, o.id, e.subject)?.last_run_id;
     if (prev) {
+      // debug runs: the output's own last run, by id (never a debug run)
       const st = db().get<{ status: string }>('SELECT status FROM runs WHERE id = ?', prev)?.status;
       if (st && ACTIVE_RUN.includes(st)) {
         ids.push(prev);
@@ -466,12 +467,18 @@ async function startProcesses(o: Extract<OutputDef, { type: 'process' }>, m: Loa
         throw new Error(`input mapping for "${name}" failed: ${(err as Error).message}`);
       }
     }
-    const runId = await runAs(user, () => {
-      if (!permissionsFor(o.processId).includes('run')) throw new Error(`${m.owner} may not run process ${o.processId}`);
-      return startRun(
-        { processId: o.processId, inputs, bindings: o.bindings, dryRun: o.dryRun },
-        { trigger: 'monitor', actor: m.owner, webhook: { triggerId: m.id, triggerName: m.name, output: o.id } },
-      );
+    const { runId } = await runAs(user, () => {
+      // the command layer's start check (ADR 0011), as the monitor's owner: since 0.10.0 also `use` on the bound platforms
+      const p = startProblem(user, { processId: o.processId, bindings: o.bindings });
+      if (p) throw new Error(p.code === 'mayNotRun' || p.code === 'processNotFound' ? `${m.owner} may not run process ${o.processId}` : p.text);
+      return engine().start({
+        processId: o.processId,
+        inputs,
+        bindings: o.bindings ?? {},
+        mode: o.dryRun ? 'dry' : 'live',
+        actor: m.owner,
+        origin: { trigger: 'monitor', webhook: { triggerId: m.id, triggerName: m.name, output: o.id } },
+      });
     });
     ids.push(runId);
     logger.info({ monitor: m.key, output: o.id, runId }, 'monitor output started a run');
