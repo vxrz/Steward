@@ -34,6 +34,7 @@
     "validate": "tsx server/src/cli/validate.ts",
     "openapi": "tsx server/src/cli/openapi.ts",
     "plant:schema": "tsx server/src/cli/plant-schema.ts",
+    "map:styles": "node scripts/map-styles.mjs",
     "config:docs": "tsx server/src/cli/config-docs.ts",
     "build:exe": "node scripts/build-exe.mjs",
     "desktop": "tsx server/src/desktop/launcher.ts",

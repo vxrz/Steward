@@ -193,6 +193,8 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('backup.settings', 'system', ['changeBackups']),
   sp('migration.export', 'system', ['exportMigration']),
   sp('migration.apply', 'system', ['applyMigration']),
+  // where the map of sites fetches its tiles from (0.10.0, #234): a new style, URL, key or file; turning it off never asks
+  sp('plant.mapSource', 'system', ['changeMapSource']),
 ];
 
 export type ControlPointKey = string;

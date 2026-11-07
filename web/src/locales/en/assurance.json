@@ -293,6 +293,12 @@
         "label": "Raise a cost budget",
         "description": "A higher monthly cost budget of a service, application or team, another currency, or no budget any more. Lowering a budget needs no confirmation."
       }
+    },
+    "plant": {
+      "mapSource": {
+        "label": "Change where the map of sites fetches its tiles",
+        "description": "A new tile source for the map of sites: OpenStreetMap, Light/Dark, an own URL or API key, a self-hosted file, or the own style read again. Turning the map off needs no confirmation."
+      }
     }
   }
 }

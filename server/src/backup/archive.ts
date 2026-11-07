@@ -103,7 +103,8 @@ async function snapshotDatabase(dir: string): Promise<{ file: string; entry: str
 /** Files of the data folder that go into the backup (regular files only; links are not followed). */
 export function dataFiles(root = config.dataDir): { rel: string; abs: string }[] {
   const dbFile = config.database.kind === 'sqlite' ? path.resolve(config.database.file) : null;
-  const skipTop = new Set(['backups', WORK_DIR, 'instance.json']);
+  // the map's tile cache is rebuilt from its source, and its PMTiles files are placed by whoever runs Steward (#234)
+  const skipTop = new Set(['backups', WORK_DIR, 'instance.json', 'cache', 'maps']);
   const out: { rel: string; abs: string }[] = [];
   const walk = (dir: string, rel: string) => {
     for (const d of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
