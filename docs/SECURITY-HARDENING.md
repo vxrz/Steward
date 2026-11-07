@@ -283,6 +283,17 @@ gh attestation verify oci://ghcr.io/vxrz/steward@sha256:<platform digest> --repo
 
 Run what you verified: pin the digest (`image: ghcr.io/vxrz/steward:0.2.1@sha256:…` in the compose file) or at least the version, so a later push to the tag cannot replace it unnoticed. The same commands work for the `-browser` tags.
 
+## Shared procedure libraries
+
+Libraries ([LIBRARIES.md](LIBRARIES.md), [ADR 0014](adr/0014-shared-procedure-libraries.md)) bring procedures from other installations and publishers. A signature proves that the files are the ones a trusted publisher's key signed – not that the procedures are good.
+
+- **Trust few publishers, pin their keys.** Compare each key's fingerprint (`SHA256:…`, as `ssh-keygen -l` prints it) with the publisher on a second channel; limit a publisher to its library ids; prefer hardware keys (`sk-ssh-ed25519`, a touch per signature) and set an expiry. Trust changes need a step-up (`library.publishers`) and are audited; keys are sealed with the vault's integrity key.
+- **Review the whole release.** _What it can do_ is computed from the steps (writes, access changes, browser and AI steps, platform kinds per slot). Connector types show their base URL, token URL and trusted origins in full – credentials of platforms made from them go there; only administrators install them.
+- **Run new library procedures as dry runs first,** with read-only identities ([ADR 0009](adr/0009-platform-identities.md)); monitors arrive switched off and nothing is scheduled by a library.
+- **Four-eyes on installs:** require it for `library.install` in the assurance policy when a second person should confirm every install, update and rollback.
+- **A stolen key:** revoke it at once (no step-up needed), install a release signed with the publisher's new key, and put the affected libraries **on hold** until then – the hold pauses their schedules, triggers and monitors and refuses runs.
+- **Freeze:** Steward cannot tell that a Git host hides a newer release. The library page shows when its source was last checked and the newest release seen.
+
 ## Known limits
 
 - **RFC 3161 timestamps** of checkpoints by a corporate TSA are not implemented yet (planned): they would add trusted time, so a manipulated server clock could not back-date entries. Until then, the SIEM's own receive timestamps of the checkpoint lines serve that purpose.
