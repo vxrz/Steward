@@ -386,7 +386,8 @@
       "channel": "Kanal",
       "resources": "Neue Ressourcen",
       "summary": "Tägliche Zusammenfassung",
-      "branding": "Berichts-Branding"
+      "branding": "Berichts-Branding",
+      "quiet": "Ruhezeiten"
     },
     "newResources": {
       "title": "Neue Ressourcen der Mitglieder",
@@ -428,6 +429,9 @@
       "schedules_other": "{{count}} Berichtszeitpläne des Teams:",
       "noSchedules": "Noch kein Berichtszeitplan verwendet das Team (wählen Sie das Team in einem Berichtszeitplan).",
       "eyeDropper": "Farbe vom Bildschirm übernehmen"
+    },
+    "quiet": {
+      "usesInstance": "Mitglieder nutzen ihre eigenen Ruhezeiten und Sammelnachrichten oder keine."
     }
   }
 }

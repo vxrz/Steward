@@ -98,7 +98,8 @@
     "days": "Tage",
     "daysOptions": {
       "weekdays": "Montag bis Freitag",
-      "everyday": "Jeden Tag"
+      "everyday": "Jeden Tag",
+      "weekly": "Einmal pro Woche"
     },
     "channel": "Wohin",
     "channelOptions": {
@@ -141,7 +142,8 @@
       "own": "Ihre eigenen Einstellungen",
       "team": "Vorgabe des Teams {{team}}",
       "instance": "Vorgabe der Instanz"
-    }
+    },
+    "weekday": "Tag"
   },
   "newResources": {
     "title": "Team neuer Ressourcen",

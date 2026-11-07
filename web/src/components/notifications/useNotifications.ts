@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import type { AppNotification } from '@sm/shared';
+import type { AppNotification, QuietInfo } from '@sm/shared';
 import { getOptional, post } from '../../api';
 import { browserNotifyActive, showBrowserNotification } from './browserNotify';
 
 export interface NotificationList {
   items: AppNotification[];
   unread: number;
+  /** In quiet hours (ADR 0012): until when, and how many messages are held */
+  quiet?: QuietInfo;
   /** The server has no notification endpoints (yet) */
   unavailable?: boolean;
 }

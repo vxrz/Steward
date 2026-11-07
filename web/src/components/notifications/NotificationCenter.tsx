@@ -1,7 +1,7 @@
 import { ActionIcon, Badge, Box, Button, Center, Drawer, Group, Indicator, Loader, ScrollArea, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { useNavigate } from 'react-router-dom';
-import { IconBell, IconBellOff, IconChecks, IconSettings } from '@tabler/icons-react';
+import { IconBell, IconBellOff, IconChecks, IconMoon, IconSettings } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { AppNotification } from '@sm/shared';
 import { fmtDate, fmtRelative } from '../../format';
@@ -84,6 +84,16 @@ export function NotificationCenter() {
             {t('center.settings')}
           </Button>
         </Group>
+        {q.data?.quiet && (
+          <Group gap={6} mb="sm" wrap="nowrap" data-testid="quiet-hours-line">
+            <IconMoon size={14} color="var(--mantine-color-dimmed)" aria-hidden />
+            <Text size="xs" c="dimmed">
+              {q.data.quiet.until
+                ? t('center.quietUntil', { time: q.data.quiet.until, count: q.data.quiet.held })
+                : t('center.quiet', { count: q.data.quiet.held })}
+            </Text>
+          </Group>
+        )}
         {q.isLoading ? (
           <Center py="xl">
             <Loader size="sm" />

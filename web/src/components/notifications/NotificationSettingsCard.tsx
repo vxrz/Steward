@@ -23,8 +23,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDeviceFloppy, IconSend } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
+  DEFAULT_QUIET_HOURS,
   NOTIFICATION_EVENTS,
   NOTIFICATION_EVENT_INFO,
+  type QuietHours,
   type NotificationChannel,
   type NotificationEvent,
   type NotificationSettings,
@@ -37,6 +39,9 @@ import { Hint } from '../common';
 import i18n from '../../i18n';
 import { errorText } from '../../i18n/errors';
 import { appUrl } from '../../basePath';
+import { QuietHoursFields } from './QuietHoursFields';
+import { useZoneList } from './QuietHoursCard';
+import { browserZone } from './DailySummaryCard';
 
 const CHANNELS: NotificationChannel[] = ['inApp', 'email', 'teams', 'webhook'];
 
@@ -52,6 +57,9 @@ interface Draft {
   teamsEnabled: boolean;
   webhookEnabled: boolean;
   webhookFormat: 'json' | 'teams';
+  /** Quiet hours of the instance channels (ADR 0012); null: none */
+  teamsQuiet: QuietHours | null;
+  webhookQuiet: QuietHours | null;
   routes: Record<NotificationEvent, NotificationChannel[]>;
   baseUrl: string;
   allowedEmailDomains: string[];
@@ -69,6 +77,8 @@ const toDraft = (s: NotificationSettings): Draft => ({
   teamsEnabled: s.teams.enabled,
   webhookEnabled: s.webhook.enabled,
   webhookFormat: s.webhook.format ?? 'json',
+  teamsQuiet: s.teams.quietHours ?? null,
+  webhookQuiet: s.webhook.quietHours ?? null,
   routes: Object.fromEntries(NOTIFICATION_EVENTS.map((e) => [e, s.routes?.[e] ?? ['inApp']])) as Draft['routes'],
   baseUrl: s.baseUrl ?? '',
   allowedEmailDomains: s.allowedEmailDomains ?? [],
@@ -121,6 +131,21 @@ function SecretInput({
         </Group>
       )}
     </div>
+  );
+}
+
+/** Quiet hours of an instance channel in Teams format (ADR 0012): collapsed until turned on. */
+function ChannelQuiet({ value, onChange, testId }: { value: QuietHours | null; onChange: (v: QuietHours | null) => void; testId: string }) {
+  const { t } = useTranslation('notifications');
+  const v = value ?? { ...DEFAULT_QUIET_HOURS, timeZone: browserZone() };
+  const zoneList = useZoneList(v.timeZone);
+  return (
+    <Stack gap={4} data-testid={testId}>
+      <Text size="xs" c="dimmed">
+        {t('quiet.channelIntro')}
+      </Text>
+      <QuietHoursFields channel value={v} onChange={(next) => onChange(next.enabled ? next : null)} zoneList={zoneList} />
+    </Stack>
   );
 }
 
@@ -192,8 +217,13 @@ export function NotificationSettingsCard() {
     if (!d) return;
     const body: NotificationSettingsInput = {
       email: { ...d.email, user: d.email.user || undefined, ...(smtpPassword !== undefined ? { password: smtpPassword } : {}) },
-      teams: { enabled: d.teamsEnabled, ...(teamsUrl !== undefined ? { webhookUrl: teamsUrl } : {}) },
-      webhook: { enabled: d.webhookEnabled, format: d.webhookFormat, ...(webhookUrl !== undefined ? { url: webhookUrl } : {}) },
+      teams: { enabled: d.teamsEnabled, ...(teamsUrl !== undefined ? { webhookUrl: teamsUrl } : {}), quietHours: d.teamsQuiet?.enabled ? d.teamsQuiet : null },
+      webhook: {
+        enabled: d.webhookEnabled,
+        format: d.webhookFormat,
+        ...(webhookUrl !== undefined ? { url: webhookUrl } : {}),
+        quietHours: d.webhookFormat === 'teams' && d.webhookQuiet?.enabled ? d.webhookQuiet : null,
+      },
       routes: d.routes,
       baseUrl: d.baseUrl.trim() || undefined,
       allowedEmailDomains: d.allowedEmailDomains,
@@ -313,6 +343,7 @@ export function NotificationSettingsCard() {
           onChange={setTeamsUrl}
         />
         <TestButton channel="teams" disabled={!!dirty || !stored.teams.enabled || !stored.teams.hasWebhookUrl} />
+        <ChannelQuiet value={d.teamsQuiet} onChange={(teamsQuiet) => setD({ ...d, teamsQuiet })} testId="teams-quiet" />
 
         <Divider label="Webhook" labelPosition="left" />
         <Switch label={t('notify.sendWebhook')} checked={d.webhookEnabled} onChange={(e) => setD({ ...d, webhookEnabled: e.currentTarget.checked })} />
@@ -334,6 +365,9 @@ export function NotificationSettingsCard() {
           ]}
         />
         <TestButton channel="webhook" disabled={!!dirty || !stored.webhook.enabled || !stored.webhook.hasUrl} />
+        {d.webhookFormat === 'teams' && (
+          <ChannelQuiet value={d.webhookQuiet} onChange={(webhookQuiet) => setD({ ...d, webhookQuiet })} testId="webhook-quiet" />
+        )}
 
         <Divider label={t('notify.routes')} labelPosition="left" />
         <Table.ScrollContainer minWidth={520}>

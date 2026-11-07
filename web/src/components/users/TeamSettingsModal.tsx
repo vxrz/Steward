@@ -26,8 +26,11 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
   DEFAULT_DAILY_SUMMARY,
+  DEFAULT_NOTIFICATION_PREFS,
+  DEFAULT_QUIET_HOURS,
   TEAM_NEW_RESOURCE_MODES,
   type DailySummaryPrefs,
+  type NotificationPrefs,
   type Team,
   type TeamChannel,
   type TeamNewResourceMode,
@@ -37,6 +40,8 @@ import {
 import { del, get, notifyError, notifyOk, post, put } from '../../api';
 import { appUrl } from '../../basePath';
 import { DailySummaryFields, browserZone, zones } from '../notifications/DailySummaryCard';
+import { DigestFields, QuietHoursFields } from '../notifications/QuietHoursFields';
+import { useZoneList } from '../notifications/QuietHoursCard';
 
 type Draft = Omit<TeamChannel, 'hasUrl'> & { url: string };
 type BrandingDraft = Omit<TeamReportBranding, 'customLogo'>;
@@ -87,7 +92,7 @@ const ReadOnly = () => {
  */
 export function TeamSettingsModal({ team, onClose }: { team: Team; onClose: () => void }) {
   // profile: the daily summary fields (loaded with the dialog, so opening that tab does not suspend it)
-  const { t } = useTranslation(['users', 'common', 'profile']);
+  const { t } = useTranslation(['users', 'common', 'profile', 'notifications']);
   const [tab, setTab] = useState<string | null>('channel');
   const qc = useQueryClient();
   const key = ['team-settings', team.id];
@@ -111,6 +116,7 @@ export function TeamSettingsModal({ team, onClose }: { team: Team; onClose: () =
             <Tabs.Tab value="channel">{t('teamSettings.tabs.channel')}</Tabs.Tab>
             <Tabs.Tab value="resources">{t('teamSettings.tabs.resources')}</Tabs.Tab>
             <Tabs.Tab value="summary">{t('teamSettings.tabs.summary')}</Tabs.Tab>
+            <Tabs.Tab value="quiet">{t('teamSettings.tabs.quiet')}</Tabs.Tab>
             <Tabs.Tab value="branding">{t('teamSettings.tabs.branding')}</Tabs.Tab>
           </Tabs.List>
           <Tabs.Panel value="channel">
@@ -122,6 +128,9 @@ export function TeamSettingsModal({ team, onClose }: { team: Team; onClose: () =
           <Tabs.Panel value="summary">
             <SummarySection s={s} save={save} />
           </Tabs.Panel>
+          <Tabs.Panel value="quiet">
+            <QuietSection s={s} save={save} />
+          </Tabs.Panel>
           <Tabs.Panel value="branding">
             <BrandingSection s={s} save={save} onLogo={(next) => qc.setQueryData(key, next)} />
           </Tabs.Panel>
@@ -132,17 +141,37 @@ export function TeamSettingsModal({ team, onClose }: { team: Team; onClose: () =
 }
 
 function ChannelSection({ s, save }: { s: TeamSettings; save: Save }) {
-  const { t } = useTranslation(['users', 'common']);
+  const { t } = useTranslation(['users', 'common', 'notifications']);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState<'save' | 'reset' | 'test' | null>(null);
   useEffect(() => {
-    setDraft(s.channel ? { enabled: s.channel.enabled, format: s.channel.format, mode: s.channel.mode, url: '' } : null);
+    setDraft(
+      s.channel
+        ? {
+            enabled: s.channel.enabled,
+            format: s.channel.format,
+            mode: s.channel.mode,
+            url: '',
+            ...(s.channel.quietHours ? { quietHours: s.channel.quietHours } : {}),
+          }
+        : null,
+    );
   }, [s.channel]);
+  const zoneList = useZoneList(draft?.quietHours?.timeZone);
   const overrides = !!s.channel;
   const store = async (channel: Draft | null, what: 'save' | 'reset') => {
     setBusy(what);
     const body = channel
-      ? { channel: { enabled: channel.enabled, format: channel.format, mode: channel.mode, ...(channel.url ? { url: channel.url } : {}) } }
+      ? {
+          channel: {
+            enabled: channel.enabled,
+            format: channel.format,
+            mode: channel.mode,
+            ...(channel.url ? { url: channel.url } : {}),
+            // quiet hours of a Teams channel (ADR 0012); JSON is never held
+            quietHours: channel.format === 'teams' && channel.quietHours?.enabled ? channel.quietHours : null,
+          },
+        }
       : { channel: null };
     await save(body, what === 'reset' ? t('teamSettings.resetDone') : t('teamSettings.saved'));
     setBusy(null);
@@ -218,6 +247,22 @@ function ChannelSection({ s, save }: { s: TeamSettings; save: Save }) {
               {t(`teamSettings.modeHints.${draft.mode}`)}
             </Text>
           </div>
+          {draft.format === 'teams' && (
+            <div data-testid="team-channel-quiet">
+              <Text size="sm" fw={500}>
+                {t('notifications:quiet.channelTitle')}
+              </Text>
+              <Text size="xs" c="dimmed" mb="xs">
+                {t('notifications:quiet.channelIntro')}
+              </Text>
+              <QuietHoursFields
+                channel
+                value={draft.quietHours ?? { ...DEFAULT_QUIET_HOURS, timeZone: browserZone() }}
+                onChange={(quietHours) => setDraft({ ...draft, quietHours })}
+                zoneList={zoneList}
+              />
+            </div>
+          )}
           {s.canChange && (
             <Group justify="space-between">
               <Button
@@ -313,6 +358,65 @@ function SummarySection({ s, save }: { s: TeamSettings; save: Save }) {
               <Button onClick={() => save({ summary: d }, t('teamSettings.saved'))} disabled={d.enabled && !d.sections.length}>
                 {t('common:save')}
               </Button>
+            </Group>
+          )}
+        </Stack>
+      )}
+      {!s.canChange && <ReadOnly />}
+    </Section>
+  );
+}
+
+/** Quiet hours and digests members get unless they chose their own (ADR 0012). */
+function QuietSection({ s, save }: { s: TeamSettings; save: Save }) {
+  const { t } = useTranslation(['users', 'common', 'notifications']);
+  const initial = (): NotificationPrefs | null =>
+    s.quietHours || s.digests
+      ? { quietHours: s.quietHours ?? DEFAULT_NOTIFICATION_PREFS.quietHours, digests: s.digests ?? DEFAULT_NOTIFICATION_PREFS.digests }
+      : null;
+  const [d, setD] = useState<NotificationPrefs | null>(initial);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when the stored values change
+  useEffect(() => setD(initial()), [s.quietHours, s.digests]);
+  const zoneList = useZoneList(d?.quietHours.timeZone);
+  const own = !!(s.quietHours || s.digests);
+  return (
+    <Section title={t('notifications:quiet.teamDefault')} hint={t('notifications:quiet.teamDefaultIntro')} own={own} testId="team-quiet-scope">
+      {!d ? (
+        <Alert variant="light" color="gray">
+          <Text size="sm">{t('teamSettings.quiet.usesInstance')}</Text>
+          {s.canChange && (
+            <Button
+              size="xs"
+              variant="light"
+              mt="xs"
+              onClick={() =>
+                setD({
+                  quietHours: { ...DEFAULT_QUIET_HOURS, enabled: true, timeZone: browserZone() },
+                  digests: { ...DEFAULT_NOTIFICATION_PREFS.digests, timeZone: browserZone() },
+                })
+              }
+            >
+              {t('notifications:quiet.teamUseDefault')}
+            </Button>
+          )}
+        </Alert>
+      ) : (
+        <Stack gap="sm">
+          <QuietHoursFields value={d.quietHours} onChange={(quietHours) => setD({ ...d, quietHours })} zoneList={zoneList} />
+          <Text fw={600} size="sm">
+            {t('notifications:quiet.digests')}
+          </Text>
+          <DigestFields value={d.digests} onChange={(digests) => setD({ ...d, digests })} zoneList={zoneList} />
+          {s.canChange && (
+            <Group justify="space-between">
+              <Button
+                variant="subtle"
+                leftSection={<IconArrowBackUp size={14} />}
+                onClick={() => (own ? save({ quietHours: null, digests: null }, t('teamSettings.resetDone')) : setD(null))}
+              >
+                {t('teamSettings.backToDefault')}
+              </Button>
+              <Button onClick={() => save({ quietHours: d.quietHours, digests: d.digests }, t('teamSettings.saved'))}>{t('common:save')}</Button>
             </Group>
           )}
         </Stack>
