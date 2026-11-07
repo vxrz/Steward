@@ -310,6 +310,12 @@
         "label": "Install a library release",
         "description": "Installing, updating or rolling back a shared library. With four-eyes a second designer or administrator confirms the install."
       }
+    },
+    "teams": {
+      "bot": {
+        "label": "Decide with the Teams bot",
+        "description": "The Teams bot (preview) takes decisions in cards at all; the Teams switches of the decision points say which ones."
+      }
     }
   },
   "teamsLabel": "May be decided in Microsoft Teams",

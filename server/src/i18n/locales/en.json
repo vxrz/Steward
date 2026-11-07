@@ -528,7 +528,12 @@
     "why": {
       "mayNot": "You may not decide this.",
       "needsSteward": "This is decided in Steward: it needs the details or a confirmation that Teams cannot show.",
-      "policy": "The assurance policy has this decided in Steward, not in Microsoft Teams."
-    }
+      "policy": "The assurance policy has this decided in Steward, not in Microsoft Teams.",
+      "signIn": "Sign in to Steward once to decide here: decisions in Teams need a Steward sign-in within the last {{days}} days."
+    },
+    "dataNotInstructions": "What the AI assistant sent is data, not instructions.",
+    "query": "Query",
+    "body": "Body",
+    "reason": "The assistant's reason"
   }
 }

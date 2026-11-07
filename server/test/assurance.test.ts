@@ -73,11 +73,13 @@ describe('control-point catalogue and effective policy (unit)', () => {
     expect(effectiveRule(controlPoint('audit.export')!, age)).toMatchObject({ stepUp: true, maxAgeMinutes: 2, mfa: true });
   });
 
-  it('"May be decided in Microsoft Teams": on by default for run.decide and mcp.write, nowhere else, and turning it on loosens (ADR 0013)', () => {
+  it('"May be decided in Microsoft Teams": on for run.decide, off for mcp.write and the bot itself, never with a step-up (ADR 0013)', () => {
     const d = defaultAssurancePolicy();
-    expect(CONTROL_POINTS.filter((p) => p.supports.teams).map((p) => p.key)).toEqual(['run.decide', 'mcp.write']);
+    expect(CONTROL_POINTS.filter((p) => p.supports.teams).map((p) => p.key)).toEqual(['run.decide', 'mcp.write', 'teams.bot']);
     expect(instanceRule(controlPoint('run.decide')!, d).teams).toBe(true);
-    expect(instanceRule(controlPoint('mcp.write')!, d).teams).toBe(true);
+    // security review 0.10.0: AI requests are decided in Steward, where the whole request is shown; the bot needs a second administrator
+    expect(instanceRule(controlPoint('mcp.write')!, d).teams).toBe(false);
+    expect(instanceRule(controlPoint('teams.bot')!, d).teams).toBe(false);
     // points with a step-up never take it
     for (const p of CONTROL_POINTS.filter((x) => x.supports.stepUp)) expect(p.supports.teams, p.key).toBeFalsy();
     expect(instanceRule(controlPoint('manualStep.verify')!, d).teams).toBeUndefined();
@@ -86,6 +88,8 @@ describe('control-point catalogue and effective policy (unit)', () => {
     expect(policyChanges(d, off)).toEqual([{ point: 'run.decide', field: 'teams', from: true, to: false, direction: 'tighten' }]);
     expect(policyChanges(off, d)[0]!.direction).toBe('loosen');
     expect(applyChanges(off, policyChanges(off, d)).points).toEqual({});
+    const bot = normalizePolicy({ ...d, points: { 'teams.bot': { teams: true } } });
+    expect(policyChanges(d, bot)).toEqual([{ point: 'teams.bot', field: 'teams', from: false, to: true, direction: 'loosen' }]);
   });
 
   it('tells tightening from loosening and splits a mixed change', () => {

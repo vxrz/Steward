@@ -310,6 +310,12 @@
         "label": "Eine Bibliotheksversion installieren",
         "description": "Eine gemeinsame Bibliothek installieren, aktualisieren oder zurücksetzen. Mit Vier-Augen-Prinzip bestätigt eine zweite Person aus Gestaltung oder Administration die Installation."
       }
+    },
+    "teams": {
+      "bot": {
+        "label": "Mit dem Teams-Bot entscheiden",
+        "description": "Der Teams-Bot (Vorschau) nimmt überhaupt Entscheidungen in Karten entgegen; die Teams-Schalter der Entscheidungspunkte sagen, welche."
+      }
     }
   },
   "teamsLabel": "Darf in Microsoft Teams entschieden werden",

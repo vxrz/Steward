@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { TeamsBotConversation } from '@sm/shared';
 import { db } from '../db.js';
 import { ACCESS } from '../auth/access.js';
+import { currentUser } from '../auth/context.js';
 import { HttpError } from '../util.js';
 import { listUsers } from '../auth/users.js';
 import { botConfig, botSettingsView, saveBotSettings, teamsBotInput } from './settings.js';
@@ -19,7 +20,7 @@ export async function teamsBotRoutes(app: FastifyInstance): Promise<void> {
   wireBotDelivery();
   app.get('/settings/teams-bot', { config: { access: ACCESS.admin } }, async () => botSettingsView());
   app.put('/settings/teams-bot', { config: { access: ACCESS.admin, stepUp: { action: 'changeNotificationDelivery', who: 'manageSettings' } } }, async (req) =>
-    saveBotSettings(teamsBotInput.parse(req.body ?? {})),
+    saveBotSettings(teamsBotInput.parse(req.body ?? {}), currentUser()),
   );
   app.get('/settings/teams-bot/conversations', { config: { access: ACCESS.admin } }, async (): Promise<TeamsBotConversation[]> => {
     const users = new Map(listUsers().map((u) => [u.id, u.username]));

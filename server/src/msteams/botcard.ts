@@ -7,8 +7,8 @@ import { absoluteLink } from '../notifications/settings.js';
 import { resolveLook } from '../notifications/look.js';
 import type { MessageParts } from '../notifications/channels.js';
 import { mcpCardParts, taskCardParts } from './cards.js';
-import { teamsDecidable, versionOf, type ItemKind } from './decide.js';
-import { botSecrets } from './settings.js';
+import { teamsDecidable, teamsVisible, versionOf, type ItemKind } from './decide.js';
+import { botConfig, botSecrets } from './settings.js';
 
 /**
  * Cards of the Teams bot (ADR 0013 stage 2): Universal Actions (Adaptive Cards 1.4, `Action.Execute`). Each viewer's
@@ -21,15 +21,21 @@ export interface CardData {
   kind: ItemKind;
   id: string;
   version: string;
+  /** When the card was made (seconds): card data older than CARD_DATA_MAX_DAYS is refused */
+  iat: number;
   sig: string;
 }
 
-const sign = (key: string, kind: string, id: string, version: string) =>
-  crypto.createHmac('sha256', Buffer.from(key, 'base64url')).update(`v1|${kind}|${id}|${version}`).digest('base64url');
+/** Card data lives at most this long (an AI request expires within a day, a proposal within days). */
+export const CARD_DATA_MAX_DAYS = 30;
 
-export function cardData(kind: ItemKind, id: string, version: string): CardData | null {
+const sign = (key: string, kind: string, id: string, version: string, iat: number) =>
+  crypto.createHmac('sha256', Buffer.from(key, 'base64url')).update(`v2|${kind}|${id}|${version}|${iat}`).digest('base64url');
+
+export function cardData(kind: ItemKind, id: string, version: string, now = Date.now()): CardData | null {
   const s = botSecrets();
-  return s ? { kind, id, version, sig: sign(s.hmacKey, kind, id, version) } : null;
+  const iat = Math.floor(now / 1000);
+  return s ? { kind, id, version, iat, sig: sign(s.hmacKey, kind, id, version, iat) } : null;
 }
 
 /** The card data of a click, when its signature holds (compared in constant time). */
@@ -37,10 +43,12 @@ export function checkCardData(v: unknown): CardData | null {
   const d = v as Partial<CardData> | null;
   if (!d || (d.kind !== 'task' && d.kind !== 'mcp_request') || typeof d.id !== 'string' || typeof d.version !== 'string' || typeof d.sig !== 'string')
     return null;
-  if (d.id.length > 100 || d.version.length > 100 || d.sig.length > 100) return null;
+  if (d.id.length > 100 || d.version.length > 100 || d.sig.length > 100 || typeof d.iat !== 'number' || !Number.isInteger(d.iat)) return null;
+  // old card data (an item's whole life is shorter): refused
+  if (Date.now() / 1000 - d.iat > CARD_DATA_MAX_DAYS * 86_400 || d.iat > Date.now() / 1000 + 300) return null;
   const s = botSecrets();
   if (!s) return null;
-  const want = Buffer.from(sign(s.hmacKey, d.kind, d.id, d.version));
+  const want = Buffer.from(sign(s.hmacKey, d.kind, d.id, d.version, d.iat));
   const got = Buffer.from(d.sig);
   return want.length === got.length && crypto.timingSafeEqual(want, got) ? (d as CardData) : null;
 }
@@ -96,7 +104,14 @@ const STATUS_KEYS: Record<string, MessageKey> = {
  * ("This changed – here is the current state", "Your Teams account is not linked …"). `refreshFor`: the Entra object ids
  * of the eligible deciders (at most 60) whose clients ask for their own buttons.
  */
-export function itemCard(l: Locale, kind: ItemKind, id: string, opts: { viewer?: UserInfo | null; note?: string; refreshFor?: string[] } = {}): unknown {
+export function itemCard(
+  l: Locale,
+  kind: ItemKind,
+  id: string,
+  opts: { viewer?: UserInfo | null; note?: string; refreshFor?: string[]; personal?: boolean } = {},
+): unknown {
+  // a viewer sees an item's facts only while they may see the item (security review 0.10.0)
+  if (opts.viewer && !teamsVisible(opts.viewer, kind, id)) return noticeCard(l, t(l, 'teamsBot.gone'));
   const view = itemView(l, kind, id);
   const version = versionOf(kind, id) ?? '';
   const data = cardData(kind, id, version);
@@ -105,6 +120,8 @@ export function itemCard(l: Locale, kind: ItemKind, id: string, opts: { viewer?:
   if (opts.note) body.push({ type: 'TextBlock', text: opts.note, wrap: true, weight: 'Bolder', color: 'Attention' });
   body.push({ type: 'TextBlock', text: view?.title ?? t(l, 'teamsBot.gone'), weight: 'Bolder', size: 'Medium', wrap: true });
   if (view?.parts.facts?.length) body.push({ type: 'FactSet', facts: view.parts.facts.map((f) => ({ title: f.label, value: f.value })) });
+  // a personal chat shows what is decided (instructions and items; the concrete request) – a channel card never does
+  if (opts.personal && opts.viewer && view) body.push(...personalDetails(l, kind, id));
   const open_ = version.startsWith('open') || version === 'pending';
   if (!open_ && STATUS_KEYS[version.split(':')[0]!])
     body.push({ type: 'TextBlock', text: t(l, STATUS_KEYS[version.split(':')[0]!]!), wrap: true, isSubtle: true });
@@ -117,7 +134,7 @@ export function itemCard(l: Locale, kind: ItemKind, id: string, opts: { viewer?:
       { type: 'Action.Execute', verb: 'reject', title: t(l, 'teamsCard.reject'), data, style: 'destructive' },
     );
   } else if (can && !can.ok && can.reason !== 'decided' && can.reason !== 'gone') {
-    body.push({ type: 'TextBlock', text: t(l, `teamsBot.why.${can.reason}` as MessageKey), wrap: true, isSubtle: true });
+    body.push({ type: 'TextBlock', text: t(l, `teamsBot.why.${can.reason}` as MessageKey, { days: botConfig().signInDays }), wrap: true, isSubtle: true });
   }
   actions.push(open);
   const refresh =
@@ -130,6 +147,54 @@ export function itemCard(l: Locale, kind: ItemKind, id: string, opts: { viewer?:
     body,
     actions,
   };
+}
+
+const cap = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+
+/**
+ * The details a person needs to decide in their personal chat: a step's instructions and items, or an AI request's
+ * concrete method, path, query and (shortened) body with the assistant's reason – marked as data, not instructions.
+ */
+function personalDetails(l: Locale, kind: ItemKind, id: string): unknown[] {
+  const out: unknown[] = [];
+  if (kind === 'task') {
+    let task;
+    try {
+      task = getTask(id);
+    } catch {
+      return out; // gone meanwhile
+    }
+    if (task.instructions?.trim()) out.push({ type: 'TextBlock', text: cap(task.instructions.trim(), 2000), wrap: true, spacing: 'Medium' });
+    if (task.items.length) {
+      const head = task.columns.map((c) => c.label).join(' · ');
+      const rows = task.items.slice(0, 20).map((i) => `- ${i.cells.join(' · ')}`);
+      out.push({
+        type: 'TextBlock',
+        text: cap(
+          [head ? `**${head}**` : '', ...rows, task.items.length > 20 ? `+ ${t(l, 'common.moreItems', { count: task.items.length - 20 })}` : '']
+            .filter(Boolean)
+            .join('\n'),
+          3000,
+        ),
+        wrap: true,
+        spacing: 'Medium',
+      });
+    }
+    return out;
+  }
+  const r = db().get<{ kind: string; method: string | null; path: string | null; query: string; body: string | null; reason: string }>(
+    'SELECT kind, method, path, query, body, reason FROM mcp_requests WHERE id = ?',
+    id,
+  );
+  if (!r) return out;
+  out.push({ type: 'TextBlock', text: t(l, 'teamsBot.dataNotInstructions'), wrap: true, isSubtle: true, spacing: 'Medium' });
+  if (r.kind === 'gateway') {
+    const query = r.query && r.query !== '{}' ? `\n${t(l, 'teamsBot.query')}: ${cap(r.query, 500)}` : '';
+    out.push({ type: 'TextBlock', text: cap(`${r.method ?? ''} ${r.path ?? ''}`, 500) + query, wrap: true, fontType: 'Monospace' });
+    if (r.body) out.push({ type: 'TextBlock', text: `${t(l, 'teamsBot.body')}: ${cap(r.body, 1500)}`, wrap: true, fontType: 'Monospace' });
+  }
+  if (r.reason) out.push({ type: 'TextBlock', text: `${t(l, 'teamsBot.reason')}: ${cap(r.reason, 500)}`, wrap: true });
+  return out;
 }
 
 /** A short card with one line and Open (not linked, locked, refused). */
