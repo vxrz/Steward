@@ -199,6 +199,20 @@ describe.each(versions)('upgrade from %s', (version) => {
   it("moves every platform's credentials and MCP mode to its sealed default identity, once (0.9.0, ADR 0009)", async () => {
     const { mcpFromGateway, parseMcp } = await import('../src/platforms/identities.js');
     expect(oldPlatforms.length).toBeGreaterThan(0);
+    if (!pending.includes('platforms-005-identities')) {
+      // written by 0.9.0 or later: the identities are already there and stay as they were
+      const now = await admin('GET', '/platforms');
+      expect(now.map((p: any) => p.id).sort()).toEqual(oldPlatforms.map((p) => p.id).sort());
+      for (const x of now) {
+        expect(x.integrity, x.name).toBe('ok');
+        expect(
+          x.identities.filter((i: any) => i.default),
+          x.name,
+        ).toHaveLength(1);
+      }
+      expect(await admin('GET', '/audit?action=platform.identities_created&limit=10')).toEqual([]);
+      return;
+    }
     const d = new Db(pg ? { ...pg, lock: false } : sqlite, { migrate: false });
     try {
       expect(d.all('SELECT id FROM platforms WHERE secrets IS NOT NULL')).toEqual([]);
