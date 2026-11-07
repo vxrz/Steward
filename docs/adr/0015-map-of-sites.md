@@ -146,6 +146,7 @@ _Settings → Plant registry → Map_ (internal setting `plant.map`, administrat
 6. **Cache details.** Freshness from `Cache-Control`/`Expires` (at least a minute, at most 30 days, 7 days when the source says nothing), revalidation with the `ETag`, a stale copy served when the source fails; at most 3 redirects within the source's origins. Backups and migration packages also leave `<data>/maps/` out.
 7. **Attribution** is drawn by Steward (MapLibre's attribution control is off), as plain text: no HTML from a style or file reaches the page.
 8. **Clusters** group sites closer than 56 px at the whole zoom level (a grid split close sites across cell borders).
+9. **After the security review:** _Check the style_ of a new address needs the same step-up as saving it, is audited, and never sends the stored API key (it goes only to the stored source's own origins; a new origin needs the key entered again). A changed own source counts as a change of where tiles come from also while another source is chosen; turning the map off keeps the stored own source. Tile, glyph and sprite errors name the upstream address to administrators only.
 
 ## Decided after review
 
