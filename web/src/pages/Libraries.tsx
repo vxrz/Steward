@@ -384,7 +384,15 @@ export function LibraryDetailPage() {
                 },
               ]
             : []),
-          { label: t('uninstall.button'), icon: IconTrash, color: 'red', onClick: () => void uninstall(), testId: 'library-uninstall' },
+          // a held library is not uninstalled: an administrator lifts the hold first
+          {
+            label: l.held ? t('uninstall.held') : t('uninstall.button'),
+            icon: IconTrash,
+            color: 'red',
+            disabled: l.held,
+            onClick: () => void uninstall(),
+            testId: 'library-uninstall',
+          },
         ],
       }}
     >

@@ -313,6 +313,7 @@ Libraries ([LIBRARIES.md](LIBRARIES.md), [ADR 0014](adr/0014-shared-procedure-li
 
 - **Trust few publishers, pin their keys.** Compare each key's fingerprint (`SHA256:…`, as `ssh-keygen -l` prints it) with the publisher on a second channel; limit a publisher to its library ids; prefer hardware keys (`sk-ssh-ed25519`, a touch per signature) and set an expiry. Trust changes need a step-up (`library.publishers`) and are audited; keys are sealed with the vault's integrity key.
 - **Review the whole release.** _What it can do_ is computed from the steps (writes, access changes, browser and AI steps, platform kinds per slot). Connector types show their base URL, token URL and trusted origins in full – credentials of platforms made from them go there; only administrators install them.
+- **A dry run is not a guarantee:** a write step marked `mutating: false` runs in a dry run too. The review shows such steps as _marked as not changing anything_ – read them before a dry run.
 - **Run new library procedures as dry runs first,** with read-only identities ([ADR 0009](adr/0009-platform-identities.md)); monitors arrive switched off and nothing is scheduled by a library.
 - **Four-eyes on installs:** require it for `library.install` in the assurance policy when a second person should confirm every install, update and rollback.
 - **A stolen key:** revoke it at once (no step-up needed), install a release signed with the publisher's new key, and put the affected libraries **on hold** until then – the hold pauses their schedules, triggers and monitors and refuses runs.

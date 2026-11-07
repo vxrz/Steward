@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next';
 import type { LibraryInstallSummary, LibraryProcessAbilities, LibraryReleaseSummary, LibraryReview, LibraryReviewItem } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
-import { DetailState, Markdown, TONE } from '../components/common';
+import { DetailState, JsonView, Markdown, TONE } from '../components/common';
 import { DetailPage } from '../components/page/DetailPage';
 import { confirmDanger } from '../components/confirm';
 import { UnifiedDiff } from '../components/editor/VersionDiff';
@@ -44,12 +44,23 @@ const STATUS_COLOR: Record<LibraryReviewItem['status'], string> = {
   skipped: TONE.neutral,
 };
 
+/** Long badge texts wrap on phones instead of being cut off. */
+const WRAP = { root: { height: 'auto', paddingBlock: 2 }, label: { whiteSpace: 'normal' as const, overflow: 'visible' } };
+
 /** What a process can do, as badges; abilities new since the installed release are marked. */
 function Abilities({ a, fresh }: { a: LibraryProcessAbilities; fresh: string[] }) {
   const { t } = useTranslation('libraries');
   const isNew = (token: string) => fresh.includes(token);
   const badge = (token: string, label: string, color: string = TONE.neutral) => (
-    <Badge key={token} size="sm" tt="none" variant={isNew(token) ? 'filled' : 'light'} color={color} title={isNew(token) ? t('abilities.new') : undefined}>
+    <Badge
+      key={token}
+      size="sm"
+      tt="none"
+      styles={WRAP}
+      variant={isNew(token) ? 'filled' : 'light'}
+      color={color}
+      title={isNew(token) ? t('abilities.new') : undefined}
+    >
       {label}
       {isNew(token) ? ` · ${t('abilities.new')}` : ''}
     </Badge>
@@ -57,6 +68,7 @@ function Abilities({ a, fresh }: { a: LibraryProcessAbilities; fresh: string[] }
   const out = [
     ...a.slots.map((s) => badge(`slot:${s.slot}:${s.kind ?? '*'}`, t('abilities.slot', { slot: s.slot, kind: s.kind ?? t('abilities.anyKind') }))),
     a.writes ? badge('writes', t('abilities.writes', { count: a.writes }), TONE.bad) : null,
+    a.markedNotChanging ? badge('markedNotChanging', t('abilities.markedNotChanging', { count: a.markedNotChanging }), TONE.bad) : null,
     a.accessChanges ? badge('accessChanges', t('abilities.accessChanges', { count: a.accessChanges }), TONE.attention) : null,
     a.browser ? badge('browser', t('abilities.browser', { count: a.browser }), TONE.attention) : null,
     a.ai ? badge('ai', t('abilities.ai', { count: a.ai }), TONE.person) : null,
@@ -97,6 +109,117 @@ function ConnectorDetails({ item }: { item: LibraryReviewItem }) {
       {row(t('connector.tokenUrl'), c.tokenUrl ?? '')}
       {row(t('connector.trustedOrigins'), c.trustedOrigins.join(', '))}
       {row(t('connector.auth'), `${c.authType}${c.secretFields.length ? ` (${c.secretFields.join(', ')})` : ''}`)}
+      {row(t('connector.proxy'), c.proxy ?? '')}
+      {row(t('connector.defaultHeaders'), c.defaultHeaders.join(', '))}
+      {(c.insecureTls || c.customCa) && (
+        <Group gap={6} wrap="wrap">
+          {c.insecureTls && (
+            <Badge size="sm" variant="light" color={TONE.bad} tt="none">
+              {t('connector.insecureTls')}
+            </Badge>
+          )}
+          {c.customCa && (
+            <Badge size="sm" variant="light" color={TONE.attention} tt="none">
+              {t('connector.customCa')}
+            </Badge>
+          )}
+        </Group>
+      )}
+      {Object.keys(c.http).length > 0 && (
+        <Stack gap={2} style={{ gridColumn: '1 / -1' }}>
+          <Text size="xs" c="dimmed">
+            {t('connector.http')}
+          </Text>
+          <JsonView value={c.http} maxHeight={220} />
+        </Stack>
+      )}
+    </SimpleGrid>
+  );
+}
+
+/** A monitor's outputs: where its data goes and what it starts, in full. */
+function MonitorOutputs({ item }: { item: LibraryReviewItem }) {
+  const { t } = useTranslation('libraries');
+  const m = item.monitorOutputs!;
+  if (!m.outputs.length) return null;
+  return (
+    <Stack gap={4} mt="xs" data-testid="library-monitor-outputs">
+      <Text size="xs" c="dimmed">
+        {t('outputs.title')}
+      </Text>
+      <Group gap={6} wrap="wrap">
+        {m.sendsOut > 0 && (
+          <Badge size="sm" variant="light" color={TONE.attention} tt="none" styles={WRAP}>
+            {t('outputs.sendsOut', { count: m.sendsOut })}
+          </Badge>
+        )}
+        {m.startsProcesses.map((p) => (
+          <Badge key={p} size="sm" variant="light" color={TONE.bad} tt="none" styles={WRAP}>
+            {t('outputs.starts', { process: p })}
+          </Badge>
+        ))}
+        {m.notifications > 0 && (
+          <Badge size="sm" variant="light" tt="none">
+            {t('outputs.notifications', { count: m.notifications })}
+          </Badge>
+        )}
+      </Group>
+      {m.outputs.map((o) => (
+        <Text key={o.id} size="xs" className="mono" style={{ overflowWrap: 'anywhere' }}>
+          {o.id}: {t(`outputs.type.${o.type}`, { defaultValue: o.type })} → {o.target || '–'}
+          {o.type === 'process' ? ` (${o.dryRun ? t('outputs.dryRun') : t('outputs.realRun')})` : ''}
+        </Text>
+      ))}
+    </Stack>
+  );
+}
+
+/** Four-eyes: the decisions the requester stored, exactly as the approval installs them. */
+function RequestedDecisions({ review }: { review: LibraryReview }) {
+  const { t } = useTranslation('libraries');
+  const q = review.request!;
+  const none = t('request.none');
+  const refs = [...q.platforms, ...q.processes];
+  return (
+    <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs" mt="sm" data-testid="library-request-decisions">
+      <Stack gap={2}>
+        <Text size="xs" c="dimmed">
+          {t('request.references')}
+        </Text>
+        <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+          {refs.length ? refs.map((r) => `${r.ref} → ${r.name ?? t('request.hidden')}`).join(', ') : none}
+        </Text>
+      </Stack>
+      <Stack gap={2}>
+        <Text size="xs" c="dimmed">
+          {t('request.skip')}
+        </Text>
+        <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
+          {q.skip.join(', ') || none}
+        </Text>
+      </Stack>
+      <Stack gap={2}>
+        <Text size="xs" c="dimmed">
+          {t('request.keepLocal')}
+        </Text>
+        <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
+          {q.keepLocal.join(', ') || none}
+        </Text>
+      </Stack>
+      <Stack gap={2}>
+        <Text size="xs" c="dimmed">
+          {t('request.takeLibrary')}
+        </Text>
+        <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
+          {q.takeLibrary.join(', ') || none}
+        </Text>
+      </Stack>
+      <Stack gap={2} style={{ gridColumn: '1 / -1' }}>
+        <Text size="xs" c="dimmed">
+          {t('request.comment')}
+        </Text>
+        <Text size="sm">{q.comment ?? none}</Text>
+      </Stack>
     </SimpleGrid>
   );
 }
@@ -164,7 +287,7 @@ export function LibraryReleasePage() {
       takeLibrary: conflicts.filter((c) => decisions[c.path] === 'take').map((c) => c.path),
       ...(comment.trim() ? { comment: comment.trim() } : {}),
     });
-  const approve = () => send(`/library-releases/${encodeURIComponent(id)}/approve`, {});
+  const approve = () => send(`/library-releases/${encodeURIComponent(id)}/approve`, { hash: review.request?.hash ?? '' });
   const withdraw = async () => {
     try {
       await post(`/library-releases/${encodeURIComponent(id)}/withdraw`, {});
@@ -250,6 +373,7 @@ export function LibraryReleasePage() {
         {request && (
           <Alert color="violet" title={t('review.requestTitle')} data-testid="library-request">
             {mine ? t('review.requestMine', { when: fmtDate(request.at) }) : t('review.requestOther', { by: request.by, when: fmtDate(request.at) })}
+            {review.request && <RequestedDecisions review={review} />}
           </Alert>
         )}
         {canAct && review.blockers.length > 0 && (
@@ -402,6 +526,11 @@ export function LibraryReleasePage() {
                       <Badge size="xs" variant="light" color={STATUS_COLOR[it.status]}>
                         {it.status === 'conflict' && it.conflictReason ? t(`conflict.${it.conflictReason}`) : t(`itemStatus.${it.status}`)}
                       </Badge>
+                      {it.requested && (
+                        <Badge size="xs" variant="outline" color="violet" data-testid="library-item-requested">
+                          {t(`requested.${it.requested}`)}
+                        </Badge>
+                      )}
                     </Group>
                     <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
                       {it.path} · {it.identity}
@@ -466,6 +595,7 @@ export function LibraryReleasePage() {
                     {t('review.monitorRefs', { refs: it.platformRefs.join(', ') })} · {t('review.monitorDisabled')}
                   </Text>
                 )}
+                {it.monitorOutputs && <MonitorOutputs item={it} />}
                 {it.connector && <ConnectorDetails item={it} />}
                 {it.problems.map((p) => (
                   <Text key={p} size="xs" c="red" mt={4}>

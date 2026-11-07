@@ -53,7 +53,7 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
     install.installRelease(params(req).id!, install.installInput.parse(req.body ?? {})),
   );
   app.post('/library-releases/:id/approve', { config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.action } }, async (req) =>
-    install.approveInstall(params(req).id!),
+    install.approveInstall(params(req).id!, z.object({ hash: z.string().max(100).default('') }).parse(req.body ?? {}).hash),
   );
   app.post('/library-releases/:id/withdraw', { config: { access: ACCESS.session } }, async (req) => install.withdrawInstall(params(req).id!));
   app.delete('/library-releases/:id', { config: { access: ACCESS.session } }, async (req) => {

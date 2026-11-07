@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { refuseResumeWhileHeld } from '../libraries/lookup.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
@@ -808,6 +809,7 @@ export function updateMonitorNow(idOrKey: string, input: MonitorInput & { versio
   const name = String(stored.name);
   const ts = nowIso();
   const enabled = input.enabled === undefined ? !!r.enabled : input.enabled;
+  if (enabled && !r.enabled) refuseResumeWhileHeld({ monitorId: r.id });
   let secrets: MonitorSaveResult['secrets'] = [];
   db().tx(() => {
     db().run(
@@ -849,6 +851,8 @@ export function updateMonitorNow(idOrKey: string, input: MonitorInput & { versio
 
 export function setEnabled(idOrKey: string, enabled: boolean): MonitorDetail {
   const r = requireMonitor(idOrKey, 'edit');
+  // a monitor of a library on hold (ADR 0014) stays off until an administrator lifts the hold
+  if (enabled && !r.enabled) refuseResumeWhileHeld({ monitorId: r.id });
   db().tx(() => {
     db().run('UPDATE monitors SET enabled = ?, updated_at = ?, updated_by = ? WHERE id = ?', enabled ? 1 : 0, nowIso(), me().username, r.id);
     audit({

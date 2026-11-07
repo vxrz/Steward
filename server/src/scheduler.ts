@@ -1,4 +1,5 @@
 import { Cron } from 'croner';
+import { refuseResumeWhileHeld } from './libraries/lookup.js';
 import { openInputs, sealInputs } from './engine/secret-inputs.js';
 import {
   DEFAULT_SCHEDULE_NOTIFY,
@@ -178,6 +179,8 @@ type ScheduleInput = Omit<Schedule, 'id' | 'createdAt' | 'processName' | 'lastRu
 
 export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
   const proc = getProcess(input.processId);
+  // a library on hold (ADR 0014): its schedules stay off until an administrator lifts the hold
+  if (input.enabled) refuseResumeWhileHeld({ processId: input.processId });
   validateCron(input.cron, input.timezone);
   const sid = id ?? newId('sch_');
   // inputs of type "secret" are stored encrypted ("***" in the schedule and the audit log)

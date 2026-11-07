@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { refuseResumeWhileHeld } from '../libraries/lookup.js';
 import net from 'node:net';
 import jsonata from 'jsonata';
 import { z } from 'zod';
@@ -292,6 +293,8 @@ export function createTrigger(raw: WebhookTriggerSettings): WebhookTriggerSecret
   const owner = currentUser()?.username;
   if (!owner) throw new HttpError(401, 'Please sign in');
   const s = validate(raw);
+  // a library on hold (ADR 0014): its triggers stay off until an administrator lifts the hold
+  if (s.enabled) refuseResumeWhileHeld({ processId: s.processId });
   const id = newId('wht_');
   const sec = newSecret();
   const ts = nowIso();
@@ -338,6 +341,7 @@ export function createTrigger(raw: WebhookTriggerSettings): WebhookTriggerSecret
 export function updateTrigger(id: string, raw: WebhookTriggerSettings): WebhookTrigger {
   const before = requireTriggerEdit(id);
   const s = validate(raw);
+  if (s.enabled) refuseResumeWhileHeld({ processId: s.processId });
   const prev = toTrigger(before);
   const changed = (Object.keys(auditable(s)) as (keyof ReturnType<typeof auditable>)[]).filter(
     (k) => JSON.stringify(auditable(s)[k]) !== JSON.stringify(auditable(prev)[k]),
