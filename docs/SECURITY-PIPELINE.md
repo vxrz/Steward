@@ -258,6 +258,7 @@ No rule is disabled for the whole repository.
 | `raw-html-format`             | `server/src/routes/auth.ts` (SSO callback page)                                                | `nosemgrep` | values are JSON string literals with `<` escaped; `returnTo` is a validated same-origin path                                                                 |
 |                               | `server/src/mock/mockOidc.ts`                                                                  | `nosemgrep` | every value is HTML-escaped; dev/demo-only mock identity provider                                                                                            |
 | `bypass-tls-verification`     | `server/src/monitors/checks.ts` (`certExpiry`)                                                 | `nosemgrep` | only reads the expiry date of the presented certificate (expired or self-signed ones are what the check reports); nothing is sent over this connection       |
+| `detect-insecure-websocket`   | `docs/CHANGEDETECTION.md` (compose example, `PLAYWRIGHT_DRIVER_URL`)                           | `nosemgrep` | documentation: changedetection.io reaches its browser container on the internal compose network, which serves no TLS and publishes no port                   |
 
 Tests (`server/test`) and other paths in Semgrep's default ignore list are not
 scanned.

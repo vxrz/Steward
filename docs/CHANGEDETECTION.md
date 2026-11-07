@@ -40,7 +40,8 @@ services:
     environment:
       # the address people open changedetection.io at: notifications build their diff links from it
       BASE_URL: 'https://changes.example.com'
-      # changedetection.io's own browser for pages that need JavaScript (optional)
+      # changedetection.io's own browser for pages that need JavaScript (optional); plain ws only on the internal Docker network
+      # nosemgrep: javascript.lang.security.detect-insecure-websocket.detect-insecure-websocket -- container-to-container on the compose network; the browser container serves no TLS and has no published port
       PLAYWRIGHT_DRIVER_URL: 'ws://browser:3000'
       # needed only if notifications go to Steward on the Docker network (a private address); see below
       # ALLOW_IANA_RESTRICTED_ADDRESSES: 'true'
