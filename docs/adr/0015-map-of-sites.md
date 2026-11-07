@@ -1,6 +1,6 @@
 # 0015. A map of sites, with tiles served through Steward
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-07
 - **Since:** 0.10.0 (#234); extends [0007](0007-plant-registry.md)
 
@@ -33,7 +33,7 @@ What constrains the design:
 
 ### Tiles come through Steward
 
-The browser never talks to a tile provider. It loads a style, tiles, glyphs and sprites from Steward, and Steward fetches what it does not have (open question 1):
+The browser never talks to a tile provider. It loads a style, tiles, glyphs and sprites from Steward, and Steward fetches what it does not have (decided after review, question 1):
 
 - `GET /api/plant/map/style.json` – a MapLibre style that Steward builds for the chosen source, with every URL pointing back to Steward.
 - `GET /api/plant/map/tiles/:layer/:z/:x/:y`, `…/glyphs/:fontstack/:range.pbf`, `…/sprite/:name` – served from the cache, from the PMTiles file, or fetched from the source.
@@ -63,7 +63,7 @@ _Settings → Plant registry → Map_ (internal setting `plant.map`, administrat
 | Style              | Tiles                                                                                 | Attribution, always shown                      |
 | ------------------ | ------------------------------------------------------------------------------------- | ---------------------------------------------- |
 | _OpenStreetMap_    | raster, `https://tile.openstreetmap.org/{z}/{x}/{y}.png`, zoom 0–19                   | © OpenStreetMap contributors                   |
-| _Light_ and _Dark_ | vector, OpenFreeMap (no key, OSM data), following the theme (open question 3)         | OpenFreeMap © OpenMapTiles, © OSM contributors |
+| _Light_ and _Dark_ | vector, OpenFreeMap (no key, OSM data), following the theme (decided, question 3)     | OpenFreeMap © OpenMapTiles, © OSM contributors |
 | _Own tile source_  | a raster URL template (`{z}`, `{x}`, `{y}`) or a MapLibre style URL; optional API key | text the administrator enters (required)       |
 | _Self-hosted file_ | a PMTiles file in `<data>/maps/`, raster or vector                                    | from the file's metadata, else entered         |
 | _Off_              | none: the list only                                                                   | –                                              |
@@ -73,6 +73,7 @@ _Settings → Plant registry → Map_ (internal setting `plant.map`, administrat
 - **An own style URL** is fetched by the server when saved (and on _Reload style_). Steward keeps its sources and layers and rewrites every tile, sprite and glyph URL to its own paths. The origins in it become the source's origins, shown before saving.
 - **The API key** is stored in the vault, sent as a query parameter or header the administrator names, and never shown again.
 - **The self-hosted file** is placed in `<data>/maps/` by whoever runs Steward. It is not uploaded: regional extracts are hundreds of megabytes (`pmtiles extract` from a Protomaps build). Steward lists the files it finds there. The server reads tiles from the file with **pmtiles 4.5.0** (BSD-3-Clause, released 2026-08-10, one dependency: fflate, MIT) through a small file source with byte ranges. The browser never downloads the whole file. Steward ships the glyphs and sprites its styles need, so the self-hosted file works with nothing else; their licences are checked before they are added (the fonts are under the SIL Open Font License).
+- **The map is off until an administrator turns it on** (decided, question 2): _OpenStreetMap_ is preselected, so it is one click with the privacy note in view; nothing leaves Steward before that.
 - **Changing where tiles come from** (a new style, URL, key or file) is a step-up action, like changing the outbound policy (`changeSignInSettings`, control point `signIn.settings`), in a signed-in session. Every change is audited (`plant.map_settings_changed`, with the old and new origins, never the key).
 - The settings page says what each style sends where: _OpenStreetMap_ and _Light/Dark_ send tile requests from Steward's server to the provider; _Self-hosted file_ and _Off_ send nothing outside.
 
@@ -91,7 +92,7 @@ _Settings → Plant registry → Map_ (internal setting `plant.map`, administrat
 ### Data and rights
 
 - `GET /api/plant/map/sites` returns the sites the reader may see, with position, state and counts. Clusters are made in the browser from that answer only, so a hidden site gives no pin, no count and no tile request from the browser.
-- Who sees a site sees its position, as on the site page today (open question 4).
+- Who sees a site sees its position, as on the site page today (decided, question 4).
 - No new table. The setting is one row in `settings`; the API key a vault-encrypted setting. The cache is a folder that backups and migration packages leave out.
 - Code: `server/src/plant/map.ts` (settings, style building), `server/src/plant/mapTiles.ts` (fetcher, cache, PMTiles reader), routes in `server/src/plant/routes.ts` (404 `PLANT_MODULE_OFF` while the module is off, classified in `route-matrix.test.ts`), `web/src/pages/PlantMap.tsx`, `web/src/components/plant/SitesMap.tsx`, the widget in `web/src/components/dashboard/widgets.tsx`, `SM_MAP_CACHE_MB` in `config-schema.ts`.
 - Docs: a section in `docs/PLANT.md` with the tile policy, the privacy note per style and a PMTiles example.
@@ -108,7 +109,7 @@ _Settings → Plant registry → Map_ (internal setting `plant.map`, administrat
 
 ## Alternatives considered
 
-- **The browser fetches tiles directly** (the issue's sketch, CSP per style): less load on Steward, but the user's IP address goes to the provider, an API key would be visible in the browser, the CSP would change with a setting (built once today), and `no-referrer` conflicts with OSM's policy for web pages. Kept as open question 1.
+- **The browser fetches tiles directly** (the issue's sketch, CSP per style): less load on Steward, but the user's IP address goes to the provider, an API key would be visible in the browser, the CSP would change with a setting (built once today), and `no-referrer` conflicts with OSM's policy for web pages. Not chosen (question 1).
 - **Leaflet:** simpler, raster only. Vector light and dark styles and vector PMTiles would need plugins with their own CSP needs.
 - **Serving the PMTiles file to the browser** (MapLibre's pmtiles protocol, byte ranges): no server-side reading, but the whole file becomes downloadable, and it is a second path next to the proxy. Reading it on the server keeps one path.
 - **A Steward-hosted tile service for all installations:** an operation we cannot promise.
@@ -135,20 +136,9 @@ _Settings → Plant registry → Map_ (internal setting `plant.map`, administrat
 
 **Revisit** when installations need much more map traffic than a few people, or when someone needs layers beyond sites (assets inside a site, OT network overlays).
 
-## Open questions
+## Decided after review
 
-1. **How do tiles reach the browser?**
-   - **A. Only through Steward** (recommended): CSP unchanged, no user IP addresses or API keys outside, the tile policy met by caching and Steward's `User-Agent`. Costs server load and a cache.
-   - **B. Only directly from the provider:** the issue's sketch; the CSP adds the style's origins per setting and the map page sends a `Referer`. Less load, but personal data to the provider and keys in the browser.
-   - **C. Both, the administrator chooses per style:** for networks where browsers reach the internet but the server does not. Two paths to build and test.
-2. **Is the map on by default?**
-   - **A. Off until an administrator turns it on, OpenStreetMap preselected** (recommended): one click with the privacy note in front of them. A new installation, often in an OT network, sends nothing it was not told to, like the example library.
-   - **B. On with OpenStreetMap as soon as the plant module is on:** closest to "OpenStreetMap by default"; the module is already an administrator's choice, but the first map view sends requests outside without a second look.
-3. **Which provider for the built-in light and dark vector styles?**
-   - **A. OpenFreeMap** (recommended): free, no key, OSM data, OpenMapTiles schema. A donation-funded service without a service level, so it is a choice, not the default.
-   - **B. None built in:** light and dark only for an own source or a self-hosted file. Nothing depends on a third party, but most installations get only the raster map.
-   - **C. A keyed provider (MapTiler, Stadia Maps) built in:** a service level, but every installation needs an account and a key.
-4. **Who may see exact site positions?**
-   - **A. Whoever sees the site** (recommended): as on the site page today; the map adds no new right. Sites that must not be located are restricted with the site's access list.
-   - **B. A per-site flag _Not on the map_:** the position stays on the site page for its managers but no pin is drawn. For sites such as critical infrastructure that everyone may know exist but not where.
-   - **C. A separate right _See positions_:** finest control, but one more right to explain and check everywhere a site is shown.
+1. **How do tiles reach the browser?** Decided: only through Steward. The CSP stays as it is, no user's IP address or API key goes outside, and the tile policy is met by caching and Steward's own `User-Agent`; the cost is server load and a disk cache.
+2. **Is the map on by default?** Decided: off until an administrator turns it on, with _OpenStreetMap_ preselected – one click with the privacy note in front of them. A new installation sends nothing it was not told to.
+3. **Which provider for the built-in light and dark vector styles?** Decided: OpenFreeMap (free, no key, OSM data, OpenMapTiles schema). It has no service level, so it is offered as a choice, not the default.
+4. **Who may see exact site positions?** Decided: whoever sees the site, as on the site page today; the map adds no new right. Sites that must not be located are restricted with the site's access list, and the server filters the sites it returns.
