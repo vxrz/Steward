@@ -12,6 +12,8 @@ Where: **Catalogue → Data contracts** (`/data-contracts`). Since 0.9.0 (#221).
 - [Links](#links)
 - [Drafts](#drafts)
 - [Testing](#testing)
+- [SQL quality rules](#sql-quality-rules)
+- [TLS and the tested host](#tls-and-the-tested-host)
 - [Steward's own checks](#stewards-own-checks)
 - [Monitors, processes, scorecard and reports](#monitors-processes-scorecard-and-reports)
 - [Notifications](#notifications)
@@ -26,18 +28,19 @@ Where: **Catalogue → Data contracts** (`/data-contracts`). Since 0.9.0 (#221).
 
 - **ODCS v3** is the format: a contract is a YAML document with `apiVersion`, `kind: DataContract`, `id`, `version`, `status`, `servers`, `schema` (schema objects – tables, topics, API responses – with their properties), `quality` rules, `team`, `slaProperties` and more. Steward stores the YAML exactly as it was saved.
 - **Lint on save:** every saved text is checked against the **official JSON Schema of ODCS v3.0.2**, vendored with its Apache 2.0 licence in `server/assets/odcs/` (source: [bitol-io/open-data-contract-standard](https://github.com/bitol-io/open-data-contract-standard), `schema/odcs-json-schema-v3.0.2.json` at commit `448f7b93`). The check runs with [Ajv](https://ajv.js.org) (JSON Schema 2019-09). Findings are stored with the version and shown in the editor while you type; they do not block saving. A contract of a later v3 version (v3.1.0, v3.2.0) is stored too: Steward says it checked it against v3.0.2 only, and **Lint with the service** (the menu of a contract) runs the CLI's own lint against the schema of its version.
-- **What blocks saving:** a text that is not YAML, that is not an ODCS v3 contract (`kind: DataContract`, an `apiVersion` v3.x, an `id`), or that is beyond the [limits](#limits).
+- **What blocks saving:** a text that is not YAML, that is not an ODCS v3 contract (`kind: DataContract`, an `apiVersion` v3.x, an `id`), or that is beyond the [limits](#limits); what the [comparison of versions](#breaking-changes) relies on – two servers, two schema objects or two properties on one level with the same name, a flag (`required`, `unique`, `primaryKey`, `partitioned`, `criticalDataElement`) that is not `true` or `false` (`required: "true"`), a limit of `logicalTypeOptions` (`maxLength`, `minimum` …) or a quality threshold (`mustBeLessThan` …, `mustBeBetween`) that is not a number; and an [SQL quality rule](#sql-quality-rules) that does not pass Steward's statement check.
 - **Testing** uses the datacontract CLI's API (`datacontract api`, [API documentation](https://cli.datacontract.com/#api)): `POST /test` and `POST /lint`.
 
 ## Contracts and versions
 
 - **A contract** has Steward's id (`dct_…`), the ODCS `id` (shown as _ODCS id_), its name and status (from the current version), its owning teams, links and test settings.
 - **Versions:** saving a changed text adds a new version (1, 2, 3 …); an unchanged text adds none. Each version keeps the YAML, its SHA-256, the lint findings, the changes against the version before (breaking ones marked), a note and – when needed – the change record. The **Versions** tab lists them and compares any two: the changes with their breaking marks (**Copy as Markdown** for a change record) and the YAML side by side.
-- **Breaking changes need a change record** (optional, per contract, under _Overview → Testing_): a version with a breaking change is then saved only with an **approved change record** – a document of a type with the change workflow (the CR type) in status approved, implemented, verified or closed, that the person saving may read. The version names it.
+- **Breaking changes need a change record** (optional, per contract, under _Overview → Testing_): a version with a breaking change is then saved only with an **approved change record** – a document of a type with the change workflow (the CR type) in status approved, implemented, verified or closed, that the person saving may read. The version names it. A change record covers **one version of one contract**: one that was already used – for this contract or another – is refused (`DATA_CONTRACT_CHANGE_RECORD_USED`).
+- **Switching the rule off** needs the contract's **manage** right – approvers and administrators, who approve changes ([rights](#rights)); editors can switch it on. The audit entry `contract.settings_changed` records it (before and after). **Deleting** a contract that has the rule keeps it for its ODCS id: a new contract with that id – an import after deleting – starts with the rule on (`data_contract_kept_rules`); switching it off with the manage right forgets it.
 
 ## Breaking changes
 
-Changes are seen from a consumer of the data. Schema objects are matched by `name`, properties by their path (`customer.address.city`), quality rules by their `id`, else their `name`, else their type and `rule` (or `metric`).
+Changes are seen from a consumer of the data. Schema objects are matched by `name`, properties by their path (`customer.address.city`), servers by `server`, quality rules by their `id`, else their `name`, else their type and `rule` (or `metric`). Names are unique (refused on save otherwise), and the compared values have their ODCS types – so the comparison cannot be fooled by a second `id` field or by `required: "true"`. The comparison runs in linear time, within the [limits](#limits).
 
 | Change                                                                                                                                                  | Breaking | Why                                  |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------ |
@@ -48,6 +51,8 @@ Changes are seen from a consumer of the data. Schema objects are matched by `nam
 | `physicalType` narrowed or changed (`varchar(40)` → `varchar(20)`, `bigint` → `integer`)                                                                | yes      | values may no longer fit             |
 | `logicalTypeOptions` narrowed (`maxLength`, `maximum` lower, `minLength`, `minimum` higher; a new or other `pattern`; another `format`)                 | yes      | values may no longer fit             |
 | A quality rule added (not of type `text`) or tightened (`mustBeLessThan` lower, `mustBeGreaterThan` higher, `mustBeBetween` narrower, `mustBe` changed) | yes      | a promise was added or made stricter |
+| `physicalName` of a schema object or a field changed                                                                                                    | yes      | the name points at other data        |
+| A server's `type`, `host`, `port`, `database`, `schema` (or `catalog`, `project`, `dataset`, `account`, `location`, `path`, `topic`) changed            | yes      | consumers find the data elsewhere    |
 | A field or schema object added (optional), a type widened, `required` or `unique` removed                                                               | no       |                                      |
 | A quality rule removed or loosened; an SQL rule whose query changed (listed: Steward cannot judge SQL)                                                  | no       |                                      |
 | `version`, `status`, servers added or removed                                                                                                           | no       | listed                               |
@@ -86,15 +91,32 @@ Platform kind **Data contract service** (_Platforms → Add platform → Databas
 
 A test (**Test now**, a [monitor check](#monitors-processes-scorecard-and-reports) or the process step):
 
-1. checks the rights of whoever starts it – the contract's **test** right and the **use** right on the service and on the tested database platform;
+1. checks the rights of whoever starts it – the contract's **test** right and the **use** right on the service and on the tested database platform (a monitor: its owner; a process step: the run's actor, the schedule's owner for a scheduled run);
 2. finds the tested server: the contract's setting, else its only server; it must be **linked to a database platform** of a fitting DBMS (`postgres`/`postgresql`, `mysql`, `sqlserver`) – otherwise the test is refused;
-3. checks the **outbound policy** for both: the service's URL like every platform request, and the tested database like a connection of Steward's own (`assertDatabaseAllowed`: the policy, address safety, and **Steward's own database is refused**, [ADR 0008](adr/0008-database-platforms.md));
-4. sends `POST /test?server=<name>` with the contract as `application/yaml` and the tested server's connection in the CLI's documented per-request headers – `datacontract-<type>-host`, `-port`, `-database`, `-username`, `-password` (`<type>` is `postgres`, `mysql` or `sqlserver`, [configuration](https://cli.datacontract.com/configuration)). The credentials come from the vault for this request only – **never from or into the contract**. The CLI takes host, port and database from these headers over the contract's `servers` entry, so the service connects where Steward's platform points. Redirects are not followed (the headers carry credentials);
-5. stores the answer – the CLI's test run with one check per test – as a **test run** of the contract: result (passed, warnings, failed; `error` when the run itself failed), check counts, the first problems, the full report (at most 2 MB; logs and then checks are cut beyond), its SHA-256, the version and server tested, who started it and how. Every secret of both platforms is masked in the report and the summary. The audit log records `contract.tested` with the result and the report's SHA-256.
+3. checks every [SQL quality rule](#sql-quality-rules) again for the tested platform's DBMS, and the platform's [TLS setting](#tls-and-the-tested-host);
+4. checks the **outbound policy** for both: the service's URL like every platform request, and the tested database like a connection of Steward's own (`assertDatabaseAllowed`: the policy, address safety, and **Steward's own database is refused**, [ADR 0008](adr/0008-database-platforms.md)) – on the **address Steward resolved**, which is what the service is sent ([the tested host](#tls-and-the-tested-host));
+5. sends `POST /test?server=<name>` with the contract as `application/yaml` and the tested server's connection in the CLI's documented per-request headers – `datacontract-<type>-host`, `-port`, `-database`, `-username`, `-password` (`<type>` is `postgres`, `mysql` or `sqlserver`, [configuration](https://cli.datacontract.com/configuration)), for SQL Server also `-encrypted-connection` and `-trust-server-certificate`. The credentials come from the vault for this request only – **never from or into the contract**. The CLI takes host, port and database from these headers over the contract's `servers` entry, so the service connects where Steward's platform points. Redirects are not followed (the headers carry credentials);
+6. stores the answer – the CLI's test run with one check per test – as a **test run** of the contract: result (passed, warnings, failed; `error` when the run itself failed), check counts, the first problems, the full report (at most 2 MB; logs and then checks are cut beyond), its SHA-256, the version and server tested, who started it and how. Every secret of both platforms is masked in the report and the summary. The audit log records `contract.tested` with the result and the report's SHA-256.
 
 Not yet: servers of other types (Snowflake, Databricks, Kafka, S3, API servers …) – the CLI supports them; Steward will map them to its platform kinds in a later step. The CLI's own import formats (SQL DDL, JSON Schema, Avro) are not offered: its API has no import endpoint – use the [drafts](#drafts) or the CLI on the command line.
 
+**Only Steward calls the service:** for the platform kind _Data contract service_ every request but `GET` and `HEAD` – and `/test` and `/lint` whatever the method – is refused (`PLATFORM_PATH_DENIED`) unless it comes from Steward's own test or lint (`server/src/platforms/deniedPaths.ts`, `ownCall`): process HTTP steps, the explorer and ad-hoc requests, the MCP gateway, monitors and recordings cannot drive it, so they cannot have it connect elsewhere with credentials of their own. _Test connection_ reads `/openapi.json`.
+
 The **demo** has a simulated service (_Data contract service (demo)_, `server/src/mock/mockDataContract.ts`) that "tests" contracts against the demo shop database, and two contracts: _Shop orders_ holds, _Shop customers_ promises a column the table does not have.
+
+## SQL quality rules
+
+ODCS quality rules of `type: sql` (and any rule with a `query`) are SQL the **service runs on the tested database with the platform's credentials** – on its own connection, with the platform's read-only account, **outside Steward's read-only session**: layers 2 and 3 of [ADR 0008](adr/0008-database-platforms.md) (the read-only transaction and Steward's own connection) do not apply, only the account's rights and the checks below. Steward therefore holds them to its own rules:
+
+- **Rights:** saving a contract with SQL rules – creating it, a new version, an import – needs the **use** right on every database platform linked to its servers, the right the tests use (`DATA_CONTRACT_SQL_NEEDS_USE`; a platform the person may not see is not named). Every test checks **use** again for whoever runs it – by hand, the monitor's owner, the run's actor or the schedule's owner – before the service is called; a contract with SQL rules is never tested without a person's rights.
+- **Statement check:** every rule passes Steward's statement check (`shared/src/sqlcheck.ts`, [DATABASES.md](DATABASES.md#what-steward-refuses)) – one `SELECT` or `WITH … SELECT`, no words that change something (a data-modifying CTE, `SELECT … INTO` …), no functions with effects outside the query (`pg_terminate_backend`, `set_config`, `dblink`, `lo_export`, advisory locks …), no placeholders (Steward binds no parameters) – on save for the DBMS of the contract's servers (PostgreSQL's rules when it names none Steward can test), and **before each test** for the tested platform's DBMS. A refused rule is named with its path (`DATA_CONTRACT_SQL_REFUSED`); the editor shows it before saving. The CLI's own placeholders (`{model}`, `${table}`, `{column}` …) are read as names; any other `${…}` reference is refused – the service would fill it in from its own environment.
+- **What remains:** a rule can read what the platform's account may read, and a check's reason can carry a value. Give the database platform an account that reads only what the contract is about, and recommend `PGOPTIONS='-c default_transaction_read_only=on'` in the service container ([compose](#the-datacontract-api-next-to-steward-compose)).
+
+## TLS and the tested host
+
+- **PostgreSQL and MySQL:** the datacontract CLI has no TLS options for them – it connects to PostgreSQL with libpq's default (`sslmode=prefer`: no certificate check, and a fallback to no TLS) and to MySQL through DuckDB without one. A test of a platform whose TLS mode is **verify** (the default) or **require** is therefore **refused** (`DATA_CONTRACT_TLS_UNVERIFIED`) unless the platform allows it: _Platform → Database → Allow the data contract service to connect without certificate verification_ (`tls.contractServiceUnverified`, off by default, audited as `platform.database_changed`, with the platform's **manage** right). With TLS **off** the platform already accepts no TLS. Better than allowing it: make the service container enforce TLS itself (`PGSSLMODE=verify-full` and `PGSSLROOTCERT` for libpq – see [compose](#the-datacontract-api-next-to-steward-compose)) – Steward cannot see that, so the switch is still needed.
+- **SQL Server:** the platform's TLS mode goes to the CLI – **verify**: encrypted, certificate checked (`datacontract-sqlserver-encrypted-connection: true`, `-trust-server-certificate: false`); **require**: encrypted, certificate not checked; **off**: not encrypted. The CLI checks the certificate against the host name and the system's CA certificates: an own CA or a different certificate name of the platform (`tls.ca`, `tls.serverName`) do not reach it.
+- **The tested host:** Steward resolves the platform's host itself, refuses a name it cannot resolve (`DATA_CONTRACT_HOST_UNRESOLVED`), checks every address (Steward's own database, address safety) and **sends the address it checked** – so the service's own DNS (another network, DNS rebinding) cannot lead it to another server. SQL Server with **verify** is sent the name, because its certificate is checked against it (the CLI has no separate name for that check): there the service resolves the name itself. **Split DNS:** if the service resolves names differently from Steward (another network namespace, as in the compose example), use names that resolve to the same address on both sides, or IP addresses.
 
 ## Steward's own checks
 
@@ -110,7 +132,7 @@ Without the service, on the contract's **Overview** and in the monitor check's `
 
 - **Monitor check _Data contract_** (`type: data-contract`, [MONITORS.md](MONITORS.md)): `contract` (Steward's id), `mode: test` (default – runs the test with the monitor owner's rights; passed → up, warnings → `warningAs` (degraded), failed or error → `failAs` (down)) or `mode: findings` (Steward's own checks: an error finding → `failAs`, a warning → `warningAs`; `testedWithinDays`, default 7). A test gets at least a minute, at most 300 s. The check's value names the stored run – the evidence. A test run of the monitor never calls the service: it judges the last stored run.
 - **Process step _Test a data contract_** (`type: contractTest`): `contract` (Steward's id or the ODCS id; a template), `server` (optional), `failOnWarning`, `failRun`. It runs with the rights of the run's actor; a test that does not pass marks the step failed (like a check) and the run goes on, unless `failRun`. Dry runs test too (a test only reads) – their run is stored marked as dry run, it neither notifies nor counts as the last test; test runs never call the service. The step's result names the run (`run`, `result`, `checks`, `headline`, `link`).
-- **Scorecard part _Data contracts_** ([SCORECARD.md](SCORECARD.md)): the contracts linked to a service's applications or to their systems – attention when one's last test failed or it has an error finding, pending when one was never tested or has other findings, none when no contract is linked (the part is then hidden). Stored in the daily snapshots (`scorecard_snapshots.contracts`) and in `/api/v1` (scorecard `contracts`).
+- **Scorecard part _Data contracts_** ([SCORECARD.md](SCORECARD.md)): the contracts linked to a service's applications or to their systems – attention when one's last test failed or it has an error finding, pending when one was never tested or has other findings, none when no contract is linked (the part is then hidden). Stored in the daily snapshots (`scorecard_snapshots.contracts`, with the contracts it counted in `contract_ids`) and in `/api/v1` (scorecard `contracts`). In the history, the trend and the `/api/v1` history the part shows as **hidden** to a reader who may not see one of the contracts a day counted – like documentation.
 - **Report section _Data contracts_** ([REPORTS.md](REPORTS.md)): per contract the owner of the schedule may see, the tests of the report period (passed · warnings · failed, dry runs left out), the last test, the findings, and the versions saved in the period with their breaking changes.
 
 ## Notifications
@@ -132,24 +154,26 @@ Contracts can have owning teams (kind `contract`, [TEAMS.md](TEAMS.md), `server/
 | see    | every role that works in Steward                                                       | members of the teams, auditors, administrators            |
 | test   | operators, designers, administrators                                                   | operators and designers among the members, administrators |
 | change | designers, administrators                                                              | designers among the members, administrators               |
+| manage | approvers, administrators – switch off "breaking changes need a change record"         | approvers among the members, administrators               |
 | create | designers and administrators (instance roles); a new contract gets the creator's teams |                                                           |
 
 A contract the caller may not see answers 404 like a missing one – in the API, links, monitor checks and process steps. Plant and status viewers have no access.
 
 ## Limits
 
-| What                           | Limit                                                                                       |
-| ------------------------------ | ------------------------------------------------------------------------------------------- |
-| A contract (YAML)              | 1 MB, 50,000 keys, 32 levels, 100 aliases expanded (a "billion laughs" document is refused) |
-| Schema objects / properties    | 500 / 20,000                                                                                |
-| Lint findings kept per version | 200                                                                                         |
-| Changes listed per comparison  | 2,000 (more are counted)                                                                    |
-| Links per contract             | 200                                                                                         |
-| A stored test report           | 2 MB (cut beyond, marked)                                                                   |
-| Test runs kept per contract    | the newest 500                                                                              |
-| A test                         | 120 s by hand and in processes, the monitor's time limit (at least 60 s), at most 300 s     |
+| What                           | Limit                                                                                                                                                                                        |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A contract (YAML)              | 1 MB, 50,000 keys, 32 levels, 100 aliases expanded (a "billion laughs" document is refused)                                                                                                  |
+| Schema objects / properties    | 500 / 20,000                                                                                                                                                                                 |
+| Quality rules / values         | 10,000 (all levels) / 250,000 (every mapping, list and scalar of the document)                                                                                                               |
+| Lint findings kept per version | 200                                                                                                                                                                                          |
+| Changes listed per comparison  | 2,000 (more are counted)                                                                                                                                                                     |
+| Links per contract             | 200                                                                                                                                                                                          |
+| A stored test report           | 2 MB (cut beyond, marked)                                                                                                                                                                    |
+| Test runs kept per contract    | the newest 500 real runs; failed runs and errors beyond them (the newest 500 of those); dry runs on their own (the newest 100) – dry and passing runs never push out the report of a failure |
+| A test                         | 120 s by hand and in processes, the monitor's time limit (at least 60 s), at most 300 s                                                                                                      |
 
-YAML is read with the YAML library and the limits of the plant registry import (`server/src/yaml-safe.ts`: size and keys before parsing, duplicate keys found in linear time, aliases capped).
+YAML is read with the YAML library and the limits of the plant registry import (`server/src/yaml-safe.ts`: size and keys before parsing, duplicate keys found in linear time, aliases capped). The JSON Schema check and the comparison of versions run in linear time; the check lists every finding of the first 500 items of each list (a check that stops at the first error sees all of them). Creating, checking, importing, comparing and saving versions count against the **heavy** rate limit (30 a minute per person and route, like imports); the editor's live check waits for a pause in typing.
 
 ## The datacontract API next to Steward (compose)
 
@@ -170,6 +194,10 @@ services:
       # every request must carry this key (Steward sends it as x-api-key: the platform's credential "API key")
       DATACONTRACT_CLI_API_KEY: ${DATACONTRACT_CLI_API_KEY:?set a long random key}
       # no credentials here: Steward sends the tested server's per request (datacontract-* headers)
+      # SQL quality rules: read-only sessions on PostgreSQL, and TLS the service enforces itself (see "TLS and the tested host")
+      PGOPTIONS: '-c default_transaction_read_only=on'
+      # PGSSLMODE: verify-full
+      # PGSSLROOTCERT: /certs/db-ca.pem
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]
@@ -193,11 +221,15 @@ The service connects to the tested databases itself: **restrict its egress** (as
 ## Security
 
 - **Credentials never in contracts, reports or logs:** they are read from the vault for one request and sent in headers; contracts never carry them (the ODCS v3.2 `${VAR}` references are not resolved by Steward), stored reports and summaries are masked with every secret of the service and the database platform, the audit log records the result and the report's hash only, and errors of the service are masked the same way. Redirects of the service are not followed.
-- **Outbound policy:** the service's URL and the tested database are checked before each test; Steward's own database is refused under every policy.
+- **Outbound policy:** the service's URL and the tested database are checked before each test; Steward's own database is refused under every policy. The service is sent the address Steward checked ([the tested host](#tls-and-the-tested-host)).
+- **Only Steward drives the service:** process steps, the explorer, the MCP gateway and monitors cannot send it requests that change something, nor `/test` or `/lint` ([testing](#testing)).
+- **SQL quality rules run outside Steward's read-only session**, in the service, with the platform's read-only account: saving them needs the **use** right on the linked database platform, every test checks it again for whoever runs it, and every rule passes Steward's statement check on save and before each test ([SQL quality rules](#sql-quality-rules)).
+- **TLS:** Steward's TLS setting reaches the service for SQL Server only; PostgreSQL and MySQL platforms with TLS on are tested only when they allow it explicitly ([TLS](#tls-and-the-tested-host)).
+- **Evidence:** the change record rule can be switched off only with the manage right, a change record covers one version, the rule outlives deleting the contract; failed test reports are kept beyond the newest 500 runs ([limits](#limits)).
 - **Reports show results, sometimes values:** a check's reason can name a value or a count from the data. Whoever may see a contract sees its test reports – give a contract the owning team of its data.
 - **The service may fetch what a contract names:** besides the tested database, the CLI can resolve URLs a contract names (for example `authoritativeDefinitions`). Restrict its egress as above.
 - **What callers may not see** stays hidden: hidden contracts answer 404; links to hidden targets show neither name nor detail; a hidden service platform is not named; monitor checks and steps refuse a hidden contract like a missing one; the report section and the scorecard count only visible contracts.
-- **Untrusted YAML:** size, key, depth and alias limits before and while parsing; the JSON Schema check uses only Steward's vendored schema; nothing compiles a regular expression from a contract (patterns are data); property names from drafts are built as entries (`__proto__` dropped).
+- **Untrusted YAML:** size, key, depth and alias limits before and while parsing, caps on quality rules and values, the JSON Schema check and the comparison in linear time under the heavy rate limit; the JSON Schema check uses only Steward's vendored schema; nothing compiles a regular expression from a contract (patterns are data); property names from drafts are built as entries (`__proto__` dropped).
 
 ## Decisions
 
