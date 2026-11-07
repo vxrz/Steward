@@ -33,7 +33,7 @@ import { siteRights } from './access.js';
 import { requirePlant } from './settings.js';
 import { overview } from './views.js';
 import { openMapTilesLayers, protomapsLayers, rasterLayers, type Layer, type MapTheme } from './mapStyles.js';
-import { archiveOf, clearArchives, fetchMapFile, fetchStatus, pmtilesTile, resetFetchStatus, type Fetched, type Upstream } from './mapTiles.js';
+import { MapError, archiveOf, clearArchives, fetchMapFile, fetchStatus, pmtilesTile, resetFetchStatus, type Fetched, type Upstream } from './mapTiles.js';
 
 /**
  * The map of sites (#234, ADR 0015): its settings (internal setting `plant.map`, the API key vault-encrypted in
@@ -160,20 +160,20 @@ function httpUrl(raw: string, what: string): URL {
   try {
     u = new URL(raw);
   } catch {
-    throw new HttpError(400, `${what}: not a URL`, 'PLANT_MAP_URL', { what });
+    throw new MapError(400, `${what}: not a URL`, 'PLANT_MAP_URL', { what });
   }
-  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new HttpError(400, `${what}: use an https (or http) address`, 'PLANT_MAP_URL', { what });
-  if (u.username || u.password) throw new HttpError(400, `${what}: no user name or password in the address – use the API key`, 'PLANT_MAP_URL', { what });
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new MapError(400, `${what}: use an https (or http) address`, 'PLANT_MAP_URL', { what });
+  if (u.username || u.password) throw new MapError(400, `${what}: no user name or password in the address – use the API key`, 'PLANT_MAP_URL', { what });
   return u;
 }
 
 /** A tile URL template: {z}, {x} and {y} (or {-y}? no – TMS sources say scheme "tms"), nothing else in braces. */
 function checkTemplate(t: string, what: string): string {
   // the placeholders are written encoded by the URL parser; check the raw text
-  for (const p of ['{z}', '{x}', '{y}']) if (!t.includes(p)) throw new HttpError(400, `${what}: the template needs {z}, {x} and {y}`, 'PLANT_MAP_TEMPLATE');
+  for (const p of ['{z}', '{x}', '{y}']) if (!t.includes(p)) throw new MapError(400, `${what}: the template needs {z}, {x} and {y}`, 'PLANT_MAP_TEMPLATE');
   const rest = t.replaceAll('{z}', '0').replaceAll('{x}', '0').replaceAll('{y}', '0');
   if (rest.includes('{') || rest.includes('}'))
-    throw new HttpError(400, `${what}: only {z}, {x} and {y} are filled in (no {s} sub-domains, {r} or {quadkey})`, 'PLANT_MAP_TEMPLATE');
+    throw new MapError(400, `${what}: only {z}, {x} and {y} are filled in (no {s} sub-domains, {r} or {quadkey})`, 'PLANT_MAP_TEMPLATE');
   httpUrl(rest, what);
   return t;
 }
@@ -372,7 +372,7 @@ async function templateOf(p: Plan, s: PlanSource): Promise<string> {
   if (hit && Date.now() - hit.at < 3600_000) return hit.tiles;
   const tj = parseJsonFile(await fetchMapFile(upstreamOf(p, url, 'json')), 'TileJSON');
   const t = Array.isArray(tj.tiles) && typeof tj.tiles[0] === 'string' ? resolveAgainst(tj.tiles[0], url) : null;
-  if (!t) throw new HttpError(502, 'The source’s TileJSON names no tiles', 'PLANT_MAP_UPSTREAM', { reason: 'tilejson' });
+  if (!t) throw new MapError(502, 'The source’s TileJSON names no tiles', 'PLANT_MAP_UPSTREAM', { reason: 'tilejson' });
   checkTemplate(t, 'TileJSON');
   tileJsonTemplates.set(`${p.stamp}|${url}`, { at: Date.now(), tiles: t });
   return t;
@@ -385,7 +385,7 @@ function parseJsonFile(f: Fetched, what: string): Record<string, unknown> {
   } catch {
     // not JSON: the error below
   }
-  throw new HttpError(502, `The source's ${what} is not a JSON object`, 'PLANT_MAP_UPSTREAM', { reason: 'json' });
+  throw new MapError(502, `The source's ${what} is not a JSON object`, 'PLANT_MAP_UPSTREAM', { reason: 'json' });
 }
 
 /** z/x/y as integers in range (the browser passes nothing else to the upstream URL). */
@@ -571,7 +571,7 @@ async function readOwnStyle(styleUrl: string, key: Plan['key'], keyVal: string |
     stamp: `check|${Date.now()}`,
   });
   const style = parseJsonFile(await fetchMapFile(up(styleUrl, 'json')), 'style');
-  if (style.version !== 8) throw new HttpError(400, 'The style is not a MapLibre style (version 8)', 'PLANT_MAP_STYLE');
+  if (style.version !== 8) throw new MapError(400, 'The style is not a MapLibre style (version 8)', 'PLANT_MAP_STYLE');
   const rawSources = obj(style.sources);
   const sources: Record<string, PlanSource> = {};
   const rename = new Map<string, string>();
@@ -607,7 +607,7 @@ async function readOwnStyle(styleUrl: string, key: Plan['key'], keyVal: string |
     };
     if (typeof tj.attribution === 'string' && plainText(tj.attribution)) attribution.push(plainText(tj.attribution));
   }
-  if (!Object.keys(sources).length) throw new HttpError(400, 'The style has no raster or vector source Steward can serve', 'PLANT_MAP_STYLE');
+  if (!Object.keys(sources).length) throw new MapError(400, 'The style has no raster or vector source Steward can serve', 'PLANT_MAP_STYLE');
   const fonts = new Set<string>();
   const layers: Layer[] = [];
   for (const raw of (Array.isArray(style.layers) ? style.layers : []).slice(0, PLANT_MAP_LIMITS.styleLayers)) {
@@ -773,7 +773,7 @@ export async function updateMapSettings(b: MapSettingsInput): Promise<PlantMapSe
     if (b.own.key !== undefined) newKey = b.own.key || null;
   }
   if (b.source === 'own') {
-    if (!next.own) throw new HttpError(400, 'Enter the tile source', 'PLANT_MAP_URL', { what: 'Tile URL' });
+    if (!next.own) throw new MapError(400, 'Enter the tile source', 'PLANT_MAP_URL', { what: 'Tile URL' });
     if (next.own.kind === 'style') {
       const same = before.own?.kind === 'style' && before.own.url === next.own.url && readSetting<OwnStyle | null>(KEY_STYLE, null);
       if (!same || b.reload || newKey !== undefined || before.source !== 'own') {
@@ -784,9 +784,9 @@ export async function updateMapSettings(b: MapSettingsInput): Promise<PlantMapSe
   }
   if (b.file) {
     if (!FILE_NAME_OK(b.file.name) || !fs.existsSync(path.join(mapsDir(), b.file.name)))
-      throw new HttpError(400, `No map file "${b.file.name.slice(0, 200)}" in the maps folder`, 'PLANT_MAP_FILE');
+      throw new MapError(400, `No map file "${b.file.name.slice(0, 200)}" in the maps folder`, 'PLANT_MAP_FILE');
     const d = await describeFile(b.file.name);
-    if (d.problem || d.kind === 'unknown') throw new HttpError(400, d.problem ?? 'The file cannot be drawn', 'PLANT_MAP_FILE');
+    if (d.problem || d.kind === 'unknown') throw new MapError(400, d.problem ?? 'The file cannot be drawn', 'PLANT_MAP_FILE');
     if (!b.file.attribution && !d.attribution) throw new HttpError(400, 'Enter the attribution of the map data (the file names none)', 'PLANT_MAP_ATTRIBUTION');
     next.file = {
       name: d.name,
@@ -798,7 +798,7 @@ export async function updateMapSettings(b: MapSettingsInput): Promise<PlantMapSe
       fileAttribution: d.attribution,
     };
   }
-  if (b.source === 'file' && !next.file) throw new HttpError(400, 'Choose a map file', 'PLANT_MAP_FILE');
+  if (b.source === 'file' && !next.file) throw new MapError(400, 'Choose a map file', 'PLANT_MAP_FILE');
   writeSetting(KEY, next);
   if (newStyle !== undefined) writeSetting(KEY_STYLE, newStyle);
   if (newKey !== undefined) writeSetting(KEY_SECRET, newKey ? { blob: vault().encrypt(newKey) } : null);

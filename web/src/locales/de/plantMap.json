@@ -79,7 +79,7 @@
     "help": "Klicken Sie auf die Karte, um Breite und Länge zu setzen, oder geben Sie sie oben ein."
   },
   "widget": {
-    "notVisible": "Nicht sichtbar: Das Anlagenregister ist für Sie nicht freigegeben.",
+    "notVisible": "Nicht sichtbar: Das Werksregister ist für Sie nicht freigegeben.",
     "none": "Noch keine Standorte.",
     "sites": "Standorte",
     "open": "Karte öffnen"
@@ -160,7 +160,7 @@
     "stepUp": "Wenn Sie ändern, woher die Kacheln kommen, bestätigen Sie, dass Sie es sind (Step-up); die Änderung wird im Audit-Log festgehalten.",
     "saved": "Karteneinstellungen gespeichert",
     "savedOff": "Die Karte ist aus",
-    "outbound": "Kartenkacheln (Anlagenregister): Der Abruf der Karte erreicht {{origins}} – nur für die Karte, nicht für Prozesse.",
-    "outboundNone": "Kartenkacheln (Anlagenregister): aus einer Datei im Datenordner – nichts verlässt Steward."
+    "outbound": "Kartenkacheln (Werksregister): Der Abruf der Karte erreicht {{origins}} – nur für die Karte, nicht für Prozesse.",
+    "outboundNone": "Kartenkacheln (Werksregister): aus einer Datei im Datenordner – nichts verlässt Steward."
   }
 }

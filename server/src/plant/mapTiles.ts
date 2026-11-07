@@ -26,6 +26,16 @@ import { HttpError } from '../util.js';
  * shared; above it the cache key includes the user, so nobody can time answers to learn where others looked closely.
  */
 
+/**
+ * An error of the map with its English message also as the parameter `detail`: the web app's translated text names
+ * what went wrong (an address, a status, the problem of a file) – never an API key (messages name origin and path only).
+ */
+export class MapError extends HttpError {
+  constructor(status: number, message: string, code: string, params: Record<string, string | number> = {}) {
+    super(status, message, code, { ...params, detail: message });
+  }
+}
+
 export type FetchKind = 'tile' | 'json' | 'glyphs' | 'sprite';
 
 export const USER_AGENT = `${BRAND.name}/${config.version} (+${BRAND.repoUrl})`;
@@ -271,7 +281,7 @@ function acceptedType(kind: FetchKind, header: string | null, url: string): stri
 }
 
 async function readLimited(res: Awaited<ReturnType<typeof fetch>>, max: number, url: string): Promise<Buffer> {
-  const tooLarge = () => new HttpError(502, `${where(url)} answered with more than ${Math.round(max / 1024)} KB`, 'PLANT_MAP_UPSTREAM');
+  const tooLarge = () => new MapError(502, `${where(url)} answered with more than ${Math.round(max / 1024)} KB`, 'PLANT_MAP_UPSTREAM');
   if (Number(res.headers.get('content-length') ?? 0) > max) {
     await res.body?.cancel().catch(() => undefined); // not read: a failed cancel changes nothing
     throw tooLarge();
@@ -311,9 +321,9 @@ async function send(
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const origin = originOf(url);
     if (!origin || !up.origins.includes(origin))
-      throw new HttpError(502, `${where(url)} is not one of the map source's origins`, 'PLANT_MAP_UPSTREAM', { reason: 'origin' });
+      throw new MapError(502, `${where(url)} is not one of the map source's origins`, 'PLANT_MAP_UPSTREAM', { reason: 'origin' });
     await assertAddressSafe(url).catch((e: unknown) => {
-      throw new HttpError(502, `${where(url)}: ${(e as Error).message}`, 'PLANT_MAP_UPSTREAM', { reason: 'address' });
+      throw new MapError(502, `${where(url)}: ${(e as Error).message}`, 'PLANT_MAP_UPSTREAM', { reason: 'address' });
     });
     const k = withKey(url, up.key);
     let res: Awaited<ReturnType<typeof fetch>>;
@@ -336,18 +346,18 @@ async function send(
     } catch (e) {
       const err = e as Error & { cause?: Error & { code?: string } };
       const why = err.cause?.code === 'ESSRFBLOCKED' ? err.cause.message : err.name === 'TimeoutError' ? 'no answer within 10 s' : 'not reachable';
-      throw new HttpError(502, `${where(url)}: ${why}`, 'PLANT_MAP_UPSTREAM', { reason: 'unreachable' });
+      throw new MapError(502, `${where(url)}: ${why}`, 'PLANT_MAP_UPSTREAM', { reason: 'unreachable' });
     }
     if (res.status >= 300 && res.status < 400 && res.status !== 304) {
       const loc = res.headers.get('location');
       await res.body?.cancel().catch(() => undefined); // a redirect's body is not read: a failed cancel changes nothing
-      if (!loc) throw new HttpError(502, `${where(url)} redirected without a target`, 'PLANT_MAP_UPSTREAM', { reason: 'redirect' });
+      if (!loc) throw new MapError(502, `${where(url)} redirected without a target`, 'PLANT_MAP_UPSTREAM', { reason: 'redirect' });
       url = new URL(loc, url).toString();
       continue;
     }
     return { status: res.status, res, url };
   }
-  throw new HttpError(502, `${where(up.url)} redirected too often`, 'PLANT_MAP_UPSTREAM', { reason: 'redirect' });
+  throw new MapError(502, `${where(up.url)} redirected too often`, 'PLANT_MAP_UPSTREAM', { reason: 'redirect' });
 }
 
 async function fetchFresh(up: Upstream, key: string, stale: { meta: Meta; body: Buffer } | null): Promise<Fetched> {
@@ -365,12 +375,12 @@ async function fetchFresh(up: Upstream, key: string, stale: { meta: Meta; body: 
   if (status < 200 || status >= 300) {
     await res!.body?.cancel().catch(() => undefined); // an error answer is not read: a failed cancel changes nothing
     const hint = status === 401 || status === 403 ? ' (check the API key)' : status === 429 ? ' (too many requests – the provider limits this server)' : '';
-    throw new HttpError(502, `${where(url)} answered ${status}${hint}`, 'PLANT_MAP_UPSTREAM', { reason: 'status', status });
+    throw new MapError(502, `${where(url)} answered ${status}${hint}`, 'PLANT_MAP_UPSTREAM', { reason: 'status', status });
   }
   const type = acceptedType(up.kind, res!.headers.get('content-type'), url);
   if (!type) {
     await res!.body?.cancel().catch(() => undefined); // refused unread: a failed cancel changes nothing
-    throw new HttpError(502, `${where(url)} answered with an unexpected content type`, 'PLANT_MAP_UPSTREAM', { reason: 'type' });
+    throw new MapError(502, `${where(url)} answered with an unexpected content type`, 'PLANT_MAP_UPSTREAM', { reason: 'type' });
   }
   const body = await readLimited(res!, LIMIT[up.kind], url);
   const ttl = freshFor(res!.headers.get('cache-control'), res!.headers.get('expires'));
@@ -460,11 +470,11 @@ export async function pmtilesTile(file: string, z: number, x: number, y: number)
   const p = archiveOf(file);
   const h = await p.getHeader();
   const type = TILE_TYPES[h.tileType];
-  if (!type) throw new HttpError(502, 'The map file holds tiles of a type Steward cannot serve', 'PLANT_MAP_UPSTREAM', { reason: 'type' });
+  if (!type) throw new MapError(502, 'The map file holds tiles of a type Steward cannot serve', 'PLANT_MAP_UPSTREAM', { reason: 'type' });
   const t = await p.getZxy(z, x, y);
   if (!t) throw new HttpError(404, 'No tile here', 'PLANT_MAP_NO_TILE');
   const body = Buffer.from(t.data);
-  if (body.length > PLANT_MAP_LIMITS.tileBytes) throw new HttpError(502, 'A tile of the map file is too large', 'PLANT_MAP_UPSTREAM', { reason: 'size' });
+  if (body.length > PLANT_MAP_LIMITS.tileBytes) throw new MapError(502, 'A tile of the map file is too large', 'PLANT_MAP_UPSTREAM', { reason: 'size' });
   return { body, type };
 }
 

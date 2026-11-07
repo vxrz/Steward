@@ -105,7 +105,7 @@
     },
     "sitesMap": {
       "label": "Standortkarte",
-      "info": "Die Standorte des Anlagenregisters auf einer Karte, mit ihrem Zustand (nur die Standorte, die der Leser sehen darf)"
+      "info": "Die Standorte des Werksregisters auf einer Karte, mit ihrem Zustand (nur die Standorte, die der Leser sehen darf)"
     }
   },
   "editor": {
