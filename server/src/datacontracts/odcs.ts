@@ -24,18 +24,29 @@ type Obj = Record<string, unknown>;
 export const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
 export const str = (v: unknown): string | null => (typeof v === 'string' ? v : typeof v === 'number' || typeof v === 'boolean' ? String(v) : null);
 
-/** Nesting depth of a parsed document (iterative: deep nesting cannot overflow the stack). */
-function depthOf(v: unknown, max: number): number {
-  let deepest = 0;
+/**
+ * Nesting depth, values and quality rules of a parsed document, in one iterative walk (deep nesting cannot overflow the
+ * stack); stops as soon as a limit is passed.
+ */
+function shapeOf(v: unknown): { depth: number; nodes: number; quality: number } {
+  let depth = 0;
+  let nodes = 0;
+  let quality = 0;
   const stack: [unknown, number][] = [[v, 1]];
   while (stack.length) {
     const [x, d] = stack.pop()!;
+    if (++nodes > L.nodes) break;
     if (x === null || typeof x !== 'object') continue;
-    if (d > deepest) deepest = d;
-    if (d > max + 1) return d;
-    for (const c of Array.isArray(x) ? x : Object.values(x)) stack.push([c, d + 1]);
+    if (d > depth) depth = d;
+    if (d > L.depth + 1) break;
+    if (Array.isArray(x)) for (const c of x) stack.push([c, d + 1]);
+    else
+      for (const [k, c] of Object.entries(x)) {
+        if (k === 'quality' && Array.isArray(c) && (quality += c.length) > L.qualityRules) return { depth, nodes, quality };
+        stack.push([c, d + 1]);
+      }
   }
-  return deepest;
+  return { depth, nodes, quality };
 }
 
 export interface ParsedContract {
@@ -64,7 +75,10 @@ export function parseContract(text: string): ParsedContract {
   } catch (e) {
     return { doc: {}, problems: [problem((e as Error).message.split('\n')[0]!.slice(0, 300))] };
   }
-  if (depthOf(raw, L.depth) > L.depth) return { doc: {}, problems: [problem(`The document is nested deeper than ${L.depth} levels`)] };
+  const shape = shapeOf(raw);
+  if (shape.depth > L.depth) return { doc: {}, problems: [problem(`The document is nested deeper than ${L.depth} levels`)] };
+  if (shape.nodes > L.nodes) return { doc: {}, problems: [problem(`The document has more than ${L.nodes} values`)] };
+  if (shape.quality > L.qualityRules) return { doc: {}, problems: [problem(`More than ${L.qualityRules} quality rules`, '/schema')] };
   if (!isObj(raw)) return { doc: {}, problems: [problem('A data contract is a YAML mapping (apiVersion, kind, id, …)')] };
   const problems: DataContractLintFinding[] = [];
   if (raw.kind !== 'DataContract') problems.push(problem('kind must be DataContract', '/kind'));
@@ -75,44 +89,135 @@ export function parseContract(text: string): ParsedContract {
   else if (id.length > L.nameChars) problems.push(problem(`id is longer than ${L.nameChars} characters`, '/id'));
   const schemas = Array.isArray(raw.schema) ? raw.schema : [];
   if (schemas.length > L.schemaObjects) problems.push(problem(`More than ${L.schemaObjects} schema objects`, '/schema'));
-  if (countProperties(schemas) > L.properties) problems.push(problem(`More than ${L.properties} properties`, '/schema'));
+  else problems.push(...comparedFields(raw, schemas));
   return { doc: raw, problems };
 }
 
-/** Properties of all schema objects, all levels (iterative). */
-function countProperties(schemas: unknown[]): number {
-  let n = 0;
-  const stack: unknown[] = [...schemas];
-  while (stack.length && n <= L.properties) {
-    const x = stack.pop();
+/** The flags of a property Steward compares (a string "true" is not true: refused, so the comparison cannot be fooled) */
+const FLAGS = ['required', 'unique', 'primaryKey', 'partitioned', 'criticalDataElement'];
+/** Limits of logicalTypeOptions that are numbers */
+export const NUMERIC_OPTIONS = [
+  'maxLength',
+  'maxItems',
+  'maximum',
+  'exclusiveMaximum',
+  'maxProperties',
+  'minLength',
+  'minItems',
+  'minimum',
+  'exclusiveMinimum',
+  'minProperties',
+];
+/** Thresholds of quality rules that are numbers (mustBeBetween / mustNotBeBetween: two numbers) */
+export const NUMERIC_THRESHOLDS = ['mustBeLessThan', 'mustBeLessOrEqualTo', 'mustBeGreaterThan', 'mustBeGreaterOrEqualTo'];
+const MAX_FIELD_PROBLEMS = 50;
+
+/**
+ * What the comparison of versions relies on (docs/DATA-CONTRACTS.md#breaking-changes), refused when it does not hold:
+ * unique names of servers, schema objects and of the properties on one level, the property limit, and the types of the
+ * compared values – flags are true or false, limits and thresholds are numbers. One iterative walk over the schema.
+ */
+function comparedFields(raw: Obj, schemas: unknown[]): DataContractLintFinding[] {
+  const out: DataContractLintFinding[] = [];
+  const add = (path: string, message: string) => out.length < MAX_FIELD_PROBLEMS && out.push(problem(message, path));
+  const unique = (items: unknown[], key: string, what: string, base: string) => {
+    const seen = new Set<string>();
+    items.forEach((x, i) => {
+      const n = isObj(x) ? str(x[key]) : null;
+      if (n === null) return;
+      if (seen.has(n)) add(`${base}/${i}/${key}`, `Two ${what} are named "${n.slice(0, 100)}" – names must be unique`);
+      seen.add(n);
+    });
+  };
+  if (Array.isArray(raw.servers)) unique(raw.servers, 'server', 'servers', '/servers');
+  unique(schemas, 'name', 'schema objects', '/schema');
+  const quality = (v: unknown, base: string) => {
+    if (!Array.isArray(v)) return;
+    v.forEach((q, i) => {
+      if (!isObj(q)) return;
+      for (const k of NUMERIC_THRESHOLDS)
+        if (q[k] !== undefined && !(typeof q[k] === 'number' && Number.isFinite(q[k]))) add(`${base}/${i}/${k}`, `${k} must be a number`);
+      for (const k of ['mustBeBetween', 'mustNotBeBetween'])
+        if (q[k] !== undefined && !(Array.isArray(q[k]) && q[k].length === 2 && q[k].every((n) => typeof n === 'number' && Number.isFinite(n))))
+          add(`${base}/${i}/${k}`, `${k} must be two numbers`);
+    });
+  };
+  let properties = 0;
+  const stack: [unknown, string][] = schemas.map((s, i) => [s, `/schema/${i}`]);
+  while (stack.length && out.length < MAX_FIELD_PROBLEMS) {
+    const [x, at] = stack.pop()!;
     if (!isObj(x)) continue;
-    for (const p of Array.isArray(x.properties) ? x.properties : []) {
-      n++;
-      stack.push(p);
-    }
-    if (isObj(x.items)) stack.push(x.items);
+    quality(x.quality, `${at}/quality`);
+    if (isObj(x.items)) stack.push([x.items, `${at}/items`]);
+    if (!Array.isArray(x.properties)) continue;
+    properties += x.properties.length;
+    if (properties > L.properties) return [problem(`More than ${L.properties} properties`, '/schema')];
+    unique(x.properties, 'name', 'properties on one level', `${at}/properties`);
+    x.properties.forEach((p, i) => {
+      if (!isObj(p)) return;
+      const here = `${at}/properties/${i}`;
+      for (const k of FLAGS) if (p[k] !== undefined && typeof p[k] !== 'boolean') add(`${here}/${k}`, `${k} must be true or false`);
+      const o = p.logicalTypeOptions;
+      if (isObj(o))
+        for (const k of NUMERIC_OPTIONS)
+          if (o[k] !== undefined && !(typeof o[k] === 'number' && Number.isFinite(o[k]))) add(`${here}/logicalTypeOptions/${k}`, `${k} must be a number`);
+      stack.push([p, here]);
+    });
   }
-  return n;
+  return out;
 }
 
 // ---------- the JSON Schema check ----------
 
-let validator: ValidateFunction | null = null;
+let validators: { first: ValidateFunction; all: ValidateFunction } | null = null;
 
-/** The official JSON Schema of ODCS v3.0.2, compiled once. */
-function odcsValidator(): ValidateFunction {
-  if (validator) return validator;
+/**
+ * The official JSON Schema of ODCS v3.0.2, compiled once – twice: `first` stops at the first error (linear, for the
+ * whole document), `all` collects every error (Ajv's allErrors is slow on long lists of failing items, so it only sees
+ * a copy with lists cut to LINT_ITEMS, see lintContract).
+ */
+function odcsValidators(): { first: ValidateFunction; all: ValidateFunction } {
+  if (validators) return validators;
   const schema = JSON.parse(readAsset('odcs/odcs-json-schema-v3.0.2.json').toString('utf8')) as Obj;
-  const ajv = new Ajv2019({ allErrors: true, strict: false, validateFormats: true });
-  // the three formats the schema uses, checked without regular expressions over the value
-  ajv.addFormat('date', { type: 'string', validate: (s: string) => isDate(s) });
-  ajv.addFormat('date-time', {
-    type: 'string',
-    validate: (s: string) => s.length >= 20 && s.length <= 40 && isDate(s.slice(0, 10)) && s[10]?.toUpperCase() === 'T' && !Number.isNaN(Date.parse(s)),
-  });
-  ajv.addFormat('uri', { type: 'string', validate: (s: string) => s.length <= 4096 && URL.canParse(s) });
-  validator = ajv.compile(schema);
-  return validator;
+  const compile = (allErrors: boolean) => {
+    const ajv = new Ajv2019({ allErrors, strict: false, validateFormats: true });
+    // the three formats the schema uses, checked without regular expressions over the value
+    ajv.addFormat('date', { type: 'string', validate: (s: string) => isDate(s) });
+    ajv.addFormat('date-time', {
+      type: 'string',
+      validate: (s: string) => s.length >= 20 && s.length <= 40 && isDate(s.slice(0, 10)) && s[10]?.toUpperCase() === 'T' && !Number.isNaN(Date.parse(s)),
+    });
+    ajv.addFormat('uri', { type: 'string', validate: (s: string) => s.length <= 4096 && URL.canParse(s) });
+    return ajv.compile(schema);
+  };
+  validators = { first: compile(false), all: compile(true) };
+  return validators;
+}
+
+/** Items of each list the full check looks at (the check that stops at the first error sees all of them). */
+const LINT_ITEMS = 500;
+
+/** A copy with every list cut to `max` items (documents are at most L.depth deep: checked when read). */
+function cutLists(v: unknown, max: number, depth = 0): { value: unknown; cut: boolean } {
+  if (v === null || typeof v !== 'object' || depth > L.depth + 1) return { value: v, cut: false };
+  let cut = false;
+  if (Array.isArray(v)) {
+    if (v.length > max) cut = true;
+    const value = v.slice(0, max).map((x) => {
+      const c = cutLists(x, max, depth + 1);
+      cut ||= c.cut;
+      return c.value;
+    });
+    return { value, cut };
+  }
+  const value = Object.fromEntries(
+    Object.entries(v).map(([k, x]) => {
+      const c = cutLists(x, max, depth + 1);
+      cut ||= c.cut;
+      return [k, c.value];
+    }),
+  );
+  return { value, cut };
 }
 
 function isDate(s: string): boolean {
@@ -148,16 +253,29 @@ export function lintContract(doc: OdcsDoc): DataContractLintFinding[] {
         source: 'schema',
       },
     ];
-  const validate = odcsValidator();
-  if (validate(doc)) return [];
+  const { first, all } = odcsValidators();
+  if (first(doc)) return [];
+  const sample = cutLists(doc, LINT_ITEMS);
+  all(sample.value);
   const seen = new Set<string>();
   const out: DataContractLintFinding[] = [];
   // "must match then schema" only repeats the errors of the branch; and a field that fails its own check is no longer
   // "evaluated", so the schema also calls every sibling unknown – only real unknown fields are kept
-  const errors = (validate.errors ?? []).filter((e) => e.keyword !== 'if' && e.keyword !== 'allOf');
-  const failing = errors.filter((e) => e.keyword !== 'unevaluatedProperties').map((e) => e.instancePath);
+  const errors = [...(all.errors ?? []), ...(first.errors ?? [])].filter((e) => e.keyword !== 'if' && e.keyword !== 'allOf');
+  // every path that fails a check, and every path above one: an "unevaluated" error there is only the echo (linear –
+  // a path has at most `depth` levels)
+  const failing = new Set<string>();
   for (const e of errors) {
-    if (e.keyword === 'unevaluatedProperties' && failing.some((p) => p === e.instancePath || p.startsWith(`${e.instancePath}/`))) continue;
+    if (e.keyword === 'unevaluatedProperties') continue;
+    let p = e.instancePath;
+    while (!failing.has(p)) {
+      failing.add(p);
+      if (!p) break;
+      p = p.slice(0, p.lastIndexOf('/'));
+    }
+  }
+  for (const e of errors) {
+    if (e.keyword === 'unevaluatedProperties' && failing.has(e.instancePath)) continue;
     const f: DataContractLintFinding = { path: e.instancePath || '/', message: errorText(e), severity: 'error', source: 'schema' };
     const k = `${f.path}|${f.message}`;
     if (seen.has(k)) continue;
@@ -165,6 +283,13 @@ export function lintContract(doc: OdcsDoc): DataContractLintFinding[] {
     out.push(f);
     if (out.length >= L.lintFindings) break;
   }
+  if (sample.cut && out.length < L.lintFindings)
+    out.push({
+      path: '/',
+      message: `Lists longer than ${LINT_ITEMS} items: only their first ${LINT_ITEMS} items are listed here`,
+      severity: 'info',
+      source: 'schema',
+    });
   return out;
 }
 

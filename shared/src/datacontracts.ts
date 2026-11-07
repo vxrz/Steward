@@ -31,6 +31,10 @@ export const DATA_CONTRACT_LIMITS = {
   /** Schema objects (tables, topics …) and their properties (all levels together) */
   schemaObjects: 500,
   properties: 20_000,
+  /** Quality rules (all schema objects and properties together) and values in the whole document (every mapping, list and
+   * scalar): generous for real contracts, they bound the JSON Schema check and the comparison of versions */
+  qualityRules: 10_000,
+  nodes: 250_000,
   /** Lint findings kept per version, changes listed per comparison (more are counted) */
   lintFindings: 200,
   changes: 2_000,
@@ -127,6 +131,8 @@ export const DATA_CONTRACT_CHANGE_KINDS = [
   'quality-changed',
   'server-added',
   'server-removed',
+  'server-changed',
+  'physical-name-changed',
   'status-changed',
   'version-changed',
 ] as const;
@@ -142,6 +148,8 @@ export const DATA_CONTRACT_BREAKING_REASONS = [
   'uniqueAdded',
   'qualityAdded',
   'qualityTightened',
+  'physicalNameChanged',
+  'serverChanged',
 ] as const;
 export type DataContractBreakingReason = (typeof DATA_CONTRACT_BREAKING_REASONS)[number];
 

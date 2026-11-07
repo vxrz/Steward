@@ -34,27 +34,29 @@ import { lintWithService, runContractTest } from './testing.js';
 const idOf = (req: FastifyRequest) => z.object({ id: z.string().min(1).max(100) }).parse(req.params).id;
 const yaml = { bodyLimit: LARGE_BODIES.dataContracts.bytes };
 const heavy = { config: { rateLimit: ROUTE_LIMITS.heavy } };
+/** A contract text to read, lint and compare: the heavy limit, like imports (the editor's live check waits for a pause) */
+const yamlHeavy = { ...yaml, ...heavy };
 
 export async function dataContractRoutes(app: FastifyInstance): Promise<void> {
   app.get('/data-contracts', async () => svc.listContracts());
-  app.post('/data-contracts', yaml, async (req) => svc.createContract(req.body));
-  app.post('/data-contracts/check', yaml, async (req) => svc.previewVersion(null, dataContractYamlInput.parse(req.body).yaml));
+  app.post('/data-contracts', yamlHeavy, async (req) => svc.createContract(req.body));
+  app.post('/data-contracts/check', yamlHeavy, async (req) => svc.previewVersion(null, dataContractYamlInput.parse(req.body).yaml));
   app.post('/data-contracts/draft', heavy, async (req) => draftContract(req.body));
-  app.post('/data-contracts/import', yaml, async (req) => svc.importContract(req.body));
+  app.post('/data-contracts/import', yamlHeavy, async (req) => svc.importContract(req.body));
   app.get('/data-contracts/:id', async (req) => svc.getContract(idOf(req)));
   app.delete('/data-contracts/:id', async (req, reply) => {
     svc.deleteContract(idOf(req));
     return reply.code(204).send();
   });
   app.put('/data-contracts/:id/settings', async (req) => svc.setSettings(idOf(req), req.body));
-  app.post('/data-contracts/:id/check', yaml, async (req) => svc.previewVersion(idOf(req), dataContractYamlInput.parse(req.body).yaml));
+  app.post('/data-contracts/:id/check', yamlHeavy, async (req) => svc.previewVersion(idOf(req), dataContractYamlInput.parse(req.body).yaml));
   app.get('/data-contracts/:id/versions', async (req) => svc.listVersions(idOf(req)));
-  app.post('/data-contracts/:id/versions', yaml, async (req) => svc.saveVersion(idOf(req), req.body));
+  app.post('/data-contracts/:id/versions', yamlHeavy, async (req) => svc.saveVersion(idOf(req), req.body));
   app.get('/data-contracts/:id/versions/:version', async (req) => {
     const { version } = z.object({ version: z.coerce.number().int().min(1) }).parse(req.params);
     return svc.getVersion(idOf(req), version);
   });
-  app.get('/data-contracts/:id/compare', async (req) => {
+  app.get('/data-contracts/:id/compare', heavy, async (req) => {
     const q = z.object({ from: z.coerce.number().int().min(1), to: z.coerce.number().int().min(1) }).parse(req.query);
     return svc.compareVersions(idOf(req), q.from, q.to);
   });

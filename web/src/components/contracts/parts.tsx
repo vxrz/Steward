@@ -197,7 +197,8 @@ export function ContractYamlEditor({
   onPreview?: (p: DataContractPreview | null) => void;
 }) {
   const { t } = useTranslation('contracts');
-  const [debounced] = useDebouncedValue(value, 500);
+  // the check counts against the heavy rate limit (30 a minute): it runs once typing pauses
+  const [debounced] = useDebouncedValue(value, 1000);
   const [preview, setPreview] = useState<DataContractPreview | null>(null);
   const [checking, setChecking] = useState(false);
   useEffect(() => {

@@ -23,7 +23,9 @@
     "requiredAdded": "a field became required",
     "uniqueAdded": "a field became unique",
     "qualityAdded": "a quality rule was added",
-    "qualityTightened": "a quality rule was tightened"
+    "qualityTightened": "a quality rule was tightened",
+    "physicalNameChanged": "a physical name changed",
+    "serverChanged": "a server points elsewhere"
   },
   "changeKinds": {
     "schema-added": "schema object added",
@@ -45,7 +47,9 @@
     "server-added": "server added",
     "server-removed": "server removed",
     "status-changed": "status changed",
-    "version-changed": "version changed"
+    "version-changed": "version changed",
+    "server-changed": "server changed",
+    "physical-name-changed": "physical name changed"
   },
   "mdTitle": "Data contract {{name}}: version {{from}} → {{to}}",
   "mdSummary_one": "{{count}} change, {{breaking}} breaking.",
