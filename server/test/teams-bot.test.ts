@@ -357,6 +357,8 @@ describe('posting through the bot', () => {
     expect(channelCard.actions.map((a: any) => a.type)).toEqual(['Action.OpenUrl']);
     expect(channelCard.refresh.userIds).toContain(ALMA_OID);
     expect(dbm.db().all('SELECT conversation_id FROM teams_cards WHERE item_id = ?', taskId)).toHaveLength(2);
+    // the bot updates its own cards: no follow-up card through the webhook as well
+    expect(dbm.db().all('SELECT target FROM approval_posts WHERE item_id = ?', taskId)).toEqual([]);
     // decided in Steward: Steward updates its cards
     mock.sent.length = 0;
     await alma('POST', `/tasks/${taskId}/complete`, { approved: true });

@@ -355,7 +355,8 @@ export function notify(n: Notice): void {
     else if (claimSend(`teams:${key}`, DEDUPE_WINDOW_MS)) {
       const msg = broke(message(fallback), plan, false, settings.teams.quietHours?.timeZone ?? 'UTC');
       const bot = byBot('teams:instance');
-      jobs.push({ channel: 'teams', target: 'teams:instance', send: bot ?? (() => sendTeams(secrets.teamsWebhookUrl!, msg)) });
+      // a card the bot posted is updated with its outcome; only webhook cards get a follow-up card (approval_posts)
+      jobs.push({ channel: 'teams', target: bot ? undefined : 'teams:instance', send: bot ?? (() => sendTeams(secrets.teamsWebhookUrl!, msg)) });
     }
   }
   if (external.includes('webhook') && secrets.webhookUrl) {
@@ -365,10 +366,11 @@ export function notify(n: Notice): void {
     if (!plan.send) hold('webhook:instance', plan, fallback);
     else if (claimSend(`webhook:${key}`, DEDUPE_WINDOW_MS)) {
       const msg = broke(message(fallback), plan, false, settings.webhook.quietHours?.timeZone ?? 'UTC');
+      const bot = asCard ? byBot('webhook:instance') : null;
       jobs.push({
         channel: 'webhook',
-        target: 'webhook:instance',
-        send: (asCard ? byBot('webhook:instance') : null) ?? (() => (asCard ? sendTeams(secrets.webhookUrl!, msg) : sendWebhook(secrets.webhookUrl!, msg))),
+        target: bot ? undefined : 'webhook:instance',
+        send: bot ?? (() => (asCard ? sendTeams(secrets.webhookUrl!, msg) : sendWebhook(secrets.webhookUrl!, msg))),
       });
     }
   }
@@ -380,10 +382,11 @@ export function notify(n: Notice): void {
     }
     if (!claimSend(`team:${c.team.id}:${key}`, DEDUPE_WINDOW_MS)) continue;
     const msg = broke(message(fallback), plan, false, c.quietHours?.timeZone ?? 'UTC');
+    const bot = c.format === 'teams' ? byBot(`team:${c.team.id}`) : null;
     jobs.push({
       channel: `team:${c.team.name}`,
-      target: `team:${c.team.id}`,
-      send: (c.format === 'teams' ? byBot(`team:${c.team.id}`) : null) ?? (() => (c.format === 'teams' ? sendTeams(c.url, msg) : sendWebhook(c.url, msg))),
+      target: bot ? undefined : `team:${c.team.id}`,
+      send: bot ?? (() => (c.format === 'teams' ? sendTeams(c.url, msg) : sendWebhook(c.url, msg))),
     });
   }
   for (const j of jobs) {
