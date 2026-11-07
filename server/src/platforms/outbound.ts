@@ -1,5 +1,6 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
+import os from 'node:os';
 import type { LookupFunction } from 'node:net';
 import { fetch, type Dispatcher } from 'undici';
 import type { Platform } from '@sm/shared';
@@ -27,45 +28,81 @@ import { logger } from '../log.js';
 // Always-denied addresses (independent of the configured policy)
 // ---------------------------------------------------------------------------
 
-/** Normalise an IPv4-mapped IPv6 address (::ffff:a.b.c.d) to its IPv4 form. */
-function unmap(ip: string): string {
-  const m = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
-  return m ? m[1]! : ip;
+/** A host name of a URL without the brackets of an IPv6 literal (WHATWG URL keeps them in `hostname`). */
+export function bareHost(hostname: string): string {
+  return hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
+}
+
+/** An IPv4 subnet in the IPv6 forms that embed an IPv4 address in their last 32 bits: NAT64 (64:ff9b::/96), IPv4-compatible (::/96). */
+function embeddedV4(list: net.BlockList, v4: string, prefix: number): void {
+  const o = v4.split('.').map(Number);
+  const hex = `${((o[0]! << 8) | o[1]!).toString(16)}:${((o[2]! << 8) | o[3]!).toString(16)}`;
+  list.addSubnet(`64:ff9b::${hex}`, 96 + prefix, 'ipv6');
+  list.addSubnet(`::${hex}`, 96 + prefix, 'ipv6');
+}
+
+/**
+ * Addresses that are never reachable, by class (0.9.0: every literal form – IPv4, IPv6, IPv4-mapped ::ffff:a.b.c.d in
+ * the dotted and the hex form the URL parser writes, NAT64 and IPv4-compatible – is classified with net.BlockList, which
+ * checks IPv4-mapped IPv6 addresses against the IPv4 rules itself).
+ */
+const BLOCKED: { reason: string; list: net.BlockList }[] = (() => {
+  const metadata = new net.BlockList();
+  metadata.addAddress('100.100.100.200', 'ipv4');
+  embeddedV4(metadata, '100.100.100.200', 32);
+  metadata.addAddress('fd00:ec2::254', 'ipv6');
+  const linkLocal = new net.BlockList();
+  linkLocal.addSubnet('169.254.0.0', 16, 'ipv4');
+  embeddedV4(linkLocal, '169.254.0.0', 16);
+  linkLocal.addSubnet('fe80::', 10, 'ipv6');
+  return [
+    { reason: 'cloud metadata address', list: metadata },
+    { reason: 'link-local / cloud metadata address (169.254.0.0/16, fe80::/10)', list: linkLocal },
+  ];
+})();
+
+/** This machine: loopback (127.0.0.0/8, ::1) and unspecified (0.0.0.0/8, ::) – each also IPv4-mapped. */
+const LOCAL = (() => {
+  const l = new net.BlockList();
+  l.addSubnet('127.0.0.0', 8, 'ipv4');
+  l.addSubnet('0.0.0.0', 8, 'ipv4');
+  l.addAddress('::1', 'ipv6');
+  l.addAddress('::', 'ipv6');
+  return l;
+})();
+
+/** An address literal without zone id and brackets, and its family (0: not an address). */
+function literal(ipRaw: string): { ip: string; family: 0 | 4 | 6 } {
+  const ip = bareHost(ipRaw.trim()).replace(/%.*$/, '');
+  const v = net.isIP(ip);
+  return { ip, family: v === 4 ? 4 : v === 6 ? 6 : 0 };
 }
 
 /** A reason string if this resolved IP must never be reached, else null. */
 export function blockedAddressReason(ipRaw: string): string | null {
-  const ip = unmap(ipRaw.replace(/%.*$/, '')); // drop any zone id
-  const v = net.isIP(ip);
-  if (v === 4) {
-    const o = ip.split('.').map(Number);
-    // 169.254.0.0/16 – link-local incl. 169.254.169.254 (cloud metadata)
-    if (o[0] === 169 && o[1] === 254) return 'link-local / cloud metadata address (169.254.0.0/16)';
-    // Alibaba/other metadata service
-    if (ip === '100.100.100.200') return 'cloud metadata address (100.100.100.200)';
-    return null;
-  }
-  if (v === 6) {
-    const lc = ip.toLowerCase();
-    if (lc.startsWith('fe80') || lc.startsWith('fe9') || lc.startsWith('fea') || lc.startsWith('feb')) return 'link-local IPv6 address (fe80::/10)';
-    if (lc === 'fd00:ec2::254') return 'cloud metadata address (fd00:ec2::254)';
-    return null;
-  }
+  const { ip, family } = literal(ipRaw);
+  if (!family) return null;
+  if (ip.toLowerCase() === 'fd00:ec2::254') return 'cloud metadata address (fd00:ec2::254)';
+  for (const b of BLOCKED) if (b.list.check(ip, family === 4 ? 'ipv4' : 'ipv6')) return b.reason;
   return null;
 }
 
-/**
- * True when a URL points at this Steward server's own API on its loopback port.
- * We block the server's own `/api` surface (self-SSRF / pivoting) but not other
- * paths on the same port, because the demo/tests serve mock platforms from the
- * same port under `/mock`.
- */
-function isOwnServerApi(u: URL): boolean {
-  const port = Number(u.port || (u.protocol === 'https:' ? 443 : 80));
-  if (port !== config.port) return false;
-  const h = unmap(u.hostname).toLowerCase();
-  const loopback = h === '127.0.0.1' || h === 'localhost' || h === '::1' || h.startsWith('127.');
-  if (!loopback) return false;
+/** Loopback, unspecified (0.0.0.0, ::) – also IPv4-mapped – or an address of one of this machine's interfaces. */
+export function isLocalAddress(ipRaw: string): boolean {
+  const { ip, family } = literal(ipRaw);
+  if (!family) return false;
+  if (LOCAL.check(ip, family === 4 ? 'ipv4' : 'ipv6')) return true;
+  const mine = new net.BlockList();
+  for (const a of Object.values(os.networkInterfaces()).flat()) {
+    if (!a) continue;
+    const own = literal(a.address);
+    if (own.family) mine.addAddress(own.ip, own.family === 4 ? 'ipv4' : 'ipv6');
+  }
+  return mine.check(ip, family === 4 ? 'ipv4' : 'ipv6');
+}
+
+/** Whether a URL's path is this Steward server's own API surface (below the base path; not the public health checks). */
+function isOwnApiPath(u: URL): boolean {
   // Decoded (the router decodes too: /%61pi/… is /api/…) and below the base path (SM_BASE_PATH), where the API lives then.
   let p = u.pathname;
   try {
@@ -79,6 +116,21 @@ function isOwnServerApi(u: URL): boolean {
   // everything else under /api (and /metrics) is the self-SSRF surface and stays blocked.
   if (/^\/api\/(health|ready)\/?$/i.test(p)) return false;
   return /^\/+(api|metrics)(\/|$)/i.test(p);
+}
+
+/**
+ * True when a URL points at this Steward server's own API on its port: the host is `localhost`, or one of its
+ * addresses (the literal, or what the name resolves to) is loopback, unspecified or one of this machine's (0.9.0: also
+ * [::1], [::ffff:127.0.0.1], 0.0.0.0 and names that resolve there). We block the server's own `/api` surface
+ * (self-SSRF / pivoting) but not other paths on the same port, because the demo/tests serve mock platforms from the
+ * same port under `/mock`.
+ */
+function isOwnServerApi(u: URL, addresses: string[]): boolean {
+  const port = Number(u.port || (u.protocol === 'https:' ? 443 : 80));
+  if (port !== config.port) return false;
+  const h = bareHost(u.hostname).toLowerCase().replace(/\.$/, '');
+  const local = h === 'localhost' || h.endsWith('.localhost') || addresses.some(isLocalAddress);
+  return local && isOwnApiPath(u);
 }
 
 // ---------------------------------------------------------------------------
@@ -176,16 +228,17 @@ export function allowListMatches(entry: string, url: URL): boolean {
   return host === pat;
 }
 
-function cidrMatches(cidr: string, host: string): boolean {
-  if (net.isIP(host) === 0) return false;
+function cidrMatches(cidr: string, hostname: string): boolean {
+  const host = literal(hostname);
+  if (!host.family) return false;
   const [range, bitsStr] = cidr.split('/');
   const bits = Number(bitsStr);
-  if (net.isIP(range!) === 4 && net.isIP(host) === 4) {
-    const toInt = (ip: string) => ip.split('.').reduce((a, o) => (a << 8) + Number(o), 0) >>> 0;
-    const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
-    return (toInt(range!) & mask) === (toInt(host) & mask);
-  }
-  return false;
+  const family = net.isIP(range!);
+  if (!family || !Number.isInteger(bits) || bits < 0 || bits > (family === 4 ? 32 : 128)) return false;
+  // net.BlockList also matches an IPv4-mapped IPv6 host against an IPv4 range (0.9.0)
+  const list = new net.BlockList();
+  list.addSubnet(range!, bits, family === 4 ? 'ipv4' : 'ipv6');
+  return list.check(host.ip, host.family === 4 ? 'ipv4' : 'ipv6');
 }
 
 export interface OutboundContext {
@@ -204,22 +257,47 @@ export interface OutboundContext {
 export async function assertAddressSafe(url: string): Promise<void> {
   const u = originOf(url) ? new URL(url) : null;
   if (!u) throw new HttpError(400, `Invalid outbound URL "${String(url).slice(0, 120)}"`);
-  if (isOwnServerApi(u)) throw new HttpError(403, 'Blocked: a process may not call the Steward server itself');
-  if (net.isIP(u.hostname)) {
-    const reason = blockedAddressReason(u.hostname);
+  const host = bareHost(u.hostname);
+  if (net.isIP(host)) {
+    const reason = blockedAddressReason(host);
     if (reason) throw new HttpError(403, `Blocked: request to a ${reason}`);
+    if (isOwnServerApi(u, [host])) throw new HttpError(403, 'Blocked: a process may not call the Steward server itself');
     return;
   }
   let addrs: { address: string }[];
   try {
-    addrs = await dns.lookup(u.hostname, { all: true, verbatim: true });
+    addrs = await dns.lookup(host, { all: true, verbatim: true });
   } catch {
-    return; // unresolvable – the request will simply fail
+    addrs = []; // unresolvable – the request will simply fail (a name like localhost is still checked)
   }
+  if (
+    isOwnServerApi(
+      u,
+      addrs.map((a) => a.address),
+    )
+  )
+    throw new HttpError(403, 'Blocked: a process may not call the Steward server itself');
   for (const a of addrs) {
     const reason = blockedAddressReason(a.address);
-    if (reason) throw new HttpError(403, `Blocked: ${u.hostname} resolves to a ${reason}`);
+    if (reason) throw new HttpError(403, `Blocked: ${host} resolves to a ${reason}`);
   }
+}
+
+/**
+ * The address check of an IP literal alone (no DNS): for requests whose names the pinning lookup (guardedLookup) checks
+ * when it connects – it is never asked for a literal, so a literal is checked here, before anything is sent.
+ */
+export function assertLiteralAddressSafe(url: string): void {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return; // reported by fetch
+  }
+  const host = bareHost(u.hostname);
+  if (!net.isIP(host)) return;
+  const reason = blockedAddressReason(host);
+  if (reason) throw Object.assign(new HttpError(403, `Blocked: request to a ${reason}`), { retryable: false });
 }
 
 /** The origin policy alone (no address safety): the policy `open`, the allow-list or – under `platforms` – a platform's origin. */
@@ -500,6 +578,12 @@ export interface SecretBinding {
   values: string[];
   /** Whether this platform's secrets may be sent to the given URL (origin check). */
   allowed: (url: string) => Promise<boolean> | boolean;
+  /**
+   * The binding is not the one the request is sent with (0.9.0): its secrets may not be in the request at all, wherever
+   * it goes – a platform's credentials only travel in requests through its own connection. `slot`: its connection in
+   * the process, `sender`: the connection the request is sent with (null: none, e.g. a browser step without one).
+   */
+  foreign?: { slot: string; sender: string | null };
 }
 
 /** Flatten a request into text the scanner searches (URL, header names+values, body). */
@@ -518,10 +602,24 @@ export async function assertNoSecretLeak(url: string, headers: Record<string, st
   if (!bindings.length) return;
   const haystack = requestText(url, headers, body);
   for (const b of bindings) {
-    if (await b.allowed(url)) continue;
+    if (!b.foreign && (await b.allowed(url))) continue;
     for (const value of b.values) {
       for (const enc of secretEncodings(value)) {
         if (haystack.includes(enc)) {
+          if (b.foreign) {
+            const { slot, sender } = b.foreign;
+            logger.warn({ platform: b.platformName, slot, sender, origin: originOf(url) }, "blocked a request that carried another connection's secret");
+            throw Object.assign(
+              new HttpError(
+                403,
+                `Blocked: this request ${sender ? `on connection "${sender}"` : 'without a connection'} contains a credential of connection "${slot}" (platform "${b.platformName}"). ` +
+                  `A platform's credentials may only be used in requests sent through its own connection – send the request on connection "${slot}".`,
+                'SECRET_OTHER_SLOT',
+                { slot, sender: sender ?? '', platform: b.platformName },
+              ),
+              { retryable: false },
+            );
+          }
           logger.warn({ platform: b.platformName, origin: originOf(url) }, 'blocked a request that would have leaked a platform secret to another origin');
           throw new HttpError(
             403,

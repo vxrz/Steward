@@ -308,6 +308,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
+  'GET /api/platforms/:id/confirm-config': ADMIN,
   'POST /api/platforms/:id/confirm-config': ADMIN,
   'POST /api/platforms/:id/contract-check': ADMIN,
   'PUT /api/platforms/:id/secrets': ADMIN,

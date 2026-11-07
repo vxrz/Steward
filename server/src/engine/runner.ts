@@ -28,8 +28,17 @@ import { tracePseudonym } from '../auth/login-audit.js';
 import { HttpError, newId, nowIso, parseJson, pathInside, sha256, sleep } from '../util.js';
 import { getConnection } from '../platforms/service.js';
 import { openInputs, sealInputs, secretValuesOf } from './secret-inputs.js';
-import { platformRequest, resolveBaseUrl, secretValues, buildUrl, credentialsAllowed, type HttpResult } from '../platforms/http.js';
-import { assertPathAllowed } from '../platforms/deniedPaths.js';
+import {
+  platformRequest,
+  resolveBaseUrl,
+  secretValues,
+  buildUrl,
+  credentialValues,
+  credentialsAllowed,
+  identityKey,
+  type HttpResult,
+} from '../platforms/http.js';
+import { assertKindRules, destinationKinds } from '../platforms/restrictedOrigins.js';
 import { findRecording, missingRecording } from '../platforms/recordings.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import {
@@ -1586,23 +1595,75 @@ export function engineOutboundContext(): OutboundContext {
   return outboundContext();
 }
 
-/** Secrets of all platforms bound to this run, with their allowed-origin check (for egress scanning). */
-function secretBindings(ctx: RunContext): SecretBinding[] {
-  return Object.values(ctx.bindings).map((b) => ({
-    platformName: b.platform.name,
-    values: egressSecretValues(b.secrets),
-    allowed: (url: string) => credentialsAllowed(b.platform, b.secrets, url),
-  }));
+/**
+ * Secrets of all platforms bound to this run, for egress scanning. The binding a request is sent with (`sender`, its
+ * connection slot) may send its secrets to its own origins (credentialsAllowed); every other binding's secrets may not
+ * be in the request at all (0.9.0: `foreign` – a platform's credentials only travel through its own connection). Two
+ * slots bound to the same platform identity are one binding. A value both bindings have counts as the sender's; of
+ * the other bindings only credentials count (credentialValues), not identifiers.
+ */
+function secretBindings(ctx: RunContext, sender: string | null): SecretBinding[] {
+  const own = sender ? ctx.bindings[sender] : undefined;
+  const ownKey = own ? identityKey(own.platform) : null;
+  const ownValues = new Set(own ? egressSecretValues(own.secrets) : []);
+  return Object.entries(ctx.bindings).map(([slot, b]) =>
+    ownKey && identityKey(b.platform) === ownKey
+      ? { platformName: b.platform.name, values: egressSecretValues(b.secrets), allowed: (url: string) => credentialsAllowed(b.platform, b.secrets, url) }
+      : {
+          platformName: b.platform.name,
+          // credentials only (no user names or client ids, 6+ characters): they would match ordinary text
+          values: credentialValues(b.secrets).filter((v) => !ownValues.has(v)),
+          allowed: () => false,
+          foreign: { slot, sender: own ? sender : null },
+        },
+  );
+}
+
+/**
+ * The egress scan of a process-controlled request (assertNoSecretLeak); a request that carries another connection's
+ * credential is refused before anything is sent and audited (0.9.0, `run.secret_refused`, without the value).
+ */
+async function scanSecrets(
+  ctx: RunContext,
+  key: string | undefined,
+  url: string,
+  headers: Record<string, string>,
+  body: unknown,
+  bindings: SecretBinding[],
+): Promise<void> {
+  try {
+    await assertNoSecretLeak(url, headers, body, bindings);
+  } catch (e) {
+    if (e instanceof HttpError && e.code === 'SECRET_OTHER_SLOT') {
+      const { slot, sender, platform } = (e.params ?? {}) as { slot?: string; sender?: string; platform?: string };
+      audit({
+        actor: ctx.actor,
+        action: 'run.secret_refused',
+        entityType: 'run',
+        entityId: ctx.runId,
+        runId: ctx.runId,
+        summary: `Request ${sender ? `on connection "${sender}"` : 'without a connection'} refused: it contained a credential of connection "${slot}" (platform "${platform}")`,
+        details: { stepKey: key ?? null, slot, sender: sender || null, platform, origin: originOfSafe(url) || null },
+      });
+    }
+    throw e;
+  }
 }
 
 /**
  * Gate a process-controlled outbound request: the destination must pass the
  * outbound policy (SSRF) and must not carry any bound platform's secret to an
- * origin that platform does not allow. Shared by the http and browser nodes.
+ * origin that platform does not allow – nor another connection's secret at all
+ * (0.9.0). `sender`: the connection slot the request is sent with. Shared by the
+ * http, ai and browser nodes.
  */
-async function enforceOutbound(ctx: RunContext, url: string, headers: Record<string, string> = {}, body?: unknown, platformOrigins?: string[]): Promise<void> {
-  await assertOutboundAllowed(url, engineOutboundContext(), { platformOrigins });
-  await assertNoSecretLeak(url, headers, body, secretBindings(ctx));
+async function enforceOutbound(
+  ctx: RunContext,
+  url: string,
+  o: { headers?: Record<string, string>; body?: unknown; platformOrigins?: string[]; sender: string | null; key?: string },
+): Promise<void> {
+  await assertOutboundAllowed(url, engineOutboundContext(), { platformOrigins: o.platformOrigins });
+  await scanSecrets(ctx, o.key, url, o.headers ?? {}, o.body, secretBindings(ctx, o.sender));
 }
 
 async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Promise<LeafResult> {
@@ -1631,6 +1692,16 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
   const writes = isMutating(step);
   const requestInfo = { platform: b.platform.name, method: step.method, url: joinUrl(b.baseUrl, p), query, headers, body, write: writes };
   store.updateStepInput(ctx.runId, key, ctx.redactor.apply(requestInfo));
+  // another connection's credential ($secret('<other slot>', …)) in the URL, query, headers or body: refused in every
+  // mode – dry runs and test runs too – before anything is sent (0.9.0)
+  await scanSecrets(
+    ctx,
+    key,
+    requestInfo.url,
+    headers,
+    { query, body },
+    secretBindings(ctx, step.connection).filter((x) => x.foreign),
+  );
 
   // test run: a write with a recorded response gets that answer; without one it is skipped as in a dry run
   const replayWrite = writes && ctx.recorded && !!findRecording(b.platform.id, { method: step.method, url: p, query, body });
@@ -1665,12 +1736,13 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
     return hit.result;
   };
   const doRequest = async (url: string, q: Record<string, unknown>) => {
-    // paths the kind never calls (a vault's values): refused in a test run too, before a recorded answer is looked up
-    if (ctx.recorded) assertPathAllowed(b.platform.kind, await buildUrl(b.platform, b.secrets, url, q), step.method);
+    // paths the kind never calls (a vault's values) – also of the platform whose origin the URL is (0.9.0): refused in
+    // a test run too, before a recorded answer is looked up
+    if (ctx.recorded) await assertKindRules(b.platform.kind, await buildUrl(b.platform, b.secrets, url, q), step.method);
     if (ctx.recorded) return replay(url, q);
     const target = await buildUrl(b.platform, b.secrets, url, q);
     // the AWS endpoint the step names is the platform's own origin for this call – only then, not every amazonaws.com host
-    await enforceOutbound(ctx, target, headers, body, awsOrigin ? [awsOrigin] : undefined);
+    await enforceOutbound(ctx, target, { headers, body, platformOrigins: awsOrigin ? [awsOrigin] : undefined, sender: step.connection, key });
     let res: HttpResult;
     try {
       res = await platformRequest(
@@ -1886,7 +1958,8 @@ async function execAi(step: NodeOf<'ai'>, ctx: RunContext, key: string): Promise
     secrets: () => [...ctx.redactor.list(), ...Object.values(ctx.bindings).flatMap((x) => secretValues(x.secrets))],
     log: (level, message) => ctx.log(level, message, key),
     setInput: (input) => store.updateStepInput(ctx.runId, key, ctx.redactor.apply(input)),
-    enforceOutbound: async (p, headers, body) => enforceOutbound(ctx, await buildUrl(b.platform, b.secrets, p), headers, body),
+    enforceOutbound: async (p, headers, body) =>
+      enforceOutbound(ctx, await buildUrl(b.platform, b.secrets, p), { headers, body, sender: step.connection, key }),
     signal: ctx.signal,
   });
   return { output: res.output, status: res.output.dryRun ? 'dryrun' : 'succeeded', summary: res.summary };
@@ -1906,13 +1979,13 @@ async function execQuery(step: NodeOf<'query'>, ctx: RunContext, key: string): P
   const params = (step.params?.length ? await ctx.render(step.params) : []) as unknown[]; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
   // the secrets of the run's other platforms never go to the database (as for an http step to a foreign origin)
   const host = String(b.platform.config.database?.host ?? 'database.invalid').replace(/^\[|\]$/g, '');
-  await assertNoSecretLeak(
+  await scanSecrets(
+    ctx,
+    key,
     `https://${host.includes(':') ? `[${host}]` : host}/`,
     {},
     { sql: step.sql, params },
-    Object.values(ctx.bindings)
-      .filter((x) => x.platform.id !== b.platform.id)
-      .map((x) => ({ platformName: x.platform.name, values: egressSecretValues(x.secrets), allowed: () => false })),
+    secretBindings(ctx, step.connection).filter((x) => x.foreign),
   );
   const { runQueryStep } = await import('../dbms/step.js');
   const res = await runQueryStep(step, {
@@ -2212,6 +2285,26 @@ function manualOutput(t: TaskRecord, ctx: RunContext, key: string, decision: Tas
   };
 }
 
+/**
+ * A browser step never opens the origin of a platform of a kind with rules of its own – read-only kinds (Kafka Connect,
+ * changedetection.io, container registries) and kinds with refused paths (IBM Verify Privilege Vault): the page could
+ * send anything there (0.9.0). 403 BROWSER_RESTRICTED_ORIGIN.
+ */
+async function assertBrowserDestination(url: string): Promise<void> {
+  const kinds = await destinationKinds(url);
+  if (!kinds.length) return;
+  const origin = originOfSafe(url) || url.slice(0, 120);
+  throw Object.assign(
+    new HttpError(
+      403,
+      `Blocked: ${origin} belongs to a platform of kind ${kinds.join(', ')}, whose rules (read-only, refused paths) a browser step cannot keep – browser steps never open it; use an http step on its connection`,
+      'BROWSER_RESTRICTED_ORIGIN',
+      { origin, kind: kinds.join(', ') },
+    ),
+    { retryable: false },
+  );
+}
+
 async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string): Promise<LeafResult> {
   const b = step.connection ? ctx.bindings[step.connection] : undefined;
   if (step.connection && !b) throw new Error(`Connection "${step.connection}" is not bound`);
@@ -2237,6 +2330,9 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
         try {
           if (navigation) await assertOutboundAllowed(url, outCtx);
           else await assertAddressSafe(url);
+          // the origin of a platform of a kind with rules of its own (read-only, refused paths): never from a browser,
+          // whose requests those rules cannot see (0.9.0)
+          await assertBrowserDestination(url);
           return true;
         } catch (e) {
           // the page only sees "net::ERR_BLOCKED_BY_CLIENT": say what was blocked and why (v0.3.1)
@@ -2266,11 +2362,10 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
   } catch {
     /* not a URL: no portal origin is allowed */
   }
-  // The bound platform's own portal is a legitimate destination for its secrets (e.g. a login form).
-  const browserBindings = secretBindings(ctx).map((sb) =>
-    b && sb.platformName === b.platform.name
-      ? { ...sb, allowed: async (url: string) => (await sb.allowed(url)) || (!!portalOrigin && originOfSafe(url) === portalOrigin) }
-      : sb,
+  // The bound platform's own portal is a legitimate destination for its secrets (e.g. a login form); the secrets of the
+  // run's other connections may not be put into the page at all (0.9.0)
+  const browserBindings = secretBindings(ctx, b ? step.connection! : null).map((sb) =>
+    !sb.foreign ? { ...sb, allowed: async (url: string) => (await sb.allowed(url)) || (!!portalOrigin && originOfSafe(url) === portalOrigin) } : sb,
   );
   const extracted: Record<string, unknown> = {};
   const blockedBefore = ctx.browserBlocked.length;
@@ -2307,13 +2402,14 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
     // An action that puts a value into the page would send it to the page's current origin:
     // make sure it is not a platform secret bound for an origin the page is not.
     if (val && ['fill', 'press', 'select', 'evaluate'].includes(a.action)) {
-      await assertNoSecretLeak(page.url() || portal || 'about:blank', {}, val, browserBindings);
+      await scanSecrets(ctx, key, page.url() || portal || 'about:blank', {}, val, browserBindings);
     }
     try {
       switch (a.action) {
         case 'goto': {
           const url = /^https?:/i.test(val) ? val : portal + (val.startsWith('/') ? '' : '/') + val;
-          await enforceOutbound(ctx, url);
+          await enforceOutbound(ctx, url, { sender: b ? step.connection! : null, key });
+          await assertBrowserDestination(url);
           await page.goto(url, { waitUntil: 'domcontentloaded', ...(opts ?? {}) });
           done.push(`${label} ${url}`);
           break;

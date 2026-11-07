@@ -176,10 +176,11 @@ export function isConnectSecretKey(key: string): boolean {
   const words = k.split(/[._-]/).filter(Boolean);
   if (words.some((w) => SECRET_WORDS.includes(w))) return true;
   const last = words[words.length - 1];
-  return last === 'key' || last === 'pass';
+  // proxy.auth (user:password), the request headers of an HTTP sink (Authorization: …) – 0.9.0
+  return last === 'key' || last === 'pass' || last === 'auth' || last === 'headers';
 }
 
-const SECRET_PAIR_WORDS = ['password', 'passwd', 'pwd', 'secret', 'token', 'apikey', 'api_key', 'accesskey', 'access_key'];
+const SECRET_PAIR_WORDS = ['password', 'passwd', 'pwd', 'secret', 'token', 'apikey', 'api_key', 'accesskey', 'access_key', 'authorization'];
 const PAIR_END = new Set([';', '&', ',', ' ', '\t', '\n', '\r', '"', "'", '}', ')']);
 
 /** key=value or key:value pairs with a secret word as key: the value becomes *** (a scan, no regular expression). */
@@ -235,6 +236,95 @@ function maskUrlPasswords(s: string): string {
   return out + s.slice(i);
 }
 
+/** Characters that end a credential in running text (a header list "a:b|c:d", JSON, a properties line). */
+const CREDENTIAL_END = new Set([' ', '\t', '\n', '\r', '|', ',', ';', '"', "'", '}', ')', ']', '&', '<', '>']);
+const AUTH_SCHEMES = ['bearer', 'basic', 'digest', 'negotiate'];
+
+/** "Bearer <token>", "Basic <base64>" (after a space, a colon or an equals sign): the credential becomes *** (a scan). */
+function maskAuthSchemes(s: string): string {
+  const lower = s.toLowerCase();
+  let out = '';
+  let i = 0;
+  while (i < s.length) {
+    let hit = -1;
+    let len = 0;
+    for (const w of AUTH_SCHEMES) {
+      const at = lower.indexOf(w, i);
+      if (at >= 0 && (hit < 0 || at < hit)) {
+        hit = at;
+        len = w.length;
+      }
+    }
+    if (hit < 0) break;
+    const before = hit === 0 ? ' ' : s[hit - 1]!;
+    let j = hit + len;
+    const sep = s[j];
+    // a word of its own, followed by a space, ":" or "="
+    if (/[A-Za-z0-9_]/.test(before) || (sep !== ' ' && sep !== ':' && sep !== '=')) {
+      out += s.slice(i, j);
+      i = j;
+      continue;
+    }
+    while (j < s.length && (s[j] === ' ' || s[j] === ':' || s[j] === '=')) j++;
+    let end = j;
+    while (end < s.length && !CREDENTIAL_END.has(s[end]!)) end++;
+    const cred = s.slice(j, end);
+    // a credential, not a word of a sentence ("basic tier"): 6+ characters with a digit, a capital or + / = . _ -
+    if (cred.length < 6 || !/[0-9A-Z+/=._-]/.test(cred)) {
+      out += s.slice(i, j);
+      i = j;
+      continue;
+    }
+    out += s.slice(i, j) + SCRUBBED;
+    i = end;
+  }
+  return out + s.slice(i);
+}
+
+/**
+ * Credentials before an "@" without "://": JDBC URLs such as jdbc:oracle:thin:scott/tiger@//db:1521/ORCL (user/password
+ * or user:password after the last ":" of the jdbc: prefix) and a bare user:password@host. The password becomes ***.
+ */
+function maskAtCredentials(s: string): string {
+  let out = '';
+  let i = 0;
+  for (;;) {
+    const at = s.indexOf('@', i);
+    if (at < 0) break;
+    // the run before the "@" (back to a space, quote, ";", "," or "=")
+    let start = at;
+    while (start > i && !' \t\n\r"\';,=('.includes(s[start - 1]!)) start--;
+    const run = s.slice(start, at);
+    let masked = run;
+    if (!run.includes('://')) {
+      const jdbc = run.toLowerCase().startsWith('jdbc:');
+      const colon = run.lastIndexOf(':');
+      const cred = jdbc ? run.slice(colon + 1) : run;
+      const slash = cred.indexOf('/');
+      const credStart = run.length - cred.length;
+      if (jdbc && slash > 0 && slash < cred.length - 1) masked = run.slice(0, credStart + slash + 1) + SCRUBBED;
+      else if (jdbc && slash < 0 && cred && run.slice(0, colon).split(':').length > 3) masked = run.slice(0, colon + 1) + SCRUBBED;
+      else if (!jdbc) {
+        const c = run.indexOf(':');
+        if (c > 0 && c < run.length - 1 && run.indexOf(':', c + 1) < 0 && !run.includes('/')) masked = run.slice(0, c + 1) + SCRUBBED;
+      }
+    }
+    out += s.slice(i, start) + masked + '@';
+    i = at + 1;
+  }
+  return out + s.slice(i);
+}
+
+/** Every pattern of a value: passwords in URLs, JDBC URLs, user:password@, authorization schemes and secret pairs. */
+function maskCredentials(s: string): string {
+  return maskPairs(maskAuthSchemes(maskAtCredentials(maskUrlPasswords(s))));
+}
+
+/** A private key (PEM) or a JSON Web Token. */
+function isKeyOrJwt(v: string): boolean {
+  return v.includes('-----BEGIN') || (v.startsWith('eyJ') && v.split('.').length === 3 && v.length > 20);
+}
+
 const TOKEN_CHARS = /^[A-Za-z0-9+/=_-]+$/;
 
 /** A long random-looking string (key, token, hash) or a JSON Web Token. */
@@ -264,7 +354,7 @@ export function redactConnectValue(key: string, value: unknown): unknown {
   if (STRUCTURAL_KEYS.has(key.toLowerCase())) return value;
   const t = value.trim();
   if (t.includes('-----BEGIN') || looksLikeToken(t)) return SCRUBBED;
-  return maskPairs(maskUrlPasswords(value));
+  return maskCredentials(value);
 }
 
 /** The values under secret keys of an answer (at least 4 characters): removed from error traces too. */
@@ -290,7 +380,7 @@ export function trimTrace(trace: string, secrets: Iterable<string> = []): string
   // known values first (on the whole text), then the patterns
   let out = cut;
   for (const s of [...secrets].sort((a, b) => b.length - a.length)) if (s.length >= 4 && out.includes(s)) out = out.split(s).join(SCRUBBED);
-  out = scrubString(maskPairs(maskUrlPasswords(out)));
+  out = scrubString(maskCredentials(out));
   return more || trace.length > cut.length ? `${out}\n…` : out;
 }
 
@@ -304,8 +394,8 @@ export function redactConnectAnswer<T>(body: T): T {
   secretValuesOf(body, secrets);
   const walk = (x: unknown, depth: number): unknown => {
     if (depth > 64) return null;
-    // list entries (connector names, topics) only lose passwords in URLs and pairs
-    if (Array.isArray(x)) return x.map((v) => (typeof v === 'string' ? maskPairs(maskUrlPasswords(v)) : walk(v, depth + 1)));
+    // list entries (connector names, topics) lose private keys and JSON Web Tokens and the credentials in URLs and pairs
+    if (Array.isArray(x)) return x.map((v) => (typeof v === 'string' ? (isKeyOrJwt(v.trim()) ? SCRUBBED : maskCredentials(v)) : walk(v, depth + 1)));
     if (x && typeof x === 'object') {
       const out: [string, unknown][] = [];
       for (const [k, v] of Object.entries(x as Record<string, unknown>)) {

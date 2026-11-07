@@ -9,11 +9,12 @@ import { HttpError } from '../util.js';
 import { SpanKind, SpanStatusCode, injectTraceHeaders, withSpan } from '../telemetry.js';
 import { logger } from '../log.js';
 import { emit } from '../events.js';
-import { assertOutboundAllowed, assertRedirectAllowed, assertRedirectBodyClean, guardedLookup, sameDestination } from './outbound.js';
+import { assertLiteralAddressSafe, assertOutboundAllowed, assertRedirectAllowed, assertRedirectBodyClean, guardedLookup, sameDestination } from './outbound.js';
 import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
 import { JWT_ALGS, certificateThumbprints, clientAssertion, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
 import { where as originAndPath } from './answers.js';
-import { assertPathAllowed, stripValues } from './deniedPaths.js';
+import { stripValues } from './deniedPaths.js';
+import { assertKindRules, destinationKinds } from './restrictedOrigins.js';
 import { defaultIdentityId } from './identities.js';
 
 export interface HttpRequest {
@@ -159,25 +160,31 @@ export function invalidatePlatformCaches(platformId: string): void {
   for (const fn of invalidationListeners) fn(platformId);
   dropKeys(tokenCache, platformId);
   dropKeys(awsCache, platformId);
-  for (const key of [platformId, `${platformId}|mtls`]) {
-    const d = dispatcherCache.get(key);
-    if (!d) continue;
+  for (const [key, d] of [...dispatcherCache]) {
+    // the platform's plain dispatcher and the client-certificate dispatchers of its identities (`${id}:${identity}|mtls`)
+    if (key !== platformId && !key.startsWith(`${platformId}:`)) continue;
     dispatcherCache.delete(key);
     d.dispatcher.close().catch(() => undefined); // an old dispatcher: closing it is best effort
   }
 }
 
-/** Clears what is cached for one identity (its credentials changed): its token, role and database pool – not the platform's dispatcher. */
+/** Clears what is cached for one identity (its credentials changed): its token, role, client-certificate dispatcher and database pool – not the platform's dispatcher. */
 export function invalidateIdentityCaches(platformId: string, identityId: string): void {
   for (const fn of invalidationListeners) fn(platformId, identityId);
   const key = identityKey({ id: platformId, identityId });
   tokenCache.delete(key);
   awsCache.delete(key);
+  const d = dispatcherCache.get(`${key}|mtls`);
+  if (d) {
+    dispatcherCache.delete(`${key}|mtls`);
+    d.dispatcher.close().catch(() => undefined); // an old dispatcher: closing it is best effort
+  }
 }
 
 function dispatcherFor(p: Platform, tls?: ClientTls): Dispatcher {
-  // a dispatcher with the client certificate is kept apart from the one without (hops to other origins)
-  const key = tls ? `${p.id}|mtls` : p.id;
+  // a dispatcher with the client certificate is kept apart from the one without (hops to other origins), and per
+  // identity: two identities with their own certificates do not replace each other's dispatcher (0.9.0)
+  const key = tls ? `${identityKey(p)}|mtls` : p.id;
   const stamp = tls
     ? `${p.updatedAt}|${crypto
         .createHash('sha256')
@@ -859,8 +866,11 @@ async function followRedirects(
   const obtained: string[] = [];
   for (let hop = 0; ; hop++) {
     // paths the kind never calls (v0.5.0): a redirect cannot lead there either – checked with the method this hop is
-    // sent with (a 307/308 keeps a changing method, which a read-only kind refuses)
-    assertPathAllowed(p.kind, url, method);
+    // sent with (a 307/308 keeps a changing method, which a read-only kind refuses); the rules of the kind whose
+    // platform owns the hop's origin too (0.9.0)
+    await assertKindRules(p.kind, url, method);
+    // the pinning lookup is never asked for an IP literal: its address is checked here (0.9.0)
+    assertLiteralAddressSafe(url);
     const hopTrusted = await credentialsAllowed(p, secrets, url);
     if (hop > 0) {
       // the outbound policy on every redirect hop (0.9.0, #243), with the platform's own origins allowed as for the first request
@@ -975,8 +985,9 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
   }
   const url = await buildUrl(p, secrets, req.url, query);
   // paths the kind never calls, e.g. a vault's secret values (v0.5.0, deniedPaths.ts); kinds that are only read
-  // (0.9.0: Kafka Connect #223, changedetection.io #242) refuse every method but GET/HEAD
-  assertPathAllowed(p.kind, url, req.method);
+  // (0.9.0: Kafka Connect #223, changedetection.io #242) refuse every method but GET/HEAD – the platform's kind and the
+  // kind of the platform whose origin the URL is (0.9.0, restrictedOrigins.ts)
+  await assertKindRules(p.kind, url, req.method);
   if (!trusted && /^https?:\/\//i.test(req.url)) await assertAbsoluteAllowed(url);
   if (!trusted) {
     let host = '';
@@ -1016,8 +1027,11 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
     const retryable = error ? !!error.retryable : RETRYABLE_STATUS.has(res!.status);
     if (!retryable || !mayRetry || attempt > policy.maxRetries || signal?.aborted) {
       if (error) throw error;
-      // value keys of a vault's answers never leave this function (deniedPaths.ts)
-      const out = { ...res!, body: stripValues(p.kind, res!.body) };
+      // value keys of a vault's answers never leave this function (deniedPaths.ts) – also when another platform's
+      // request ended at the vault's origin (0.9.0)
+      let answer = stripValues(p.kind, res!.body);
+      for (const k of new Set([...(await destinationKinds(url)), ...(await destinationKinds(res!.url))])) if (k !== p.kind) answer = stripValues(k, answer);
+      const out = { ...res!, body: answer };
       return attempt > 1 ? { ...out, attempts: attempt } : out;
     }
     const delay = retryDelay(policy, attempt, res?.headers['retry-after']);
@@ -1049,6 +1063,17 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
 /** Sensitive values that must never appear in logs for this platform. */
 /** Credential fields that identify rather than authenticate – masking them would corrupt ordinary data. */
 const IDENTIFIER_KEYS = /^(user(name)?|login|account|client_?id|tenant(_?id)?|email)$/i;
+
+/**
+ * The credential values of a platform's secrets – identifiers (user name, client id, tenant …) left out – of at least
+ * `min` characters: what may not appear in a request through another connection (0.9.0), where a short or
+ * identifying value would match ordinary text.
+ */
+export function credentialValues(secrets: Record<string, string>, min = 6): string[] {
+  return Object.entries(secrets)
+    .filter(([k, v]) => typeof v === 'string' && v.length >= min && !IDENTIFIER_KEYS.test(k))
+    .map(([, v]) => v);
+}
 
 export function secretValues(secrets: Record<string, string>): string[] {
   const vals = Object.entries(secrets)

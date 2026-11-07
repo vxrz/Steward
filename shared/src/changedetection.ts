@@ -108,3 +108,48 @@ export const pageWatchLinkInput = z
   })
   .strict();
 export type PageWatchLinkInput = z.infer<typeof pageWatchLinkInput>;
+
+/** Query parameter names that carry a credential: these parts anywhere in the name, or these words of it (lower case). */
+const SECRET_QUERY_PARTS = ['token', 'secret', 'password', 'passwd', 'apikey', 'credential'];
+const SECRET_QUERY_WORDS = new Set(['key', 'pwd', 'pass', 'sig', 'signature', 'auth', 'session', 'sid', 'code', 'jwt']);
+
+function secretQueryName(k: string): boolean {
+  const name = k.toLowerCase();
+  return SECRET_QUERY_PARTS.some((p) => name.includes(p)) || name.split(/[^a-z0-9]+/).some((w) => SECRET_QUERY_WORDS.has(w));
+}
+const RANDOM_CHARS = /^[A-Za-z0-9+/=_.~-]+$/;
+
+/** A query value that looks like a credential: long, random-looking (letters and digits mixed). */
+function randomLooking(v: string): boolean {
+  return v.length >= 24 && RANDOM_CHARS.test(v) && /\d/.test(v) && /[A-Za-z]/.test(v);
+}
+
+/**
+ * A watch's URL as Steward keeps and shows it (0.9.0): http(s) only, without user info (user:password@) and fragment,
+ * with the values of secret-looking query parameters (token, key, signature, password … or a long random value)
+ * replaced by ***. Anything that is not an http(s) URL becomes an empty string. Text, no regular expression on input.
+ */
+export function watchUrlWithoutCredentials(raw: string): string {
+  const text = raw.trim();
+  // changedetection.io's "source:" prefix (the page source is watched) – the URL follows it
+  const prefix = text.toLowerCase().startsWith('source:') ? text.slice(0, 7) : '';
+  let u: URL;
+  try {
+    u = new URL(text.slice(prefix.length));
+  } catch {
+    return '';
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+  u.username = '';
+  u.password = '';
+  u.hash = '';
+  const params = [...u.searchParams.entries()];
+  if (params.length) {
+    const masked = new URLSearchParams();
+    for (const [k, v] of params) {
+      masked.append(k, v && (secretQueryName(k) || randomLooking(v)) ? '***' : v);
+    }
+    u.search = masked.toString();
+  }
+  return prefix + u.toString();
+}

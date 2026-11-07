@@ -27,7 +27,7 @@ Nothing secret is exported. Every secret becomes an environment variable of type
 - the platform's stored credentials (client id and secret, tokens, passwords, keys …) and the variables the sign-in needs,
 - platform variables and default headers whose name looks like a credential (`password`, `secret`, `token`, `apiKey`, `authorization`, `cookie`, `signature`, `assertion` …),
 - secret process inputs (type `secret`) and constants with such a name,
-- `$secret('slot', 'key')` in headers, query parameters and bodies,
+- `$secret('slot', 'key')` in headers, query parameters and bodies (of a step on that same slot: a request on another slot that carries it fails, since 0.9.0),
 - a credential written literally into a definition or sign-in settings – a value under such a name, or a value like `Bearer …`, `Basic …`, `Token …` – as `secret.<step>.<where>.<name>` (process) or `login.<name>` / `header.<name>` (platform).
 
 The export never reads the vault: it only knows the _names_ of the stored secrets. Tokens the collection fetches are kept in collection variables at run time (their exported value is empty).
