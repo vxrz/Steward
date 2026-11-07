@@ -9,6 +9,7 @@ import {
   type NotificationLookPreview,
   type ProcessPermission,
   type UserInfo,
+  type QuietHours,
   isEmailAddress,
 } from '@sm/shared';
 import { db } from '../db.js';
@@ -29,10 +30,14 @@ import { sourceOfRun, type RunSource } from '../engine/notify-source.js';
 import { allParts } from '../dashboards/datasets.js';
 import { dryRunDelivery, isDryRun, logoDataUrl, lookProblems, resolveLook } from './look.js';
 import { getSettings } from '../settings.js';
-import { formatDateTime, resolveLocale, t } from '../i18n/index.js';
+import { formatDateTime, resolveLocale, t, type MessageKey } from '../i18n/index.js';
 import { allowedDomainRules, domainAllowed } from './domains.js';
 import { flushEmails, queueEmail } from './email.js';
 import { teamChannelUrl, teamChannelsFor, teamsOf } from './team-channels.js';
+import { deliveryPlan, inQuietHours, type BreakReason, type DeliveryPlan } from './quiet.js';
+import { holdMessage, type HeldAbout } from './outbox.js';
+import { effectiveNotificationPrefs, quietHoursAllowed } from './prefs.js';
+import { eventTone } from './look.js';
 
 /** Same event + entity within this window → no second e-mail/Teams/webhook message (and no second in-app entry for the same key). */
 export const DEDUPE_WINDOW_MS = 60 * 60000;
@@ -77,6 +82,17 @@ export interface Notice {
   runId?: string;
   /** The resource the message is about: its owning teams' own channels get it too (#136). A run's process otherwise. */
   about?: { kind: OwnedKind; id: string };
+  // ---- quiet hours and digests (0.10.0, ADR 0012) ----
+  /** Repeats of the same thing collapse into one held item (default: event + externalKey) */
+  itemKey?: string;
+  /** A decision that expires then (ISO): it breaks through quiet hours when it would expire inside them */
+  expiresAt?: string;
+  /** A decision: left out of a catch-up when someone else decided it meanwhile */
+  decision?: HeldAbout['decision'];
+  /** A check of a source: "still failing" or "passed again" at release */
+  check?: HeldAbout['check'];
+  /** Urgent beyond the source's policy (a monitor output marked urgent going down) */
+  urgent?: boolean;
 }
 
 /** Set by the maintenance module (no import cycle): does a maintenance window pause the messages of this run? */
@@ -230,12 +246,63 @@ export function notify(n: Notice): void {
     logger.warn({ err, event: n.event }, 'notification not sent: channel settings unreadable');
     return;
   }
+  // quiet hours and digests (ADR 0012): per target, send now or hold for later – claimSend only when it goes out
+  const now = Date.now();
+  const allowed = quietHoursAllowed();
+  const urgent = !!n.urgent || (!!policy?.urgent && (n.event === 'run.failed' || (n.event === 'check.failed' && n.data?.severity === 'error')));
+  const prefsOf = new Map<string, ReturnType<typeof effectiveNotificationPrefs>['prefs']>();
+  const personPrefs = (u: UserInfo) => {
+    if (!prefsOf.has(u.id)) prefsOf.set(u.id, effectiveNotificationPrefs(u.id).prefs);
+    return prefsOf.get(u.id)!;
+  };
+  const about: HeldAbout = {
+    ...(n.about ? { kind: n.about.kind, id: n.about.id } : {}),
+    ...(n.runId ? { runId: n.runId } : {}),
+    ...(n.decision ? { decision: n.decision } : {}),
+    ...(n.check ? { check: n.check } : {}),
+  };
+  const hold = (target: string, plan: Extract<DeliveryPlan, { send: false }>, locale: Locale, u?: UserInfo) => {
+    try {
+      const m = textIn(locale, u);
+      holdMessage({
+        target,
+        userId: u?.id ?? null,
+        itemKey: n.itemKey ?? key,
+        event: n.event,
+        reason: plan.hold,
+        locale,
+        state: { ts: nowIso(), title: m.title, lead: m.parts?.lead, tone: eventTone(n.event, n.data), link: n.link },
+        about,
+      });
+    } catch (err) {
+      logger.warn({ err, event: n.event, target }, 'notification could not be held');
+    }
+  };
+  const channelPlan = (quietHours: QuietHours | null | undefined) =>
+    deliveryPlan({ personal: false, quietHours: quietHours ?? null }, { event: n.event, urgent, expiresAt: n.expiresAt }, now, { allowed });
+  const broke = (msg: OutgoingMessage, plan: DeliveryPlan, personal: boolean, timeZone: string): OutgoingMessage => {
+    if (!plan.send || !plan.broke) return msg;
+    const why = breakText(msg.locale, plan.broke, personal, n.expiresAt, timeZone);
+    return { ...msg, parts: { ...msg.parts, reason: [why, msg.parts?.reason].filter(Boolean).join(' ') } };
+  };
   if (external.includes('email')) {
     // one way out for e-mail (email.ts): the user's own address, or an address outside Steward with an allowed domain
+    const reachable = (o: UserInfo) => !!o.email && o.emailNotifications && !inQuietHours(allowed ? personPrefs(o).quietHours : null, now);
     for (const u of n.recipients) {
       if (!u.email || !u.emailNotifications) continue;
+      const prefs = personPrefs(u);
+      const plan = deliveryPlan(
+        { personal: true, quietHours: prefs.quietHours, digests: prefs.digests },
+        { event: n.event, urgent, expiresAt: n.expiresAt, otherDeciderReachable: !!n.expiresAt && n.recipients.some((o) => o.id !== u.id && reachable(o)) },
+        now,
+        { allowed },
+      );
+      if (!plan.send) {
+        hold(`email:${u.id}`, plan, userLocale(u, fallback), u);
+        continue;
+      }
       if (claimSend(`email:${key}:${u.id}`, DEDUPE_WINDOW_MS))
-        queueEmail({ event: n.event, to: { user: u }, message: message(userLocale(u, fallback), u), secrets });
+        queueEmail({ event: n.event, to: { user: u }, message: broke(message(userLocale(u, fallback), u), plan, true, prefs.quietHours.timeZone), secrets });
     }
     const userAddresses = new Set(n.recipients.map((u) => u.email?.toLowerCase()).filter(Boolean));
     const rules = n.emails?.length ? allowedDomainRules() : [];
@@ -249,18 +316,32 @@ export function notify(n: Notice): void {
         queueEmail({ event: n.event, to: { address: addr }, message: message(fallback), rules, secrets });
     }
   }
-  if (external.includes('teams') && secrets.teamsWebhookUrl && claimSend(`teams:${key}`, DEDUPE_WINDOW_MS)) {
-    const msg = message(fallback);
-    jobs.push({ channel: 'teams', send: () => sendTeams(secrets.teamsWebhookUrl!, msg) });
+  if (external.includes('teams') && secrets.teamsWebhookUrl) {
+    const plan = channelPlan(settings.teams.quietHours);
+    if (!plan.send) hold('teams:instance', plan, fallback);
+    else if (claimSend(`teams:${key}`, DEDUPE_WINDOW_MS)) {
+      const msg = broke(message(fallback), plan, false, settings.teams.quietHours?.timeZone ?? 'UTC');
+      jobs.push({ channel: 'teams', send: () => sendTeams(secrets.teamsWebhookUrl!, msg) });
+    }
   }
-  if (external.includes('webhook') && secrets.webhookUrl && claimSend(`webhook:${key}`, DEDUPE_WINDOW_MS)) {
-    const msg = message(fallback);
-    const asCard = getNotificationSettings().webhook.format === 'teams';
-    jobs.push({ channel: 'webhook', send: () => (asCard ? sendTeams(secrets.webhookUrl!, msg) : sendWebhook(secrets.webhookUrl!, msg)) });
+  if (external.includes('webhook') && secrets.webhookUrl) {
+    const asCard = settings.webhook.format === 'teams';
+    // JSON webhooks are never held: they feed tickets and on-call tools with their own rules
+    const plan: DeliveryPlan = asCard ? channelPlan(settings.webhook.quietHours) : { send: true };
+    if (!plan.send) hold('webhook:instance', plan, fallback);
+    else if (claimSend(`webhook:${key}`, DEDUPE_WINDOW_MS)) {
+      const msg = broke(message(fallback), plan, false, settings.webhook.quietHours?.timeZone ?? 'UTC');
+      jobs.push({ channel: 'webhook', send: () => (asCard ? sendTeams(secrets.webhookUrl!, msg) : sendWebhook(secrets.webhookUrl!, msg)) });
+    }
   }
   for (const c of teamChannels.channels) {
+    const plan: DeliveryPlan = c.format === 'teams' ? channelPlan(c.quietHours) : { send: true };
+    if (!plan.send) {
+      hold(`team:${c.team.id}`, plan, fallback);
+      continue;
+    }
     if (!claimSend(`team:${c.team.id}:${key}`, DEDUPE_WINDOW_MS)) continue;
-    const msg = message(fallback);
+    const msg = broke(message(fallback), plan, false, c.quietHours?.timeZone ?? 'UTC');
     jobs.push({ channel: `team:${c.team.name}`, send: () => (c.format === 'teams' ? sendTeams(c.url, msg) : sendWebhook(c.url, msg)) });
   }
   for (const j of jobs) {
@@ -271,6 +352,19 @@ export function notify(n: Notice): void {
       .finally(() => pending.delete(p));
     pending.add(p);
   }
+}
+
+/** The footer of a message that broke through quiet hours: why (ADR 0012). */
+function breakText(l: Locale, reason: BreakReason, personal: boolean, expiresAt: string | undefined, timeZone: string): string {
+  const time = (): string => {
+    if (!expiresAt) return '';
+    try {
+      return new Intl.DateTimeFormat(l, { hour: '2-digit', minute: '2-digit', timeZone }).format(new Date(expiresAt));
+    } catch {
+      return formatDateTime(l, expiresAt); // an unknown zone: the server's
+    }
+  };
+  return t(l, `${personal ? 'quiet.broke' : 'quiet.brokeChannel'}.${reason}` as MessageKey, { time: time() });
 }
 
 /** For tests and shutdown: wait until queued external sends are done. */
@@ -295,6 +389,7 @@ export function onTaskCreated(e: DomainEvents['task.created']): void {
     about: { kind: 'process', id: e.processId },
     inAppKey: `task:${e.taskId}`,
     externalKey: `task:${e.taskId}`,
+    decision: { kind: 'task', id: e.taskId },
     data: {
       taskId: e.taskId,
       runId: e.runId,
@@ -321,6 +416,7 @@ export function onVerificationNeeded(e: DomainEvents['task.verification_needed']
     about: { kind: 'process', id: e.processId },
     inAppKey: `task-verify:${e.taskId}:${round}`,
     externalKey: `task-verify:${e.taskId}:${round}`,
+    decision: { kind: 'task', id: e.taskId },
     data: {
       taskId: e.taskId,
       runId: e.runId,
@@ -478,6 +574,9 @@ export function onCheckFailed(e: DomainEvents['check.failed']): void {
     recipients: uniqueUsers([actor, scheduleOwner, owner]),
     inAppKey: `check:${e.runId}:${e.check}`,
     externalKey: decided ? `check:${e.source ?? e.scheduleId}:${e.check}:${e.runId}` : `check:${e.processId}:${e.check}`,
+    // held: one item per check of the source, failing and passing again (ADR 0012)
+    itemKey: `check:${e.source ?? e.processId}:${e.check}`,
+    ...(e.source ? { check: { source: e.source, name: e.check } } : {}),
     data: {
       runId: e.runId,
       processId: e.processId,
@@ -527,6 +626,8 @@ export function onCheckResolved(e: DomainEvents['check.resolved']): void {
     recipients: uniqueUsers([actor, scheduleOwner, owner]),
     inAppKey: `check-resolved:${e.runId}:${e.check}`,
     externalKey: `check-resolved:${e.source ?? e.scheduleId}:${e.check}:${e.runId}`,
+    itemKey: `check:${e.source ?? e.processId}:${e.check}`,
+    ...(e.source ? { check: { source: e.source, name: e.check } } : {}),
     data: {
       runId: e.runId,
       processId: e.processId,

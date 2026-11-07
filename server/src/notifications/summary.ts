@@ -16,6 +16,7 @@ import {
   SUMMARY_TREND_PCT,
   runOutcome,
   type RunStatus,
+  WEEKDAY_OF_JS,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -45,6 +46,8 @@ import { resolveLook } from './look.js';
 import { domainAllowed } from './domains.js';
 import { userLocale } from './service.js';
 import { prefsSchema } from './summary-prefs.js';
+import { localClock } from './clock.js';
+import { setSummarySoon, takeCatchUp, type HeldContent } from './outbox.js';
 import { teamDefaults } from '../teams/settings.js';
 import { dashboardVisible } from '../dashboards/service.js';
 import { offeredFor } from '../kafka/prefixes.js';
@@ -158,7 +161,7 @@ export function savePrefs(u: UserInfo, input: DailySummaryPrefs): DailySummarySt
     entityType: 'user',
     entityId: u.id,
     summary: prefs.enabled
-      ? `${u.username} receives a daily summary at ${prefs.time} (${prefs.timeZone}, ${prefs.days === 'weekdays' ? 'Monday to Friday' : 'every day'}, ${prefs.channel === 'inAppEmail' ? 'in-app and e-mail' : 'in-app'})`
+      ? `${u.username} receives a daily summary at ${prefs.time} (${prefs.timeZone}, ${prefs.days === 'weekdays' ? 'Monday to Friday' : prefs.days === 'weekly' ? `weekly on ${prefs.weekday ?? 'mon'}` : 'every day'}, ${prefs.channel === 'inAppEmail' ? 'in-app and e-mail' : 'in-app'})`
       : `${u.username} ${before.enabled ? 'turned the daily summary off' : 'saved the daily summary settings (off)'}`,
     details: { from: before, to: prefs },
   });
@@ -248,30 +251,14 @@ export function adminView(): DailySummaryAdmin {
 
 // ---------- time ----------
 
-/** Local calendar day (YYYY-MM-DD), weekday (0 = Sunday) and minutes after midnight in a time zone. */
-export function localClock(now: number, timeZone: string): { day: string; weekday: number; minutes: number } {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      weekday: 'short',
-      hourCycle: 'h23',
-    })
-      .formatToParts(new Date(now))
-      .map((p) => [p.type, p.value]),
-  );
-  const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(parts.weekday ?? '');
-  return { day: `${parts.year}-${parts.month}-${parts.day}`, weekday, minutes: Number(parts.hour) * 60 + Number(parts.minute) };
-}
+export { localClock } from './clock.js';
 
 /** The local day a summary is due for at `now`, or null. */
 export function dueDay(p: DailySummaryPrefs, now: number): string | null {
   const c = localClock(now, p.timeZone);
   if (p.days === 'weekdays' && (c.weekday === 0 || c.weekday === 6)) return null;
+  // weekly (0.10.0): on the chosen day only
+  if (p.days === 'weekly' && WEEKDAY_OF_JS[c.weekday] !== (p.weekday ?? 'mon')) return null;
   const [h, m] = p.time.split(':').map(Number);
   const at = h! * 60 + m!;
   return c.minutes >= at && c.minutes - at < CATCH_UP_MINUTES ? c.day : null;
@@ -618,26 +605,37 @@ export function renderSummary(
   c: DailySummaryContent,
   l: Locale,
   timeZone: string,
+  /** The catch-up of the quiet hours that just ended (ADR 0012): the first section, "While you were away" */
+  away?: HeldContent | null,
 ): { title: string; inApp: string; text: string; html: string; note: string; button: { label: string; href: string } } {
   const title = t(l, 'dailySummary.title', { date: dateOnly(l, c.until, timeZone) });
   const intro = t(l, 'dailySummary.intro', { since: dateTime(l, c.since, timeZone) });
   const label = (id: DailySummarySection) => t(l, `dailySummary.sections.${id}` as MessageKey);
   const shown = c.sections.filter((s) => s.count > 0);
-  const inApp = c.empty ? t(l, 'dailySummary.nothing') : shown.map((s) => t(l, 'dailySummary.count', { section: label(s.id), count: s.count })).join('\n');
+  const awayLine = away ? `${t(l, 'quiet.away')}: ${away.title}` : '';
+  const inApp = [
+    awayLine,
+    c.empty ? (away ? '' : t(l, 'dailySummary.nothing')) : shown.map((s) => t(l, 'dailySummary.count', { section: label(s.id), count: s.count })).join('\n'),
+  ]
+    .filter(Boolean)
+    .join('\n');
   const home = absoluteLink('/');
   const profile = absoluteLink('/profile');
   const text = [
     title,
     intro,
     '',
-    ...(c.empty
-      ? [t(l, 'dailySummary.nothing')]
-      : shown.flatMap((s) => [
-          `${label(s.id)} (${s.count})`,
-          ...s.items.map((i) => `- ${i.title}${i.detail ? ` – ${i.detail}` : ''}${i.link ? `\n  ${absoluteLink(i.link)}` : ''}`),
-          ...(s.more ? [`  ${t(l, 'dailySummary.more', { count: s.more })}`] : []),
-          '',
-        ])),
+    ...(away ? [`${t(l, 'quiet.away')}`, away.text, ''] : []),
+    ...(c.empty && away
+      ? []
+      : c.empty
+        ? [t(l, 'dailySummary.nothing')]
+        : shown.flatMap((s) => [
+            `${label(s.id)} (${s.count})`,
+            ...s.items.map((i) => `- ${i.title}${i.detail ? ` – ${i.detail}` : ''}${i.link ? `\n  ${absoluteLink(i.link)}` : ''}`),
+            ...(s.more ? [`  ${t(l, 'dailySummary.more', { count: s.more })}`] : []),
+            '',
+          ])),
     home,
     '',
     t(l, 'dailySummary.footer', { link: profile }),
@@ -652,12 +650,15 @@ export function renderSummary(
   const html = [
     `<div lang="${l}">`,
     `<p style="margin:0 0 12px;color:#868e96">${esc(intro)}</p>`,
-    ...(c.empty
-      ? [`<p>${esc(t(l, 'dailySummary.nothing'))}</p>`]
-      : shown.map(
-          (s) =>
-            `<p style="margin:12px 0 2px"><strong>${esc(label(s.id))}</strong> <span style="color:#868e96">(${s.count})</span></p><ul style="margin:0;padding-left:18px">${s.items.map(item).join('')}${s.more ? `<li style="list-style:none;color:#868e96">${esc(t(l, 'dailySummary.more', { count: s.more }))}</li>` : ''}</ul>`,
-        )),
+    ...(away ? [`<p style="margin:12px 0 2px"><strong>${esc(t(l, 'quiet.away'))}</strong></p>`, away.html] : []),
+    ...(c.empty && away
+      ? []
+      : c.empty
+        ? [`<p>${esc(t(l, 'dailySummary.nothing'))}</p>`]
+        : shown.map(
+            (s) =>
+              `<p style="margin:12px 0 2px"><strong>${esc(label(s.id))}</strong> <span style="color:#868e96">(${s.count})</span></p><ul style="margin:0;padding-left:18px">${s.items.map(item).join('')}${s.more ? `<li style="list-style:none;color:#868e96">${esc(t(l, 'dailySummary.more', { count: s.more }))}</li>` : ''}</ul>`,
+          )),
     '</div>',
   ].join('');
   const note = `${esc(t(l, 'dailySummary.footer', { link: '' }))}<a href="${esc(profile)}" style="color:#5c636a">${esc(profile)}</a>`;
@@ -721,12 +722,14 @@ export function runDailySummaries(now = Date.now()): number {
     if (!claimDay(u.id, day, now)) continue;
     try {
       const content = buildSummary(u, prefs, since, now);
-      if (content.empty && prefs.skipEmpty) {
+      // the catch-up of quiet hours that ended (ADR 0012) becomes the first section of an e-mailed summary
+      const away = wantsEmail && settings.email.enabled ? takeCatchUp(u, now) : null;
+      if (content.empty && prefs.skipEmpty && !away) {
         setOutcome(u.id, day, 'empty');
         continue;
       }
       const l = userLocale(u);
-      const m = renderSummary(content, l, prefs.timeZone);
+      const m = renderSummary(content, l, prefs.timeZone, away);
       if (route.includes('inApp')) addInApp(u.id, { event: 'summary.daily', title: m.title, body: m.inApp, link: '/', dedupeKey: `summary.daily:${day}` }, DAY);
       if (wantsEmail && settings.email.enabled) {
         queueEmail({
@@ -752,3 +755,20 @@ export function runDailySummaries(now = Date.now()): number {
   }
   return sent;
 }
+
+/** Whether the person's daily summary e-mail is due now or within 60 minutes (the outbox waits and lets it take the catch-up). */
+export function summaryDueSoon(u: UserInfo, now = Date.now()): boolean {
+  if (!summariesAllowed()) return false;
+  const prefs = effectivePrefs(u.id).prefs;
+  const route = getNotificationSettings().routes['summary.daily'] ?? [];
+  if (!prefs.enabled || prefs.channel !== 'inAppEmail' || !route.includes('email') || emailBlockedReason(u)) return false;
+  for (let k = 0; k <= 60; k += 5) {
+    const day = dueDay(prefs, now + k * 60_000);
+    if (!day) continue;
+    const claimed = db().get('SELECT 1 FROM daily_summary_sends WHERE user_id = ? AND day = ?', u.id, day);
+    // due now and already sent today: the next one is tomorrow
+    if (!claimed) return true;
+  }
+  return false;
+}
+setSummarySoon(summaryDueSoon);

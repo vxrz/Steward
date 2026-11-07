@@ -243,6 +243,9 @@ function notifyDeciders(r: Row): void {
         inAppKey: r.id,
         externalKey: `mcp-request:${r.id}`,
         data: { requestId: r.id, kind: r.kind },
+        // quiet hours (ADR 0012): a request that would expire inside them breaks through
+        expiresAt: r.expires_at,
+        decision: { kind: 'mcp_request', id: r.id },
       });
     })
     .catch((err) => logger.warn({ err }, 'could not notify about an MCP request'));

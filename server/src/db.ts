@@ -22,6 +22,7 @@ import { RECORD_MIGRATIONS } from './migrations/records.js';
 import { GITSYNC_MIGRATIONS } from './migrations/gitsync.js';
 import { TICKET_MIGRATIONS } from './migrations/tickets.js';
 import { DAILY_SUMMARY_MIGRATIONS } from './migrations/daily-summary.js';
+import { NOTIFICATION_MIGRATIONS } from './migrations/notifications.js';
 import { COMPLIANCE_MIGRATIONS } from './migrations/compliance.js';
 import { SIGN_IN_MIGRATIONS } from './migrations/sign-in.js';
 import { MOVE_MIGRATIONS } from './migrations/instance-moves.js';
@@ -124,6 +125,7 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...CHANGEDETECTION_MIGRATIONS,
   ...COSTS_MIGRATIONS,
   ...DATA_CONTRACT_MIGRATIONS,
+  ...NOTIFICATION_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [

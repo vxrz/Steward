@@ -37,6 +37,7 @@ interface NotifyColumns {
   notify_change?: string | null;
   notify_channels?: string | null;
   notify_pause?: string | null;
+  notify_urgent?: number | null;
 }
 
 const oneOf = <T extends string>(list: readonly T[], v: unknown, fallback: T): T => (list.includes(v as T) ? (v as T) : fallback);
@@ -58,6 +59,7 @@ export function policyOfColumns(r: NotifyColumns, defaults: NotifyPolicy): Requi
     change: oneOf(NOTIFY_CHANGE_KINDS, r.notify_change, defaults.change ?? 'result'),
     channels: Array.isArray(channels) ? channels.filter((c): c is (typeof NOTIFY_CHANNELS)[number] => NOTIFY_CHANNELS.includes(c)) : null,
     pause: pauseOf(r.notify_pause),
+    urgent: !!r.notify_urgent,
   };
 }
 
@@ -72,6 +74,7 @@ export function fullPolicy(p: NotifyPolicy | undefined, defaults: NotifyPolicy):
     change: v.change ?? defaults.change ?? 'result',
     channels: v.channels ?? null,
     pause: v.pause ?? null,
+    urgent: !!v.urgent,
   };
 }
 

@@ -441,5 +441,47 @@
   "contractFailed": {
     "title": "Data contract test failed: {{name}}",
     "body": "The test of “{{name}}” (version {{version}}, server {{server}}) ended with “{{result}}”: {{headline}}"
+  },
+  "quiet": {
+    "catchupTitle": "While you were away: {{summary}}",
+    "digestTitle": "Your digest: {{summary}}",
+    "countDecisions_one": "{{count}} decision waiting",
+    "countDecisions_other": "{{count}} decisions waiting",
+    "countFailing_one": "{{count}} check still failing",
+    "countFailing_other": "{{count}} checks still failing",
+    "countMessages_one": "{{count}} message",
+    "countMessages_other": "{{count}} messages",
+    "groups": {
+      "decisions": "Decisions waiting for you",
+      "stillFailing": "Still failing",
+      "passedAgain": "Failed and passed again",
+      "other": "Other"
+    },
+    "decidedMeanwhile_one": "{{count}} decided by others meanwhile",
+    "decidedMeanwhile_other": "{{count}} decided by others meanwhile",
+    "since": "since {{date}}",
+    "more_one": "+ {{count}} more message ({{event}})",
+    "more_other": "+ {{count}} more messages ({{event}})",
+    "intro": {
+      "catchup": "Messages held during your quiet hours, each once with its latest state.",
+      "digest": "Messages collected for your digest, each once with its latest state."
+    },
+    "introChannel": {
+      "catchup": "Messages held during the quiet hours of this channel, each once with its latest state.",
+      "digest": "Messages collected for this channel, each once with its latest state."
+    },
+    "footer": "Quiet hours and digests are set in your profile:",
+    "footerChannel": "The quiet hours of this channel are set by an administrator:",
+    "away": "While you were away",
+    "broke": {
+      "emergency": "Sent during your quiet hours: someone used emergency access.",
+      "expires": "Sent during your quiet hours: this request expires at {{time}}.",
+      "urgent": "Sent during your quiet hours: the source is marked urgent."
+    },
+    "brokeChannel": {
+      "emergency": "Sent during the quiet hours of this channel: someone used emergency access.",
+      "expires": "Sent during the quiet hours of this channel: this request expires at {{time}}.",
+      "urgent": "Sent during the quiet hours of this channel: the source is marked urgent."
+    }
   }
 }

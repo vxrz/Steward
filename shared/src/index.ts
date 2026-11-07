@@ -44,6 +44,7 @@ export * from './duties.js';
 export * from './scorecard.js';
 export * from './outbound.js';
 export * from './notifyPolicy.js';
+export * from './quietHours.js';
 export * from './email.js';
 export * from './platformAuth.js';
 export * from './onboarding.js';

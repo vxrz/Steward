@@ -155,6 +155,13 @@ export async function runCleanup(opts: { manual?: boolean } = {}): Promise<LastC
     } catch (err) {
       logger.warn({ err }, 'Gatus metrics retention failed');
     }
+    // released messages of quiet hours and digests after 7 days (ADR 0012)
+    try {
+      const { cleanupOutbox } = await import('./notifications/outbox.js');
+      cleanupOutbox(now);
+    } catch (err) {
+      logger.warn({ err }, 'notification outbox clean-up failed');
+    }
     // the audit log: closed epochs archived, archived entries past the audit retention deleted (off by default)
     let auditArchive: Awaited<ReturnType<typeof runArchiving>> | null = null;
     try {

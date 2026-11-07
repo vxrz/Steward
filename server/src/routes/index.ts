@@ -12,6 +12,7 @@ import { scopeRoutes } from '../auth/scope-routes.js';
 import { backupRoutes } from '../backup/routes.js';
 import { ticketRoutes } from '../tickets/routes.js';
 import { dailySummaryRoutes } from '../notifications/summary-routes.js';
+import { notificationPrefsRoutes } from '../notifications/prefs-routes.js';
 import { complianceRoutes } from '../compliance/routes.js';
 import { migrationRoutes } from '../migration/routes.js';
 import { dutyRoutes } from '../duties/routes.js';
@@ -74,6 +75,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await syncRoutes(app);
   await ticketRoutes(app);
   await dailySummaryRoutes(app);
+  await notificationPrefsRoutes(app);
   await complianceRoutes(app);
   await assuranceRoutes(app);
   await aiRoutes(app);

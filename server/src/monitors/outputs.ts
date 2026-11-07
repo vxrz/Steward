@@ -14,12 +14,16 @@ import { startRun } from '../engine/runner.js';
 import { evalExpr } from '../engine/expr.js';
 import { platformFor } from './platforms.js';
 import { zabbixSend } from './zabbix.js';
-import { monitorPermissions, type LoadedMonitor } from './model.js';
+import { loadMonitor, monitorPermissions, monitorRow, type LoadedMonitor } from './model.js';
 import { t, type MessageKey } from '../i18n/index.js';
 import { checkMessage, monitorVisibility, redactCauses, type MonitorVisibility } from './redact.js';
 import { teamsCard, type OutgoingMessage } from '../notifications/channels.js';
 import { absoluteLink } from '../notifications/settings.js';
 import { defaultLocale } from '../notifications/service.js';
+import { deliveryPlan } from '../notifications/quiet.js';
+import { holdMessage, registerOutboxTarget } from '../notifications/outbox.js';
+import { quietHoursAllowed } from '../notifications/prefs.js';
+import { eventTone } from '../notifications/look.js';
 
 /**
  * Outputs send monitor and check statuses to people and other systems.
@@ -294,6 +298,9 @@ function sendNotifications(o: Extract<OutputDef, { type: 'notification' }>, m: L
       link: `/monitors/${m.id}${e.check ? `?check=${encodeURIComponent(e.check.id)}` : ''}`,
       recipients: to,
       about: { kind: 'monitor', id: m.id },
+      // urgent output (ADR 0012): a change to down interrupts quiet hours; one held item per subject
+      urgent: !!o.urgent && e.status === 'down',
+      itemKey: `monitor:${m.id}:${e.subject}`,
       inAppKey: `monitor:${m.id}:${e.subject}:${e.status}:${e.since ?? e.ts}`,
       externalKey: `monitor:${m.id}:${e.subject}:${e.status}:${e.since ?? e.ts}`,
       data: payload(eventFor(m, e, everyone)),
@@ -364,9 +371,51 @@ async function sendTeamsCards(o: Extract<OutputDef, { type: 'webhook' }>, m: Loa
   const { platform, secrets } = platformFor(m.owner, o.platform ?? '');
   if (platform.kind !== 'teams') throw new Error(`Platform "${platform.name}" is not a Microsoft Teams channel`);
   if (!secrets.webhookUrl) throw new Error(`Platform "${platform.name}" has no credential "webhookUrl" (the Teams Workflows URL)`);
-  for (const e of events.slice(0, TEAMS_MAX_CARDS))
-    await postTo(secrets.webhookUrl, teamsCard(teamsMessage(m, e)), [...urlSecrets(secrets.webhookUrl), ...secretValues(secrets)]);
+  const now = Date.now();
+  for (const e of events.slice(0, TEAMS_MAX_CARDS)) {
+    const msg = teamsMessage(m, e);
+    // quiet hours of the channel (ADR 0012): held for the catch-up unless the output is urgent and the monitor went down
+    const plan = deliveryPlan(
+      { personal: false, quietHours: o.quietHours ?? null },
+      { event: 'monitor.status', urgent: !!o.urgent && e.status === 'down' },
+      now,
+      {
+        allowed: quietHoursAllowed(),
+      },
+    );
+    if (!plan.send) {
+      holdMessage({
+        target: `output:${m.id}:${o.id}`,
+        itemKey: `monitor:${m.id}:${e.subject}`,
+        event: 'monitor.status',
+        reason: plan.hold,
+        locale: msg.locale,
+        state: { ts: msg.ts, title: msg.title, tone: eventTone('monitor.status', msg.data), link: `/monitors/${m.id}` },
+        about: { kind: 'monitor', id: m.id },
+      });
+      continue;
+    }
+    await postTo(secrets.webhookUrl, teamsCard(msg), [...urlSecrets(secrets.webhookUrl), ...secretValues(secrets)]);
+  }
 }
+
+// the outbox releases held cards of a Teams output to the same channel, through the same platform credential
+registerOutboxTarget('output', (rest) => {
+  const [monitorId, outputId] = rest.split(':');
+  const r = monitorRow(monitorId ?? '');
+  const m = r ? loadMonitor(r) : null;
+  const o = m?.def.outputs.find((x) => x.id === outputId);
+  if (!m || !o || o.type !== 'webhook' || o.format !== 'teams' || o.enabled === false) return null;
+  const { platform, secrets } = platformFor(m.owner, o.platform ?? '');
+  const url = platform.kind === 'teams' ? secrets.webhookUrl : undefined;
+  return {
+    personal: false,
+    quietHours: o.quietHours ?? null,
+    digests: null,
+    send: url ? (msg) => postTo(url, teamsCard(msg), [...urlSecrets(url), ...secretValues(secrets)]) : null,
+    why: url ? undefined : 'no channel',
+  };
+});
 
 async function sendGatus(o: Extract<OutputDef, { type: 'gatus' }>, m: LoadedMonitor, events: OutEvent[]): Promise<void> {
   const { platform, secrets } = platformFor(m.owner, o.platform);

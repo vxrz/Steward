@@ -6,6 +6,7 @@ import type { ScheduleNotify } from './notifyPolicy.js';
 import type { Column, ManualFieldType, ManualUse, ProcessDefinition } from './process.js';
 import type { Locale } from './locales.js';
 import type { DailySummaryPrefs } from './dailySummary.js';
+import type { DigestPrefs, QuietHours } from './quietHours.js';
 import type {
   SsoConfigWarning,
   SsoGroupValues,
@@ -225,6 +226,8 @@ export interface TeamChannel {
   mode: (typeof TEAM_CHANNEL_MODES)[number];
   /** a URL is stored (never returned) */
   hasUrl: boolean;
+  /** Teams format only: the channel's quiet hours (0.10.0, ADR 0012) */
+  quietHours?: QuietHours;
 }
 /**
  * Which new resources of its members a team owns (#136): auto – once the team owns something (the default, so a team
@@ -256,6 +259,9 @@ export interface TeamSettings {
   newResources: TeamNewResourceMode;
   /** the daily summary its members get unless they chose their own; null: the instance default (off) */
   summary: DailySummaryPrefs | null;
+  /** quiet hours and digests its members get unless they chose their own (0.10.0, ADR 0012); null: off */
+  quietHours: QuietHours | null;
+  digests: DigestPrefs | null;
   /** null: reports use the instance branding */
   branding: TeamReportBranding | null;
   /** report schedules of the team (they use its branding) */

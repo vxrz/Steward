@@ -902,6 +902,12 @@ const EXPECT: Record<string, Access> = {
   'GET /api/me/new-resource-teams': ALL,
   'PUT /api/me/new-resource-teams': ALL,
   'GET /api/settings/daily-summary': ADMIN,
+  // ---- quiet hours and digests (ADR 0012): one's own; administrators see who uses them and switch them off ----
+  'GET /api/me/notification-prefs': ALL,
+  'PUT /api/me/notification-prefs': ALL,
+  'DELETE /api/me/notification-prefs': ALL,
+  'GET /api/settings/quiet-hours': ADMIN,
+  'PUT /api/settings/quiet-hours': ADMIN,
 
   // ---- OAuth sign-in for MCP clients (#12): off in the fixtures (discovery and endpoints answer 404) ----
   'GET /.well-known/oauth-protected-resource': PUBLIC,
@@ -1524,6 +1530,11 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/ticket-references/settings': { sources: [{ key: 'vendor', label: 'Vendor ticket', vendor: true }], reminderDays: null },
   'PUT /api/me/daily-summary': { enabled: false, time: '07:30', timeZone: 'UTC', days: 'weekdays', channel: 'inApp', sections: ['runs'], skipEmpty: true },
   'PUT /api/settings/daily-summary': { allowed: true },
+  'PUT /api/me/notification-prefs': {
+    quietHours: { enabled: false, timeZone: 'UTC', windows: [], allDay: [], urgentBreaksThrough: true },
+    digests: { timeZone: 'UTC', groups: {} },
+  },
+  'PUT /api/settings/quiet-hours': { allowed: true },
   'POST /api/report-schedules': REPORT_SCHEDULE,
   'PUT /api/report-schedules/:id': REPORT_SCHEDULE,
   'POST /api/dashboards': { text: 'name: Matrix\nwidgets: []\n' },

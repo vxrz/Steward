@@ -19,6 +19,7 @@ import { memberships } from '../auth/policy.js';
 import { getNotificationSettings } from '../notifications/settings.js';
 import { sealTeamChannel } from '../notifications/team-channels.js';
 import { prefsSchema } from '../notifications/summary-prefs.js';
+import { digestPrefsSchema, quietHoursSchema, type DigestPrefs, type QuietHours } from '@sm/shared';
 import { checkLogo, getBranding, imageMime } from '../reports/branding.js';
 
 /**
@@ -46,6 +47,9 @@ interface StoredDefaults {
   newResources?: TeamNewResourceMode;
   summary?: DailySummaryPrefs | null;
   branding?: StoredBranding | null;
+  /** 0.10.0 (ADR 0012) */
+  quietHours?: QuietHours | null;
+  digests?: DigestPrefs | null;
 }
 
 const row = (teamId: string) => db().get<Row>('SELECT * FROM team_settings WHERE team_id = ?', teamId);
@@ -66,12 +70,22 @@ function validSummary(v: unknown): DailySummaryPrefs | null {
 }
 
 /** The defaults a team sets, each falling back to the instance's. */
-export function teamDefaults(teamId: string): { newResources: TeamNewResourceMode; summary: DailySummaryPrefs | null; branding: TeamReportBranding | null } {
+export function teamDefaults(teamId: string): {
+  newResources: TeamNewResourceMode;
+  summary: DailySummaryPrefs | null;
+  branding: TeamReportBranding | null;
+  quietHours: QuietHours | null;
+  digests: DigestPrefs | null;
+} {
   const r = row(teamId);
   const d = storedDefaults(r);
+  const qh = d.quietHours ? quietHoursSchema.safeParse(d.quietHours) : null;
+  const dg = d.digests ? digestPrefsSchema.safeParse(d.digests) : null;
   return {
     newResources: (TEAM_NEW_RESOURCE_MODES as readonly string[]).includes(d.newResources ?? '') ? d.newResources! : 'auto',
     summary: d.summary ? validSummary(d.summary) : null,
+    quietHours: qh?.success ? qh.data : null,
+    digests: dg?.success ? dg.data : null,
     branding: d.branding || r?.logo ? { ...EMPTY_BRANDING, ...(d.branding ?? {}), customLogo: !!r?.logo } : null,
   };
 }
@@ -103,6 +117,8 @@ function toSettings(t: { id: string; name: string }, r: Row | undefined, u: Auth
     },
     newResources: d.newResources,
     summary: d.summary,
+    quietHours: d.quietHours,
+    digests: d.digests,
     branding: d.branding,
     reportSchedules: reportSchedulesOf(t.name),
     canChange: isAdmin(u),
@@ -127,6 +143,8 @@ export const teamSettingsInput = z
         mode: z.enum(TEAM_CHANNEL_MODES),
         /** omitted: keep the stored URL; empty: remove it */
         url: z.string().trim().max(2048).optional(),
+        /** Teams format: the channel's quiet hours (0.10.0); omitted or null: none */
+        quietHours: quietHoursSchema.nullable().optional(),
       })
       .strict()
       .nullable()
@@ -134,6 +152,9 @@ export const teamSettingsInput = z
     newResources: z.enum(TEAM_NEW_RESOURCE_MODES).optional(),
     /** null: members without their own settings get the instance default (off) */
     summary: prefsSchema.nullable().optional(),
+    /** quiet hours and digests for members without their own (0.10.0, ADR 0012); null: the instance default (off) */
+    quietHours: quietHoursSchema.nullable().optional(),
+    digests: digestPrefsSchema.nullable().optional(),
     /** null: reports use the instance branding (the team logo is removed as well); a null field keeps the instance value */
     branding: z
       .object({
@@ -194,8 +215,8 @@ export function saveTeamSettings(teamId: string, input: z.infer<typeof teamSetti
     let channel: StoredChannel | null = null;
     let secret: string | null = null;
     if (input.channel) {
-      const { url, ...rest } = input.channel;
-      channel = rest;
+      const { url, quietHours, ...rest } = input.channel;
+      channel = { ...rest, ...(quietHours && rest.format === 'teams' ? { quietHours } : {}) };
       if (url === undefined) secret = before?.channel_secret ?? null;
       else if (url) {
         checkUrl(url);
@@ -232,6 +253,23 @@ export function saveTeamSettings(teamId: string, input: z.infer<typeof teamSetti
     );
     details.summary = { from: was, to: next.defaults.summary ?? null };
   }
+  for (const key of ['quietHours', 'digests'] as const) {
+    if (input[key] === undefined) continue;
+    const was = next.defaults[key] ?? null;
+    if (input[key]) (next.defaults as Record<string, unknown>)[key] = input[key];
+    else delete next.defaults[key];
+    if (JSON.stringify(was) === JSON.stringify(next.defaults[key] ?? null)) continue;
+    changes.push(
+      key === 'quietHours'
+        ? input.quietHours
+          ? `quiet hours for members ${input.quietHours.enabled ? `on (${input.quietHours.timeZone})` : 'off'}`
+          : 'quiet hours: the instance default again'
+        : input.digests
+          ? 'digests for members changed'
+          : 'digests: the instance default again',
+    );
+    details[key] = { from: was, to: next.defaults[key] ?? null };
+  }
   if (input.branding !== undefined) {
     const was = next.defaults.branding ?? null;
     if (input.branding) {
@@ -254,6 +292,37 @@ export function saveTeamSettings(teamId: string, input: z.infer<typeof teamSetti
       summary: `Team "${t.name}": ${changes.join('; ')}`,
       details,
     });
+    // quiet hours and digests have their own audit actions (ADR 0012), next to the team's
+    const channelQuiet = (c: unknown) => JSON.stringify((c as { quietHours?: unknown } | null)?.quietHours ?? null);
+    const channelChanged = 'after' in details && channelQuiet(details.before) !== channelQuiet(details.after);
+    if (details.quietHours || channelChanged)
+      audit({
+        action: 'notification.quiet_hours_changed',
+        entityType: 'team',
+        entityId: t.id,
+        summary: `Team "${t.name}": quiet hours ${details.quietHours ? 'for members' : ''}${details.quietHours && channelChanged ? ' and ' : ''}${channelChanged ? 'of its channel' : ''} changed`,
+        details: {
+          scope: `team:${t.name}`,
+          ...(details.quietHours ? { members: details.quietHours } : {}),
+          ...(channelChanged
+            ? {
+                channel: {
+                  target: `team:${t.id}`,
+                  from: (details.before as { quietHours?: unknown } | null)?.quietHours ?? null,
+                  to: (details.after as { quietHours?: unknown } | null)?.quietHours ?? null,
+                },
+              }
+            : {}),
+        },
+      });
+    if (details.digests)
+      audit({
+        action: 'notification.digests_changed',
+        entityType: 'team',
+        entityId: t.id,
+        summary: `Team "${t.name}": digests for members changed`,
+        details: { scope: `team:${t.name}`, ...(details.digests as object) },
+      });
   });
   return toSettings(t, row(t.id), u);
 }
@@ -324,6 +393,10 @@ export function importedDefaults(v: unknown, logo: string | null | undefined): {
   if (summary) out.summary = summary;
   const b = teamSettingsInput.shape.branding.safeParse(d.branding ?? undefined);
   if (b.success && b.data) out.branding = b.data as StoredBranding;
+  const qh = quietHoursSchema.safeParse(d.quietHours ?? undefined);
+  if (qh.success && qh.data) out.quietHours = qh.data;
+  const dg = digestPrefsSchema.safeParse(d.digests ?? undefined);
+  if (dg.success && dg.data) out.digests = dg.data;
   let checkedLogo: string | null = null;
   if (logo) {
     try {

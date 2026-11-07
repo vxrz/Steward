@@ -441,5 +441,47 @@
   "contractFailed": {
     "title": "Test des Datenvertrags fehlgeschlagen: {{name}}",
     "body": "Der Test von „{{name}}“ (Version {{version}}, Server {{server}}) endete mit „{{result}}“: {{headline}}"
+  },
+  "quiet": {
+    "catchupTitle": "Während Ihrer Ruhezeit: {{summary}}",
+    "digestTitle": "Ihre Sammelnachricht: {{summary}}",
+    "countDecisions_one": "{{count}} Entscheidung wartet",
+    "countDecisions_other": "{{count}} Entscheidungen warten",
+    "countFailing_one": "{{count}} Prüfung schlägt weiter fehl",
+    "countFailing_other": "{{count}} Prüfungen schlagen weiter fehl",
+    "countMessages_one": "{{count}} Nachricht",
+    "countMessages_other": "{{count}} Nachrichten",
+    "groups": {
+      "decisions": "Entscheidungen, die auf Sie warten",
+      "stillFailing": "Schlägt weiter fehl",
+      "passedAgain": "Fehlgeschlagen und wieder in Ordnung",
+      "other": "Weitere"
+    },
+    "decidedMeanwhile_one": "{{count}} inzwischen von anderen entschieden",
+    "decidedMeanwhile_other": "{{count}} inzwischen von anderen entschieden",
+    "since": "seit {{date}}",
+    "more_one": "+ {{count}} weitere Nachricht ({{event}})",
+    "more_other": "+ {{count}} weitere Nachrichten ({{event}})",
+    "intro": {
+      "catchup": "Nachrichten, die während Ihrer Ruhezeit zurückgehalten wurden – jede einmal, mit ihrem letzten Stand.",
+      "digest": "Für Ihre Sammelnachricht gesammelte Nachrichten – jede einmal, mit ihrem letzten Stand."
+    },
+    "introChannel": {
+      "catchup": "Nachrichten, die während der Ruhezeit dieses Kanals zurückgehalten wurden – jede einmal, mit ihrem letzten Stand.",
+      "digest": "Für diesen Kanal gesammelte Nachrichten – jede einmal, mit ihrem letzten Stand."
+    },
+    "footer": "Ruhezeiten und Sammelnachrichten stellen Sie in Ihrem Profil ein:",
+    "footerChannel": "Die Ruhezeit dieses Kanals stellt eine Administratorin oder ein Administrator ein:",
+    "away": "Während Ihrer Ruhezeit",
+    "broke": {
+      "emergency": "Während Ihrer Ruhezeit gesendet: Jemand hat den Notfallzugang benutzt.",
+      "expires": "Während Ihrer Ruhezeit gesendet: Diese Anfrage verfällt um {{time}}.",
+      "urgent": "Während Ihrer Ruhezeit gesendet: Die Quelle ist als dringend markiert."
+    },
+    "brokeChannel": {
+      "emergency": "Während der Ruhezeit dieses Kanals gesendet: Jemand hat den Notfallzugang benutzt.",
+      "expires": "Während der Ruhezeit dieses Kanals gesendet: Diese Anfrage verfällt um {{time}}.",
+      "urgent": "Während der Ruhezeit dieses Kanals gesendet: Die Quelle ist als dringend markiert."
+    }
   }
 }
