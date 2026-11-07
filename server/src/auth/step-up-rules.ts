@@ -2,6 +2,7 @@ import type { FastifyRequest } from 'fastify';
 import { getSettings, passwordLoginMode } from '../settings.js';
 import { channelSecrets, getNotificationSettings } from '../notifications/settings.js';
 import { teamChannelQuietHours as storedTeamQuietHours } from '../notifications/team-channels.js';
+import { teamDefaults } from '../teams/settings.js';
 import { getPlatform } from '../platforms/service.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
 import { requireMonitor } from '../monitors/service.js';
@@ -61,12 +62,17 @@ export function changesSignInOrOutbound(req: FastifyRequest): boolean {
 
 /**
  * A team's own channel (#136): a new or replaced Teams/webhook URL sends messages about the team's resources elsewhere,
+ * and its quiet hours, or the members' default quiet hours (0.10.0), change when messages reach people –
  * as the instance channel does (see below). Keeping the stored URL (omitted) or removing it is not sensitive.
  */
 export function changesTeamChannel(req: FastifyRequest): boolean {
-  const channel = obj(obj(body(req)).channel);
+  const b = obj(body(req));
+  const channel = obj(b.channel);
   const url = channel.url;
   if (typeof url === 'string' && url.trim() !== '') return true;
+  const tid0 = (req.params as { id?: string }).id;
+  // the members' default quiet hours hold their e-mails like a channel's quiet hours hold its posts (security review 0.10.0)
+  if (tid0 && 'quietHours' in b && quietHoursChanged(b.quietHours, teamDefaults(tid0).quietHours)) return true;
   // its quiet hours (0.10.0, ADR 0012) change when messages reach the channel
   if (!('quietHours' in channel)) return false;
   const tid = (req.params as { id?: string }).id;

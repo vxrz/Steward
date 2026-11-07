@@ -98,6 +98,12 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
   return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : [])], reasons: d.reasons };
 }
 
+/** Whether `u` may see a resource of any kind that can have owning teams (the held messages re-check this at release). */
+export function canSeeResource(kind: OwnedKind, id: string, u: AuthUser | null): boolean {
+  const r = resource(kind, id);
+  return !!r && access(kind, r, u).permissions.length > 0;
+}
+
 const NOT_FOUND: Record<OwnedKind, [string, string]> = {
   process: ['Process not found', 'PROCESS_NOT_FOUND'],
   platform: ['Platform not found', 'PLATFORM_NOT_FOUND'],

@@ -290,6 +290,73 @@ describe('limits', () => {
   });
 });
 
+describe('security review 0.10.0', () => {
+  it('never folds a waiting decision into the count of the 500-row limit (F3)', async () => {
+    const at = Date.now() - 3_600_000;
+    outbox.holdMessage({
+      target: 'team:fold',
+      itemKey: 'task.assigned:task:t1',
+      event: 'task.assigned',
+      reason: 'quiet',
+      locale: 'en',
+      state: { ts: new Date(at).toISOString(), title: 'Approve: delete the test database', link: '/runs/r1' },
+    });
+    for (let i = 0; i < 499; i++)
+      outbox.holdMessage({
+        target: 'team:fold',
+        itemKey: `run:${i}`,
+        event: 'run.failed',
+        reason: 'quiet',
+        locale: 'en',
+        state: { ts: new Date(at + 1000 + i).toISOString(), title: `Run ${i} failed` },
+      });
+    outbox.holdMessage({
+      target: 'team:fold',
+      itemKey: 'check:x',
+      event: 'check.failed',
+      reason: 'quiet',
+      locale: 'en',
+      state: { ts: new Date().toISOString(), title: 'Check x failed' },
+    });
+    const rows = held('team:fold');
+    expect(rows.map((r) => r.item_key)).toContain('task.assigned:task:t1');
+    expect(rows.map((r) => r.item_key)).not.toContain('more:task.assigned');
+    const content = outbox.renderHeld(
+      dbm.db().all('SELECT * FROM notification_outbox WHERE target = ? AND released_at IS NULL', 'team:fold') as never,
+      'catchup',
+      'en',
+    )!;
+    expect(content.text).toContain('Decisions waiting for you (1)');
+    expect(content.text).toContain('Approve: delete the test database');
+    dbm.db().run("DELETE FROM notification_outbox WHERE target = 'team:fold'");
+  });
+
+  it('checks visibility at release for every kind an item can be about (F7)', async () => {
+    await qara('PUT', '/me/notification-prefs', prefs({ quietHours: ALWAYS }));
+    svc.notify(notice({ recipients: [user('qara')], externalKey: 'cred:gone', about: { kind: 'credential', id: 'cred_does_not_exist' } }));
+    svc.notify(notice({ recipients: [user('qara')], externalKey: 'svc:gone', about: { kind: 'service', id: 'svc_does_not_exist' } }));
+    svc.notify(notice({ recipients: [user('qara')], externalKey: 'plain', text: () => ({ title: 'A plain reminder', body: '' }) }));
+    await flush();
+    expect(held(`email:${user('qara').id}`)).toHaveLength(3);
+    await qara('PUT', '/me/notification-prefs', prefs());
+    await outbox.runOutbox();
+    await flush();
+    const m = mailsTo('qara@example.com');
+    expect(m).toHaveLength(1);
+    expect(m[0]!.subject).toContain('1 message');
+    expect(m[0]!.text).toContain('A plain reminder');
+  });
+
+  it('team default quiet hours of members need the step-up, like channel quiet hours (F6)', async () => {
+    const { changesTeamChannel } = await import('../src/auth/step-up-rules.js');
+    const team = (await s.api('POST', '/teams', { name: `Step-up ${Date.now()}`, members: [] })).id;
+    const req = (body: unknown) => ({ body, params: { id: team } }) as never;
+    expect(changesTeamChannel(req({ quietHours: ALWAYS }))).toBe(true);
+    expect(changesTeamChannel(req({ newResources: 'auto' }))).toBe(false);
+    expect(changesTeamChannel(req({ quietHours: null }))).toBe(false);
+  });
+});
+
 describe('digests', () => {
   it('collect a group hourly and send one digest when the hour began', async () => {
     await qara('PUT', '/me/notification-prefs', prefs({ digests: { timeZone: 'UTC', groups: { runs: { rhythm: 'hourly' } } } }));
