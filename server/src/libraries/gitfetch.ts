@@ -104,11 +104,12 @@ export async function fetchLibrary(r: SourceRow, api: GitApi, result: SyncFetchR
   result.verified = head.verified;
   checkSigned(r, head, newest.tag);
   // the newest release was staged from this commit before, or is installed: nothing to do
-  const known = db().get<{ id: string; library: string; release_version: string; state: string }>(
-    'SELECT id, library, release_version, state FROM library_releases WHERE source LIKE ? AND release_version = ? ORDER BY staged_at DESC LIMIT 1',
-    `%"commit":"${head.sha}"%`,
-    newest.version,
-  );
+  const known = db()
+    .all<{ id: string; library: string; release_version: string; source: string }>(
+      'SELECT id, library, release_version, source FROM library_releases WHERE release_version = ? ORDER BY staged_at DESC',
+      newest.version,
+    )
+    .find((x) => parseJson<{ commit?: string }>(x.source, {}).commit === head.sha);
   if (known) {
     result.upToDate = true;
     result.library = { library: known.library, release: known.release_version, releaseId: known.id, staged: false };

@@ -1,5 +1,6 @@
 import YAML from 'yaml';
 import {
+  boundedRecord,
   compareSemver,
   isMutating,
   type ConnectorPackage,
@@ -458,8 +459,12 @@ function blockersOf(r: ReleaseRow, s: LibraryReleaseSummary, inst: InstallRow | 
 // ---------- install ----------
 
 export const installInput = z.object({
-  platforms: z.record(z.string().max(100), z.string().max(64)).optional(),
-  processes: z.record(z.string().max(100), z.string().max(64)).optional(),
+  platforms: boundedRecord(z.string().max(64), 100)
+    .refine((m) => Object.keys(m).every((k) => k.length <= 100), 'Reference name too long')
+    .optional(),
+  processes: boundedRecord(z.string().max(64), 100)
+    .refine((m) => Object.keys(m).every((k) => k.length <= 100), 'Reference name too long')
+    .optional(),
   skip: z.array(z.string().max(300)).max(200).optional(),
   keepLocal: z.array(z.string().max(300)).max(200).optional(),
   takeLibrary: z.array(z.string().max(300)).max(200).optional(),
