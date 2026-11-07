@@ -21,7 +21,7 @@ import { get, notifyError, post, apiUrl } from '../api';
 import { fmtDate, fmtDuration, fmtNumber, fmtTime, runDuration } from '../format';
 import { DetailState, JsonView, Markdown, SEVERITY_COLORS, SeverityBadge, StatusBadge, TONE, severityLabel, statusLabel } from '../components/common';
 import { errorSteps, findingsOf, findingsText } from '../components/RunTable';
-import { TaskPanel } from '../components/TaskPanel';
+import { DecideFromLinkNotice, TaskPanel } from '../components/TaskPanel';
 import { RunDialog } from '../components/RunDialog';
 import { GenerateReportDialog, RunReportsPanel, canReport } from '../components/reports/RunReports';
 import { DetailHeader } from '../components/page/DetailPage';
@@ -72,6 +72,7 @@ export function RunDetailPage() {
     }
   };
   const openTasks = r.tasks.filter((task) => task.status === 'open');
+  // a card's Approve / Reject link (ADR 0013): ?task=<id>&decide=approve|reject opens that step's dialog
   const checks = r.steps.filter((s) => s.type === 'check');
   const findings = findingsOf(r);
   const failedChecks = checks.filter((s) => s.status === 'failed' && !s.error);
@@ -215,6 +216,7 @@ export function RunDetailPage() {
             {t('detail.interruptedText')}
           </Alert>
         )}
+        <DecideFromLinkNotice tasks={r.tasks} />
         {openTasks.map((task) => (
           <TaskPanel key={task.id} task={task} showRunLink={false} />
         ))}

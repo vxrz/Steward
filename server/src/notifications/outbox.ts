@@ -58,6 +58,8 @@ export interface HeldAbout {
   decision?: { kind: 'task' | 'mcp_request'; id: string };
   /** A check: its current state at release ("still failing" or "passed again") */
   check?: { source: string; name: string };
+  /** The outcome of a decision (a follow-up card, ADR 0013): listed with the others, not as a waiting decision */
+  outcome?: boolean;
 }
 
 export interface HoldInput {
@@ -193,6 +195,9 @@ const resolvers = new Map<string, Resolver>();
 export function registerOutboxTarget(prefix: string, r: Resolver): void {
   resolvers.set(prefix, r);
 }
+
+/** The target behind an id (also for the follow-up cards of decisions, msteams/cards.ts); null when unknown. */
+export const resolveOutboxTarget = (target: string): OutboxTarget | null => resolveTarget(target);
 
 function resolveTarget(target: string): OutboxTarget | null {
   const i = target.indexOf(':');
@@ -349,7 +354,7 @@ export function renderHeld(rows: Row[], kind: 'catchup' | 'digest', locale: Loca
     const since = t(locale, 'quiet.since', { date: formatDateTime(locale, first.ts) });
     const detail = [states.length > 1 || first.ts !== last.ts ? since : formatDateTime(locale, last.ts), last.lead].filter(Boolean).join(' · ');
     let group: GroupId = 'other';
-    if (EVENT_DIGEST_GROUP[r.event] === 'decisions') group = 'decisions';
+    if (EVENT_DIGEST_GROUP[r.event] === 'decisions' && !about?.outcome) group = 'decisions';
     else if (about?.check) group = stillFailing(about.check) ? 'stillFailing' : 'passedAgain';
     items.push({ group, event: r.event, title: last.title, detail, link: last.link, tone: group === 'passedAgain' ? 'good' : last.tone });
   }

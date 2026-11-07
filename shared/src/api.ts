@@ -1079,6 +1079,8 @@ export interface TaskDecision {
   approved: boolean;
   selectedKeys: string[];
   comment?: string;
+  /** Decided from a card in Microsoft Teams (0.10.0, ADR 0013); missing: in Steward */
+  via?: 'teams';
 }
 
 /** A manual step's settings, copied into the task when the run reached it (later edits of the process do not change it). */
@@ -1628,6 +1630,8 @@ export interface McpRequest {
   dryRun: boolean;
   decidedBy: string | null;
   decidedAt: string | null;
+  /** 'teams': decided in a Microsoft Teams card (0.10.0, ADR 0013) */
+  decidedVia?: 'teams' | null;
   comment: string;
   executedAt: string | null;
   /** HTTP status of the executed call */

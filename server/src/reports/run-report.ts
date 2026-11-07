@@ -214,7 +214,7 @@ export async function renderRunReport(
     const outcomeTone: Tone = d.status !== 'completed' ? 'info' : d.approved === false ? 'danger' : 'success';
     const items: Parameters<typeof w.keyValues>[0] = [
       { label: t('outcome'), value: outcome, tone: outcomeTone },
-      { label: t('decidedBy'), value: personLabel(d.decidedBy) },
+      { label: t('decidedBy'), value: d.viaTeams ? t('viaTeams', { person: personLabel(d.decidedBy) }) : personLabel(d.decidedBy) },
       { label: t('decidedAt'), value: tr.dateTime(d.decidedAt) },
       { label: t('assignedTo'), value: d.assignees.length ? d.assignees.join(', ') : t('anyone') },
     ];

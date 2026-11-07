@@ -38,6 +38,8 @@ import { deliveryPlan, inQuietHours, type BreakReason, type DeliveryPlan } from 
 import { holdMessage, type HeldAbout } from './outbox.js';
 import { effectiveNotificationPrefs, quietHoursAllowed } from './prefs.js';
 import { eventTone } from './look.js';
+import { isCardTarget, recordApprovalPost } from '../msteams/posts.js';
+import { taskCardParts } from '../msteams/cards.js';
 
 /** Same event + entity within this window → no second e-mail/Teams/webhook message (and no second in-app entry for the same key). */
 export const DEDUPE_WINDOW_MS = 60 * 60000;
@@ -238,7 +240,7 @@ export function notify(n: Notice): void {
     attachments: n.attachments,
   });
   const key = `${n.event}:${n.externalKey}`;
-  const jobs: { channel: string; to?: string; send: () => Promise<void> }[] = [];
+  const jobs: { channel: string; to?: string; target?: string; send: () => Promise<void> }[] = [];
   let secrets: ReturnType<typeof channelSecrets>;
   try {
     secrets = channelSecrets();
@@ -321,7 +323,7 @@ export function notify(n: Notice): void {
     if (!plan.send) hold('teams:instance', plan, fallback);
     else if (claimSend(`teams:${key}`, DEDUPE_WINDOW_MS)) {
       const msg = broke(message(fallback), plan, false, settings.teams.quietHours?.timeZone ?? 'UTC');
-      jobs.push({ channel: 'teams', send: () => sendTeams(secrets.teamsWebhookUrl!, msg) });
+      jobs.push({ channel: 'teams', target: 'teams:instance', send: () => sendTeams(secrets.teamsWebhookUrl!, msg) });
     }
   }
   if (external.includes('webhook') && secrets.webhookUrl) {
@@ -331,7 +333,11 @@ export function notify(n: Notice): void {
     if (!plan.send) hold('webhook:instance', plan, fallback);
     else if (claimSend(`webhook:${key}`, DEDUPE_WINDOW_MS)) {
       const msg = broke(message(fallback), plan, false, settings.webhook.quietHours?.timeZone ?? 'UTC');
-      jobs.push({ channel: 'webhook', send: () => (asCard ? sendTeams(secrets.webhookUrl!, msg) : sendWebhook(secrets.webhookUrl!, msg)) });
+      jobs.push({
+        channel: 'webhook',
+        target: 'webhook:instance',
+        send: () => (asCard ? sendTeams(secrets.webhookUrl!, msg) : sendWebhook(secrets.webhookUrl!, msg)),
+      });
     }
   }
   for (const c of teamChannels.channels) {
@@ -342,12 +348,20 @@ export function notify(n: Notice): void {
     }
     if (!claimSend(`team:${c.team.id}:${key}`, DEDUPE_WINDOW_MS)) continue;
     const msg = broke(message(fallback), plan, false, c.quietHours?.timeZone ?? 'UTC');
-    jobs.push({ channel: `team:${c.team.name}`, send: () => (c.format === 'teams' ? sendTeams(c.url, msg) : sendWebhook(c.url, msg)) });
+    jobs.push({
+      channel: `team:${c.team.name}`,
+      target: `team:${c.team.id}`,
+      send: () => (c.format === 'teams' ? sendTeams(c.url, msg) : sendWebhook(c.url, msg)),
+    });
   }
   for (const j of jobs) {
     const p = j
       .send()
-      .then(() => logger.debug({ event: n.event, channel: j.channel, to: j.to }, 'notification sent'))
+      .then(() => {
+        logger.debug({ event: n.event, channel: j.channel, to: j.to }, 'notification sent');
+        // a decision card in a channel (ADR 0013): the outcome follows it there
+        if (n.decision && j.target && isCardTarget(j.target)) recordApprovalPost(n.decision.kind, n.decision.id, j.target);
+      })
       .catch((err) => logger.warn({ err: { message: (err as Error).message }, event: n.event, channel: j.channel, to: j.to }, 'notification could not be sent'))
       .finally(() => pending.delete(p));
     pending.add(p);
@@ -377,11 +391,14 @@ export async function flushNotifications(): Promise<void> {
 // ---------- event handlers ----------
 
 export function onTaskCreated(e: DomainEvents['task.created']): void {
+  const task = getTask(e.taskId);
   notify({
     event: 'task.assigned',
     text: (l) => ({
       title: t(l, e.dryRun ? 'task.titleDryRun' : 'task.title', { title: e.title }),
       body: t(l, e.fourEyes ? 'task.bodyFourEyes' : 'task.body', { process: e.processName, actor: e.runActor }),
+      // the card (ADR 0013): what is decided, and Approve / Reject links that open the dialog in Steward
+      parts: taskCardParts(l, { ...e, mode: task.mode, createdAt: task.createdAt }),
     }),
     link: `/runs/${e.runId}`,
     recipients: taskRecipients(e),
@@ -409,6 +426,8 @@ export function onVerificationNeeded(e: DomainEvents['task.verification_needed']
     text: (l) => ({
       title: t(l, e.dryRun ? 'task.verifyTitleDryRun' : 'task.verifyTitle', { title: titleName(e.title) }),
       body: t(l, 'task.verifyBody', { process: e.processName, user: e.completedBy }),
+      // a verification needs the entry and the evidence: Open only
+      parts: taskCardParts(l, { taskId: e.taskId, runId: e.runId, processName: e.processName, title: e.title, runActor: e.completedBy, verification: true }),
     }),
     link: `/runs/${e.runId}`,
     recipients: verifierRecipients(e.taskId),

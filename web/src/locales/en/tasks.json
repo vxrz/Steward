@@ -42,7 +42,8 @@
     "decidedSelected_other": "{{count}} items selected by <b>{{user}}</b> on {{date}}",
     "quoted": "“{{text}}”",
     "cancelled": "Cancelled",
-    "selectItem": "Select {{name}}"
+    "selectItem": "Select {{name}}",
+    "viaTeams": "(via Microsoft Teams)"
   },
   "emptyMineText": "When a running process needs your approval or decision, it shows up here and in the notification bell.",
   "panelLabel": "Task: {{title}}",
@@ -108,5 +109,13 @@
     "rejectFail": "Reject (fails the run)",
     "sendBack": "Send back",
     "verify": "Confirm verification"
+  },
+  "fromLink": {
+    "titleApprove": "Approve “{{title}}”?",
+    "titleReject": "Reject “{{title}}”?",
+    "intro": "You came here from a message. Nothing is decided until you confirm here.",
+    "switchToReject": "Reject instead",
+    "switchToApprove": "Approve instead",
+    "notPossible": "This can no longer be decided here: it was decided, cancelled or has expired, or you may not decide it."
   }
 }

@@ -483,5 +483,32 @@
       "expires": "Während der Ruhezeit dieses Kanals gesendet: Diese Anfrage verfällt um {{time}}.",
       "urgent": "Während der Ruhezeit dieses Kanals gesendet: Die Quelle ist als dringend markiert."
     }
+  },
+  "teamsCard": {
+    "approve": "Freigeben",
+    "reject": "Ablehnen",
+    "step": "Schritt",
+    "askedBy": "Angefragt von",
+    "waitingSince": "Wartet seit",
+    "expires": "Verfällt",
+    "platform": "Plattform",
+    "change": "Änderung",
+    "startRun": "Einen Lauf von „{{process}}“ starten",
+    "assistantOf": "KI-Assistent von {{user}}",
+    "followUpTitle": "Entschieden: {{title}}",
+    "outcome": {
+      "approved": "Freigegeben von {{user}} am {{at}}.",
+      "approvedTeams": "Freigegeben von {{user}} in Microsoft Teams am {{at}}.",
+      "rejected": "Abgelehnt von {{user}} am {{at}}.",
+      "rejectedTeams": "Abgelehnt von {{user}} in Microsoft Teams am {{at}}.",
+      "completed": "Entschieden von {{user}} am {{at}}.",
+      "completedTeams": "Entschieden von {{user}} in Microsoft Teams am {{at}}.",
+      "cancelled": "Nicht mehr nötig: Der Lauf wurde am {{at}} abgebrochen.",
+      "expired": "Ohne Entscheidung verfallen am {{at}}.",
+      "withdrawn": "Zurückgezogen von {{user}} am {{at}}.",
+      "failed": "Freigegeben von {{user}} am {{at}}, aber die Ausführung ist fehlgeschlagen."
+    },
+    "mcpTitle": "KI-Assistent von {{user}}: {{what}}",
+    "mcpChannelBody": "Ein KI-Assistent bittet um eine Änderung. Entscheiden Sie in Steward; ohne Entscheidung verfällt die Anfrage."
   }
 }

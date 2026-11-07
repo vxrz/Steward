@@ -102,7 +102,8 @@
       "mappings": "Zuordnungen zu Kontrollen"
     },
     "acceptProposal_one": "{{count}} Eintrag übernehmen",
-    "acceptProposal_other": "{{count}} Einträge übernehmen"
+    "acceptProposal_other": "{{count}} Einträge übernehmen",
+    "viaTeams": "(über Microsoft Teams)"
   },
   "oauth": {
     "title": "OAuth für MCP-Clients (optional)",

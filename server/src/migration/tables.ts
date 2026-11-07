@@ -46,6 +46,11 @@ export const NOT_MOVED: Record<string, string> = {
   daily_summary_sends: 'send bookkeeping of the source',
   notification_outbox: "messages held for quiet hours and digests (short-lived; another instance must not send this one's messages)",
   notification_digest_sends: 'send bookkeeping of the source',
+  approval_posts: 'send bookkeeping of the source: where decision cards went (their follow-up cards are sent by the source)',
+  teams_cards: 'cards the Teams bot of the source posted (short-lived; the target posts its own)',
+  teams_conversations:
+    "where the Teams bot of the source is installed: its messaging endpoint points to the source, so the target's bot records its own conversations once its app is installed",
+  teams_bot_activities: 'replay protection of the Teams bot of the source (24 hours)',
   duty_notifications: 'send bookkeeping of the source (a reminder of the current period may be sent again on the target)',
   engine_probe: 'internal',
   background_jobs: 'state of the background jobs of the source (the target keeps its own)',

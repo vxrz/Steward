@@ -10,8 +10,18 @@ import { Markdown, subjectLabel } from './common';
 import { useMe } from '../auth';
 import { ManualTaskPanel } from './ManualTaskPanel';
 import { TaskHeader } from './TaskHeader';
+import { DecideFromLinkModal, DecideNotPossible, useDecideParam } from './DecideFromLink';
 
 const MAX_ROWS = 1000;
+
+/** The run page: when a card's link names a step that can no longer be decided here, say so (ADR 0013). */
+export function DecideFromLinkNotice({ tasks }: { tasks: TaskRecord[] }) {
+  const link = useDecideParam();
+  if (!link.verb || !link.task) return null;
+  const task = tasks.find((x) => x.id === link.task);
+  const decidable = !!task && task.status === 'open' && task.canDecide !== false && task.mode === 'approve';
+  return decidable ? null : <DecideNotPossible onClose={link.clear} />;
+}
 
 export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; showRunLink?: boolean }) {
   return task.mode === 'manual' ? <ManualTaskPanel task={task} showRunLink={showRunLink} /> : <DecisionPanel task={task} showRunLink={showRunLink} />;
@@ -29,6 +39,8 @@ function DecisionPanel({ task, showRunLink }: { task: TaskRecord; showRunLink: b
   /** open and this user may decide → interactive */
   const open = isOpen && task.canDecide !== false;
   const decided = new Set(task.decision?.selectedKeys ?? []);
+  const link = useDecideParam();
+  const fromLink = open && task.mode === 'approve' && link.task === task.id ? link.verb : null;
 
   const visible = useMemo(() => {
     const f = filter.trim().toLowerCase();
@@ -45,18 +57,20 @@ function DecisionPanel({ task, showRunLink }: { task: TaskRecord; showRunLink: b
     setSelected(next);
   };
 
-  const submit = async (approved: boolean) => {
+  const submit = async (approved: boolean, note = comment): Promise<boolean> => {
     setBusy(approved ? 'approve' : 'reject');
     try {
       await post(`/tasks/${task.id}/complete`, {
         approved,
         selectedKeys: task.mode === 'select' ? [...selected] : [],
-        comment: comment || undefined,
+        comment: note || undefined,
       });
       notifyOk(task.mode === 'select' ? t('panel.submitted', { count: selected.size }) : approved ? t('panel.approved') : t('panel.rejected'));
       await qc.invalidateQueries();
+      return true;
     } catch (e) {
       notifyError(e, t('panel.submitFailed'));
+      return false;
     } finally {
       setBusy(null);
     }
@@ -64,6 +78,7 @@ function DecisionPanel({ task, showRunLink }: { task: TaskRecord; showRunLink: b
 
   return (
     <Paper withBorder p="md" component="section" aria-label={t('panelLabel', { title: task.title })}>
+      {fromLink && <DecideFromLinkModal verb={fromLink} title={task.title} onConfirm={(approve, note) => submit(approve, note)} onClose={link.clear} />}
       <Stack gap="sm">
         <TaskHeader task={task} showRunLink={showRunLink} />
         <Markdown text={task.instructions} />
@@ -182,6 +197,7 @@ function DecisionPanel({ task, showRunLink }: { task: TaskRecord; showRunLink: b
               values={{ count: decided.size, user: task.decidedBy ?? '', date: fmtDate(task.decidedAt) }}
               components={{ b: <strong /> }}
             />
+            {task.decision?.via === 'teams' ? ` ${t('panel.viaTeams')}` : ''}
             {task.decision?.comment ? ` – ${t('panel.quoted', { text: task.decision.comment })}` : ''}
           </Alert>
         ) : (

@@ -76,6 +76,8 @@ export interface RunReportModel extends ReportContext {
     instructions: string | null;
     decidedBy: Person | null;
     decidedAt: string | null;
+    /** Decided in a Microsoft Teams card (0.10.0, ADR 0013) */
+    viaTeams?: boolean;
     approved: boolean | null;
     selectedCount: number;
     total: number;
@@ -245,6 +247,7 @@ export function buildRunModel(runId: string, ctx: ReportContext): RunReportModel
         instructions: t.instructions ?? null,
         decidedBy: t.decidedBy ? person(t.decidedBy) : null,
         decidedAt: t.decidedAt ?? null,
+        viaTeams: t.decision?.via === 'teams',
         approved: t.status === 'completed' ? !!t.decision?.approved : null,
         selectedCount: t.status === 'completed' ? sel.size : 0,
         total: t.items.length,
