@@ -63,6 +63,8 @@ export interface BuiltInPublisherKey {
 export const BUILT_IN_PUBLISHER_KEYS: readonly BuiltInPublisherKey[] = [];
 
 export const LIBRARY_KEY_STATES = ['active', 'retired', 'revoked'] as const;
+/** The state a release shows for its signing key */
+export type LibraryReleaseKeyState = LibraryKeyState | 'expired' | 'unknown';
 export type LibraryKeyState = (typeof LIBRARY_KEY_STATES)[number];
 
 /** Why a release was not staged (the source and the audit entry library.release_refused show it). */
@@ -146,7 +148,8 @@ export interface LibraryReleaseSummary {
   /** SHA-256 of release.json (the signed file) */
   sha256: string;
   keyFingerprint: string;
-  keyState: LibraryKeyState | 'unknown';
+  /** expired: the key's validity ended – its releases are no longer installed (a rollback to an installed one stays possible) */
+  keyState: LibraryReleaseKeyState;
   stewardMinVersion: string;
   /** The running Steward is older than steward_min_version: listed as "Needs Steward x.y.z" */
   needsVersion: string | null;
@@ -188,8 +191,16 @@ export type LibraryItemStatus = 'new' | 'changed' | 'unchanged' | 'removed' | 'c
 export interface LibraryProcessAbilities {
   /** Connection slots with the platform kind they expect */
   slots: { slot: string; kind: string | null }[];
-  /** HTTP steps that write (POST, PUT, PATCH, DELETE or marked as mutating) */
+  /**
+   * HTTP steps that may write: every method but GET, HEAD and OPTIONS – whatever their `mutating` flag says – and
+   * read methods marked as mutating
+   */
   writes: number;
+  /**
+   * Of those, steps marked `mutating: false` ("marked as not changing anything"): the engine treats them as reads, so
+   * they also run in a dry run
+   */
+  markedNotChanging: number;
   accessChanges: number;
   browser: number;
   ai: number;
@@ -199,6 +210,16 @@ export interface LibraryProcessAbilities {
   notifications: number;
   userTasks: number;
   datasets: string[];
+}
+
+/** What a monitor's outputs do when its state changes (computed from the file): where data goes out, what it starts. */
+export interface LibraryMonitorOutputs {
+  outputs: { id: string; type: string; target: string; dryRun?: boolean }[];
+  /** Webhooks (a URL or a platform) and Gatus/Zabbix pushes: monitor data leaves Steward */
+  sendsOut: number;
+  /** Processes the monitor starts (by id) */
+  startsProcesses: string[];
+  notifications: number;
 }
 
 export interface LibraryConnectorView {
@@ -211,6 +232,14 @@ export interface LibraryConnectorView {
   authType: string;
   secretFields: string[];
   specs: number;
+  /** The HTTP settings in full (config.http): TLS verification, CA certificate, proxy, default headers, … */
+  http: Record<string, unknown>;
+  /** Certificate verification is switched off */
+  insecureTls: boolean;
+  /** A CA certificate of its own is trusted */
+  customCa: boolean;
+  proxy: string | null;
+  defaultHeaders: string[];
 }
 
 export interface LibraryReviewItem {
@@ -232,10 +261,14 @@ export interface LibraryReviewItem {
   newAbilities?: string[];
   /** Monitors: platform references of the file */
   platformRefs?: string[];
+  /** Monitors: what their outputs do */
+  monitorOutputs?: LibraryMonitorOutputs;
   /** Connector types: the destinations, shown in full */
   connector?: LibraryConnectorView;
   /** A sub-process step names a process that is neither in the library nor a mapped reference */
   problems: string[];
+  /** Four-eyes: what the stored request does with this item */
+  requested?: 'install' | 'skip' | 'keepLocal' | 'takeLibrary' | 'detach' | 'link';
 }
 
 export interface LibraryReferenceChoice {
@@ -249,15 +282,35 @@ export interface LibraryReferenceChoice {
   candidates: { id: string; name: string; kind?: string }[];
 }
 
+/**
+ * Four-eyes: the decisions the requester stored, shown to the approver exactly as they will be installed. `hash`
+ * binds the approval to them (a request withdrawn and asked again with other decisions is not approved by mistake).
+ */
+export interface LibraryRequestedDecisions {
+  by: string;
+  at: string;
+  rollback: boolean;
+  hash: string;
+  /** reference → the chosen platform (name only when the viewer may see it) */
+  platforms: { ref: string; id: string; name: string | null }[];
+  processes: { ref: string; id: string; name: string | null }[];
+  skip: string[];
+  keepLocal: string[];
+  takeLibrary: string[];
+  comment: string | null;
+}
+
 export interface LibraryReview {
   release: LibraryReleaseSummary;
+  /** Four-eyes: what the requester decided; the items and references below show the review for exactly these decisions */
+  request: LibraryRequestedDecisions | null;
   installed: { id: string; release: string } | null;
   description: string;
   licence: string;
   changelog: LibraryChangelogEntry[];
   items: LibraryReviewItem[];
   references: { platforms: LibraryReferenceChoice[]; processes: LibraryReferenceChoice[] };
-  /** Why accepting is not possible now, as codes: needsVersion, revokedKey, installed, notPrevious, downgrade, rights, undeclaredProcess */
+  /** Why accepting is not possible now, as codes: needsVersion, revokedKey, expiredKey, installed, notPrevious, downgrade, rights, undeclaredProcess */
   blockers: string[];
   canInstall: boolean;
   /** The release has connector types: only administrators install it */

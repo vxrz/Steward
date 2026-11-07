@@ -1042,7 +1042,10 @@
     "FORBIDDEN_installLibraryItem": "Sie dürfen einen Eintrag dieser Version nicht anlegen oder ändern.",
     "FORBIDDEN_installConnector": "Nur die Administration installiert Connector-Typen.",
     "FORBIDDEN_holdLibrary": "Nur die Administration hält eine Bibliothek an.",
-    "FORBIDDEN_withdrawLibraryInstall": "Nur die anfragende Person oder die Administration zieht die Anfrage zurück."
+    "FORBIDDEN_withdrawLibraryInstall": "Nur die anfragende Person oder die Administration zieht die Anfrage zurück.",
+    "LIBRARY_HELD_resume": "Die Bibliothek {{library}} ist angehalten: Was sie pausiert hat, bleibt aus, bis die Administration das Anhalten aufhebt.",
+    "LIBRARY_HELD_uninstall": "Die Bibliothek {{library}} ist angehalten: Die Administration hebt das Anhalten auf, bevor sie deinstalliert werden kann.",
+    "LIBRARY_REQUEST_CHANGED": "Die Anfrage hat sich geändert, seit Sie sie angesehen haben – prüfen Sie sie erneut."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

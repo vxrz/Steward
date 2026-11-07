@@ -140,10 +140,14 @@ export function trustedKeys(): TrustedKey[] {
   return out;
 }
 
-/** The state of a key by fingerprint, as installed releases show it (unknown: removed or never trusted). */
-export function keyStateOf(fingerprint: string): LibraryKeyState | 'unknown' {
+/** The state of a key by fingerprint, as releases show it (expired: its validity ended; unknown: removed or never trusted). */
+export function keyStateOf(fingerprint: string, today = new Date().toISOString().slice(0, 10)): LibraryKeyState | 'expired' | 'unknown' {
   const r = db().get<KeyRow>('SELECT * FROM library_keys WHERE fingerprint = ?', fingerprint);
-  if (r) return r.state === 'revoked' ? 'revoked' : keyIntegrity(r) === 'ok' ? r.state : 'unknown';
+  if (r) {
+    if (r.state === 'revoked') return 'revoked';
+    if (keyIntegrity(r) !== 'ok') return 'unknown';
+    return r.expires_at && r.expires_at < today ? 'expired' : r.state;
+  }
   return builtInKeys().some((k) => k.fingerprint === fingerprint) ? 'active' : 'unknown';
 }
 

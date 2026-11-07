@@ -10,9 +10,11 @@ import {
   type LibraryItemKind,
   type LibraryItemOrigin,
   type LibraryItemStatus,
+  type LibraryMonitorOutputs,
   type LibraryOrigin,
   type LibraryProcessAbilities,
   type LibraryReferenceChoice,
+  type LibraryRequestedDecisions,
   type LibraryReleaseSource,
   type LibraryReleaseSummary,
   type LibraryReview,
@@ -121,11 +123,14 @@ function requireInstall(library: string): InstallRow {
 
 // ---------- what a process can do ----------
 
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
 /** Computed from the steps (graph nodes) of a process definition. */
 export function abilitiesOf(def: ProcessDefinition): LibraryProcessAbilities {
   const a: LibraryProcessAbilities = {
     slots: def.connections.map((c) => ({ slot: c.slot, kind: c.kind || null })),
     writes: 0,
+    markedNotChanging: 0,
     accessChanges: 0,
     browser: 0,
     ai: 0,
@@ -137,9 +142,15 @@ export function abilitiesOf(def: ProcessDefinition): LibraryProcessAbilities {
   };
   for (const n of def.nodes as unknown as Record<string, unknown>[]) {
     switch (n.type) {
-      case 'http':
-        if (isMutating(n as { method: 'GET'; mutating?: boolean })) a.writes++;
+      case 'http': {
+        // by the method, whatever the flag says: a DELETE marked mutating: false still changes the platform – and the
+        // engine treats it as a read, so it runs in a dry run too (shown separately)
+        const method = String(n.method ?? 'GET').toUpperCase();
+        const writesByMethod = !READ_METHODS.has(method);
+        if (writesByMethod || isMutating(n as { method: 'GET'; mutating?: boolean })) a.writes++;
+        if (writesByMethod && n.mutating === false) a.markedNotChanging++;
         break;
+      }
       case 'accessChange':
         a.accessChanges++;
         break;
@@ -173,7 +184,8 @@ export function abilitiesOf(def: ProcessDefinition): LibraryProcessAbilities {
 export function abilityTokens(a: LibraryProcessAbilities): string[] {
   const out: string[] = [];
   for (const s of a.slots) out.push(`slot:${s.slot}:${s.kind ?? '*'}`);
-  for (const k of ['writes', 'accessChanges', 'browser', 'ai', 'databaseQueries', 'notifications', 'userTasks'] as const) if (a[k]) out.push(k);
+  for (const k of ['writes', 'markedNotChanging', 'accessChanges', 'browser', 'ai', 'databaseQueries', 'notifications', 'userTasks'] as const)
+    if (a[k]) out.push(k);
   for (const p of a.subprocesses) out.push(`subprocess:${p}`);
   for (const d of a.datasets) out.push(`dataset:${d}`);
   return out;
@@ -259,7 +271,11 @@ function mayDecide(p: Planned): boolean {
 }
 
 function connectorView(pkg: ConnectorPackage): LibraryConnectorView {
-  const cfg = (pkg.config ?? {}) as { auth?: { type?: string; tokenUrl?: string }; http?: { trustedOrigins?: string[] } };
+  const cfg = (pkg.config ?? {}) as {
+    auth?: { type?: string; tokenUrl?: string };
+    http?: { trustedOrigins?: string[]; insecureTls?: boolean; caPem?: string; proxy?: string; defaultHeaders?: Record<string, string> };
+  };
+  const http = (cfg.http ?? {}) as Record<string, unknown>;
   return {
     kind: pkg.kind,
     label: pkg.label,
@@ -269,7 +285,39 @@ function connectorView(pkg: ConnectorPackage): LibraryConnectorView {
     authType: cfg.auth?.type ?? 'none',
     secretFields: pkg.secretFields.map((s) => s.key),
     specs: pkg.specs.length,
+    http,
+    insecureTls: cfg.http?.insecureTls === true,
+    customCa: typeof cfg.http?.caPem === 'string' && cfg.http.caPem.trim() !== '',
+    proxy: typeof cfg.http?.proxy === 'string' && cfg.http.proxy ? cfg.http.proxy : null,
+    defaultHeaders: Object.keys(cfg.http?.defaultHeaders ?? {}),
   };
+}
+
+/** What a monitor's outputs do – from the file: webhooks and pushes send data out, process outputs start runs. */
+export function monitorOutputsOf(content: unknown): LibraryMonitorOutputs {
+  const outputs = Array.isArray((content as { outputs?: unknown }).outputs) ? ((content as { outputs: Record<string, unknown>[] }).outputs ?? []) : [];
+  const out: LibraryMonitorOutputs = { outputs: [], sendsOut: 0, startsProcesses: [], notifications: 0 };
+  for (const o of outputs) {
+    if (!o || typeof o !== 'object') continue;
+    const type = String(o.type ?? '');
+    const str = (v: unknown) => (typeof v === 'string' ? v : '');
+    let target = '';
+    if (type === 'webhook') {
+      target = str(o.url) || [str(o.platform), str(o.path)].filter(Boolean).join(' ');
+      out.sendsOut++;
+    } else if (type === 'gatus' || type === 'zabbix') {
+      target = str(o.platform);
+      out.sendsOut++;
+    } else if (type === 'process') {
+      target = str(o.processId);
+      if (target && !out.startsProcesses.includes(target)) out.startsProcesses.push(target);
+    } else if (type === 'notification') {
+      target = (Array.isArray(o.subscribers) ? o.subscribers.map(String) : []).join(', ');
+      out.notifications++;
+    }
+    out.outputs.push({ id: str(o.id), type, target, ...(type === 'process' ? { dryRun: o.dryRun === true } : {}) });
+  }
+  return out;
 }
 
 // ---------- references ----------
@@ -338,7 +386,7 @@ async function previousItems(inst: InstallRow | undefined, r: ReleaseRow): Promi
   const prev = releaseRow(inst.release_id);
   if (!prev) return null;
   try {
-    const v = await verifyStored(prev);
+    const v = await verifyStored(prev, { review: true });
     return new Map(v.items.map((i) => [`${i.kind}\u0000${i.identity}`, i]));
   } catch (e) {
     logger.warn({ release: prev.id, err: (e as Error).message }, 'library: the installed release does not verify any more – abilities are not compared');
@@ -349,7 +397,8 @@ async function previousItems(inst: InstallRow | undefined, r: ReleaseRow): Promi
 export async function reviewRelease(id: string): Promise<LibraryReview> {
   requireReviewer();
   const r = requireRelease(id);
-  const v = await verifyStored(r);
+  // an expired key: the page still shows the release, with the reason it cannot be installed (blockers)
+  const v = await verifyStored(r, { review: true });
   const inst = installRow(r.library);
   const before = await previousItems(inst, r);
   const planned = plan(r.library, v.items);
@@ -382,7 +431,10 @@ export async function reviewRelease(id: string): Promise<LibraryReview> {
       const had = new Set(prev ? abilityTokens(abilitiesOf(prev.content as ProcessDefinition)) : []);
       out.newAbilities = before ? abilityTokens(out.abilities).filter((t) => !had.has(t)) : [];
     }
-    if (it.kind === 'monitor') out.platformRefs = monitors.platformReferences(monitorDefinition(it.content)).map((x) => x.ref);
+    if (it.kind === 'monitor') {
+      out.platformRefs = monitors.platformReferences(monitorDefinition(it.content)).map((x) => x.ref);
+      out.monitorOutputs = monitorOutputsOf(it.content);
+    }
     if (it.kind === 'connector') out.connector = connectorView(it.content as ConnectorPackage);
     return out;
   });
@@ -428,8 +480,52 @@ export async function reviewRelease(id: string): Promise<LibraryReview> {
   };
   const summary = toReleaseSummary(r);
   const blockers = blockersOf(r, summary, inst, items);
+  // four-eyes: the stored decisions, and the review computed for exactly them (what the approval would install)
+  const stored = r.install_request ? parseJson<StoredRequest | null>(r.install_request, null) : null;
+  let request: LibraryRequestedDecisions | null = null;
+  if (stored) {
+    const q = stored.request ?? {};
+    const visiblePlatforms = new Map(
+      listPlatforms()
+        .filter((p) => p.permissions.length > 0)
+        .map((p) => [p.id, p.name]),
+    );
+    request = {
+      by: stored.by,
+      at: stored.at,
+      rollback: !!stored.rollback,
+      hash: requestHash(stored),
+      platforms: Object.entries(q.platforms ?? {}).map(([ref, pid]) => ({ ref, id: pid, name: visiblePlatforms.get(pid) ?? null })),
+      processes: Object.entries(q.processes ?? {}).map(([ref, pid]) => ({
+        ref,
+        id: pid,
+        name: processes.permissionsFor(pid).includes('view') ? (visibleProcesses.find((x) => x.id === pid)?.name ?? pid) : null,
+      })),
+      skip: q.skip ?? [],
+      keepLocal: q.keepLocal ?? [],
+      takeLibrary: q.takeLibrary ?? [],
+      comment: q.comment?.trim() || null,
+    };
+    for (const x of references.platforms) x.mapped = q.platforms?.[x.ref] ?? x.mapped;
+    for (const x of references.processes) x.mapped = q.processes?.[x.ref] ?? x.mapped;
+    for (const it of items) {
+      it.requested =
+        it.status === 'removed'
+          ? 'detach'
+          : it.status === 'unchanged'
+            ? 'link'
+            : it.status === 'conflict'
+              ? q.takeLibrary?.includes(it.path)
+                ? 'takeLibrary'
+                : 'keepLocal'
+              : q.skip?.includes(it.path) && it.status === 'new'
+                ? 'skip'
+                : 'install';
+    }
+  }
   return {
     release: summary,
+    request,
     installed: inst ? { id: inst.release_id, release: releaseRow(inst.release_id)?.release_version ?? '' } : null,
     description: v.manifest.description,
     licence: v.manifest.licence ?? '',
@@ -447,6 +543,8 @@ function blockersOf(r: ReleaseRow, s: LibraryReleaseSummary, inst: InstallRow | 
   const out: string[] = [];
   if (s.needsVersion) out.push('needsVersion');
   if (s.keyState === 'revoked') out.push('revokedKey');
+  // an expired key stops installs and updates; a rollback to the release installed before stays possible
+  if (s.keyState === 'expired' && !(r.state === 'previous' && inst?.previous_release_id === r.id)) out.push('expiredKey');
   if (r.state === 'installed') out.push('installed');
   else if (r.state === 'previous') {
     if (!inst || inst.previous_release_id !== r.id) out.push('notPrevious');
@@ -564,8 +662,8 @@ export async function installRelease(
     throw new HttpError(409, `Release ${r.release_version} needs Steward ${summary.needsVersion} or newer`, 'LIBRARY_NEEDS_VERSION', {
       version: summary.needsVersion,
     });
-  // the stored copy, verified again: a revoked key, a changed file or a broken seal stops here
-  const v = await verifyStored(r);
+  // the stored copy, verified again: a revoked or (except for a rollback) expired key, a changed file or a broken seal stops here
+  const v = await verifyStored(r, { rollback: isRollback });
   const planned = plan(r.library, v.items);
   const skip = new Set(req.skip ?? []);
   const keep = new Set(req.keepLocal ?? []);
@@ -815,11 +913,21 @@ interface StoredRequest {
 }
 
 /** The second person: never the one who asked (by identity, auth/assurance.ts); installs with the approver's rights. */
-export async function approveInstall(id: string): Promise<LibraryInstallResult> {
+/** The hash an approval names: the stored request exactly as the approver was shown it. */
+export const requestHash = (r: StoredRequest) => sha256(canonicalJson({ by: r.by, at: r.at, rollback: !!r.rollback, request: r.request ?? {} }));
+
+/**
+ * The second person approves exactly the stored decisions they were shown (`hash`, from the review) – never the
+ * requester (by identity, auth/assurance.ts). The install runs with the approver's own rights: every item, platform
+ * and process is checked for them as for an install of their own.
+ */
+export async function approveInstall(id: string, hash: string): Promise<LibraryInstallResult> {
   requireReviewer();
   const r = requireRelease(id);
   const pending = r.install_request ? parseJson<StoredRequest | null>(r.install_request, null) : null;
   if (!pending) throw new HttpError(409, 'No install of this release waits for approval', 'LIBRARY_NO_REQUEST');
+  if (!hash || hash !== requestHash(pending))
+    throw new HttpError(409, 'The request changed since you looked at it – review it again', 'LIBRARY_REQUEST_CHANGED');
   const u = currentUser()!;
   const fe = checkFourEyes('library.install', [pending.by], u);
   if (!fe.ok) throw new HttpError(403, 'You asked for this install – a second person approves it', 'FOUR_EYES_REQUIRED', { context: 'libraryInstall' });
@@ -866,6 +974,13 @@ export async function rollbackLibrary(library: string, req: LibraryInstallReques
 export function uninstallLibrary(library: string): void {
   requireReviewer();
   const inst = requireInstall(library);
+  // a hold is an administrator's decision: it ends by lifting it (audited, turns on again what it paused), never by
+  // uninstalling the library, which would drop it with the install
+  if (inst.held)
+    throw new HttpError(409, `The library ${library} is on hold – an administrator lifts the hold before it can be uninstalled`, 'LIBRARY_HELD', {
+      library,
+      context: 'uninstall',
+    });
   const rel = releaseRow(inst.release_id);
   db().tx(() => {
     const n = db().run('DELETE FROM sync_items WHERE source_id = ?', sourceOf(library)).changes;

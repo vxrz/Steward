@@ -545,8 +545,9 @@ describe('four-eyes on install (control point library.install)', () => {
     const asked = (await dana('POST', `/library-releases/${rel.id}/install`, {})) as any;
     expect(asked).toMatchObject({ status: 'requested', release: { installRequest: { by: 'dana' } } });
     expect(((await s.api('GET', '/processes')) as any[]).some((p) => p.id === 'fe-notify')).toBe(false);
-    expect((await fail(dana('POST', `/library-releases/${rel.id}/approve`, {}))).code).toBe('FOUR_EYES_REQUIRED');
-    const done = (await s.api('POST', `/library-releases/${rel.id}/approve`, {})) as any;
+    const { hash } = ((await s.api('GET', `/library-releases/${rel.id}/review`)) as any).request;
+    expect((await fail(dana('POST', `/library-releases/${rel.id}/approve`, { hash }))).code).toBe('FOUR_EYES_REQUIRED');
+    const done = (await s.api('POST', `/library-releases/${rel.id}/approve`, { hash })) as any;
     expect(done.status).toBe('installed');
     expect(((await s.api('GET', '/processes')) as any[]).some((p) => p.id === 'fe-notify')).toBe(true);
   });

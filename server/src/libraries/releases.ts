@@ -113,12 +113,13 @@ export function readReleaseFiles(files: FileSet): { release: ReleaseFile; releas
 /**
  * The signature: by a trusted key of the release's publisher, over release.json, in the namespace steward-library.
  * `allowRetired`: Steward's own stored copy of a release (rollback, install of a release staged before the rotation).
+ * `allowExpired`: only a rollback to a release that was installed before; an expired key stops every other install.
  */
 export function checkSignature(
   release: ReleaseFile,
   releaseJson: Buffer,
   signature: string | null,
-  o: { allowRetired?: boolean; keys?: TrustedKey[]; today?: string } = {},
+  o: { allowRetired?: boolean; allowExpired?: boolean; keys?: TrustedKey[]; today?: string } = {},
 ): TrustedKey {
   if (!signature) throw refusal('LIBRARY_SIGNATURE_INVALID', `${LIBRARY_SIGNATURE_FILE} is missing – the release is not signed`);
   let fingerprint: string;
@@ -147,7 +148,7 @@ export function checkSignature(
       fingerprint,
     });
   const today = o.today ?? new Date().toISOString().slice(0, 10);
-  if (key.expiresAt && key.expiresAt < today && !o.allowRetired)
+  if (key.expiresAt && key.expiresAt < today && !o.allowExpired)
     throw refusal('LIBRARY_KEY_EXPIRED', `The key ${fingerprint} of "${key.publisherName}" expired on ${key.expiresAt}`, { fingerprint });
   if (key.libraries.length && !key.libraries.includes(release.library))
     throw refusal('LIBRARY_NOT_ALLOWED', `The publisher "${key.publisherName}" is trusted for ${key.libraries.join(', ')} only, not for "${release.library}"`, {
@@ -231,7 +232,7 @@ export async function parseItems(manifest: LibraryManifest, files: FileSet): Pro
 }
 
 /** Verifies a whole release folder (see the module comment). */
-export async function verifyRelease(files: FileSet, o: { allowRetired?: boolean; keys?: TrustedKey[] } = {}): Promise<VerifiedRelease> {
+export async function verifyRelease(files: FileSet, o: { allowRetired?: boolean; allowExpired?: boolean; keys?: TrustedKey[] } = {}): Promise<VerifiedRelease> {
   checkFileSet(files);
   const { release, releaseJson, signature, manifest } = readReleaseFiles(files);
   const key = checkSignature(release, releaseJson, signature, o);
@@ -355,8 +356,13 @@ export function storedFiles(r: ReleaseRow): FileSet {
 }
 
 /** The stored copy, verified again (rollback and install never trust the database alone). */
-export async function verifyStored(r: ReleaseRow): Promise<VerifiedRelease> {
-  const v = await verifyRelease(storedFiles(r), { allowRetired: true });
+/**
+ * The stored copy, verified again (rollback and install never trust the database alone). Retired keys are accepted
+ * (the copy was staged before the rotation); an expired key only for `rollback` (a release that was installed before)
+ * or `review` (the page shows why it cannot be installed); a revoked key never.
+ */
+export async function verifyStored(r: ReleaseRow, o: { rollback?: boolean; review?: boolean } = {}): Promise<VerifiedRelease> {
+  const v = await verifyRelease(storedFiles(r), { allowRetired: true, allowExpired: !!(o.rollback || o.review) });
   if (v.sha256 !== r.release_sha256 || v.release.library !== r.library || v.release.release !== r.release_version)
     throw refusal('LIBRARY_FILE_MISMATCH', 'The stored copy of the release does not match what was staged');
   return v;

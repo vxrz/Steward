@@ -1042,7 +1042,10 @@
     "FORBIDDEN_installLibraryItem": "You are not allowed to create or change an item of this release.",
     "FORBIDDEN_installConnector": "Only administrators install connector types.",
     "FORBIDDEN_holdLibrary": "Only administrators put a library on hold.",
-    "FORBIDDEN_withdrawLibraryInstall": "Only the person who asked or an administrator withdraws the request."
+    "FORBIDDEN_withdrawLibraryInstall": "Only the person who asked or an administrator withdraws the request.",
+    "LIBRARY_HELD_resume": "The library {{library}} is on hold: what it paused stays off until an administrator lifts the hold.",
+    "LIBRARY_HELD_uninstall": "The library {{library}} is on hold: an administrator lifts the hold before it can be uninstalled.",
+    "LIBRARY_REQUEST_CHANGED": "The request changed since you looked at it – review it again."
   },
   "boundary": {
     "title": "Something went wrong on this page",
