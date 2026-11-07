@@ -288,7 +288,6 @@ function pyramid(maxZoom: number, tile: (z: number, x: number, y: number) => Buf
 /** The demo's self-hosted file: <data>/maps/demo-raster.pmtiles, zoom 0–4 (written once). */
 export function writeDemoPmtiles(mapsDir: string): string {
   const file = path.join(mapsDir, 'demo-raster.pmtiles');
-  if (fs.existsSync(file)) return file;
   fs.mkdirSync(mapsDir, { recursive: true, mode: 0o700 });
   const buf = pmtilesArchive(pyramid(4, mockRasterTile), {
     tileType: 2,
@@ -296,7 +295,12 @@ export function writeDemoPmtiles(mapsDir: string): string {
     maxZoom: 4,
     metadata: { name: 'Demo raster', attribution: 'Demo tiles (made up)', type: 'baselayer' },
   });
-  fs.writeFileSync(file, buf, { mode: 0o600 });
+  try {
+    // written once: 'wx' refuses an existing file in the same call (no check-then-write)
+    fs.writeFileSync(file, buf, { mode: 0o600, flag: 'wx' });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+  }
   return file;
 }
 
