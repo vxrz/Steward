@@ -199,7 +199,16 @@ Each step is its own PR.
 4. The settings keys are `notifications.teamsBot` and `notifications.teamsBot.secrets` (setting keys need a known prefix); the HMAC key of the card data is generated on the first save and kept with the credential.
 5. Clicks are answered synchronously with the card in the invoke response; only help texts, new cards and card updates call the Bot Connector.
 6. `platform.privilegedIdentity` (ADR 0009 step 4) does not exist yet; the "never with a step-up" rule is generic (`instanceRule` forces it off for a point whose rule asks for a step-up).
-7. The decision entry point is `decideFromTeams()` in `server/src/msteams/decide.ts`; it calls the existing decision code (`completeTask`, `decide()` of MCP requests) and is the one place to switch to the engine command layer.
+7. The decision entry point is `decideFromTeams()` in `server/src/msteams/decide.ts`. Decision steps go through the engine boundary of ADR 0011 like the route – `authorizeSignal` and `engine().signal(task.decide)`, whose signal carries the audit details (`via: "teams"`, tenant, object id); MCP requests go through `decide()` of `mcp/requests.ts`.
+8. After the security review of 0.10.0:
+   - **A Teams decision needs a Steward sign-in within the last 7 days** (bot setting _Sign-in needed within_, 1–30 days). Roles and teams of single sign-on accounts are synchronised at sign-in only; without the bound, a person removed from an IdP group could keep deciding in Teams. Otherwise the card says _Sign in to Steward once to decide here_ and nothing is decided.
+   - **`mcp.write` is not decided in Teams by default** (its switch starts off; `run.decide` stays on): Steward shows the concrete request – path, query, body – and a card cannot show all of it.
+   - **Personal chats show what is decided**: a step's instructions and items, an AI request's concrete method, path, query, a shortened body and the assistant's reason, marked as data. Channel cards stay minimal.
+   - **Switching the bot on needs a second administrator**: a new control point `teams.bot` (_Decide with the Teams bot_, its Teams switch off by default). Saving the bot as on asks for that loosening; until a second administrator approves it, the bot records installations but takes no decisions and posts no cards.
+   - Bot and Bot Connector calls follow **no redirects** (the bot's token and client assertion never reach another host).
+   - A card refresh checks the **one item** (no search of the newest 500 tasks: an older open step stays decidable), cached for 30 seconds per person and item; the refresh list of deciders is cached for a minute per item and version.
+   - A refresh or an unknown verb shows an item's facts only to people who may see it; **card data older than 30 days is refused** (it carries its time inside the HMAC).
+   - While the Bot Framework metadata cannot be read, it is fetched again only after a backoff (1 minute, doubling up to 15), with one warning per interval.
 
 ## Decided after review
 

@@ -212,6 +212,7 @@ Each step: tests on SQLite and PostgreSQL (time zones, daylight saving), e2e on 
 4. A team default sets quiet hours and digests together: the first team by name that sets either gives both.
 5. A target that can no longer receive at release (its channel switched off or removed, the person's e-mail turned off) gets nothing; the held items are dropped with a log entry – the in-app copies stay. Visibility at release is checked for runs, processes, platforms and monitors; other items rely on the recipients chosen when they were held.
 6. All four rollout steps landed in 0.10.0 together, the `teamsChat:<userId>` target with the Teams bot of ADR 0013.
+7. After the security review of 0.10.0: a **waiting decision is never folded** into the count of the 500-item limit (only other events are; with nothing else left, the limit is exceeded rather than a decision hidden); the **release check covers every kind** an item can be about (process, platform, monitor, credential, record, service, application, system, ticket, dashboard, site, data contract – the access decision of its page; an unknown kind is left out), which replaces item 5's narrower check; the **members' default quiet hours of a team** need the step-up _change notification delivery_, like channel quiet hours.
 
 ## Decided after review
 
