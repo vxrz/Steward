@@ -66,3 +66,4 @@ export * from './versions.js';
 export * from './changedetection.js';
 export * from './costs.js';
 export * from './datacontracts.js';
+export * from './libraries.js';

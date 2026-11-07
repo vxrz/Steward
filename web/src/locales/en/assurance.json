@@ -293,6 +293,16 @@
         "label": "Raise a cost budget",
         "description": "A higher monthly cost budget of a service, application or team, another currency, or no budget any more. Lowering a budget needs no confirmation."
       }
+    },
+    "library": {
+      "publishers": {
+        "label": "Trust a library publisher",
+        "description": "Adding a publisher or a key, removing one, letting a publisher publish more libraries, lifting a key's expiry. Retiring and revoking a key need no confirmation."
+      },
+      "install": {
+        "label": "Install a library release",
+        "description": "Installing, updating or rolling back a shared library. With four-eyes a second designer or administrator confirms the install."
+      }
     }
   }
 }

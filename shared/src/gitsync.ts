@@ -16,6 +16,13 @@ export type SyncKind = (typeof SYNC_KINDS)[number];
 export const SYNC_REF_TYPES = ['branch', 'tag'] as const;
 export type SyncRefType = (typeof SYNC_REF_TYPES)[number];
 
+/**
+ * What a source brings in (0.10.0, ADR 0014): `items` – one item per file, each change reviewed on its own (as
+ * before); `library` – a signed library release, following the version tags of the repository.
+ */
+export const SYNC_SOURCE_MODES = ['items', 'library'] as const;
+export type SyncSourceMode = (typeof SYNC_SOURCE_MODES)[number];
+
 /** Placeholder in a source's branch or tag name: this installation's Steward version (`v{version}` → `v0.2.1`). */
 export const SYNC_VERSION_PLACEHOLDER = '{version}';
 
@@ -53,6 +60,10 @@ export const SYNC_WEBHOOK_MAX_BODY_BYTES = 512 * 1024;
 
 export interface SyncSourceSettings {
   name: string;
+  /** items (default) or library: then `branch` is the tag pattern, {version} standing for the release (v{version}) */
+  mode?: SyncSourceMode;
+  /** Library mode: also follow pre-release tags (1.5.0-rc.1) */
+  allowPrereleases?: boolean;
   provider: GitProvider;
   /** Web URL of the repository, e.g. https://git.example.com/team/steward-library */
   repoUrl: string;
@@ -104,6 +115,8 @@ export interface SyncSource extends SyncSourceSettings {
   lastError: string | null;
   lastVerified: boolean | null;
   pendingCount: number;
+  /** Library mode: the newest release a fetch saw on the Git host (staged or not) */
+  newestSeen: string | null;
 }
 
 /** Returned once on creation / webhook secret rotation. */
@@ -126,6 +139,8 @@ export interface SyncFetchResult {
   invalid: number;
   autoAccepted: number;
   error?: string;
+  /** Library mode: the release the fetch looked at */
+  library?: { library: string; release: string; releaseId: string; staged: boolean };
 }
 
 export interface SyncOrigin {

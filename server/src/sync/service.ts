@@ -6,7 +6,9 @@ import {
   SYNC_KINDS,
   SYNC_LIMITS,
   SYNC_REF_TYPES,
+  SYNC_SOURCE_MODES,
   SYNC_VERSION_PLACEHOLDER,
+  type SyncSourceMode,
   type SyncRefType,
   type SyncSource,
   type SyncSourceSecret,
@@ -59,6 +61,9 @@ export interface SourceRow {
   last_status: 'ok' | 'error' | null;
   last_error: string | null;
   last_verified: number | null;
+  mode?: SyncSourceMode;
+  allow_prereleases?: number;
+  newest_seen?: string | null;
 }
 
 export const SOURCE_ID_RE = /^gsr_[A-Za-z0-9_-]{8,40}$/;
@@ -82,49 +87,63 @@ const refName = z
   .trim()
   .refine((b) => BRANCH.test(b.replace(VERSION_TOKEN, '0.0.0')), `Invalid branch or tag name (letters, digits, . _ - / and ${SYNC_VERSION_PLACEHOLDER})`);
 
-export const sourceSchema = z.object({
-  name: z.string().trim().min(1).max(100),
-  provider: z.enum(GIT_PROVIDERS),
-  repoUrl: z.string().trim().min(1).max(500),
-  apiUrl: z.string().trim().max(500).optional().default(''),
-  refType: z.enum(SYNC_REF_TYPES).default('branch'),
-  branch: refName.default('main'),
-  folder: z
-    .string()
-    .trim()
-    .max(200)
-    .transform((f) => f.replace(/^\/+|\/+$/g, ''))
-    .refine((f) => f === '' || (FOLDER.test(f) && !f.split('/').some((s) => s === '.' || s === '..')), 'Invalid folder (letters, digits, . _ - and /)')
-    .default(''),
-  kinds: z.array(z.enum(SYNC_KINDS)).min(1).max(SYNC_KINDS.length),
-  intervalMinutes: z
-    .number()
-    .int()
-    .min(0)
-    .max(7 * 24 * 60)
-    .refine((n) => n === 0 || n >= 5, 'At least every 5 minutes (or 0 for no schedule)')
-    .default(0),
-  webhookEnabled: z.boolean().default(false),
-  requireSignedCommits: z.boolean().default(false),
-  /** Git host logins or e-mail addresses (compared case-insensitively) */
-  allowedSigners: z
-    .array(
-      z
-        .string()
-        .trim()
-        .toLowerCase()
-        .min(1)
-        .max(200)
-        .regex(/^[^\s,;<>"']+$/, 'A login or an e-mail address, without spaces'),
-    )
-    .max(SYNC_LIMITS.maxAllowedSigners)
-    .default([])
-    .transform((a) => [...new Set(a)]),
-  autoAcceptNew: z.boolean().default(false),
-  enabled: z.boolean().default(true),
-  /** Write-only. Omitted = keep, '' = remove. */
-  token: z.string().max(1000).optional(),
-});
+export const sourceSchema = z
+  .object({
+    name: z.string().trim().min(1).max(100),
+    mode: z.enum(SYNC_SOURCE_MODES).default('items'),
+    allowPrereleases: z.boolean().default(false),
+    provider: z.enum(GIT_PROVIDERS),
+    repoUrl: z.string().trim().min(1).max(500),
+    apiUrl: z.string().trim().max(500).optional().default(''),
+    refType: z.enum(SYNC_REF_TYPES).default('branch'),
+    branch: refName.default('main'),
+    folder: z
+      .string()
+      .trim()
+      .max(200)
+      .transform((f) => f.replace(/^\/+|\/+$/g, ''))
+      .refine((f) => f === '' || (FOLDER.test(f) && !f.split('/').some((s) => s === '.' || s === '..')), 'Invalid folder (letters, digits, . _ - and /)')
+      .default(''),
+    kinds: z.array(z.enum(SYNC_KINDS)).min(1).max(SYNC_KINDS.length),
+    intervalMinutes: z
+      .number()
+      .int()
+      .min(0)
+      .max(7 * 24 * 60)
+      .refine((n) => n === 0 || n >= 5, 'At least every 5 minutes (or 0 for no schedule)')
+      .default(0),
+    webhookEnabled: z.boolean().default(false),
+    requireSignedCommits: z.boolean().default(false),
+    /** Git host logins or e-mail addresses (compared case-insensitively) */
+    allowedSigners: z
+      .array(
+        z
+          .string()
+          .trim()
+          .toLowerCase()
+          .min(1)
+          .max(200)
+          .regex(/^[^\s,;<>"']+$/, 'A login or an e-mail address, without spaces'),
+      )
+      .max(SYNC_LIMITS.maxAllowedSigners)
+      .default([])
+      .transform((a) => [...new Set(a)]),
+    autoAcceptNew: z.boolean().default(false),
+    enabled: z.boolean().default(true),
+    /** Write-only. Omitted = keep, '' = remove. */
+    token: z.string().max(1000).optional(),
+  })
+  // library mode follows version tags: exactly one {version} (the release), never auto-accepted
+  .superRefine((s, ctx) => {
+    if (s.mode !== 'library') return;
+    if (s.branch.split(SYNC_VERSION_PLACEHOLDER).length !== 2)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['branch'],
+        message: `A library source follows tags: the pattern holds ${SYNC_VERSION_PLACEHOLDER} once, e.g. v${SYNC_VERSION_PLACEHOLDER}`,
+      });
+  })
+  .transform((s) => (s.mode === 'library' ? { ...s, refType: 'tag' as const, autoAcceptNew: false } : s));
 export type SourceInput = z.infer<typeof sourceSchema>;
 
 const SELECT = `SELECT s.*, (SELECT COUNT(*) FROM sync_updates u WHERE u.source_id = s.id AND u.status = 'pending') AS pending_count FROM sync_sources s`;
@@ -165,6 +184,9 @@ export function toSource(r: SourceRow & { pending_count?: number }): SyncSource 
     lastError: r.last_error,
     lastVerified: r.last_verified === null ? null : !!r.last_verified,
     pendingCount: Number(r.pending_count ?? 0),
+    mode: r.mode ?? 'items',
+    allowPrereleases: !!r.allow_prereleases,
+    newestSeen: r.newest_seen ?? null,
   };
 }
 
@@ -209,6 +231,8 @@ function checked(input: SourceInput): SourceInput {
 
 /** Settings as recorded in the audit log (no token, no secret). */
 const auditable = (s: SourceInput) => ({
+  mode: s.mode ?? 'items',
+  allowPrereleases: !!s.allowPrereleases,
   provider: s.provider,
   repoUrl: s.repoUrl,
   apiUrl: s.apiUrl || null,
@@ -234,8 +258,9 @@ export function createSource(raw: SourceInput): SyncSourceSecret {
   db().tx(() => {
     db().run(
       `INSERT INTO sync_sources (id, name, provider, repo_url, api_url, ref_type, branch, folder, kinds, token_enc, interval_minutes, webhook_enabled,
-         webhook_secret_enc, webhook_secret_hash, webhook_secret_prefix, require_signed, allowed_signers, auto_accept_new, enabled, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         webhook_secret_enc, webhook_secret_hash, webhook_secret_prefix, require_signed, allowed_signers, auto_accept_new, enabled, created_by, created_at, updated_at,
+         mode, allow_prereleases)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       s.name,
       s.provider,
@@ -258,6 +283,8 @@ export function createSource(raw: SourceInput): SyncSourceSecret {
       currentUser()!.username,
       ts,
       ts,
+      s.mode ?? 'items',
+      s.allowPrereleases ? 1 : 0,
     );
     audit({
       action: 'sync.source_created',
@@ -281,6 +308,7 @@ export function updateSource(id: string, raw: SourceInput): SyncSource {
   const tokenEnc = token === undefined ? before.token_enc : token ? vault().encrypt(token) : null;
   // another repository or branch: the last commit says nothing about the new one
   const moved =
+    (before.mode ?? 'items') !== (s.mode ?? 'items') ||
     before.repo_url !== s.repoUrl ||
     before.branch !== s.branch ||
     (before.ref_type ?? 'branch') !== s.refType ||
@@ -289,7 +317,7 @@ export function updateSource(id: string, raw: SourceInput): SyncSource {
   db().tx(() => {
     db().run(
       `UPDATE sync_sources SET name = ?, provider = ?, repo_url = ?, api_url = ?, ref_type = ?, branch = ?, folder = ?, kinds = ?, token_enc = ?, interval_minutes = ?,
-         webhook_enabled = ?, require_signed = ?, allowed_signers = ?, auto_accept_new = ?, enabled = ?, updated_at = ?${moved ? ', last_commit = NULL, last_ref = NULL' : ''} WHERE id = ?`,
+         webhook_enabled = ?, require_signed = ?, allowed_signers = ?, auto_accept_new = ?, enabled = ?, mode = ?, allow_prereleases = ?, updated_at = ?${moved ? ', last_commit = NULL, last_ref = NULL' : ''} WHERE id = ?`,
       s.name,
       s.provider,
       s.repoUrl,
@@ -305,6 +333,8 @@ export function updateSource(id: string, raw: SourceInput): SyncSource {
       JSON.stringify(s.allowedSigners),
       s.autoAcceptNew ? 1 : 0,
       s.enabled ? 1 : 0,
+      s.mode ?? 'items',
+      s.allowPrereleases ? 1 : 0,
       nowIso(),
       id,
     );

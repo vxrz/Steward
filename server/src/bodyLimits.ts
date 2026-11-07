@@ -15,7 +15,16 @@
  * The route permission matrix test checks that only the routes named in LARGE_BODIES accept more than
  * the default, so a new route stays at 1 MB unless it is added here.
  */
-import { COMPONENT_LIMITS, COST_LIMITS, DATA_CONTRACT_LIMITS, DB_SCHEMA_LIMITS, PLANT_LIMITS, RECORDING_LIMITS, REPORT_LOGO_MAX_BYTES } from '@sm/shared';
+import {
+  COMPONENT_LIMITS,
+  COST_LIMITS,
+  DATA_CONTRACT_LIMITS,
+  DB_SCHEMA_LIMITS,
+  LIBRARY_LIMITS,
+  PLANT_LIMITS,
+  RECORDING_LIMITS,
+  REPORT_LOGO_MAX_BYTES,
+} from '@sm/shared';
 import { LIMITS as CATALOGUE_LIMITS } from './compliance/controls.js';
 import { MONITOR_IMPORT_LIMITS } from './monitors/model.js';
 import { IMPORT_LIMITS as RECORD_IMPORT_LIMITS } from './records/markdown-io.js';
@@ -127,6 +136,11 @@ export const LARGE_BODIES = {
   costImport: {
     routes: ['POST /api/costs/platform/:id/imports/preview', 'POST /api/costs/platform/:id/imports', 'POST /api/hooks/costs/:platformId'],
     bytes: jsonText(COST_LIMITS.importBytes, 16 * KIB),
+  },
+  /** A library release as a .zip (0.10.0, #238): LIBRARY_LIMITS.maxUploadBytes (8 MB) as base64 in a JSON body */
+  libraryUpload: {
+    routes: ['POST /api/library-releases/upload'],
+    bytes: base64(LIBRARY_LIMITS.maxUploadBytes),
   },
 } as const satisfies Record<string, LargeBody>;
 

@@ -417,6 +417,8 @@ export const STEP_UP_ACTIONS = [
   'changeAiBudget',
   // 0.9.0 (#226): raising a monthly cost budget (or removing it)
   'changeCostBudget',
+  // 0.10.0 (#238): trusting a library publisher or key, removing one, widening its libraries, lifting an expiry
+  'changeTrustedPublishers',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 

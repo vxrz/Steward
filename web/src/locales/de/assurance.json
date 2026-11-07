@@ -293,6 +293,16 @@
         "label": "Ein Kostenbudget erhöhen",
         "description": "Ein höheres Monatsbudget für die Kosten eines Service, einer Anwendung oder eines Teams, eine andere Währung oder kein Budget mehr. Ein Budget zu senken braucht keine Bestätigung."
       }
+    },
+    "library": {
+      "publishers": {
+        "label": "Einem Bibliotheksherausgeber vertrauen",
+        "description": "Einen Herausgeber oder Schlüssel hinzufügen, einen entfernen, einen Herausgeber mehr Bibliotheken veröffentlichen lassen, das Ablaufdatum eines Schlüssels aufheben. Einen Schlüssel ausmustern oder widerrufen braucht keine Bestätigung."
+      },
+      "install": {
+        "label": "Eine Bibliotheksversion installieren",
+        "description": "Eine gemeinsame Bibliothek installieren, aktualisieren oder zurücksetzen. Mit Vier-Augen-Prinzip bestätigt eine zweite Person aus Gestaltung oder Administration die Installation."
+      }
     }
   }
 }

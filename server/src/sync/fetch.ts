@@ -10,6 +10,8 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { gitApi, gitBlobSha, objectFormatOf, resolveRepo, type CommitCheck, type GitApi, type TreeEntry } from './providers.js';
 import { requireSource, resolveRefName, sourceToken, type SourceRow } from './service.js';
 import { findLocal, localById, localHash, minVersionOf, newerThan, parseFile, sameAsLocal, type ParsedItem } from './items.js';
+import { fetchLibrary } from '../libraries/gitfetch.js';
+import { LIBRARY_MANIFEST_FILE } from '@sm/shared';
 
 /**
  * One fetch of a source: read the branch head, list the configured folder, download changed
@@ -120,6 +122,24 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
   try {
     const ref = resolveRepo(r.provider, r.repo_url, r.api_url);
     const api = gitApi(ref, sourceToken(r));
+    if (r.mode === 'library') {
+      // a library source (ADR 0014): the newest version tag, verified and staged as a release for review
+      await fetchLibrary(r, api, result, actor ?? (trigger === 'manual' ? 'admin' : 'git-sync'));
+      finish(r, { status: 'ok', commit: result.commit, ref: result.ref ?? null, verified: result.verified });
+      audit({
+        actor: actor ?? (trigger === 'manual' ? undefined : 'git-sync'),
+        action: 'sync.fetched',
+        entityType: 'sync_source',
+        entityId: id,
+        summary:
+          `Git sync "${r.name}"${via} (library): tag ${result.ref}@${(result.commit ?? '').slice(0, 10)} – ` +
+          (result.library
+            ? `${result.library.library} ${result.library.release} ${result.library.staged ? 'staged for review' : 'already known'}`
+            : 'nothing new'),
+        details: { trigger, mode: 'library', ref: result.ref, commit: result.commit, verified: result.verified, library: result.library ?? null },
+      });
+      return result;
+    }
     // {version}: this installation's version, so after an upgrade the source follows the new release
     const name = resolveRefName(r.branch);
     result.ref = name;
@@ -133,7 +153,12 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
       finish(r, { status: 'ok', commit: head.sha, ref: name, verified: head.verified });
       return result;
     }
-    const entries = (await api.tree(head.sha, r.folder)).filter((e) => e.type === 'blob' && DEFINITION.test(e.path));
+    const tree = await api.tree(head.sha, r.folder);
+    // a library folder inside the source (one with steward-library.yaml) is a signed release, never synced item by item
+    const libraryRoots = tree
+      .filter((e) => e.type === 'blob' && path.posix.basename(e.path) === LIBRARY_MANIFEST_FILE)
+      .map((e) => (path.posix.dirname(e.path) === '.' ? '' : `${path.posix.dirname(e.path)}/`));
+    const entries = tree.filter((e) => e.type === 'blob' && DEFINITION.test(e.path) && !libraryRoots.some((root) => e.path.startsWith(root)));
     const files: TreeEntry[] = [];
     for (const e of entries) {
       if (!confined(e.path, r.folder)) {
