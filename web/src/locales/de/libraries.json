@@ -46,7 +46,8 @@
     "active": "Schlüssel aktiv",
     "retired": "Schlüssel ausgemustert",
     "revoked": "Schlüssel widerrufen",
-    "unknown": "Schlüssel nicht vertrauenswürdig"
+    "unknown": "Schlüssel nicht vertrauenswürdig",
+    "expired": "Schlüssel abgelaufen"
   },
   "kind": {
     "process": "Prozess",
@@ -104,13 +105,20 @@
     "userTasks_other": "{{count}} Aufgaben für Personen",
     "subprocess": "Startet {{process}}",
     "dataset": "Veröffentlicht {{dataset}}",
-    "readOnly": "Liest nichts und ändert nichts."
+    "readOnly": "Liest nichts und ändert nichts.",
+    "markedNotChanging_one": "{{count}} schreibender Schritt als „ändert nichts“ markiert – er läuft auch in einem Probelauf",
+    "markedNotChanging_other": "{{count}} schreibende Schritte als „ändert nichts“ markiert – sie laufen auch in einem Probelauf"
   },
   "connector": {
     "baseUrl": "Basis-URL",
     "tokenUrl": "Token-URL",
     "trustedOrigins": "Vertrauenswürdige Ursprünge",
-    "auth": "Anmeldung"
+    "auth": "Anmeldung",
+    "proxy": "Proxy",
+    "defaultHeaders": "Header bei jeder Anfrage",
+    "insecureTls": "Zertifikatsprüfung aus",
+    "customCa": "Vertraut einem eigenen CA-Zertifikat",
+    "http": "HTTP-Einstellungen (vollständig)"
   },
   "blockers": {
     "needsVersion": "Die Version braucht ein neueres Steward.",
@@ -119,7 +127,8 @@
     "notPrevious": "Zurücksetzen geht nur auf die Version, die vor der aktuellen installiert war.",
     "downgrade": "Eine ältere Version kann nicht installiert werden (Downgrade).",
     "rights": "Für einige Einträge fehlen Ihnen Rechte.",
-    "undeclaredProcess": "Einige Einträge nennen Prozesse, die die Bibliothek nicht angibt."
+    "undeclaredProcess": "Einige Einträge nennen Prozesse, die die Bibliothek nicht angibt.",
+    "expiredKey": "Der Signaturschlüssel ist abgelaufen: Seine Versionen werden nicht mehr installiert. Zurücksetzen auf die vorher installierte Version bleibt möglich."
   },
   "review": {
     "description_one": "Herausgegeben von {{publisher}} · {{count}} Eintrag",
@@ -222,7 +231,8 @@
     "button": "Deinstallieren",
     "title": "Bibliothek deinstallieren?",
     "confirm": "Die Einträge von {{name}} bleiben als lokale Einträge und verlieren ihre Verbindung zur Bibliothek. Aktualisierungen werden nicht mehr angeboten.",
-    "done": "Bibliothek deinstalliert"
+    "done": "Bibliothek deinstalliert",
+    "held": "Deinstallieren (zuerst Anhalten aufheben)"
   },
   "publishers": {
     "title": "Vertrauenswürdige Herausgeber",
@@ -291,5 +301,39 @@
     "text": "Vertrauen Sie den Herausgebern gemeinsamer Prozessbibliotheken und prüfen Sie ihre Versionen, bevor sie installiert werden.",
     "publishers": "Vertrauenswürdige Herausgeber",
     "libraries": "Bibliotheken"
+  },
+  "outputs": {
+    "title": "Was bei einer Zustandsänderung passiert",
+    "sendsOut_one": "Sendet Monitordaten an {{count}} Ziel außerhalb von Steward",
+    "sendsOut_other": "Sendet Monitordaten an {{count}} Ziele außerhalb von Steward",
+    "starts": "Startet den Prozess {{process}}",
+    "notifications_one": "{{count}} Benachrichtigung",
+    "notifications_other": "{{count}} Benachrichtigungen",
+    "dryRun": "Probelauf",
+    "realRun": "echte Ausführung",
+    "type": {
+      "notification": "Benachrichtigung",
+      "webhook": "Webhook",
+      "gatus": "Gatus-Meldung",
+      "zabbix": "Zabbix-Meldung",
+      "process": "startet einen Prozess"
+    }
+  },
+  "request": {
+    "references": "Verweise",
+    "skip": "Nicht installiert (übersprungen)",
+    "keepLocal": "Konflikte: lokalen Eintrag behalten",
+    "takeLibrary": "Konflikte: Bibliothek übernehmen",
+    "comment": "Kommentar",
+    "none": "keine",
+    "hidden": "eine Plattform, die Sie nicht sehen"
+  },
+  "requested": {
+    "install": "Wird installiert",
+    "skip": "Wird übersprungen",
+    "keepLocal": "Lokaler Eintrag bleibt",
+    "takeLibrary": "Fassung der Bibliothek wird übernommen",
+    "detach": "Wird gelöst",
+    "link": "Bleibt, wie er ist"
   }
 }

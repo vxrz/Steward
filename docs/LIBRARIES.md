@@ -89,7 +89,7 @@ Publish the folder in a Git repository and tag the release (`v1.4.0`), or hand o
 _Settings → Integrations → Libraries → Trusted publishers_ (administrators, in a signed-in session; API tokens cannot change trust).
 
 - **Add a publisher** with its id (as in the manifest), a name, a contact and optionally the library ids it may publish (empty: any).
-- **Add a key**: the publisher's OpenSSH public key line. Steward shows the fingerprint as `ssh-keygen -l` prints it (`SHA256:…`) – compare it with the publisher on a second channel before you trust it. Optional: a date until which the key is valid.
+- **Add a key**: the publisher's OpenSSH public key line. Steward shows the fingerprint as `ssh-keygen -l` prints it (`SHA256:…`) – compare it with the publisher on a second channel before you trust it. Optional: a date until which the key is valid. **After that date no release signed with the key is installed or updated any more** – staged or not; only a rollback to the release installed before stays possible.
 - **Rotate**: add the new key, let the publisher release with it, then **retire** the old key – releases staged or installed before stay valid, new releases signed with it are refused.
 - **Revoke** a stolen or lost key (with a reason): new releases are refused at once and every installed release signed with it is flagged; see [Hold](#hold-when-a-key-is-stolen). A revoked key that signed an installed release cannot be removed (that would drop the flag).
 - **A library belongs to its publisher:** the first release staged or installed binds the library id to its publisher; a release of the same id signed by another publisher's key is refused (`LIBRARY_PUBLISHER_CHANGED`).
@@ -113,7 +113,9 @@ _Automate → Libraries_ lists the installed libraries and the releases waiting 
 - the publisher, the key fingerprint and its state, the SHA-256 of `release.json`, the source (tag and commit, or the uploaded file), the licence and the changelog;
 - every item: _new_, _changed_ (with the diff against the installed item), _unchanged_, _no longer in the library_, or a **conflict** – _changed locally_, _exists but not from this library_, or _from another library or Git source_;
 - **what it can do**, computed by Steward from each process's steps – not from the publisher's words: the platform kind per connection slot, steps that write, access changes, browser and AI steps, database queries, sub-processes, checks that notify, tasks for people, datasets it publishes. What is new since the installed release is marked;
-- connector types with their **base URL, token URL and trusted origins in full** – credentials of platforms made from them go there;
+  - **writes are counted by the HTTP method**: every method but GET, HEAD and OPTIONS is a possible write, whatever the step's `mutating` flag says (a GET marked `mutating: true` counts too). A write step marked `mutating: false` is shown separately as **marked as not changing anything**: the engine treats such a step as a read, so it **also runs in a dry run** – a dry run is no protection against it;
+- every monitor's **outputs** in full – webhooks and Gatus/Zabbix pushes (monitor data leaves Steward), processes it starts (by id, with dry run or real run), notifications – counted under _What happens when its state changes_;
+- connector types with their **base URL, token URL and trusted origins in full**, and their **HTTP settings in full** (`config.http`: certificate verification off, an own CA certificate, a proxy, default headers, …) – credentials of platforms made from them go there;
 - the **references** to map.
 
 **Install** applies everything in **one transaction** through the normal services, with the reviewer's rights for each item: processes get a new version with the comment `From library <library> <release> (<publisher>, <fingerprint>)`, monitors start switched off, record types and dashboards are created or updated, connector types need an administrator (a newer type never changes platforms made from an older one). A failed item rolls back the whole install. New items can be skipped (until the next release). Every conflict needs a decision: keep the local item or take the library's (the other stays in the version history).
@@ -122,13 +124,15 @@ _Automate → Libraries_ lists the installed libraries and the releases waiting 
 - **Local edits** are allowed: the item shows _changed locally_, and the next update shows a conflict.
 - **Rollback** to the release installed before uses Steward's stored copy of it, verified again (a revoked key stops it). It is an install like any other; the release rolled back from waits again. Anything older is a downgrade and refused.
 - **Uninstall** detaches the items: they stay as local items, their versions keep the library origin. Archiving them is a separate action.
-- **Four-eyes** on install, update and rollback: control point `library.install` (off by default). When the assurance policy requires it, _Install_ records a request and a second designer or administrator – never the requester – approves it; the install runs with the approver's rights. The requester or an administrator can withdraw it.
+- **Four-eyes** on install, update and rollback: control point `library.install` (off by default). When the assurance policy requires it, _Install_ records a request with all its decisions (reference mapping, skipped items, keep or take for each conflict, comment). The second designer or administrator – never the requester – sees exactly these decisions and the review computed for them (what happens to each item), and approves exactly these: the approval names a hash of the request it was shown, so a request changed in between is refused (`LIBRARY_REQUEST_CHANGED`). The install runs with the approver's own rights – every item, platform and process is checked for the approver as for an install of their own. The requester or an administrator can withdraw the request.
 
 Audit entries carry the release SHA-256 and the key fingerprint: `library.release_staged|release_refused|release_discarded|install_requested|install_withdrawn|installed|updated|rolled_back|uninstalled|skipped_item|held|hold_lifted`.
 
 ## Hold: when a key is stolen
 
 Steward cannot know when a key was stolen, so a person decides. After a key is revoked, every installed release it signed is marked **signed by a revoked key** – on the library, its items (_From library_ badge), its runs and run reports – and its updates are refused. An administrator can put the library **on hold** with one action: the schedules, webhook triggers and monitors of its items are paused, and new runs of its processes are refused (`LIBRARY_HELD`). **Lift hold** turns on again exactly what the hold paused. Install a release signed with a good key first, then lift the hold.
+
+While the hold lasts, only lifting it ends it: a held library cannot be uninstalled (not even by an administrator – lift the hold first, which is audited), and its schedules, webhook triggers and monitors cannot be switched on again by hand (`LIBRARY_HELD`).
 
 ## Provenance
 

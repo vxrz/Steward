@@ -46,7 +46,8 @@
     "active": "Key active",
     "retired": "Key retired",
     "revoked": "Key revoked",
-    "unknown": "Key not trusted"
+    "unknown": "Key not trusted",
+    "expired": "Key expired"
   },
   "kind": {
     "process": "Process",
@@ -104,13 +105,20 @@
     "userTasks_other": "{{count}} tasks for people",
     "subprocess": "Runs {{process}}",
     "dataset": "Publishes {{dataset}}",
-    "readOnly": "Reads nothing and changes nothing."
+    "readOnly": "Reads nothing and changes nothing.",
+    "markedNotChanging_one": "{{count}} write step marked as not changing anything – it also runs in a dry run",
+    "markedNotChanging_other": "{{count}} write steps marked as not changing anything – they also run in a dry run"
   },
   "connector": {
     "baseUrl": "Base URL",
     "tokenUrl": "Token URL",
     "trustedOrigins": "Trusted origins",
-    "auth": "Sign-in"
+    "auth": "Sign-in",
+    "proxy": "Proxy",
+    "defaultHeaders": "Headers sent with every request",
+    "insecureTls": "Certificate verification off",
+    "customCa": "Trusts a CA certificate of its own",
+    "http": "HTTP settings (in full)"
   },
   "blockers": {
     "needsVersion": "The release needs a newer Steward.",
@@ -119,7 +127,8 @@
     "notPrevious": "Only the release installed before the current one can be rolled back to.",
     "downgrade": "An older release cannot be installed (downgrade).",
     "rights": "Some items need more rights than you have.",
-    "undeclaredProcess": "Some items name processes the library does not declare."
+    "undeclaredProcess": "Some items name processes the library does not declare.",
+    "expiredKey": "The signing key expired: its releases are no longer installed. A rollback to the release installed before stays possible."
   },
   "review": {
     "description_one": "Published by {{publisher}} · {{count}} item",
@@ -222,7 +231,8 @@
     "button": "Uninstall",
     "title": "Uninstall the library?",
     "confirm": "The items of {{name}} stay as local items and lose their link to the library. Updates are no longer offered.",
-    "done": "Library uninstalled"
+    "done": "Library uninstalled",
+    "held": "Uninstall (lift the hold first)"
   },
   "publishers": {
     "title": "Trusted publishers",
@@ -291,5 +301,39 @@
     "text": "Trust the publishers of shared procedure libraries and review their releases before they are installed.",
     "publishers": "Trusted publishers",
     "libraries": "Libraries"
+  },
+  "outputs": {
+    "title": "What happens when its state changes",
+    "sendsOut_one": "Sends monitor data to {{count}} place outside Steward",
+    "sendsOut_other": "Sends monitor data to {{count}} places outside Steward",
+    "starts": "Starts the process {{process}}",
+    "notifications_one": "{{count}} notification",
+    "notifications_other": "{{count}} notifications",
+    "dryRun": "dry run",
+    "realRun": "real run",
+    "type": {
+      "notification": "notification",
+      "webhook": "webhook",
+      "gatus": "Gatus",
+      "zabbix": "Zabbix",
+      "process": "starts a process"
+    }
+  },
+  "request": {
+    "references": "References",
+    "skip": "Not installed (skipped)",
+    "keepLocal": "Conflicts: keep the local item",
+    "takeLibrary": "Conflicts: take the library's",
+    "comment": "Comment",
+    "none": "none",
+    "hidden": "a platform you cannot see"
+  },
+  "requested": {
+    "install": "Will be installed",
+    "skip": "Will be skipped",
+    "keepLocal": "Local item kept",
+    "takeLibrary": "Library's version taken",
+    "detach": "Will be detached",
+    "link": "Stays as it is"
   }
 }

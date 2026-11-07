@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconBooks, IconHandStop, IconShieldX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { LibraryItemKind, LibraryItemOrigin, LibraryKeyState, LibraryReleaseState } from '@sm/shared';
+import type { LibraryItemKind, LibraryItemOrigin, LibraryReleaseKeyState, LibraryReleaseState } from '@sm/shared';
 import { getOptional } from '../../api';
 import { TONE } from '../common';
 import { libraryKeys } from '../../queryKeys';
@@ -77,9 +77,15 @@ export function ReleaseStateBadge({ state, size = 'sm' }: { state: LibraryReleas
   );
 }
 
-const KEY_COLOR: Record<LibraryKeyState | 'unknown', string> = { active: TONE.ok, retired: TONE.neutral, revoked: TONE.bad, unknown: TONE.attention };
+const KEY_COLOR: Record<LibraryReleaseKeyState, string> = {
+  active: TONE.ok,
+  retired: TONE.neutral,
+  revoked: TONE.bad,
+  expired: TONE.attention,
+  unknown: TONE.attention,
+};
 
-export function KeyStateBadge({ state, size = 'sm' }: { state: LibraryKeyState | 'unknown'; size?: 'xs' | 'sm' }) {
+export function KeyStateBadge({ state, size = 'sm' }: { state: LibraryReleaseKeyState; size?: 'xs' | 'sm' }) {
   const { t } = useTranslation('libraries');
   return (
     <Badge size={size} variant="light" color={KEY_COLOR[state]}>
