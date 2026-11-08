@@ -29,8 +29,8 @@ import { emailContent, partsText, sendEmail, sendTeams, sendWebhook, teamsCard, 
 import { sourceOfRun, type RunSource } from '../engine/notify-source.js';
 import { allParts } from '../dashboards/datasets.js';
 import { dryRunDelivery, isDryRun, logoDataUrl, lookProblems, resolveLook } from './look.js';
-import { getSettings } from '../settings.js';
-import { formatDateTime, resolveLocale, t, type MessageKey } from '../i18n/index.js';
+import { defaultLocale, userLocale } from './locale.js';
+import { formatDateTime, t, type MessageKey } from '../i18n/index.js';
 import { allowedDomainRules, domainAllowed } from './domains.js';
 import { flushEmails, queueEmail } from './email.js';
 import { teamChannelUrl, teamChannelsFor, teamsOf } from './team-channels.js';
@@ -191,9 +191,7 @@ function runPeople(runId: string, all: UserInfo[]): { actor?: UserInfo; schedule
 // ---------- language ----------
 
 /** Language for channel posts (Teams, webhook) and for users who have not chosen one. */
-export const defaultLocale = (): Locale => resolveLocale(getSettings().defaultLocale);
-/** The recipient's chosen language, else the default language. */
-export const userLocale = (u: UserInfo, fallback = defaultLocale()): Locale => resolveLocale(u.locale, fallback);
+export { defaultLocale, userLocale };
 
 // ---------- delivery ----------
 
