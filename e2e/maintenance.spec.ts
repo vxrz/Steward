@@ -97,14 +97,17 @@ test.describe('a monitor’s maintenance (0.11: catalogue windows)', () => {
       await form.getByRole('textbox', { name: 'Title' }).fill(title);
       // the monitor is already listed
       await expect(form.getByText(name)).toBeVisible();
-      // now, for an hour
-      const local = (t: number) => {
-        const d = new Date(t);
-        const p = (n: number) => String(n).padStart(2, '0');
-        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-      };
-      await form.getByLabel(/^Start/).fill(local(Date.now() - 5 * 60_000));
-      await form.getByLabel(/^End/).fill(local(Date.now() + 3_600_000));
+      // now, for an hour – in the browser's time zone, which the form uses
+      const [start, end] = await page.evaluate(() => {
+        const local = (t: number) => {
+          const d = new Date(t);
+          const p = (n: number) => String(n).padStart(2, '0');
+          return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+        };
+        return [local(Date.now() - 5 * 60_000), local(Date.now() + 3_600_000)];
+      });
+      await form.getByLabel(/^Start/).fill(start);
+      await form.getByLabel(/^End/).fill(end);
       await form.getByRole('button', { name: 'Save' }).click();
       await expect(form).toBeHidden();
       const item = tab.getByTestId('monitor-maintenance-window').filter({ hasText: title });
