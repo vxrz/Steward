@@ -29,10 +29,13 @@ export function isLocale(v: unknown): v is Locale {
  */
 export function canonicalLocale(tag: string | null | undefined): string | null {
   if (typeof tag !== 'string') return null;
-  const t = tag
-    .trim()
-    .replace(/[.@].*$/, '')
-    .replace(/_/g, '-');
+  // a real tag is short; cut at the first "." (charset) or "@" (modifier) without a regular expression
+  let t = tag.trim().slice(0, 64);
+  for (const sep of ['.', '@']) {
+    const i = t.indexOf(sep);
+    if (i >= 0) t = t.slice(0, i);
+  }
+  t = t.split('_').join('-');
   if (!t) return null;
   try {
     return Intl.getCanonicalLocales(t)[0] ?? null;
