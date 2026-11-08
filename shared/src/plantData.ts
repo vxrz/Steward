@@ -1,4 +1,5 @@
 import type { AssetStatus, PlantPlace, PlantSource, PlantStamp, Translations } from './plant.js';
+import type { PlantAssignmentAdditions, PlantInterfaceOverride, PlantModelOrigin, PlantProfilePointOverride, PlantResolvedProfile } from './plantModel.js';
 
 /**
  * Plant registry, part 2 (#219): which data the interfaces of an asset deliver and which KPIs are computed from it.
@@ -381,6 +382,8 @@ export interface PlantDataPoint {
   updateRateMs: number | null;
   /** The values of a text or code data point */
   enumValues: string[];
+  /** Known as (0.11.0): names that tools commonly use for it – a gateway's variable names, for example */
+  aliases: string[];
   notes: string;
   /** Where it is usually published (the assignment of an asset says where it really is) */
   publications: PlantPublicationTarget[];
@@ -439,7 +442,14 @@ export interface PlantProfileValues {
   category: string;
   description: string;
   notes: string;
+  /** Own interfaces (for a derived profile: the ones it adds) */
   interfaces: PlantInterface[];
+  /** The base profile this one extends (0.11.0), or null */
+  extends: string | null;
+  /** Changes to inherited interfaces, and data points added to them (empty without a base) */
+  interfaceOverrides: PlantInterfaceOverride[];
+  /** Changes to inherited data points (empty without a base) */
+  pointOverrides: PlantProfilePointOverride[];
 }
 
 /** An asset as the pages of part 2 name it. */
@@ -463,13 +473,27 @@ export interface PlantProfileSummary extends PlantSource {
   dataPointCount: number;
   /** Assets with this profile that the reader may see */
   assetCount: number;
+  /** The base profile (0.11.0), or null */
+  extends: string | null;
   updatedAt: string;
 }
 
 export interface PlantProfileDetail extends PlantProfileSummary, PlantStamp {
   description: string;
   notes: string;
+  /** The effective interfaces: inherited, changed and own (see `origins`) */
   interfaces: PlantInterface[];
+  /** The profile's own part, as stored and edited (0.11.0) */
+  own: PlantProfileValues;
+  /** The bases, nearest first (empty: no base) */
+  bases: { id: string; name: string; exists: boolean }[];
+  /** The effective model of the base (what this profile inherits), for editing overrides; null without a base */
+  base: Pick<PlantResolvedProfile, 'id' | 'name' | 'interfaces'> | null;
+  origins: PlantResolvedProfile['origins'];
+  notPresent: PlantResolvedProfile['notPresent'];
+  unusedOverrides: PlantResolvedProfile['unusedOverrides'];
+  /** Profiles that extend this one directly */
+  extendedBy: { id: string; name: string }[];
   /** Assets with this profile (that the reader may see) */
   assets: PlantAssetBrief[];
   /** KPI definitions that read data points of this profile */
@@ -483,7 +507,9 @@ export interface PlantDataPointDetail {
   interface: { id: string; name: string; protocol: PlantProtocol; direction: PlantDirection };
   group: string;
   point: PlantDataPoint;
-  /** Assets with the profile (that the reader may see), and whether each delivers the data point */
+  /** Where the data point comes from (0.11.0: inherited from a base, changed here, or the profile's own) */
+  origin: PlantModelOrigin;
+  /** Assets with the profile or one that extends it (that the reader may see), and whether each delivers the data point */
   assets: {
     asset: PlantAssetBrief;
     delivers: boolean;
@@ -548,6 +574,8 @@ export interface PlantAssignmentValues {
   firmware: string;
   interfaces: PlantAssignmentInterface[];
   overrides: PlantPointOverride[];
+  /** Data points and interfaces of this asset alone (0.11.0) */
+  additions: PlantAssignmentAdditions;
   publications: PlantPublication[];
   kpis: PlantKpiInstance[];
   notes: string;
@@ -569,8 +597,12 @@ export interface PlantAssignmentView extends PlantSource {
   asset: PlantAssetBrief;
   /** Null: the asset has no assignment yet */
   assignment: PlantAssignmentValues | null;
-  /** The assigned profile (null: none, or it does not exist any more) */
+  /** The assigned profile, resolved (null: none, or it does not exist any more) */
   profile: PlantProfileValues | null;
+  /** The asset's model: the profile's interfaces with the asset's additions (0.11.0) */
+  model: PlantInterface[];
+  /** Interfaces and data points of the model that the asset adds itself */
+  added: { interfaces: string[]; points: string[] };
   kpis: (PlantKpiInstance & { definition: { id: string; name: string; names: Translations; category: string } | null; results: PlantResultLink[] })[];
   checks: PlantCheck[];
   /** KPI definitions this asset can have: every data point input is delivered */
@@ -726,6 +758,7 @@ export const PLANT_CHECK_CODES = [
   'ratio_column_unknown',
   'input_profile_unknown',
   'input_point_unknown',
+  'addition_shadowed',
 ] as const;
 export type PlantCheckCode = (typeof PLANT_CHECK_CODES)[number];
 

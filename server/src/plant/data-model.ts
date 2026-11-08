@@ -19,16 +19,21 @@ import {
   unitCode,
   type KpiComputation,
   type KpiParamValue,
+  type PlantAssignmentAdditions,
   type PlantAssignmentValues,
   type PlantDataPoint,
   type PlantInterface,
+  type PlantInterfaceOverride,
   type PlantKpiValues,
+  type PlantProfilePointOverride,
   type PlantProfileValues,
+  type PlantResolvedProfile,
   type Translations,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
 import { plantId, translations } from './model.js';
+import { assetModel, resolveAll, resolveChain } from './resolve.js';
 
 /**
  * Part 2 of the plant registry (#219), as stored and as values: device profiles (interfaces, groups, data points),
@@ -76,6 +81,10 @@ export interface ProfileRow extends Source {
   description: string;
   notes: string;
   interfaces: string;
+  /** 0.11.0: the base profile, and the changes to what it inherits */
+  base_id: string | null;
+  interface_overrides: string;
+  point_overrides: string;
 }
 
 export interface KpiRow extends Source {
@@ -112,9 +121,18 @@ export interface AssignmentRow extends Source {
   publications: string;
   kpis: string;
   notes: string;
+  /** 0.11.0: data points and interfaces of this asset alone */
+  additions: string;
 }
 
 export const EMPTY_COMPUTATION: KpiComputation = { summary: '', diagram: '', steps: [], identities: [], limits: [] };
+
+/** Data points stored before 0.11.0 have no aliases: read as none. */
+const pointDefaults = (d: PlantDataPoint): PlantDataPoint => ({ ...d, aliases: d.aliases ?? [] });
+export const interfaceDefaults = (i: PlantInterface): PlantInterface => ({
+  ...i,
+  groups: i.groups.map((g) => ({ ...g, dataPoints: g.dataPoints.map(pointDefaults) })),
+});
 
 export const profileValuesOf = (r: ProfileRow): PlantProfileValues => ({
   id: r.id,
@@ -125,7 +143,13 @@ export const profileValuesOf = (r: ProfileRow): PlantProfileValues => ({
   category: r.category,
   description: r.description,
   notes: r.notes,
-  interfaces: parseJson<PlantInterface[]>(r.interfaces, []),
+  interfaces: parseJson<PlantInterface[]>(r.interfaces, []).map(interfaceDefaults),
+  extends: r.base_id ?? null,
+  interfaceOverrides: parseJson<PlantInterfaceOverride[]>(r.interface_overrides, []).map((o) => ({
+    ...o,
+    groups: o.groups.map((g) => ({ ...g, dataPoints: g.dataPoints.map(pointDefaults) })),
+  })),
+  pointOverrides: parseJson<PlantProfilePointOverride[]>(r.point_overrides, []),
 });
 
 export const kpiValuesOf = (r: KpiRow): PlantKpiValues => ({
@@ -158,6 +182,10 @@ export const assignmentValuesOf = (r: AssignmentRow): PlantAssignmentValues => (
   firmware: r.firmware,
   interfaces: parseJson<PlantAssignmentValues['interfaces']>(r.interfaces, []),
   overrides: parseJson<PlantAssignmentValues['overrides']>(r.overrides, []),
+  additions: (({ interfaces = [], dataPoints = [] }: Partial<PlantAssignmentAdditions>) => ({
+    interfaces: interfaces.map(interfaceDefaults),
+    dataPoints: dataPoints.map((d) => ({ ...d, aliases: d.aliases ?? [] })),
+  }))(parseJson<Partial<PlantAssignmentAdditions>>(r.additions, {})),
   publications: parseJson<PlantAssignmentValues['publications']>(r.publications, []),
   kpis: parseJson<PlantAssignmentValues['kpis']>(r.kpis, []),
   notes: r.notes,
@@ -175,12 +203,27 @@ export const kpiRowOf = (id: string): KpiRow | undefined => db().get<KpiRow>('SE
 export const assignmentRowOf = (assetId: string): AssignmentRow | undefined =>
   db().get<AssignmentRow>('SELECT * FROM plant_assignments WHERE asset_id = ?', assetId);
 
-export function allProfiles(): Map<string, PlantProfileValues> {
+/** Every profile's own part, as stored (the editor and the export). */
+export function ownProfiles(): Map<string, PlantProfileValues> {
   return new Map(
     db()
       .all<ProfileRow>('SELECT * FROM plant_profiles ORDER BY name, id')
       .map((r) => [r.id, profileValuesOf(r)]),
   );
+}
+
+/** Every profile as it is in effect (resolved: inherited, changed and own), by name. Everything that reads a profile uses this. */
+export function allProfiles(): Map<string, PlantResolvedProfile> {
+  return resolveAll(ownProfiles());
+}
+
+/** One profile as it is in effect (its chain only), or null. */
+export function resolvedProfile(id: string | null | undefined): PlantResolvedProfile | null {
+  if (!id) return null;
+  return resolveChain(id, (x) => {
+    const r = profileRowOf(x);
+    return r ? profileValuesOf(r) : undefined;
+  });
 }
 export function allKpis(): Map<string, PlantKpiValues> {
   return new Map(
@@ -226,6 +269,12 @@ const unit = z
   .transform((v) => unitCode(v))
   .default('');
 
+/** Names a data point is known as (gateway variable names …): any text, each once. */
+export const aliasList = z
+  .array(z.string().trim().min(1).max(L.text))
+  .max(L.aliases * 5)
+  .transform((v) => [...new Set(v)]);
+
 const publicationTarget = z.object({ target: text(L.text), path: text(L.address), name: text(L.text) }).strict();
 
 export const dataPointInput = z
@@ -239,6 +288,7 @@ export const dataPointInput = z
     access: z.enum(PLANT_DIRECTIONS).default('read'),
     updateRateMs: rate,
     enumValues: z.array(z.string().trim().min(1).max(L.text)).max(L.enumValues).default([]),
+    aliases: aliasList.default([]),
     notes: text(L.longText),
     publications: z.array(publicationTarget).max(L.publicationsPerPoint).default([]),
   })
@@ -287,6 +337,68 @@ export const interfaceInput = z
   })
   .strict();
 
+const groupInput = z
+  .object({
+    name: text(L.text),
+    description: text(L.longText),
+    dataPoints: z.array(dataPointInput).max(L.dataPoints).default([]),
+  })
+  .strict();
+
+/** A change to an inherited interface (0.11.0): a key left out reads as inherited. */
+export const interfaceOverrideInput = z
+  .object({
+    interface: pointName,
+    present: z.boolean().default(true),
+    name: z.string().trim().max(PLANT_LIMITS.name).optional(),
+    direction: z.enum(PLANT_DIRECTIONS).optional(),
+    description: z.string().trim().max(L.longText).optional(),
+    version: z.string().trim().max(60).optional(),
+    defaultPort: z.number().int().min(1).max(65535).nullable().optional(),
+    authentication: z.enum(PLANT_AUTH_KINDS).optional(),
+    client: z.string().trim().max(L.text).optional(),
+    notes: z.string().trim().max(L.longText).optional(),
+    groups: z.array(groupInput).max(L.groups).default([]),
+    fileSets: z.array(fileSetInput).max(L.fileSets).default([]),
+  })
+  .strict();
+
+/** A change to an inherited data point (0.11.0): a key left out reads as inherited. */
+export const pointOverrideInput = z
+  .object({
+    dataPoint: pointName,
+    present: z.boolean().default(true),
+    name: z.string().trim().min(1).max(PLANT_LIMITS.name).optional(),
+    description: z.string().trim().max(L.longText).optional(),
+    dataType: z
+      .string()
+      .trim()
+      .max(40)
+      .refine((v) => dataTypeOf(v) !== null, 'Use an OPC UA or IEC 61131-3 data type')
+      .transform((v) => dataTypeOf(v)!)
+      .optional(),
+    unit: z
+      .string()
+      .trim()
+      .max(40)
+      .transform((v) => unitCode(v))
+      .optional(),
+    address: z.string().trim().max(L.address).optional(),
+    access: z.enum(PLANT_DIRECTIONS).optional(),
+    updateRateMs: z
+      .number()
+      .int()
+      .min(0)
+      .max(31 * 86_400_000)
+      .nullable()
+      .optional(),
+    enumValues: z.array(z.string().trim().min(1).max(L.text)).max(L.enumValues).optional(),
+    aliases: aliasList.optional(),
+    notes: z.string().trim().max(L.longText).optional(),
+    publications: z.array(publicationTarget).max(L.publicationsPerPoint).optional(),
+  })
+  .strict();
+
 export const profileInput = z
   .object({
     id: plantId,
@@ -298,6 +410,9 @@ export const profileInput = z
     description: text(L.longText),
     notes: text(L.longText),
     interfaces: z.array(interfaceInput).max(L.interfaces).default([]),
+    extends: plantId.nullable().default(null),
+    interfaceOverrides: z.array(interfaceOverrideInput).max(L.interfaces).default([]),
+    pointOverrides: z.array(pointOverrideInput).max(L.dataPoints).default([]),
   })
   .strict();
 export const profileUpdate = profileInput.omit({ id: true });
@@ -403,6 +518,16 @@ export const assignmentInput = z
       .array(z.object({ interface: pointName, active: z.boolean().default(true), endpoint: text(2000), notes: text(L.longText) }).strict())
       .max(L.assignmentInterfaces)
       .default([]),
+    additions: z
+      .object({
+        interfaces: z.array(interfaceInput).max(L.assignmentInterfaces).default([]),
+        dataPoints: z
+          .array(dataPointInput.extend({ interface: pointName, group: text(L.text) }).strict())
+          .max(L.dataPoints)
+          .default([]),
+      })
+      .strict()
+      .default({ interfaces: [], dataPoints: [] }),
     overrides: z
       .array(
         z
@@ -480,7 +605,10 @@ export interface RuleProblem {
  * a group name twice in an interface, an address that does not fit the interface's protocol (OPC UA NodeId,
  * Modbus table and address).
  */
-export function profileProblems(p: PlantProfileValues, groupPath = (i: number, j: number) => `interfaces[${i}].groups[${j}]`): RuleProblem[] {
+export function profileProblems(
+  p: Pick<PlantProfileValues, 'interfaces'>,
+  groupPath = (i: number, j: number) => `interfaces[${i}].groups[${j}]`,
+): RuleProblem[] {
   const out: RuleProblem[] = [];
   const ifaces = new Set<string>();
   const points = new Map<string, string>();
@@ -545,13 +673,19 @@ export function assignmentProblems(
 ): RuleProblem[] {
   const out: RuleProblem[] = [];
   if (a.profileId && !profile) out.push({ path: 'profile', message: `There is no device profile "${a.profileId}"` });
-  const ifaceIds = new Set(profile?.interfaces.map((i) => i.id) ?? []);
-  const pointIds = new Map(pointsOf(profile ?? { interfaces: [] }).map((x) => [x.point.id, x]));
-  const needProfile = (path: string) => !a.profileId && out.push({ path, message: 'Choose the device profile first' });
+  out.push(...additionProblems(a, profile));
+  // the asset's model: the profile with the asset's additions (0.11.0)
+  const model = assetModel(a, profile);
+  const addedIfaces = new Set(a.additions.interfaces.map((i) => i.id));
+  const ifaceIds = new Set(model.interfaces.map((i) => i.id));
+  const pointIds = new Map(pointsOf(model).map((x) => [x.point.id, x]));
+  const needProfile = (path: string, iface?: string) =>
+    !a.profileId && !(iface && addedIfaces.has(iface)) && !a.additions.dataPoints.length && out.push({ path, message: 'Choose the device profile first' });
   const seen = new Set<string>();
   a.interfaces.forEach((x, i) => {
-    if (needProfile(`interfaces[${i}]`)) return;
-    if (profile && !ifaceIds.has(x.interface)) out.push({ path: `interfaces[${i}].interface`, message: `The profile has no interface "${x.interface}"` });
+    if (needProfile(`interfaces[${i}]`, x.interface)) return;
+    if ((profile || addedIfaces.size) && !ifaceIds.has(x.interface))
+      out.push({ path: `interfaces[${i}].interface`, message: `The profile has no interface "${x.interface}"` });
     if (seen.has(x.interface)) out.push({ path: `interfaces[${i}].interface`, message: `Interface "${x.interface}" is there twice` });
     seen.add(x.interface);
   });
@@ -559,7 +693,7 @@ export function assignmentProblems(
   a.overrides.forEach((x, i) => {
     if (needProfile(`overrides[${i}]`)) return;
     const p = pointIds.get(x.dataPoint);
-    if (profile && !p) out.push({ path: `overrides[${i}].data_point`, message: `The profile has no data point "${x.dataPoint}"` });
+    if ((profile || addedIfaces.size) && !p) out.push({ path: `overrides[${i}].data_point`, message: `The profile has no data point "${x.dataPoint}"` });
     if (over.has(x.dataPoint)) out.push({ path: `overrides[${i}].data_point`, message: `Data point "${x.dataPoint}" is overridden twice` });
     over.add(x.dataPoint);
     if (p && x.address) {
@@ -569,13 +703,52 @@ export function assignmentProblems(
   });
   a.publications.forEach((x, i) => {
     if (needProfile(`publications[${i}]`)) return;
-    if (profile && !pointIds.has(x.dataPoint)) out.push({ path: `publications[${i}].data_point`, message: `The profile has no data point "${x.dataPoint}"` });
+    if ((profile || addedIfaces.size) && !pointIds.has(x.dataPoint))
+      out.push({ path: `publications[${i}].data_point`, message: `The profile has no data point "${x.dataPoint}"` });
   });
   const jobs = new Set<string>();
   a.kpis.forEach((x, i) => {
     if (!kpiExists(x.kpi)) out.push({ path: `kpis[${i}].kpi`, message: `There is no KPI definition "${x.kpi}"` });
     if (jobs.has(x.job)) out.push({ path: `kpis[${i}].job`, message: `Job "${x.job}" is there twice` });
     jobs.add(x.job);
+  });
+  return out;
+}
+
+/**
+ * What an assignment's additions (0.11.0) may not hold: an added interface with the id of one of the profile's, an
+ * added data point on an interface the model does not have, ids twice across the model, an address that does not fit.
+ */
+export function additionProblems(
+  a: Pick<PlantAssignmentValues, 'additions'>,
+  profile: Pick<PlantProfileValues, 'interfaces'> | null | undefined,
+): RuleProblem[] {
+  const out: RuleProblem[] = [];
+  const profileIfaces = new Map((profile?.interfaces ?? []).map((i) => [i.id, i]));
+  const taken = new Map(pointsOf(profile ?? { interfaces: [] }).map((x) => [x.point.id, 'the profile']));
+  const added = new Map<string, PlantInterface>();
+  a.additions.interfaces.forEach((iface, i) => {
+    const at = `additions.interfaces[${i}]`;
+    if (profileIfaces.has(iface.id))
+      out.push({ path: `${at}.id`, message: `The profile has an interface "${iface.id}" already – add data points to it instead` });
+    else if (added.has(iface.id)) out.push({ path: `${at}.id`, message: `Interface "${iface.id}" is there twice` });
+    added.set(iface.id, iface);
+    for (const pr of profileProblems({ interfaces: [iface] }, (_i, j) => `${at}.groups[${j}]`))
+      out.push(pr.path.startsWith('interfaces[0]') ? { ...pr, path: pr.path.replace('interfaces[0]', at) } : pr);
+    for (const g of iface.groups)
+      for (const d of g.dataPoints) {
+        if (taken.has(d.id)) out.push({ path: `${at}.groups`, message: `Data point "${d.id}" is there twice (also in ${taken.get(d.id)})` });
+        taken.set(d.id, `interface "${iface.id}"`);
+      }
+  });
+  a.additions.dataPoints.forEach((d, i) => {
+    const at = `additions.data_points[${i}]`;
+    const iface = profileIfaces.get(d.interface) ?? added.get(d.interface);
+    if (!iface) out.push({ path: `${at}.interface`, message: `The profile has no interface "${d.interface}"` });
+    if (taken.has(d.id)) out.push({ path: `${at}.id`, message: `Data point "${d.id}" is there twice (also in ${taken.get(d.id)})` });
+    taken.set(d.id, 'the additions');
+    const ap = iface ? addressProblem(iface.protocol, d.address) : null;
+    if (ap) out.push({ path: `${at}.address`, message: ap });
   });
   return out;
 }
@@ -596,10 +769,12 @@ const keep = (opts: { keepSource?: boolean }) => (opts.keepSource ? '' : 'import
 
 export function upsertProfile(v: PlantProfileValues, m: Meta, opts: { keepSource?: boolean } = {}): void {
   db().run(
-    `INSERT INTO plant_profiles (id, name, manufacturer, model, version, category, description, notes, interfaces, import_id, not_in_source, created_at, created_by, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO plant_profiles (id, name, manufacturer, model, version, category, description, notes, interfaces, base_id, interface_overrides, point_overrides,
+       import_id, not_in_source, created_at, created_by, updated_at, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (id) DO UPDATE SET name = excluded.name, manufacturer = excluded.manufacturer, model = excluded.model, version = excluded.version,
        category = excluded.category, description = excluded.description, notes = excluded.notes, interfaces = excluded.interfaces,
+       base_id = excluded.base_id, interface_overrides = excluded.interface_overrides, point_overrides = excluded.point_overrides,
        ${keep(opts)} updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
     v.id,
     v.name,
@@ -610,6 +785,9 @@ export function upsertProfile(v: PlantProfileValues, m: Meta, opts: { keepSource
     v.description,
     v.notes,
     JSON.stringify(v.interfaces),
+    v.extends ?? null,
+    JSON.stringify(v.interfaceOverrides ?? []),
+    JSON.stringify(v.pointOverrides ?? []),
     ...src(m),
     m.at,
     m.by,
@@ -661,16 +839,17 @@ export function upsertKpi(v: PlantKpiValues, m: Meta, opts: { keepSource?: boole
 
 export function upsertAssignment(assetId: string, v: PlantAssignmentValues, m: Meta, opts: { keepSource?: boolean } = {}): void {
   db().run(
-    `INSERT INTO plant_assignments (asset_id, profile_id, firmware, interfaces, overrides, publications, kpis, notes, import_id, not_in_source, created_at, created_by, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO plant_assignments (asset_id, profile_id, firmware, interfaces, overrides, additions, publications, kpis, notes, import_id, not_in_source, created_at, created_by, updated_at, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (asset_id) DO UPDATE SET profile_id = excluded.profile_id, firmware = excluded.firmware, interfaces = excluded.interfaces,
-       overrides = excluded.overrides, publications = excluded.publications, kpis = excluded.kpis, notes = excluded.notes,
+       overrides = excluded.overrides, additions = excluded.additions, publications = excluded.publications, kpis = excluded.kpis, notes = excluded.notes,
        ${keep(opts)} updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
     assetId,
     v.profileId,
     v.firmware,
     JSON.stringify(v.interfaces),
     JSON.stringify(v.overrides),
+    JSON.stringify(v.additions ?? { interfaces: [], dataPoints: [] }),
     JSON.stringify(v.publications),
     JSON.stringify(v.kpis.map((k) => ({ ...k, params: cleanParams(k.params) }))),
     v.notes,

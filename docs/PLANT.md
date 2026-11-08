@@ -11,6 +11,7 @@ The plant registry documents the factories of the enterprise an installation ser
 - [Links to Steward items](#links-to-steward-items)
 - [Own fields and display names](#own-fields-and-display-names)
 - [Device profiles, data points and KPIs](#device-profiles-data-points-and-kpis)
+- [Profile inheritance and asset additions](#profile-inheritance-and-asset-additions)
 - [Part 3: OT network](#part-3-ot-network)
 - [Visualizations](#visualizations)
 - [Map](#map)
@@ -143,6 +144,69 @@ _Plant → Explore data_: **who delivers a data point** – a text across every 
 ### Rights
 
 Everyone who sees the plant registry sees the catalogues (the role _Plant viewer_ included); **designers and administrators** manage them (whoever may add sites). An assignment and its KPI instances follow the asset's site: who sees the site sees them, who manages it changes them. Lists, counts, the search, the checks and the data point and KPI pages count and name only assets of sites the reader may see; a profile that only a hidden asset has is “still in use” without a count. Every change is audited (`device_profile.created|updated|deleted`, `kpi_definition.created|updated|deleted`, `asset.assignment_set|assignment_removed`, `*.duplicated`).
+
+## Profile inheritance and asset additions
+
+Since 0.11.0 ([ADR 0007 – Update 0.11](adr/0007-plant-registry.md#update-011-profile-inheritance-and-asset-additions)) a device profile can build on another one, and an asset can have more than its profile.
+
+### Profile inheritance
+
+A device profile may **extend** one base profile (_Edit → Extends_). The base may extend another one, up to 8 profiles in a chain; a profile cannot extend itself or one that extends it (no cycles). The derived profile **inherits** the base's interfaces, data point groups, data points and files, and:
+
+- **adds** its own interfaces, and data points or groups to an inherited interface;
+- **changes** fields of an inherited interface (name, direction, port, sign-in, client, version, description, notes – not its protocol) or data point (name, data type, unit, address, access, update rate, values, known-as names, description, notes, usual publications – not its id or group). A field it does not change stays the base's;
+- marks an inherited interface or data point as **not present** (the device does not have it). An interface that is not present takes its data points with it.
+
+Manufacturer, model and category that the derived profile leaves empty are the base's. **Changes to a base flow down**: a data point added to the base appears in every profile that extends it. A save of a base is refused when a profile that extends it would then have an id twice; a base that another profile extends **cannot be deleted** (`PLANT_PROFILE_EXTENDED`), like a profile in use.
+
+The **resolved profile** – the effective model – is computed in one place on the server and used everywhere: the profile page, the data point pages and "which assets deliver it", the assignment and its checks, KPI inputs, coverage, data flow and lineage, and the API. A **KPI input that names a base** reads every profile that extends it, and the data point page of a base lists the assets of the derived profiles that keep the data point. The profile page shows the chain of bases, where each interface and data point comes from (_Inherited from …_, _Changed here (fields)_, _Added here_), the inherited items marked not present (with _Restore_) and the profiles that extend it. On an inherited item the menu offers _Edit_ (an override), _Back to the base's values_ and _Not present on this device_. Changes to items the base no longer has are ignored and named on the page. _Duplicate_ keeps `extends`.
+
+Every data point may also have **known-as names** (`aliases`): names tools commonly use for it, such as a gateway's variable names. The import of data collections matches them ([Data collections](#data-collections)).
+
+### Asset additions
+
+Next to the **differences** of an assignment, an asset may **add** data points to an interface of its profile and whole **interfaces** of its own (_Data and KPIs → Interfaces_, the menu of an interface: _Add data point_; _Add interface_). They count as **delivered** like the profile's data points – when their interface is listed and active in the assignment (a new interface is added as active) – and appear in the checks, KPI inputs, coverage, data flow and lineage. An added data point needs an id the profile does not have; when the profile gets the same id later, the profile's counts and the asset shows the check _Data point … is added on this asset, but its device profile has it now, too_. _Duplicate_ of an asset copies its additions.
+
+### In the file format
+
+A derived profile names its base with `extends:` and uses **the same keys** as any profile, written with only its own part: an `interfaces` entry whose id is inherited changes that interface – the keys it gives, `present: false`, and in its `groups` (or `data_points`) entries for inherited data points (the keys they give, or `present: false`) and new data points; an entry with a new id is an own interface and needs its `protocol`. The export writes the same, so a file imports back unchanged.
+
+```yaml
+version: 1
+device_profile:
+  id: example-controls-c80-v4
+  name: Example Controls C80, firmware 4
+  extends: example-controls-c80
+  interfaces:
+    - id: opc-ua # inherited: only what changes
+      default_port: 4841
+      groups:
+        - name: Machine state
+          data_points:
+            - { id: prog_name, address: 'ns=3;s=/Channel/ProgramPointer/progName[u1,1]', aliases: [NCProgram] }
+            - { id: legacy_alarm, present: false }
+            - { id: spindle_load, name: Spindle load, unit: '%', address: 'ns=3;s=/DriveHsa/State/load[u10]' } # new
+    - { id: web-ui, present: false }
+    - id: mqtt # new
+      protocol: mqtt
+      data_points:
+        - { id: part_count, name: Part count, address: cnc/parts }
+---
+version: 1
+assignment:
+  asset: rvs-mill-01
+  profile: example-controls-c80-v4
+  interfaces:
+    - { interface: opc-ua, endpoint: 'opc.tcp://rvs-mill-01.ot.example.com:4841' }
+    - { interface: clamp-io, endpoint: '10.20.110.31:502' }
+  additions:
+    interfaces:
+      - id: clamp-io
+        protocol: modbus_tcp
+        data_points: [{ id: clamp_state, name: Clamp state, address: 'coil:4' }]
+    data_points:
+      - { interface: opc-ua, group: Pneumatics, id: air_pressure, name: Air pressure, unit: bar, address: 'ns=2;s=/Plc/Air' }
+```
 
 ## Part 3: OT network
 
@@ -462,7 +526,7 @@ assignment:
     - { kpi: energy-consumption, job: rvs-mill-01-energy, active: true, params: { closest_point_max_distance_ms: 600000 }, dataset: plant.energy }
 ```
 
-(Three files in one block for brevity; each `---` part is its own file.) Keys: a profile has `id`, `name`, `manufacturer`, `model`, `version`, `category`, `description`, `notes`, `interfaces`; an interface `id`, `name`, `protocol`, `direction`, `description`, `version`, `default_port`, `authentication`, `client`, `notes`, `groups` (`name`, `description`, `data_points`), `data_points`, `file_sets` (`id`, `name`, `description`, `format`, `direction`, `path_pattern`, `produced_per`, `retention`, `encoding`, `notes`); a data point `id`, `name`, `description`, `data_type`, `unit`, `address` (or `node_id` / `modbus_address`), `access`, `update_rate_ms`, `enum_values`, `notes`, `publications` (`target`, `path`, `name`). A KPI definition has `id`, `name`, `names`, `category`, `type`, `description`, `formula`, `unit`, `range` (`min`, `max`), `trend`, `timing`, `audience`, `methodology`, `strategy`, `implementation`, `dynamic_columns`, `inputs` (`kind`, `profile`, `data_points`, `notes`), `parameters` (`name`, `aliases`, `description`, `type`, `default`, `required`, `min`, `max`, `unit`), `columns` (`name`, `kind`, `scope`, `unit`, `numerator`, `denominator`, `scale`, `description`), `computation` (`summary`, `diagram`, `steps` with `name`, `does`, `why`, `identities` with `relation`, `note`, `limits`), `notes`. An assignment has `asset`, `site`, `profile`, `firmware`, `interfaces` (`interface`, `active`, `endpoint`, `notes`), `overrides` (`data_point`, `available`, `address`, `unit`, `data_type`, `update_rate_ms`, `notes`), `publications` (`data_point`, `target`, `path`, `name`, `published_by`, `notes`), `kpis` (`kpi`, `job`, `active`, `params`, `dashboard`, `dataset`, `notes`), `notes`.
+(Three files in one block for brevity; each `---` part is its own file.) Keys: a profile has `id`, `name`, `manufacturer`, `model`, `version`, `category`, `description`, `notes`, `interfaces`; an interface `id`, `name`, `protocol`, `direction`, `description`, `version`, `default_port`, `authentication`, `client`, `notes`, `groups` (`name`, `description`, `data_points`), `data_points`, `file_sets` (`id`, `name`, `description`, `format`, `direction`, `path_pattern`, `produced_per`, `retention`, `encoding`, `notes`); a data point `id`, `name`, `description`, `data_type`, `unit`, `address` (or `node_id` / `modbus_address`), `access`, `update_rate_ms`, `enum_values`, `aliases`, `notes`, `publications` (`target`, `path`, `name`). Since 0.11.0 a profile also has `extends`, and an interface or data point of a derived profile `present` ([Profile inheritance](#in-the-file-format)). A KPI definition has `id`, `name`, `names`, `category`, `type`, `description`, `formula`, `unit`, `range` (`min`, `max`), `trend`, `timing`, `audience`, `methodology`, `strategy`, `implementation`, `dynamic_columns`, `inputs` (`kind`, `profile`, `data_points`, `notes`), `parameters` (`name`, `aliases`, `description`, `type`, `default`, `required`, `min`, `max`, `unit`), `columns` (`name`, `kind`, `scope`, `unit`, `numerator`, `denominator`, `scale`, `description`), `computation` (`summary`, `diagram`, `steps` with `name`, `does`, `why`, `identities` with `relation`, `note`, `limits`), `notes`. An assignment has `asset`, `site`, `profile`, `firmware`, `interfaces` (`interface`, `active`, `endpoint`, `notes`), `overrides` (`data_point`, `available`, `address`, `unit`, `data_type`, `update_rate_ms`, `notes`), `additions` (`interfaces`, `data_points` with `interface` and `group`; 0.11.0), `publications` (`data_point`, `target`, `path`, `name`, `published_by`, `notes`), `kpis` (`kpi`, `job`, `active`, `params`, `dashboard`, `dataset`, `notes`), `notes`.
 
 Values are read in their usual spellings: protocols `OPC-UA`, `Modbus/TCP`, `SMB/CIFS`, `HTTP`; sign-in `username-password`; data types `int`, `float[]`, `bool`; units `kWh`, `°C`, `rpm`; an input kind `datapoint`. Files of other tools import after renaming their keys, for example `profile_id`/`kpi_id` → `id`, `display_name` → `name`, `type` (of an interface) → `protocol`, `requires_client` → `client`, `datapoint_groups` → `groups`, `group` → `name`, `datapoints` → `data_points`, `type` (of a data point) → `data_type`, `opc_node_id` → `node_id`, `typical_update_rate_ms` → `update_rate_ms`, `params` → `parameters`, `variables` → `data_points`, `arity` → `scope`; in an assignment `asset_id` → `asset`, `controller_profile` → `profile`, `controller_firmware` → `firmware`, `connectivity` → `interfaces`, `interface_id` → `interface`, `endpoint_url` → `endpoint`, `datapoint_overrides` → `overrides`, publications' `datapoint` → `data_point`, `aspect` → `path`, `variable` → `name`, `job_name` → `job`; attributes of the asset itself (its tags, its name) go into the asset, not the assignment. A profile and a KPI definition are matched by their `id`, an assignment by its asset.
 

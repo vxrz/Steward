@@ -340,4 +340,16 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // 0.11.0: a device profile may extend one base profile (its own part: what it adds and changes); an assignment may
+    // add data points and interfaces for its one asset (docs/adr/0007-plant-registry.md, "Update 0.11")
+    name: 'plant-004-profile-extends',
+    sql: `
+      ALTER TABLE plant_profiles ADD COLUMN base_id TEXT;
+      ALTER TABLE plant_profiles ADD COLUMN interface_overrides TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE plant_profiles ADD COLUMN point_overrides TEXT NOT NULL DEFAULT '[]';
+      CREATE INDEX plant_profiles_base ON plant_profiles(base_id);
+      ALTER TABLE plant_assignments ADD COLUMN additions TEXT NOT NULL DEFAULT '{}';
+    `,
+  },
 ];

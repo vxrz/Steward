@@ -180,6 +180,7 @@ const DataPoint = z.object({
   access: z.enum(PLANT_DIRECTIONS),
   updateRateMs: z.number().int().nullable().describe('Typical update rate in milliseconds'),
   enumValues: z.array(z.string()),
+  aliases: z.array(z.string()).describe('Known as: names tools commonly use for it (a gateway’s variable names)'),
   notes: z.string(),
   publications: z.array(PublicationTarget).describe('Where it is usually published'),
 });
@@ -225,6 +226,7 @@ export const PlantProfileEntry = z.object({
   interfaceCount: z.number().int(),
   dataPointCount: z.number().int(),
   assetCount: z.number().int().describe('Assets with this profile in sites the token owner may see'),
+  extends: z.string().nullable().describe('The base profile this one extends (its interfaces and data points are inherited), or null'),
   ...source,
   updatedAt: ts(),
 });
@@ -232,7 +234,9 @@ export const PlantProfileEntry = z.object({
 export const PlantProfileDetailEntry = PlantProfileEntry.extend({
   description: z.string(),
   notes: z.string(),
-  interfaces: z.array(Interface),
+  interfaces: z.array(Interface).describe('The effective interfaces: inherited from the bases, changed here and own'),
+  bases: z.array(z.object({ id: z.string(), name: z.string(), exists: z.boolean() })).describe('The bases, nearest first'),
+  extendedBy: z.array(z.object({ id: z.string(), name: z.string() })).describe('Profiles that extend this one directly'),
   assets: z.array(AssetBrief).describe('Assets with this profile (that the token owner may see)'),
   kpis: z.array(z.object({ id: z.string(), name: z.string(), names, dataPoints: z.array(z.string()) })).describe('KPI definitions that read its data points'),
   createdAt: ts(),
@@ -337,6 +341,12 @@ export const PlantAssignmentEntry = z.object({
           notes: z.string(),
         }),
       ),
+      additions: z
+        .object({
+          interfaces: z.array(Interface),
+          dataPoints: z.array(DataPoint.extend({ interface: z.string(), group: z.string() })),
+        })
+        .describe('Interfaces and data points of this asset alone'),
       publications: z.array(PublicationTarget.extend({ dataPoint: z.string(), publishedBy: z.string(), notes: z.string() })),
       kpis: z.array(z.unknown()).describe('See kpis on the top level'),
       notes: z.string(),
@@ -354,6 +364,8 @@ export const PlantAssignmentEntry = z.object({
       interfaces: z.array(Interface),
     })
     .nullable(),
+  model: z.array(Interface).describe('The asset’s model: its resolved profile’s interfaces with the asset’s additions'),
+  added: z.object({ interfaces: z.array(z.string()), points: z.array(z.string()) }).describe('Interfaces and data points of the model the asset adds itself'),
   kpis: z.array(
     z.object({
       kpi: z.string(),

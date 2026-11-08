@@ -23,7 +23,7 @@ const PointLineageView = lazy(() => import('./plant/views/AssetFlowView').then((
  * it – where they publish it, and the KPI definitions that read it.
  */
 export function PlantDataPointPage() {
-  const { t, i18n } = useTranslation(['plant', 'common']);
+  const { t, i18n } = useTranslation(['plant', 'common', 'plantModel']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const hint = useAddressHint();
@@ -185,6 +185,13 @@ export function PlantDataPointPage() {
                 <Anchor component={Link} to={profileCrumb.to} size="sm">
                   {d.profile.name}
                 </Anchor>
+                {d.origin.from !== d.profile.id && (
+                  <Text size="xs" c="dimmed" data-testid="point-origin">
+                    {d.origin.kind === 'overridden'
+                      ? t('plantModel:origin.pointOverridden', { from: d.origin.from, fields: d.origin.fields.join(', ') })
+                      : t('plantModel:origin.pointInherited', { from: d.origin.from })}
+                  </Text>
+                )}
               </Field>
               <Field label={t('data.dataType')}>
                 <span className="mono">{p.dataType || '–'}</span>
@@ -207,6 +214,17 @@ export function PlantDataPointPage() {
                   <Group gap={4}>
                     {p.enumValues.map((v) => (
                       <Badge key={v} size="sm" variant="default" tt="none">
+                        {v}
+                      </Badge>
+                    ))}
+                  </Group>
+                </Field>
+              )}
+              {p.aliases.length > 0 && (
+                <Field label={t('plantModel:aliases.label')}>
+                  <Group gap={4} data-testid="point-aliases-view">
+                    {p.aliases.map((v) => (
+                      <Badge key={v} size="sm" variant="default" tt="none" className="mono">
                         {v}
                       </Badge>
                     ))}

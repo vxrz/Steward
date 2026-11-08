@@ -1,0 +1,41 @@
+{
+  "extends": {
+    "label": "Erweitert",
+    "help": "Ein Basisprofil: Dieses Profil erbt dessen Schnittstellen, Datenpunkte und Dateien und führt nur auf, was es ergänzt oder ändert.",
+    "chain": "Erweitert",
+    "chainHelp": "Geerbte Einträge zeigen, woher sie stammen. Ändern Sie einen, um ihn hier zu überschreiben, oder markieren Sie ihn als nicht vorhanden.",
+    "extendedBy": "Erweitert durch",
+    "noneExtends": "Kein Profil erweitert dieses."
+  },
+  "origin": {
+    "own": "Hier ergänzt",
+    "inherited": "Geerbt von {{from}}",
+    "overridden": "Hier geändert ({{fields}}), von {{from}}",
+    "pointInherited": "Geerbt von Profil {{from}}",
+    "pointOverridden": "Geerbt von Profil {{from}}, hier geändert: {{fields}}"
+  },
+  "actions": {
+    "reset": "Auf die Werte der Basis zurücksetzen",
+    "notPresent": "Bei diesem Gerät nicht vorhanden",
+    "restore": "Wiederherstellen"
+  },
+  "notPresent": {
+    "title": "Geerbt, aber nicht vorhanden",
+    "interface": "Schnittstelle {{name}}",
+    "point": "Datenpunkt {{name}} ({{id}})",
+    "by": "(markiert von {{name}})"
+  },
+  "unused": "Änderungen an Einträgen, die die Basis nicht mehr hat, werden ignoriert: {{items}}",
+  "aliases": {
+    "label": "Auch bekannt als",
+    "help": "Namen, die Werkzeuge für diesen Datenpunkt üblicherweise verwenden, etwa die Variablennamen eines Gateways. Importe von Datenerfassungen gleichen sie ab."
+  },
+  "additions": {
+    "title": "An dieser Anlage ergänzt",
+    "help": "Datenpunkte und Schnittstellen nur dieser Anlage. Sie zählen wie die Datenpunkte des Profils als geliefert.",
+    "addInterface": "Schnittstelle hinzufügen",
+    "addPoint": "Datenpunkt hinzufügen",
+    "assetOnly": "Nur diese Anlage",
+    "interfaceActions": "Aktionen für Schnittstelle {{name}}"
+  }
+}

@@ -216,6 +216,8 @@ export function DataPointTable({
   canManage,
   onEdit,
   onRemove,
+  badge,
+  menuFor,
 }: {
   profileId: string;
   protocol: PlantProtocol;
@@ -223,14 +225,19 @@ export function DataPointTable({
   label: string;
   canManage: boolean;
   onEdit: (p: PlantDataPoint) => void;
-  onRemove: (p: PlantDataPoint) => void;
+  onRemove?: (p: PlantDataPoint) => void;
+  /** Shown below a data point's id (where it comes from, 0.11.0) */
+  badge?: (p: PlantDataPoint) => ReactNode;
+  /** Replaces the row menu */
+  menuFor?: (p: PlantDataPoint) => ReactNode;
 }) {
   const { t, i18n } = useTranslation('plant');
   const hint = useAddressHint();
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const to = (p: PlantDataPoint) => `/plant/profiles/${encodeURIComponent(profileId)}/points/${encodeURIComponent(p.id)}`;
   const menu = (p: PlantDataPoint) =>
-    canManage && <RowMenu label={t('data.pointActions', { name: p.name })} onEdit={() => onEdit(p)} onRemove={() => onRemove(p)} />;
+    canManage &&
+    (menuFor ? menuFor(p) : <RowMenu label={t('data.pointActions', { name: p.name })} onEdit={() => onEdit(p)} onRemove={onRemove && (() => onRemove(p))} />);
   if (!points.length)
     return (
       <Text size="sm" c="dimmed">
@@ -250,6 +257,7 @@ export function DataPointTable({
                 <Text size="xs" c="dimmed" className="mono code-wrap">
                   <Breakable text={p.id} />
                 </Text>
+                {badge?.(p)}
               </Stack>
               {menu(p)}
             </Group>
@@ -316,6 +324,7 @@ export function DataPointTable({
                 <Text size="xs" c="dimmed" className="mono code-wrap">
                   <Breakable text={p.id} />
                 </Text>
+                {badge?.(p)}
               </Table.Td>
               <Table.Td className="mono code-wrap">
                 <Breakable text={p.dataType || '–'} />

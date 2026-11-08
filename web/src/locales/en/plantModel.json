@@ -1,0 +1,41 @@
+{
+  "extends": {
+    "label": "Extends",
+    "help": "A base profile: this profile inherits its interfaces, data points and files and lists only what it adds or changes.",
+    "chain": "Extends",
+    "chainHelp": "Inherited items show where they come from. Change one to override it here, or mark it as not present.",
+    "extendedBy": "Extended by",
+    "noneExtends": "No profile extends this one."
+  },
+  "origin": {
+    "own": "Added here",
+    "inherited": "Inherited from {{from}}",
+    "overridden": "Changed here ({{fields}}), from {{from}}",
+    "pointInherited": "Inherited from profile {{from}}",
+    "pointOverridden": "Inherited from profile {{from}}, changed here: {{fields}}"
+  },
+  "actions": {
+    "reset": "Back to the base's values",
+    "notPresent": "Not present on this device",
+    "restore": "Restore"
+  },
+  "notPresent": {
+    "title": "Inherited, but not present",
+    "interface": "Interface {{name}}",
+    "point": "Data point {{name}} ({{id}})",
+    "by": "(marked by {{name}})"
+  },
+  "unused": "Changes to items the base no longer has are ignored: {{items}}",
+  "aliases": {
+    "label": "Known as",
+    "help": "Names tools commonly use for this data point, such as a gateway's variable names. Imports of data collections match them."
+  },
+  "additions": {
+    "title": "Added on this asset",
+    "help": "Data points and interfaces of this asset alone. They count as delivered like the profile's data points.",
+    "addInterface": "Add interface",
+    "addPoint": "Add data point",
+    "assetOnly": "This asset only",
+    "interfaceActions": "Actions for interface {{name}}"
+  }
+}

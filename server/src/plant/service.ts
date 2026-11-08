@@ -23,7 +23,7 @@ import { HttpError, nowIso, parseJson, sha256 } from '../util.js';
 import { canCreateSites, canManageCatalogue, plantManagesSome, requireManage, siteRights, sitePermissions } from './access.js';
 import { cleanFields, plantSettings, requirePlant } from './settings.js';
 import { mapClient } from './map.js';
-import { assignmentValuesOf, profileRowOf, profileValuesOf, type AssignmentRow } from './data-model.js';
+import { allProfiles, assignmentValuesOf, type AssignmentRow } from './data-model.js';
 import { deliveries } from './checks.js';
 import {
   assetInput,
@@ -532,16 +532,18 @@ export function listAssets(f: AssetFilter = {}): PlantAssetSummary[] {
     rows = rows.filter((a) => parseJson<string[]>(a.tags, []).some((x) => x.toLowerCase() === t));
   }
   if (f.profile) {
-    const pr = profileRowOf(f.profile);
-    const profile = pr ? profileValuesOf(pr) : null;
+    // the profile and the profiles that extend it (0.11.0), each asset with its own resolved profile
+    const wanted = f.profile;
+    const profiles = allProfiles();
     const assigned = new Map(
       db()
-        .all<AssignmentRow>('SELECT * FROM plant_assignments WHERE profile_id = ?', f.profile)
+        .all<AssignmentRow>('SELECT * FROM plant_assignments WHERE profile_id IS NOT NULL')
         .map((r) => [r.asset_id, assignmentValuesOf(r)]),
     );
     rows = rows.filter((a) => {
       const x = assigned.get(a.id);
-      if (!x || !profile) return false;
+      const profile = x?.profileId ? profiles.get(x.profileId) : undefined;
+      if (!x || !profile || !profile.chain.includes(wanted)) return false;
       return !f.dataPoint || !!deliveries(x, profile).get(f.dataPoint)?.delivers;
     });
   }

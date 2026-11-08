@@ -22,12 +22,12 @@ import {
   assignmentValuesOf,
   cleanParams,
   kpiRowOf,
-  profileRowOf,
-  profileValuesOf,
   removeAssignmentRow,
+  resolvedProfile,
   upsertAssignment,
 } from './data-model.js';
 import { assignmentChecks, canHave } from './checks.js';
+import { assetModel } from './resolve.js';
 
 /**
  * The assignment of an asset (#219): its device profile and controller firmware, per interface whether it is set up
@@ -62,18 +62,29 @@ export function getAssignment(assetId: string): PlantAssignmentView {
   const { row, site, perms } = visibleAsset(assetId);
   const r = assignmentRowOf(assetId);
   const a = r ? assignmentValuesOf(r) : null;
-  const pr = a?.profileId ? profileRowOf(a.profileId) : undefined;
-  const profile = pr ? profileValuesOf(pr) : null;
+  const profile = resolvedProfile(a?.profileId);
   const kpis = allKpis();
+  const model = assetModel(a, profile);
   const brief = briefOf(row, site);
   const subject = { kind: 'asset' as const, id: row.id, name: row.name, siteId: row.site_id };
   const profiles = new Map(profile ? [[profile.id, profile]] : []);
-  const empty: PlantAssignmentValues = { profileId: null, firmware: '', interfaces: [], overrides: [], publications: [], kpis: [], notes: '' };
+  const empty: PlantAssignmentValues = {
+    profileId: null,
+    firmware: '',
+    interfaces: [],
+    overrides: [],
+    additions: { interfaces: [], dataPoints: [] },
+    publications: [],
+    kpis: [],
+    notes: '',
+  };
   const have = new Set((a?.kpis ?? []).map((k) => k.kpi));
   return {
     asset: brief,
     assignment: a,
     profile,
+    model: model.interfaces,
+    added: { interfaces: [...model.added.interfaces], points: [...model.added.points] },
     kpis: (a?.kpis ?? []).map((k) => {
       const d = kpis.get(k.kpi);
       return { ...k, definition: d ? { id: d.id, name: d.name, names: d.names, category: d.category } : null, results: results(k) };
@@ -96,8 +107,7 @@ export function putAssignment(assetId: string, input: z.infer<typeof assignmentI
   const cur = visibleAsset(assetId);
   requireManage(cur.perms, 'change this asset');
   const v: PlantAssignmentValues = { ...input, kpis: input.kpis.map((k) => ({ ...k, params: cleanParams(k.params) })) };
-  const pr = v.profileId ? profileRowOf(v.profileId) : undefined;
-  const problems = assignmentProblems(v, pr ? profileValuesOf(pr) : null, (id) => !!kpiRowOf(id));
+  const problems = assignmentProblems(v, resolvedProfile(v.profileId), (id) => !!kpiRowOf(id));
   if (problems.length)
     throw new HttpError(400, `${problems[0]!.path}: ${problems[0]!.message}`, 'PLANT_ASSIGNMENT_INVALID', {
       path: problems[0]!.path,

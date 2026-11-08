@@ -16,7 +16,7 @@ import {
   type PlantKpiValues,
   type PlantLive,
   type PlantLiveState,
-  type PlantProfileValues,
+  type PlantResolvedProfile,
   type PlantSiteTile,
   type PlantStructure,
   type PlantStructureNode,
@@ -33,8 +33,9 @@ import { requirePlant } from './settings.js';
 import { assetBuilding, loadAllIndexes, loadIndex, type AssetRow, type SiteRow } from './model.js';
 import { visibleAsset, visibleSite } from './service.js';
 import { briefOf, kpiNotFound, pointNotFound, profileNotFound } from './catalogue.js';
-import { allAssignments, allKpis, allProfiles, assignmentRowOf, assignmentValuesOf, pointsOf, profileRowOf, profileValuesOf } from './data-model.js';
+import { allAssignments, allKpis, allProfiles, assignmentRowOf, assignmentValuesOf, pointsOf, profileRowOf, resolvedProfile } from './data-model.js';
 import { assignmentChecks, deliveries, inputGaps } from './checks.js';
+import { assetModel, isOrExtends } from './resolve.js';
 import { siteNetwork } from './network.js';
 import { monitorState, monitorVisible, readableDataset } from './live.js';
 
@@ -255,7 +256,7 @@ const planOf = (def: PlantKpiValues): KpiPlan => {
 function cellOf(
   plan: KpiPlan,
   a: PlantAssignmentValues | undefined,
-  profile: PlantProfileValues | undefined,
+  profile: PlantResolvedProfile | undefined,
   checks: PlantCheck[],
   details: boolean,
 ): PlantCoverageCell {
@@ -274,7 +275,7 @@ function cellOf(
   if (!plan.data) return { state: 'unchecked' };
   if (!a || !a.profileId || !profile) return { state: 'cannot', ...(details ? { gaps: [{ code: 'kpi_no_profile', params: { kpi: def.name } }] } : {}) };
   // a KPI of another profile: no need to look at every data point (the common case on a large site)
-  if ([...plan.profiles].some((p) => p !== a.profileId) && !details) return { state: 'cannot' };
+  if ([...plan.profiles].some((p) => !isOrExtends(profile, p)) && !details) return { state: 'cannot' };
   const gaps = inputGaps(def, a, profile);
   if (!gaps.length) return { state: 'could' };
   return { state: 'cannot', ...(details ? { gaps: gaps.map((g) => ({ code: g.code, params: g.params })) } : {}) };
@@ -310,7 +311,11 @@ export function coverage(f: CoverageFilter): PlantCoverage {
   let assets = v.assets;
   if (f.site) assets = assets.filter((a) => a.site_id === f.site);
   if (f.area) assets = assets.filter((a) => a.area_id === f.area);
-  if (f.profile) assets = assets.filter((a) => assignments.get(a.id)?.profileId === f.profile);
+  // a profile filter includes the profiles that extend it (0.11.0)
+  if (f.profile) {
+    const wanted = f.profile;
+    assets = assets.filter((a) => isOrExtends(profiles.get(assignments.get(a.id)?.profileId ?? ''), wanted));
+  }
   const siteName = (id: string) => v.sites.get(id)?.name ?? '';
   assets = [...assets].sort((a, b) => siteName(a.site_id).localeCompare(siteName(b.site_id)) || (a.site_id < b.site_id ? -1 : a.site_id > b.site_id ? 1 : 0));
   const maxRows = Math.min(PLANT_VIEW_LIMITS.coverageRows, Math.floor(PLANT_VIEW_LIMITS.coverageCells / Math.max(1, plans.length)));
@@ -465,8 +470,7 @@ export function assetFlow(assetId: string): PlantFlowGraph {
   const a = r ? assignmentValuesOf(r) : null;
   const g = new GraphBuilder();
   const monitors = assetMonitors(new Set([assetId]));
-  const pr = a?.profileId ? profileRowOf(a.profileId) : undefined;
-  const profile = pr ? profileValuesOf(pr) : undefined;
+  const profile = resolvedProfile(a?.profileId) ?? undefined;
   const kpis = allKpis();
   const checks = a
     ? assignmentChecks({ kind: 'asset', id: row.id, name: row.name, siteId: row.site_id }, a, new Map(profile ? [[profile.id, profile]] : []), kpis)
@@ -485,9 +489,11 @@ export function assetFlow(assetId: string): PlantFlowGraph {
   // per data point: the nodes its data reaches last (where a KPI reads it), and its path
   const ends = new Map<string, string[]>();
   const pathOf = new Map<string, PlantFlowPath>();
-  if (profile) {
+  // the asset's model: its resolved profile with the data points and interfaces it adds (0.11.0)
+  const model = assetModel(a, profile);
+  if (profile || model.interfaces.length) {
     const delivered = deliveries(a, profile);
-    for (const iface of profile.interfaces) {
+    for (const iface of model.interfaces) {
       const set = a.interfaces.find((x) => x.interface === iface.id);
       const active = !!set?.active;
       const ifId = g.node({
@@ -573,7 +579,7 @@ export function assetFlow(assetId: string): PlantFlowGraph {
       inactive: !k.active,
       checks: jobChecks,
     });
-    const inputs = (def?.inputs ?? []).filter((i) => i.kind === 'data_point' && (!i.profile || i.profile === a.profileId)).flatMap((i) => i.dataPoints);
+    const inputs = (def?.inputs ?? []).filter((i) => i.kind === 'data_point' && (!i.profile || isOrExtends(profile, i.profile))).flatMap((i) => i.dataPoints);
     const reached: { nodes: string[]; edges: string[] }[] = [];
     for (const dp of new Set(inputs)) {
       const from = ends.get(dp);
@@ -604,21 +610,25 @@ export function assetFlow(assetId: string): PlantFlowGraph {
 
 export function pointLineage(profileId: string, pointId: string): PlantFlowGraph {
   requirePlant();
-  const pr = profileRowOf(profileId);
-  if (!pr) throw profileNotFound(profileId);
-  const profile = profileValuesOf(pr);
+  if (!profileRowOf(profileId)) throw profileNotFound(profileId);
+  const profiles = allProfiles();
+  const profile = profiles.get(profileId)!;
   const found = pointsOf(profile).find((x) => x.point.id === pointId);
   if (!found) throw pointNotFound(pointId);
   const v = visible();
   const assignments = allAssignments();
   const kpis = allKpis();
-  const profiles = new Map([[profile.id, profile]]);
   const readers = new Set(
     [...kpis.values()]
-      .filter((k) => k.inputs.some((i) => i.kind === 'data_point' && i.profile === profileId && i.dataPoints.includes(pointId)))
+      .filter((k) => k.inputs.some((i) => i.kind === 'data_point' && !!i.profile && isOrExtends(profile, i.profile) && i.dataPoints.includes(pointId)))
       .map((k) => k.id),
   );
-  const holders = v.assets.filter((x) => assignments.get(x.id)?.profileId === profileId);
+  // assets of this profile and of the profiles that extend it, unless theirs drops the data point (0.11.0)
+  const theirs = (assetId: string) => profiles.get(assignments.get(assetId)?.profileId ?? '');
+  const holders = v.assets.filter((x) => {
+    const p = theirs(x.id);
+    return isOrExtends(p, profileId) && pointsOf(p!).some((y) => y.point.id === pointId);
+  });
   const grouped = holders.length > PLANT_VIEW_LIMITS.lineageAssets;
   const monitors = grouped ? new Map<string, PlantLive[]>() : assetMonitors(new Set(holders.map((x) => x.id)));
   const g = new GraphBuilder();
@@ -634,7 +644,7 @@ export function pointLineage(profileId: string, pointId: string): PlantFlowGraph
   const siteCounts = new Map<string, { total: number; delivering: number }>();
   for (const asset of holders) {
     const a = assignments.get(asset.id)!;
-    const d = deliveries(a, profile).get(pointId)!;
+    const d = deliveries(a, theirs(asset.id)).get(pointId)!;
     const site = v.sites.get(asset.site_id)!;
     const checks = assignmentChecks({ kind: 'asset', id: asset.id, name: asset.name, siteId: asset.site_id }, a, profiles, kpis);
     let holder: string;
