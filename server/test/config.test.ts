@@ -196,7 +196,8 @@ describe('secrets from files (<NAME>_FILE)', () => {
         cwd: SERVER,
         encoding: 'utf8',
         timeout: 60_000,
-        env: { ...process.env, SM_DATABASE_URL_FILE: path.join(dir, 'missing'), SM_LOG_LEVEL: 'silent' },
+        // (without the test database of npm run test:pg: SM_DATABASE_URL and its _FILE variant together are refused)
+        env: { ...process.env, SM_DATABASE_URL: '', SM_DATABASE_URL_FILE: path.join(dir, 'missing'), SM_LOG_LEVEL: 'silent' },
       });
       expect(missing.status).not.toBe(0);
       expect(missing.stderr).toContain('SM_DATABASE_URL_FILE: cannot read');
