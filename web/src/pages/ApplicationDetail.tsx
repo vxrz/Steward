@@ -29,6 +29,7 @@ import { CostsButton } from '../components/costs/CostsButton';
 import { platformKeys } from '../queryKeys';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { useMe } from '../auth';
+import { IfModule } from '../components/modules/ModuleOff';
 
 export function ApplicationDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
@@ -119,7 +120,11 @@ export function ApplicationDetailPage() {
             )}
             <RatingPanel app={a} onSaved={refresh} />
             <ComponentsPanel app={a} onSaved={refresh} />
-            {a.stack.length > 0 && <StackVersions app={a} />}
+            {a.stack.length > 0 && (
+              <IfModule module="versionWatch">
+                <StackVersions app={a} />
+              </IfModule>
+            )}
             <RunsOnPanel app={a} onSaved={refresh} />
             <IntegrationsPanel app={a} onSaved={refresh} />
             <Stack gap="xs" data-testid="application-services">

@@ -101,7 +101,7 @@
     }
   },
   "title": "Plattformen",
-  "description": "Systeme, die Sie verwalten – z. B. ein Insights-Hub-Tenant oder eine Industrial-Edge-Management-Instanz – mit Basis-URL, Zugangsdaten, API-Spezifikationen und Dokumentation.",
+  "description": "Verbindungen zu den APIs, die Steward aufruft – z. B. ein Insights-Hub-Tenant oder ein Kubernetes-Cluster – mit Basis-URL, Zugangsdaten, API-Spezifikationen und Dokumentation. Was wo läuft, beschreibt der Katalog (Anwendungen und Systeme).",
   "add": "Plattform hinzufügen",
   "auth": {
     "none": "Keine Authentifizierung",

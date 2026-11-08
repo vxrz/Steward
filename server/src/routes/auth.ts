@@ -37,6 +37,7 @@ import { logger } from '../log.js';
 import { auditPendingUpgrades } from '../upgrades.js';
 import { ACCESS, isStatusViewer, me } from '../auth/access.js';
 import { plantEnabled } from '../plant/settings.js';
+import { moduleStates } from '../modules/registry.js';
 import { plantManagesSome } from '../plant/access.js';
 import { plantOnly } from '../auth/policy.js';
 import { assuranceStepUpStatus, ssoMfaAsk } from '../auth/assurance.js';
@@ -98,6 +99,8 @@ function meInfo(): Me | null {
     plant: plantEnabled() && !isStatusViewer(u.roles),
     plantManage: plantEnabled() && !isStatusViewer(u.roles) && plantManagesSome(u),
     plantOnly: plantOnly(u),
+    // the modules (0.11.0, ADR 0016): the sidebar, the pages and the search leave out what is switched off
+    modules: moduleStates(),
   };
   return { user, capabilities: { ...capabilities(u), ...nav }, ...(u.emergency ? { emergency: { expiresAt: u.emergency.expiresAt } } : {}) };
 }

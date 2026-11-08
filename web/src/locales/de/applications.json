@@ -1,6 +1,6 @@
 {
   "title": "Anwendungen",
-  "description": "Woraus Ihre Services bestehen: Plattformen wie Insights Hub oder Industrial Edge und kleinere Anwendungen. Jede kann eine CIA-Bewertung (Schutzbedarf) haben.",
+  "description": "Die Software, aus der Ihre Services bestehen – z. B. ein genutzter Insights-Hub-Tenant oder eine kleine eigene Anwendung – mit ihrer CIA-Bewertung (Schutzbedarf). Eine Anwendung läuft auf Systemen; Steward erreicht sie über Plattformen.",
   "new": "Neue Anwendung",
   "newTitle": "Neue Anwendung",
   "editTitle": "{{name}} bearbeiten",
@@ -226,7 +226,7 @@
   },
   "components": {
     "title": "Komponenten",
-    "help": "Woraus die Anwendung besteht. Prozesse lesen sie über eine Eingabe vom Typ Anwendung, z. B. alle Kafka-Topics der Anwendung.",
+    "help": "Die Code- und Datenteile der Anwendung: Repositories, Images, Bibliotheken, Kafka-Topics, Datenbanken. Prozesse lesen sie über eine Eingabe vom Typ Anwendung, z. B. alle Kafka-Topics der Anwendung.",
     "empty": "Noch keine Komponenten.",
     "add": "Komponente hinzufügen",
     "addTitle": "Komponente zu {{name}} hinzufügen",
@@ -673,7 +673,7 @@
   },
   "systems": {
     "title": "Systeme",
-    "description": "Server, VMs, Cluster, Appliances und Cloud-Dienste, auf denen Anwendungen laufen. Betriebssystem und Laufzeitumgebungen werden einmal je System gepflegt.",
+    "description": "Worauf Anwendungen laufen: Server, VMs, Cluster, Appliances und Cloud-Dienste, jeweils mit ihren Umgebungen. Betriebssystem und Laufzeitumgebungen werden einmal je System gepflegt.",
     "new": "Neues System",
     "searchPlaceholder": "Name, Anbieter oder Notiz",
     "kind": "Art",

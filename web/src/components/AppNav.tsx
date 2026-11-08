@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ActionIcon, Badge, Box, Collapse, Divider, Group, Indicator, NavLink, ScrollArea, Text, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Badge, Box, Collapse, Divider, Group, Indicator, NavLink, ScrollArea, Text, Tooltip, UnstyledButton, VisuallyHidden } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import {
   IconCoin,
@@ -51,8 +51,9 @@ import {
   IconWebhook,
   type Icon,
 } from '@tabler/icons-react';
-import type { Capabilities } from '@sm/shared';
+import type { Capabilities, VisibilitySummary } from '@sm/shared';
 import { useOwnLabel } from './plant/labels';
+import { navModuleOn } from '../modules';
 
 export type NavKey =
   | 'dashboard'
@@ -97,8 +98,11 @@ export type NavKey =
   | 'plantChecks'
   | 'plantMap'
   | 'plantImport';
-/** The areas of the sidebar (v0.4.0): Home has no heading; Plant only while its module is on (#218). */
-export type NavGroupKey = 'home' | 'operate' | 'automate' | 'catalogue' | 'plant' | 'compliance' | 'admin';
+/**
+ * The areas of the sidebar (v0.4.0; Registers since 0.11.0): Home has no heading; Plant only while its module is on
+ * (#218).
+ */
+export type NavGroupKey = 'home' | 'operate' | 'automate' | 'catalogue' | 'registers' | 'plant' | 'compliance' | 'admin';
 
 interface NavItemDef {
   to: string;
@@ -131,8 +135,20 @@ export const AUTOMATE_TABS: NavItemDef[] = [
 ];
 
 /**
- * The sidebar in six areas, ordered by how often a service team needs them: Home, day-to-day operation,
- * automation, the catalogue around the services, compliance and finally administration.
+ * Services, Scorecard and Costs (0.11.0): one sidebar entry ("Services"), the reports about services are tabs of it.
+ * The addresses stay as they were.
+ */
+export const SERVICE_TABS: NavItemDef[] = [
+  { to: '/services', key: 'services', icon: IconStack2 },
+  { to: '/scorecard', key: 'scorecard', icon: IconGauge },
+  { to: '/costs', key: 'costs', icon: IconCoin },
+];
+
+/**
+ * The sidebar in areas, ordered by how often a service team needs them: Home, day-to-day operation, automation, the
+ * catalogue (what exists and how Steward reaches it), the registers kept about it, compliance and finally
+ * administration (0.11.0: Registers split from the catalogue, Maintenance moved to Operate, Scorecard and Costs are
+ * tabs of Services).
  */
 export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
   { key: 'home', items: [{ to: '/', key: 'dashboard', icon: IconLayoutDashboard }] },
@@ -146,6 +162,8 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/reports', key: 'reports', icon: IconReportAnalytics },
       { to: '/tasks', key: 'tasks', icon: IconInbox },
       { to: '/mcp-requests', key: 'mcpRequests', icon: IconRobot },
+      // maintenance windows silence monitors and pause messages: day-to-day operation (0.11.0)
+      { to: '/maintenance', key: 'maintenance', icon: IconTool },
     ],
   },
   {
@@ -155,18 +173,20 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
   {
     key: 'catalogue',
     items: [
-      { to: '/services', key: 'services', icon: IconStack2 },
+      { to: '/services', key: 'services', icon: IconStack2, also: ['/scorecard', '/costs'] },
       { to: '/applications', key: 'applications', icon: IconApps },
       { to: '/systems', key: 'systems', icon: IconServer2 },
       { to: '/platforms', key: 'platforms', icon: IconServer },
       { to: '/data-contracts', key: 'dataContracts', icon: IconContract },
-      { to: '/credentials', key: 'credentials', icon: IconKey, when: credentialsRegister },
+    ],
+  },
+  {
+    key: 'registers',
+    items: [
       { to: '/records', key: 'records', icon: IconFileCertificate },
+      { to: '/credentials', key: 'credentials', icon: IconKey, when: credentialsRegister },
       { to: '/tickets', key: 'tickets', icon: IconTicket },
       { to: '/duties', key: 'duties', icon: IconCalendarCheck },
-      { to: '/scorecard', key: 'scorecard', icon: IconGauge },
-      { to: '/costs', key: 'costs', icon: IconCoin },
-      { to: '/maintenance', key: 'maintenance', icon: IconTool },
     ],
   },
   {
@@ -206,7 +226,10 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
 ];
 
 /** Where each page of the sidebar (and each tab page of an entry) lives: breadcrumbs link by key. */
-export const NAV_PATHS = Object.fromEntries([...NAV_GROUPS.flatMap((g) => g.items), ...AUTOMATE_TABS].map((i) => [i.key, i.to])) as Record<NavKey, string>;
+export const NAV_PATHS = Object.fromEntries([...NAV_GROUPS.flatMap((g) => g.items), ...AUTOMATE_TABS, ...SERVICE_TABS].map((i) => [i.key, i.to])) as Record<
+  NavKey,
+  string
+>;
 
 export interface NavEntry {
   to: string;
@@ -218,10 +241,16 @@ export interface NavEntry {
   also?: string[];
 }
 
-const visible = (caps: Capabilities) => (n: NavItemDef) => (!n.cap || caps[n.cap]) && (!n.when || n.when(caps));
+/**
+ * Whether an entry shows: its capability and condition, its module (switched off: never, ADR 0016) and what the
+ * person may see there (GET /api/me/visibility, U2: an area with nothing to see and nothing to add is left out; while
+ * the summary loads, the entry shows).
+ */
+const visible = (caps: Capabilities, seen?: VisibilitySummary) => (n: NavItemDef) =>
+  (!n.cap || caps[n.cap]) && (!n.when || n.when(caps)) && navModuleOn(caps, n.key) && (seen?.areas[n.key as keyof VisibilitySummary['areas']]?.show ?? true);
 
 /** The areas and pages the user may see, with translated labels. */
-export function useNavGroups(caps: Capabilities): { key: NavGroupKey; label: string; items: NavEntry[] }[] {
+export function useNavGroups(caps: Capabilities, seen?: VisibilitySummary): { key: NavGroupKey; label: string; items: NavEntry[] }[] {
   const { t } = useTranslation('nav');
   // the plant registry's own display names (Settings → Modules): "Machines" instead of "Assets"
   const own = useOwnLabel(caps.plant === true);
@@ -241,27 +270,40 @@ export function useNavGroups(caps: Capabilities): { key: NavGroupKey; label: str
           return {
             key: g.key,
             label,
-            items: g.items.filter(visible(caps)).map((n) => ({ to: n.to, key: n.key, icon: n.icon, label: itemLabel(n.key), group: label, also: n.also })),
+            items: g.items
+              .filter(visible(caps, seen))
+              .map((n) => ({ to: n.to, key: n.key, icon: n.icon, label: itemLabel(n.key), group: label, also: n.also })),
           };
         })
         .filter((g) => g.items.length > 0),
-    [t, caps, own],
+    [t, caps, own, seen],
   );
 }
 
 /** The tabs of the Automate area the user may see (Processes, Schedules, Triggers, Git sync). */
 export function useAutomateTabs(caps: Capabilities): NavEntry[] {
+  return useTabs(AUTOMATE_TABS, caps, 'automate');
+}
+
+/** The tabs of Services the user may see (Services, Scorecard, Costs; a switched-off module's tab is left out). */
+export function useServiceTabs(caps: Capabilities): NavEntry[] {
+  return useTabs(SERVICE_TABS, caps, 'catalogue');
+}
+
+function useTabs(tabs: NavItemDef[], caps: Capabilities, group: Exclude<NavGroupKey, 'home'>): NavEntry[] {
   const { t } = useTranslation('nav');
   return useMemo(
     () =>
-      AUTOMATE_TABS.filter((n) => !caps.plantOnly && visible(caps)(n)).map((n) => ({
-        to: n.to,
-        key: n.key,
-        icon: n.icon,
-        label: t(`items.${n.key}`),
-        group: t('groups.automate'),
-      })),
-    [t, caps],
+      tabs
+        .filter((n) => !caps.plantOnly && visible(caps)(n))
+        .map((n) => ({
+          to: n.to,
+          key: n.key,
+          icon: n.icon,
+          label: t(`items.${n.key}`),
+          group: t(`groups.${group}`),
+        })),
+    [t, caps, tabs, group],
   );
 }
 
@@ -319,6 +361,9 @@ export function usePins(userId: string): [string[], (to: string) => void] {
 
 type GroupState = Partial<Record<NavGroupKey, boolean>>;
 
+/** When "g" was pressed last on a sidebar entry (the start of a "g …" shortcut, not a pin). */
+let lastG = 0;
+
 /**
  * Sidebar content: Home, the pinned entries, the areas with collapsible headings and the open-task badge,
  * and – on wide screens – a narrow icon-only mode (`rail`). An area opens when it holds the current page;
@@ -326,6 +371,8 @@ type GroupState = Partial<Record<NavGroupKey, boolean>>;
  */
 export function AppNav({
   caps,
+  seen,
+  seenSettled = true,
   userId,
   pathname,
   openTasks,
@@ -334,6 +381,10 @@ export function AppNav({
   onNavigate,
 }: {
   caps: Capabilities;
+  /** What the person may see (GET /api/me/visibility); undefined while it loads */
+  seen?: VisibilitySummary;
+  /** The answer is there (or failed): until then the areas wait, so no entry shows and goes again */
+  seenSettled?: boolean;
   userId: string;
   pathname: string;
   openTasks: number;
@@ -342,7 +393,7 @@ export function AppNav({
   onNavigate: () => void;
 }) {
   const { t } = useTranslation('nav');
-  const groups = useNavGroups(caps);
+  const groups = useNavGroups(caps, seen);
   const all = useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const active = activeNavEntry(all, pathname);
   const activeGroup = groups.find((g) => g.items.includes(active!))?.key;
@@ -403,6 +454,18 @@ export function AppNav({
           leftSection={<n.icon size={18} stroke={1.6} />}
           active={isActive}
           aria-current={isActive ? 'page' : undefined}
+          // one tab stop per entry (U17): P pins or unpins the focused entry; the pin button is for the pointer
+          aria-keyshortcuts="P"
+          aria-describedby="nav-pin-hint"
+          onKeyDown={(e) => {
+            if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+            const key = e.key.toLowerCase();
+            // "g p" stays the shortcut to Processes (HelpMenu.tsx)
+            if (key === 'g') lastG = Date.now();
+            if (key !== 'p' || Date.now() - lastG < 1500) return;
+            e.preventDefault();
+            togglePin(n.to);
+          }}
           rightSection={
             badge ? (
               <Badge size="sm" color="accent" circle mr={26}>
@@ -423,6 +486,7 @@ export function AppNav({
             size="sm"
             aria-label={pinLabel}
             aria-pressed={isPinned}
+            tabIndex={-1}
             onClick={() => togglePin(n.to)}
             style={{ position: 'absolute', insetInlineEnd: 6, top: '50%', transform: 'translateY(-50%)' }}
           >
@@ -461,11 +525,12 @@ export function AppNav({
   );
 
   const home = groups.find((g) => g.key === 'home');
-  const areas = groups.filter((g) => g.key !== 'home');
+  const areas = seenSettled ? groups.filter((g) => g.key !== 'home') : [];
 
   return (
     <>
-      <ScrollArea style={{ flex: 1 }} type="scroll">
+      <VisuallyHidden id="nav-pin-hint">{t('pinHint')}</VisuallyHidden>
+      <ScrollArea style={{ flex: 1 }} type="scroll" data-areas={seenSettled ? 'ready' : 'loading'}>
         {home && <Box>{home.items.map((n) => link(n, 'group'))}</Box>}
         {pinned.length > 0 &&
           (rail ? (

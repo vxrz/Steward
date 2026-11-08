@@ -40,6 +40,7 @@ import { confirmDanger } from '../components/confirm';
 import { useCiaScale, useLevel } from '../components/catalogue/cia';
 import { AttentionBadge, PartBadge, shownParts } from '../components/scorecard/common';
 import { fmtNumber } from '../format';
+import { ServiceTabs } from '../components/page/LinkTabs';
 
 /**
  * The service scorecard: every service (not archived) with its four parts – duties, availability, documentation,
@@ -72,6 +73,7 @@ export function ScorecardPage() {
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   return (
     <>
+      <ServiceTabs active="/scorecard" />
       <PageHeader title={t('title')} description={t('description')} />
       <QueryState query={q} />
       {o && (

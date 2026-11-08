@@ -101,7 +101,7 @@
     }
   },
   "title": "Platforms",
-  "description": "Systems you manage – e.g. an Insights Hub tenant or an Industrial Edge Management instance – with their base URL, credentials, API specifications and documentation.",
+  "description": "Connections to the APIs Steward calls – e.g. an Insights Hub tenant or a Kubernetes cluster – with base URL, credentials, API specifications and documentation. What runs where is described in the catalogue (applications and systems).",
   "add": "Add platform",
   "auth": {
     "none": "No auth",

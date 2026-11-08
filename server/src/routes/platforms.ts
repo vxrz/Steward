@@ -19,6 +19,8 @@ import { LARGE_BODIES } from '../bodyLimits.js';
 import { ACCESS, me } from '../auth/access.js';
 import { requirePlatform } from './helpers.js';
 import { PRESET_SPECS } from '../platforms/presets.js';
+import { moduleOfPlatformKind } from '@sm/shared';
+import { moduleEnabled } from '../modules/registry.js';
 
 const platformBody = z.object({
   name: z.string().min(1).max(200),
@@ -56,7 +58,13 @@ const params = (req: FastifyRequest) => req.params as Record<string, string>;
 /** Platforms, connector types, API specifications and documentation (mounted under /api). */
 export async function platformRoutes(app: FastifyInstance): Promise<void> {
   // ---------- platforms ----------
-  app.get('/platform-presets', async () => connectors.listPresets());
+  // connectors of a switched-off module are not offered (ADR 0016); platforms of that kind stay as they are
+  app.get('/platform-presets', async () =>
+    connectors.listPresets().filter((p) => {
+      const m = moduleOfPlatformKind(p.kind);
+      return !m || moduleEnabled(m);
+    }),
+  );
   app.post('/platform-types', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'createPlatforms', 'create connector types');
     const b = z

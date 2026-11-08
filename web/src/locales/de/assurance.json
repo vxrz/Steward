@@ -326,6 +326,12 @@
         "label": "Daten einer Person exportieren",
         "description": "Alles, was Steward über eine andere Person speichert, verlässt Steward als Datei."
       }
+    },
+    "modules": {
+      "switch": {
+        "label": "Ein Modul ein- oder ausschalten",
+        "description": "Einen optionalen Bereich (Kosten, Datenverträge, Compliance, Statusseiten und andere) für alle ein- oder ausschalten: seine Seiten, Routen und Hintergrundaufgaben kommen oder gehen. Seine Daten bleiben."
+      }
     }
   },
   "teamsLabel": "Darf in Microsoft Teams entschieden werden",

@@ -1,6 +1,6 @@
 # 0007. The plant registry as an opt-in module
 
-- **Status:** Accepted
+- **Status:** Accepted; its module switch is superseded in part by [0016](0016-module-registry.md) (one registry for every optional area, a step-up to switch)
 - **Date:** 2026-11-05
 - **Since:** 0.6.0 (#217, part 1: #218) – marked _preview_
 

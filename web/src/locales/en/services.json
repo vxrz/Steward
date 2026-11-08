@@ -1,6 +1,6 @@
 {
   "title": "Services",
-  "description": "A small service catalogue: who owns a service, how critical it is, where it lives in your CMDB, and what in Steward belongs to it.",
+  "description": "What your team offers to others: who owns a service, how critical it is, where it lives in your CMDB, and which applications, documents and duties belong to it.",
   "new": "New service",
   "newTitle": "New service",
   "editTitle": "Edit {{name}}",

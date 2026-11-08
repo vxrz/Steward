@@ -19,6 +19,14 @@ export function NoData({ dataset, error }: { dataset?: string; error?: unknown }
   const { t } = useTranslation(['dashboards', 'editor']);
   const { caps } = useMe();
   const empty = !error || isNotFound(error);
+  // data the person may not read (U3): say so, instead of "no process fills this widget"
+  const hidden = useQuery({
+    queryKey: datasetKeys.visibility(dataset),
+    queryFn: () => get<{ hiddenByPermissions: boolean }>(`/datasets/${encodeURIComponent(dataset!)}/visibility`),
+    enabled: !!dataset && empty,
+    staleTime: 60000,
+    retry: false,
+  });
   const publishers = useQuery({
     queryKey: datasetKeys.publishers(dataset),
     queryFn: () => get<DatasetPublisher[]>(`/datasets/${encodeURIComponent(dataset!)}/publishers`),
@@ -36,6 +44,12 @@ export function NoData({ dataset, error }: { dataset?: string; error?: unknown }
     return (
       <Text size="sm" c="dimmed">
         {errorText(error)}
+      </Text>
+    );
+  if (hidden.data?.hiddenByPermissions)
+    return (
+      <Text size="sm" c="dimmed" data-testid="widget-no-access">
+        {t('w.noDataHidden')}
       </Text>
     );
   if (!publishers.isSuccess && !publishers.isError) return null;

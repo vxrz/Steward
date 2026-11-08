@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Icon } from '@tabler/icons-react';
 import { useMe } from '../../auth';
-import { useAutomateTabs } from '../AppNav';
+import { useAutomateTabs, useServiceTabs } from '../AppNav';
 
 export interface LinkTab {
   to: string;
@@ -62,4 +62,13 @@ export function AutomateTabs({ active }: { active: '/processes' | '/schedules' |
   const tabs = useAutomateTabs(caps);
   if (tabs.length < 2) return null;
   return <LinkTabs label={t('groups.automate')} active={active} tabs={tabs.map((n) => ({ to: n.to, label: n.label, icon: n.icon }))} />;
+}
+
+/** The tabs above Services, Scorecard and Costs (0.11.0): the reports about services are views of Services. */
+export function ServiceTabs({ active }: { active: '/services' | '/scorecard' | '/costs' }) {
+  const { t } = useTranslation('nav');
+  const { caps } = useMe();
+  const tabs = useServiceTabs(caps);
+  if (tabs.length < 2) return null;
+  return <LinkTabs label={t('items.services')} active={active} tabs={tabs.map((n) => ({ to: n.to, label: n.label, icon: n.icon }))} />;
 }

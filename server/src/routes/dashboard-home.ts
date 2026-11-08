@@ -17,6 +17,7 @@ import * as users from '../auth/users.js';
 import { isAdmin } from '../auth/permissions.js';
 import { me } from '../auth/access.js';
 import { visibleProcessIds, visibleTasks, visibleRuns } from './helpers.js';
+import { moduleEnabled } from '../modules/registry.js';
 
 /** Instance-wide counts for the getting-started checklist (administrators only). */
 function setupProgress(): DashboardSetup {
@@ -51,10 +52,11 @@ export async function dashboardHomeRoutes(app: FastifyInstance): Promise<void> {
     // the tiles: each counted by the feature's own permission-filtered service; left out without the right
     const monitors = monitorAttention();
     const credentials = dueAttention();
-    const findings = findingAttention();
+    // tiles of a switched-off module are left out (ADR 0016)
+    const findings = moduleEnabled('compliance') ? findingAttention() : undefined;
     const reviews = reviewAttention();
     const duties = dutyAttention();
-    const scorecard = scorecardAttention();
+    const scorecard = moduleEnabled('scorecard') ? scorecardAttention() : undefined;
     const attention: DashboardAttention = {
       tasks: openTasks.length,
       runs: { failed: failed24h, withFindings: findings24h, total: last24.length },

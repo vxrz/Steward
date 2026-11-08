@@ -1,11 +1,19 @@
 import { Cron } from 'croner';
 import { Counter, Gauge, Histogram } from 'prom-client';
-import type { BackgroundJob, BackgroundJobResult } from '@sm/shared';
+import { MODULES, type BackgroundJob, type BackgroundJobResult, type ModuleId } from '@sm/shared';
 import { db } from '../db.js';
 import { logger } from '../log.js';
 import { audit } from '../audit.js';
 import { registry as metricsRegistry } from '../metrics.js';
 import { HttpError, nowIso } from '../util.js';
+import { moduleEnabled, moduleOff } from '../modules/registry.js';
+
+/** The module a job belongs to (shared/src/modules.ts): it does not run while the module is switched off (ADR 0016). */
+const moduleOfJob = (name: string): ModuleId | undefined => MODULES.find((m) => m.jobs.includes(name))?.id;
+const switchedOff = (name: string): ModuleId | undefined => {
+  const id = moduleOfJob(name);
+  return id && !moduleEnabled(id) ? id : undefined;
+};
 
 /**
  * One runner for the periodic background work (reminders, integrations, clean-up, checkpoints): each job has a
@@ -198,6 +206,8 @@ export const jobsStarted = (): boolean => started;
 export async function runJob(name: string, trigger: 'schedule' | 'manual' = 'schedule'): Promise<boolean> {
   const s = jobs.get(name);
   if (!s) throw new HttpError(404, 'This background job does not exist', 'JOB_NOT_FOUND');
+  // a switched-off module's job is not started at all (no run, no history): its data is left as it is
+  if (switchedOff(name)) return false;
   if (s.running) {
     persist(name, 'UPDATE background_jobs SET skipped = skipped + 1 WHERE name = ?');
     logger.info({ job: name, runningSince: new Date(s.runningSince!).toISOString() }, 'background job still running: start skipped');
@@ -276,6 +286,8 @@ export function requestJobRun(name: string): { started: boolean } {
   const s = jobs.get(name);
   if (!s) throw new HttpError(404, 'This background job does not exist', 'JOB_NOT_FOUND');
   if (s.running) throw new HttpError(409, 'This background job is running already', 'JOB_RUNNING');
+  const off = switchedOff(name);
+  if (off) throw Object.assign(moduleOff(off), { statusCode: 409 });
   audit({ action: 'job.run_requested', entityType: 'job', entityId: name, summary: `Background job "${name}" started by hand` });
   void runJob(name, 'manual').catch((err) => logger.warn({ err, job: name }, 'background job could not start'));
   return { started: true };
@@ -316,6 +328,7 @@ export function listJobs(): BackgroundJob[] {
         runs: Number(r?.runs ?? 0),
         failures: Number(r?.failures ?? 0),
         skipped: Number(r?.skipped ?? 0),
+        ...(switchedOff(s.def.name) ? { switchedOff: true } : {}),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));

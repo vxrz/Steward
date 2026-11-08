@@ -13,6 +13,7 @@ import { TicketForm } from '../components/tickets/TicketForm';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { fmtDate, fmtRelative } from '../format';
 import { ListPage } from '../components/page/ListPage';
+import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 
 type State = 'open' | 'closed' | 'all';
 
@@ -76,6 +77,8 @@ export function TicketsPage() {
     return u.toString();
   }, [debounced, statuses, state, sources, vendor, service, link, responsible, minAge, waitingVendor]);
   const list = useQuery({ queryKey: ['ticket-references', qs], queryFn: () => get<TicketList>(`/ticket-references?${qs}`) });
+  // entries the person may not see (U3): "nothing you may see" instead of "nothing yet"
+  const hidden = useHiddenByPermissions('tickets');
   const [creating, setCreating] = useState(false);
   useCreateParam(list.data?.canCreate, () => setCreating(true));
   const items = list.data?.items ?? [];
@@ -255,6 +258,8 @@ export function TicketsPage() {
           <Text c="dimmed" size="sm">
             {t('emptyFiltered')}
           </Text>
+        ) : hidden ? (
+          <RestrictedEmpty />
         ) : (
           <EmptyState
             icon={IconTicket}

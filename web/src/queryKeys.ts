@@ -90,6 +90,8 @@ export const datasetKeys = {
   detail: (key: string | undefined, qs: string) => ['dataset', key, qs] as const,
   metrics: (key: string | undefined, names: string, days: unknown, qs: string) => ['dataset-metrics', key, names, days, qs] as const,
   publishers: (key: string | undefined) => ['dataset-publishers', key] as const,
+  /** Whether a dataset exists that the reader may not see (0.11.0, U3) */
+  visibility: (key: string | undefined) => ['dataset-visibility', key] as const,
 };
 
 export const scheduleKeys = {

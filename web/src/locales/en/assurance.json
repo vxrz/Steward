@@ -326,6 +326,12 @@
         "label": "Export a person's data",
         "description": "Everything Steward holds about another person leaves Steward as a file."
       }
+    },
+    "modules": {
+      "switch": {
+        "label": "Switch a module on or off",
+        "description": "Turning an optional area (costs, data contracts, compliance, status pages and others) on or off for everyone: its pages, routes and background jobs come or go. Its data stays."
+      }
     }
   },
   "teamsLabel": "May be decided in Microsoft Teams",

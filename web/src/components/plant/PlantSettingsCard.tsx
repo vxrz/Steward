@@ -66,6 +66,8 @@ export function PlantSettingsCard() {
       // the sidebar's Plant area and the link kinds follow the switch
       void qc.invalidateQueries({ queryKey: ['auth'] });
       void qc.invalidateQueries({ queryKey: plantKeys.all });
+      // Settings → Modules shows the switch's state, too (ADR 0016)
+      void qc.invalidateQueries({ queryKey: ['settings', 'modules'] });
       notifyOk(t('settings.saved'));
     } catch (e) {
       notifyError(e);

@@ -44,6 +44,7 @@ import { DetailPage } from '../components/page/DetailPage';
 import { CostsButton } from '../components/costs/CostsButton';
 import { LinkTabs } from '../components/page/LinkTabs';
 import { EnvironmentBadge } from '../components/catalogue/environments';
+import { useModuleOn } from '../modules';
 
 /** The tabs of the service hub (v0.4.0): most catalogue work starts from a service. '' is the overview. */
 export const SERVICE_TABS = ['', 'applications', 'systems', 'duties', 'objectives', 'maintenance', 'documents', 'tickets', 'scorecard'] as const;
@@ -82,7 +83,10 @@ export function ServiceDetailPage() {
     void qc.invalidateQueries({ queryKey: ['services'] });
     void qc.invalidateQueries({ queryKey: ['applications'] });
   };
-  const tab = SERVICE_TABS.find((x) => x === tabParam);
+  // objectives and the scorecard belong to the scorecard module (ADR 0016): switched off, their tabs go
+  const scorecardOn = useModuleOn('scorecard');
+  const tabs = SERVICE_TABS.filter((x) => scorecardOn || (x !== 'objectives' && x !== 'scorecard'));
+  const tab = tabs.find((x) => x === tabParam);
   // an unknown tab: the overview
   if (tab === undefined) return <Navigate to={`/services/${id}`} replace />;
   const s = q.data;
@@ -144,7 +148,7 @@ export function ServiceDetailPage() {
         <LinkTabs
           label={t('hub.tabsLabel', { name: s.name })}
           active={tab ? `${base}/${tab}` : base}
-          tabs={SERVICE_TABS.map((x) => ({
+          tabs={tabs.map((x) => ({
             to: x ? `${base}/${x}` : base,
             label: t(`hub.tabs.${x || 'overview'}`),
             icon: TAB_ICONS[x],

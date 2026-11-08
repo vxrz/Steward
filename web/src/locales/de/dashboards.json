@@ -248,7 +248,8 @@
     "noDataHowTo": "Für Designer: Ein Prozess mit einem Knoten „{{node}}“ für den Datensatz <c>{{dataset}}</c> füllt es.",
     "openProcess": "Prozess öffnen",
     "scheduleIt": "Einplanen",
-    "datasetKey": "Datensatz <c>{{dataset}}</c>"
+    "datasetKey": "Datensatz <c>{{dataset}}</c>",
+    "noDataHidden": "Sie dürfen die Daten dieses Widgets nicht sehen. Fragen Sie einen Administrator oder das verantwortliche Team nach Zugriff."
   },
   "charts": {
     "trendLabel": "Trend von {{names}}. Werte mit den Pfeiltasten ablesen.",

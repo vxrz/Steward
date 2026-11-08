@@ -45,6 +45,7 @@ import { DataTable, type DataColumn } from '../components/DataTable';
 import { appUrl } from '../basePath';
 import { ListPage } from '../components/page/ListPage';
 import { monitorKeys } from '../queryKeys';
+import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 
 export function MonitorsPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -53,6 +54,8 @@ export function MonitorsPage() {
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') ?? 'monitors';
   const monitors = useQuery({ queryKey: monitorKeys.all, queryFn: () => get<MonitorSummary[]>('/monitors'), refetchInterval: 10000 });
+  // entries the person may not see (U3): "nothing you may see" instead of "nothing yet"
+  const hidden = useHiddenByPermissions('monitors');
   const [importing, setImporting] = useState(false);
   const [secrets, setSecrets] = useState<MonitorSaveResult | null>(null);
   const canCreate = useMe().caps.createMonitors;
@@ -123,7 +126,8 @@ export function MonitorsPage() {
             <TagFilterChip tag={tag} onChange={setTag} />
           </Group>
           <QueryState query={monitors} />
-          {monitors.isSuccess && list.length === 0 && (
+          {monitors.isSuccess && list.length === 0 && hidden && <RestrictedEmpty />}
+          {monitors.isSuccess && list.length === 0 && !hidden && (
             <EmptyState
               icon={IconHeartRateMonitor}
               title={t('emptyState.title')}

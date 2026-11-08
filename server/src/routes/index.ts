@@ -45,11 +45,14 @@ import { costRoutes } from '../costs/routes.js';
 import { dataContractRoutes } from '../datacontracts/routes.js';
 import { plantRoutes } from '../plant/routes.js';
 import { versionRoutes } from '../versions/routes.js';
+import { moduleRoutes } from '../modules/routes.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await authRoutes(app);
   await userRoutes(app);
   await settingsRoutes(app);
+  // the module registry (0.11.0, ADR 0016): Settings → Modules, and what a person may see
+  await moduleRoutes(app);
   await platformRoutes(app);
   await processRoutes(app);
   await auditRoutes(app);

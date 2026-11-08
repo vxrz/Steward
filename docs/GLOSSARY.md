@@ -1,0 +1,48 @@
+# Glossary
+
+The words Steward uses, in English and German. The web app has the same list under _Help → Glossary_.
+
+**In one sentence:** a service consists of applications; an application runs on systems; Steward reaches systems and applications through platforms.
+
+## Catalogue
+
+| Term          | German       | Meaning                                                                                                                                                                                                  |
+| ------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Service       | Service      | What a team offers to others, with an owner and a criticality. It consists of applications. _Catalogue → Services_.                                                                                      |
+| Application   | Anwendung    | Software a service consists of – a tenant you use or a small in-house app – with its CIA rating (protection need). It runs on systems. _Catalogue → Applications_.                                       |
+| System        | System       | Where applications run: a server, VM, cluster, appliance or cloud service, with its environments. A catalogue entry. _Catalogue → Systems_.                                                              |
+| Component     | Komponente   | A code or data part of an application: a repository, image, library, topic or database. Listed on the application.                                                                                       |
+| Platform      | Plattform    | A connection Steward talks to through an API: base URL, credentials, API specifications. Not a catalogue entry; an application or system can name the platform that reaches it. _Catalogue → Platforms_. |
+| Data contract | Datenvertrag | What a data source promises (ODCS): schema, quality rules, versions. An optional module.                                                                                                                 |
+
+## Automation
+
+| Term                         | German                       | Meaning                                                                                                                            |
+| ---------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Process (procedure, runbook) | Prozess (Verfahren, Runbook) | A versioned flow of steps that Steward runs. The UI says _process_; the docs also say _procedure_ or _runbook_ for the same thing. |
+| Run                          | Ausführung                   | One execution of a process, with its journal, protocol and seal.                                                                   |
+| Step                         | Schritt                      | One node of a process in a run: an API call, a check, a manual task, a decision.                                                   |
+| Decision                     | Entscheidung                 | An approval or selection a person makes while a run waits. _Operate → My tasks_.                                                   |
+| Schedule, trigger            | Zeitplan, Auslöser           | What starts a run: a time (cron) or an inbound webhook.                                                                            |
+
+## Watching
+
+| Term               | German          | Meaning                                                                                              |
+| ------------------ | --------------- | ---------------------------------------------------------------------------------------------------- |
+| Monitor            | Monitor         | A graph of checks that runs on a schedule and reports a status (up, degraded, down).                 |
+| Check              | Prüfung         | One test inside a monitor or a process step: an HTTP status, a query value, a heartbeat.             |
+| Objective          | Ziel            | An availability target of a service, measured over time. Shown on the scorecard (a tab of Services). |
+| Maintenance window | Wartungsfenster | Planned work: affected monitors stay quiet and messages pause. _Operate → Maintenance_.              |
+
+## Registers and people
+
+| Term                 | German                      | Meaning                                                                                                                                                                                                                          |
+| -------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Document (record)    | Dokument                    | An entry with a type and a workflow: change requests, decisions, reviews, firewall changes. The UI says _document_ (_Registers → Documents_); the docs and the API also say _record_ (`/api/records`, [RECORDS.md](RECORDS.md)). |
+| Credentials register | Zugangsdaten (Register)     | Metadata about secrets kept elsewhere: expiry, rotation, owner. It never holds the secret; platforms do. _Registers → Credentials_.                                                                                              |
+| Ticket reference     | Ticket-Referenz             | A ticket that lives in another tool (ServiceNow, a vendor portal), tracked with reminders. _Registers → Ticket references_ ([TICKETS.md](TICKETS.md)).                                                                           |
+| Duty                 | Pflicht                     | A recurring obligation of a service, judged by real runs: done, late or missed. _Registers → Duties_.                                                                                                                            |
+| Team, owning team    | Team, verantwortliches Team | A team groups people with roles. The owning teams of an item decide who may see and change it ([ADR 0006](adr/0006-owning-teams-policy-module.md)).                                                                              |
+| Module               | Modul                       | An optional area an administrator can switch off in _Settings → Modules_ ([MODULES.md](MODULES.md)).                                                                                                                             |
+
+The German terms of the UI in more detail: [I18N.md](I18N.md#german-glossary).

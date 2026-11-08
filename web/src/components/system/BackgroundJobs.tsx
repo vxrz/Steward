@@ -95,7 +95,12 @@ export function BackgroundJobs() {
                   </Table.Td>
                   <Table.Td>{j.lastDurationMs !== null ? fmtDuration(j.lastDurationMs) : '–'}</Table.Td>
                   <Table.Td>
-                    {j.running ? (
+                    {j.switchedOff ? (
+                      // its module is switched off (ADR 0016): the job does not run
+                      <Badge variant="light" color="gray" size="sm">
+                        {t('status.jobs.switchedOff')}
+                      </Badge>
+                    ) : j.running ? (
                       <Badge variant="light" color="blue" size="sm">
                         {t('status.jobs.running')}
                       </Badge>
@@ -126,7 +131,7 @@ export function BackgroundJobs() {
                         size="compact-xs"
                         variant="default"
                         leftSection={<IconPlayerPlay size={12} />}
-                        disabled={j.running}
+                        disabled={j.running || j.switchedOff}
                         onClick={() => void runNow(j.name)}
                         aria-label={t('status.jobs.runNowLabel', { name: j.name })}
                       >

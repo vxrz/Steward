@@ -563,7 +563,7 @@
     },
     "modules": {
       "title": "Module",
-      "description": "Zuschaltbare Teile von Steward, die zunächst ausgeschaltet sind: das Werksregister."
+      "description": "Optionale Bereiche ein- oder ausschalten (Kosten, Datenverträge, Compliance, Statusseiten und andere), mit dem Reifegrad jedes Bereichs; das Werksregister und seine Karte."
     }
   },
   "endOfLife": {

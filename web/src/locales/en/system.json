@@ -333,7 +333,8 @@
         "audit-checkpoint": "Signed audit checkpoint",
         "scheduler-heartbeat": "Scheduler mark: fires after it count as missed at the next start",
         "git-sync": "Scheduled Git sync fetches"
-      }
+      },
+      "switchedOff": "Module switched off"
     }
   },
   "updateNotice": {

@@ -59,6 +59,8 @@ import { DetailHeader } from '../components/page/DetailPage';
 import { CostsButton } from '../components/costs/CostsButton';
 import { platformKeys } from '../queryKeys';
 import { GetStartedPanel, PlatformHealthPanel, TestHints } from '../components/platform/onboarding';
+import { moduleOn } from '../modules';
+import { KindMaturityBadge } from '../components/modules/MaturityBadge';
 
 interface TokenInfo {
   fetchedAt: string;
@@ -103,7 +105,7 @@ export function PlatformDetailPage() {
   const [confirmName, setConfirmName] = useState('');
   const [explorerPreset, setExplorerPreset] = useState<ExplorerPreset | null>(null);
   const [saveType, setSaveType] = useState(false);
-  const { isAdmin } = useMe();
+  const { isAdmin, caps } = useMe();
 
   if (platform.isLoading || platform.error) return <DetailState query={platform} back="platforms" />;
   if (!platform.data) return <Alert color="red">{t('detail.notFound')}</Alert>;
@@ -113,7 +115,9 @@ export function PlatformDetailPage() {
   // a Kafka Connect platform (0.9.0) opens on its connectors
   const isConnect = p.kind === KAFKA_CONNECT_KIND;
   // changedetection.io (#242) opens on its watches, the components of the platform
-  const isChangedetection = p.kind === CHANGEDETECTION_KIND;
+  const isChangedetection = p.kind === CHANGEDETECTION_KIND && moduleOn(caps, 'changedetection');
+  // an LLM gateway's models and usage belong to the AI models module (ADR 0016)
+  const isAi = p.kind === LLM_GATEWAY_KIND && moduleOn(caps, 'ai');
   const activeTab = tab ?? (isDatabase ? 'database' : isConnect ? 'connectors' : isChangedetection ? 'watches' : 'settings');
   const canManage = p.permissions.includes('manage');
   const canUse = p.permissions.includes('use');
@@ -184,6 +188,7 @@ export function PlatformDetailPage() {
             <Badge component="span" color={KIND_COLORS[p.kind] ?? 'gray'} variant="light" size="sm">
               {p.kind}
             </Badge>
+            <KindMaturityBadge kind={p.kind} />
             {p.environment && (
               <Badge component="span" variant="outline" size="sm">
                 {p.environment}
@@ -383,12 +388,12 @@ export function PlatformDetailPage() {
               {t('detail.tabs.metrics')}
             </Tabs.Tab>
           )}
-          {p.kind === LLM_GATEWAY_KIND && (
+          {isAi && (
             <Tabs.Tab value="ai" leftSection={<IconSparkles size={16} />}>
               {t('detail.tabs.ai')}
             </Tabs.Tab>
           )}
-          {p.kind === LLM_GATEWAY_KIND && canUse && (
+          {isAi && canUse && (
             <Tabs.Tab value="ai-usage" leftSection={<IconGauge size={16} />}>
               {t('detail.tabs.aiUsage')}
             </Tabs.Tab>
@@ -460,12 +465,12 @@ export function PlatformDetailPage() {
             <GatusMetricsTab platform={p} />
           </Tabs.Panel>
         )}
-        {p.kind === LLM_GATEWAY_KIND && (
+        {isAi && (
           <Tabs.Panel value="ai">
             <AiModelsTab platform={p} readOnly={!canManage} />
           </Tabs.Panel>
         )}
-        {p.kind === LLM_GATEWAY_KIND && canUse && (
+        {isAi && canUse && (
           <Tabs.Panel value="ai-usage">
             <AiUsageTab platform={p} />
           </Tabs.Panel>

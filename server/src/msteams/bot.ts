@@ -14,6 +14,7 @@ import { decideFromTeams, type TeamsOutcome } from './decide.js';
 import { asAttachment, checkCardData, itemCard, noticeCard } from './botcard.js';
 import { sendActivity } from './connector.js';
 import { eligibleAadIds } from './delivery.js';
+import { moduleEnabled } from '../modules/registry.js';
 
 /**
  * The bot endpoint `POST /teams/bot/messages` (ADR 0013 stage 2, preview). Served only by the separate listener
@@ -112,7 +113,8 @@ const localeOf = (a: Activity, fallback?: Locale): Locale => resolveLocale(str(a
 
 export async function handleBotRequest(headers: Record<string, string | string[] | undefined>, raw: string | Buffer | undefined): Promise<BotResponse> {
   const cfg = botConfig();
-  if (!cfg.enabled) return { status: 404 };
+  // off, or its module switched off (ADR 0016): as if the listener had no route
+  if (!cfg.enabled || !moduleEnabled('teamsBot')) return { status: 404 };
   const text = typeof raw === 'string' ? raw : (raw?.toString('utf8') ?? '');
   if (Buffer.byteLength(text) > BOT_BODY_LIMIT) return { status: 413 };
   const type = String(headers['content-type'] ?? '')

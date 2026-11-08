@@ -309,10 +309,17 @@ test.describe('start page for auditors', () => {
     await expect(tiles.getByRole('link').first()).toContainText('Undocumented access changes');
     await expect(tiles.getByTestId('tile-run-findings')).toBeVisible();
     await expect(tiles.getByTestId('tile-monitors')).toHaveCount(0);
-    const credentials = tiles.getByTestId('tile-credentials');
-    await expect(credentials).toHaveAttribute('data-state', 'not-set-up');
-    await expect(credentials).toContainText('Not set up yet');
-    await expect(credentials).toHaveAttribute('href', /\/credentials$/);
+    // features nobody set up yet: two or more fold into one line (0.11.0, U13), a single one is a dashed tile
+    const folded = page.getByTestId('tiles-not-set-up');
+    if (await folded.count()) {
+      await expect(folded.getByRole('link', { name: /Credentials/ })).toHaveAttribute('href', /\/credentials$/);
+      await expect(tiles.getByTestId('tile-credentials')).toHaveCount(0);
+    } else {
+      const credentials = tiles.getByTestId('tile-credentials');
+      await expect(credentials).toHaveAttribute('data-state', 'not-set-up');
+      await expect(credentials).toContainText('Not set up yet');
+      await expect(credentials).toHaveAttribute('href', /\/credentials$/);
+    }
     const compliance = page.getByTestId('start-compliance');
     await expect(compliance.getByRole('link', { name: /Person reviews/ })).toHaveAttribute('href', /\/compliance\/person-reviews$/);
     await expect(compliance.getByRole('link', { name: /Evidence packs/ })).toBeVisible();

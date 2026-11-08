@@ -82,19 +82,35 @@ const assetQuery = z.object({
   dataPoint: z.string().max(120).optional(),
 });
 
+/** The demo shows the module with its invented enterprise once it is turned on. */
+export function plantDemo(): void {
+  if (config.demo)
+    try {
+      seedPlantDemo();
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, 'plant registry demo data not loaded');
+    }
+}
+
 export async function plantRoutes(app: FastifyInstance): Promise<void> {
   // ---------- settings (the module switch works while the module is off) ----------
   app.get('/settings/plant', { config: { access: ACCESS.admin } }, async () => plantSettings());
-  app.put('/settings/plant', { config: { access: ACCESS.admin } }, async (req) =>
-    updatePlantSettings(plantSettingsInput.parse(req.body), () => {
-      // the demo shows the module with its invented enterprise once it is turned on
-      if (config.demo)
-        try {
-          seedPlantDemo();
-        } catch (err) {
-          logger.warn({ err: (err as Error).message }, 'plant registry demo data not loaded');
-        }
-    }),
+  // turning the module on or off is a module switch (0.11.0, ADR 0016): the same step-up as Settings → Modules
+  app.put(
+    '/settings/plant',
+    {
+      config: {
+        access: ACCESS.admin,
+        stepUp: {
+          action: 'changeModules',
+          when: (req: FastifyRequest) => {
+            const enabled = (req.body as { enabled?: unknown } | undefined)?.enabled;
+            return typeof enabled === 'boolean' && enabled !== plantSettings().enabled;
+          },
+        },
+      },
+    },
+    async (req) => updatePlantSettings(plantSettingsInput.parse(req.body), plantDemo),
   );
 
   // ---------- the map of sites (#234): its source is the administrators'; changing it asks for a step-up ----------

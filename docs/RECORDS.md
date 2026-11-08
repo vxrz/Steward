@@ -137,7 +137,7 @@ Everyone who can sign in reads documents and services (auditors included) – ex
 
 ## Writing a document
 
-1. _Records → New record_: choose the type and a title. Steward creates a draft with the type's template and opens the editor.
+1. _Registers → Documents → New document_: choose the type and a title. Steward creates a draft with the type's template and opens the editor.
 2. Fill in the fields and the text. The text is Markdown: headings (`##`), lists, numbered lists, task lists (`- [ ]`), `**bold**`, `*italic*`, `` `code` ``, code blocks, quotes, tables and links. The preview shows the result.
 3. _Save_. Add a change note if it helps reviewers.
 4. Add links and attachments, then _Submit_ (or _Propose_).
@@ -216,7 +216,7 @@ Service documentation – an operations manual, an identity and access managemen
 
 ### Publish the first edition
 
-1. _Records → New record_, type `DOC`. Write the text from the template and save.
+1. _Registers → Documents → New document_, type `DOC`. Write the text from the template and save.
 2. _Submit_. Summarise what the edition contains (required). The first edition is always 1.0.
 3. An approver opens the document and chooses _Approve_ (four-eyes, see below). The document is _Published_, edition 1.0.
 
@@ -270,7 +270,7 @@ An **incident review** (type `PIR`, a post-incident review) records what happene
 
 ## Import and export (Markdown)
 
-_Records → Import Markdown_: drop up to 20 `.md` files (256 KB each, 2 MB together). Steward shows a preview (title, type, fields, status, warnings, errors per file), then _Import_ creates one **draft** per file. A broken file does not stop the others.
+_Registers → Documents → Import Markdown_: drop up to 20 `.md` files (256 KB each, 2 MB together). Steward shows a preview (title, type, fields, status, warnings, errors per file), then _Import_ creates one **draft** per file. A broken file does not stop the others.
 
 What Steward reads:
 

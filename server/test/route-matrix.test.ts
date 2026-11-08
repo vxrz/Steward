@@ -451,6 +451,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/datasets': ALL,
   'GET /api/datasets/:key': ALL,
   'GET /api/datasets/:key/sources': ALL,
+  // whether a dataset exists that the caller may not see (an empty widget says so); nothing else of it
+  'GET /api/datasets/:key/visibility': ALL,
   'GET /api/datasets/:key/publishers': ALL,
   'DELETE /api/datasets/:key': ADMIN,
   'GET /api/datasets/:key/metrics': ALL,
@@ -1001,6 +1003,11 @@ const EXPECT: Record<string, Access> = {
   // ---- the plant registry (#218, on in these fixtures): its switch is the administrators'; rights per site ----
   'GET /api/settings/plant': ADMIN,
   'PUT /api/settings/plant': ADMIN,
+  // ---- the module registry (0.11.0, ADR 0016): the switches are the administrators' (a session, step-up) ----
+  'GET /api/settings/modules': ADMIN,
+  'PUT /api/settings/modules/:id': ADMIN,
+  // what the signed-in person may see (the sidebar, honest empty states): two booleans per area, their own
+  'GET /api/me/visibility': ALL,
   // the map of sites (#234): its source is the administrators' (a session); tiles for everyone who sees the registry
   'GET /api/settings/plant/map': ADMIN,
   'PUT /api/settings/plant/map': ADMIN,
@@ -1093,6 +1100,7 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  'PUT /api/settings/modules/:id',
   'GET /api/settings/plant/map',
   'PUT /api/settings/plant/map',
   'POST /api/settings/plant/map/check',
@@ -1282,6 +1290,12 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'PUT /api/backups/passphrase': 'always',
   // where the map of sites fetches its tiles from (#234; the fixtures use OpenStreetMap, the demo's mock of it)
   'PUT /api/settings/plant/map': { sensitive: { source: 'openfreemap' }, harmless: { source: 'osm' } },
+  // switching a module (0.11.0, ADR 0016); repeating its state is harmless – the plant registry's own switch, too
+  'PUT /api/settings/modules/:id': { sensitive: { enabled: false }, harmless: { enabled: true } },
+  'PUT /api/settings/plant': {
+    sensitive: { enabled: false, enterprise: '', labels: {}, fields: {} },
+    harmless: { enabled: true, enterprise: '', labels: {}, fields: {} },
+  },
   // trusting a library publisher or key (#238, control point library.publishers); retiring and revoking need none
   'POST /api/library-publishers': 'always',
   'DELETE /api/library-publishers/:id': 'always',
@@ -1378,6 +1392,8 @@ function fill(url: string): string {
     url
       .replace(/\*/g, 'nothing-here')
       .replace(/\/api\/platform-types\/:kind/, `/api/platform-types/${fx.platformKind}`)
+      // the module registry (ADR 0016): a module the fixtures do not depend on
+      .replace(/\/api\/settings\/modules\/:id/, '/api/settings/modules/statusPages')
       .replace(/\/api\/owning-teams\/:kind\/:id/, `/api/owning-teams/process/${fx.process}`)
       .replace(/\/api\/duplicates\/:kind\/:id/, `/api/duplicates/process/${fx.process}`)
       // database schemas (#222): the demo database platform, the newest snapshot
@@ -1592,6 +1608,7 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/systems': { name: 'Matrix system x', kind: 'server' },
   'PUT /api/settings/plant': { enabled: true, enterprise: '', labels: {}, fields: {} },
+  'PUT /api/settings/modules/:id': { enabled: true },
   'PUT /api/settings/plant/map': { source: 'osm' },
   'POST /api/settings/plant/map/check': { kind: 'raster', url: 'https://tiles.example.com/{z}/{x}/{y}.png', attribution: 'Example tiles' },
   'POST /api/plant/sites': { id: 'matrix-new', name: 'Matrix new site' },
