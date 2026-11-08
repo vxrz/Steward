@@ -1,8 +1,11 @@
+import { dailySummaryRoutes } from '../notifications/summary-routes.js';
+import { notificationPrefsRoutes } from '../notifications/prefs-routes.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /** Notifications: channels, preferences, quiet hours, digests and daily summaries. */
 export default defineFeature({
   name: 'notifications',
+  routes: [dailySummaryRoutes, notificationPrefsRoutes],
   jobs: [
     // dashboard data older than its freshness limit (notifications/service.ts)
     every5Minutes('stale-datasets', 2 * MINUTE, () => import('../notifications/service.js').then((m) => m.checkStaleDatasets())),

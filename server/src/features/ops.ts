@@ -1,8 +1,10 @@
+import { opsRoutes } from '../routes/ops.js';
 import { defineFeature, MINUTE } from './define.js';
 
 /** Operations: the notification inbox, API tokens, retention clean-up. */
 export default defineFeature({
   name: 'ops',
+  routes: [opsRoutes],
   jobs: [
     // retention clean-up: one minute after the start, then daily (maintenance.ts)
     {

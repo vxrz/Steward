@@ -1,3 +1,4 @@
+import { aiRoutes } from '../ai/routes.js';
 import { aiSection } from '../ai/report-section.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
@@ -5,6 +6,7 @@ import { defineFeature, every5Minutes, MINUTE } from './define.js';
 export default defineFeature({
   name: 'ai',
   module: 'ai',
+  routes: [aiRoutes],
   jobs: [
     // reservations of calls that never got an answer, retention of the usage log, the "AI usage" dataset
     every5Minutes('ai-usage', 2 * MINUTE, async () => {

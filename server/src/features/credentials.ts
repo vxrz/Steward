@@ -1,8 +1,10 @@
+import { credentialRoutes } from '../credentials/routes.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /** The credentials register: documentation of credentials, never their values. */
 export default defineFeature({
   name: 'credentials',
+  routes: [credentialRoutes],
   jobs: [
     // expiry / rotation / review reminders (credentials/reminders.ts)
     every5Minutes('credential-reminders', 2 * MINUTE, () => import('../credentials/reminders.js').then((m) => m.checkCredentialReminders())),

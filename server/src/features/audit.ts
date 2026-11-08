@@ -1,9 +1,11 @@
+import { auditRoutes } from '../routes/audit.js';
 import { CHECKPOINT_INTERVAL_MINUTES } from '../audit-anchor.js';
 import { defineFeature, MINUTE } from './define.js';
 
 /** The tamper-evident audit log: checkpoints, archives and the full verification. */
 export default defineFeature({
   name: 'audit',
+  routes: [auditRoutes],
   jobs: [
     // signed audit checkpoints (audit-anchor.ts, SM_AUDIT_CHECKPOINT_MINUTES; nothing is signed while the vault is locked)
     {

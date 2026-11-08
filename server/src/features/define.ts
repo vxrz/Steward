@@ -1,3 +1,4 @@
+import type { FastifyInstance } from 'fastify';
 import type { ModuleId } from '@sm/shared';
 import type { JobDefinition } from '../jobs/registry.js';
 import type { ReportSectionDef } from '../reports/sections.js';
@@ -12,6 +13,8 @@ export interface FeatureManifest {
   name: string;
   /** The module of shared/src/modules.ts it belongs to (ADR 0016); none: always on */
   module?: ModuleId;
+  /** Internal API under /api (routes/index.ts), registered in this order */
+  routes?: readonly RoutePlugin[];
   /** Background jobs (jobs/registry.ts); their code is imported when a job first runs */
   jobs?: readonly JobDefinition[];
   /**
@@ -20,6 +23,8 @@ export interface FeatureManifest {
    */
   reportSections?: readonly ReportSectionDef[];
 }
+
+export type RoutePlugin = (app: FastifyInstance) => Promise<void> | void;
 
 export const defineFeature = (f: FeatureManifest): FeatureManifest => f;
 

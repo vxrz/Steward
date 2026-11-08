@@ -1,9 +1,11 @@
+import { versionRoutes } from '../versions/routes.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /** The version watch and end of life of the tech stacks (#241). */
 export default defineFeature({
   name: 'versions',
   module: 'versionWatch',
+  routes: [versionRoutes],
   jobs: [
     // end of life of the tech stacks: daily refresh from endoflife.date and messages to application owners
     every5Minutes('end-of-life', 15 * MINUTE, () => import('../catalogue/lifecycle.js').then((m) => m.runLifecycleJob())),

@@ -1,3 +1,4 @@
+import { dataContractRoutes } from '../datacontracts/routes.js';
 import { contractsSection } from '../datacontracts/report-section.js';
 import { defineFeature } from './define.js';
 
@@ -5,5 +6,6 @@ import { defineFeature } from './define.js';
 export default defineFeature({
   name: 'datacontracts',
   module: 'dataContracts',
+  routes: [dataContractRoutes],
   reportSections: [contractsSection],
 });

@@ -1,9 +1,11 @@
+import { recordRoutes } from '../records/routes.js';
 import { recordsSection } from '../records/report-section.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /** Records: change requests, decision records, incident reviews and living documents. */
 export default defineFeature({
   name: 'records',
+  routes: [recordRoutes],
   jobs: [
     // living documents: periodic review reminders (records/documents.ts)
     every5Minutes('document-reviews', 2 * MINUTE, () => import('../records/documents.js').then((m) => m.checkDocumentReviews())),
