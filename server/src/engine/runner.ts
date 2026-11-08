@@ -1677,21 +1677,6 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
       return execHttp(step, ctx, key);
     case 'query':
       return execQuery(step, ctx, key);
-    case 'contractTest': {
-      // the contract's test through its data contract service (#221): with the run actor's rights, stored as evidence
-      const { runContractTestStep } = await import('../datacontracts/step.js');
-      return runContractTestStep(step, {
-        contract: await ctx.str(step.contract),
-        server: step.server ? await ctx.str(step.server) : undefined,
-        actor: ctx.actor,
-        runId: ctx.runId,
-        dryRun: ctx.dryRun,
-        recorded: ctx.recorded,
-        signal: ctx.signal,
-        setInput: (input) => store.updateStepInput(ctx.runId, key, ctx.redactor.apply(input)),
-        log: (level, message) => ctx.log(level, message, key),
-      });
-    }
     case 'userTask':
       return execUserTask(step, ctx, key);
     case 'ai':
