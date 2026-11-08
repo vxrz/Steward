@@ -75,6 +75,28 @@ describe('monitor import: choose the platform', () => {
     await s.api('PUT', `/platforms/${prod.id}/access`, { acl: [] });
   });
 
+  it('offers every platform for a freshness check that reads an API (the kind descriptors, 0.11)', async () => {
+    const yaml = [
+      'kind: monitor',
+      'name: API data',
+      'checks:',
+      '  - id: api-data',
+      '    name: API data',
+      '    type: freshness',
+      '    source: platform',
+      '    platform: Some API',
+      '    path: /data',
+      '    timestamp: ts',
+      '    mode: maxAge',
+      '    maxAgeSeconds: 600',
+    ].join('\n');
+    const { platforms } = await s.api('POST', '/monitors/import/preview', { yaml });
+    expect(platforms[0]).toMatchObject({ ref: 'Some API', kind: null });
+    expect(platforms[0].candidates.map((c: { id: string }) => c.id)).toContain(gatus.id);
+    await s.api('POST', '/monitors/import', { yaml, key: 'api-data', platforms: { 'Some API': gatus.id } });
+    expect(await platformOfCheck('api-data', 'api-data')).toBe(gatus.id);
+  });
+
   it('lists templates by a readable name instead of their parameter placeholder', async () => {
     const examples = (await s.api('GET', '/monitors/examples')) as { kind: string; name: string; description: string }[];
     const template = examples.find((e) => e.kind === 'monitorTemplate')!;

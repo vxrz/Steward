@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import net from 'node:net';
 import tls from 'node:tls';
 import { Agent, EnvHttpProxyAgent, fetch, type Dispatcher } from 'undici';
-import type { CheckOf, MonitorStatus, Platform } from '@sm/shared';
+import type { CheckDef, CheckOf, CheckType, MonitorStatus, Platform } from '@sm/shared';
 import { evalExpr } from '../engine/expr.js';
 import { buildUrl, credentialsAllowed, platformRequest, type HttpResult } from '../platforms/http.js';
 import { findRecording, missingRecording } from '../platforms/recordings.js';
@@ -17,7 +17,18 @@ import {
 } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { HttpError } from '../util.js';
-import { AWS_KIND, BRAND, CHANGEDETECTION_KIND, DATABASE_KIND, PVAULT_KIND, isGitPlatformKind, type PvFindingKind } from '@sm/shared';
+import {
+  AWS_KIND,
+  BRAND,
+  CHANGEDETECTION_KIND,
+  DATABASE_KIND,
+  PVAULT_KIND,
+  checkPlatformKinds,
+  isActiveCheckType,
+  isGitPlatformKind,
+  validMqttFilter,
+  type PvFindingKind,
+} from '@sm/shared';
 import { freshnessStatus, freshnessWindowSeconds, fmtAge, statusMatcher } from './logic.js';
 import { promInstant, seriesName } from '../platforms/prometheus.js';
 import { readNamespace } from '../catalogue/kubernetes.js';
@@ -381,7 +392,7 @@ async function checkPlatform(c: CheckOf<'platform'>, ctx: ExecContext): Promise<
 // ---------- freshness ----------
 
 /** Registers the shared read of an Insights Hub freshness check (called for all due checks before they run). */
-export function planFreshness(c: CheckOf<'freshness'>, owner: string): void {
+function planFreshness(c: CheckOf<'freshness'>, owner: string): void {
   if (c.source !== 'insightsHub' || !c.assetId || !c.aspect) return;
   ihFetch.plan(ihKey(c.platform, c.assetId, c.aspect), { owner, vars: c.variables ?? [], windowSeconds: Math.ceil(freshnessWindowSeconds(c) * 1.5) });
 }
@@ -456,7 +467,7 @@ export function toMillis(t: unknown): number | undefined {
 /** Metrics mode: explicitly, or automatically when the platform has an enabled metrics source. */
 const useMetrics = (c: CheckOf<'gatus'>): boolean => c.source === 'metrics' || ((c.source ?? 'auto') === 'auto' && metricsEnabled(c.platform));
 
-export function planGatus(c: CheckOf<'gatus'>, owner: string): void {
+function planGatus(c: CheckOf<'gatus'>, owner: string): void {
   if (useMetrics(c)) return;
   gatusFetch.plan(c.platform, { owner, pageSize: Math.max(1, c.degradedOnRecentFailures ?? 1) });
 }
@@ -540,7 +551,7 @@ async function checkGatus(c: CheckOf<'gatus'>, ctx: ExecContext): Promise<RawRes
 
 const cmkPlan = (c: CheckOf<'checkmk'>, owner: string) => ({ owner, hosts: c.service ? [] : [c.host], serviceHosts: c.service ? [c.host] : [] });
 
-export function planCheckmk(c: CheckOf<'checkmk'>, owner: string): void {
+function planCheckmk(c: CheckOf<'checkmk'>, owner: string): void {
   checkmkFetch.plan(c.platform, cmkPlan(c, owner));
 }
 
@@ -1183,86 +1194,75 @@ async function checkMqtt(c: CheckOf<'mqtt'>, ctx: ExecContext): Promise<RawResul
 
 // ---------- dispatch ----------
 
-type Active =
-  | CheckOf<'ping'>
-  | CheckOf<'tcp'>
-  | CheckOf<'http'>
-  | CheckOf<'platform'>
-  | CheckOf<'freshness'>
-  | CheckOf<'gatus'>
-  | CheckOf<'checkmk'>
-  | CheckOf<'prometheus'>
-  | CheckOf<'kubernetes'>
-  | CheckOf<'git'>
-  | CheckOf<'kafka'>
-  | CheckOf<'kafka-connect'>
-  | CheckOf<'mqtt'>
-  | CheckOf<'snowflake'>
-  | CheckOf<'database'>
-  | CheckOf<'dynamodb'>
-  | CheckOf<'db-schema'>
-  | CheckOf<'cost'>
-  | CheckOf<'data-contract'>
-  | CheckOf<'dependency-track'>
-  | CheckOf<'version-behind'>
-  | CheckOf<'entra'>
-  | CheckOf<'privilege-vault'>
-  | CheckOf<'page-watch'>;
+type ActiveType = Exclude<CheckType, 'heartbeat' | 'monitor'>;
+type Active = CheckOf<ActiveType>;
+
+/** The server side of a check type (0.11.0): its evaluator and the hooks around it. */
+export interface CheckRunner<T extends ActiveType> {
+  run: (c: CheckOf<T>, ctx: ExecContext) => Promise<RawResult>;
+  /** Registers a shared read before the due checks start, so one call serves them all */
+  plan?: (c: CheckOf<T>, owner: string) => void;
+  /** The type's own rules when a monitor is saved, with the platform it reads resolved */
+  validate?: (c: CheckOf<T>, platform: { name: string; kind: string }) => void;
+}
+
+/**
+ * Every check type that makes a call, with its evaluator (docs/ARCHITECTURE.md#adding-a-check-type); heartbeat and
+ * sub-monitor checks are evaluated by the engine from stored state. A typed record: a type missing here does not compile.
+ */
+export const CHECK_RUNNERS: { [T in ActiveType]: CheckRunner<T> } = {
+  ping: { run: checkPing },
+  tcp: { run: checkTcp },
+  http: { run: checkHttp },
+  platform: { run: checkPlatform },
+  freshness: { run: checkFreshness, plan: planFreshness },
+  gatus: { run: checkGatus, plan: planGatus },
+  checkmk: { run: checkCheckmk, plan: planCheckmk },
+  prometheus: { run: checkPrometheus },
+  kubernetes: { run: checkKubernetes },
+  git: {
+    run: checkGit,
+    // one of several kinds: the platform reference alone does not say which (monitors/service.ts)
+    validate: (c, p) => {
+      if (!checkPlatformKinds(c).includes(p.kind))
+        throw new HttpError(400, `Check "${c.id}": "${p.name}" is not a GitHub, GitLab or Forgejo/Gitea platform`, 'CHECK_GIT_PLATFORM', {
+          check: c.id,
+          name: p.name,
+        });
+    },
+  },
+  snowflake: { run: checkSnowflake },
+  database: { run: checkDatabase },
+  dynamodb: { run: checkDynamoDb },
+  'db-schema': { run: checkDbSchema },
+  cost: { run: checkCost },
+  'data-contract': { run: checkDataContract },
+  'dependency-track': { run: checkDtrack },
+  'version-behind': { run: checkVersionBehind },
+  entra: { run: checkEntra },
+  'privilege-vault': { run: checkPrivilegeVault },
+  'page-watch': { run: checkPageWatch },
+  kafka: { run: checkKafka },
+  // Kafka Connect (0.9.0, #223): connectors and tasks, a sink's lag, a Debezium connector's topics
+  'kafka-connect': { run: async (c, ctx) => (await import('../kafkaconnect/check.js')).checkKafkaConnect(c, ctx) },
+  mqtt: {
+    run: checkMqtt,
+    validate: (c) => {
+      if (!validMqttFilter(c.topic))
+        throw new HttpError(400, `Check "${c.id}": "${c.topic}" is no MQTT topic or pattern (+ and # only as whole levels, # last)`, 'CHECK_MQTT_TOPIC', {
+          check: c.id,
+        });
+    },
+  },
+};
+
+// the record's key is the check's type: its runner takes this check
+const runnerOf = (c: Active): CheckRunner<ActiveType> => CHECK_RUNNERS[c.type] as unknown as CheckRunner<ActiveType>;
 
 /** Runs an active check; heartbeat and sub-monitor checks are evaluated by the engine from stored state. */
 export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawResult> {
   try {
-    switch (c.type) {
-      case 'ping':
-        return await checkPing(c, ctx);
-      case 'tcp':
-        return await checkTcp(c, ctx);
-      case 'http':
-        return await checkHttp(c, ctx);
-      case 'platform':
-        return await checkPlatform(c, ctx);
-      case 'freshness':
-        return await checkFreshness(c, ctx);
-      case 'gatus':
-        return await checkGatus(c, ctx);
-      case 'checkmk':
-        return await checkCheckmk(c, ctx);
-      case 'prometheus':
-        return await checkPrometheus(c, ctx);
-      case 'kubernetes':
-        return await checkKubernetes(c, ctx);
-      case 'git':
-        return await checkGit(c, ctx);
-      case 'snowflake':
-        return await checkSnowflake(c, ctx);
-      case 'database':
-        return await checkDatabase(c, ctx);
-      case 'dynamodb':
-        return await checkDynamoDb(c, ctx);
-      case 'db-schema':
-        return await checkDbSchema(c, ctx);
-      case 'cost':
-        return await checkCost(c, ctx);
-      case 'data-contract':
-        return await checkDataContract(c, ctx);
-      case 'dependency-track':
-        return await checkDtrack(c, ctx);
-      case 'version-behind':
-        return await checkVersionBehind(c, ctx);
-      case 'entra':
-        return await checkEntra(c, ctx);
-      case 'privilege-vault':
-        return await checkPrivilegeVault(c, ctx);
-      case 'page-watch':
-        return await checkPageWatch(c, ctx);
-      case 'kafka':
-        return await checkKafka(c, ctx);
-      case 'kafka-connect':
-        // Kafka Connect (0.9.0, #223): connectors and tasks, a sink's lag, a Debezium connector's topics
-        return await (await import('../kafkaconnect/check.js')).checkKafkaConnect(c, ctx);
-      case 'mqtt':
-        return await checkMqtt(c, ctx);
-    }
+    return await runnerOf(c).run(c, ctx);
   } catch (e) {
     if (e instanceof CheckSetupError) return { status: 'unknown', message: `Check could not run: ${e.message}` };
     if (e instanceof SourceError) return { status: 'unknown', message: e.message };
@@ -1270,4 +1270,14 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
   }
 }
 
-export const isActive = (c: { type: string }): c is Active => !['heartbeat', 'monitor'].includes(c.type);
+export const isActive = (c: { type: string }): c is Active => isActiveCheckType(c.type);
+
+/** Registers the shared reads of due checks (Insights Hub, Gatus, CheckMk) before any of them starts. */
+export function planCheck(c: CheckDef, owner: string): void {
+  if (isActive(c)) runnerOf(c).plan?.(c, owner);
+}
+
+/** The rules of a check type that need its resolved platform (monitors/service.ts, when a monitor is saved). */
+export function validateCheckPlatform(c: CheckDef, platform: { name: string; kind: string }): void {
+  if (isActive(c)) runnerOf(c).validate?.(c, platform);
+}

@@ -25,8 +25,8 @@ import {
   type MonitorStatus,
   type MonitorSummary,
   type TemplateParam,
-  isGitPlatformKind,
-  validMqttFilter,
+  checkPlatformKinds,
+  outputTypeKinds,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -55,6 +55,7 @@ import {
   type StateRow,
 } from './model.js';
 import { requireVisiblePlatform, resolvePlatformRef } from './platforms.js';
+import { validateCheckPlatform } from './checks.js';
 import { requireVisibleSystem } from '../dbschema/check.js';
 import { requireVisibleApplication } from '../versions/check.js';
 import { requireVisibleCostScope } from '../costs/check.js';
@@ -324,31 +325,14 @@ export function listResults(idOrKey: string, checkId: string, limit = 50): Check
 
 // ---------- validation ----------
 
-const PLATFORM_KIND: Partial<Record<string, string>> = {
-  freshness: 'insights-hub',
-  gatus: 'gatus',
-  checkmk: 'checkmk',
-  prometheus: 'prometheus',
-  kubernetes: 'kubernetes',
-  kafka: 'kafka',
-  'kafka-connect': 'kafka-connect',
-  mqtt: 'mqtt',
-  snowflake: 'snowflake',
-  database: 'database',
-  dynamodb: 'aws',
-  'db-schema': 'database',
-  'dependency-track': 'dependency-track',
-  entra: 'microsoft-graph',
-  'privilege-vault': 'privilege-vault',
-  'page-watch': 'changedetection',
-  zabbix: 'zabbix',
-};
-
-/** The platform kind a check or output needs (undefined: any platform). */
-function expectedKind(item: Record<string, unknown>, isOutput: boolean): string | undefined {
+/**
+ * The one platform kind a check or output needs (the kind descriptors, shared/src/platformKinds.ts); undefined: any
+ * platform – or one of several kinds (the repository check), which is checked when the monitor is saved.
+ */
+function expectedKind(item: { type?: unknown; source?: unknown }, isOutput: boolean): string | undefined {
   const type = String(item.type ?? '');
-  if (!isOutput && type === 'freshness') return 'insights-hub';
-  return PLATFORM_KIND[type];
+  const kinds = isOutput ? outputTypeKinds(type) : checkPlatformKinds({ type, source: item.source });
+  return kinds.length === 1 ? kinds[0] : undefined;
 }
 
 export type PlatformReference = MonitorPlatformReference;
@@ -450,19 +434,12 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
       continue;
     }
     if ('platform' in c && c.platform) {
-      const kind = c.type === 'freshness' && c.source === 'insightsHub' ? 'insights-hub' : PLATFORM_KIND[c.type];
+      const kind = expectedKind(c, false);
       const p = resolvePlatformRef(c.platform, kind);
       // before anything below names the platform or its kind
       requirePlatformUse(p.id, c.platform, kind);
-      if (c.type === 'mqtt' && !validMqttFilter(c.topic))
-        throw new HttpError(400, `Check "${c.id}": "${c.topic}" is no MQTT topic or pattern (+ and # only as whole levels, # last)`, 'CHECK_MQTT_TOPIC', {
-          check: c.id,
-        });
-      if (c.type === 'git' && !isGitPlatformKind(p.kind))
-        throw new HttpError(400, `Check "${c.id}": "${p.name}" is not a GitHub, GitLab or Forgejo/Gitea platform`, 'CHECK_GIT_PLATFORM', {
-          check: c.id,
-          name: p.name,
-        });
+      // the type's own rules (checks.ts): an MQTT topic pattern, one of the Git kinds …
+      validateCheckPlatform(c, p);
       c.platform = p.id;
     }
     // the system of a schema check: one the editor may not see answers like a missing one
@@ -492,7 +469,7 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
         output: o.id,
       });
     if ('platform' in o && o.platform) {
-      const kind = teams ? 'teams' : PLATFORM_KIND[o.type];
+      const kind = teams ? 'teams' : expectedKind(o, true);
       const p = resolvePlatformRef(o.platform, kind);
       requirePlatformUse(p.id, o.platform, kind);
       if (teams && p.kind !== 'teams')
