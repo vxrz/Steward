@@ -37,3 +37,11 @@ the file names the commit) and the API description (server/assets/endoflife/open
 front matter removed, site address filled in), Copyright 2020 endoflife.date
 contributors (https://github.com/endoflife-date/endoflife.date), licensed under
 the MIT License (licence text next to the files).
+
+The check against common passwords uses a list built from SecLists
+(https://github.com/danielmiessler/SecLists, commit dbdbd9ae1135fc53ecb0a9880af94178d0fc6264,
+Passwords/Common-Credentials/xato-net-10-million-passwords-1000000.txt, from Mark Burnett's
+public-domain "10 million passwords" release): the entries of 12 to 256 characters, in
+lower case, sorted and gzip-compressed (server/assets/passwords/common-passwords.txt.gz,
+built with scripts/common-passwords.mjs). SecLists is Copyright (c) 2018 Daniel Miessler,
+licensed under the MIT License (licence text next to the file).
