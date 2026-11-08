@@ -277,9 +277,11 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     // Decide by the route that actually matched (Fastify decodes and normalises the path for routing).
     const url = req.routeOptions.url ?? req.url.split('?')[0]!;
     if (url.startsWith('/mock/')) return;
-    const host = String(req.headers.host ?? '').replace(/:\d+$/, '');
+    // The Host header, and behind a trusted proxy (SM_TRUST_PROXY) also X-Forwarded-Host: req.host is what the OAuth
+    // issuer and the single sign-on redirect address are built from without SM_PUBLIC_URL (security review 0.10.0 S5)
     const allowedHosts = ['localhost', '127.0.0.1', '[::1]', ...env.SM_ALLOWED_HOSTS];
-    if (!allowedHosts.includes(host)) {
+    const hostAllowed = (h: string) => allowedHosts.includes(h.replace(/:\d+$/, ''));
+    if (!hostAllowed(String(req.headers.host ?? '')) || !hostAllowed(req.host)) {
       if (isPublicApiPath(url)) {
         return reply
           .code(403)

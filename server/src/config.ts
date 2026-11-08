@@ -177,7 +177,7 @@ const LOOPBACK = ['127.0.0.1', 'localhost', '::1', '[::1]'];
  */
 export function securityWarnings(
   e: Pick<Env, 'SM_ALLOWED_HOSTS' | 'SM_METRICS_PUBLIC'> = env,
-  c: { host: string; demo: boolean; secureCookies: boolean } = config,
+  c: { host: string; demo: boolean; secureCookies: boolean; trustProxy?: unknown; publicUrl?: string } = config,
   passphraseFromEnvironment = passphraseInEnvironment,
 ): string[] {
   const out: string[] = [];
@@ -195,6 +195,11 @@ export function securityWarnings(
   }
   if (passphraseFromEnvironment) {
     out.push('The master passphrase comes from SM_MASTER_PASSPHRASE – prefer SM_MASTER_PASSPHRASE_FILE (a secret file only the service account can read)');
+  }
+  if (c.trustProxy !== undefined && !c.publicUrl) {
+    out.push(
+      'SM_TRUST_PROXY is set without SM_PUBLIC_URL: the addresses of single sign-on and of the OAuth sign-in for MCP clients come from the forwarded host header – set SM_PUBLIC_URL to the address people use',
+    );
   }
   if (e.SM_METRICS_PUBLIC) out.push('SM_METRICS_PUBLIC=1: /api/metrics answers without signing in (counts of runs, checks and platforms)');
   if (config.session.maxMs > 12 * 3_600_000 || config.session.idleMs > 30 * 60_000) {

@@ -1565,7 +1565,8 @@ export function testResult(testId: string, adminId: string, draft?: unknown): Ss
 
 /** Redirect URI to register at the identity provider. */
 export function redirectUriFor(req: { protocol: string; host: string }): string {
-  // SM_PUBLIC_URL includes the base path; without it the request's address (X-Forwarded-Proto/-Host only from SM_TRUST_PROXY)
+  // SM_PUBLIC_URL includes the base path; without it the request's address (X-Forwarded-Proto/-Host only from SM_TRUST_PROXY,
+  // and the forwarded host must be on the allow-list like the Host header, app.ts)
   const base = appConfig.publicUrl ?? `${req.protocol}://${req.host}${appConfig.basePath}`;
   return `${base}/api/auth/oidc/callback`;
 }

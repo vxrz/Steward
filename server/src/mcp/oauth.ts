@@ -91,7 +91,11 @@ export function setOAuthSettings(patch: z.infer<typeof oauthSettingsInput>): Mcp
 
 // ---------- addresses ----------
 
-/** The issuer: SM_PUBLIC_URL, or the address of this request (the Host header is allow-listed in app.ts). */
+/**
+ * The issuer: SM_PUBLIC_URL, or the address of this request. Both the Host header and – behind a trusted proxy – the
+ * X-Forwarded-Host it is built from are allow-listed in app.ts; start-up warns when SM_TRUST_PROXY is set without
+ * SM_PUBLIC_URL (config.ts). An issuer taken from the request is never cached (metadataCache).
+ */
 export function issuerOf(req: FastifyRequest): string {
   if (config.publicUrl) return config.publicUrl;
   return `${req.protocol}://${req.host}${config.basePath}`;
@@ -680,16 +684,22 @@ function serverMetadata(req: FastifyRequest) {
   };
 }
 
+/**
+ * Caching of the discovery documents: only when their addresses come from SM_PUBLIC_URL. Built from the request's
+ * address, a shared cache in front could otherwise hand one client's view to another (security review 0.10.0 S5).
+ */
+const metadataCache = (): string => (config.publicUrl ? 'max-age=300' : 'no-store');
+
 /** Discovery, registration, token and revocation endpoints (outside /api: OAuth clients call them, not the web UI). */
 export async function oauthRoutes(app: FastifyInstance): Promise<void> {
   const publicRead = { config: { access: ACCESS.public } };
   for (const url of ['/.well-known/oauth-protected-resource', `/.well-known/oauth-protected-resource${MCP_PATH}`])
     app.get(url, publicRead, async (req, reply) =>
-      oauthEnabled() ? reply.header('cache-control', 'max-age=300').send(resourceMetadata(req)) : notOffered(reply),
+      oauthEnabled() ? reply.header('cache-control', metadataCache()).send(resourceMetadata(req)) : notOffered(reply),
     );
   for (const url of ['/.well-known/oauth-authorization-server', '/.well-known/openid-configuration'])
     app.get(url, publicRead, async (req, reply) =>
-      oauthEnabled() ? reply.header('cache-control', 'max-age=300').send(serverMetadata(req)) : notOffered(reply),
+      oauthEnabled() ? reply.header('cache-control', metadataCache()).send(serverMetadata(req)) : notOffered(reply),
     );
 
   await app.register(async (scoped) => {

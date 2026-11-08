@@ -97,7 +97,7 @@ Instead of pasting a token, MCP clients that support the [MCP authorization spec
 | `POST /oauth/token`                                 | `authorization_code` and `refresh_token`, form-encoded or JSON |
 | `POST /oauth/revoke`                                | token revocation (RFC 7009)                                    |
 
-The issuer is `SM_PUBLIC_URL` (recommended: set it), otherwise the address of the request. With a base path (`SM_BASE_PATH=/steward`), the well-known addresses put the path at the end, as the RFCs require: `/.well-known/oauth-authorization-server/steward` and `/.well-known/oauth-protected-resource/steward/api/mcp`. Steward answers exactly these two outside its base path, so a reverse proxy has to pass them on as well. Steward never sends CORS headers, so browser-based clients must exchange the code through their own backend.
+The issuer is `SM_PUBLIC_URL` (recommended: set it), otherwise the address of the request. Its host must be allowed (`SM_ALLOWED_HOSTS`): behind a trusted proxy (`SM_TRUST_PROXY`) both `Host` and `X-Forwarded-Host` are checked, and Steward warns at start-up when `SM_TRUST_PROXY` is set without `SM_PUBLIC_URL`. The discovery documents may be cached for 5 minutes only when they come from `SM_PUBLIC_URL`; built from the request they are sent with `Cache-Control: no-store`. With a base path (`SM_BASE_PATH=/steward`), the well-known addresses put the path at the end, as the RFCs require: `/.well-known/oauth-authorization-server/steward` and `/.well-known/oauth-protected-resource/steward/api/mcp`. Steward answers exactly these two outside its base path, so a reverse proxy has to pass them on as well. Steward never sends CORS headers, so browser-based clients must exchange the code through their own backend.
 
 ## Connect a client
 
@@ -165,7 +165,7 @@ VS Code asks for the token when it starts the server, so the token is not in the
 
 Other clients: endpoint `https://<your Steward>/api/mcp`, header `Authorization: Bearer <token>`.
 
-Steward only accepts requests whose `Host` is allowed (`localhost`, `127.0.0.1` or `SM_ALLOWED_HOSTS`). Behind a reverse proxy set `SM_PUBLIC_URL` and `SM_ALLOWED_HOSTS` as for the web UI.
+Steward only accepts requests whose `Host` (and, behind a trusted proxy, `X-Forwarded-Host`) is allowed (`localhost`, `127.0.0.1` or `SM_ALLOWED_HOSTS`). Behind a reverse proxy set `SM_PUBLIC_URL` and `SM_ALLOWED_HOSTS` as for the web UI.
 
 ## Tools
 
