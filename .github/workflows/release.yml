@@ -98,7 +98,10 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
       - name: Install scripts – only the reviewed ones (package.json "allowScripts")
         run: node scripts/install-scripts.mjs --check --run
-      - run: npx --yes @cyclonedx/cyclonedx-npm@4.2.1 --omit dev --output-file sbom.cdx.json
+      # npm's own SBOM command (npm 10+): no tool is downloaded at release time, and it reads the installed tree
+      # that package-lock.json pinned (CycloneDX 1.5, production dependencies only)
+      - name: CycloneDX SBOM of the production dependencies
+        run: npm sbom --sbom-format=cyclonedx --omit=dev > sbom.cdx.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: sbom

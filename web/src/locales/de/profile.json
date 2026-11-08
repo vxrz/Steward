@@ -159,5 +159,10 @@
     "now_one": "Neue Ressourcen gehören jetzt dem Team {{teams}}.",
     "now_other": "Neue Ressourcen gehören jetzt den Teams {{teams}}.",
     "nowNone": "Neue Ressourcen gehören jetzt der ganzen Instanz (Ihre Teams übernehmen noch keine neuen Ressourcen)."
+  },
+  "data": {
+    "title": "Ihre Daten",
+    "hint": "Alles, was Steward über Sie speichert, als JSON-Datei: Ihr Konto, Teams, Sitzungen, Tokens (ohne Geheimnisse), Einstellungen, was Sie getan haben, und die Audit-Einträge über Sie.",
+    "download": "Meine Daten herunterladen"
   }
 }

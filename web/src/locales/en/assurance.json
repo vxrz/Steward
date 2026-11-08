@@ -133,6 +133,10 @@
       "resetPassword": {
         "label": "Reset a password",
         "description": "A temporary password lets the administrator sign in as the person."
+      },
+      "pseudonymise": {
+        "label": "Replace a person's data by a pseudonym",
+        "description": "Removes a deactivated person's name, e-mail and settings for good."
       }
     },
     "team": {
@@ -315,6 +319,12 @@
       "bot": {
         "label": "Decide with the Teams bot",
         "description": "The Teams bot (preview) takes decisions in cards at all; the Teams switches of the decision points say which ones."
+      }
+    },
+    "personalData": {
+      "export": {
+        "label": "Export a person's data",
+        "description": "Everything Steward holds about another person leaves Steward as a file."
       }
     }
   },

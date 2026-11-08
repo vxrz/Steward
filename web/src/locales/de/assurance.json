@@ -133,6 +133,10 @@
       "resetPassword": {
         "label": "Ein Passwort zurücksetzen",
         "description": "Mit einem vorläufigen Passwort kann sich der Administrator als die Person anmelden."
+      },
+      "pseudonymise": {
+        "label": "Daten einer Person durch ein Pseudonym ersetzen",
+        "description": "Entfernt Name, E-Mail und Einstellungen einer deaktivierten Person endgültig."
       }
     },
     "team": {
@@ -315,6 +319,12 @@
       "bot": {
         "label": "Mit dem Teams-Bot entscheiden",
         "description": "Der Teams-Bot (Vorschau) nimmt überhaupt Entscheidungen in Karten entgegen; die Teams-Schalter der Entscheidungspunkte sagen, welche."
+      }
+    },
+    "personalData": {
+      "export": {
+        "label": "Daten einer Person exportieren",
+        "description": "Alles, was Steward über eine andere Person speichert, verlässt Steward als Datei."
       }
     }
   },

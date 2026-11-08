@@ -69,7 +69,72 @@ export interface UserInfo {
   profile: UserProfileValue[];
   /** Fields the single sign-on provider keeps up to date at every sign-in: not editable in Steward */
   managedFields: ('displayName' | 'firstName' | 'lastName' | 'email')[];
+  /** When an administrator replaced the person's data by a pseudonym (0.11.0, docs/PRIVACY.md): for good */
+  pseudonymisedAt?: string | null;
 }
+
+/**
+ * What Steward holds about one person (GDPR Art. 15 and 20, docs/PRIVACY.md): GET /api/me/data-export for oneself,
+ * GET /api/users/{id}/data-export for administrators. Secrets are never part of it (no token, hash or session key).
+ * Long lists are cut at their limit and say so; the audit entries come in pages (`audit.next`).
+ */
+export interface PersonalDataExport {
+  format: 'steward-personal-data-v1';
+  generatedAt: string;
+  version: string;
+  account: {
+    id: string;
+    username: string;
+    displayName: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    locale: string | null;
+    emailNotifications: boolean;
+    roles: string[];
+    active: boolean;
+    authSource: string;
+    /** Single sign-on: whether the account is linked to an identity at the provider (the identifier itself stays out) */
+    linkedIdentity: boolean;
+    /** Fields from the single sign-on provider */
+    profile: UserProfileValue[];
+    createdAt: string;
+    updatedAt: string;
+    lastLoginAt: string | null;
+    pseudonymisedAt: string | null;
+  };
+  teams: { name: string; roles: string[] }[];
+  apiTokens: {
+    name: string;
+    scope: string;
+    prefix: string;
+    createdAt: string;
+    lastUsedAt: string | null;
+    expiresAt: string | null;
+    revokedAt: string | null;
+  }[];
+  sessions: { createdAt: string; lastSeenAt: string; expiresAt: string; ip: string | null; userAgent: string | null; method: string | null }[];
+  mcpClients: { client: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null }[];
+  emergencyAccess: { issuedBy: string; createdAt: string; expiresAt: string; usedAt: string | null; usedIp: string | null; revokedAt: string | null }[];
+  settings: { notificationPrefs: unknown; dailySummary: unknown };
+  notifications: { total: number; items: { ts: string; event: string; title: string; read: boolean }[] };
+  teamsChats: { installedAt: string; removedAt: string | null }[];
+  /** Where the person is named: as the one who did something (history) and as owner or responsible (now) */
+  activity: PersonalDataActivity[];
+  audit: { total: number; limit: number; entries: AuditEntry[]; next: string | null };
+}
+
+export interface PersonalDataActivity {
+  table: string;
+  column: string;
+  /** history: who did something (started, decided, authored …); current: who owns or answers for something now */
+  kind: 'history' | 'current';
+  total: number;
+  /** The newest rows (at most `PERSONAL_DATA_LIMITS.rowsPerColumn`): id, a name or title, a time */
+  rows: { id: string | null; label: string | null; at: string | null }[];
+}
+
+export const PERSONAL_DATA_LIMITS = { rowsPerColumn: 500, notifications: 200, auditPerPage: 2000 } as const;
 
 export interface UserProfileValue {
   key: string;
@@ -187,6 +252,24 @@ export type SsoProviderInput = Omit<SsoProvider, 'id' | 'hasClientSecret' | 'cre
     /** When the issuer changes: keep the accounts linked (the new issuer issues the same subjects). Default: links stay with the former issuer */
     keepLinksOnIssuerChange?: boolean;
   };
+
+/**
+ * What the sign-in page shows after a failed single sign-on: the server redirects with `?sso_error=<code>` (and
+ * `&sso_ref=<reference>` for a refused sign-in), and the page shows a fixed, translated text for one of these codes –
+ * never text from the address (security review 0.10.0 S8). Anything else shows the generic text of SSO_FAILED.
+ */
+export const SSO_ERROR_CODES = [
+  'SSO_FAILED',
+  'SSO_STATE_UNKNOWN',
+  'SSO_PROVIDER_UNAVAILABLE',
+  'SSO_VAULT_LOCKED',
+  'SSO_IDP_ERROR',
+  'SSO_SIGN_IN_REFUSED',
+] as const;
+export type SsoErrorCode = (typeof SSO_ERROR_CODES)[number];
+/** The reference of a refused single sign-on (the audit entry names it): 8 hex digits. */
+export const SSO_REFERENCE = /^[0-9a-f]{8}$/;
+export const isSsoErrorCode = (v: unknown): v is SsoErrorCode => typeof v === 'string' && (SSO_ERROR_CODES as readonly string[]).includes(v);
 
 export interface SsoProviderPublic {
   id: string;
@@ -390,6 +473,14 @@ export interface AuthStatus {
 export type StepUpMethod = 'password' | 'sso' | 'emergency' | 'none';
 
 /** What a step-up confirms (each sensitive route names its action; shown in the dialog and on the callback page). */
+/**
+ * The rule for local passwords (0.11.0, NIST SP 800-63B, ASVS 5.0 V6.2): a length in characters of the Unicode NFKC
+ * form – any characters, spaces too, no composition rules – and not on the bundled list of common passwords (server).
+ */
+export const PASSWORD_RULES = { minLength: 12, maxLength: 256 } as const;
+/** The length of a password as the rule counts it: characters (code points) of its NFKC form. */
+export const passwordLength = (password: string): number => [...password.normalize('NFKC')].length;
+
 export const STEP_UP_ACTIONS = [
   'createToken',
   'changeVaultPassphrase',
@@ -428,6 +519,9 @@ export const STEP_UP_ACTIONS = [
   'changeMapSource',
   // 0.10.0 (#238): trusting a library publisher or key, removing one, widening its libraries, lifting an expiry
   'changeTrustedPublishers',
+  // 0.11.0: replacing a deactivated person's data by a pseudonym (for good), and exporting another person's data
+  'pseudonymiseUser',
+  'exportPersonalData',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 
@@ -1688,9 +1782,18 @@ export interface McpOAuthSettings {
   /** clients may register themselves (RFC 7591); otherwise administrators add them */
   dynamicRegistration: boolean;
   accessTokenMinutes: number;
+  /** a refresh token that is not used for this long expires (each refresh starts it again) */
   refreshTokenDays: number;
+  /** a connection ends this many days after the person allowed it, however often it was refreshed (sign in again) */
+  grantMaxDays: number;
 }
-export const MCP_OAUTH_LIMITS = { accessTokenMinutes: [5, 1440], refreshTokenDays: [1, 365], clients: 500, redirectUris: 10 } as const;
+export const MCP_OAUTH_LIMITS = {
+  accessTokenMinutes: [5, 1440],
+  refreshTokenDays: [1, 365],
+  grantMaxDays: [1, 730],
+  clients: 500,
+  redirectUris: 10,
+} as const;
 /** An OAuth client of the MCP server (administrators). */
 export interface McpOAuthClient {
   id: string;

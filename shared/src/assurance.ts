@@ -67,6 +67,7 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('user.create', 'identity', ['createUser'], true),
   sp('user.change', 'identity', ['changeAccount'], true),
   sp('user.resetPassword', 'identity', ['resetPassword'], true),
+  sp('user.pseudonymise', 'identity', ['pseudonymiseUser'], true),
   sp('team.members', 'identity', ['changeTeamMembers'], true),
   sp('access.grant', 'identity', ['grantAccess'], true),
   sp('sso.providers', 'identity', ['addSsoProvider', 'changeSsoProvider', 'deleteSsoProvider'], true),
@@ -108,6 +109,7 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('audit.export', 'audit', ['exportAuditLog']),
   sp('evidencePack.export', 'audit', ['exportEvidencePack']),
   sp('credentials.export', 'audit', ['exportCredentials']),
+  sp('personalData.export', 'audit', ['exportPersonalData']),
   // ---- changes and records ----
   {
     key: 'record.approve',

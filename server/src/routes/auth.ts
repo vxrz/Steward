@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { STEP_UP_ACTIONS, type AuthStatus, type Me, BRAND } from '@sm/shared';
+import { STEP_UP_ACTIONS, type AuthStatus, type Me, BRAND, isSsoErrorCode, SSO_REFERENCE, type SsoErrorCode } from '@sm/shared';
 import { config } from '../config.js';
 import { vault, publicKeyPem } from '../vault.js';
 import { audit, flushPendingAudit } from '../audit.js';
@@ -15,6 +15,7 @@ import { startUnlocked, stopUnlocked } from '../bootstrap.js';
 import { seedExamplesSource } from '../sync/service.js';
 import { currentUser, runAs } from '../auth/context.js';
 import * as users from '../auth/users.js';
+import { checkPasswordPolicy } from '../auth/passwords.js';
 import * as sso from '../auth/sso.js';
 import * as emergency from '../auth/emergency.js';
 import * as stepUp from '../auth/step-up.js';
@@ -32,6 +33,7 @@ import {
   ssoBindingCookieName,
 } from '../auth/cookies.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { logger } from '../log.js';
 import { auditPendingUpgrades } from '../upgrades.js';
 import { ACCESS, isStatusViewer, me } from '../auth/access.js';
 import { plantEnabled } from '../plant/settings.js';
@@ -134,6 +136,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       })
       .parse(req.body);
     if (users.countUsers() > 0) throw new HttpError(409, 'Setup has already been completed');
+    // the administrator's password first: a refused one must not leave a vault behind that is set up without an account
+    checkPasswordPolicy(b.password);
     if (vault().initialized) await vault().unlock(b.passphrase);
     else await vault().setup(b.passphrase);
     const { user } = users.createUser({ username: b.username, displayName: b.displayName, roles: ['admin'], password: b.password });
@@ -199,7 +203,18 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.get('/auth/me', async () => meInfo());
 
   // ---------- single sign-on (OpenID Connect) ----------
-  const ssoFail = (reply: import('fastify').FastifyReply, message: string) => reply.redirect(`/?sso_error=${encodeURIComponent(message.slice(0, 300))}`);
+  /**
+   * A failed single sign-on goes back to the sign-in page with a fixed code (and the reference of a refused sign-in),
+   * which the page shows as a translated text – never the error's own text: an identity provider's description, or an
+   * attacker's with a stolen state, would appear as Steward's own words (security review 0.10.0 S8). The reason is logged.
+   */
+  const ssoFail = (reply: import('fastify').FastifyReply, e: unknown) => {
+    const err = e instanceof HttpError ? e : undefined;
+    const code: SsoErrorCode = isSsoErrorCode(err?.code) ? err.code : 'SSO_FAILED';
+    const ref = code === 'SSO_SIGN_IN_REFUSED' ? String(err?.params?.reference ?? '') : '';
+    logger.info({ code, reason: (e as Error)?.message?.slice(0, 300) }, 'single sign-on failed');
+    return reply.redirect(`/?sso_error=${code}${SSO_REFERENCE.test(ref) ? `&sso_ref=${ref}` : ''}`);
+  };
 
   app.get('/auth/oidc/:id/start', async (req, reply) => {
     try {
@@ -208,7 +223,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       );
       return reply.redirect(url);
     } catch (e) {
-      return ssoFail(reply, (e as Error).message);
+      return ssoFail(reply, e);
     }
   });
 
@@ -244,7 +259,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       );
     } catch (e) {
       if (spent) reply.header('set-cookie', spent);
-      return ssoFail(reply, (e as Error).message);
+      return ssoFail(reply, e);
     }
   });
 

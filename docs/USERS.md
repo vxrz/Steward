@@ -34,7 +34,7 @@ Rights are `use` (bind it in runs; read-only explorer calls) and `manage` (confi
 
 ## Passwords and recovery
 
-- New accounts get a temporary password and must change it at first sign-in. Passwords are hashed with scrypt. Five failed sign-ins lock the account for five minutes.
+- New accounts get a temporary password and must change it at first sign-in. Passwords need at least 12 characters (any characters, no composition rules) and must not be on the bundled list of common passwords; they are hashed with scrypt (N=2^17). Five failed sign-ins lock the account for five minutes.
 - Forgotten admin password: `steward admin reset-password <user>` on the server (needs the master passphrase; audited). To reset a demo, delete its data folder. See [INSTALL.md](INSTALL.md#resetting-a-demo-and-recovering-access).
 
 ## Single sign-on

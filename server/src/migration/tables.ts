@@ -21,6 +21,7 @@ export const NOT_MOVED: Record<string, string> = {
   oauth_clients: 'belong to the instance (#12): MCP clients register again with the target',
   oauth_codes: 'one-time codes of the instance, minutes long',
   oauth_grants: 'access of MCP clients to this instance: people allow their clients again on the target',
+  oauth_used_refresh: 'refresh tokens the grants of this instance used (reuse detection), not moved like the grants',
   emergency_access_grants: 'instance-specific (emergency access is granted on the target server)',
   identity_providers: 'instance-specific (the target has its own single sign-on)',
   settings: 'selected settings only (see SETTINGS_MOVED)',

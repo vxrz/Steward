@@ -24,7 +24,7 @@ what to do with a finding. The vulnerability disclosure policy is in
 |                 |              | Trivy `image`, `--ignore-unfixed`                                                                                                      |                                                 | high/critical with a fix available, secrets in the image                         |
 |                 | publish      | push to `ghcr.io/vxrz/steward` after all scans passed, cosign signature, provenance and SBOM attestations                              | `v*` tags; manual with _push_ (test tag)        | push, signing or attestation errors                                              |
 | `scorecard.yml` | analysis     | [OpenSSF Scorecard](https://scorecard.dev)                                                                                             | push to main, weekly, branch protection changes | – (score and findings in code scanning)                                          |
-| `release.yml`   | sbom         | CycloneDX npm SBOM of the production dependencies                                                                                      | tags, `[build-exe]`                             | – (attached to the release)                                                      |
+| `release.yml`   | sbom         | CycloneDX npm SBOM of the production dependencies (`npm sbom`, npm's own command: no tool downloaded at release time)                  | tags, `[build-exe]`                             | – (attached to the release)                                                      |
 | Dependabot      | –            | `.github/dependabot.yml`: npm (minor/patch grouped; Mantine and Vite as one PR each), GitHub Actions, Docker base image                | weekly, plus security updates                   | – (opens pull requests)                                                          |
 
 The weekly runs matter: new advisories are published for code that has not
@@ -142,12 +142,23 @@ with a notice; the full-history scan in CI still runs.
   `false` = never run), and only the allowed ones are run (`npm rebuild <name>`).
   A dependency update that brings a new install script fails the build until
   someone reviews it.
+- **SBOM without a downloaded tool**: the release SBOM of the npm production
+  dependencies comes from `npm sbom --sbom-format=cyclonedx --omit=dev`, the
+  command of the npm that ships with the job's Node.js. Before 0.11 the job ran
+  `npx @cyclonedx/cyclonedx-npm@4.2.1`: pinned by version, but the tool's own
+  dependencies were resolved at release time, outside `package-lock.json`.
 - **Signed build provenance**: release archives and `SHA256SUMS.txt` get a SLSA
   build provenance attestation and the CycloneDX SBOM an SBOM attestation
   (`actions/attest-build-provenance`, `actions/attest-sbom`, keyless via
   Sigstore – no long-lived signing key). Verify with
   `gh attestation verify <file> --repo vxrz/Steward`. The container image is
   signed and attested in the registry, see below.
+- **SLSA level: Build L2.** The provenance is signed by GitHub's attestation
+  service for a build on GitHub-hosted runners (SLSA v1.0 Build L2: a hosted
+  build platform and signed, authenticated provenance). It is not Build L3: the
+  provenance is created by a step of the same workflow that builds, not by an
+  isolated, reusable workflow the build cannot influence (such as the SLSA GitHub
+  generator). Steward does not claim L3.
 
 ## Container image
 
@@ -156,6 +167,17 @@ server, its production dependencies and the built web UI; no npm/npx/yarn;
 non-root numeric user (1000); app files owned by root; node as PID 1 (clean
 shutdown on SIGTERM); works with a read-only root file system (`docker-compose.yml`
 runs it read-only, with all capabilities dropped and `no-new-privileges`).
+
+**`apt-get upgrade` and reproducibility.** The runtime stage runs `apt-get upgrade`, so
+Debian's security fixes published after the pinned base image are in the image right
+away, without waiting for a new base image digest (Dependabot proposes one weekly, after a
+14-day cooldown). The price: the image depends on the day of the build, not only on the
+commit – two builds of the same commit can contain different Debian package versions. The
+Syft SBOM attached to each image lists the versions it really contains, and the SLSA
+provenance names the commit and the workflow run. Build with `--build-arg APT_UPGRADE=0`
+for an image made from the pinned base image's packages alone (reproducible from the
+commit, but without the newer fixes). Removing the upgrade would trade faster security
+fixes for reproducibility; Steward keeps the fixes.
 
 ### Publishing to ghcr.io
 
@@ -206,15 +228,14 @@ access_.
 
 ## Accepted findings (state of the last review)
 
-Reviewed 2026-10-22 with the tool versions pinned in `install-tools.sh`.
+Reviewed 2026-10-22 with the tool versions pinned in `install-tools.sh`; updated for 0.11.0 (the Vitest ignores are gone: Vitest is at 5, the advisories no longer apply). Every ignore in `osv-scanner.toml` has its reason and expiry date there.
 
-| Tool                   | Finding                                                                                                                                                                                                                                                                     | Decision                                                                                                                                                                                                                  |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Trivy/Grype image      | Debian 12 packages (before the switch to Debian 13 in 0.1.0 – re-check the results of the Container workflow): 1 critical (CVE-2023-45853, zlib minizip – `will_not_fix`, minizip is not shipped), ~56 high (util-linux, ncurses, perl-base, systemd libs, …) without a fix | not failing (`--ignore-unfixed` / `--only-fixed`); they disappear with base image updates. Option: move to `node:24-trixie-slim` or a distroless image (see below).                                                       |
-| OSV-Scanner            | GHSA-82fw-gwwq-j7x9, GHSA-qxg6-89mg-rqv8 in `vitest` / `@vitest/mocker` 3.2 (dev only, Vitest dev server)                                                                                                                                                                   | ignored until 2027-01-31 in `osv-scanner.toml`; fix = Vitest 4 upgrade                                                                                                                                                    |
-| OSV-Scanner, npm audit | GHSA-3g3m-2fjr-6pw4 in `glob` 13.0.6 (via `@fastify/static`), GHSA-g3hv-75wg-m249 in `minimatch` 10.2.6 (via `glob`, ESLint)                                                                                                                                                | ignored until 2026-11-30 in `osv-scanner.toml`: Steward never makes the affected glob call (`@fastify/static` with the default `wildcard: true`); the fixes are new majors from 2026-10-27, too new for the two-week rule |
-| npm audit (all deps)   | the same two moderate Vitest advisories                                                                                                                                                                                                                                     | dev only; CI audits production dependencies                                                                                                                                                                               |
-| zizmor                 | `superfluous-actions` for `softprops/action-gh-release` in `release.yml`                                                                                                                                                                                                    | informational; pinned by SHA. Could be replaced with `gh release create`                                                                                                                                                  |
+| Tool                   | Finding                                                                                                                                        | Decision                                                                                                                                                                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trivy/Grype image      | Debian 13 packages of `node:24-trixie-slim` without a fix (the counts change with every base image; see the reports of the Container workflow) | not failing (`--ignore-unfixed` / `--only-fixed`); they disappear with base image updates and `apt-get upgrade` (see [Container image](#container-image)).                                                                |
+| OSV-Scanner, npm audit | GHSA-3g3m-2fjr-6pw4 in `glob` 13.0.6 (via `@fastify/static`), GHSA-g3hv-75wg-m249 in `minimatch` 10.2.6 (via `glob`, ESLint)                   | ignored until 2026-11-30 in `osv-scanner.toml`: Steward never makes the affected glob call (`@fastify/static` with the default `wildcard: true`); the fixes are new majors from 2026-10-27, too new for the two-week rule |
+| OSV-Scanner, npm audit | GHSA-xcx6-jx8p-x3h5 in `@azure/msal-node` 6.0.1 (via `tedious` → `@azure/identity`, the SQL Server driver)                                     | ignored until 2026-11-30 in `osv-scanner.toml`: Steward signs in to SQL Server with a SQL login only, MSAL never asks for a token; the fix is too new for the two-week rule                                               |
+| zizmor                 | `superfluous-actions` for `softprops/action-gh-release` in `release.yml`                                                                       | informational; pinned by SHA. Could be replaced with `gh release create`                                                                                                                                                  |
 
 Fixed during the review: AES-GCM decryption without a fixed tag length
 (`vault.ts`), unpinned actions and base image, persisted checkout credentials,

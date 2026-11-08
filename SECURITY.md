@@ -111,7 +111,8 @@ publisher key (`steward`) is meant to live on a maintainer's hardware key
 **This version has no built-in publisher key**: no installation trusts a
 library publisher unless an administrator adds its key (Settings → Libraries).
 
-TODO (maintainer, by hand – it needs the hardware key):
+**Maintainer step, not done yet** (by hand – it needs the hardware key; until then
+the paragraph above holds):
 
 1. Create the key on the hardware key: `ssh-keygen -t ed25519-sk -O resident -O verify-required -C steward-library`.
 2. Publish its fingerprint here (`ssh-keygen -l -f <key>.pub`):

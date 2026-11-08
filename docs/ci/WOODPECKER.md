@@ -206,10 +206,10 @@ Trivy passed, so `main`/`latest` never point at an image that failed the scan.
    that is `dependency_track_api_key`.
 2. Projects are created on the first upload (`autoCreate=true`):
 
-   | Project         | SBOM                                                                                                                                       | Version                                          |
-   | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
-   | **Steward**     | the container image (Syft, CycloneDX): Debian packages, Node.js, the npm production dependencies                                           | tag without `v` (`1.2.3`) or the branch (`main`) |
-   | **Steward npm** | the npm production dependencies (`@cyclonedx/cyclonedx-npm --omit dev`): what the desktop executable and `npm start` installations contain | same                                             |
+   | Project         | SBOM                                                                                                                                               | Version                                          |
+   | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+   | **Steward**     | the container image (Syft, CycloneDX): Debian packages, Node.js, the npm production dependencies                                                   | tag without `v` (`1.2.3`) or the branch (`main`) |
+   | **Steward npm** | the npm production dependencies (`npm sbom --sbom-format=cyclonedx --omit=dev`): what the desktop executable and `npm start` installations contain | same                                             |
 
    A separate project for the npm SBOM because Dependency-Track keeps one SBOM per project
    version – a second upload to _Steward_ would replace the image SBOM. Release versions are
@@ -296,8 +296,8 @@ trace with `npx playwright show-trace <url or file>`.
   (`node:24-trixie-slim` uses the same digest as the `Dockerfile`). Tools come from
   `scripts/security/install-tools.sh` (SHA-256 per release asset), cosign from
   `scripts/ci/cosign-sign.sh` (same), zizmor with `--require-hashes`, Semgrep from its image
-  digest. `npx @cyclonedx/cyclonedx-npm@4.2.1` is pinned by version (npm verifies the
-  registry integrity hash).
+  digest. The npm SBOM comes from npm's own `npm sbom` command: no SBOM tool is downloaded
+  at release time.
 - **Least privilege**: no step sets `privileged`; only the buildx plugin runs privileged, via
   the server allow-list (step 3). The repository is not trusted, so steps cannot mount host
   volumes or the Docker socket.

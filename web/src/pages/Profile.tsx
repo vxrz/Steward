@@ -19,10 +19,10 @@ import {
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconAlertTriangle, IconCheck, IconCopy, IconKey, IconPlus } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCheck, IconCopy, IconDownload, IconKey, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ApiToken, ApiTokenCreated, ApiTokenScope, UserInfo } from '@sm/shared';
-import { del, getOptional, notifyError, notifyOk, patch, post } from '../api';
+import { apiUrl, del, getOptional, notifyError, notifyOk, patch, post } from '../api';
 import { useMe } from '../auth';
 import { Hint, PageHeader } from '../components/common';
 import { ApiTokenTable } from '../components/ApiTokenTable';
@@ -65,6 +65,7 @@ export function ProfilePage() {
         {local && <PasswordCard />}
         <TokensCard plantOnly={plantOnly} />
         {!plantOnly && <McpConnectedClientsCard />}
+        <DataCard />
       </Stack>
     </>
   );
@@ -231,6 +232,26 @@ function NotificationsCard({ user }: { user: UserInfo }) {
           </Group>
         )}
       </Stack>
+    </Card>
+  );
+}
+
+/** The person's own data as a JSON file (GDPR Art. 15 and 20, docs/PRIVACY.md); the download is audited. */
+function DataCard() {
+  const { t } = useTranslation('profile');
+  return (
+    <Card withBorder>
+      <Group justify="space-between" gap="sm">
+        <div style={{ flex: '1 1 16rem', minWidth: 0 }}>
+          <Title order={5}>{t('data.title')}</Title>
+          <Text size="sm" c="dimmed">
+            {t('data.hint')}
+          </Text>
+        </div>
+        <Button component="a" href={apiUrl('/me/data-export')} variant="default" leftSection={<IconDownload size={16} />} data-testid="profile-data-export">
+          {t('data.download')}
+        </Button>
+      </Group>
     </Card>
   );
 }

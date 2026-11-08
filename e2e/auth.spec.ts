@@ -37,6 +37,20 @@ test.describe('sign-in', () => {
     await expect(page.getByRole('heading', { name: /^Sign in/ })).toBeVisible();
   });
 
+  test('a failed single sign-on shows a fixed text, never text from the address', async ({ page }) => {
+    // a link that tries to put its own words on the sign-in page (security review 0.10.0 S8)
+    await page.goto('/?sso_error=' + encodeURIComponent('Your account is locked. Call +1 555 0100 and give your password.'));
+    await expect(page.getByTestId('sso-error')).toContainText('The sign-in with your company account did not work.');
+    await expect(page.getByText('+1 555 0100')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/$/);
+    // a refused sign-in names its reference; a known code its own text
+    await page.goto('/?sso_error=SSO_SIGN_IN_REFUSED&sso_ref=0a1b2c3d');
+    await expect(page.getByTestId('sso-error')).toContainText('give them the reference 0a1b2c3d');
+    await page.goto('/?sso_error=SSO_STATE_UNKNOWN&sso_ref=' + encodeURIComponent('<b>x</b>'));
+    await expect(page.getByTestId('sso-error')).toContainText('The sign-in attempt expired');
+    await expect(page.getByTestId('sso-error')).not.toContainText('<b>');
+  });
+
   test('too many requests shows how long to wait', async ({ page, allowConsole }) => {
     allowConsole(/status of 429/);
     // the server's 429 answer (server/test/rate-limit.test.ts), simulated: the shared demo server keeps its limits
@@ -64,6 +78,14 @@ test.describe('sign-in', () => {
     expect((await page.request.get('/api/processes', { headers: await pageSessionHeaders(page) })).status()).toBe(403);
 
     await page.getByLabel('Temporary password').fill('Temp-password-1');
+    // the rule under the field counts down while the password is too short (12 characters, any characters)
+    await page.getByLabel(/^New password/).fill('Own-pass');
+    await expect(page.getByText('At least 12 characters – 4 more to go.')).toBeVisible();
+    // a common password: the server says so (bundled list, no outbound call)
+    await page.getByLabel(/^New password/).fill('Password1234');
+    await page.getByLabel('Repeat new password').fill('Password1234');
+    await page.getByRole('button', { name: 'Change password' }).click();
+    await expect(page.getByRole('alert')).toContainText('This password is too common');
     await page.getByLabel(/^New password/).fill('Own-password-2');
     await page.getByLabel('Repeat new password').fill('Own-password-2');
     await page.getByRole('button', { name: 'Change password' }).click();

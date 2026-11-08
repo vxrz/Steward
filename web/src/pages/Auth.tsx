@@ -21,7 +21,7 @@ import { IconChevronDown, IconChevronRight, IconClockHour4, IconLock, IconShield
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
-import type { AuthStatus } from '@sm/shared';
+import { PASSWORD_RULES, passwordLength, type AuthStatus } from '@sm/shared';
 import { post } from '../api';
 import { SsoButtons, SsoErrorAlert, useSsoError } from '../components/sso/SsoButtons';
 import { AppFooter } from '../components/brand/AppFooter';
@@ -30,15 +30,21 @@ import { LanguageMenu } from '../components/LanguageSwitcher';
 import { errorText } from '../i18n/errors';
 import { useAppName } from '../theme';
 
-type PolicyError = 'policyTooShort' | 'policyCharacters';
-
 /** The shortest master passphrase the server accepts (POST /auth/setup). */
 const PASSPHRASE_MIN = 12;
 
-function policyError(pw: string): PolicyError | null {
-  if (pw.length < 10) return 'policyTooShort';
-  if (!/[A-Za-z]/.test(pw) || !/[^A-Za-z]/.test(pw)) return 'policyCharacters';
-  return null;
+/**
+ * The part of the password rule the browser can check (PASSWORD_RULES): the length in characters of the NFKC form. The
+ * server also refuses common passwords (PASSWORD_POLICY with the context tooCommon, shown as a translated text).
+ */
+const tooShort = (pw: string): boolean => passwordLength(pw) < PASSWORD_RULES.minLength;
+
+/** The rule under a new password field: how many characters are still missing while it is too short. */
+function PasswordRule({ value }: { value: string }) {
+  const { t } = useTranslation('auth');
+  const min = PASSWORD_RULES.minLength;
+  const missing = min - passwordLength(value);
+  return <>{value && missing > 0 ? t('policyTooShortMore', { min, count: missing }) : t('policy', { min })}</>;
 }
 
 function Card({ icon, title, intro, children }: { icon: ReactNode; title: string; intro?: ReactNode; children: ReactNode }) {
@@ -90,8 +96,7 @@ export function SetupPage({ status }: { status: AuthStatus }) {
     setError(null);
     if (!existingVault && passphrase !== passphrase2) return setError(t('passphrasesDiffer'));
     if (password !== password2) return setError(t('passwordsDiffer'));
-    const pe = policyError(password);
-    if (pe) return setError(t(pe));
+    if (tooShort(password)) return setError(t('policyTooShort', { min: PASSWORD_RULES.minLength }));
     setBusy(true);
     try {
       await post('/auth/setup', { passphrase, username: username.trim(), displayName: displayName.trim() || undefined, password });
@@ -168,7 +173,7 @@ export function SetupPage({ status }: { status: AuthStatus }) {
           />
           <PasswordInput
             label={t('password')}
-            description={t('policy')}
+            description={<PasswordRule value={password} />}
             required
             value={password}
             onChange={(e) => setPassword(e.currentTarget.value)}
@@ -423,8 +428,7 @@ export function ChangePasswordForm({ forced, onDone }: { forced?: boolean; onDon
   const submit = async () => {
     setError(null);
     if (next !== next2) return setError(t('changePassword.newPasswordsDiffer'));
-    const pe = policyError(next);
-    if (pe) return setError(t(pe));
+    if (tooShort(next)) return setError(t('policyTooShort', { min: PASSWORD_RULES.minLength }));
     setBusy(true);
     try {
       await post('/auth/password', { current, next });
@@ -454,7 +458,7 @@ export function ChangePasswordForm({ forced, onDone }: { forced?: boolean; onDon
         />
         <PasswordInput
           label={t('changePassword.new')}
-          description={t('policy')}
+          description={<PasswordRule value={next} />}
           required
           value={next}
           onChange={(e) => setNext(e.currentTarget.value)}
