@@ -5,14 +5,18 @@ so we take security reports seriously. Thank you for helping keep its users safe
 
 ## Supported versions
 
-Steward is pre-1.0. Security fixes are made on `main` and released as a new
-version; only the **latest release** receives them. Please update before
-reporting, and check whether the issue still exists on `main`.
+Steward is pre-1.0. Security fixes are made on `main` first and released as a
+new version. The latest minor release gets them; the minor release before it gets
+security fixes for 30 days after the next minor is out, as patch releases. The
+full policy – versions, patch releases, how releases are tested and verified – is
+in [docs/RELEASES.md](docs/RELEASES.md). Please update before reporting, and
+check whether the issue still exists on `main`.
 
-| Version              | Supported          |
-| -------------------- | ------------------ |
-| latest release (0.x) | ✅                 |
-| older releases       | ❌ – please update |
+| Version                                        | Supported              |
+| ---------------------------------------------- | ---------------------- |
+| latest minor release (0.x)                     | ✅                     |
+| previous minor release, 30 days after the next | ✅ security fixes only |
+| older releases                                 | ❌ – please update     |
 
 This covers the server, the web UI, the desktop executables and the container
 image built from this repository's `Dockerfile`.
