@@ -1325,13 +1325,12 @@ function applyOutput(node: FlowNode, ctx: RunContext, output: unknown, status: S
 }
 
 /**
- * Where a step's result comes from (ai/provenance.ts): the platform of an API call or a browser step; for an AI step
- * the gateway and everything its context may carry; ANY for every other step – its result is computed from the run.
+ * Where a step's result comes from (ai/provenance.ts), as its step type says (StepExecutor.sources): the platform of an
+ * API call, a query or a browser step; for an AI step the gateway and everything its context may carry; ANY for every
+ * other step – its result is computed from the run.
  */
 function outputSources(node: FlowNode, ctx: RunContext): string[] {
-  const ex = stepOf(node);
-  if (ex) return ex.sources?.(node as NodeOf<StepType>, ctx) ?? [ANY];
-  return [ANY];
+  return stepOf(node)?.sources?.(node as NodeOf<StepType>, ctx) ?? [ANY];
 }
 
 function journalHasPrefix(ctx: RunContext, prefix: string): boolean {
@@ -1553,16 +1552,14 @@ async function waitForChildRun(childId: string, ctx: RunContext, key: string): P
 }
 
 // ---------------------------------------------------------------------------
-// Leaf steps
+// Leaf steps: one module per step type behind the registry (steps/index.ts, steps/context.ts)
 // ---------------------------------------------------------------------------
 
+/** A step runs through its step type's module (steps/index.ts); the engine around it journals, retries and redacts. */
 async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 1): Promise<LeafResult> {
   const ex = stepOf(step);
-  if (ex) return ex.exec(step as NodeOf<StepType>, ctx, key, attempt);
-  switch (step.type) {
-    default:
-      throw new Error(`Unsupported node type ${(step as FlowNode).type}`);
-  }
+  if (!ex) throw new Error(`Unsupported node type ${step.type}`);
+  return ex.exec(step as NodeOf<StepType>, ctx, key, attempt);
 }
 
 // ---------------------------------------------------------------------------
