@@ -15,6 +15,8 @@ The plant registry documents the factories of the enterprise an installation ser
 - [Visualizations](#visualizations)
 - [Map](#map)
 - [YAML import and export](#yaml-import-and-export)
+- [Changing ids](#changing-ids)
+- [Changing many entries at once](#changing-many-entries-at-once)
 - [Permissions](#permissions)
 - [API](#api)
 
@@ -35,7 +37,7 @@ The model follows two standards, so that a plant engineer finds the words they k
 
 **The innermost building wins.** The building that applies to a node is its own, else its work center's, else its area's. An asset may override it with its own building. The site page shows each node's building (inherited ones in italics), the asset page where its building comes from.
 
-**Stable ids.** Every record has an id of lower-case letters, digits, `.`, `_` and `-` (at most 80) that never changes – links, imports and other tools rely on it. Site and asset ids are unique in the installation; node and building ids are unique within their site.
+**Stable ids.** Every record has an id of lower-case letters, digits, `.`, `_` and `-` (at most 80) – links, imports and other tools rely on it. It changes only when someone changes it on purpose, and then the old id keeps leading to the record ([Changing ids](#changing-ids)). Site and asset ids are unique in the installation; node and building ids are unique within their site.
 
 **Generic words, the installation's names.** The module's words are generic (_site, area, work center, work unit, building, asset_). An installation gives its own names per language under _Display names_ (for example _Machine_ instead of _Asset_) without changing the model; other tools' ids go into **external references** (system, id, link), site-specific attributes into **own fields**.
 
@@ -553,6 +555,7 @@ _Plant → Import_ (or `POST /api/plant/import`): choose the files and the mode,
 - Records are matched by their stable ids. Every record remembers the import that wrote it last; replacing an import adopts its records into the new one, so the next replace finds them again. A marked record that comes back into a file loses its mark.
 - Records entered by hand are never removed by an import. When they name something that is removed (an asset in a removed work unit, a node in a removed building), they lose that reference – the preview shows it as a change; a node added by hand below a removed node stops the import (add it to the file, or keep and mark). A site that still holds records that stay is marked instead of removed.
 - The **preview** lists every record as _add, change, remove, mark, unchanged_ or _skip_, with the fields that change, and the counts per kind. It needs the import's own right (adding sites, or managing one) and names nothing of sites you may not see: an earlier import of such a site counts as not found, a code or asset id taken there gets a message without that site, and its records are left out. **Problems** name the file and the place in it (`sites[0].areas[1].work_centers[0].type: Use one of: production_line, …`); a file with problems imports nothing. The import applies all or nothing, in one transaction.
+- Since 0.11.0 an import that removes or renames more than one record asks you to confirm that it is you (step-up, control point `plant.bulkChange` of the [assurance policy](ASSURANCE.md)) – also _replace_ with _remove_; renaming one asks only when `plant.renameId` is turned on. The preview says so.
 - Every import is audited (`plant.imported`) with mode, counts, the files with their size and SHA-256, and the SHA-256 of all files together; the import page lists earlier imports.
 - Device profiles and KPI definitions need the right to manage the catalogues (designers and administrators), an assignment the manage right on its asset's site; an asset in a site you may not see reads like one you may not change. An assignment names an asset, profile, interfaces, data points and KPI definitions that exist after the import (in the files or in Steward). In _replace_ with _remove_, a profile or KPI definition that goes while an assignment that stays still names it stops the import; an assignment goes with its asset.
 - **Checks** of the records in the files – as they will be after the import – are shown in the preview ([Checks](#checks)); they do not stop the import.
@@ -561,6 +564,79 @@ _Plant → Import_ (or `POST /api/plant/import`): choose the files and the mode,
 ### Export
 
 _Export YAML_ on the site list (every site you may see, with the device profiles, KPI definitions, the assignments of the assets and their OT networks), on a site page and its OT network (that site, as `site:`, with the assignments of its assets, `ot_network:` and `asset_networks:`), on the profile and KPI lists (`?part=catalogue`: the device profiles and KPI definitions) and on a profile or KPI definition page (`?profile=<id>`, `?kpi=<id>`: one record, as `device_profile:` or `kpi_definition:`), or `GET /api/plant/export[?site=<id>|?part=catalogue|?profile=<id>|?kpi=<id>]`. The export is format 1 and imports back unchanged: exporting, importing the file in _replace_ mode and exporting again gives the same file. It is audited (`plant.exported`).
+
+## Changing ids
+
+Since 0.11.0 an entry can get a new id. Every reference follows in one transaction, and the old id stays an **alias** that still leads to the entry.
+
+**What can be renamed:** sites, buildings, areas, work centers and work units (one id space per site), assets, device profiles with their interfaces and data points, KPI definitions, VLANs, zones and conduits of a site, devices and data paths of an asset. The job name of a KPI instance and the id of a file set have no references; change them by editing the assignment or the profile. Checks of an asset have no id.
+
+**One entry:** on its page (a site, an asset, a device profile, a data point, a KPI definition), _More actions → Change id_. The dialog checks the new id while you type – the same rules as for a new entry: its format, no other entry of the kind (in its site, asset or profile) has it, and it is no old id of another entry – and lists what refers to the entry (assets, nodes, links, assignments …). Whoever may change the entry renames it. The assurance policy point `plant.renameId` (off by default) can ask for a step-up.
+
+**What follows:** the plant tables (the site of nodes, buildings, assets and the OT network; locations, parents, buildings; assignments, KPI inputs and KPI instances; zones' VLANs, conduits' zones, devices' VLANs, data paths' devices and peers), the links of records, services, tickets and applications (`site`, `asset`, `conduit` – `<site>/<conduit>`), owning teams, credentials' _used by_, where copies came from, the sites of earlier imports, the external references and the image. The audit log is history and keeps the old ids. A dataset filter of a live-status check (`value: rvs-mill-01`) names rows of an outside dataset, not the entry, and stays as it is. A KPI input without a device profile names a data point of whatever profile an asset has and keeps its name.
+
+**Old ids keep working:**
+
+- reads of the internal API and of `/api/v1/plant/…` (paths and the filters `site`, `asset`, `profile`, `kpi`) take an old id as the entry; changes name the entry by its id;
+- a link or bookmark in the web app opens the entry and its address changes to the new id;
+- an import file with an old id updates the entry; the preview notes it under _old ids in the files_.
+
+Chains collapse: after `a → b` and `b → c`, both `a` and `b` lead to `c`; renaming back to an old id removes that alias. A new entry cannot take an old id. _Settings → Modules → Plant registry → Old ids_ lists them for administrators; removing one there frees the id (audited as `plant.id_alias_removed`). When an entry is removed, its aliases go with it and its ids are free again.
+
+**Audit:** `plant.id_changed` with the kind, the old and new id and the number of references updated per kind.
+
+### Renaming many entries with an import
+
+The import page has an optional step _Change ids_: a list of old → new ids, pasted or loaded from a file, and simple rules.
+
+```csv
+kind,old,new
+asset,rvs-mill-01,rvs-mc-01
+hlc-im-01,hlc-moulding-01
+```
+
+A line is `kind,old,new` or `old,new` (any kind); YAML works too (`- { kind: asset, old: rvs-mill-01, new: rvs-mc-01 }`). Rules – _replace a prefix_, _add a prefix_, _add a suffix_, _lower case_ – apply to the ids of the chosen kinds (all kinds when none is chosen), after the list. The mapping applies to the ids in the files and to every reference inside them. When a mapped old id is an entry that exists, that entry is **renamed** through the same rename core and then updated from the files, so _export → map → import_ renames many entries at once. In the API: `idMap: { entries: [{ kind, old, new }], rules: [{ type, from, to, kinds }] }` in the body of `POST /api/plant/import[/preview]`.
+
+The preview lists the renames apart from what is added, changed and removed. It refuses: two old ids that would become one new id, an id that is old and new at once (chains and cycles – rename in two imports), a new id another entry has, an old id of another entry, a new id in the wrong format, and an entry you may not change. Renaming more than one entry asks for a step-up (`plant.bulkChange`, on by default). The renames are audited once as `plant.ids_changed` and in `plant.imported`.
+
+## Changing many entries at once
+
+Since 0.11.0. Every bulk change shows a preview first – what changes, what is **skipped** (an entry you may not change) and what is **refused** (a rule or a reference, with the reason) – and applies in one transaction. Removing more than one entry, or editing more than 25, asks for a step-up (`plant.bulkChange`). One audit entry per action, with the entries in its details: `plant.bulk_changed`, `plant.bulk_removed`.
+
+**In the lists:** the asset, site, device profile and KPI definition lists have a checkbox per row (and _Select all shown_). _Edit selected_ sets fields that are safe to set on many entries:
+
+| Kind           | Fields                                                                                                                                               |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Asset          | status, add or remove tags, manufacturer, model, domain, process area, role, end of support, device profile; building and place (assets of one site) |
+| Device profile | category, manufacturer                                                                                                                               |
+| KPI definition | category                                                                                                                                             |
+| VLAN (API)     | type, managed by, restricted, owner                                                                                                                  |
+| Device (API)   | state, confidence, owner, add or remove flags                                                                                                        |
+
+A place or building must be one of the asset's site. A new device profile is refused for an asset whose assignment has interface settings for its old profile (change it on the asset's page). Owning teams of many sites are set with `POST /api/owning-teams/bulk` and `resources: [{ kind: site, id }]` (administrators, [TEAMS.md](TEAMS.md)). _Remove selected_ works for every list above.
+
+**With an import:** two ways, both through the same removal core:
+
+- `remove:` in a file – entries by kind and id, with `site` (buildings, nodes, VLANs, zones, conduits) or `asset` (devices, data paths):
+
+  ```yaml
+  version: 1
+  remove:
+    - { kind: asset, id: rvs-old-press }
+    - { kind: vlan, site: riverside, id: rvs-vlan-130 }
+  ```
+
+- _Remove entries that are not in the files_ (`removeMissing: true`): within each site the files hold, the entries of the kinds they list there (its buildings, its areas and what is below them, its assets; the VLANs, zones and conduits of an `ot_network`; the devices and data paths of an `asset_network`) that the files do not have. Device profiles and KPI definitions only when a file lists them all (`device_profiles:`, `kpi_definitions:`). Nothing outside: other sites and kinds the files do not list stay. So _export → delete entries → import_ removes them.
+
+An explicit list is easy to review in a diff; the option suits a file that is the truth for its sites. An entry in `remove:` and in the files is a problem.
+
+**What goes with an entry:** only when you choose _Also remove what belongs to it_ (`cascade: true`). Without it, an entry that still has any of these is refused, and the preview says what it has:
+
+- a site: its areas, work centers, work units, buildings, assets and OT network, and the links to it;
+- an asset: the assets that are part of it, its assignment and KPI instances, devices, data paths, linked checks and links;
+- an area or work center: the nodes below it and the assets in them; a building: its floors and rooms; a zone: its conduits; a conduit: the links to it; a KPI definition: its KPI instances (refused when one is on an asset you may not change).
+
+External references, owning teams and the image always go with their entry. **References from other entries** always refuse a removal unless those entries go too: a node or asset in a building, an assignment of a device profile, a zone or device naming a VLAN, a data path naming a device. A removed id is free again; aliases that led to the entry are removed with it.
 
 ## Permissions
 
@@ -578,7 +654,7 @@ A site or asset that you may not see answers `404`, as if it did not exist; a li
 
 ## API
 
-The internal API (the web app) is under `/api/plant/…`: `sites`, `sites/:siteId` with `nodes`, `buildings`, `links` and `access`, `hierarchy`, `assets`, `assets/:assetId` with `image` and `links`, `import/preview`, `import`, `imports`, `export`, `schema`, `config`; `assets/:assetId/assignment` (`GET`, `PUT`, `DELETE`), `profiles`, `profiles/:profileId` with `points/:pointId` and `duplicate`, `kpis`, `kpis/:kpiId` with `duplicate`, `explore/points?q=` and `checks`; `assets` also takes `profile` and `dataPoint`; the [visualizations](#visualizations) `views/overview`, `views/coverage`, `sites/:siteId/structure`, `assets/:assetId/flow`, `profiles/:profileId/points/:pointId/lineage` and `sites/:siteId/network/placement`, and the OT network `sites/:siteId/network` (the whole OT network of a site with every asset's live status and the systems the data paths name – one answer for a diagram), `sites/:siteId/vlans[/:vlanId[/segment]]`, `sites/:siteId/zones[/:zoneId]`, `sites/:siteId/conduits[/:conduitId]`, `assets/:assetId/network`, `assets/:assetId/devices[/:deviceId]`, `assets/:assetId/paths[/:pathId]` and `assets/:assetId/checks`; the switch and settings are `GET`/`PUT /api/settings/plant`.
+The internal API (the web app) is under `/api/plant/…`: `sites`, `sites/:siteId` with `nodes`, `buildings`, `links` and `access`, `hierarchy`, `assets`, `assets/:assetId` with `image` and `links`, `import/preview`, `import`, `imports`, `export`, `schema`, `config`; since 0.11.0 `ids/rename/preview` and `ids/rename` (body `{ kind, scope, id, newId }`), `aliases` (`GET`, `DELETE aliases/:kind/:oldId?scope=`, administrators), `bulk/preview` and `bulk` (body `{ kind, action: edit | remove, items: [{ id, scope }], set, cascade }`); `assets/:assetId/assignment` (`GET`, `PUT`, `DELETE`), `profiles`, `profiles/:profileId` with `points/:pointId` and `duplicate`, `kpis`, `kpis/:kpiId` with `duplicate`, `explore/points?q=` and `checks`; `assets` also takes `profile` and `dataPoint`; the [visualizations](#visualizations) `views/overview`, `views/coverage`, `sites/:siteId/structure`, `assets/:assetId/flow`, `profiles/:profileId/points/:pointId/lineage` and `sites/:siteId/network/placement`, and the OT network `sites/:siteId/network` (the whole OT network of a site with every asset's live status and the systems the data paths name – one answer for a diagram), `sites/:siteId/vlans[/:vlanId[/segment]]`, `sites/:siteId/zones[/:zoneId]`, `sites/:siteId/conduits[/:conduitId]`, `assets/:assetId/network`, `assets/:assetId/devices[/:deviceId]`, `assets/:assetId/paths[/:pathId]` and `assets/:assetId/checks`; the switch and settings are `GET`/`PUT /api/settings/plant`.
 
 The public, read-only API ([API.md](API.md), tag _Plant_):
 
