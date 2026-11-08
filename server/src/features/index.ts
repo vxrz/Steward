@@ -2,6 +2,7 @@ import { registeredJobs, registerJob, type JobDefinition } from '../jobs/registr
 import { registerReportSection } from '../reports/sections.js';
 import { registerMcpTools } from '../mcp/tools.js';
 import { registerBuiltinDataset } from '../dashboards/builtin.js';
+import { registerLinkKind } from '../records/links.js';
 import type { ApiV1Plugin, FeatureManifest } from './define.js';
 import auth from './auth.js';
 import settings from './settings.js';
@@ -102,7 +103,7 @@ let installed = false;
 
 /**
  * Registers what the features bring into the registries the rest of Steward reads (report sections, MCP tools,
- * built-in datasets).
+ * built-in datasets, link kinds).
  * Called once by buildApp() (app.ts), before anything is served; later calls do nothing.
  */
 export function installFeatures(): void {
@@ -112,6 +113,7 @@ export function installFeatures(): void {
     for (const s of f.reportSections ?? []) registerReportSection(s);
     registerMcpTools(f.mcpTools ?? []);
     for (const d of f.datasets ?? []) registerBuiltinDataset(d);
+    for (const l of f.linkKinds ?? []) registerLinkKind(l.kind, l.resolver);
   }
 }
 

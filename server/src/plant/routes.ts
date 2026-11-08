@@ -17,7 +17,6 @@ import * as cat from './catalogue.js';
 import { assignmentInput, deleteAssignment, getAssignment, putAssignment } from './assignments.js';
 import * as net from './network.js';
 import { assetFlow, coverage, hostPlacement, overview, pointLineage, siteStructure } from './views.js';
-import './links.js';
 import {
   changesMapSource,
   checkBody,

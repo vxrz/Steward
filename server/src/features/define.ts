@@ -4,6 +4,7 @@ import type { JobDefinition } from '../jobs/registry.js';
 import type { Get } from '../api/v1/helpers.js';
 import type { ToolDef } from '../mcp/tooling.js';
 import type { BuiltinDataset } from '../dashboards/builtin.js';
+import type { LinkResolver } from '../records/links.js';
 import type { ReportSectionDef } from '../reports/sections.js';
 
 /**
@@ -31,6 +32,8 @@ export interface FeatureManifest {
   datasets?: readonly BuiltinDataset[];
   /** Tools of the MCP server (mcp/tools.ts), after Steward's own */
   mcpTools?: readonly ToolDef[];
+  /** Link kinds of records, documents and tickets (records/links.ts) */
+  linkKinds?: readonly { kind: string; resolver: LinkResolver }[];
 }
 
 export type RoutePlugin = (app: FastifyInstance) => Promise<void> | void;
