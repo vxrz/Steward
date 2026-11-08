@@ -37,6 +37,8 @@ The preview uses the settings in the form, also unsaved ones. Change a claim nam
 
 A refused real sign-in only tells the person _Your sign-in was refused – ask an administrator (reference …)_. The reason (no account, an administrator account, linked to someone else …) is in the audit entry `auth.login_failed` with that reference – and in the test sign-in.
 
+The sign-in page only shows fixed, translated texts after a failed single sign-on: Steward redirects with a code (`?sso_error=SSO_SIGN_IN_REFUSED&sso_ref=…`, `SSO_STATE_UNKNOWN`, `SSO_IDP_ERROR` …), never with the text of the error. An identity provider's `error_description` is written to the operational log (and shown in the test sign-in), not on the page. Any other value of `sso_error` in a link shows the generic text, so a link cannot put its own words on Steward's sign-in page.
+
 A test sign-in never signs anyone in: no session, no account created, linked or changed. Like a sign-in, it is bound to the administrator's browser by a short-lived cookie: finished in another browser, it fails. Only the administrator who started it can see the result, for 15 minutes. It is audited as `sso.test_sign_in`.
 
 ## How claims become an account

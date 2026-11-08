@@ -188,6 +188,24 @@ export type SsoProviderInput = Omit<SsoProvider, 'id' | 'hasClientSecret' | 'cre
     keepLinksOnIssuerChange?: boolean;
   };
 
+/**
+ * What the sign-in page shows after a failed single sign-on: the server redirects with `?sso_error=<code>` (and
+ * `&sso_ref=<reference>` for a refused sign-in), and the page shows a fixed, translated text for one of these codes –
+ * never text from the address (security review 0.10.0 S8). Anything else shows the generic text of SSO_FAILED.
+ */
+export const SSO_ERROR_CODES = [
+  'SSO_FAILED',
+  'SSO_STATE_UNKNOWN',
+  'SSO_PROVIDER_UNAVAILABLE',
+  'SSO_VAULT_LOCKED',
+  'SSO_IDP_ERROR',
+  'SSO_SIGN_IN_REFUSED',
+] as const;
+export type SsoErrorCode = (typeof SSO_ERROR_CODES)[number];
+/** The reference of a refused single sign-on (the audit entry names it): 8 hex digits. */
+export const SSO_REFERENCE = /^[0-9a-f]{8}$/;
+export const isSsoErrorCode = (v: unknown): v is SsoErrorCode => typeof v === 'string' && (SSO_ERROR_CODES as readonly string[]).includes(v);
+
 export interface SsoProviderPublic {
   id: string;
   displayName: string;

@@ -797,7 +797,7 @@ describe('test sign-in', () => {
     // the callback opened in another browser (no binding cookie): nothing is recorded
     const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' });
     expect(res.status).toBe(302);
-    expect(decodeURIComponent(res.headers.get('location')!)).toContain('expired or is unknown');
+    expect(res.headers.get('location')).toBe('/?sso_error=SSO_STATE_UNKNOWN');
     const result = await admin('POST', `/sso/test-sign-ins/${start.testId}`, {});
     expect(result).toMatchObject({ status: 'failed', error: expect.stringContaining('another browser') });
     expect(result.idToken).toBeUndefined();
