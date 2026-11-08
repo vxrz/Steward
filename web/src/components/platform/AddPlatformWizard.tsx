@@ -27,7 +27,10 @@ import { IconArrowRight, IconPlugConnected, IconRefresh, IconSearch, IconUpload 
 import {
   DB_DIALECT_INFO,
   DB_TLS_MODES,
+  PLATFORM_KIND_GROUPS,
   impliedAuthType,
+  platformKind,
+  type PlatformKindGroup,
   type AuthType,
   type DatabaseSettings,
   type DbTlsMode,
@@ -42,19 +45,10 @@ import { authLabel, presetDescription, presetSecretHelp, presetSecretLabel } fro
 import { GetStartedPanel, TestHints } from './onboarding';
 import { KindMaturityBadge } from '../modules/MaturityBadge';
 
-/** Groups of the connector list (kinds not named here: "Other"). */
-type GroupKey = 'industrial' | 'monitoring' | 'cloud' | 'databases' | 'development' | 'ai' | 'messaging' | 'custom' | 'other';
-const GROUPS: { key: GroupKey; kinds: string[] }[] = [
-  { key: 'industrial', kinds: ['insights-hub', 'industrial-edge-management', 'mqtt'] },
-  { key: 'monitoring', kinds: ['gatus', 'checkmk', 'prometheus', 'zabbix', 'changedetection'] },
-  { key: 'cloud', kinds: ['aws', 'kubernetes', 'snowflake', 'kafka', 'kafka-connect', 'confluent-cloud', 'microsoft-graph'] },
-  { key: 'databases', kinds: ['database', 'datacontract'] },
-  { key: 'development', kinds: ['github', 'gitlab', 'forgejo', 'dependency-track', 'endoflife-date', 'container-registry'] },
-  { key: 'ai', kinds: ['llm-gateway'] },
-  { key: 'messaging', kinds: ['teams'] },
-];
-const groupOf = (p: PlatformPreset): GroupKey => (p.custom ? 'custom' : (GROUPS.find((g) => g.kinds.includes(p.kind))?.key ?? 'other'));
-const ORDER: GroupKey[] = [...GROUPS.map((g) => g.key), 'custom', 'other'];
+/** Groups of the connector list: the kind's descriptor (shared/src/platformKinds.ts); own connector types: "Custom". */
+type GroupKey = PlatformKindGroup | 'custom';
+const groupOf = (p: PlatformPreset): GroupKey => (p.custom ? 'custom' : (platformKind(p.kind)?.group ?? 'other'));
+const ORDER: GroupKey[] = [...PLATFORM_KIND_GROUPS.filter((g) => g !== 'other'), 'custom', 'other'];
 
 interface TestResult {
   ok: boolean;

@@ -4,8 +4,6 @@
  * optional periodic test), Kafka topics by prefix and the Confluent Cloud access source.
  */
 
-import { GIT_PLATFORM_KINDS } from './git.js';
-
 // ---------- template bundles ----------
 
 /** A platform a bundle needs: the processes, dashboards and monitors of the bundle are bound to one platform per entry. */
@@ -119,29 +117,6 @@ export interface PlatformGetStarted {
   /** Whether the MCP gateway can expose the platform's operations to AI assistants */
   mcp: boolean;
 }
-
-/** Monitor check types and the platform kind they read (types not listed: any or no platform). */
-export const MONITOR_TYPE_KINDS: Readonly<Record<string, readonly string[]>> = {
-  freshness: ['insights-hub'],
-  gatus: ['gatus'],
-  checkmk: ['checkmk'],
-  prometheus: ['prometheus'],
-  kubernetes: ['kubernetes'],
-  git: GIT_PLATFORM_KINDS,
-  kafka: ['kafka'],
-  'kafka-connect': ['kafka-connect'],
-  mqtt: ['mqtt'],
-  snowflake: ['snowflake'],
-  database: ['database'],
-  dynamodb: ['aws'],
-  'dependency-track': ['dependency-track'],
-  entra: ['microsoft-graph'],
-  'privilege-vault': ['privilege-vault'],
-  'page-watch': ['changedetection'],
-};
-
-/** Platform kinds without an HTTP API of their own: the "platform" monitor check (an HTTP request) does not fit them. */
-export const NON_HTTP_KINDS: ReadonlySet<string> = new Set(['kafka', 'mqtt', 'aws', 'snowflake', 'teams', 'zabbix', 'database']);
 
 // ---------- platform health ----------
 

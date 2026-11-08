@@ -27,11 +27,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { IconArrowsDiff, IconEdit, IconFlask, IconPlayerPlay, IconPlus, IconShieldCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
-  CONFLUENT_KIND,
-  ENTRA_KIND,
   ENTRA_SCOPES,
-  PVAULT_KIND,
-  GIT_PLATFORM_KINDS,
+  accessSourceOfKind,
   type AccessCheck,
   type AccessFinding,
   type AccessReconciliationMeta,
@@ -647,18 +644,9 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
   // the source that reads a platform directly, else a dataset (Insights Hub keeps the one chosen)
   const pickPlatform = (v: string | null) => {
     const p = usable.find((x) => x.id === v);
-    const git = !!p && (GIT_PLATFORM_KINDS as readonly string[]).includes(p.kind);
-    const direct =
-      p?.kind === 'snowflake' || p?.kind === 'aws'
-        ? (p.kind as 'snowflake' | 'aws')
-        : p?.kind === CONFLUENT_KIND
-          ? 'confluent'
-          : p?.kind === ENTRA_KIND
-            ? 'entra'
-            : p?.kind === PVAULT_KIND
-              ? 'privilege-vault'
-              : null;
-    setF((x) => ({ ...x, platformId: v ?? '', source: git ? 'git' : direct ? direct : p && p.kind !== 'insights-hub' ? 'dataset' : x.source }));
+    // the kind's descriptor names the source that reads it (shared/src/platformKinds.ts)
+    const direct = accessSourceOfKind(p?.kind);
+    setF((x) => ({ ...x, platformId: v ?? '', source: direct && direct !== 'insights-hub' ? direct : p && !direct ? 'dataset' : x.source }));
   };
   const preset = fromPlatform?.id;
   useEffect(() => {
