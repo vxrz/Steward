@@ -1,6 +1,6 @@
 import { registeredJobs, registerJob, type JobDefinition } from '../jobs/registry.js';
 import { registerReportSection } from '../reports/sections.js';
-import type { FeatureManifest } from './define.js';
+import type { ApiV1Plugin, FeatureManifest } from './define.js';
 import auth from './auth.js';
 import settings from './settings.js';
 import platforms from './platforms.js';
@@ -107,6 +107,9 @@ export function installFeatures(): void {
   installed = true;
   for (const f of FEATURES) for (const s of f.reportSections ?? []) registerReportSection(s);
 }
+
+/** The public API (/api/v1) of the features, after the API's own endpoints (api/v1/routes.ts). */
+export const featureApiRoutes = (): ApiV1Plugin[] => FEATURES.flatMap((f) => f.apiV1 ?? []);
 
 /** The background jobs of all features (jobs/registry.ts). */
 export const featureJobs = (): JobDefinition[] => FEATURES.flatMap((f) => f.jobs ?? []);

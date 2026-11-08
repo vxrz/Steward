@@ -1,4 +1,5 @@
 import { scorecardRoutes } from '../scorecard/routes.js';
+import { scorecardApiRoutes } from '../scorecard/api-v1.js';
 import { scorecardSection } from '../scorecard/report-section.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
@@ -7,6 +8,7 @@ export default defineFeature({
   name: 'scorecard',
   module: 'scorecard',
   routes: [scorecardRoutes],
+  apiV1: [scorecardApiRoutes],
   jobs: [
     // Prometheus figures first (#110), then hourly samples, breaches, daily snapshots
     every5Minutes('scorecard', 10 * MINUTE, async () => {

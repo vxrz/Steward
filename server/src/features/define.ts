@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ModuleId } from '@sm/shared';
 import type { JobDefinition } from '../jobs/registry.js';
+import type { Get } from '../api/v1/helpers.js';
 import type { ReportSectionDef } from '../reports/sections.js';
 
 /**
@@ -15,6 +16,8 @@ export interface FeatureManifest {
   module?: ModuleId;
   /** Internal API under /api (routes/index.ts), registered in this order */
   routes?: readonly RoutePlugin[];
+  /** Public API under /api/v1 (read-only, documented in docs/openapi.json; api/v1/routes.ts), in this order */
+  apiV1?: readonly ApiV1Plugin[];
   /** Background jobs (jobs/registry.ts); their code is imported when a job first runs */
   jobs?: readonly JobDefinition[];
   /**
@@ -25,6 +28,7 @@ export interface FeatureManifest {
 }
 
 export type RoutePlugin = (app: FastifyInstance) => Promise<void> | void;
+export type ApiV1Plugin = (get: Get, app: FastifyInstance) => Promise<void> | void;
 
 export const defineFeature = (f: FeatureManifest): FeatureManifest => f;
 
