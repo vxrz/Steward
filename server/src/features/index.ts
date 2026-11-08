@@ -44,7 +44,7 @@ import datacontracts from './datacontracts.js';
 import migration from './migration.js';
 import onboarding from './onboarding.js';
 import duplicate from './duplicate.js';
-import exports from './export.js';
+import postmanExport from './export.js';
 import mcp from './mcp.js';
 import demo from './demo.js';
 
@@ -53,7 +53,9 @@ import demo from './demo.js';
  * only place that wires what their manifests bring. Entry points import it – app.ts, main.ts, the CLIs – nothing
  * else does (npm run check:imports).
  *
- * The order counts: it is the order of the sections in a scheduled report.
+ * The order counts: it is the order of the sections in a scheduled report and of the public API's paths in
+ * docs/openapi.json. Routes and jobs are registered in it too (neither depends on it); the demo set-up comes last, as
+ * it may use every other feature. A new feature gets a manifest (define.ts) and one line here.
  */
 export const FEATURES: readonly FeatureManifest[] = [
   auth,
@@ -96,7 +98,7 @@ export const FEATURES: readonly FeatureManifest[] = [
   migration,
   onboarding,
   duplicate,
-  exports,
+  postmanExport,
   mcp,
   demo,
 ];
@@ -104,9 +106,10 @@ export const FEATURES: readonly FeatureManifest[] = [
 let installed = false;
 
 /**
- * Registers what the features bring into the registries the rest of Steward reads (report sections, MCP tools,
- * built-in datasets, link kinds).
- * Called once by buildApp() (app.ts), before anything is served; later calls do nothing.
+ * Registers what the features bring into the registries the rest of Steward reads: report sections, MCP tools,
+ * built-in datasets, link kinds. Called once by buildApp() (app.ts), before anything is served; later calls do
+ * nothing. Routes, the public API and jobs are not registered here: their entry points read them (featureApiRoutes(),
+ * registerFeatureJobs(), routes/index.ts).
  */
 export function installFeatures(): void {
   if (installed) return;

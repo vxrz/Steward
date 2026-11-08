@@ -140,11 +140,14 @@ Internal API (web UI): `GET/POST /api/report-schedules`, `GET/PUT/DELETE /api/re
 
 ### For developers: more sections
 
-Sections are registered in `server/src/reports/sections.ts` with `registerReportSection({ id, schema, validate, title, build, render, glance })`:
+A section has two halves ([ARCHITECTURE.md](ARCHITECTURE.md#report-sections-and-the-pdf-worker)), joined with `defineReportSection()` (`server/src/reports/sections.ts`):
 
-- `schema` validates the section's configuration (zod);
-- `build(config, { from, to, now, lang })` runs inside `runAs(owner)` and returns JSON data (part of the report's content hash);
-- `render(data, { w, tr, lang, section })` draws it with the PDF writer;
-- `glance` adds figures to the _At a glance_ row.
+- the draw half, `<feature>/report-section-draw.ts`, runs in the PDF worker and reads no database:
+  - `title(lang)` names the section;
+  - `render(data, { w, tr, lang, section })` draws it with the PDF writer;
+  - `glance` adds figures to the _At a glance_ row;
+- the collect half, `<feature>/report-section.ts`, runs in the main thread:
+  - `schema` validates the section's configuration (zod), `validate` checks what it names when a schedule is saved;
+  - `build(config, { from, to, now, lang })` runs inside `runAs(owner)` and returns JSON data (part of the report's content hash).
 
-The "records" section (`server/src/records/report-section.ts`) plugs in this way; `reports/schedules.ts` imports it.
+The feature's manifest lists the section (`reportSections` in `server/src/features/<feature>.ts`), and `server/src/reports/pdf/drawers.ts` lists its draw half for the worker. The "records" section (`server/src/records/report-section.ts`) plugs in this way.

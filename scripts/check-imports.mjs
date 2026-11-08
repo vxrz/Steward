@@ -103,7 +103,7 @@ const RULES = [
   },
   {
     name: 'draw-is-pure',
-    why: 'the draw half of a report section takes collected data and draws it: it reads no database (docs/REPORTS.md)',
+    why: 'the draw half of a report section takes collected data and draws it: it reads no database (docs/ARCHITECTURE.md)',
     from: [/-draw\.ts$/, 'server/src/reports/pdf/'],
     except: ['server/src/reports/pdf/pool.ts'],
     reach: true,
