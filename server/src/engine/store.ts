@@ -217,9 +217,7 @@ function runSortExpr(key: RunSortKey): string {
     case 'by':
       return 'lower(actor)';
     case 'duration':
-      return db().dialect === 'postgres'
-        ? 'COALESCE(CAST(ROUND(EXTRACT(EPOCH FROM (finished_at::timestamptz - started_at::timestamptz)) * 1000) AS BIGINT), 9007199254740991)'
-        : 'COALESCE(CAST(ROUND((julianday(finished_at) - julianday(started_at)) * 86400000) AS INTEGER), 9007199254740991)';
+      return `COALESCE(${db().durationMs('started_at', 'finished_at')}, 9007199254740991)`;
     default:
       return 'started_at';
   }

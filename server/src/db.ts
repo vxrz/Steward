@@ -469,6 +469,13 @@ export class Db {
     if (!/^[a-zA-Z_][\w.]*$/.test(column) || !/^\w+$/.test(key)) throw new Error('invalid JSON field reference');
     return this.dialect === 'postgres' ? `(${column}::jsonb ->> '${key}')` : `json_extract(${column}, '$.${key}')`;
   }
+  /** SQL expression for the milliseconds between two ISO timestamp columns (portable julianday / EXTRACT(EPOCH)). */
+  durationMs(startColumn: string, endColumn: string): string {
+    if (!/^[a-zA-Z_][\w.]*$/.test(startColumn) || !/^[a-zA-Z_][\w.]*$/.test(endColumn)) throw new Error('invalid column reference');
+    return this.dialect === 'postgres'
+      ? `CAST(ROUND(EXTRACT(EPOCH FROM (${endColumn}::timestamptz - ${startColumn}::timestamptz)) * 1000) AS BIGINT)`
+      : `CAST(ROUND((julianday(${endColumn}) - julianday(${startColumn})) * 86400000) AS INTEGER)`;
+  }
   /** Where the data lives, without credentials (for logs and the UI). */
   get label(): string {
     return this.driver.label;
