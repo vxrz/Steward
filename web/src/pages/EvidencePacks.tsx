@@ -26,7 +26,7 @@ import type { Control, EvidencePack, EvidencePacksMeta, Platform, ServiceSummary
 import { apiUrl, confirmedDownload, del, get, getOptional, notifyError, post } from '../api';
 import { useMe } from '../auth';
 import { assuranceReportUrl } from '../components/assurance/AssurancePolicyPanel';
-import { EmptyState, QueryState, TONE, useCreateParam } from '../components/common';
+import { EmptyState, QueryState, TONE, useCreateParam, useFieldErrors } from '../components/common';
 import { PeriodPicker, periodRange, presetPeriod, validPeriod, type Period } from '../components/compliance/common';
 import { fmtBytes, fmtDate, fmtRelative } from '../format';
 import { ListPage } from '../components/page/ListPage';
@@ -236,8 +236,10 @@ function NewPackModal({ onClose }: { onClose: () => void }) {
         : serviceId
           ? { serviceId }
           : null;
+  const v = useFieldErrors({ scope: !scope && t('common:validation.required'), period: !validPeriod(period) && t('common:validation.invalid') });
   const submit = async () => {
-    if (!scope || !validPeriod(period)) return;
+    if (!v.validate()) return;
+    if (!scope) return;
     setBusy(true);
     try {
       const r = periodRange(period);
@@ -286,6 +288,7 @@ function NewPackModal({ onClose }: { onClose: () => void }) {
             value={controlIds}
             onChange={setControlIds}
             maxValues={200}
+            error={v.error('scope')}
           />
         )}
         {kind === 'platform' && (
@@ -295,6 +298,7 @@ function NewPackModal({ onClose }: { onClose: () => void }) {
             data={(platforms.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
             value={platformId}
             onChange={setPlatformId}
+            error={v.error('scope')}
           />
         )}
         {kind === 'service' && (
@@ -305,9 +309,10 @@ function NewPackModal({ onClose }: { onClose: () => void }) {
             data={(services.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
             value={serviceId}
             onChange={setServiceId}
+            error={v.error('scope')}
           />
         )}
-        <PeriodPicker value={period} onChange={setPeriod} />
+        <PeriodPicker value={period} onChange={setPeriod} error={v.error('period')} />
         <Select
           label={t('packs.language')}
           allowDeselect={false}
@@ -348,7 +353,7 @@ function NewPackModal({ onClose }: { onClose: () => void }) {
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={submit} loading={busy} disabled={!scope || !validPeriod(period)}>
+          <Button onClick={submit} loading={busy}>
             {t('packs.create')}
           </Button>
         </Group>

@@ -6,6 +6,7 @@ import { IconArrowDown, IconArrowUp, IconArrowsSort, IconSortAscending, IconSort
 import { useTranslation } from 'react-i18next';
 import { formatLocale } from '../i18n';
 import { useListView } from './page/ListPage';
+import { readJsonPref, writePref } from './page/prefs';
 
 export type SortValue = string | number | boolean | null | undefined;
 export type SortDir = 'asc' | 'desc';
@@ -23,6 +24,8 @@ export interface DataColumn<T> {
   cell: (row: T) => ReactNode;
   /** Makes the column sortable (client side, over the loaded rows). Empty values sort last. */
   sortValue?: (row: T) => SortValue;
+  /** The column can be sorted by the server (a table with `onSortChange`) */
+  serverSort?: boolean;
   /** No line breaks in the cell (dates, numbers, badges). */
   nowrap?: boolean;
   /** Extra attributes of the cell (e.g. a `title` with the exact date). */
@@ -45,15 +48,26 @@ export function sortRows<T>(rows: T[], value: (row: T) => SortValue, dir: SortDi
     .map((x) => x.row);
 }
 
-/** Next state when a column header is clicked: ascending → descending → the list's own order. */
-function nextSort(current: SortState | null, key: string): SortState | null {
+const isSortState = (v: unknown): v is SortState | null =>
+  v === null || (typeof v === 'object' && typeof (v as SortState).key === 'string' && ((v as SortState).dir === 'asc' || (v as SortState).dir === 'desc'));
+
+/** The sort order of a list as the user last chose it (per user, in this browser), else `fallback`. */
+export const storedSort = (name: string, fallback: SortState | null): SortState | null => readJsonPref(`list.sort.${name}`, isSortState, fallback);
+export const storeSort = (name: string, sort: SortState | null): void => writePref(`list.sort.${name}`, JSON.stringify(sort));
+
+/**
+ * Next state when a column header is clicked: ascending → descending → the list's own order. A list sorted by the
+ * server always has an order: there a click only turns the direction.
+ */
+function nextSort(current: SortState | null, key: string, cycle = true): SortState | null {
   if (!current || current.key !== key) return { key, dir: 'asc' };
+  if (!cycle) return { key, dir: current.dir === 'asc' ? 'desc' : 'asc' };
   return current.dir === 'asc' ? { key, dir: 'desc' } : null;
 }
 
 /**
  * The list table used by the main lists (Runs, Records, Credentials …): sortable column headers
- * (client side, over the rows loaded so far), rows that open their entry, a card list on phones
+ * (client side over the rows loaded so far, or by the server with `sort`/`onSortChange`), rows that open their entry, a card list on phones
  * (`card`) with a sort menu, and an optional footer (see {@link ListFooter}).
  */
 export function DataTable<T>({
@@ -67,6 +81,9 @@ export function DataTable<T>({
   footer,
   rowProps,
   defaultSort = null,
+  rememberSort,
+  sort: controlledSort,
+  onSortChange,
   cardBreakpoint = '48em',
   verticalSpacing,
   testId,
@@ -83,6 +100,14 @@ export function DataTable<T>({
   footer?: ReactNode;
   rowProps?: (row: T) => Record<string, unknown>;
   defaultSort?: SortState | null;
+  /** Remembers the chosen sort order under this name (per user, in this browser) */
+  rememberSort?: string;
+  /**
+   * Sort order kept by the page (e.g. sorted by the server): the rows come in that order and are not sorted again;
+   * header clicks call `onSortChange`.
+   */
+  sort?: SortState | null;
+  onSortChange?: (sort: SortState | null) => void;
   /** Up to this width the cards are shown (default 48em, like Services). */
   cardBreakpoint?: string;
   verticalSpacing?: number | string;
@@ -94,14 +119,22 @@ export function DataTable<T>({
   // the list page's table/card toggle (ListPage) overrides the choice by width
   const view = useListView();
   const cards = view === 'cards' || (view === 'auto' && narrow);
-  const [sort, setSort] = useState<SortState | null>(defaultSort);
+  const controlled = onSortChange !== undefined;
+  const [own, setOwn] = useState<SortState | null>(() => (rememberSort ? storedSort(rememberSort, defaultSort) : defaultSort));
+  const sort = controlled ? (controlledSort ?? null) : own;
+  const setSort = (next: SortState | null) => {
+    if (controlled) onSortChange(next);
+    else setOwn(next);
+    if (rememberSort) storeSort(rememberSort, next);
+  };
   const sorted = useMemo(() => {
+    if (controlled) return rows;
     const col = sort && columns.find((c) => c.key === sort.key);
     return sort && col?.sortValue ? sortRows(rows, col.sortValue, sort.dir) : rows;
-  }, [rows, columns, sort]);
+  }, [rows, columns, sort, controlled]);
   const clickable = !!(rowHref || onRowClick);
   const activate = (row: T) => (onRowClick ? onRowClick(row) : rowHref && navigate(rowHref(row)));
-  const sortable = columns.filter((c) => c.sortValue);
+  const sortable = columns.filter((c) => c.sortValue || (controlled && c.serverSort));
   const labelOf = (c: DataColumn<T>) => c.label ?? (typeof c.header === 'string' ? c.header : c.key);
 
   if (cards && card) {
@@ -151,14 +184,15 @@ export function DataTable<T>({
             <Table.Tr>
               {columns.map((c) => {
                 const active = sort?.key === c.key ? sort.dir : null;
+                const canSort = !!c.sortValue || (controlled && !!c.serverSort);
                 return (
                   <Table.Th
                     key={c.key}
                     scope="col"
-                    aria-sort={c.sortValue ? (active === 'asc' ? 'ascending' : active === 'desc' ? 'descending' : 'none') : undefined}
+                    aria-sort={canSort ? (active === 'asc' ? 'ascending' : active === 'desc' ? 'descending' : 'none') : undefined}
                   >
-                    {c.sortValue ? (
-                      <UnstyledButton onClick={() => setSort(nextSort(sort, c.key))} className="sort-header" fw={700} fz="sm">
+                    {canSort ? (
+                      <UnstyledButton onClick={() => setSort(nextSort(sort, c.key, !controlled))} className="sort-header" fw={700} fz="sm">
                         <Group gap={4} wrap="nowrap" component="span">
                           <span>{c.header}</span>
                           {active === 'asc' ? (

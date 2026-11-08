@@ -137,7 +137,13 @@
     "all": "All",
     "noMatch": "No platform matches the filter.",
     "clear": "Clear filter",
-    "count": "{{shown}} of {{total}}"
+    "count": "{{shown}} of {{total}}",
+    "lastTest": "Connection test",
+    "test": {
+      "ok": "Last test OK",
+      "failed": "Last test failed",
+      "never": "Not tested yet"
+    }
   },
   "types": {
     "button": "Connector types",
@@ -1170,5 +1176,13 @@
     "firstSnapshot": "first fetch",
     "historyNote": "Only the times: the snapshots themselves stay in changedetection.io.",
     "noChange": "no change yet"
+  },
+  "list": {
+    "name": "Platform",
+    "kind": "Kind",
+    "environment": "Environment",
+    "auth": "Sign-in",
+    "lastTest": "Connection test",
+    "access": "Secrets and access"
   }
 }

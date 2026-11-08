@@ -13,7 +13,27 @@
     "quietUntil_other": "Ruhezeit bis {{time}} · {{count}} Nachrichten zurückgehalten",
     "quiet_one": "Ruhezeit · {{count}} Nachricht zurückgehalten",
     "quiet_other": "Ruhezeit · {{count}} Nachrichten zurückgehalten",
-    "unreadPrefix": "Ungelesen:"
+    "unreadPrefix": "Ungelesen:",
+    "filter": "Anzeigen",
+    "all": "Alle {{count}}",
+    "category": {
+      "decision_one": "Entscheidung {{count}}",
+      "decision_other": "Entscheidungen {{count}}",
+      "alert_one": "Warnung {{count}}",
+      "alert_other": "Warnungen {{count}}",
+      "update_one": "Hinweis {{count}}",
+      "update_other": "Hinweise {{count}}"
+    },
+    "unreadOnly": "Nur ungelesene",
+    "noneHere": "Hier ist nichts – ändern Sie den Filter, um mehr zu sehen.",
+    "groupCount_one": "{{count}} Nachricht",
+    "groupCount_other": "{{count}} Nachrichten",
+    "groupCountUnread_one": "{{count}} Nachricht, {{unread}} ungelesen",
+    "groupCountUnread_other": "{{count}} Nachrichten, {{unread}} ungelesen",
+    "markGroupRead": "Als gelesen markieren",
+    "markGroupReadNamed": "Als gelesen markieren: {{name}}",
+    "showAll": "Alle {{count}} zeigen",
+    "showFewer": "Weniger zeigen"
   },
   "events": {
     "task": {

@@ -34,6 +34,31 @@ export const NOTIFICATION_EVENTS = [
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
+/**
+ * How the notification centre groups events (U9 of the 0.10 review): decisions someone waits for come first and are
+ * never pushed out of the list by alerts; alerts tell that something broke; updates are reminders and news.
+ */
+export const NOTIFICATION_CATEGORIES = ['decision', 'alert', 'update'] as const;
+export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
+export const NOTIFICATION_DECISION_EVENTS: readonly NotificationEvent[] = ['task.assigned', 'mcp.request', 'duty.exception'];
+const ALERT_EVENTS: readonly NotificationEvent[] = [
+  'run.failed',
+  'check.failed',
+  'dataset.stale',
+  'schedule.skipped',
+  'monitor.status',
+  'access.undocumented',
+  'objective.breached',
+  'security.emergency',
+  'backup.failed',
+  'platform.failing',
+  'ai.budget',
+  'cost.budget',
+  'contract.failed',
+];
+export const notificationCategory = (event: string): NotificationCategory =>
+  (NOTIFICATION_DECISION_EVENTS as readonly string[]).includes(event) ? 'decision' : (ALERT_EVENTS as readonly string[]).includes(event) ? 'alert' : 'update';
+
 export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'task.assigned': 'A run waits for a decision you may take',
   'run.failed': 'A run you started (or a scheduled run you own) failed',

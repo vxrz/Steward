@@ -36,6 +36,8 @@ let currentUser = '';
 export const setRecentUser = (userId: string) => {
   currentUser = userId;
 };
+/** The id of the signed-in user (empty before the shell knows it), for other per-user browser settings. */
+export const signedInUserId = (): string => currentUser;
 
 /** The last {@link RECENT_MAX} entries the user opened in this browser, newest first. */
 export function readRecent(userId = currentUser): RecentItem[] {

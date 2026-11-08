@@ -607,7 +607,11 @@
     "redoHint": "Redo ({{key}})",
     "tidy": "Tidy up",
     "tidyHint": "Arrange nodes automatically",
-    "addNode": "Add node"
+    "addNode": "Add node",
+    "foldPalette": "Fold the steps panel",
+    "showPalette": "Show the steps panel",
+    "foldProperties": "Fold the help panel – it opens again when you select a step",
+    "showProperties": "Show properties and help"
   },
   "exprHelp": {
     "title": "Expression & template help",

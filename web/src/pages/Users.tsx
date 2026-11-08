@@ -670,7 +670,11 @@ function TeamModal({ team, users, onClose, onSaved }: { team: Team | null; users
   // roles in the team (#131), by member; members without an entry have only their own roles
   const [memberRoles, setMemberRoles] = useState<Record<string, Role[]>>(team?.memberRoles ?? {});
   const [busy, setBusy] = useState(false);
+  const nameError = useFieldErrors({
+    name: name.trim().length < 2 && (name.trim() ? t('common:validation.minLength', { count: 2 }) : t('common:validation.required')),
+  });
   const save = async () => {
+    if (!nameError.validate()) return;
     setBusy(true);
     try {
       const body = { name: name.trim(), description, members, memberRoles: Object.fromEntries(members.map((m) => [m, memberRoles[m] ?? []])) };
@@ -687,7 +691,7 @@ function TeamModal({ team, users, onClose, onSaved }: { team: Team | null; users
   return (
     <Modal opened onClose={onClose} title={team ? t('teamModal.edit', { name: team.name }) : t('teams.new')}>
       <Stack>
-        <TextInput label={t('common:name')} required value={name} onChange={(e) => setName(e.currentTarget.value)} />
+        <TextInput label={t('common:name')} required value={name} onChange={(e) => setName(e.currentTarget.value)} error={nameError.error('name')} />
         <Textarea label={t('teamModal.description')} autosize minRows={1} value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
         <MultiSelect
           label={t('teamModal.members')}
@@ -722,7 +726,7 @@ function TeamModal({ team, users, onClose, onSaved }: { team: Team | null; users
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={save} loading={busy} disabled={name.trim().length < 2}>
+          <Button onClick={save} loading={busy}>
             {t('common:save')}
           </Button>
         </Group>

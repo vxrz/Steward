@@ -93,11 +93,15 @@ export function visibleRuns(f: Parameters<typeof store.listRuns>[0]): RunSummary
   const batch = Math.min(limit * 3, 1000);
   const out: RunSummary[] = [];
   let before = f.before;
+  let after = f.after;
+  // the newest-first list continues by start and id, a sorted one (U15) after the id of the last run read
+  const sorted = !!f.sort && (f.sort.key !== 'started' || f.sort.dir !== 'desc');
   for (let i = 0; i < 20 && out.length < limit; i++) {
-    const rows = store.listRuns({ ...f, before, limit: batch });
+    const rows = store.listRuns({ ...f, before, after, limit: batch });
     out.push(...rows.filter(sees));
     if (rows.length < batch) break;
-    before = runCursor(rows[rows.length - 1]!);
+    if (sorted) after = rows[rows.length - 1]!.id;
+    else before = runCursor(rows[rows.length - 1]!);
   }
   return out.slice(0, limit);
 }

@@ -46,7 +46,7 @@ npm run demo
 Then:
 
 1. Open <http://127.0.0.1:4310>. Choose a master passphrase and create the first administrator account.
-2. Click **Load demo platforms & processes** on the dashboard. This adds a simulated Insights Hub tenant, a simulated Industrial Edge Management, all templates, and demo users:
+2. Click **Load demo platforms & processes** on the dashboard. This adds simulated platforms (Insights Hub, Industrial Edge Management and others), all templates, monitors, dashboards, three example services with their documents, credential register entries, duties, a maintenance window and a status page, and demo users:
    - `dana` (designer)
    - `olivia` (operator)
    - `adam` (approver)

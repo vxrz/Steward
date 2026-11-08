@@ -10,7 +10,7 @@ import { useSaveSection } from '../settings/SaveBar';
 
 /** Settings → Ticket references (administrators): sources and the default reminder. */
 export function TicketSettingsCard() {
-  const { t } = useTranslation('tickets');
+  const { t } = useTranslation(['tickets', 'common']);
   const qc = useQueryClient();
   const q = useTicketSettings();
   const [d, setD] = useState<TicketSettings | null>(null);
@@ -21,8 +21,15 @@ export function TicketSettingsCard() {
   }, [q.data]);
   const valid = !!d && d.sources.length > 0 && d.sources.every((s) => TICKET_SOURCE_KEY_RE.test(s.key) && s.label.trim());
   const dirty = !!d && !!q.data && JSON.stringify(d) !== JSON.stringify(q.data);
+  // the button stays enabled; a save with a wrong source shows what is missing (U16)
+  const [tried, setTried] = useState(false);
   const save = async () => {
     if (!d) return;
+    if (!valid) {
+      setTried(true);
+      requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+      return;
+    }
     setBusy(true);
     try {
       const next = await put<TicketSettings>('/ticket-references/settings', { ...d, sources: d.sources.map((s) => ({ ...s, label: s.label.trim() })) });
@@ -57,7 +64,7 @@ export function TicketSettingsCard() {
               label={t('settings.key')}
               value={s.key}
               onChange={(e) => setSource(i, { key: e.currentTarget.value.toLowerCase() })}
-              error={TICKET_SOURCE_KEY_RE.test(s.key) ? undefined : true}
+              error={TICKET_SOURCE_KEY_RE.test(s.key) ? undefined : tried ? t('common:validation.invalid') : true}
               classNames={{ input: 'mono' }}
               style={{ flex: '1 1 140px' }}
             />
@@ -68,6 +75,7 @@ export function TicketSettingsCard() {
               onChange={(e) => setSource(i, { label: e.currentTarget.value })}
               style={{ flex: '2 1 180px' }}
               maxLength={80}
+              error={tried && !s.label.trim() ? t('common:validation.required') : undefined}
             />
             <Checkbox size="xs" label={t('settings.vendor')} checked={s.vendor} onChange={(e) => setSource(i, { vendor: e.currentTarget.checked })} mb={6} />
             <ActionIcon
@@ -111,7 +119,7 @@ export function TicketSettingsCard() {
         )}
         {!inBar && (
           <Group justify="flex-end">
-            <Button size="xs" onClick={save} loading={busy} disabled={!valid}>
+            <Button size="xs" onClick={save} loading={busy}>
               {t('settings.save')}
             </Button>
           </Group>

@@ -9,7 +9,7 @@ import { ACCESS_CHANGE_KINDS, type AccessChange, type Platform, type RecordsMeta
 import { get, notifyError, post } from '../api';
 import { useMe } from '../auth';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
-import { EmptyState, FilterPanel, PageHeader, QueryState, useCreateParam } from '../components/common';
+import { EmptyState, FilterPanel, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { RecordStatusBadge } from '../components/records/common';
 import { KindBadge, RightsDiff } from '../components/compliance/common';
 import { fmtDate } from '../format';
@@ -250,8 +250,15 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
   });
   const [busy, setBusy] = useState(false);
   const up = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
-  const valid = f.platformId && f.subjectId.trim() && f.reason.trim() && f.performedBy.trim() && f.performedAt;
+  const v = useFieldErrors({
+    platformId: !f.platformId && t('common:validation.required'),
+    subjectId: !f.subjectId.trim() && t('common:validation.required'),
+    reason: !f.reason.trim() && t('common:validation.required'),
+    performedBy: !f.performedBy.trim() && t('common:validation.required'),
+    performedAt: !f.performedAt && t('common:validation.required'),
+  });
   const submit = async () => {
+    if (!v.validate()) return;
     setBusy(true);
     try {
       const a = await post<AccessChange>('/compliance/access-changes', {
@@ -288,7 +295,8 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
           required
           data={platforms.map((p) => ({ value: p.id, label: p.name }))}
           value={f.platformId || null}
-          onChange={(v) => up('platformId', v ?? '')}
+          onChange={(x) => up('platformId', x ?? '')}
+          error={v.error('platformId')}
         />
         <Group grow wrap="wrap" align="flex-start">
           <TextInput
@@ -298,6 +306,7 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
             value={f.subjectId}
             onChange={(e) => up('subjectId', e.currentTarget.value)}
             maxLength={300}
+            error={v.error('subjectId')}
           />
           <TextInput label={t('accessChanges.subjectName')} value={f.subjectName} onChange={(e) => up('subjectName', e.currentTarget.value)} maxLength={300} />
         </Group>
@@ -337,6 +346,7 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
           value={f.reason}
           onChange={(e) => up('reason', e.currentTarget.value)}
           maxLength={4000}
+          error={v.error('reason')}
         />
         <Group grow wrap="wrap">
           <TextInput label={t('accessChanges.requestedBy')} value={f.requestedBy} onChange={(e) => up('requestedBy', e.currentTarget.value)} maxLength={200} />
@@ -363,6 +373,7 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
             value={f.performedBy}
             onChange={(e) => up('performedBy', e.currentTarget.value)}
             maxLength={200}
+            error={v.error('performedBy')}
           />
         </Group>
         <TextInput
@@ -371,6 +382,7 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
           required
           value={f.performedAt}
           onChange={(e) => up('performedAt', e.currentTarget.value)}
+          error={v.error('performedAt')}
         />
         <Checkbox
           label={t('accessChanges.documentNow')}
@@ -382,7 +394,7 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={submit} loading={busy} disabled={!valid}>
+          <Button onClick={submit} loading={busy}>
             {f.document ? t('accessChanges.createDocumented') : t('accessChanges.createDraft')}
           </Button>
         </Group>

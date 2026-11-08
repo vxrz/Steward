@@ -443,7 +443,7 @@ export function MonitorEditorPage() {
                 {t('editor.createTemplate')}
               </Button>
             )}
-            <Button size="xs" leftSection={<IconDeviceFloppy size={14} />} loading={saving} onClick={save} disabled={!def.name.trim()}>
+            <Button size="xs" leftSection={<IconDeviceFloppy size={14} />} loading={saving} onClick={save}>
               {t('common:save')}
             </Button>
           </>

@@ -161,8 +161,14 @@ function ScaleEditor({ scale, onDone }: { scale: CiaScale; onDone: () => void })
     ls.length >= CIA_LIMITS.minLevels && ls.every((l) => CIA_LEVEL_KEY_RE.test(l.key) && l.label.trim()) && new Set(ls.map((l) => l.key)).size === ls.length;
   const levelsOk = mode === 'default' || (mode === 'shared' ? valid(shared) : CIA_DIMENSIONS.every((d) => valid(dims[d])));
   const ok = levelsOk && (reordered.length === 0 || confirmReorder);
+  // the button stays enabled; a save with wrong levels shows what is wrong (U16)
+  const [tried, setTried] = useState(false);
   const save = async () => {
-    if (!ok) return;
+    if (!ok) {
+      setTried(true);
+      requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+      return;
+    }
     setBusy(true);
     // removed levels mapped to a new one; the others are flagged for re-rating by the server
     const target = (d: CiaDimension, key: string) => mapping[`${d}:${key}`];
@@ -213,10 +219,10 @@ function ScaleEditor({ scale, onDone }: { scale: CiaScale; onDone: () => void })
             ))}
           </Stack>
         </Radio.Group>
-        {mode === 'shared' && <LevelsEditor title={t('scale.levels')} levels={shared} onChange={setShared} />}
+        {mode === 'shared' && <LevelsEditor title={t('scale.levels')} levels={shared} onChange={setShared} showErrors={tried} />}
         {mode === 'perDimension' &&
           CIA_DIMENSIONS.map((d) => (
-            <LevelsEditor key={d} title={t(`cia.dimensions.${d}`)} levels={dims[d]} onChange={(ls) => setDims((x) => ({ ...x, [d]: ls }))} />
+            <LevelsEditor key={d} title={t(`cia.dimensions.${d}`)} levels={dims[d]} onChange={(ls) => setDims((x) => ({ ...x, [d]: ls }))} showErrors={tried} />
           ))}
         {!ok && (
           <Alert color="red" variant="light">
@@ -232,7 +238,12 @@ function ScaleEditor({ scale, onDone }: { scale: CiaScale; onDone: () => void })
                   {t('scale.reorderLevels', { dimension: t(`cia.dimensions.${r.d}`), levels: r.keys.join(', ') })}
                 </Text>
               ))}
-              <Checkbox label={t('scale.confirmReorder')} checked={confirmReorder} onChange={(e) => setConfirmReorder(e.currentTarget.checked)} />
+              <Checkbox
+                label={t('scale.confirmReorder')}
+                checked={confirmReorder}
+                onChange={(e) => setConfirmReorder(e.currentTarget.checked)}
+                error={tried && !confirmReorder ? t('common:validation.required') : undefined}
+              />
             </Stack>
           </Alert>
         )}
@@ -269,7 +280,7 @@ function ScaleEditor({ scale, onDone }: { scale: CiaScale; onDone: () => void })
           <Button variant="default" onClick={onDone}>
             {t('common:cancel')}
           </Button>
-          <Button type="submit" loading={busy} disabled={!ok}>
+          <Button type="submit" loading={busy}>
             {t('scale.save')}
           </Button>
         </Group>
@@ -278,8 +289,20 @@ function ScaleEditor({ scale, onDone }: { scale: CiaScale; onDone: () => void })
   );
 }
 
-function LevelsEditor({ title, levels, onChange }: { title: string; levels: CiaLevel[]; onChange: (ls: CiaLevel[]) => void }) {
-  const { t } = useTranslation('applications');
+function LevelsEditor({
+  title,
+  levels,
+  onChange,
+  showErrors = false,
+}: {
+  title: string;
+  levels: CiaLevel[];
+  onChange: (ls: CiaLevel[]) => void;
+  /** After a save with wrong levels: every wrong field says why */
+  showErrors?: boolean;
+}) {
+  const { t } = useTranslation(['applications', 'common']);
+  const keyTwice = (k: string) => levels.filter((x) => x.key === k).length > 1;
   const set = (i: number, patch: Partial<CiaLevel>) => onChange(levels.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const move = (i: number, by: number) => {
     const out = [...levels];
@@ -303,6 +326,7 @@ function LevelsEditor({ title, levels, onChange }: { title: string; levels: CiaL
                 maxLength={CIA_LIMITS.label}
                 required
                 style={{ flex: '2 1 140px' }}
+                error={showErrors && !l.label.trim() ? t('common:validation.required') : undefined}
               />
               <TextInput
                 size="xs"
@@ -312,7 +336,15 @@ function LevelsEditor({ title, levels, onChange }: { title: string; levels: CiaL
                 onChange={(e) => set(i, { key: e.currentTarget.value.toLowerCase() })}
                 maxLength={32}
                 required
-                error={l.key && !CIA_LEVEL_KEY_RE.test(l.key) ? true : undefined}
+                error={
+                  showErrors && (!CIA_LEVEL_KEY_RE.test(l.key) || keyTwice(l.key))
+                    ? l.key
+                      ? t('common:validation.invalid')
+                      : t('common:validation.required')
+                    : l.key && !CIA_LEVEL_KEY_RE.test(l.key)
+                      ? true
+                      : undefined
+                }
                 style={{ flex: '1 1 110px' }}
               />
               <TextInput

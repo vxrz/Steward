@@ -195,6 +195,36 @@ function withFindings(runs: RunSummary[]): RunSummary[] {
   });
 }
 
+/** Columns the run list can be sorted by on the server (U15 of the 0.10 review). */
+export const RUN_SORT_KEYS = ['started', 'process', 'status', 'by', 'duration'] as const;
+export type RunSortKey = (typeof RUN_SORT_KEYS)[number];
+export interface RunSort {
+  key: RunSortKey;
+  dir: 'asc' | 'desc';
+}
+export const DEFAULT_RUN_SORT: RunSort = { key: 'started', dir: 'desc' };
+
+/**
+ * The SQL value a sort key orders by. Duration is whole milliseconds (comparable exactly in a cursor); a run that has
+ * not finished counts as the longest, so it comes first when sorting by the longest duration.
+ */
+function runSortExpr(key: RunSortKey): string {
+  switch (key) {
+    case 'process':
+      return 'lower(process_name)';
+    case 'status':
+      return 'status';
+    case 'by':
+      return 'lower(actor)';
+    case 'duration':
+      return db().dialect === 'postgres'
+        ? 'COALESCE(CAST(ROUND(EXTRACT(EPOCH FROM (finished_at::timestamptz - started_at::timestamptz)) * 1000) AS BIGINT), 9007199254740991)'
+        : 'COALESCE(CAST(ROUND((julianday(finished_at) - julianday(started_at)) * 86400000) AS INTEGER), 9007199254740991)';
+    default:
+      return 'started_at';
+  }
+}
+
 export function listRuns(f: {
   processId?: string;
   status?: string;
@@ -212,6 +242,10 @@ export function listRuns(f: {
   outcome?: 'succeeded' | 'findings';
   /** Debug runs (ADR 0010): left out unless asked for; true lists only them */
   debug?: boolean;
+  /** Sort order (U15): a column and a direction; default: newest first. Ties are broken by the id in the same direction. */
+  sort?: RunSort;
+  /** With `sort`: continue after this run (its id; exclusive) – the "Load more" cursor of a sorted list */
+  after?: string;
 }): RunSummary[] {
   const where: string[] = [f.debug ? 'debug IS NOT NULL' : 'debug IS NULL'];
   const params: unknown[] = [];
@@ -235,6 +269,16 @@ export function listRuns(f: {
     }
   }
   if (f.since) (where.push('started_at > ?'), params.push(f.since));
+  const sort = f.sort ?? DEFAULT_RUN_SORT;
+  const expr = runSortExpr(sort.key);
+  const dir = sort.dir === 'asc' ? 'ASC' : 'DESC';
+  if (f.after) {
+    // keyset on (value, id): the value of the run the page ended with, read with the same expression
+    const at = db().get<{ v: unknown }>(`SELECT ${expr} AS v FROM runs WHERE id = ?`, f.after);
+    if (!at) throw new HttpError(400, 'The run to continue after is unknown', 'RUN_CURSOR_UNKNOWN');
+    const cmp = sort.dir === 'asc' ? '>' : '<';
+    (where.push(`(${expr} ${cmp} ? OR (${expr} = ? AND id ${cmp} ?))`), params.push(at.v, at.v, f.after));
+  }
   const failedCheck = `EXISTS (SELECT 1 FROM run_steps s WHERE s.run_id = runs.id AND s.type = 'check' AND s.status = 'failed')`;
   if (f.checks === 'failed') where.push(failedCheck);
   if (f.outcome) where.push(`status = 'succeeded' AND ${f.outcome === 'findings' ? '' : 'NOT '}${failedCheck}`);
@@ -243,7 +287,7 @@ export function listRuns(f: {
     db()
       .all<RunRow & { open_tasks: number }>(
         `SELECT runs.*, (SELECT COUNT(*) FROM run_tasks t WHERE t.run_id = runs.id AND t.status = 'open') AS open_tasks
-       FROM runs WHERE ${where.join(' AND ')} ORDER BY started_at DESC, id DESC LIMIT ?`,
+       FROM runs WHERE ${where.join(' AND ')} ORDER BY ${expr} ${dir}, id ${dir} LIMIT ?`,
         ...params,
       )
       .map(toSummary),

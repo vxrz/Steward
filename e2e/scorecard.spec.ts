@@ -99,7 +99,8 @@ test('define an availability objective and see the scorecard of the service', as
   await page.goto('/scorecard');
   const row = page.getByTestId(`scorecard-${svc.id}`);
   await expect(row.getByTestId('attention')).toHaveText('OK');
-  await expect(row.getByTestId('part-status')).toHaveText(['Open', 'OK', 'OK', 'OK']);
+  // the four parts every service has (the demo services can add optional columns such as data contracts)
+  await expect.poll(async () => (await row.getByTestId('part-status').allInnerTexts()).slice(0, 4)).toEqual(['Open', 'OK', 'OK', 'OK']);
   await expect(page.getByTestId('scorecard-rollup')).toContainText('Services');
   await expect(page.getByTestId('scorecard-rules')).toContainText('No rules.');
   await settle(page);
@@ -107,7 +108,7 @@ test('define an availability objective and see the scorecard of the service', as
   await expectNoHorizontalScroll(page);
   // on a phone: a card per service, no horizontal scrolling
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(row.getByTestId('part-status')).toHaveText(['Open', 'OK', 'OK', 'OK']);
+  await expect.poll(async () => (await row.getByTestId('part-status').allInnerTexts()).slice(0, 4)).toEqual(['Open', 'OK', 'OK', 'OK']);
   await expectNoHorizontalScroll(page);
   await expectAccessible(page, 'scorecard page on a phone');
   await page.setViewportSize({ width: 1280, height: 900 });

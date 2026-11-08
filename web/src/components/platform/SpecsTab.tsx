@@ -74,7 +74,8 @@ function PrefixModal({ platform, spec, onClose }: { platform: Platform; spec: Pl
   const prefix = value.trim().replace(/\/+$/, '');
   const valid = validPathPrefix(prefix);
   const save = async () => {
-    if (!spec) return;
+    // the field says what is wrong (the button stays enabled, U16)
+    if (!spec || !valid) return;
     setBusy(true);
     try {
       await patch<PlatformSpec>(`/platforms/${platform.id}/specs/${spec.id}`, { pathPrefix: prefix });
@@ -110,7 +111,7 @@ function PrefixModal({ platform, spec, onClose }: { platform: Platform; spec: Pl
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={save} loading={busy} disabled={!valid}>
+          <Button onClick={save} loading={busy}>
             {t('common:save')}
           </Button>
         </Group>
@@ -244,7 +245,17 @@ export function SpecsTab({
     }
   };
 
+  // which import was tried with a missing or wrong value: that field shows why (U16)
+  const [tried, setTried] = useState<'url' | 'content' | null>(null);
+  const urlError =
+    tried === 'url' && !/^https?:\/\/\S+$/.test(url.trim()) ? (url.trim() ? t('common:validation.url') : t('common:validation.required')) : undefined;
+  const contentError = tried === 'content' && content.trim().length < 2 ? t('common:validation.required') : undefined;
   const upload = async (fromUrl = false) => {
+    if (fromUrl ? !/^https?:\/\/\S+$/.test(url.trim()) : content.trim().length < 2) {
+      setTried(fromUrl ? 'url' : 'content');
+      return;
+    }
+    setTried(null);
     setBusy(true);
     try {
       const s = await post<PlatformSpec>(
@@ -326,8 +337,9 @@ export function SpecsTab({
                 value={url}
                 onChange={(e) => setUrl(e.currentTarget.value)}
                 style={{ flex: 1, minWidth: 220 }}
+                error={urlError}
               />
-              <Button variant="light" onClick={() => upload(true)} loading={busy} disabled={!/^https?:\/\/\S+$/.test(url.trim())}>
+              <Button variant="light" onClick={() => upload(true)} loading={busy}>
                 {t('specs.importUrl')}
               </Button>
             </Group>
@@ -339,9 +351,10 @@ export function SpecsTab({
               maxRows={10}
               value={content}
               onChange={(e) => setContent(e.currentTarget.value)}
+              error={contentError}
             />
             <Group justify="flex-end">
-              <Button onClick={() => upload(false)} loading={busy} disabled={content.trim().length < 2}>
+              <Button onClick={() => upload(false)} loading={busy}>
                 {t('specs.import')}
               </Button>
             </Group>

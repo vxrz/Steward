@@ -137,7 +137,13 @@
     "all": "Alle",
     "noMatch": "Keine Plattform passt zum Filter.",
     "clear": "Filter zurücksetzen",
-    "count": "{{shown}} von {{total}}"
+    "count": "{{shown}} von {{total}}",
+    "lastTest": "Verbindungstest",
+    "test": {
+      "ok": "Letzter Test erfolgreich",
+      "failed": "Letzter Test fehlgeschlagen",
+      "never": "Noch nicht getestet"
+    }
   },
   "types": {
     "button": "Konnektortypen",
@@ -1170,5 +1176,13 @@
     "firstSnapshot": "erster Abruf",
     "historyNote": "Nur die Zeitpunkte: Die Stände selbst bleiben in changedetection.io.",
     "noChange": "noch keine Änderung"
+  },
+  "list": {
+    "name": "Plattform",
+    "kind": "Art",
+    "environment": "Umgebung",
+    "auth": "Anmeldung",
+    "lastTest": "Verbindungstest",
+    "access": "Geheimnisse und Zugriff"
   }
 }

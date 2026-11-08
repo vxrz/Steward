@@ -194,11 +194,11 @@ A _Help_ button in the header: _What's new_ (a short, curated list in the locale
 
 ## Backlog
 
-Nothing left from this review. Ideas for later:
+Nothing left from this review. The three ideas for later were done in 0.11.0 (with the 0.10 review's U6, U15 and U16):
 
-1. Remember the sort order of a list per browser.
-2. Server-side sorting and totals ("200 of 1,240") for the run list; today the count is only known for lists that are loaded completely.
-3. Inline validation for the remaining dialogs listed above.
+1. **Remembered sort order:** `DataTable`'s `rememberSort` keeps a list's order per user in the browser (`sm.pref.<user>.list.sort.<list>`); the table/card choice of `ListPage` is per user too (`sm.pref.<user>.list.view.<list>`, the browser-wide key of before is still read). Helpers: `web/src/components/page/prefs.ts`.
+2. **Server-side sort for Runs:** `GET /api/runs?sort=started|process|status|by|duration&dir=asc|desc`, ties broken by the run id; _Load more_ continues with `after=<id of the last run>` (the newest-first list keeps `before=<startedAt>,<id>`). The Runs page passes the chosen header to the server (`DataTable` with `sort`/`onSortChange`).
+3. **Inline validation in the remaining dialogs:** the button stays enabled and `useFieldErrors()` shows what is missing in the first-run setup, _New process_, the link dialog, the API spec import, the status page, report schedule, access change entry, evidence pack, CIA scale, budget, team, API token, quick platform and record editor forms; the settings cards (ticket sources, credential reminders, environments) keep the button enabled and stop with the field's message. Still disabled: dirty-only save bars, sign-in forms and single-comment decisions.
 
 ## v0.4.0: areas and page templates
 

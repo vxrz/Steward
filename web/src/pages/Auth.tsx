@@ -29,6 +29,7 @@ import { AppLogo } from '../components/brand/AppLogo';
 import { LanguageMenu } from '../components/LanguageSwitcher';
 import { errorText } from '../i18n/errors';
 import { useAppName } from '../theme';
+import { useFieldErrors } from '../components/common';
 
 /** The shortest master passphrase the server accepts (POST /auth/setup). */
 const PASSPHRASE_MIN = 12;
@@ -78,7 +79,7 @@ function useRefreshAuth() {
 }
 
 export function SetupPage({ status }: { status: AuthStatus }) {
-  const { t } = useTranslation('auth');
+  const { t } = useTranslation(['auth', 'common']);
   const appName = useAppName();
   const refresh = useRefreshAuth();
   const [passphrase, setPassphrase] = useState('');
@@ -91,11 +92,19 @@ export function SetupPage({ status }: { status: AuthStatus }) {
   const [busy, setBusy] = useState(false);
   const existingVault = status.initialized;
   const [passphraseTouched, setPassphraseTouched] = useState(false);
+  // the button stays enabled: on submit the missing or wrong fields say what is wrong (U16 of the 0.10 review)
+  const required = t('common:validation.required');
+  const v = useFieldErrors({
+    passphrase: existingVault ? !passphrase && required : passphrase.length < PASSPHRASE_MIN && t('setup.passphraseTooShort', { count: PASSPHRASE_MIN }),
+    passphrase2: !existingVault && passphrase !== passphrase2 && t('passphrasesDiffer'),
+    username: !username.trim() && required,
+    password: !password && required,
+    password2: password !== password2 && t('passwordsDiffer'),
+  });
 
   const submit = async () => {
     setError(null);
-    if (!existingVault && passphrase !== passphrase2) return setError(t('passphrasesDiffer'));
-    if (password !== password2) return setError(t('passwordsDiffer'));
+    if (!v.validate()) return;
     if (tooShort(password)) return setError(t('policyTooShort', { min: PASSWORD_RULES.minLength }));
     setBusy(true);
     try {
@@ -115,6 +124,7 @@ export function SetupPage({ status }: { status: AuthStatus }) {
       intro={existingVault ? t('setup.introExistingVault') : t('setup.intro')}
     >
       <form
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           submit();
@@ -141,7 +151,8 @@ export function SetupPage({ status }: { status: AuthStatus }) {
                   : t('setup.passphraseRule', { count: PASSPHRASE_MIN })
             }
             error={
-              !existingVault && passphraseTouched && passphrase.length < PASSPHRASE_MIN ? t('setup.passphraseTooShort', { count: PASSPHRASE_MIN }) : undefined
+              v.error('passphrase') ??
+              (!existingVault && passphraseTouched && passphrase.length < PASSPHRASE_MIN ? t('setup.passphraseTooShort', { count: PASSPHRASE_MIN }) : undefined)
             }
             onBlur={() => setPassphraseTouched(true)}
           />
@@ -151,7 +162,7 @@ export function SetupPage({ status }: { status: AuthStatus }) {
               required
               value={passphrase2}
               onChange={(e) => setPassphrase2(e.currentTarget.value)}
-              error={passphrase2 && passphrase.startsWith(passphrase2) === false ? t('passphrasesDiffer') : undefined}
+              error={v.error('passphrase2') ?? (passphrase2 && passphrase.startsWith(passphrase2) === false ? t('passphrasesDiffer') : undefined)}
             />
           )}
           <Text fw={600} size="sm" mt="xs">
@@ -164,6 +175,7 @@ export function SetupPage({ status }: { status: AuthStatus }) {
             onChange={(e) => setUsername(e.currentTarget.value)}
             placeholder={t('setup.usernamePlaceholder')}
             autoComplete="username"
+            error={v.error('username')}
           />
           <TextInput
             label={t('displayName')}
@@ -178,6 +190,7 @@ export function SetupPage({ status }: { status: AuthStatus }) {
             value={password}
             onChange={(e) => setPassword(e.currentTarget.value)}
             autoComplete="new-password"
+            error={v.error('password')}
           />
           <PasswordInput
             label={t('repeatPassword')}
@@ -185,9 +198,10 @@ export function SetupPage({ status }: { status: AuthStatus }) {
             value={password2}
             onChange={(e) => setPassword2(e.currentTarget.value)}
             autoComplete="new-password"
+            error={v.error('password2')}
           />
           {error && <Alert color="red">{error}</Alert>}
-          <Button type="submit" loading={busy} disabled={passphrase.length < (existingVault ? 1 : PASSPHRASE_MIN) || !username.trim() || !password}>
+          <Button type="submit" loading={busy}>
             {existingVault ? t('setup.createAdmin') : t('setup.submit')}
           </Button>
           {status.demo && (

@@ -56,6 +56,11 @@ const runsQuery = z.object({
     .enum(['0', '1'])
     .transform((x) => x === '1')
     .optional(),
+  /** Sort column (U15): started (default), process, status, by, duration; `dir` asc or desc (default desc) */
+  sort: z.enum(store.RUN_SORT_KEYS).optional(),
+  dir: z.enum(['asc', 'desc']).optional(),
+  /** With a sort: the id of the last run shown ("Load more"); `before` is the cursor of the default order */
+  after: z.string().max(200).optional(),
 });
 
 function requireProcess(processId: string, perm: 'view' | 'run' | 'edit' | 'approve' | 'manage', what: string) {
@@ -80,11 +85,17 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
         templateId: z.string().max(200).optional(),
         text: z.string().max(MAX_DEFINITION_TEXT).optional(),
         comment: z.string().max(2000).optional(),
+        /** The id the person chose in the "New process" dialog (U7): taken as given, refused when it exists */
+        id: z
+          .string()
+          .trim()
+          .regex(/^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$/, 'Lower-case letters, digits and dashes, at most 48')
+          .optional(),
       })
       .parse(req.body);
     if (b.templateId) return processes.createFromTemplate(b.templateId);
     const def = b.text ? processes.parseDefinitionText(b.text) : b.definition;
-    return processes.createProcess(def, { comment: b.comment ?? (b.text ? 'Imported' : 'Created') });
+    return processes.createProcess(def, { comment: b.comment ?? (b.text ? 'Imported' : 'Created'), ...(b.id ? { id: b.id, exactId: true } : {}) });
   });
   app.post('/processes/validate', { bodyLimit: LARGE_BODIES.definitions.bytes }, async (req) => {
     const b = z.object({ definition: z.any().optional(), text: z.string().max(MAX_DEFINITION_TEXT).optional() }).parse(req.body);
@@ -158,7 +169,13 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     });
     return { id: runId };
   });
-  app.get('/runs', async (req) => visibleRuns(runsQuery.parse(req.query ?? {})));
+  app.get('/runs', async (req) => {
+    const { sort, dir, ...q } = runsQuery.parse(req.query ?? {});
+    const order: store.RunSort = { key: sort ?? 'started', dir: dir ?? 'desc' };
+    if (q.before && (order.key !== 'started' || order.dir !== 'desc'))
+      throw new HttpError(400, 'before= continues the newest-first list; use after=<run id> with a sort', 'RUN_CURSOR_SORT');
+    return visibleRuns({ ...q, sort: order });
+  });
   app.get('/runs/:id', async (req) => {
     requireRun(params(req).id!, 'view', 'view this run');
     const d = store.getRunDetail(params(req).id!);

@@ -37,7 +37,7 @@ const localDay = (s: string) => {
 
 export const validPeriod = (p: Period) => /^\d{4}-\d{2}-\d{2}$/.test(p.from) && /^\d{4}-\d{2}-\d{2}$/.test(p.to) && p.from <= p.to;
 
-export function PeriodPicker({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
+export function PeriodPicker({ value, onChange, error }: { value: Period; onChange: (p: Period) => void; error?: string }) {
   const { t } = useTranslation('compliance');
   return (
     <Group gap="xs" align="flex-end" wrap="wrap">
@@ -76,6 +76,7 @@ export function PeriodPicker({ value, onChange }: { value: Period; onChange: (p:
             value={value.to}
             onChange={(e) => onChange({ ...value, preset: 'custom', to: e.currentTarget.value })}
             w={{ base: '48%', xs: 150 }}
+            error={error}
           />
         </>
       )}
