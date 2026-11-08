@@ -129,6 +129,28 @@ describe('monitor import: choose the platform', () => {
     expect(await platformOfCheck('pipes-ok', 'pipe')).toBe(forge.id);
   });
 
+  it('offers only platforms of the kind an output writes to, and refuses another one (0.11)', async () => {
+    const yaml = (ref: string, key: string) =>
+      [
+        'kind: monitor',
+        `key: ${key}`,
+        `name: Status to Gatus ${key}`,
+        'checks:',
+        '  - { id: port, name: Port, type: tcp, host: 127.0.0.1, port: 1 }',
+        'outputs:',
+        `  - { id: status, type: gatus, platform: "${ref}", endpointKey: shop }`,
+      ].join('\n');
+    const { platforms } = await s.api('POST', '/monitors/import/preview', { yaml: yaml('Status', 'gatus-out') });
+    expect(platforms[0]).toMatchObject({ ref: 'Status', kind: 'gatus', kinds: ['gatus'], usedBy: [{ type: 'output', id: 'status' }] });
+    expect(platforms[0].candidates.map((c: { id: string }) => c.id)).toEqual([gatus.id]);
+    const chosen = await s.api('POST', '/monitors/import', { yaml: yaml('Status', 'gatus-out'), platforms: { Status: modev.id } }).catch((e) => e);
+    expect(chosen.body).toMatchObject({ code: 'PLATFORM_CHOICE_KIND', params: { ref: 'Status', kind: 'gatus' } });
+    // a file that names a platform of another kind by its id: refused when saving
+    const named = await s.api('POST', '/monitors/import', { yaml: yaml(modev.id, 'gatus-out-id') }).catch((e) => e);
+    expect(named.body).toMatchObject({ code: 'OUTPUT_PLATFORM_KIND', params: { output: 'status', type: 'gatus', kind: 'insights-hub', kinds: ['gatus'] } });
+    await s.api('POST', '/monitors/import', { yaml: yaml('Status', 'gatus-out'), platforms: { Status: gatus.id } });
+  });
+
   it('lists templates by a readable name instead of their parameter placeholder', async () => {
     const examples = (await s.api('GET', '/monitors/examples')) as { kind: string; name: string; description: string }[];
     const template = examples.find((e) => e.kind === 'monitorTemplate')!;

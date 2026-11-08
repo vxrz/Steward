@@ -207,3 +207,70 @@ describe('running a stored check whose platform is of another kind', () => {
     }
   });
 });
+
+describe('outputs of a type tied to platform kinds', () => {
+  const gatusOut = (platform: string, endpointKey = 'shop') => ({ id: 'status', type: 'gatus', platform, endpointKey, include: 'monitor' });
+  const apiCheck = (path: string) => ({ id: 'api', name: 'API', type: 'platform', platform: generic.id, method: 'GET', path });
+  const outState = (id: string) =>
+    db().get<{ last_error: string | null; last_status: string | null }>(
+      "SELECT last_error, last_status FROM monitor_output_state WHERE monitor_id = ? AND output_id = 'status' AND subject = ''",
+      id,
+    );
+
+  it('refuse a platform of another kind on save, with the output, type, platform and kinds', async () => {
+    const r = await fail(s.api('POST', '/monitors', { definition: { name: 'Kinds out', checks: [apiCheck('/x')], outputs: [gatusOut(prometheus.id)] } }));
+    expect(r).toMatchObject({ status: 400, code: 'OUTPUT_PLATFORM_KIND' });
+    expect(r.params).toEqual({ output: 'status', type: 'gatus', name: 'Kinds Prometheus', kind: 'prometheus', kinds: ['gatus'], kindNames: ['Gatus'] });
+    const zabbix = { id: 'status', type: 'zabbix', platform: 'Kinds Gatus', via: 'api' };
+    const z = await fail(s.api('POST', '/monitors', { definition: { name: 'Kinds zbx', checks: [apiCheck('/x')], outputs: [zabbix] } }));
+    expect(z).toMatchObject({ code: 'OUTPUT_PLATFORM_KIND', params: { kind: 'gatus', kinds: ['zabbix'] } });
+
+    const { monitor } = await s.api('POST', '/monitors', { definition: { name: 'Kinds out ok', checks: [apiCheck('/x')], outputs: [gatusOut(gatus.id)] } });
+    const def = (await s.api('GET', `/monitors/${monitor.id}`)).definition;
+    const upd = await fail(s.api('PUT', `/monitors/${monitor.id}`, { definition: { ...def, outputs: [gatusOut(generic.id)] } }));
+    expect(upd.code).toBe('OUTPUT_PLATFORM_KIND');
+  });
+
+  it('send nothing from a stored output on a platform of another kind and record the failure; the start-up log names it', async () => {
+    await s.api('PUT', `/platforms/${gatus.id}/secrets`, { externalToken: 'kinds-token' });
+    // the generic platform has the token too: without the kind rule the output would send
+    await s.api('PUT', `/platforms/${generic.id}/secrets`, { externalToken: 'kinds-token' });
+    // the control: an output on a Gatus platform reaches the counting server
+    const ctl = await s.api('POST', '/monitors', { definition: { name: 'Kinds out control', checks: [apiCheck('/c')], outputs: [gatusOut(gatus.id, 'ctl')] } });
+    hits = [];
+    await eng.evaluateMonitorNow(ctl.monitor.id);
+    expect(hits.some((h) => h.startsWith('POST /api/v1/endpoints/ctl/external'))).toBe(true);
+
+    const { monitor } = await s.api('POST', '/monitors', {
+      definition: { name: 'Kinds out stored', checks: [apiCheck('/s')], outputs: [gatusOut(gatus.id, 'old')] },
+    });
+    // what the save itself scheduled went to the Gatus platform; then the output's platform is swapped, as in an older row
+    await eng.settle();
+    const def = JSON.parse(db().get<{ definition: string }>('SELECT definition FROM monitors WHERE id = ?', monitor.id)!.definition);
+    def.outputs[0].platform = generic.id;
+    db().run('UPDATE monitors SET definition = ? WHERE id = ?', JSON.stringify(def), monitor.id);
+    eng.reloadMonitor(monitor.id);
+    hits = [];
+    await eng.evaluateMonitorNow(monitor.id);
+    // the check ran (its request reached the server), the output sent nothing
+    expect(hits).toContain('GET /s');
+    expect(hits.filter((h) => h.includes('/external'))).toEqual([]);
+    expect(outState(monitor.id)?.last_error).toBe(
+      'Output could not run: "Kinds API" is a platform of kind Generic HTTP API, but this output writes to Gatus – choose a platform of that kind',
+    );
+
+    const { logger } = await import('../src/log.js');
+    const warn = vi.spyOn(logger, 'warn');
+    try {
+      await eng.stopMonitorEngine();
+      eng.startMonitorEngine();
+      const call = warn.mock.calls.find((c) => String(c[1]).includes('of a kind they do not read or write to'));
+      const logged = (call![0] as { outputs: unknown[] }).outputs;
+      expect(logged).toContainEqual({ monitor: monitor.id, key: expect.any(String), output: 'status', type: 'gatus', platform: generic.id, kind: 'generic' });
+      expect(logged).not.toContainEqual(expect.objectContaining({ monitor: ctl.monitor.id }));
+      expect(JSON.stringify(call![0])).not.toContain('kinds-token');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});

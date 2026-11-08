@@ -20,10 +20,12 @@ import {
   checkTypeKinds,
   checkTypesOfKind,
   isPlatformKind,
+  outputTypeKinds,
 } from '@sm/shared';
 import { PRESETS } from '../src/platforms/presets.js';
 import { DRIVERS } from '../src/platforms/drivers.js';
 import { CHECK_RUNNERS, validateCheckPlatform } from '../src/monitors/checks.js';
+import { validateOutputPlatform } from '../src/monitors/kinds.js';
 
 // One descriptor per platform kind and per check type (0.11.0, docs/ARCHITECTURE.md#adding-a-platform-kind): every
 // kind and type has a complete one, the server and web records cover them, and the lists they replaced are gone.
@@ -152,6 +154,36 @@ describe('check type descriptors', () => {
     }
     const api = { id: 'c', name: 'c', type: 'freshness', source: 'platform' } as unknown as Parameters<typeof validateCheckPlatform>[0];
     expect(codeOf(() => validateCheckPlatform(api, { name: 'Other', kind: 'gatus' }))).toBe('');
+  });
+
+  it('refuse a platform of another kind for every output type tied to platform kinds, and accept each kind it writes to', () => {
+    const codeOf = (fn: () => void) => {
+      try {
+        fn();
+        return '';
+      } catch (e) {
+        return (e as { code?: string }).code ?? String(e);
+      }
+    };
+    const kindTypes = OUTPUT_TYPES.filter((t) => outputTypeKinds(t).length);
+    expect(kindTypes).toEqual(expect.arrayContaining(['gatus', 'zabbix']));
+    for (const type of OUTPUT_TYPES) {
+      const o = { id: 'o', type };
+      const kinds = outputTypeKinds(type);
+      expect(
+        codeOf(() => validateOutputPlatform(o, { name: 'Other', kind: 'generic' })),
+        type,
+      ).toBe(kinds.length ? 'OUTPUT_PLATFORM_KIND' : '');
+      expect(
+        codeOf(() => validateOutputPlatform(o, { name: 'Own', kind: 'my-own-connector' })),
+        type,
+      ).toBe(kinds.length ? 'OUTPUT_PLATFORM_KIND' : '');
+      for (const kind of kinds)
+        expect(
+          codeOf(() => validateOutputPlatform(o, { name: 'Fits', kind })),
+          `${type} on ${kind}`,
+        ).toBe('');
+    }
   });
 
   it('replace the lists that were kept by hand before 0.11', () => {
