@@ -17,7 +17,7 @@ import { EmergencyAccessPage, ForcedPasswordChangePage, LoginPage, SetupPage, Va
 import { EmergencyBanner } from './components/security/EmergencyBanner';
 import { UserMenu, signOut } from './components/UserMenu';
 import { CommandPalette, CommandPaletteButton } from './components/CommandPalette';
-import { AppNav, useAutomateTabs, useNavGroups } from './components/AppNav';
+import { AppNav, useAutomateTabs, useNavGroups, useServiceTabs } from './components/AppNav';
 import { ModuleGate, ModuleOffPage } from './components/modules/ModuleOff';
 import { useVisibilityQuery } from './modules';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
@@ -130,6 +130,7 @@ const AREA_HOME: Record<string, string> = {
   '/operate': '/runs',
   '/automate': '/processes',
   '/catalogue': '/services',
+  '/registers': '/records',
   '/compliance': '/compliance/controls',
   '/plant': '/plant/sites',
 };
@@ -254,11 +255,12 @@ function Shell({ status }: { status: AuthStatus }) {
   const { data: seen, settled: seenSettled } = useVisibilityQuery(!plantOnly);
   const navGroups = useNavGroups(caps, seen);
   const automateTabs = useAutomateTabs(caps);
-  // the palette finds the tab pages of an entry, too (Schedules, Triggers, Git sync)
+  const serviceTabs = useServiceTabs(caps);
+  // the palette finds the tab pages of an entry, too (Schedules, Triggers, Git sync; Scorecard, Costs)
   const navItems = useMemo(() => {
     const items = navGroups.flatMap((g) => g.items);
-    return [...items, ...automateTabs.filter((tab) => !items.some((i) => i.to === tab.to))];
-  }, [navGroups, automateTabs]);
+    return [...items, ...[...automateTabs, ...serviceTabs].filter((tab) => !items.some((i) => i.to === tab.to))];
+  }, [navGroups, automateTabs, serviceTabs]);
   // Narrow icon-only sidebar on wide screens (remembered per browser)
   const [rail, setRail] = useLocalStorage({ key: 'sm.nav.rail', defaultValue: false, getInitialValueInEffect: false });
   // The burger drawer on phones always shows the full sidebar.

@@ -89,6 +89,89 @@
     "title": "Hier gibt es nichts, was Sie sehen dürfen",
     "text": "Es gibt Einträge, auf die Sie keinen Zugriff haben. Fragen Sie einen Administrator oder das Team, dem sie gehören."
   },
+  "glossary": {
+    "title": "Glossar",
+    "open": "Glossar",
+    "intro": "Die Begriffe, die {{brand}} verwendet, und wie sie zusammenhängen.",
+    "relation": "Ein Service besteht aus Anwendungen. Eine Anwendung läuft auf Systemen. {{brand}} erreicht Systeme und Anwendungen über Plattformen.",
+    "docs": "Vollständiges Glossar in der Dokumentation",
+    "groups": {
+      "catalogue": "Katalog",
+      "automation": "Automatisierung",
+      "watching": "Überwachung",
+      "records": "Dokumente und Personen"
+    },
+    "terms": {
+      "service": {
+        "term": "Service",
+        "text": "Was ein Team anderen anbietet, mit einer verantwortlichen Person und einer Kritikalität. Er besteht aus Anwendungen."
+      },
+      "application": {
+        "term": "Anwendung",
+        "text": "Software, aus der ein Service besteht, mit einer CIA-Bewertung. Sie läuft auf Systemen."
+      },
+      "system": {
+        "term": "System",
+        "text": "Worauf Anwendungen laufen: ein Server, eine VM, ein Cluster, eine Appliance oder ein Cloud-Dienst, mit seinen Umgebungen. Teil des Katalogs."
+      },
+      "component": {
+        "term": "Komponente",
+        "text": "Ein Code- oder Datenteil einer Anwendung: ein Repository, Image, eine Bibliothek, ein Topic oder eine Datenbank."
+      },
+      "platform": {
+        "term": "Plattform",
+        "text": "Eine Verbindung, über deren API {{brand}} spricht: Basis-URL, Zugangsdaten, API-Spezifikationen. Kein Katalogeintrag."
+      },
+      "process": {
+        "term": "Prozess",
+        "text": "Ein versionierter Ablauf von Schritten, den {{brand}} ausführt. „Verfahren“ und „Runbook“ meinen in der Dokumentation dasselbe."
+      },
+      "run": {
+        "term": "Ausführung",
+        "text": "Ein Durchlauf eines Prozesses, mit Protokoll und Nachweisen."
+      },
+      "step": {
+        "term": "Schritt",
+        "text": "Ein Knoten eines Prozesses in einer Ausführung: ein Aufruf, eine Prüfung, eine manuelle Aufgabe oder eine Entscheidung."
+      },
+      "decision": {
+        "term": "Entscheidung",
+        "text": "Eine Freigabe oder Auswahl, die eine Person trifft, während eine Ausführung wartet (Meine Aufgaben)."
+      },
+      "monitor": {
+        "term": "Monitor",
+        "text": "Ein Graph aus Prüfungen, der nach Zeitplan läuft und einen Status meldet."
+      },
+      "check": {
+        "term": "Prüfung",
+        "text": "Ein einzelner Test in einem Monitor oder einem Prozessschritt (z. B. HTTP-Status, ein Abfragewert)."
+      },
+      "objective": {
+        "term": "Ziel",
+        "text": "Ein Verfügbarkeitsziel eines Service, über die Zeit gemessen (die Scorecard)."
+      },
+      "document": {
+        "term": "Dokument",
+        "text": "Ein Eintrag mit Typ und Arbeitsablauf: Änderungsanträge, Entscheidungen, Reviews, Firewall-Änderungen. In der Dokumentation auch „Record“."
+      },
+      "credential": {
+        "term": "Zugangsdaten (Register)",
+        "text": "Metadaten zu Geheimnissen, die anderswo liegen (Ablauf, Rotation, Verantwortliche). Es enthält nie das Geheimnis selbst; das tun Plattformen."
+      },
+      "duty": {
+        "term": "Pflicht",
+        "text": "Eine wiederkehrende Verpflichtung eines Service, bewertet an echten Ausführungen: erledigt, verspätet oder versäumt."
+      },
+      "team": {
+        "term": "Team und verantwortliches Team",
+        "text": "Ein Team fasst Personen mit Rollen zusammen. Die verantwortlichen Teams eines Eintrags entscheiden, wer ihn sehen und ändern darf."
+      },
+      "module": {
+        "term": "Modul",
+        "text": "Ein optionaler Bereich, den ein Administrator unter Einstellungen → Module ausschalten kann."
+      }
+    }
+  },
   "state": {
     "on": "Ein",
     "off": "Aus"

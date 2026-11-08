@@ -98,8 +98,11 @@ export type NavKey =
   | 'plantChecks'
   | 'plantMap'
   | 'plantImport';
-/** The areas of the sidebar (v0.4.0): Home has no heading; Plant only while its module is on (#218). */
-export type NavGroupKey = 'home' | 'operate' | 'automate' | 'catalogue' | 'plant' | 'compliance' | 'admin';
+/**
+ * The areas of the sidebar (v0.4.0; Registers since 0.11.0): Home has no heading; Plant only while its module is on
+ * (#218).
+ */
+export type NavGroupKey = 'home' | 'operate' | 'automate' | 'catalogue' | 'registers' | 'plant' | 'compliance' | 'admin';
 
 interface NavItemDef {
   to: string;
@@ -132,8 +135,20 @@ export const AUTOMATE_TABS: NavItemDef[] = [
 ];
 
 /**
- * The sidebar in six areas, ordered by how often a service team needs them: Home, day-to-day operation,
- * automation, the catalogue around the services, compliance and finally administration.
+ * Services, Scorecard and Costs (0.11.0): one sidebar entry ("Services"), the reports about services are tabs of it.
+ * The addresses stay as they were.
+ */
+export const SERVICE_TABS: NavItemDef[] = [
+  { to: '/services', key: 'services', icon: IconStack2 },
+  { to: '/scorecard', key: 'scorecard', icon: IconGauge },
+  { to: '/costs', key: 'costs', icon: IconCoin },
+];
+
+/**
+ * The sidebar in areas, ordered by how often a service team needs them: Home, day-to-day operation, automation, the
+ * catalogue (what exists and how Steward reaches it), the registers kept about it, compliance and finally
+ * administration (0.11.0: Registers split from the catalogue, Maintenance moved to Operate, Scorecard and Costs are
+ * tabs of Services).
  */
 export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
   { key: 'home', items: [{ to: '/', key: 'dashboard', icon: IconLayoutDashboard }] },
@@ -147,6 +162,8 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/reports', key: 'reports', icon: IconReportAnalytics },
       { to: '/tasks', key: 'tasks', icon: IconInbox },
       { to: '/mcp-requests', key: 'mcpRequests', icon: IconRobot },
+      // maintenance windows silence monitors and pause messages: day-to-day operation (0.11.0)
+      { to: '/maintenance', key: 'maintenance', icon: IconTool },
     ],
   },
   {
@@ -156,18 +173,20 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
   {
     key: 'catalogue',
     items: [
-      { to: '/services', key: 'services', icon: IconStack2 },
+      { to: '/services', key: 'services', icon: IconStack2, also: ['/scorecard', '/costs'] },
       { to: '/applications', key: 'applications', icon: IconApps },
       { to: '/systems', key: 'systems', icon: IconServer2 },
       { to: '/platforms', key: 'platforms', icon: IconServer },
       { to: '/data-contracts', key: 'dataContracts', icon: IconContract },
-      { to: '/credentials', key: 'credentials', icon: IconKey, when: credentialsRegister },
+    ],
+  },
+  {
+    key: 'registers',
+    items: [
       { to: '/records', key: 'records', icon: IconFileCertificate },
+      { to: '/credentials', key: 'credentials', icon: IconKey, when: credentialsRegister },
       { to: '/tickets', key: 'tickets', icon: IconTicket },
       { to: '/duties', key: 'duties', icon: IconCalendarCheck },
-      { to: '/scorecard', key: 'scorecard', icon: IconGauge },
-      { to: '/costs', key: 'costs', icon: IconCoin },
-      { to: '/maintenance', key: 'maintenance', icon: IconTool },
     ],
   },
   {
@@ -207,7 +226,10 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
 ];
 
 /** Where each page of the sidebar (and each tab page of an entry) lives: breadcrumbs link by key. */
-export const NAV_PATHS = Object.fromEntries([...NAV_GROUPS.flatMap((g) => g.items), ...AUTOMATE_TABS].map((i) => [i.key, i.to])) as Record<NavKey, string>;
+export const NAV_PATHS = Object.fromEntries([...NAV_GROUPS.flatMap((g) => g.items), ...AUTOMATE_TABS, ...SERVICE_TABS].map((i) => [i.key, i.to])) as Record<
+  NavKey,
+  string
+>;
 
 export interface NavEntry {
   to: string;
@@ -260,17 +282,28 @@ export function useNavGroups(caps: Capabilities, seen?: VisibilitySummary): { ke
 
 /** The tabs of the Automate area the user may see (Processes, Schedules, Triggers, Git sync). */
 export function useAutomateTabs(caps: Capabilities): NavEntry[] {
+  return useTabs(AUTOMATE_TABS, caps, 'automate');
+}
+
+/** The tabs of Services the user may see (Services, Scorecard, Costs; a switched-off module's tab is left out). */
+export function useServiceTabs(caps: Capabilities): NavEntry[] {
+  return useTabs(SERVICE_TABS, caps, 'catalogue');
+}
+
+function useTabs(tabs: NavItemDef[], caps: Capabilities, group: Exclude<NavGroupKey, 'home'>): NavEntry[] {
   const { t } = useTranslation('nav');
   return useMemo(
     () =>
-      AUTOMATE_TABS.filter((n) => !caps.plantOnly && visible(caps)(n)).map((n) => ({
-        to: n.to,
-        key: n.key,
-        icon: n.icon,
-        label: t(`items.${n.key}`),
-        group: t('groups.automate'),
-      })),
-    [t, caps],
+      tabs
+        .filter((n) => !caps.plantOnly && visible(caps)(n))
+        .map((n) => ({
+          to: n.to,
+          key: n.key,
+          icon: n.icon,
+          label: t(`items.${n.key}`),
+          group: t(`groups.${group}`),
+        })),
+    [t, caps, tabs, group],
   );
 }
 

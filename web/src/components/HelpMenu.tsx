@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { ActionIcon, Group, Kbd, List, Menu, Modal, Stack, Table, Text, ThemeIcon, Tooltip } from '@mantine/core';
-import { IconBook, IconExternalLink, IconHelp, IconInfoCircle, IconKeyboard, IconRocket, IconSparkles } from '@tabler/icons-react';
+import { IconBook, IconExternalLink, IconHelp, IconInfoCircle, IconKeyboard, IconRocket, IconSparkles, IconVocabulary } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 // Direct import: the @sm/shared barrel would pull zod and dagre into the first download.
 import { BRAND } from '../../../shared/src/brand';
 import { useMe } from '../auth';
+
+/** Help → Glossary (0.11.0): its own chunk and namespace, loaded when it opens. */
+const GlossaryDialog = lazy(() => import('./modules/Glossary'));
 
 export const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -168,7 +171,7 @@ export function HelpMenu() {
   const { t } = useTranslation('nav');
   const navigate = useNavigate();
   const { isAdmin } = useMe();
-  const [dialog, setDialog] = useState<'shortcuts' | 'news' | null>(null);
+  const [dialog, setDialog] = useState<'shortcuts' | 'news' | 'glossary' | null>(null);
   const openShortcuts = useRef(() => setDialog('shortcuts')).current;
   useGlobalShortcuts(openShortcuts);
   useEffect(() => {
@@ -191,6 +194,9 @@ export function HelpMenu() {
           </Menu.Item>
           <Menu.Item leftSection={<IconKeyboard size={14} />} rightSection={<Kbd size="xs">?</Kbd>} onClick={() => setDialog('shortcuts')}>
             {t('help.shortcuts')}
+          </Menu.Item>
+          <Menu.Item leftSection={<IconVocabulary size={14} />} onClick={() => setDialog('glossary')}>
+            {t('help.glossary')}
           </Menu.Item>
           {isAdmin && (
             <Menu.Item leftSection={<IconRocket size={14} />} onClick={() => navigate('/?checklist=1')}>
@@ -220,6 +226,11 @@ export function HelpMenu() {
       </Menu>
       <ShortcutsDialog opened={dialog === 'shortcuts'} onClose={() => setDialog(null)} />
       <WhatsNewDialog opened={dialog === 'news'} onClose={() => setDialog(null)} />
+      {dialog === 'glossary' && (
+        <Suspense fallback={null}>
+          <GlossaryDialog opened onClose={() => setDialog(null)} />
+        </Suspense>
+      )}
     </>
   );
 }

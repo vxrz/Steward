@@ -9,7 +9,7 @@ import { sessionState, startIsolatedServer, type IsolatedServer } from './suppor
  * The module registry (0.11.0, ADR 0016): Settings → Modules lists the optional areas with their maturity and a
  * switch. Switched off, an area is gone from the sidebar and its tabs, its pages say so, its routes answer 404; on
  * again, its data is back. Switching changes the whole installation, so these tests run on a server of their own.
- * Also: what a person may see (honest empty states), on the shared demo server.
+ * Also: what a person may see (honest empty states) and the glossary, on the shared demo server.
  */
 
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Main navigation' });
@@ -133,5 +133,33 @@ test.describe('what a viewer may see', () => {
     await expectAccessible(page, 'restricted empty state');
     // … and the sidebar has no entry for it
     await expect(sidebar(page).getByRole('link', { name: 'Access reconciliation' })).toHaveCount(0);
+  });
+});
+
+test.describe('glossary', () => {
+  test.use({ storageState: authFile('olivia') });
+
+  test('Help → Glossary explains the catalogue terms (en and de)', async ({ page }) => {
+    await page.goto('/');
+    await settle(page);
+    await page.getByTestId('help-menu').click();
+    await page.getByRole('menuitem', { name: 'Glossary' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Glossary' });
+    await expect(dialog).toContainText('A service consists of applications. An application runs on systems.');
+    for (const term of ['Service', 'Application', 'System', 'Component', 'Platform', 'Process', 'Run', 'Monitor', 'Document', 'Owning team'])
+      await expect(dialog.getByRole('rowheader', { name: new RegExp(term, 'i') }).first()).toBeVisible();
+    await expect(dialog.getByRole('link', { name: 'Full glossary in the documentation' })).toHaveAttribute('href', /docs\/GLOSSARY\.md$/);
+    await expectAccessible(page, 'glossary');
+    await page.keyboard.press('Escape');
+
+    await page.evaluate(() => localStorage.setItem('steward.language', 'de'));
+    await page.reload();
+    await settle(page);
+    await page.getByTestId('help-menu').click();
+    await page.getByRole('menuitem', { name: 'Glossar' }).click();
+    const de = page.getByRole('dialog', { name: 'Glossar' });
+    await expect(de).toContainText('Ein Service besteht aus Anwendungen.');
+    await expect(de.getByRole('rowheader', { name: 'Plattform' })).toBeVisible();
+    await page.evaluate(() => localStorage.setItem('steward.language', 'en'));
   });
 });

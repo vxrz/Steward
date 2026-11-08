@@ -14,6 +14,7 @@ import { useMe } from '../auth';
 import { fmtDate, fmtRelative } from '../format';
 import { NeedBadges } from '../components/catalogue/cia';
 import { ListPage, useStoredListView } from '../components/page/ListPage';
+import { ServiceTabs } from '../components/page/LinkTabs';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 
 export const CRITICALITY_COLORS: Record<string, string> = { low: 'gray', medium: 'blue', high: 'orange', critical: 'red' };
@@ -83,6 +84,7 @@ export function ServicesPage() {
   const hidden = useHiddenByPermissions('services');
   return (
     <ListPage
+      tabs={<ServiceTabs active="/services" />}
       view="services"
       viewState={listView}
       activeFilters={[archived, tag].filter(Boolean).length}

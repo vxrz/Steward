@@ -12,16 +12,16 @@ const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Main navig
 test.describe('navigation (admin)', () => {
   test.use({ storageState: authFile('admin') });
 
-  test('the sidebar has six areas; the current one opens, a choice to fold or open one is kept', async ({ page }) => {
+  test('the sidebar has seven areas; the current one opens, a choice to fold or open one is kept', async ({ page }) => {
     await page.goto('/runs');
     await settle(page);
     const nav = sidebar(page);
-    for (const name of ['Operate', 'Automate', 'Catalogue', 'Compliance', 'Admin']) await expect(nav.getByRole('group', { name })).toBeVisible();
+    for (const name of ['Operate', 'Automate', 'Catalogue', 'Registers', 'Compliance', 'Admin']) await expect(nav.getByRole('group', { name })).toBeVisible();
     const toggle = (name: string) => sidebar(page).getByRole('button', { name, exact: true });
     // the area of the current page is open, the others are folded
     await expect(toggle('Operate')).toHaveAttribute('aria-expanded', 'true');
     await expect(nav.getByRole('link', { name: 'Runs', exact: true })).toHaveAttribute('aria-current', 'page');
-    for (const name of ['Automate', 'Catalogue', 'Compliance', 'Admin']) await expect(toggle(name)).toHaveAttribute('aria-expanded', 'false');
+    for (const name of ['Automate', 'Catalogue', 'Registers', 'Compliance', 'Admin']) await expect(toggle(name)).toHaveAttribute('aria-expanded', 'false');
     await expect(nav.getByRole('link', { name: 'Services', exact: true })).toBeHidden();
 
     // open Catalogue: it stays open; the current area can be folded for the visit
@@ -57,6 +57,22 @@ test.describe('navigation (admin)', () => {
     await expect(page).toHaveURL(/\/triggers$/);
     await expect(page.getByRole('heading', { name: 'Triggers', level: 1 })).toBeVisible();
     await expectAccessible(page, 'automate tabs');
+
+    // Scorecard and Costs are tabs of Services (0.11.0): the sidebar marks Services, the old addresses stay
+    for (const [path, heading] of [
+      ['/scorecard', 'Scorecard'],
+      ['/costs', 'Costs'],
+    ] as const) {
+      await page.goto(path);
+      await expect(page.getByRole('heading', { name: heading, level: 1 })).toBeVisible();
+      await expect(sidebar(page).getByRole('link', { name: 'Services', exact: true })).toHaveAttribute('aria-current', 'page');
+      const serviceTabs = page.getByRole('navigation', { name: 'Services' });
+      await expect(serviceTabs.getByRole('link')).toHaveText(['Services', 'Scorecard', 'Costs']);
+      await expect(serviceTabs.getByRole('link', { name: heading })).toHaveAttribute('aria-current', 'page');
+    }
+    await page.getByRole('navigation', { name: 'Services' }).getByRole('link', { name: 'Services' }).click();
+    await expect(page).toHaveURL(/\/services$/);
+    await expectAccessible(page, 'service tabs');
   });
 
   test('the sidebar folds to icons and back', async ({ page }) => {

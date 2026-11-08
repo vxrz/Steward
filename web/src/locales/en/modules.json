@@ -89,6 +89,89 @@
     "title": "Nothing here you may see",
     "text": "There are entries you do not have access to. Ask an administrator or the team that owns them."
   },
+  "glossary": {
+    "title": "Glossary",
+    "open": "Glossary",
+    "intro": "The words {{brand}} uses, and how they relate.",
+    "relation": "A service consists of applications. An application runs on systems. {{brand}} reaches systems and applications through platforms.",
+    "docs": "Full glossary in the documentation",
+    "groups": {
+      "catalogue": "Catalogue",
+      "automation": "Automation",
+      "watching": "Watching",
+      "records": "Records and people"
+    },
+    "terms": {
+      "service": {
+        "term": "Service",
+        "text": "What a team offers to others, with an owner and a criticality. It consists of applications."
+      },
+      "application": {
+        "term": "Application",
+        "text": "Software a service consists of, with a CIA rating. It runs on systems."
+      },
+      "system": {
+        "term": "System",
+        "text": "Where applications run: a server, VM, cluster, appliance or cloud service, with its environments. Part of the catalogue."
+      },
+      "component": {
+        "term": "Component",
+        "text": "A code or data part of an application: a repository, image, library, topic or database."
+      },
+      "platform": {
+        "term": "Platform",
+        "text": "A connection {{brand}} talks to through an API: base URL, credentials, API specifications. Not a catalogue entry."
+      },
+      "process": {
+        "term": "Process",
+        "text": "A versioned flow of steps that {{brand}} runs. “Procedure” and “runbook” mean the same thing in these docs."
+      },
+      "run": {
+        "term": "Run",
+        "text": "One execution of a process, with its journal and evidence."
+      },
+      "step": {
+        "term": "Step",
+        "text": "One node of a process in a run: a call, a check, a manual task or a decision."
+      },
+      "decision": {
+        "term": "Decision",
+        "text": "An approval or selection a person makes while a run waits (My tasks)."
+      },
+      "monitor": {
+        "term": "Monitor",
+        "text": "A graph of checks that runs on a schedule and reports a status."
+      },
+      "check": {
+        "term": "Check",
+        "text": "One test inside a monitor or a process step (e.g. HTTP status, a query value)."
+      },
+      "objective": {
+        "term": "Objective",
+        "text": "An availability target of a service, measured over time (the scorecard)."
+      },
+      "document": {
+        "term": "Document",
+        "text": "A record with a type and a workflow: change requests, decisions, reviews, firewall changes. In the docs also called a record."
+      },
+      "credential": {
+        "term": "Credentials register",
+        "text": "Metadata about secrets kept elsewhere (expiry, rotation, owner). It never holds the secret itself; platforms do."
+      },
+      "duty": {
+        "term": "Duty",
+        "text": "A recurring obligation of a service, judged by real runs: done, late or missed."
+      },
+      "team": {
+        "term": "Team and owning team",
+        "text": "A team groups people with roles. The owning teams of an item decide who may see and change it."
+      },
+      "module": {
+        "term": "Module",
+        "text": "An optional area an administrator can switch off in Settings → Modules."
+      }
+    }
+  },
   "state": {
     "on": "On",
     "off": "Off"

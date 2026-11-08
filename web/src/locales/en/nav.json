@@ -156,7 +156,8 @@
     "catalogue": "Catalogue",
     "compliance": "Compliance",
     "admin": "Admin",
-    "plant": "Plant"
+    "plant": "Plant",
+    "registers": "Registers"
   },
   "mainNavigation": "Main navigation",
   "skipToContent": "Skip to content",
@@ -220,7 +221,8 @@
         "title": "AI assistants (MCP)",
         "text": "A read-only MCP server lets AI assistants look at runs, monitors and dashboards with your rights."
       }
-    }
+    },
+    "glossary": "Glossary"
   },
   "pinned": "Pinned",
   "pin": "Pin {{page}} to the top",

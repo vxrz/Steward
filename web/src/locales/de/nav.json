@@ -156,7 +156,8 @@
     "catalogue": "Katalog",
     "compliance": "Compliance",
     "admin": "Administration",
-    "plant": "Werk"
+    "plant": "Werk",
+    "registers": "Register"
   },
   "mainNavigation": "Hauptnavigation",
   "skipToContent": "Zum Inhalt springen",
@@ -220,7 +221,8 @@
         "title": "KI-Assistenten (MCP)",
         "text": "Ein lesender MCP-Server lässt KI-Assistenten Ausführungen, Monitore und Dashboards mit Ihren Rechten ansehen."
       }
-    }
+    },
+    "glossary": "Glossar"
   },
   "pinned": "Angeheftet",
   "pin": "{{page}} oben anheften",
