@@ -6,6 +6,19 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Readiness probe for routing**: `GET /api/ready/traffic` answers `200` whenever Steward serves the web UI and the API, also while the vault is locked and before the first set-up. It answers `503` only while Steward shuts down or waits for another instance to release the database. Use it as the Kubernetes `readinessProbe` and for load balancer checks; `/api/ready` stays as it is, for alerts ([docs/INSTALL.md](docs/INSTALL.md#health-and-readiness)). _System status_ lists it with the other health-check addresses.
+
+### Changed
+
+- **Kubernetes rollouts**: the installation guide now recommends `strategy: Recreate` and `replicas: 1` (SQLite and PostgreSQL). With `RollingUpdate`, the new pod waits for the old one and never becomes ready, so the rollout would hang. It also warns against network file systems (NFS, SMB, many `ReadWriteMany` volumes) for SQLite.
+
+### Fixed
+
+- **Kubernetes readiness probe**: the installation guide recommended `/api/ready` as the `readinessProbe`. It answers `503` while the vault is locked or Steward is not set up yet, so Kubernetes sent nobody to the pod and nobody could unlock or set up Steward through its address. **Check before updating:** change the `readinessProbe` to `/api/ready/traffic`. The guide's probes now also send `Host: localhost`: Kubernetes sends the pod's IP address as the host name, which Steward refuses with `403 Host not allowed` unless it is in `SM_ALLOWED_HOSTS`.
+- **Only one instance per SQLite database** ([ADR 0002, update 0.10.1](docs/adr/0002-single-active-instance-with-lease-lock.md), [docs/INSTALL.md](docs/INSTALL.md#one-instance-per-data-folder-sqlite)): Steward holds an exclusive file lock on `service-manager.db.lock` before it opens the database. A second instance on the same data folder (a Kubernetes rolling update, a second container on the same volume) no longer runs every schedule a second time and races on the audit chain: it does not open the database, waits (`/api/health` 200, `/api/ready` and `/api/ready/traffic` 503, the log line `waiting for the database lock`) and takes over when the first one stops. A crash or `kill -9` leaves no stale lock. `admin`, `migrate` and `db:copy` hold the lock while they work and refuse while Steward runs, also in another container; the desktop launcher opens the running Steward instead of starting a second one. The lock files are not part of backups. **Check before updating:** on Kubernetes with SQLite, set `strategy: Recreate` in the Deployment. With `RollingUpdate`, the new pod now waits for the old one, never becomes ready, and the rollout hangs. (The update to 0.10.1 itself still starts beside the old pod, because 0.10.0 does not take the lock.)
+
 ## [0.10.0] - 2026-11-07
 
 Steward 0.10.0 puts the process engine behind **one interface** and builds **debugging** on it, adds **quiet hours and digests** for notifications, **approvals from Microsoft Teams**, **shared procedure libraries** and a **map of sites**. Every start, decision and cancel of a run now goes through one rights check; a single node can be run with sample data, a run stepped through and two runs compared, without debug runs ever counting anywhere. Messages wait for the end of quiet hours instead of being dropped; Teams cards open Steward's decision dialog, and a preview bot decides in the card where the assurance policy allows it. Libraries are signed releases installed after a full review; the plant registry's map fetches its tiles only through Steward and stays off until an administrator turns it on. Three security reviews of the new features found and fixed, among others, a debug path around the AI allowed-data rule, Teams decisions on stale rights, a Hold that a designer could lift and a map check that could send the stored key elsewhere; see _Check before updating_ under Changed.
