@@ -15,12 +15,13 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 
 ## Evaluate
 
-| Page                         | What it covers                                                              |
-| ---------------------------- | --------------------------------------------------------------------------- |
-| [README](../README.md)       | What Steward is, the core idea, a quick start with simulated platforms      |
-| [ROADMAP.md](ROADMAP.md)     | Where Steward stands, what it deliberately does not do, and what comes next |
-| [RELEASES.md](RELEASES.md)   | Versioning, which versions get fixes, how releases are tested and verified  |
-| [CHANGELOG](../CHANGELOG.md) | Every change per release, with what to check before updating                |
+| Page                         | What it covers                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| [README](../README.md)       | What Steward is, the core idea, a quick start with simulated platforms                           |
+| [ROADMAP.md](ROADMAP.md)     | Where Steward stands, what it deliberately does not do, and what comes next                      |
+| [RELEASES.md](RELEASES.md)   | Versioning, which versions get fixes, how releases are tested and verified                       |
+| [CHANGELOG](../CHANGELOG.md) | Every change per release, with what to check before updating                                     |
+| [GLOSSARY.md](GLOSSARY.md)   | The terms Steward uses: services, applications, systems, platforms, documents, monitors and more |
 
 ## Install and operate
 
@@ -36,15 +37,16 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 
 ## Administer
 
-| Page                                     | What it covers                                                                       |
-| ---------------------------------------- | ------------------------------------------------------------------------------------ |
-| [USERS.md](USERS.md)                     | Roles, access lists, decisions, passwords, single sign-on in short, a team instance  |
-| [SSO.md](SSO.md)                         | Single sign-on with OpenID Connect: providers, claims, account linking, test sign-in |
-| [TEAMS.md](TEAMS.md)                     | Several teams in one instance: owning teams and what members see                     |
-| [SETTINGS.md](SETTINGS.md)               | Where each setting is: personal, per team, for the instance                          |
-| [NOTIFICATIONS.md](NOTIFICATIONS.md)     | Events, channels, policies, daily summary, quiet hours and digests                   |
-| [TEAMS-APPROVALS.md](TEAMS-APPROVALS.md) | Deciding from Microsoft Teams cards, and the optional Teams bot                      |
-| [BRANDING.md](BRANDING.md)               | The product name, colours, logo and display name of an installation                  |
+| Page                                     | What it covers                                                                                  |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [MODULES.md](MODULES.md)                 | The optional areas an administrator can switch off, and the maturity of each area and connector |
+| [USERS.md](USERS.md)                     | Roles, access lists, decisions, passwords, single sign-on in short, a team instance             |
+| [SSO.md](SSO.md)                         | Single sign-on with OpenID Connect: providers, claims, account linking, test sign-in            |
+| [TEAMS.md](TEAMS.md)                     | Several teams in one instance: owning teams and what members see                                |
+| [SETTINGS.md](SETTINGS.md)               | Where each setting is: personal, per team, for the instance                                     |
+| [NOTIFICATIONS.md](NOTIFICATIONS.md)     | Events, channels, policies, daily summary, quiet hours and digests                              |
+| [TEAMS-APPROVALS.md](TEAMS-APPROVALS.md) | Deciding from Microsoft Teams cards, and the optional Teams bot                                 |
+| [BRANDING.md](BRANDING.md)               | The product name, colours, logo and display name of an installation                             |
 
 ## Build procedures
 
