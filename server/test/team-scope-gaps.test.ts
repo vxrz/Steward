@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -43,9 +43,6 @@ beforeAll(async () => {
   await s.api('PUT', `/owning-teams/service/${teamService}`, { teamIds: [orders] });
   teamApp = (await s.api('POST', '/applications', { name: 'Orders app', owners: [] })).id;
   await s.api('PUT', `/services/${teamService}/applications/${teamApp}`, {});
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('maintenance windows', () => {

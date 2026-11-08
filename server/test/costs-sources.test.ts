@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -29,9 +29,6 @@ beforeAll(async () => {
   for (const p of await s.api('GET', '/platforms')) if (p.name.endsWith('(demo)')) byKind[p.kind] = p.id;
   for (const a of await s.api('GET', '/applications')) apps[a.name] = a.id;
 }, 240_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 const sum = (c: { months: { month: string; amount: string | null }[] }, m: string) => c.months.find((x) => x.month === m)?.amount;
 

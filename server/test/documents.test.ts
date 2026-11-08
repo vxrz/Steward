@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { DOCUMENT_TYPE_ID, RECORD_WORKFLOWS } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -44,9 +44,6 @@ beforeAll(async () => {
   await setup(s);
   await s.api('POST', '/demo/setup', {});
   [dana, olivia, adam, audrey, vera] = await Promise.all(['dana', 'olivia', 'adam', 'audrey', 'vera'].map((u) => s.as(u, PW)));
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const CR_FIELDS = { reason: 'r', risk: 'low', rollbackPlan: 'p', plannedStart: '2026-11-03T18:00', plannedEnd: '2026-11-03T19:00' };

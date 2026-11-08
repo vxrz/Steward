@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 // the scraper and the monitor engine are driven by the tests
@@ -58,9 +58,6 @@ beforeAll(async () => {
   gatusId = (await s.api('GET', '/platforms')).find((p: any) => p.name === 'Gatus (demo)').id;
   [dana, olivia, vera] = await Promise.all([s.as('dana', PW), s.as('olivia', PW), s.as('vera', PW)]);
   gm = await import('../src/gatus/metrics.js');
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('Prometheus text parser', () => {

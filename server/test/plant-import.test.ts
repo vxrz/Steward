@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import YAML from 'yaml';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -61,9 +61,6 @@ beforeAll(async () => {
   const imports = await s.api('GET', '/plant/imports');
   expect(imports).toHaveLength(1);
   demoImport = imports[0].id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('round trip', () => {

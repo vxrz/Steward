@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /** Empty dashboard widgets name the process that fills them: the processes whose current version publishes the key. */
@@ -9,9 +9,6 @@ let s: TestServer;
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('dataset publishers', () => {

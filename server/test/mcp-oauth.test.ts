@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -112,9 +112,6 @@ beforeAll(async () => {
   [dana, stella] = await Promise.all(['dana', 'stella'].map((u) => s.as(u, PW)));
   await s.api('PUT', '/mcp-server', { enabled: true });
   mcpToken = (await dana('POST', '/me/tokens', { name: 'desktop', scope: 'mcp' })).token;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('OAuth sign-in for MCP clients', () => {

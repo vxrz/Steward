@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -30,9 +30,6 @@ beforeAll(async () => {
   app = await dana('POST', '/applications', { name: 'Payroll (cred)', owners: ['team:service desk'] });
   comp = (await dana('POST', `/applications/${app.id}/components`, { type: 'snowflake-database', name: 'PAYROLL_PROD', environment: 'prod' })).components[0];
   sys = await dana('POST', '/systems', { name: 'sftp01', kind: 'server', owners: ['user:olivia'] });
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const entry = (name: string, belongsTo: unknown, extra: Record<string, unknown> = {}) =>

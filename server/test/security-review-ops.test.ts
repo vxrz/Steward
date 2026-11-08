@@ -3,7 +3,7 @@
  * monitors, Gatus). Each block reproduces a proof of concept from the review and checks that it no
  * longer works.
  */
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { quiesce, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -57,9 +57,6 @@ beforeAll(async () => {
   // the company's own domain: the administrator's address
   await s.api('PATCH', '/me', { email: 'admin@corp.example' });
   await s.api('PUT', '/settings/notifications', SMTP);
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const credential = (over: Record<string, unknown> = {}) => ({

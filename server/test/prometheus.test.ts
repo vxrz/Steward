@@ -1,6 +1,6 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -43,9 +43,6 @@ beforeAll(async () => {
   eng = await import('../src/monitors/engine.js');
   mock = await import('../src/mock/mockPrometheus.js');
   promId = (await s.api('GET', '/platforms')).find((p: any) => p.name === 'Prometheus (demo)').id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('Prometheus check', () => {

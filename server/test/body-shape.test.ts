@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { bodyShapeProblem, DEFAULT_BODY_SHAPE, IMPORT_BODY_SHAPE } from '../src/bodyShape.js';
 import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type TestServer } from './helpers.js';
 
@@ -21,9 +21,6 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   admin = authHeaders(await loginCookie(s.base, ADMIN.username, ADMIN.password));
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('body shape limits', () => {

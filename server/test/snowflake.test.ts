@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -19,9 +19,6 @@ beforeAll(async () => {
   // without the sample applications: their Snowflake databases would be read by the background job too
   await s.api('POST', '/demo/setup', { applications: false });
   sf = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'snowflake').id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('Snowflake platform', () => {

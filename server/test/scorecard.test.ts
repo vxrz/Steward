@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -116,9 +116,6 @@ beforeAll(async () => {
   gatusData(gatusId, {}, { core_portal: { h1: 100, h24: 99.5, d7: 99.9, d30: 99.95 }, core_api: { h24: 97.25, d30: 99.2 }, core_quiet: {} });
   gatusData(secretGatus, {}, { core_vault: { h24: 100, d30: 100 } });
   processId = (await s.api('GET', '/processes'))[0].id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 // ---------- objectives ----------

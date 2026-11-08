@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type * as BodyLimits from '../src/bodyLimits.js';
 import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type TestServer } from './helpers.js';
 
@@ -34,9 +34,6 @@ beforeAll(async () => {
   ({ bodyTooLarge, DEFAULT_BODY_LIMIT, LARGE_BODIES } = await import('../src/bodyLimits.js'));
   await setup(s);
   admin = authHeaders(await loginCookie(s.base, ADMIN.username, ADMIN.password));
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('request body limits', () => {

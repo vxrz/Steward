@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -19,9 +19,6 @@ const timed = async <T>(fn: () => Promise<T>): Promise<{ ms: number; result: T |
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('YAML importers', () => {

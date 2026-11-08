@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import YAML from 'yaml';
 import { DATA_CONTRACT_LIMITS, DATA_CONTRACT_SERVICE_KIND, DATABASE_KIND } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
@@ -89,9 +89,6 @@ beforeAll(async () => {
   service = platforms.find((p: { kind: string }) => p.kind === DATA_CONTRACT_SERVICE_KIND).id;
   orders = (await s.api('GET', '/data-contracts')).find((c: { key: string }) => c.key === 'shop-orders');
 }, 120_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('M1: SQL quality rules', () => {
   it('pass the statement check on save – a refused rule is named, and the editor sees it before saving', async () => {

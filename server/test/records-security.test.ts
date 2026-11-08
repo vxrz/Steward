@@ -4,7 +4,7 @@
  * service findings without a server (parser, engine, scans) are in
  * records-dos.test.ts.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { ADMIN, authHeaders, loginCookie, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 let s: TestServer;
@@ -61,9 +61,6 @@ beforeAll(async () => {
   [dana, adam, vera] = await Promise.all(['dana', 'adam', 'vera'].map((u) => s.as(u, PW)));
   cookies.admin = await loginCookie(s.base, ADMIN.username, ADMIN.password);
   cookies.dana = await loginCookie(s.base, 'dana', PW);
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('R1: record PDFs with long words', () => {

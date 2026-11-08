@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -40,9 +40,6 @@ beforeAll(async () => {
       },
     })
   ).id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const run = async (ok: boolean) => {

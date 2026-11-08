@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -54,9 +54,6 @@ beforeAll(async () => {
   jobs = await import('../src/duties/jobs.js');
   periods = await import('../src/duties/periods.js');
   store = await import('../src/duties/store.js');
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 // ---------- fixtures ----------

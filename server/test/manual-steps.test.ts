@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { tinyPng } from './png.js';
 import { authHeaders, loginCookie, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -29,9 +29,6 @@ beforeAll(async () => {
   [olivia, adam, dana, vera, audrey] = await Promise.all(['olivia', 'adam', 'dana', 'vera', 'audrey'].map((u) => s.as(u, PW)));
   for (const u of ['olivia', 'adam', 'dana', 'vera']) cookies[u] = await loginCookie(s.base, u, PW);
   cookies.admin = await loginCookie(s.base, 'admin', 'Admin-password-1');
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 let n = 0;

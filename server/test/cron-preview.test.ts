@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -15,9 +15,6 @@ let s: TestServer;
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 const cronWarnings = async (cron: string) => (await import('../src/scheduler.js')).cronWarnings(cron);
 

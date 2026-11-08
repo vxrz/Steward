@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { fromMicros, toMicros } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -56,9 +56,6 @@ beforeAll(async () => {
   service = (await s.api('POST', '/services', { name: 'Bakery service', owners: [] })).id;
   await s.api('PUT', `/services/${service}/applications/${app}`, {});
 }, 120_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 beforeEach(async () => {
   (await import('../src/costs/push.js')).resetCostPushState();
 });

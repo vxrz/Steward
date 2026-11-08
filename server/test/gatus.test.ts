@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 let s: TestServer;
@@ -11,9 +11,6 @@ beforeAll(async () => {
   const demo = await s.api('POST', '/demo/setup', {});
   adam = await s.as('adam', demo.password);
   for (const p of await s.api('GET', '/platforms')) P[p.name] = p.id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 async function run(processId: string, bindings: Record<string, string>, inputs: Record<string, unknown> = {}, dryRun = false) {

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { Cron } from 'croner';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -65,9 +65,6 @@ beforeAll(async () => {
   audrey = await s.as('audrey', 'Demo-password-1');
   platforms.push(await platform('Tenant EU', 'prod'), await platform('Tenant US', 'prod'), await platform('Tenant Dev', 'dev'));
   processId = (await publisher('User inventory', [{ slot: 'hub' }])).id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('datasets per source platform', () => {

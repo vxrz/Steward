@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer, setEnv } from './helpers.js';
 
 /**
@@ -142,7 +142,6 @@ beforeAll(async () => {
     secrets: { token: 'gw-secret-token-0123456789' },
   });
 });
-afterAll(async () => s?.app.close());
 
 describe('MCP server: off by default, settings', () => {
   it('refuses every request while turned off', async () => {

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -108,7 +108,6 @@ beforeAll(async () => {
     })
   ).id;
 });
-afterAll(async () => s?.app.close());
 
 const create = (userName: string, reason = 'Onboard the new colleague for the plant project') =>
   call(tok.olivia, 'platform_call_operation', { platformId: ih.id, operation: 'createUser', body: { userName }, reason });

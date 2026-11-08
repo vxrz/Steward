@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { imageProduct, splitImage, tagVersion } from '@sm/shared';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
@@ -24,9 +24,6 @@ beforeAll(async () => {
   k8sId = (await s.api('GET', '/platforms')).find((p: any) => p.name === 'Kubernetes (demo)').id;
   mock = await import('../src/mock/mockKubernetes.js');
   eng = await import('../src/monitors/engine.js');
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('images and products', () => {

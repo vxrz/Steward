@@ -1,6 +1,6 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { dockerfileImages, rangeVersion, stackHints } from '@sm/shared';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
@@ -28,9 +28,6 @@ beforeAll(async () => {
   ids = { github: id('GitHub (demo)'), gitlab: id('GitLab (demo)'), forgejo: id('Forgejo (demo)') };
   mock = await import('../src/mock/mockGitPlatforms.js');
   eng = await import('../src/monitors/engine.js');
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('tech stack from repository files', () => {

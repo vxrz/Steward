@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { authHeaders, loginCookie, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 import { isCidr, isHostName, isIpAddress, isIpv6, isNetworkAddress, FIREWALL_RULES_TYPE_ID, FIREWALL_TYPE_ID, TABLE_LIMITS, tableRows } from '@sm/shared';
 
@@ -73,10 +73,6 @@ beforeAll(async () => {
   users.createUser({ username: 'vic', roles: ['viewer'], password: PW, mustChangePassword: false });
   [dana, olivia, adam, vera, tara, vic] = await Promise.all(['dana', 'olivia', 'adam', 'vera', 'tara', 'vic'].map((u) => s.as(u, PW)));
   for (const u of ['dana', 'olivia', 'adam']) cookies[u] = await loginCookie(s.base, u, PW);
-});
-
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('format checks', () => {

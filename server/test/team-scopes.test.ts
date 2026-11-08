@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -42,9 +42,6 @@ beforeAll(async () => {
   orders = (await s.api('POST', '/teams', { name: 'Orders', members: ['tara', 'olaf'], memberRoles: { olaf: ['designer'] } })).id;
   proc = (await s.api('GET', '/processes'))[0].id;
   platform = (await s.api('GET', '/platforms'))[0].id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('team roles', () => {

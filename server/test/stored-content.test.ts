@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { tinyPng } from './png.js';
 import { ADMIN, authHeaders, loginCookie, quiesce, setup, startTestServer, type TestServer } from './helpers.js';
 
@@ -19,9 +19,6 @@ beforeAll(async () => {
   await s.api('POST', '/demo/setup', {});
   await quiesce();
   cookie = await loginCookie(s.base, ADMIN.username, ADMIN.password);
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('stored content is served with the type of its content', () => {

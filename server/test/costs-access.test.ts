@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -88,9 +88,6 @@ beforeAll(async () => {
   await s.api('PUT', `/services/${service}/applications/${visible}`, {});
   await s.api('PUT', `/services/${service}/applications/${secret}`, {});
 }, 240_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('FOCUS imports link by name only to applications the importer may change, or that the platform belongs to', () => {
   const probe = async (target: string, name: string) =>
