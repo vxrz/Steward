@@ -74,6 +74,8 @@ import { AssurancePolicyPanel } from '../components/assurance/AssurancePolicyPan
 import { CiaScalePage } from './CiaScale';
 import { RulesPanel } from './Scorecard';
 import { PlantSettingsCard } from '../components/plant/PlantSettingsCard';
+import { ModulesCard } from '../components/settings/ModulesCard';
+import { IfModule } from '../components/modules/ModuleOff';
 import { MapTileOrigins, PlantMapSettingsGate } from '../components/plant/map/PlantMapSettingsCard';
 
 /**
@@ -264,9 +266,13 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
         <>
           <TicketSettingsCard />
           <GitSyncSettingsCard />
-          <LibrariesSettingsCard />
+          <IfModule module="libraries">
+            <LibrariesSettingsCard />
+          </IfModule>
           <MigrationSettingsCard />
-          <EndOfLifeCard />
+          <IfModule module="versionWatch">
+            <EndOfLifeCard />
+          </IfModule>
         </>
       );
     case 'notifications':
@@ -275,7 +281,9 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
           <NotificationSettingsCard />
           <NotificationLookCard />
           <QuietHoursAdminCard />
-          <TeamsBotCard />
+          <IfModule module="teamsBot">
+            <TeamsBotCard />
+          </IfModule>
           <DailySummaryAdminCard />
           <CredentialReminderSettingsCard />
         </>
@@ -290,20 +298,26 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
     case 'catalogue':
       return (
         <>
-          <ComplianceCard d={d} />
+          <IfModule module="compliance">
+            <ComplianceCard d={d} />
+          </IfModule>
           <Card withBorder id="cia-scale">
             <CiaScalePage embedded />
           </Card>
-          <Card withBorder id="scorecard-rules">
-            <RulesPanel />
-          </Card>
+          <IfModule module="scorecard">
+            <Card withBorder id="scorecard-rules">
+              <RulesPanel />
+            </Card>
+          </IfModule>
           <EnvironmentsCard />
         </>
       );
     case 'modules':
-      // opt-in modules (#218): off by default, each with its own settings; the map of sites (#234) once the registry is on
+      // the module registry (0.11.0, ADR 0016): every optional area with a switch; the plant registry (#218) and the map
+      // of sites (#234) keep their own cards, off until an administrator turns them on
       return (
         <>
+          <ModulesCard />
           <PlantSettingsCard />
           <PlantMapSettingsGate />
         </>

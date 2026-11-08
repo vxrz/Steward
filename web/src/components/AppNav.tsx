@@ -51,8 +51,9 @@ import {
   IconWebhook,
   type Icon,
 } from '@tabler/icons-react';
-import type { Capabilities } from '@sm/shared';
+import type { Capabilities, VisibilitySummary } from '@sm/shared';
 import { useOwnLabel } from './plant/labels';
+import { navModuleOn } from '../modules';
 
 export type NavKey =
   | 'dashboard'
@@ -218,10 +219,16 @@ export interface NavEntry {
   also?: string[];
 }
 
-const visible = (caps: Capabilities) => (n: NavItemDef) => (!n.cap || caps[n.cap]) && (!n.when || n.when(caps));
+/**
+ * Whether an entry shows: its capability and condition, its module (switched off: never, ADR 0016) and what the
+ * person may see there (GET /api/me/visibility, U2: an area with nothing to see and nothing to add is left out; while
+ * the summary loads, the entry shows).
+ */
+const visible = (caps: Capabilities, seen?: VisibilitySummary) => (n: NavItemDef) =>
+  (!n.cap || caps[n.cap]) && (!n.when || n.when(caps)) && navModuleOn(caps, n.key) && (seen?.areas[n.key as keyof VisibilitySummary['areas']]?.show ?? true);
 
 /** The areas and pages the user may see, with translated labels. */
-export function useNavGroups(caps: Capabilities): { key: NavGroupKey; label: string; items: NavEntry[] }[] {
+export function useNavGroups(caps: Capabilities, seen?: VisibilitySummary): { key: NavGroupKey; label: string; items: NavEntry[] }[] {
   const { t } = useTranslation('nav');
   // the plant registry's own display names (Settings → Modules): "Machines" instead of "Assets"
   const own = useOwnLabel(caps.plant === true);
@@ -241,11 +248,13 @@ export function useNavGroups(caps: Capabilities): { key: NavGroupKey; label: str
           return {
             key: g.key,
             label,
-            items: g.items.filter(visible(caps)).map((n) => ({ to: n.to, key: n.key, icon: n.icon, label: itemLabel(n.key), group: label, also: n.also })),
+            items: g.items
+              .filter(visible(caps, seen))
+              .map((n) => ({ to: n.to, key: n.key, icon: n.icon, label: itemLabel(n.key), group: label, also: n.also })),
           };
         })
         .filter((g) => g.items.length > 0),
-    [t, caps, own],
+    [t, caps, own, seen],
   );
 }
 
@@ -326,6 +335,8 @@ type GroupState = Partial<Record<NavGroupKey, boolean>>;
  */
 export function AppNav({
   caps,
+  seen,
+  seenSettled = true,
   userId,
   pathname,
   openTasks,
@@ -334,6 +345,10 @@ export function AppNav({
   onNavigate,
 }: {
   caps: Capabilities;
+  /** What the person may see (GET /api/me/visibility); undefined while it loads */
+  seen?: VisibilitySummary;
+  /** The answer is there (or failed): until then the areas wait, so no entry shows and goes again */
+  seenSettled?: boolean;
   userId: string;
   pathname: string;
   openTasks: number;
@@ -342,7 +357,7 @@ export function AppNav({
   onNavigate: () => void;
 }) {
   const { t } = useTranslation('nav');
-  const groups = useNavGroups(caps);
+  const groups = useNavGroups(caps, seen);
   const all = useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const active = activeNavEntry(all, pathname);
   const activeGroup = groups.find((g) => g.items.includes(active!))?.key;
@@ -461,11 +476,11 @@ export function AppNav({
   );
 
   const home = groups.find((g) => g.key === 'home');
-  const areas = groups.filter((g) => g.key !== 'home');
+  const areas = seenSettled ? groups.filter((g) => g.key !== 'home') : [];
 
   return (
     <>
-      <ScrollArea style={{ flex: 1 }} type="scroll">
+      <ScrollArea style={{ flex: 1 }} type="scroll" data-areas={seenSettled ? 'ready' : 'loading'}>
         {home && <Box>{home.items.map((n) => link(n, 'group'))}</Box>}
         {pinned.length > 0 &&
           (rail ? (

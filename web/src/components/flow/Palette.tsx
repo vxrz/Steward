@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { CATEGORY_ORDER, NODE_TYPES, STEP_META, type NodeType } from '@sm/shared';
 import { NODE_ICONS, nodeColor } from './meta';
 import { categoryLabel, stepDescription, stepLabel } from '../../i18n/meta';
+import { useModuleOn } from '../../modules';
 
 export const DND_TYPE = 'application/x-sm-node';
 
@@ -13,6 +14,8 @@ const ADDABLE = NODE_TYPES.filter((t) => t !== 'start');
 
 export function Palette({ onAdd, compact = false }: { onAdd: (type: NodeType) => void; compact?: boolean }) {
   const { t: tr } = useTranslation('editor');
+  // "Ask an AI model" belongs to the AI models module (ADR 0016): not offered while it is switched off
+  const aiOn = useModuleOn('ai');
   const [q, setQ] = useState('');
   const needle = q.trim().toLowerCase();
   // Matches the translated and the English texts, so "API call" also finds the node in German.
@@ -32,7 +35,7 @@ export function Palette({ onAdd, compact = false }: { onAdd: (type: NodeType) =>
       <ScrollArea style={{ flex: 1 }} type="auto" offsetScrollbars>
         <Stack gap={8}>
           {CATEGORY_ORDER.map((cat) => {
-            const types = ADDABLE.filter((t) => STEP_META[t].category === cat && match(t));
+            const types = ADDABLE.filter((t) => STEP_META[t].category === cat && match(t) && (aiOn || t !== 'ai'));
             if (!types.length) return null;
             return (
               <Box key={cat}>

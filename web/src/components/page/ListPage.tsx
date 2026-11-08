@@ -4,7 +4,9 @@ import { useMediaQuery } from '@mantine/hooks';
 import { IconLayoutList, IconSearch, IconTable } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Icon } from '@tabler/icons-react';
+import type { VisibilityArea } from '@sm/shared';
 import { EmptyState, FilterPanel, PageHeader } from '../common';
+import { RestrictedEmpty, useHiddenByPermissions } from '../modules/RestrictedEmpty';
 
 /** How a list shows its rows: `auto` = table on wide screens, cards on phones (DataTable's own choice). */
 export type ListView = 'auto' | 'table' | 'cards';
@@ -103,6 +105,7 @@ export function ListPage({
   empty,
   children,
   testId,
+  area,
 }: {
   /** Above the title: the tabs of the area (Automate) */
   tabs?: ReactNode;
@@ -122,6 +125,8 @@ export function ListPage({
   viewState?: { value: ListView; onChange: (v: ListView) => void };
   /** Shown above the page's content while `show` holds (the page leaves out its empty list then) */
   empty?: { show: boolean; icon?: Icon; title: ReactNode; text?: ReactNode; whoCanAct?: ReactNode; action?: ReactNode };
+  /** The area of the list (GET /api/me/visibility): empty, but with entries the person may not see, it says so */
+  area?: VisibilityArea;
   children?: ReactNode;
   testId?: string;
 }) {
@@ -137,6 +142,7 @@ export function ListPage({
       </>
     ) : undefined;
   const toolbar = search || filters || view;
+  const hidden = useHiddenByPermissions(area);
   // the empty state comes before the page's own content, which still renders (its dialogs live there)
   return (
     <Box data-testid={testId} data-list-page>
@@ -167,11 +173,14 @@ export function ListPage({
           )}
         </Group>
       )}
-      {empty?.show && (
-        <EmptyState icon={empty.icon} title={empty.title} action={empty.action} whoCanAct={empty.whoCanAct}>
-          {empty.text}
-        </EmptyState>
-      )}
+      {empty?.show &&
+        (hidden ? (
+          <RestrictedEmpty />
+        ) : (
+          <EmptyState icon={empty.icon} title={empty.title} action={empty.action} whoCanAct={empty.whoCanAct}>
+            {empty.text}
+          </EmptyState>
+        ))}
       <ListViewContext.Provider value={chosen}>{children}</ListViewContext.Provider>
     </Box>
   );

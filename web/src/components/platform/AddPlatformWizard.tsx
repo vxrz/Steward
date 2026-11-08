@@ -40,6 +40,7 @@ import { EnvironmentInput } from '../catalogue/environments';
 import { fmtNumber } from '../../format';
 import { authLabel, presetDescription, presetSecretHelp, presetSecretLabel } from './presetText';
 import { GetStartedPanel, TestHints } from './onboarding';
+import { KindMaturityBadge } from '../modules/MaturityBadge';
 
 /** Groups of the connector list (kinds not named here: "Other"). */
 type GroupKey = 'industrial' | 'monitoring' | 'cloud' | 'databases' | 'development' | 'ai' | 'messaging' | 'custom' | 'other';
@@ -226,6 +227,7 @@ export function AddPlatformWizard({
                       <Badge size="xs" variant="light">
                         {p.kind}
                       </Badge>
+                      {!p.custom && <KindMaturityBadge kind={p.kind} inert />}
                       {p.custom && (
                         <Badge size="xs" variant="filled" color="grape">
                           {t('addModal.custom')}

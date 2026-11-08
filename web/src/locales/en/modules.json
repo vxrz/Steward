@@ -1,0 +1,96 @@
+{
+  "title": "Modules",
+  "intro": "Optional areas of {{brand}}. Switch off what your team does not use: its pages, menu entries, routes and background jobs go away for everyone. Its data stays, and comes back when you switch the area on again.",
+  "switchLabel": "Switch {{name}} on",
+  "switchedOn": "{{name}} is switched on.",
+  "switchedOff": "{{name}} is switched off. Its data is kept.",
+  "off": {
+    "title": "This area is switched off",
+    "text": "An administrator can turn it on in Settings → Modules.",
+    "textAdmin": "You can turn it on in Settings → Modules. Its data was kept.",
+    "open": "Open Settings → Modules"
+  },
+  "requires": "Needs {{name}}.",
+  "ownSettings": "Switched on and set up below.",
+  "mapSettings": "On while the plant registry is on and a map source is chosen (below, under Map).",
+  "defaultOff": "Off until an administrator turns it on.",
+  "docs": "Maturity of every area and connector",
+  "items": {
+    "compliance": {
+      "name": "Compliance and evidence",
+      "description": "Control catalogues, access changes, access reconciliation, person reviews and evidence packs."
+    },
+    "statusPages": {
+      "name": "Status pages",
+      "description": "Read-only pages for colleagues outside the team, and the status viewer role."
+    },
+    "scorecard": {
+      "name": "Scorecard",
+      "description": "Availability objectives and the scorecard of services (a view of Services)."
+    },
+    "costs": {
+      "name": "Costs",
+      "description": "Platform costs in one cost model (FOCUS showback), budgets and the cost readers (a view of Services)."
+    },
+    "dataContracts": {
+      "name": "Data contracts",
+      "description": "ODCS data contracts, their versions, breaking-change rules and tests."
+    },
+    "ai": {
+      "name": "AI models",
+      "description": "LLM gateways, the “Ask an AI model” step, token budgets and the usage log."
+    },
+    "teamsBot": {
+      "name": "Approvals in Microsoft Teams",
+      "description": "The Teams bot that lets people decide approvals in a Teams card."
+    },
+    "libraries": {
+      "name": "Shared procedure libraries",
+      "description": "Signed library releases, trusted publishers and installed libraries."
+    },
+    "versionWatch": {
+      "name": "Version watch and end of life",
+      "description": "Newest versions and end-of-life dates of the tech stack of applications and systems."
+    },
+    "changedetection": {
+      "name": "changedetection.io",
+      "description": "Page watches of changedetection.io platforms, their monitor check and reviews."
+    },
+    "plant": {
+      "name": "Plant registry",
+      "description": "Sites, assets, device profiles, KPIs and the OT network of your plants."
+    },
+    "plantMap": {
+      "name": "Map of sites",
+      "description": "The sites of the plant registry on a map, with tiles served through {{brand}}."
+    }
+  },
+  "maturity": {
+    "label": "Maturity",
+    "stable": {
+      "name": "stable",
+      "text": "Stable: used and tested broadly; changes are announced in the change log."
+    },
+    "beta": {
+      "name": "beta",
+      "text": "Beta: complete, but little used so far. Expect rough edges."
+    },
+    "preview": {
+      "name": "preview",
+      "text": "Preview: new; it may still change in ways that need you to act."
+    }
+  },
+  "verified": {
+    "real": "Tested against real systems of this product.",
+    "mock": "Tested only against a simulation of the product in {{brand}}'s tests, not yet against a real system.",
+    "none": "Talks to no product of its own."
+  },
+  "restricted": {
+    "title": "Nothing here you may see",
+    "text": "There are entries you do not have access to. Ask an administrator or the team that owns them."
+  },
+  "state": {
+    "on": "On",
+    "off": "Off"
+  }
+}

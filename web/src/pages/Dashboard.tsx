@@ -16,6 +16,7 @@ import { fmtDate, fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { useState } from 'react';
 import { dashboardKeys } from '../queryKeys';
+import { IfModule } from '../components/modules/ModuleOff';
 
 /** The tiles of each start page focus, most relevant first (operations: all of them). */
 const FOCUS_TILES: Record<StartFocus, readonly TileKey[] | undefined> = {
@@ -91,7 +92,11 @@ export function DashboardPage({ demo }: { demo: boolean }) {
           <AttentionTiles a={data.attention} processes={data.counts.processes} only={FOCUS_TILES[view]} hideNotSetUp={view === 'viewer'} />
 
           {view === 'viewer' && <DashboardsCard />}
-          {view === 'compliance' && <ComplianceCard />}
+          {view === 'compliance' && (
+            <IfModule module="compliance">
+              <ComplianceCard />
+            </IfModule>
+          )}
 
           {data.openTasks.length > 0 && (
             <Card withBorder>

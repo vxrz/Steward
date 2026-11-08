@@ -79,6 +79,7 @@ export function DataContractsPage() {
   const statusOptions = [...new Set(all.map((c) => c.status).filter(Boolean))].sort();
   return (
     <ListPage
+      area="dataContracts"
       testId="data-contracts"
       title={t('list.title')}
       description={t('list.description')}

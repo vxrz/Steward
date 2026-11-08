@@ -41,6 +41,7 @@ import { EmptyState, PageHeader, QueryState, TONE, useCreateParam } from '../com
 import { fmtDate, fmtRelative } from '../format';
 import { BRAND } from '../../../shared/src/brand';
 import { appUrl } from '../basePath';
+import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 
 const STATE_COLOR: Record<ServiceState, string> = {
   outage: TONE.bad,
@@ -198,6 +199,8 @@ export function StatusPagesPage() {
   const { isAdmin, hasRole } = useMe();
   const canEdit = isAdmin || hasRole('designer');
   const pages = useQuery({ queryKey: ['status-pages'], queryFn: () => get<StatusPage[]>('/status-pages') });
+  // entries the person may not see (U3): "nothing you may see" instead of "nothing yet"
+  const hidden = useHiddenByPermissions('statusPages');
   const [editing, setEditing] = useState<StatusPage | 'new' | null>(null);
   const [link, setLink] = useState<{ title: string; url: string } | null>(null);
   useCreateParam(canEdit, () => setEditing('new'));
@@ -248,7 +251,8 @@ export function StatusPagesPage() {
     <>
       <PageHeader title={t('statusPages.title')} description={t('statusPages.description')} actions={newButton} />
       <QueryState query={pages} />
-      {pages.isSuccess && !list.length && (
+      {pages.isSuccess && !list.length && hidden && <RestrictedEmpty />}
+      {pages.isSuccess && !list.length && !hidden && (
         <EmptyState icon={IconLink} title={t('statusPages.emptyTitle')} action={newButton}>
           {t('statusPages.emptyText')}
         </EmptyState>

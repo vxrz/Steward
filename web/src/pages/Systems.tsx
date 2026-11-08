@@ -15,6 +15,7 @@ import { StackFields, stackBody, stackRowsOf, type StackRow } from '../component
 import { ListPage } from '../components/page/ListPage';
 import { platformKeys } from '../queryKeys';
 import { NetworkFields, emptyNetwork, networkErrors } from '../components/catalogue/network';
+import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 
 /** Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on. */
 export function SystemsPage() {
@@ -26,6 +27,8 @@ export function SystemsPage() {
   const [kind, setKind] = useState<string | null>(null);
   const [env, setEnv] = useState<string | null>(null);
   const systems = useQuery({ queryKey: ['systems'], queryFn: () => get<SystemSummary[]>('/systems') });
+  // entries the person may not see (U3): "nothing you may see" instead of "nothing yet"
+  const hidden = useHiddenByPermissions('systems');
   const envList = useEnvironmentList();
   const { hasRole } = useMe();
   const canCreate = hasRole('admin') || hasRole('designer');
@@ -82,7 +85,8 @@ export function SystemsPage() {
       }
     >
       <QueryState query={systems} />
-      {systems.isSuccess && systems.data.length === 0 && (
+      {systems.isSuccess && systems.data.length === 0 && hidden && <RestrictedEmpty />}
+      {systems.isSuccess && systems.data.length === 0 && !hidden && (
         <EmptyState
           icon={IconServer2}
           title={t('systems.emptyTitle')}

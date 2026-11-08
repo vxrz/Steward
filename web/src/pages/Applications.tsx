@@ -18,6 +18,8 @@ import { useRoleLabel } from '../components/catalogue/ServiceApplications';
 import { EndOfLifeButton } from '../components/catalogue/lifecycle';
 import { VersionWatchButton } from '../components/catalogue/versions';
 import { ListPage, useStoredListView } from '../components/page/ListPage';
+import { IfModule } from '../components/modules/ModuleOff';
+import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 
 const NOT_RATED = '__none';
 
@@ -32,6 +34,8 @@ export function ApplicationsPage() {
   const [criticality, setCriticality] = useState<string | null>(null);
   const [protection, setProtection] = useState<string | null>(null);
   const apps = useQuery({ queryKey: ['applications', archived], queryFn: () => get<ApplicationSummary[]>(`/applications${archived ? '?archived=1' : ''}`) });
+  // entries the person may not see (U3): "nothing you may see" instead of "nothing yet"
+  const hidden = useHiddenByPermissions('applications');
   const services = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services') });
   const scale = useCiaScale().data;
   const roleLabel = useRoleLabel();
@@ -73,8 +77,10 @@ export function ApplicationsPage() {
           <Button size="xs" variant="default" component={Link} to="/applications/cia-scale" leftSection={<IconScale size={14} />}>
             {t('scale.link')}
           </Button>
-          <EndOfLifeButton />
-          <VersionWatchButton />
+          <IfModule module="versionWatch">
+            <EndOfLifeButton />
+            <VersionWatchButton />
+          </IfModule>
           {canCreate && (
             <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
               {t('new')}
@@ -132,7 +138,8 @@ export function ApplicationsPage() {
         <TagFilterChip tag={tag} onChange={setTag} />
       </Group>
       <QueryState query={apps} />
-      {apps.isSuccess && (apps.data ?? []).length === 0 && (
+      {apps.isSuccess && (apps.data ?? []).length === 0 && hidden && !archived && <RestrictedEmpty />}
+      {apps.isSuccess && (apps.data ?? []).length === 0 && !(hidden && !archived) && (
         <EmptyState
           icon={IconApps}
           title={archived ? t('emptyState.titleArchived') : t('emptyState.title')}

@@ -61,6 +61,16 @@ import { isTextTarget, modKey, useDefHistory, useUndoKeys } from '../components/
 import { monitorKeys, platformKeys, processKeys } from '../queryKeys';
 import { SaveAsTemplateModal } from '../components/monitors/SaveAsTemplate';
 import { useMe } from '../auth';
+import { moduleOn } from '../modules';
+import type { ModuleId } from '@sm/shared';
+
+/** Check kinds of a module (ADR 0016): not offered while it is switched off (existing checks stay as they are). */
+const CHECK_MODULES: Partial<Record<CheckType, ModuleId>> = {
+  cost: 'costs',
+  'data-contract': 'dataContracts',
+  'page-watch': 'changedetection',
+  'version-behind': 'versionWatch',
+};
 
 const EMPTY: MonitorDefinition = {
   name: '',
@@ -495,7 +505,7 @@ export function MonitorEditorPage() {
                 </Button>
               </Group>
               <Group gap={6} mb="xs" aria-label={t('editor.palette')}>
-                {CHECK_TYPES.map((type) => {
+                {CHECK_TYPES.filter((type) => !CHECK_MODULES[type] || moduleOn(caps, CHECK_MODULES[type]!)).map((type) => {
                   const Icon = CHECK_ICONS[type];
                   return (
                     <Tooltip key={type} label={checkTypeHelp(type)} multiline w={260} withArrow>

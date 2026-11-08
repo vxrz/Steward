@@ -49,6 +49,7 @@ import { localNow } from './AccessChanges';
 import { useMe } from '../auth';
 import { platformKeys } from '../queryKeys';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
+import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 
 /** Compliance → Access reconciliation: who has which access (snapshots) compared with the documented access changes. */
 export function AccessReconciliationPage() {
@@ -57,6 +58,8 @@ export function AccessReconciliationPage() {
   const [editing, setEditing] = useState<AccessCheck | 'new' | null>(null);
   const meta = useQuery({ queryKey: ['reconciliation-meta'], queryFn: () => get<AccessReconciliationMeta>('/compliance/reconciliation/meta') });
   const checks = useQuery({ queryKey: ['access-checks'], queryFn: () => get<AccessCheck[]>('/compliance/access-checks') });
+  // entries the person may not see (U3): "nothing you may see" instead of "nothing yet"
+  const hidden = useHiddenByPermissions('reconciliation');
   useCreateParam(meta.data?.canCreate, () => setEditing('new'));
   // ?check=<id>&edit=1: a copy opens in edit mode (Duplicate)
   useEffect(() => {
@@ -121,7 +124,8 @@ export function AccessReconciliationPage() {
           {t('reconciliation.noOpenAnywhere')}
         </EmptyState>
       )}
-      {checks.isSuccess && all.length === 0 && (
+      {checks.isSuccess && all.length === 0 && hidden && <RestrictedEmpty />}
+      {checks.isSuccess && all.length === 0 && !hidden && (
         <EmptyState
           icon={IconArrowsDiff}
           title={t('reconciliation.emptyTitle')}

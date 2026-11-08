@@ -34,6 +34,7 @@ import { confirmDanger } from '../components/confirm';
 import '../components/dashboard/viz.css';
 import { ListPage } from '../components/page/ListPage';
 import { dashboardKeys, datasetKeys } from '../queryKeys';
+import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 
 interface DashboardTemplate {
   id: string;
@@ -48,6 +49,8 @@ export function DashboardsPage() {
   const qc = useQueryClient();
   const { caps, isAdmin } = useMe();
   const dashboards = useQuery({ queryKey: dashboardKeys.all, queryFn: () => get<Dashboard[]>('/dashboards') });
+  // entries the person may not see (U3): "nothing you may see" instead of "nothing yet"
+  const hidden = useHiddenByPermissions('dashboards');
   const datasets = useQuery({ queryKey: datasetKeys.all, queryFn: () => get<DatasetMeta[]>('/datasets'), refetchInterval: 30000 });
   const [templatesOpen, templates] = useDisclosure();
   const [importOpen, importModal] = useDisclosure();
@@ -74,7 +77,8 @@ export function DashboardsPage() {
       }
     >
       <QueryState query={dashboards} rows={2} />
-      {dashboards.data?.length === 0 && (
+      {dashboards.data?.length === 0 && hidden && <RestrictedEmpty />}
+      {dashboards.data?.length === 0 && !hidden && (
         <EmptyState
           icon={IconChartBar}
           title={t('list.emptyTitle')}

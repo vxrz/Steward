@@ -14,6 +14,7 @@ import { useMe } from '../auth';
 import { fmtDate, fmtRelative } from '../format';
 import { NeedBadges } from '../components/catalogue/cia';
 import { ListPage, useStoredListView } from '../components/page/ListPage';
+import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 
 export const CRITICALITY_COLORS: Record<string, string> = { low: 'gray', medium: 'blue', high: 'orange', critical: 'red' };
 
@@ -78,6 +79,8 @@ export function ServicesPage() {
   const [tag, setTag] = useTagFilter();
   const all = services.data ?? [];
   const list = all.filter((s) => tagsMatch(s.tags, tag));
+  // services the person may not see (U3): "nothing you may see" instead of "no services yet"
+  const hidden = useHiddenByPermissions('services');
   return (
     <ListPage
       view="services"
@@ -105,7 +108,8 @@ export function ServicesPage() {
           {t('common:tags.noMatch')}
         </Text>
       )}
-      {services.isSuccess && all.length === 0 && (
+      {services.isSuccess && all.length === 0 && !archived && hidden && <RestrictedEmpty />}
+      {services.isSuccess && all.length === 0 && !(hidden && !archived) && (
         <EmptyState
           icon={IconStack2}
           title={archived ? t('emptyState.titleArchived') : t('emptyState.title')}

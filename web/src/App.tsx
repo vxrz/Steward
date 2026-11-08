@@ -18,6 +18,8 @@ import { EmergencyBanner } from './components/security/EmergencyBanner';
 import { UserMenu, signOut } from './components/UserMenu';
 import { CommandPalette, CommandPaletteButton } from './components/CommandPalette';
 import { AppNav, useAutomateTabs, useNavGroups } from './components/AppNav';
+import { ModuleGate, ModuleOffPage } from './components/modules/ModuleOff';
+import { useVisibilityQuery } from './modules';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import { HelpMenu } from './components/HelpMenu';
 import { UpdateNotice } from './components/UpdateNotice';
@@ -199,7 +201,27 @@ export function App() {
   if (st.me.user.mustChangePassword) return <ForcedPasswordChangePage status={st} onSignOut={onSignOut} />;
   if (!st.unlocked) return <VaultLockedPage status={st} onSignOut={onSignOut} />;
   // status viewers (role "status" only) see nothing but the status pages
-  if (st.me.user.roles.length && st.me.user.roles.every((r) => r === 'status')) return <StatusViewerApp onSignOut={onSignOut} />;
+  if (st.me.user.roles.length && st.me.user.roles.every((r) => r === 'status')) {
+    // the status pages switched off (ADR 0016): the status viewer learns it, and nothing else
+    if (st.me.capabilities.modules?.statusPages === false)
+      return (
+        <MeContext.Provider value={st.me}>
+          <Suspense fallback={<PageLoader />}>
+            <Center p="md" mih="100vh">
+              <div style={{ width: '100%', maxWidth: 640 }}>
+                <ModuleOffPage module="statusPages" />
+                <Center>
+                  <Button variant="default" onClick={onSignOut}>
+                    {t('userMenu.signOut')}
+                  </Button>
+                </Center>
+              </div>
+            </Center>
+          </Suspense>
+        </MeContext.Provider>
+      );
+    return <StatusViewerApp onSignOut={onSignOut} />;
+  }
   return (
     <MeContext.Provider value={st.me}>
       <Shell status={st} />
@@ -228,7 +250,9 @@ function Shell({ status }: { status: AuthStatus }) {
   });
   const openTasks = tasks.data?.length ?? 0;
 
-  const navGroups = useNavGroups(caps);
+  // what the person may see (U2): the sidebar and the palette leave out areas with nothing for them
+  const { data: seen, settled: seenSettled } = useVisibilityQuery(!plantOnly);
+  const navGroups = useNavGroups(caps, seen);
   const automateTabs = useAutomateTabs(caps);
   // the palette finds the tab pages of an entry, too (Schedules, Triggers, Git sync)
   const navItems = useMemo(() => {
@@ -301,6 +325,8 @@ function Shell({ status }: { status: AuthStatus }) {
         <AppShell.Navbar p="xs" aria-label={t('mainNavigation')}>
           <AppNav
             caps={caps}
+            seen={seen}
+            seenSettled={seenSettled}
             userId={status.me!.user.id}
             pathname={location.pathname}
             openTasks={openTasks}
@@ -357,9 +383,30 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/triggers" element={<TriggersPage />} />
                     <Route path="/git-updates" element={<GitUpdatesPage />} />
                     <Route path="/git-updates/:id" element={<GitUpdateDetailPage />} />
-                    <Route path="/libraries" element={<LibrariesPage />} />
-                    <Route path="/libraries/releases/:id" element={<LibraryReleasePage />} />
-                    <Route path="/libraries/:library" element={<LibraryDetailPage />} />
+                    <Route
+                      path="/libraries"
+                      element={
+                        <ModuleGate module="libraries">
+                          <LibrariesPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/libraries/releases/:id"
+                      element={
+                        <ModuleGate module="libraries">
+                          <LibraryReleasePage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/libraries/:library"
+                      element={
+                        <ModuleGate module="libraries">
+                          <LibraryDetailPage />
+                        </ModuleGate>
+                      }
+                    />
                     <Route path="/monitors" element={<MonitorsPage />} />
                     <Route path="/monitors/new" element={<MonitorEditorPage />} />
                     <Route path="/monitors/wall" element={<MonitorWallPage />} />
@@ -381,52 +428,290 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/systems" element={<SystemsPage />} />
                     <Route path="/systems/:id" element={<SystemDetailPage />} />
                     <Route path="/systems/:id/schema" element={<SystemSchemaPage />} />
-                    <Route path="/data-contracts" element={<DataContractsPage />} />
-                    <Route path="/data-contracts/new" element={<DataContractNewPage />} />
-                    <Route path="/data-contracts/:id" element={<DataContractDetailPage />} />
-                    <Route path="/data-contracts/:id/:tab" element={<DataContractDetailPage />} />
+                    <Route
+                      path="/data-contracts"
+                      element={
+                        <ModuleGate module="dataContracts">
+                          <DataContractsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-contracts/new"
+                      element={
+                        <ModuleGate module="dataContracts">
+                          <DataContractNewPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-contracts/:id"
+                      element={
+                        <ModuleGate module="dataContracts">
+                          <DataContractDetailPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-contracts/:id/:tab"
+                      element={
+                        <ModuleGate module="dataContracts">
+                          <DataContractDetailPage />
+                        </ModuleGate>
+                      }
+                    />
                     <Route path="/maintenance" element={<MaintenancePage />} />
-                    <Route path="/status-pages" element={<StatusPagesPage />} />
-                    <Route path="/status-pages/:id" element={<StatusPageViewPage />} />
+                    <Route
+                      path="/status-pages"
+                      element={
+                        <ModuleGate module="statusPages">
+                          <StatusPagesPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/status-pages/:id"
+                      element={
+                        <ModuleGate module="statusPages">
+                          <StatusPageViewPage />
+                        </ModuleGate>
+                      }
+                    />
                     <Route path="/duties" element={<DutiesPage />} />
                     <Route path="/duties/:id" element={<DutyDetailPage />} />
-                    <Route path="/scorecard" element={<ScorecardPage />} />
-                    <Route path="/costs" element={<CostsPage />} />
-                    <Route path="/costs/:scope/:id" element={<CostDetailPage />} />
-                    <Route path="/costs/:scope/:id/:tab" element={<CostDetailPage />} />
+                    <Route
+                      path="/scorecard"
+                      element={
+                        <ModuleGate module="scorecard">
+                          <ScorecardPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/costs"
+                      element={
+                        <ModuleGate module="costs">
+                          <CostsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/costs/:scope/:id"
+                      element={
+                        <ModuleGate module="costs">
+                          <CostDetailPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/costs/:scope/:id/:tab"
+                      element={
+                        <ModuleGate module="costs">
+                          <CostDetailPage />
+                        </ModuleGate>
+                      }
+                    />
                     <Route path="/credentials" element={<CredentialsPage />} />
                     <Route path="/tickets" element={<TicketsPage />} />
                     <Route path="/tickets/:id" element={<TicketDetailPage />} />
-                    <Route path="/compliance/controls" element={<ComplianceControlsPage />} />
-                    <Route path="/compliance/access-changes" element={<AccessChangesPage />} />
-                    <Route path="/compliance/reconciliation" element={<AccessReconciliationPage />} />
-                    <Route path="/compliance/person-reviews" element={<PersonReviewsPage />} />
-                    <Route path="/compliance/person-reviews/:id" element={<PersonReviewDetailPage />} />
-                    <Route path="/compliance/evidence-packs" element={<EvidencePacksPage />} />
+                    <Route
+                      path="/compliance/controls"
+                      element={
+                        <ModuleGate module="compliance">
+                          <ComplianceControlsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/access-changes"
+                      element={
+                        <ModuleGate module="compliance">
+                          <AccessChangesPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/reconciliation"
+                      element={
+                        <ModuleGate module="compliance">
+                          <AccessReconciliationPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/person-reviews"
+                      element={
+                        <ModuleGate module="compliance">
+                          <PersonReviewsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/person-reviews/:id"
+                      element={
+                        <ModuleGate module="compliance">
+                          <PersonReviewDetailPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/evidence-packs"
+                      element={
+                        <ModuleGate module="compliance">
+                          <EvidencePacksPage />
+                        </ModuleGate>
+                      }
+                    />
                     <Route path="/reports" element={<ReportsPage />} />
-                    {/* the plant registry (#218): only while its module is on – otherwise "page not found" */}
-                    {caps.plant && <Route path="/plant/sites" element={<PlantSitesPage />} />}
-                    {caps.plant && <Route path="/plant/sites/:siteId" element={<PlantSitePage />} />}
-                    {caps.plant && <Route path="/plant/sites/:siteId/network" element={<PlantNetworkPage />} />}
-                    {caps.plant && <Route path="/plant/sites/:siteId/network/:tab" element={<PlantNetworkPage />} />}
-                    {caps.plant && <Route path="/plant/sites/:siteId/:tab" element={<PlantSitePage />} />}
-                    {caps.plant && <Route path="/plant/assets" element={<PlantAssetsPage />} />}
-                    {caps.plant && <Route path="/plant/assets/:assetId" element={<PlantAssetPage />} />}
-                    {caps.plant && <Route path="/plant/assets/:assetId/:tab" element={<PlantAssetPage />} />}
-                    {caps.plant && <Route path="/plant/import" element={<PlantImportPage />} />}
-                    {caps.plant && <Route path="/plant/profiles" element={<PlantProfilesPage />} />}
-                    {caps.plant && <Route path="/plant/profiles/:profileId" element={<PlantProfilePage />} />}
-                    {caps.plant && <Route path="/plant/profiles/:profileId/points/:pointId" element={<PlantDataPointPage />} />}
-                    {caps.plant && <Route path="/plant/kpis" element={<PlantKpisPage />} />}
-                    {caps.plant && <Route path="/plant/kpis/:kpiId" element={<PlantKpiPage />} />}
-                    {caps.plant && <Route path="/plant/explore" element={<PlantExplorePage />} />}
-                    {caps.plant && <Route path="/plant/checks" element={<PlantChecksPage />} />}
-                    {caps.plant && <Route path="/plant/map" element={<PlantMapPage />} />}
+                    {/* the plant registry (#218): switched off, its pages say so (U10) */}
+                    <Route
+                      path="/plant/sites"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantSitesPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/sites/:siteId"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantSitePage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/sites/:siteId/network"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantNetworkPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/sites/:siteId/network/:tab"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantNetworkPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/sites/:siteId/:tab"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantSitePage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/assets"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantAssetsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/assets/:assetId"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantAssetPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/assets/:assetId/:tab"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantAssetPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/import"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantImportPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/profiles"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantProfilesPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/profiles/:profileId"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantProfilePage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/profiles/:profileId/points/:pointId"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantDataPointPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/kpis"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantKpisPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/kpis/:kpiId"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantKpiPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/explore"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantExplorePage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/checks"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantChecksPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/map"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantMapPage />
+                        </ModuleGate>
+                      }
+                    />
                     {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
                     {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
                     <Route path="/settings" element={<SettingsIndex />} />
                     <Route path="/settings/git-sync" element={<GitSyncPage />} />
-                    <Route path="/settings/libraries" element={<LibraryPublishersPage />} />
+                    <Route
+                      path="/settings/libraries"
+                      element={
+                        <ModuleGate module="libraries">
+                          <LibraryPublishersPage />
+                        </ModuleGate>
+                      }
+                    />
                     <Route path="/settings/migration" element={<MigrationPage />} />
                     <Route path="/settings/backups" element={<BackupsPage />} />
                     <Route path="/profile" element={<ProfilePage />} />

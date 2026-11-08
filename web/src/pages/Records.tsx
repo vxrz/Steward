@@ -15,6 +15,7 @@ import { codeText, errorText } from '../i18n/errors';
 import { fieldLabelByKey, typeDescription, typeTemplate } from '../components/records/builtin';
 import { EditionBadge, ReviewStatusBadge } from '../components/records/DocumentPanel';
 import { ListPage } from '../components/page/ListPage';
+import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 
 /** Records per request; "Load more" raises the limit by this much. */
 const RECORDS_PAGE = 500;
@@ -34,6 +35,8 @@ export function RecordsPage() {
   const [importing, setImporting] = useState(false);
   const meta = useQuery({ queryKey: ['records-meta'], queryFn: () => get<RecordsMeta>('/records/meta') });
   const types = useRecordTypes();
+  // entries the person may not see (U3): "nothing you may see" instead of "nothing yet"
+  const hidden = useHiddenByPermissions('records');
   const typeName = useTypeName();
   const query = new URLSearchParams();
   if (type) query.set('type', type);
@@ -160,6 +163,8 @@ export function RecordsPage() {
           <Text c="dimmed" size="sm">
             {t('list.noMatch')}
           </Text>
+        ) : hidden ? (
+          <RestrictedEmpty />
         ) : (
           <EmptyState
             icon={IconFileCertificate}

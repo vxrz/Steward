@@ -333,7 +333,8 @@
         "audit-checkpoint": "Signierter Prüfpunkt des Audit-Protokolls",
         "scheduler-heartbeat": "Markierung des Zeitplaners: spätere Termine gelten beim nächsten Start als verpasst",
         "git-sync": "Geplante Abrufe der Git-Synchronisierung"
-      }
+      },
+      "switchedOff": "Modul ausgeschaltet"
     }
   },
   "updateNotice": {
