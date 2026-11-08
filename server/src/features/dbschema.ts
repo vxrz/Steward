@@ -1,0 +1,10 @@
+import { defineFeature, every5Minutes, MINUTE } from './define.js';
+
+/** Database schemas (#222): snapshots, changes, tbls import, export. */
+export default defineFeature({
+  name: 'dbschema',
+  jobs: [
+    // scheduled reads of the platforms that turned them on, snapshots of deleted ones removed
+    every5Minutes('db-schemas', 15 * MINUTE, () => import('../dbschema/service.js').then((m) => m.runSchemaJob())),
+  ],
+});

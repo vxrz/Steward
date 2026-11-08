@@ -157,9 +157,9 @@ describe('background jobs', () => {
   });
 
   it('registers the built-in jobs with their intervals', async () => {
-    const { registerBuiltInJobs } = await import('../src/jobs/builtin.js');
-    registerBuiltInJobs();
-    registerBuiltInJobs();
+    const { registerFeatureJobs } = await import('../src/features/index.js');
+    registerFeatureJobs();
+    registerFeatureJobs();
     const names = reg.registeredJobs();
     for (const n of [
       'stale-datasets',

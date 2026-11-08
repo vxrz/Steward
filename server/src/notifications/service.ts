@@ -943,7 +943,7 @@ export function initNotifications(): void {
   });
 }
 
-// The periodic checks (stale datasets, reminders, integrations, daily summaries …) are background jobs: jobs/builtin.ts.
+// The periodic checks (stale datasets, reminders, integrations, daily summaries …) are background jobs: the manifests of their features (features/).
 
 /** The test message (also the sample of the look preview). */
 function testMessage(name: string): OutgoingMessage {

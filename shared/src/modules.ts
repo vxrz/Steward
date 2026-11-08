@@ -54,7 +54,7 @@ export interface ModuleDef {
    * plant registry), before the route's own code runs.
    */
   routes: readonly string[];
-  /** Background jobs it owns (jobs/builtin.ts): not started while it is off */
+  /** Background jobs it owns (the manifests in server/src/features/): not started while it is off */
   jobs: readonly string[];
   /** Platform kinds that only make sense with it (left out of the connector list while it is off) */
   platformKinds?: readonly string[];

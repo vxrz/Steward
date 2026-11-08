@@ -22,6 +22,7 @@ import { removeInstanceFile, writeInstanceFile } from './instance.js';
 import { warnEmailVerifiedProviders } from './auth/sso.js';
 import { flushFailedLoginAudit } from './auth/login-audit.js';
 import { shutdown, startBackground } from './bootstrap.js';
+import { registerFeatureJobs } from './features/index.js';
 import { InstanceLease, type LeaseWait } from './database/lease.js';
 import { describeHolder, SqliteInstanceLock } from './database/sqlite-lock.js';
 import { engine } from './engine/index.js';
@@ -232,6 +233,7 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   // the Teams bot's own listener (ADR 0013, preview): only POST /teams/bot/messages
   const botListener = await (await import('./msteams/listener.js')).startBotListener();
   // background jobs, event-loop monitor and backups now; recovery, scheduler and monitors once the vault is unlocked
+  registerFeatureJobs();
   startBackground();
   await unlockFromEnv().catch((e) => {
     logger.error({ err: e }, 'automatic unlock failed');

@@ -7,7 +7,6 @@ import { startGatusScraper, stopGatusScraper } from './gatus/metrics.js';
 import { startReportSchedules, stopReportSchedules } from './reports/schedules.js';
 import { startAccessChecks, stopAccessChecks } from './compliance/reconciliation.js';
 import { startBackupJobs, stopBackupJobs } from './backup/service.js';
-import { registerBuiltInJobs } from './jobs/builtin.js';
 import { startJobs, stopJobs } from './jobs/registry.js';
 import { closeAllPools } from './dbms/pool.js';
 import { startEventLoopMonitor, stopEventLoopMonitor } from './eventloop.js';
@@ -18,7 +17,7 @@ import { lifecyclePhase, setLifecyclePhase, shuttingDown } from './lifecycle.js'
  * Start-up and shutdown order of Steward's background work, in one place.
  *
  * startBackground() – when the HTTP server listens:
- *   1. event-loop monitor  2. background jobs (jobs/builtin.ts)  3. scheduled backups
+ *   1. event-loop monitor  2. background jobs (registered from features/ by main.ts)  3. scheduled backups
  * startUnlocked() – once, when the vault is unlocked (at start with SM_MASTER_PASSPHRASE[_FILE], or by a person):
  *   1. recovery of runs (resume waiting ones, mark running ones interrupted, re-queue queued ones)
  *   2. scheduler (records the fires missed while Steward was not running, starts catch-up runs)
@@ -36,7 +35,7 @@ let unlockedStarted = false;
 
 export function startBackground(): void {
   startEventLoopMonitor();
-  registerBuiltInJobs();
+  // the jobs are registered by the entry point (main.ts: registerFeatureJobs() from the composition root, features/)
   startJobs();
   startBackupJobs();
   if (lifecyclePhase() === 'starting') setLifecyclePhase('running');
