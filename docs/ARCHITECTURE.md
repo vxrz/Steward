@@ -106,6 +106,7 @@ Packaging: the same server runs as a desktop executable (a Node.js single execut
 | `vault.ts`, `vault-rotation.ts`, `integrity.ts`                                                          | The vault: master passphrase, wrapped keys, encrypted secrets, signed settings ([ADR 0004](adr/0004-vault-with-master-passphrase.md)).                                                                                                                                                                                                                           |
 | `settings.ts`, `maintenance.ts`                                                                          | Instance settings and internal setting keys; retention of runs and notifications in small batches.                                                                                                                                                                                                                                                               |
 | `jobs/`, `eventloop.ts`                                                                                  | The registry of background jobs (state on _System status_, metrics, run by hand); event-loop delay measurement and protection.                                                                                                                                                                                                                                   |
+| `features/`                                                                                              | The composition root: one manifest per feature and the one list that wires them ([below](#how-features-are-wired)).                                                                                                                                                                                                                                              |
 | `audit.ts`, `audit-anchor.ts`, `audit-export.ts`, `audit-archive.ts`, `audit-archive-verify.ts`          | Hash-chained audit log, signed checkpoints, exports ([ADR 0003](adr/0003-hmac-chained-audit-log.md)); epochs, archives and retention, and the offline check of an archive ([ADR 0017](adr/0017-audit-retention.md)).                                                                                                                                             |
 | `auth/`                                                                                                  | Sessions, passwords, SSO, API tokens, step-up, route access (`access.ts`), rights and owning teams (`policy.ts`, `permissions.ts`), the assurance policy (`assurance.ts`: step-up and four-eyes per control point).                                                                                                                                              |
 | `routes/`, `api/`, `api/v1/`                                                                             | Internal API routes; the public REST API with its OpenAPI document.                                                                                                                                                                                                                                                                                              |
@@ -150,6 +151,7 @@ Rules that hold across modules:
 - **Configuration comes from `env`** (`config.ts`), never from `process.env` (ESLint checks it).
 - **The internal API is private**; integrations use `/api/v1` ([API.md](API.md#the-internal-api)).
 - **Runs start, wake and stop through the engine boundary**: outside `engine/`, code imports `engine/index.ts`, never `engine/runner.ts` (ESLint checks it), and checks rights first in `engine/commands.ts` (below).
+- **Features are wired in one place**, the composition root `features/index.ts`; no feature registers itself by being imported, and import cycles do not grow (`npm run check:imports`, [below](#import-rules)).
 
 ## The engine boundary
 
@@ -207,3 +209,46 @@ What a connector is and what a monitor check needs is written down once (since 0
 3. **The evaluator**: a function returning a `RawResult`, registered in `CHECK_RUNNERS` (`server/src/monitors/checks.ts`), with `plan` for a read shared by several checks and `validate` for rules that need the resolved platform.
 4. **The form**: a component `web/src/components/monitors/checks/<Type>Fields.tsx` taking `CheckFieldsProps<'<type>'>`, registered in `CHECK_FIELDS`; its icon in `CHECK_ICONS` (`checkMeta.ts`); its texts in `web/src/locales/en|de/monitors.json` (`checkTypes.<type>`, `newCheck.<type>`).
 5. **Tests**: the evaluator's own test file; `descriptors.test.ts` covers the descriptor, the evaluator and the form.
+
+## How features are wired
+
+Each feature has a manifest in `server/src/features/<name>.ts` (`defineFeature()`, the type is in `features/define.ts`). It names everything the feature brings to the rest of Steward:
+
+| Field            | What                                                                            | Read or registered by                                    |
+| ---------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `module`         | Its module in `shared/src/modules.ts` ([ADR 0016](adr/0016-module-registry.md)) | a test: the module's jobs and datasets are the feature's |
+| `routes`         | The internal API under `/api`                                                   | `routes/index.ts`                                        |
+| `apiV1`          | The public API under `/api/v1`                                                  | `api/index.ts` → `api/v1/routes.ts`                      |
+| `jobs`           | Background jobs (their code loads when a job first runs)                        | `registerFeatureJobs()`, called by `main.ts`             |
+| `reportSections` | Sections of scheduled reports (collect and draw halves)                         | `installFeatures()` → `reports/sections.ts`              |
+| `datasets`       | Datasets no process publishes, and who may read them                            | `installFeatures()` → `dashboards/builtin.ts`            |
+| `mcpTools`       | Tools of the MCP server, after Steward's own                                    | `installFeatures()` → `mcp/tools.ts`                     |
+| `linkKinds`      | Link kinds of records, documents and tickets                                    | `installFeatures()` → `records/links.ts`                 |
+| `migrations`     | Its migration lists, for ownership                                              | a test: every list has one owner                         |
+
+`features/index.ts` is the composition root: `FEATURES` is the only list of features, and the only place that wires them. `buildApp()` (`app.ts`) calls `installFeatures()` first; the registries never import the features, the features never import the root. Only entry points import it: `app.ts`, `routes/index.ts`, `api/index.ts`, `main.ts`, the CLIs. The order of `FEATURES` is the order of the sections in a report and of the paths in `docs/openapi.json`.
+
+The order of migrations is not the order of `FEATURES`: it is history, kept in one explicit list, `server/src/migrations/index.ts`. A new list goes at the end, a new migration at the end of its list, so an upgraded and a new database end up the same (`upgrade.test.ts` compares their schemas).
+
+The shell of the app stays in `app.ts`: the public API's scope, MCP and its OAuth sign-in, the instance proof, theme and system status, the web app. Notification events stay a shared list (`NOTIFICATION_EVENTS` in `shared/`): the web app shows the preferences for each of them.
+
+**Adding a feature**: write its manifest, add it to `FEATURES`, and add its module to `shared/src/modules.ts` if it can be switched off. `server/test/features.test.ts` checks the manifests against the module registry and the migration lists.
+
+### Report sections and the PDF worker
+
+PDFs are drawn in a worker thread (`reports/pdf/pool.ts`). It gets collected data and draws; it has no database. A section of a scheduled report therefore has two halves:
+
+- the **collect half** (`<feature>/report-section.ts`, built-in ones in `reports/builtin-sections.ts`): the configuration schema, the checks on save and `build()`, which reads the data with the rights of the schedule's owner. It runs in the main thread and may use the database and the services.
+- the **draw half** (`<feature>/report-section-draw.ts`): title, the "at a glance" figures and `render()`. Data in, PDF out. It imports no database, engine or service.
+
+`defineReportSection()` checks that the two halves agree on the data type. The run, summary and scheduled reports and the evidence pack are split the same way (`summary-report.ts` / `summary-draw.ts`, `scheduled-report.ts` / `scheduled-draw.ts`). The worker entry (`reports/pdf/worker-entry.ts`) loads `reports/pdf/drawers.ts` – every kind of PDF and the draw half of every section – and nothing else: 33 server modules and about 18 MB heap after loading (it was 265 modules and 46 MB before 0.11; PDFKit alone is 8 MB). A section that only the main thread knows is drawn there.
+
+## Import rules
+
+`npm run check:imports` (`scripts/check-imports.mjs`, part of the lint job in CI) reads the sources with the TypeScript compiler API. It counts runtime imports only: `import type`, names used only as types and `await import()` do not count.
+
+- **No new import cycles.** `scripts/import-baseline.json` lists the import edges that lie on a cycle today (15 cycles: 13 in the server, 2 in the web app). The check fails on an edge that closes a new cycle, and on a listed edge that no longer lies on one: then run `npm run check:imports -- --update` and commit the smaller baseline. The list only shrinks.
+- **Layer rules**: `shared/` imports neither `server/` nor `web/`; the web app and the server do not import each other; the PDF worker and every draw half reach no database, engine, service or route; `engine/` imports no compliance, reports, monitors or routes (a step that needs them imports them lazily, like the query and contract-test steps); services do not import routes; only entry points import `features/`. Accepted exceptions are in the baseline too.
+- The engine boundary and the step modules keep their ESLint rules (above).
+
+To break a cycle: import only the type, move the shared part into its own small module, register instead of importing (a manifest field), or import lazily. `--stats` prints the counts, `--from <file>` the modules a file loads at start.

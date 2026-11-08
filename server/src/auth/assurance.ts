@@ -312,7 +312,7 @@ interface ChangeRow {
 
 const isAdmin = (u: AuthUser | null): boolean => !!u?.roles.includes('admin');
 
-/** Pending changes older than 7 days expire (also run as a job, jobs/builtin.ts). */
+/** Pending changes older than 7 days expire (also run as a job, features/auth.ts). */
 export function expirePolicyChanges(now = nowIso()): number {
   const rows = db().all<ChangeRow>("SELECT * FROM assurance_policy_changes WHERE status = 'pending' AND expires_at <= ?", now);
   for (const r of rows) {

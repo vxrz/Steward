@@ -136,9 +136,9 @@ describe('the shipped alert rules (examples/prometheus/steward-alerts.yml)', () 
       expect.arrayContaining(['StewardVaultLocked', 'StewardNotReady', 'StewardSchedulerStalled', 'StewardBackgroundJobFailing', 'StewardNoRecentBackup']),
     );
     // what a started server has registered (bootstrap.ts): the background jobs and their metrics
-    const { registerBuiltInJobs } = await import('../src/jobs/builtin.js');
+    const { registerFeatureJobs } = await import('../src/features/index.js');
     const { registeredJobs } = await import('../src/jobs/registry.js');
-    registerBuiltInJobs();
+    registerFeatureJobs();
     const { startEventLoopMonitor, stopEventLoopMonitor } = await import('../src/eventloop.js');
     startEventLoopMonitor();
     const text = await metrics().finally(() => stopEventLoopMonitor());

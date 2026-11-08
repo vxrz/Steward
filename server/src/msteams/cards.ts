@@ -10,7 +10,7 @@ import type { MessageParts, OutgoingMessage } from '../notifications/channels.js
 import { deliveryPlan } from '../notifications/quiet.js';
 import { holdMessage, resolveOutboxTarget } from '../notifications/outbox.js';
 import { quietHoursAllowed } from '../notifications/prefs.js';
-import { defaultLocale } from '../notifications/service.js';
+import { defaultLocale } from '../notifications/locale.js';
 
 /**
  * Approvals from Microsoft Teams, stage 1 (ADR 0013): decision cards that lead straight to the decision. The card

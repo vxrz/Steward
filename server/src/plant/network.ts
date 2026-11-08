@@ -30,7 +30,7 @@ import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import { currentUser } from '../auth/context.js';
 import { plantOnly } from '../auth/policy.js';
-import { listBacklinks, registerLinkKind, resolveTarget } from '../records/links.js';
+import { listBacklinks, resolveTarget, type LinkResolver } from '../records/links.js';
 import { likeEscape } from '../database/sql.js';
 import { attributesOf } from '../catalogue/network.js';
 import { createSystem } from '../catalogue/systems.js';
@@ -932,7 +932,8 @@ export function putAssetChecks(assetId: string, input: z.infer<typeof assetCheck
 
 const like = (q: string) => `%${likeEscape(q.trim().toLowerCase())}%`;
 
-registerLinkKind('conduit', {
+/** Conduits as a link kind "conduit" (id: <site id>/<conduit id>); registered with the plant registry's other kinds (plant/links.ts). */
+export const conduitLinkKind: LinkResolver = {
   resolve(id) {
     if (!plantEnabled()) return null;
     const i = id.indexOf('/');
@@ -967,7 +968,7 @@ registerLinkKind('conduit', {
         detail: `${c.zone_a} ↔ ${c.zone_b} · ${byId.get(c.site_id)?.code || byId.get(c.site_id)?.name || c.site_id}`,
       }));
   },
-});
+};
 
 export {
   vlanInput,

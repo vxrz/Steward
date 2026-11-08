@@ -12,7 +12,7 @@ import { db } from '../db.js';
 import { audit, queryAudit } from '../audit.js';
 import { findUserByName } from '../auth/users.js';
 import { drawPdf } from '../reports/pdf/pool.js';
-import { brandingFor, brandingTeamOf } from '../reports/branding.js';
+import { brandingFor, brandingTeamOf } from '../reports/team-branding.js';
 import { requestLang } from '../reports/service.js';
 import { newId, nowIso, sha256 } from '../util.js';
 import { canApproveRecord, canEditRecord, forbid, me } from './access.js';

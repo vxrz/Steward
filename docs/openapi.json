@@ -32849,6 +32849,246 @@
         }
       }
     },
+    "/ticket-references": {
+      "get": {
+        "operationId": "listTicketReferences",
+        "summary": "List ticket references",
+        "tags": [
+          "Ticket references"
+        ],
+        "description": "Tickets in other systems that Steward documents: ServiceNow incidents users reported and tickets with vendors – source, number, link, status, responsible people and the affected services, platforms, credentials and records. Newest first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "waitingVendor",
+                  "waitingUs",
+                  "resolved",
+                  "closed"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "Only entries with these statuses (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed",
+                "all"
+              ],
+              "default": "all"
+            },
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "description": "open: open, waitingVendor, waitingUs; closed: resolved, closed"
+          },
+          {
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 40
+              }
+            },
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "description": "Only these sources (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "in": "query",
+            "name": "vendor",
+            "required": false,
+            "description": "Vendor (case-insensitive, exact)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "in": "query",
+            "name": "affected",
+            "required": false,
+            "description": "Only entries that name this item as affected: kind:id, e.g. service:svc_123"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "description": "Case-insensitive search in number, title, vendor and note"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TicketReferenceEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/ticket-references/{ticketId}": {
+      "get": {
+        "operationId": "getTicketReference",
+        "summary": "Get a ticket reference with its history",
+        "tags": [
+          "Ticket references"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "ticketId",
+            "required": true,
+            "description": "Entry id (tkt_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketReferenceDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/duties": {
       "get": {
         "operationId": "listDuties",
@@ -33673,246 +33913,6 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        }
-      }
-    },
-    "/ticket-references": {
-      "get": {
-        "operationId": "listTicketReferences",
-        "summary": "List ticket references",
-        "tags": [
-          "Ticket references"
-        ],
-        "description": "Tickets in other systems that Steward documents: ServiceNow incidents users reported and tickets with vendors – source, number, link, status, responsible people and the affected services, platforms, credentials and records. Newest first.",
-        "parameters": [
-          {
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 200,
-              "default": 50
-            },
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "description": "Page size (1–200, default 50)"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "maxLength": 2000
-            },
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "description": "Cursor from the previous page (`nextCursor`)"
-          },
-          {
-            "schema": {
-              "maxItems": 50,
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "open",
-                  "waitingVendor",
-                  "waitingUs",
-                  "resolved",
-                  "closed"
-                ]
-              }
-            },
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "description": "Only entries with these statuses (repeat the parameter)"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "enum": [
-                "open",
-                "closed",
-                "all"
-              ],
-              "default": "all"
-            },
-            "in": "query",
-            "name": "state",
-            "required": false,
-            "description": "open: open, waitingVendor, waitingUs; closed: resolved, closed"
-          },
-          {
-            "schema": {
-              "maxItems": 50,
-              "type": "array",
-              "items": {
-                "type": "string",
-                "maxLength": 40
-              }
-            },
-            "in": "query",
-            "name": "source",
-            "required": false,
-            "description": "Only these sources (repeat the parameter)"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "maxLength": 120
-            },
-            "in": "query",
-            "name": "vendor",
-            "required": false,
-            "description": "Vendor (case-insensitive, exact)"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "maxLength": 240
-            },
-            "in": "query",
-            "name": "affected",
-            "required": false,
-            "description": "Only entries that name this item as affected: kind:id, e.g. service:svc_123"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "maxLength": 200
-            },
-            "in": "query",
-            "name": "q",
-            "required": false,
-            "description": "Case-insensitive search in number, title, vendor and note"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "OK",
-                  "type": "object",
-                  "required": [
-                    "items",
-                    "nextCursor"
-                  ],
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/TicketReferenceEntry"
-                      }
-                    },
-                    "nextCursor": {
-                      "type": [
-                        "null",
-                        "string"
-                      ]
-                    }
-                  },
-                  "additionalProperties": false
-                }
-              }
-            },
-            "headers": {
-              "RateLimit-Limit": {
-                "$ref": "#/components/headers/RateLimit-Limit"
-              },
-              "RateLimit-Remaining": {
-                "$ref": "#/components/headers/RateLimit-Remaining"
-              },
-              "RateLimit-Reset": {
-                "$ref": "#/components/headers/RateLimit-Reset"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "Link": {
-                "$ref": "#/components/headers/Link"
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        }
-      }
-    },
-    "/ticket-references/{ticketId}": {
-      "get": {
-        "operationId": "getTicketReference",
-        "summary": "Get a ticket reference with its history",
-        "tags": [
-          "Ticket references"
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            },
-            "in": "path",
-            "name": "ticketId",
-            "required": true,
-            "description": "Entry id (tkt_…)"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TicketReferenceDetail"
-                }
-              }
-            },
-            "headers": {
-              "RateLimit-Limit": {
-                "$ref": "#/components/headers/RateLimit-Limit"
-              },
-              "RateLimit-Remaining": {
-                "$ref": "#/components/headers/RateLimit-Remaining"
-              },
-              "RateLimit-Reset": {
-                "$ref": "#/components/headers/RateLimit-Reset"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              }
-            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"

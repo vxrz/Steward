@@ -6,7 +6,7 @@ import { db } from '../db.js';
 import { audit, authenticRows, importedSourceOf } from '../audit.js';
 import { runRow } from '../engine/store.js';
 import { HttpError, newId, nowIso, parseJson, pathInside, sha256, slugify } from '../util.js';
-import { brandingFor, brandingTeamOf, commonBrandingTeam } from './branding.js';
+import { brandingFor, brandingTeamOf, commonBrandingTeam } from './team-branding.js';
 import { resolveTimeZone, translator } from './i18n.js';
 import { buildRunModel, contentHash, evidenceImages, person, type ReportContext, type RunReportModel } from './model.js';
 import type { RenderResult } from './run-report.js';
