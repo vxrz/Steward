@@ -623,7 +623,11 @@ function UnattendedCard() {
           </div>
         ))}
         <Text size="sm">
-          <Trans t={t} i18nKey="unattended.readme" components={{ readme: <Anchor inherit href={`${BRAND.repoUrl}#readme`} target="_blank" /> }} />
+          <Trans
+            t={t}
+            i18nKey="unattended.readme"
+            components={{ readme: <Anchor inherit href={`${BRAND.repoUrl}/blob/HEAD/docs/GETTING-STARTED.md`} target="_blank" /> }}
+          />
         </Text>
       </Stack>
     </Card>

@@ -152,12 +152,12 @@ export function WhatsNewDialog({ opened, onClose }: { opened: boolean; onClose: 
 }
 
 const DOCS = [
-  { key: 'guide', path: '#everyday-use' },
+  { key: 'guide', path: '/blob/HEAD/docs/GETTING-STARTED.md' },
   { key: 'install', path: '/blob/HEAD/docs/INSTALL.md' },
   { key: 'mcp', path: '/blob/HEAD/docs/MCP.md' },
   { key: 'api', path: '/blob/HEAD/docs/API.md' },
   { key: 'gateway', path: '/blob/HEAD/docs/MONITORS.md#heartbeat-api-for-gateways' },
-  { key: 'all', path: '/tree/HEAD/docs' },
+  { key: 'all', path: '/blob/HEAD/docs/README.md' },
 ] as const;
 
 /**
