@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ModuleId } from '@sm/shared';
+import type { NamedMigration } from '../db.js';
 import type { JobDefinition } from '../jobs/registry.js';
 import type { Get } from '../api/v1/helpers.js';
 import type { ToolDef } from '../mcp/tooling.js';
@@ -34,6 +35,11 @@ export interface FeatureManifest {
   mcpTools?: readonly ToolDef[];
   /** Link kinds of records, documents and tickets (records/links.ts) */
   linkKinds?: readonly { kind: string; resolver: LinkResolver }[];
+  /**
+   * Its migration lists (server/src/migrations/). Named for ownership only: they run in the order of
+   * migrations/index.ts, which is history and never changes (upgraded and new databases must end up the same).
+   */
+  migrations?: readonly (readonly NamedMigration[])[];
 }
 
 export type RoutePlugin = (app: FastifyInstance) => Promise<void> | void;

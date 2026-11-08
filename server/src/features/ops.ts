@@ -1,4 +1,6 @@
 import { opsRoutes } from '../routes/ops.js';
+import { OPS_MIGRATIONS } from '../migrations/ops.js';
+import { PERF_MIGRATIONS } from '../migrations/perf.js';
 import { defineFeature, MINUTE } from './define.js';
 
 /** Operations: the notification inbox, API tokens, retention clean-up. */
@@ -15,4 +17,5 @@ export default defineFeature({
       run: () => import('../maintenance.js').then((m) => m.runCleanup()),
     },
   ],
+  migrations: [OPS_MIGRATIONS, PERF_MIGRATIONS],
 });

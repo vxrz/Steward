@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MODULES } from '@sm/shared';
 import { FEATURES, featureJobs } from '../src/features/index.js';
+import { MIGRATION_LISTS } from '../src/migrations/index.js';
 
 /**
  * The composition root (server/src/features/, docs/ARCHITECTURE.md): one manifest per feature, and what they bring
@@ -34,5 +35,14 @@ describe('the feature manifests', () => {
           prefix,
         ).toEqual([m.id]);
       }
+  });
+
+  it('own every migration list once; migrations/index.ts keeps the order', () => {
+    const owned = FEATURES.flatMap((f) => (f.migrations ?? []).map((list) => ({ feature: f.name, list })));
+    for (const list of MIGRATION_LISTS) {
+      const owners = owned.filter((o) => o.list === list).map((o) => o.feature);
+      expect(owners, list[0]?.name).toHaveLength(1);
+    }
+    for (const o of owned) expect(MIGRATION_LISTS.includes(o.list), `${o.feature}: ${o.list[0]?.name}`).toBe(true);
   });
 });

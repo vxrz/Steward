@@ -1,5 +1,7 @@
 import { dailySummaryRoutes } from '../notifications/summary-routes.js';
 import { notificationPrefsRoutes } from '../notifications/prefs-routes.js';
+import { DAILY_SUMMARY_MIGRATIONS } from '../migrations/daily-summary.js';
+import { NOTIFICATION_MIGRATIONS } from '../migrations/notifications.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /** Notifications: channels, preferences, quiet hours, digests and daily summaries. */
@@ -16,4 +18,5 @@ export default defineFeature({
     // paused messages of schedules, triggers and monitor outputs: one "still failing" message when a pause ends (#139)
     every5Minutes('pause-ends', 2 * MINUTE, () => import('../notifications/pause.js').then((m) => m.checkPauseEnds())),
   ],
+  migrations: [DAILY_SUMMARY_MIGRATIONS, NOTIFICATION_MIGRATIONS],
 });

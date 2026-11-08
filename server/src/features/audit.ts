@@ -1,5 +1,6 @@
 import { auditRoutes } from '../routes/audit.js';
 import { CHECKPOINT_INTERVAL_MINUTES } from '../audit-anchor.js';
+import { AUDIT_MIGRATIONS } from '../migrations/audit.js';
 import { defineFeature, MINUTE } from './define.js';
 
 /** The tamper-evident audit log: checkpoints, archives and the full verification. */
@@ -22,4 +23,5 @@ export default defineFeature({
       run: () => import('../audit-archive.js').then((m) => m.scheduledFullVerification()),
     },
   ],
+  migrations: [AUDIT_MIGRATIONS],
 });

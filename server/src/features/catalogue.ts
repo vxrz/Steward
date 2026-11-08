@@ -1,5 +1,6 @@
 import { catalogueRoutes } from '../catalogue/routes.js';
 import { serviceApiRoutes } from '../catalogue/api-v1.js';
+import { CATALOGUE_MIGRATIONS } from '../migrations/catalogue.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /** The service catalogue: services, applications, systems, maintenance windows, Kubernetes and repositories. */
@@ -14,4 +15,5 @@ export default defineFeature({
     // maintenance windows: reminders, start and end messages (catalogue/maintenance.ts)
     every5Minutes('maintenance-windows', 2 * MINUTE, () => import('../catalogue/maintenance.js').then((m) => m.runMaintenanceJob())),
   ],
+  migrations: [CATALOGUE_MIGRATIONS],
 });

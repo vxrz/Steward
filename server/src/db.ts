@@ -2,48 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config, env } from './config.js';
 import { logger } from './log.js';
-import { OPS_MIGRATIONS } from './migrations/ops.js';
-import { ENGINE_MIGRATIONS } from './migrations/engine.js';
-import { PERF_MIGRATIONS } from './migrations/perf.js';
-import { TRIGGER_MIGRATIONS } from './migrations/triggers.js';
 import { openDriver, type Driver, type Row } from './database/drivers.js';
 import { describeTarget, pgDdl, PG_CREATE_NOCASE, type DatabaseTarget } from './database/sql.js';
 import { pgDumpSync } from './database/pg-dump.js';
 import { timedStatement, timedTransaction } from './database/timing.js';
 import { databaseForbidden } from './database/forbid.js';
-import { REPORT_MIGRATIONS } from './migrations/reports.js';
-import { MONITOR_MIGRATIONS } from './migrations/monitors.js';
-import { SECURITY_MIGRATIONS } from './migrations/security.js';
-import { TEAM_MIGRATIONS } from './migrations/teams.js';
-import { MCP_OAUTH_MIGRATIONS } from './migrations/mcp-oauth.js';
-import { PROPOSAL_MIGRATIONS } from './migrations/proposals.js';
-import { RUNTIME_MIGRATIONS } from './migrations/runtime.js';
-import { CREDENTIAL_MIGRATIONS } from './migrations/credentials.js';
-import { GATUS_MIGRATIONS } from './migrations/gatus.js';
-import { REPORT_SCHEDULE_MIGRATIONS } from './migrations/report-schedules.js';
-import { RECORD_MIGRATIONS } from './migrations/records.js';
-import { GITSYNC_MIGRATIONS } from './migrations/gitsync.js';
-import { TICKET_MIGRATIONS } from './migrations/tickets.js';
-import { DAILY_SUMMARY_MIGRATIONS } from './migrations/daily-summary.js';
-import { NOTIFICATION_MIGRATIONS } from './migrations/notifications.js';
-import { COMPLIANCE_MIGRATIONS } from './migrations/compliance.js';
-import { SIGN_IN_MIGRATIONS } from './migrations/sign-in.js';
-import { MOVE_MIGRATIONS } from './migrations/instance-moves.js';
-import { MANUAL_STEP_MIGRATIONS } from './migrations/manual-steps.js';
-import { CATALOGUE_MIGRATIONS } from './migrations/catalogue.js';
-import { DUTY_MIGRATIONS } from './migrations/duties.js';
-import { SCORECARD_MIGRATIONS } from './migrations/scorecard.js';
-import { PLATFORM_MIGRATIONS } from './migrations/platforms.js';
-import { AUDIT_MIGRATIONS } from './migrations/audit.js';
-import { DUPLICATE_MIGRATIONS } from './migrations/duplicates.js';
-import { ASSURANCE_MIGRATIONS } from './migrations/assurance.js';
-import { AI_MIGRATIONS } from './migrations/ai.js';
-import { PLANT_MIGRATIONS } from './migrations/plant.js';
-import { DBSCHEMA_MIGRATIONS } from './migrations/dbschema.js';
-import { CHANGEDETECTION_MIGRATIONS } from './migrations/changedetection.js';
-import { COSTS_MIGRATIONS } from './migrations/costs.js';
-import { DATA_CONTRACT_MIGRATIONS } from './migrations/datacontracts.js';
-import { LIBRARY_MIGRATIONS } from './migrations/libraries.js';
+import { NAMED_MIGRATIONS } from './migrations/index.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -106,45 +70,6 @@ export interface NamedMigration {
   /** PostgreSQL DDL; default: `sql` translated by pgDdl() (database/sql.ts). */
   pg?: string;
 }
-const NAMED_MIGRATIONS: NamedMigration[] = [
-  ...OPS_MIGRATIONS,
-  ...ENGINE_MIGRATIONS,
-  ...PERF_MIGRATIONS,
-  ...REPORT_MIGRATIONS,
-  ...TRIGGER_MIGRATIONS,
-  ...MONITOR_MIGRATIONS,
-  ...SECURITY_MIGRATIONS,
-  ...CREDENTIAL_MIGRATIONS,
-  ...GATUS_MIGRATIONS,
-  ...REPORT_SCHEDULE_MIGRATIONS,
-  ...RECORD_MIGRATIONS,
-  ...GITSYNC_MIGRATIONS,
-  ...TICKET_MIGRATIONS,
-  ...DAILY_SUMMARY_MIGRATIONS,
-  ...COMPLIANCE_MIGRATIONS,
-  ...SIGN_IN_MIGRATIONS,
-  ...MOVE_MIGRATIONS,
-  ...MANUAL_STEP_MIGRATIONS,
-  ...CATALOGUE_MIGRATIONS,
-  ...DUTY_MIGRATIONS,
-  ...SCORECARD_MIGRATIONS,
-  ...PLATFORM_MIGRATIONS,
-  ...TEAM_MIGRATIONS,
-  ...MCP_OAUTH_MIGRATIONS,
-  ...PROPOSAL_MIGRATIONS,
-  ...AUDIT_MIGRATIONS,
-  ...RUNTIME_MIGRATIONS,
-  ...DUPLICATE_MIGRATIONS,
-  ...ASSURANCE_MIGRATIONS,
-  ...AI_MIGRATIONS,
-  ...PLANT_MIGRATIONS,
-  ...DBSCHEMA_MIGRATIONS,
-  ...CHANGEDETECTION_MIGRATIONS,
-  ...COSTS_MIGRATIONS,
-  ...DATA_CONTRACT_MIGRATIONS,
-  ...LIBRARY_MIGRATIONS,
-  ...NOTIFICATION_MIGRATIONS,
-];
 
 const MIGRATIONS: string[] = [
   `
@@ -485,7 +410,7 @@ export class Db {
     }
     const allCore = coreMigrations(this.dialect);
     const core = this.opts.upTo ? allCore.slice(0, this.opts.upTo.core) : allCore;
-    // Feature migrations by name (applied once, in list order, after the core list): feature
+    // Feature migrations by name (applied once, in the order of migrations/index.ts, after the core list): feature
     // modules own their lists, so parallel work never collides on numbers.
     const named = [
       ...namedMigrations(this.dialect),

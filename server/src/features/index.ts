@@ -45,6 +45,7 @@ import migration from './migration.js';
 import onboarding from './onboarding.js';
 import duplicate from './duplicate.js';
 import exports from './export.js';
+import mcp from './mcp.js';
 import demo from './demo.js';
 
 /**
@@ -96,6 +97,7 @@ export const FEATURES: readonly FeatureManifest[] = [
   onboarding,
   duplicate,
   exports,
+  mcp,
   demo,
 ];
 

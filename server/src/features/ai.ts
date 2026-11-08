@@ -2,6 +2,7 @@ import { aiRoutes } from '../ai/routes.js';
 import { aiSection } from '../ai/report-section.js';
 import { capabilities } from '../auth/permissions.js';
 import { currentUser } from '../auth/context.js';
+import { AI_MIGRATIONS } from '../migrations/ai.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /** AI models: the AI step, gateways, budgets and the usage log. */
@@ -21,4 +22,5 @@ export default defineFeature({
     // the usage of AI models (ai/dataset.ts): administrators and auditors, like the usage log
     { name: 'ai', owns: (id) => id.startsWith('ai:'), visible: () => capabilities(currentUser()).viewAudit },
   ],
+  migrations: [AI_MIGRATIONS],
 });

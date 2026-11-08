@@ -1,5 +1,6 @@
 import { credentialRoutes } from '../credentials/routes.js';
 import { credentialApiRoutes } from '../credentials/api-v1.js';
+import { CREDENTIAL_MIGRATIONS } from '../migrations/credentials.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /** The credentials register: documentation of credentials, never their values. */
@@ -13,4 +14,5 @@ export default defineFeature({
     // entries linked to their IBM Verify Privilege Vault secret (#205): metadata every few hours
     every5Minutes('vault-links', 30 * MINUTE, () => import('../credentials/vault.js').then((m) => m.runVaultLinkJob())),
   ],
+  migrations: [CREDENTIAL_MIGRATIONS],
 });

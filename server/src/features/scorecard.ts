@@ -1,6 +1,7 @@
 import { scorecardRoutes } from '../scorecard/routes.js';
 import { scorecardApiRoutes } from '../scorecard/api-v1.js';
 import { scorecardSection } from '../scorecard/report-section.js';
+import { SCORECARD_MIGRATIONS } from '../migrations/scorecard.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /** The service scorecard and availability objectives. */
@@ -20,4 +21,5 @@ export default defineFeature({
     }),
   ],
   reportSections: [scorecardSection],
+  migrations: [SCORECARD_MIGRATIONS],
 });
