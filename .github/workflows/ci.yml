@@ -1,10 +1,10 @@
 name: CI
 
 on:
-  # branches are tested through their pull request: a push to a branch would run everything a second time
+  # branches are tested through their pull request: a push to a branch would run everything a second time. No tag
+  # trigger: release.yml builds tags (and caching npm in a tag-triggered workflow invites cache poisoning, zizmor)
   push:
     branches: [main]
-    tags: ['v*']
   # no paths filter: the branch rules require checks of this workflow, and a required check that never runs blocks a
   # pull request
   pull_request:
