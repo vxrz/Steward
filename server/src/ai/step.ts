@@ -30,7 +30,7 @@ import { DATASET, INPUT, resultVars } from './provenance.js';
  * Dry runs use the step's sample answer; test runs a recorded response of the gateway (else the sample answer).
  */
 
-/** What the runner gives the step (engine/runner.ts keeps its run context to itself). */
+/** What the engine's AI step module gives the step (engine/steps/ai.ts, from its StepContext). */
 export interface AiStepIo {
   runId: string;
   processId: string;
