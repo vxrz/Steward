@@ -1,4 +1,4 @@
-import type { DebugSpec, NodeOf, NodeType, Platform, ProcessDefinition, RunStats, StartRunRequest, StepStatus, TaskDecision } from '@sm/shared';
+import type { DebugSpec, FlowNode, NodeOf, NodeType, Platform, ProcessDefinition, RunStats, StartRunRequest, StepStatus, TaskDecision } from '@sm/shared';
 import type { BrowserSession } from '../browser.js';
 import type { DebugNodeSeed } from '../engine.js';
 import type { Bindings } from '../expr.js';
@@ -50,6 +50,8 @@ export interface StepContext {
   readonly actor: string;
   /** The pinned definition of the run */
   readonly def: ProcessDefinition;
+  /** Its nodes by id */
+  readonly nodes: ReadonlyMap<string, FlowNode>;
   readonly inputs: Record<string, unknown>;
   /** Variables of the current scope (the item's own copy inside a parallel loop body) */
   readonly vars: Record<string, unknown>;
