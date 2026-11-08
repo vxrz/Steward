@@ -7,12 +7,13 @@ import { flushPendingAudit, verifyAuditAsync } from '../audit.js';
 import { ZipReader, ZipWriter, type WrittenEntry } from '../compliance/zip.js';
 import { openSqliteFile } from '../database/sqlite-file.js';
 import { explainPgToolError, pgDumpArgs } from '../database/pg-dump.js';
+import { snapshotSqlite } from '../database/sqlite-snapshot.js';
 import { env } from '../config.js';
 
 /**
  * The backup archive (#117), before encryption: a ZIP with
  *   manifest.json            what is in it, with the SHA-256 of every file, and the head of the audit log
- *   database/steward.db      SQLite: a consistent snapshot (VACUUM INTO, online)
+ *   database/steward.db      SQLite: a consistent snapshot (VACUUM INTO, online, in a worker thread)
  *   database/steward.pgdump  PostgreSQL: pg_dump of the schema in the custom format (pg_restore)
  *   data/…                   the data folder: vault.json, artifacts, documents, reports, audit anchors, …
  * Not included: the live database files (the snapshot stands for them), the automatic pre-upgrade copies (backups/)
@@ -69,7 +70,8 @@ async function snapshotDatabase(dir: string): Promise<{ file: string; entry: str
     // VACUUM INTO wants a missing or empty file: created exclusively, 0600
     fs.closeSync(fs.openSync(file, 'wx', 0o600));
     try {
-      db().snapshotTo(file);
+      // in a worker thread on its own connection: the event loop (requests, probes) does not wait for the copy
+      await snapshotSqlite(target.file, file, () => db().snapshotTo(file));
     } catch (e) {
       fs.rmSync(file, { force: true });
       throw e;

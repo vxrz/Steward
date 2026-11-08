@@ -35,10 +35,16 @@ export class SqliteDriver implements Driver {
   readonly label: string;
   readonly raw: DatabaseSyncType;
 
-  constructor(readonly file: string) {
+  constructor(
+    readonly file: string,
+    opts: { autoVacuum?: boolean } = {},
+  ) {
     // Loaded lazily so the ExperimentalWarning filter in warnings.ts is active first.
     const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
+    const isNew = file === ':memory:' || fileSize(file) === 0;
     this.raw = new DatabaseSync(file);
+    // a new file: incremental auto-vacuum, chosen before anything else writes its header (database/sqlite-space.ts)
+    if (isNew && opts.autoVacuum) this.raw.exec('PRAGMA auto_vacuum = INCREMENTAL');
     this.raw.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
     this.label = describeTarget({ kind: 'sqlite', file });
   }
@@ -162,6 +168,6 @@ function isSea(): boolean {
   }
 }
 
-export function openDriver(target: DatabaseTarget): Driver {
-  return target.kind === 'sqlite' ? new SqliteDriver(target.file) : new PostgresDriver(target);
+export function openDriver(target: DatabaseTarget, opts: { autoVacuum?: boolean } = {}): Driver {
+  return target.kind === 'sqlite' ? new SqliteDriver(target.file, opts) : new PostgresDriver(target);
 }

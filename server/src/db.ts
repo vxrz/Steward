@@ -449,7 +449,8 @@ export class Db {
     target: DatabaseTarget | Driver,
     private readonly opts: DbOptions = {},
   ) {
-    this.driver = 'dialect' in target ? target : openDriver(target);
+    // a new SQLite file gets incremental auto-vacuum, so the clean-up can give deleted space back (database/sqlite-space.ts)
+    this.driver = 'dialect' in target ? target : openDriver(target, { autoVacuum: env.SM_SQLITE_AUTO_VACUUM });
     if (!('dialect' in target)) this.target = target;
     try {
       if (opts.migrate !== false) this.migrate();

@@ -340,6 +340,18 @@ export const VARS = {
     default: '3600',
     description: 'PostgreSQL: longest time the `pg_dump` before migrating may take (`0` = no limit); a dump that takes longer counts as failed',
   }),
+  SM_SQLITE_AUTO_VACUUM: v(flag(true), {
+    group: 'Database and data',
+    default: 'on',
+    description:
+      'SQLite: new databases are created with incremental auto-vacuum, and the retention clean-up gives deleted space back to the file system in small steps. `0`: new databases without it',
+  }),
+  SM_SQLITE_VACUUM_AT_START: v(flag(false), {
+    group: 'Database and data',
+    default: 'off',
+    description:
+      'SQLite: `1` rewrites the database file before the server starts (VACUUM; seconds per GB, nothing answers meanwhile) and turns on incremental auto-vacuum – once, for a database made before 0.11 after a large clean-up. See [Disk space](docs/INSTALL.md#disk-space-after-a-clean-up)',
+  }),
   SM_METRIC_RETENTION_DAYS: v(int(400, 1), {
     group: 'Database and data',
     default: '400',
