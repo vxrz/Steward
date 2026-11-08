@@ -36,7 +36,7 @@ import { promInstant, seriesName } from '../platforms/prometheus.js';
 import { readNamespace } from '../catalogue/kubernetes.js';
 import { assertRepositoryPath, gitHost } from '../catalogue/repositories.js';
 import { checkmkFetch, checkmkServiceKey, gatusFetch, ihFetch, ihKey, SourceError } from './batch.js';
-import { CheckSetupError, platformFor } from './platforms.js';
+import { CheckSetupError, ownerProblem, platformFor, platformKindRow } from './platforms.js';
 import { endpointState, metricsEnabled, sourceRow } from '../gatus/metrics.js';
 
 /**
@@ -1266,9 +1266,36 @@ function wrongKind(c: CheckDef, platform: { kind: string }): string[] | null {
   return kinds.length && !kinds.includes(platform.kind) ? kinds : null;
 }
 
+/**
+ * A check of a type tied to platform kinds (checkTypes.ts, platform: 'kind') whose stored platform is of another kind –
+ * a row from before 0.11.0, or a platform whose kind changed: the reason it does not run, else null. Checked before the
+ * check runs and before its shared read is planned, so no request goes to that platform. A platform the owner may not
+ * use is not described: the owner's problem is the reason then, as when the check itself finds it.
+ */
+export function storedPlatformKindProblem(c: CheckDef, owner: string): string | null {
+  const id = 'platform' in c ? c.platform : undefined;
+  if (!id || !checkPlatformKinds(c).length) return null;
+  const problem = ownerProblem(owner, id);
+  if (problem) return `Check could not run: ${problem}`;
+  const m = storedPlatformKindMismatch(c);
+  if (!m) return null;
+  return `Check could not run: "${m.name}" is a platform of kind ${kindName(m.kind)}, but this check reads ${kindNames(m.kinds)} – choose a platform of that kind`;
+}
+
+/** The stored platform of a check when it is of a kind the check does not read (the start-up log line of the engine). */
+export function storedPlatformKindMismatch(c: CheckDef): { platform: string; name: string; kind: string; kinds: string[] } | null {
+  const id = 'platform' in c ? c.platform : undefined;
+  if (!id || !checkPlatformKinds(c).length) return null;
+  const p = platformKindRow(id);
+  const kinds = p && wrongKind(c, p);
+  return p && kinds ? { platform: id, name: p.name, kind: p.kind, kinds } : null;
+}
+
 /** Runs an active check; heartbeat and sub-monitor checks are evaluated by the engine from stored state. */
 export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawResult> {
   try {
+    const wrong = storedPlatformKindProblem(c, ctx.owner);
+    if (wrong) return { status: 'unknown', message: wrong.slice(0, 500) };
     return await runnerOf(c).run(c, ctx);
   } catch (e) {
     if (e instanceof CheckSetupError) return { status: 'unknown', message: `Check could not run: ${e.message}` };
@@ -1281,7 +1308,7 @@ export const isActive = (c: { type: string }): c is Active => isActiveCheckType(
 
 /** Registers the shared reads of due checks (Insights Hub, Gatus, CheckMk) before any of them starts. */
 export function planCheck(c: CheckDef, owner: string): void {
-  if (isActive(c)) runnerOf(c).plan?.(c, owner);
+  if (isActive(c) && !storedPlatformKindProblem(c, owner)) runnerOf(c).plan?.(c, owner);
 }
 
 /**

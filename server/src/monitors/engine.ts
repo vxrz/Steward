@@ -20,7 +20,7 @@ import {
   type StateRow,
 } from './model.js';
 import { analyze, applyResult, freshnessStatus, freshnessWindowSeconds, fmtAge, nextDue, phaseOffset } from './logic.js';
-import { isActive, planCheck, runActiveCheck, toMillis, type RawResult } from './checks.js';
+import { isActive, planCheck, runActiveCheck, storedPlatformKindMismatch, toMillis, type RawResult } from './checks.js';
 import { ihKey } from './batch.js';
 import { dispatchOutputs, heldMonitors, type Subject } from './outputs.js';
 import { markDatasetsDirty, publishDirtyDatasets } from './datasets.js';
@@ -101,6 +101,25 @@ export function loadAll(): void {
   loaded = true;
 }
 
+/**
+ * Once at start (0.11.0): checks whose stored platform is of a kind they do not read – saved before the kind was
+ * checked, or the platform's kind changed. They report unknown and send no request; one log line names them by monitor
+ * and check id (no names, no secrets) so an administrator can find them.
+ */
+function warnPlatformKindMismatches(): void {
+  const found: { monitor: string; key: string; check: string; type: string; platform: string; kind: string }[] = [];
+  for (const m of monitors.values())
+    for (const c of m.def.checks) {
+      const x = storedPlatformKindMismatch(c);
+      if (x) found.push({ monitor: m.id, key: m.key, check: c.id, type: c.type, platform: x.platform, kind: x.kind });
+    }
+  if (found.length)
+    logger.warn(
+      { checks: found.slice(0, 100), count: found.length },
+      'monitor checks whose platform is of a kind they do not read: they report unknown until another platform is chosen',
+    );
+}
+
 /** After a create/update: refresh the definition and evaluate the monitor soon. */
 export function reloadMonitor(id: string): void {
   const r = db().get<MonitorRow>('SELECT * FROM monitors WHERE id = ?', id);
@@ -130,6 +149,7 @@ export function startMonitorEngine(): void {
   abort = new AbortController();
   try {
     loadAll();
+    warnPlatformKindMismatches();
   } catch (err) {
     logger.error({ err }, 'monitors could not be loaded');
   }

@@ -348,7 +348,10 @@ describe('the monitor check "Page watch"', () => {
       { id: 'x', name: 'x', type: 'page-watch', platform: dt, changedWithinHours: 24, changedAs: 'up', failingAs: 'degraded', pausedAs: 'ignore' } as never,
       { owner: 'admin', signal: new AbortController().signal, timeoutMs: 10_000, now: () => Date.now() },
     );
-    expect(r).toMatchObject({ status: 'unknown', message: expect.stringMatching(/is not a changedetection.io platform/) });
+    expect(r).toMatchObject({
+      status: 'unknown',
+      message: expect.stringMatching(/is a platform of kind Dependency-Track, but this check reads changedetection\.io/),
+    });
   });
 });
 
