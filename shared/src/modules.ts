@@ -284,46 +284,7 @@ export interface KindMaturity {
   verified: VerifiedAgainst;
 }
 
-/**
- * The maturity of every built-in platform kind (docs/MODULES.md). Conservative: a connector that was only tested
- * against Steward's mock is at most beta; connectors from 0.9.0 and later are preview. A kind not listed (own
- * connector types) has no label.
- */
-export const PLATFORM_KIND_MATURITY: Readonly<Record<string, KindMaturity>> = {
-  // the generic HTTP/OpenAPI kind: the engine's own client, no product behind it
-  generic: { maturity: 'stable', verified: 'none' },
-  // PostgreSQL, MariaDB/MySQL and SQL Server run against real servers in CI (.github/workflows/ci.yml)
-  database: { maturity: 'stable', verified: 'real' },
-  // the flagship, but its API assumptions are not yet checked on a real tenant (#8)
-  'insights-hub': { maturity: 'beta', verified: 'mock' },
-  'industrial-edge-management': { maturity: 'beta', verified: 'mock' },
-  mqtt: { maturity: 'beta', verified: 'mock' },
-  gatus: { maturity: 'beta', verified: 'mock' },
-  checkmk: { maturity: 'beta', verified: 'mock' },
-  prometheus: { maturity: 'beta', verified: 'mock' },
-  zabbix: { maturity: 'beta', verified: 'mock' },
-  aws: { maturity: 'beta', verified: 'mock' },
-  kubernetes: { maturity: 'beta', verified: 'mock' },
-  snowflake: { maturity: 'beta', verified: 'mock' },
-  kafka: { maturity: 'beta', verified: 'mock' },
-  'microsoft-graph': { maturity: 'beta', verified: 'mock' },
-  github: { maturity: 'beta', verified: 'mock' },
-  gitlab: { maturity: 'beta', verified: 'mock' },
-  forgejo: { maturity: 'beta', verified: 'mock' },
-  'dependency-track': { maturity: 'beta', verified: 'mock' },
-  'endoflife-date': { maturity: 'beta', verified: 'mock' },
-  'container-registry': { maturity: 'beta', verified: 'mock' },
-  'privilege-vault': { maturity: 'beta', verified: 'mock' },
-  'llm-gateway': { maturity: 'beta', verified: 'mock' },
-  // 0.9.0 and later
-  'kafka-connect': { maturity: 'preview', verified: 'mock' },
-  'confluent-cloud': { maturity: 'preview', verified: 'mock' },
-  datacontract: { maturity: 'preview', verified: 'mock' },
-  changedetection: { maturity: 'preview', verified: 'mock' },
-  teams: { maturity: 'preview', verified: 'mock' },
-};
-
-export const kindMaturity = (kind: string | null | undefined): KindMaturity | undefined => (kind ? PLATFORM_KIND_MATURITY[kind] : undefined);
+/** The maturity of every built-in platform kind is part of its descriptor: PLATFORM_KINDS in platformKinds.ts (kindMaturity). */
 
 // ---------- what a signed-in person can see (the sidebar, honest empty states) ----------
 

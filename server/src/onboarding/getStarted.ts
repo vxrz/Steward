@@ -1,14 +1,4 @@
-import {
-  CONFLUENT_KIND,
-  ENTRA_KIND,
-  MONITOR_TYPE_KINDS,
-  NON_HTTP_KINDS,
-  PVAULT_KIND,
-  SNOWFLAKE_KIND,
-  isGitPlatformKind,
-  type PlatformGetStarted,
-  type ProcessTemplate,
-} from '@sm/shared';
+import { accessSourceOfKind, checkTypeKinds, checkTypesOfKind, hasHttpApi, type PlatformGetStarted, type ProcessTemplate } from '@sm/shared';
 import { listTemplates } from '../processes/service.js';
 import { listBundles } from './bundles.js';
 
@@ -18,22 +8,8 @@ export const templateFits = (t: Pick<ProcessTemplate, 'connectionKinds' | 'tags'
 
 /** Access check sources that read a kind of platform directly (the dataset source works with every platform). */
 export function accessSourcesFor(kind: string): string[] {
-  if (kind === 'insights-hub') return ['insights-hub'];
-  if (isGitPlatformKind(kind)) return ['git'];
-  if (kind === SNOWFLAKE_KIND) return ['snowflake'];
-  if (kind === 'aws') return ['aws'];
-  if (kind === CONFLUENT_KIND) return ['confluent'];
-  if (kind === ENTRA_KIND) return ['entra'];
-  if (kind === PVAULT_KIND) return ['privilege-vault'];
-  return [];
-}
-
-export function monitorTypesFor(kind: string): string[] {
-  const direct = Object.entries(MONITOR_TYPE_KINDS)
-    .filter(([, kinds]) => kinds.includes(kind))
-    .map(([type]) => type);
-  // every HTTP API can be checked with a platform request
-  return NON_HTTP_KINDS.has(kind) ? direct : [...direct, 'platform'];
+  const source = accessSourceOfKind(kind);
+  return source ? [source] : [];
 }
 
 /**
@@ -45,12 +21,13 @@ export async function getStarted(kind: string): Promise<PlatformGetStarted> {
     .filter((t) => templateFits(t, kind))
     .map((t) => ({ id: t.id, name: t.name, recommendedSchedule: t.recommendedSchedule?.cron ?? (t.recommendedSchedule?.text || null) }));
   const bundles = (await listBundles()).filter((b) => b.kinds.includes(kind)).map((b) => ({ id: b.id, name: b.name, description: b.description }));
-  const monitorTypes = monitorTypesFor(kind);
+  // every HTTP API can be checked with a platform request
+  const monitorTypes = checkTypesOfKind(kind);
   const { listExamples, exampleCheckTypes } = await import('../monitors/service.js');
   const monitorExamples = listExamples()
     .filter((e) => {
       try {
-        return exampleCheckTypes(e.file).some((type) => MONITOR_TYPE_KINDS[type]?.includes(kind));
+        return exampleCheckTypes(e.file).some((type) => checkTypeKinds(type).includes(kind));
       } catch {
         return false;
       }
@@ -63,6 +40,6 @@ export async function getStarted(kind: string): Promise<PlatformGetStarted> {
     monitorTypes,
     monitorExamples,
     accessSources: accessSourcesFor(kind),
-    mcp: !NON_HTTP_KINDS.has(kind),
+    mcp: hasHttpApi(kind),
   };
 }

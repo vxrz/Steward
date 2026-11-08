@@ -20,7 +20,7 @@ import {
   type StateRow,
 } from './model.js';
 import { analyze, applyResult, freshnessStatus, freshnessWindowSeconds, fmtAge, nextDue, phaseOffset } from './logic.js';
-import { isActive, planFreshness, planCheckmk, planGatus, runActiveCheck, toMillis, type RawResult } from './checks.js';
+import { isActive, planCheck, runActiveCheck, toMillis, type RawResult } from './checks.js';
 import { ihKey } from './batch.js';
 import { dispatchOutputs, heldMonitors, type Subject } from './outputs.js';
 import { markDatasetsDirty, publishDirtyDatasets } from './datasets.js';
@@ -225,11 +225,7 @@ export function tick(now = clock()): number {
     }
   }
   // register the shared reads before any check starts, so one call serves them all
-  for (const [m, c] of start) {
-    if (c.type === 'freshness') planFreshness(c, m.owner);
-    else if (c.type === 'gatus') planGatus(c, m.owner);
-    else if (c.type === 'checkmk') planCheckmk(c, m.owner);
-  }
+  for (const [m, c] of start) planCheck(c, m.owner);
   for (const [m, c] of start) void evaluateCheck(m.id, c.id, now);
   for (const mid of heldMonitors()) scheduleRecompute(mid);
   if (now - lastPublish >= 60000) {
@@ -248,9 +244,7 @@ export async function evaluateMonitorNow(mid: string): Promise<void> {
   const m = monitors.get(mid);
   if (!m) return;
   const now = clock();
-  for (const c of m.def.checks) if (c.type === 'freshness') planFreshness(c, m.owner);
-  for (const c of m.def.checks) if (c.type === 'gatus') planGatus(c, m.owner);
-  for (const c of m.def.checks) if (c.type === 'checkmk') planCheckmk(c, m.owner);
+  for (const c of m.def.checks) planCheck(c, m.owner);
   await Promise.all(m.def.checks.filter(checkEnabled).map((c) => evaluateCheck(m.id, c.id, now)));
   await settle();
 }

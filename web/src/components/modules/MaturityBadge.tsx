@@ -2,7 +2,7 @@ import { Badge, Tooltip, VisuallyHidden } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { Maturity, VerifiedAgainst } from '@sm/shared';
 // Direct import: the @sm/shared barrel would pull zod into the first download.
-import { kindMaturity } from '../../../../shared/src/modules';
+import { kindMaturity } from '../../../../shared/src/platformKinds';
 import { BRAND } from '../../../../shared/src/brand';
 
 const COLOR: Record<Maturity, string> = { stable: 'green', beta: 'blue', preview: 'orange' };

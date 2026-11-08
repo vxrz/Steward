@@ -69,7 +69,7 @@ For connectors, _verified against_ says what the tests talk to: a **real** syste
 | changedetection.io                                | `changedetection`             | preview  | mock             |
 | Microsoft Teams (bot)                             | `teams`                       | preview  | mock             |
 
-Connector types you import or define yourself have no label. The table is kept in `shared/src/modules.ts` (`PLATFORM_KIND_MATURITY`); change both together.
+Connector types you import or define yourself have no label. The maturity is part of each kind's descriptor in `shared/src/platformKinds.ts` (`PLATFORM_KINDS`); change both together.
 
 ## What a person sees
 
