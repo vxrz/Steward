@@ -20,3 +20,35 @@ export const DEFAULT_LOCALE: Locale = 'en';
 export function isLocale(v: unknown): v is Locale {
   return typeof v === 'string' && (LOCALE_CODES as readonly string[]).includes(v);
 }
+
+/**
+ * A browser or system locale as a valid BCP 47 tag for Intl, or null.
+ * POSIX forms are mapped first: "en_US.UTF-8" → "en-US", "en-US@posix" → "en-US".
+ * Intl throws a RangeError for tags it cannot parse, so anything else that is
+ * not a valid tag ("C", "") gives null.
+ */
+export function canonicalLocale(tag: string | null | undefined): string | null {
+  if (typeof tag !== 'string') return null;
+  const t = tag
+    .trim()
+    .replace(/[.@].*$/, '')
+    .replace(/_/g, '-');
+  if (!t) return null;
+  try {
+    return Intl.getCanonicalLocales(t)[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Locale for Intl formatting: the first preference (navigator.languages) that is a
+ * valid tag and matches the UI language (de-AT, en-GB …), otherwise the UI language.
+ */
+export function pickFormatLocale(prefs: readonly (string | null | undefined)[], lang: string): string {
+  for (const p of prefs) {
+    const c = canonicalLocale(p);
+    if (c && c.toLowerCase().split('-')[0] === lang) return c;
+  }
+  return lang;
+}

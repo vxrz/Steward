@@ -5,7 +5,7 @@
  * Adding a language = one line in shared/src/locales.ts + a folder web/src/locales/<code>/.
  */
 // Direct import: the @sm/shared barrel would pull zod and dagre into the first download.
-export { LOCALES as LANGUAGES, DEFAULT_LOCALE, isLocale, type Locale } from '../../../shared/src/locales';
+export { LOCALES as LANGUAGES, DEFAULT_LOCALE, isLocale, pickFormatLocale, type Locale } from '../../../shared/src/locales';
 
 /** Namespaces (one JSON file per language and namespace). Keep in sync with resources.ts. */
 export const NAMESPACES = [
