@@ -1765,13 +1765,6 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
         summary: (rows ? `${title}: ${rows.length} row(s)` : title) + (ai ? ` · AI-generated (${ai.join(', ')})` : ''),
       };
     }
-    case 'wait':
-      if (ctx.debug?.kind === 'node')
-        return { summary: `Would wait ${step.seconds}s (not waited in a single-node run)`, output: { wouldWaitSeconds: step.seconds } };
-      await sleep(step.seconds * 1000, ctx.signal).catch(() => {
-        throw new Cancelled();
-      });
-      return { summary: `Waited ${step.seconds}s` };
     case 'userTask':
       return execUserTask(step, ctx, key);
     case 'publish':
