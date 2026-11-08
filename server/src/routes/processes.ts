@@ -56,6 +56,11 @@ const runsQuery = z.object({
     .enum(['0', '1'])
     .transform((x) => x === '1')
     .optional(),
+  /** Sort column (U15): started (default), process, status, by, duration; `dir` asc or desc (default desc) */
+  sort: z.enum(store.RUN_SORT_KEYS).optional(),
+  dir: z.enum(['asc', 'desc']).optional(),
+  /** With a sort: the id of the last run shown ("Load more"); `before` is the cursor of the default order */
+  after: z.string().max(200).optional(),
 });
 
 function requireProcess(processId: string, perm: 'view' | 'run' | 'edit' | 'approve' | 'manage', what: string) {
@@ -158,7 +163,13 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     });
     return { id: runId };
   });
-  app.get('/runs', async (req) => visibleRuns(runsQuery.parse(req.query ?? {})));
+  app.get('/runs', async (req) => {
+    const { sort, dir, ...q } = runsQuery.parse(req.query ?? {});
+    const order: store.RunSort = { key: sort ?? 'started', dir: dir ?? 'desc' };
+    if (q.before && (order.key !== 'started' || order.dir !== 'desc'))
+      throw new HttpError(400, 'before= continues the newest-first list; use after=<run id> with a sort', 'RUN_CURSOR_SORT');
+    return visibleRuns({ ...q, sort: order });
+  });
   app.get('/runs/:id', async (req) => {
     requireRun(params(req).id!, 'view', 'view this run');
     const d = store.getRunDetail(params(req).id!);

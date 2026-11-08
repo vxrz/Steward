@@ -14,8 +14,8 @@
 export const runKeys = {
   /** Every run list (['runs', …]) */
   all: ['runs'] as const,
-  list: (status: unknown, processId: unknown, since: unknown, checks: unknown, pageSize: unknown, debug: unknown = false) =>
-    ['runs', status, processId, since, checks, pageSize, debug] as const,
+  list: (status: unknown, processId: unknown, since: unknown, checks: unknown, pageSize: unknown, debug: unknown = false, sort: unknown = null) =>
+    ['runs', status, processId, since, checks, pageSize, debug, sort] as const,
   /** The latest runs of a process (start page, process cards, the flow editor) */
   latest: (processId: string | null | undefined) => ['runs', 'latest', processId] as const,
   palette: ['runs', 'palette'] as const,

@@ -100,4 +100,58 @@ describe('runs list paging', () => {
     const legacy: { id: string }[] = await s.api('GET', `/runs?limit=50&processId=${p.id}&before=${encodeURIComponent(new Date(at).toISOString())}`);
     expect(legacy.filter((r) => ours.has(r.id)).map((r) => r.id)).toEqual([ids[10], ids[11]]);
   });
+
+  it('sorts on the server (U15): by duration, process or status, ties by id, and continues with after=', async () => {
+    const procs = (await s.api('GET', '/processes')) as { id: string; name: string }[];
+    const p = procs[2]!;
+    const at = BASE - 2 * 365 * 86400000;
+    // 10 runs of one process: durations 5 s, 1 s, 5 s, 3 s … – several equal, one still running
+    const durations = [5, 1, 5, 3, 5, 2, 4, 1, null, 3];
+    const ids = durations.map((d, i) => {
+      const id = `run_sort_${String(i).padStart(2, '0')}_${crypto.randomUUID().slice(0, 6)}`;
+      dbm.db().run(
+        `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, dry_run, trigger, schedule_id, actor, inputs, bindings, started_at, finished_at, error, stats)
+         VALUES (?, ?, ?, 1, 'x', ?, 1, 'manual', NULL, 'admin', '{}', '{}', ?, ?, NULL, '{}')`,
+        id,
+        p.id,
+        p.name,
+        d === null ? 'running' : i % 2 ? 'failed' : 'succeeded',
+        new Date(at + i * 60000).toISOString(),
+        d === null ? null : new Date(at + i * 60000 + d * 1000).toISOString(),
+      );
+      return id;
+    });
+    const ours = new Set(ids);
+    const page = async (q: string) => {
+      const seen: { id: string }[] = [];
+      let after = '';
+      for (let n = 0; n < 20; n++) {
+        const rows: { id: string }[] = await s.api('GET', `/runs?limit=3&processId=${p.id}&${q}${after ? `&after=${after}` : ''}`);
+        seen.push(...rows);
+        if (rows.length < 3) break;
+        after = rows[rows.length - 1]!.id;
+      }
+      return seen.map((r) => r.id).filter((id) => ours.has(id));
+    };
+    // longest first: the running one, then 5 s (ties by id, descending), 4 s …
+    const byDuration = await page('sort=duration&dir=desc');
+    expect(byDuration).toHaveLength(10);
+    expect(new Set(byDuration).size).toBe(10);
+    const key = (id: string) => durations[ids.indexOf(id)] ?? Infinity;
+    expect(byDuration.map(key)).toEqual([Infinity, 5, 5, 5, 4, 3, 3, 2, 1, 1]);
+    const fives = byDuration.filter((id) => key(id) === 5);
+    expect(fives).toEqual([...fives].sort().reverse());
+    // shortest first
+    expect((await page('sort=duration&dir=asc')).map(key)).toEqual([1, 1, 2, 3, 3, 4, 5, 5, 5, Infinity]);
+    // by status: failed before running before succeeded (alphabetical), each group by id
+    const byStatus = await page('sort=status&dir=asc');
+    expect(byStatus).toHaveLength(10);
+    const statusOf = (id: string) => (durations[ids.indexOf(id)] === null ? 'running' : ids.indexOf(id) % 2 ? 'failed' : 'succeeded');
+    expect(byStatus.map(statusOf)).toEqual([...byStatus.map(statusOf)].sort());
+
+    // before= belongs to the newest-first list; an unknown run to continue after is refused
+    await expect(s.api('GET', `/runs?sort=process&before=${encodeURIComponent(new Date(at).toISOString())}`)).rejects.toThrow(/400/);
+    await expect(s.api('GET', '/runs?sort=process&dir=asc&after=run_does_not_exist')).rejects.toThrow(/400/);
+    await expect(s.api('GET', '/runs?sort=nonsense')).rejects.toThrow(/400/);
+  });
 });

@@ -5,6 +5,7 @@ import { IconLayoutList, IconSearch, IconTable } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Icon } from '@tabler/icons-react';
 import { EmptyState, FilterPanel, PageHeader } from '../common';
+import { readPref, writePref } from './prefs';
 
 /** How a list shows its rows: `auto` = table on wide screens, cards on phones (DataTable's own choice). */
 export type ListView = 'auto' | 'table' | 'cards';
@@ -14,18 +15,15 @@ const ListViewContext = createContext<ListView>('auto');
 /** The view chosen on the list page around a {@link DataTable} (`auto` outside a ListPage). */
 export const useListView = (): ListView => useContext(ListViewContext);
 
-const viewKey = (id: string) => `sm.list.view.${id}`;
+// per user (0.11); the browser-wide key of before is still read until the user chooses again
+const viewPref = (id: string) => `list.view.${id}`;
 function readView(id: string): ListView {
-  try {
-    const v = localStorage.getItem(viewKey(id));
-    return v === 'table' || v === 'cards' ? v : 'auto';
-  } catch {
-    return 'auto';
-  }
+  const v = readPref(viewPref(id), `sm.list.view.${id}`);
+  return v === 'table' || v === 'cards' ? v : 'auto';
 }
 
 /**
- * The table/card choice of a list, remembered per list in this browser – for pages that draw their own cards
+ * The table/card choice of a list, remembered per list and user in this browser – for pages that draw their own cards
  * (pass it to ListPage as `viewState`). `cards` tells whether to show cards now (`narrow`: the phone width).
  */
 export function useStoredListView(id: string, narrow: boolean): { value: ListView; onChange: (v: ListView) => void; cards: boolean } {
@@ -33,7 +31,7 @@ export function useStoredListView(id: string, narrow: boolean): { value: ListVie
   return { value, onChange: setValue, cards: value === 'cards' || (value === 'auto' && narrow) };
 }
 
-/** Table or cards, remembered per list in this browser. */
+/** Table or cards, remembered per list and user in this browser. */
 function ViewToggle({ id, value, onChange }: { id: string; value: ListView; onChange: (v: ListView) => void }) {
   const { t } = useTranslation();
   // the width up to which DataTable shows cards by default
@@ -74,11 +72,7 @@ function ViewToggle({ id, value, onChange }: { id: string; value: ListView; onCh
         const next = v as ListView;
         onChange(next);
         // stored here, so that controlled pages (useStoredListView) remember it as well
-        try {
-          localStorage.setItem(viewKey(id), next);
-        } catch {
-          /* storage blocked: the choice lasts for this page view */
-        }
+        writePref(viewPref(id), next);
       }}
     />
   );

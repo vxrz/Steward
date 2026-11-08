@@ -7,7 +7,7 @@ import { outcomeOf, type RunFindings, type RunSummary } from '@sm/shared';
 import type { TFunction } from 'i18next';
 import { fmtDate, runDuration } from '../format';
 import { StatusBadge, statusLabel } from './common';
-import { DataTable, type DataColumn } from './DataTable';
+import { DataTable, type DataColumn, type SortState } from './DataTable';
 
 /** A run's findings, falling back to the failed checks for summaries without them (all counted as errors). */
 export const findingsOf = (r: Pick<RunSummary, 'findings' | 'stats'>): RunFindings =>
@@ -79,7 +79,20 @@ function TriggerBadge({ r }: { r: RunSummary }) {
 const durationMs = (r: RunSummary) => (r.finishedAt ? new Date(r.finishedAt).getTime() : Date.now()) - new Date(r.startedAt).getTime();
 
 /** The runs list (Runs page, start page): sortable table on wide screens, cards on phones. */
-export function RunTable({ runs, compact = false, footer }: { runs: RunSummary[]; compact?: boolean; footer?: ReactNode }) {
+export function RunTable({
+  runs,
+  compact = false,
+  footer,
+  sort,
+  onSortChange,
+}: {
+  runs: RunSummary[];
+  compact?: boolean;
+  footer?: ReactNode;
+  /** Sorted by the server (the Runs page, U15): the order of `runs`; header clicks ask for another */
+  sort?: SortState | null;
+  onSortChange?: (sort: SortState | null) => void;
+}) {
   const { t } = useTranslation('runs');
   const result = useResultText();
   if (!runs.length)
@@ -116,11 +129,19 @@ export function RunTable({ runs, compact = false, footer }: { runs: RunSummary[]
   const extra: DataColumn<RunSummary>[] = compact
     ? []
     : [
-        { key: 'duration', header: t('table.duration'), sortValue: durationMs, nowrap: true, cell: (r) => runDuration(r.startedAt, r.finishedAt) },
+        {
+          key: 'duration',
+          header: t('table.duration'),
+          sortValue: durationMs,
+          serverSort: true,
+          nowrap: true,
+          cell: (r) => runDuration(r.startedAt, r.finishedAt),
+        },
         {
           key: 'by',
           header: t('table.by'),
           sortValue: (r) => r.actor,
+          serverSort: true,
           cell: (r) => (
             <>
               {r.actor}
@@ -134,6 +155,7 @@ export function RunTable({ runs, compact = false, footer }: { runs: RunSummary[]
       key: 'status',
       header: t('table.status'),
       sortValue: (r) => statusLabel(outcomeOf(r)),
+      serverSort: true,
       cell: (r) => (
         <>
           <StatusBadge status={outcomeOf(r)} />
@@ -150,8 +172,8 @@ export function RunTable({ runs, compact = false, footer }: { runs: RunSummary[]
         </>
       ),
     },
-    { key: 'process', header: t('table.process'), sortValue: (r) => r.processName, cell: processLink },
-    { key: 'started', header: t('table.started'), sortValue: (r) => r.startedAt, nowrap: true, cell: (r) => fmtDate(r.startedAt) },
+    { key: 'process', header: t('table.process'), sortValue: (r) => r.processName, serverSort: true, cell: processLink },
+    { key: 'started', header: t('table.started'), sortValue: (r) => r.startedAt, serverSort: true, nowrap: true, cell: (r) => fmtDate(r.startedAt) },
     ...extra,
     { key: 'result', header: t('table.result'), cell: resultCell },
   ];
@@ -164,6 +186,7 @@ export function RunTable({ runs, compact = false, footer }: { runs: RunSummary[]
       rowHref={(r) => `/runs/${r.id}`}
       verticalSpacing={6}
       footer={footer}
+      {...(onSortChange ? { sort, onSortChange } : {})}
       testId="run-list"
       card={(r) => (
         <Paper withBorder p="sm">

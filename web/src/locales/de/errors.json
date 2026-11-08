@@ -204,6 +204,8 @@
     "IMPORT_FIELD_KEPT": "{{field}}: {{error}} – in den Importnotizen behalten.",
     "IMPORT_KEPT_IN_NOTES": "In den Importnotizen behalten: {{keys}}",
     "SERVICE_NOT_FOUND": "Service {{id}} nicht gefunden.",
+    "RUN_CURSOR_SORT": "„before“ setzt die Liste mit den neuesten zuerst fort. Verwenden Sie für eine sortierte Liste „after“ mit der ID der letzten Ausführung.",
+    "RUN_CURSOR_UNKNOWN": "Die Ausführung, nach der die Liste weitergehen soll, ist unbekannt. Laden Sie die Liste neu.",
     "SERVICE_EXISTS": "Einen Service mit dem Namen „{{name}}“ gibt es bereits.",
     "APPLICATION_NOT_FOUND": "Anwendung {{id}} nicht gefunden.",
     "APPLICATION_EXISTS": "Eine Anwendung mit dem Namen „{{name}}“ gibt es bereits.",
