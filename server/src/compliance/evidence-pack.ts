@@ -43,12 +43,18 @@ import { toAccessChange } from './access-changes.js';
 import { evidenceForControls, evidenceOf, getControl, type PackCoverageStatus } from './controls.js';
 import { getReview, verifySeal } from './person-reviews.js';
 import { getCheck, getSnapshot, listFindings, listSnapshots, verifyChain } from './reconciliation.js';
-import { renderPackPdf } from './pack-pdf.js';
+import type { PackPdfModel } from './pack-pdf.js';
+import { drawPdf } from '../reports/pdf/pool.js';
+import { getBranding, logo } from '../reports/branding.js';
 import { assuranceReportJson, collectAssuranceReport, renderAssurancePdf } from './assurance-report.js';
 import { AUDIT_EXCERPT_FILE, MANIFEST_SIGNATURE_DOMAIN, type AuditExcerpt, type PackManifest } from './evidence-verify.js';
 import { ZipLimitError, ZipWriter, type WrittenEntry } from './zip.js';
 import { env } from '../config.js';
 import { PVAULT_KIND, pvList } from '@sm/shared';
+
+/** The summary PDF of an evidence pack: the instance branding collected here, drawn in the PDF worker (#13, pack-pdf.ts). */
+const renderPackPdf = (m: PackPdfModel, o: { compress?: boolean } = {}): Promise<Buffer> =>
+  drawPdf('pack', m, { branding: getBranding(), logo: logo().data }, o);
 
 /**
  * Audit evidence packs: a ZIP for some controls (or a platform or service) and a period with an index

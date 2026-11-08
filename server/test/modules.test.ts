@@ -120,8 +120,8 @@ describe('Settings → Modules', () => {
     expect((await s.api('GET', '/me/visibility')).areas.dataContracts).toBeUndefined();
     // its job does not run: listed as switched off, "Run now" refused, a planned start skipped without a trace
     const reg = await import('../src/jobs/registry.js');
-    const { registerBuiltInJobs } = await import('../src/jobs/builtin.js');
-    registerBuiltInJobs();
+    const { registerFeatureJobs } = await import('../src/features/index.js');
+    registerFeatureJobs();
     expect(reg.listJobs().find((j) => j.name === 'costs')).toMatchObject({ switchedOff: true, runs: 0 });
     expect(reg.listJobs().find((j) => j.name === 'duties')?.switchedOff).toBeUndefined();
     expect(await reg.runJob('costs')).toBe(false);

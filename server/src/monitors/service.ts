@@ -25,8 +25,6 @@ import {
   type MonitorStatus,
   type MonitorSummary,
   type TemplateParam,
-  checkPlatformKinds,
-  outputTypeKinds,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -56,6 +54,7 @@ import {
 } from './model.js';
 import { requireVisiblePlatform, resolvePlatformRef } from './platforms.js';
 import { validateCheckPlatform } from './checks.js';
+import { itemKinds, validateOutputPlatform } from './kinds.js';
 import { requireVisibleSystem } from '../dbschema/check.js';
 import { requireVisibleApplication } from '../versions/check.js';
 import { requireVisibleCostScope } from '../costs/check.js';
@@ -332,21 +331,29 @@ export function listResults(idOrKey: string, checkId: string, limit = 50): Check
 
 // ---------- validation ----------
 
+/** The platform kinds a check or output may use, one of them (the kind descriptors, shared/src/platformKinds.ts); empty: any platform. */
+function expectedKinds(item: { type?: unknown; source?: unknown }, isOutput: boolean): string[] {
+  return itemKinds({ type: String(item.type ?? ''), source: item.source }, isOutput);
+}
+
 /**
- * The one platform kind a check or output needs (the kind descriptors, shared/src/platformKinds.ts); undefined: any
- * platform – or one of several kinds (the repository check), which is checked when the monitor is saved.
+ * The one platform kind a check or output needs, to resolve a platform name; undefined: any platform – or one of
+ * several kinds (the repository check). Either way the kind is checked when the monitor is saved (validateCheckPlatform).
  */
 function expectedKind(item: { type?: unknown; source?: unknown }, isOutput: boolean): string | undefined {
-  const type = String(item.type ?? '');
-  const kinds = isOutput ? outputTypeKinds(type) : checkPlatformKinds({ type, source: item.source });
+  const kinds = expectedKinds(item, isOutput);
   return kinds.length === 1 ? kinds[0] : undefined;
 }
+
+/** "github, gitlab or forgejo" */
+const orList = (kinds: string[]) => (kinds.length > 1 ? `${kinds.slice(0, -1).join(', ')} or ${kinds.at(-1)}` : (kinds[0] ?? ''));
 
 export type PlatformReference = MonitorPlatformReference;
 
 /** Platform references of a parsed monitor or template definition (raw, not yet validated). `{{ params.x }}` values are set per instance and left out. */
 export function platformReferences(definition: Record<string, unknown>): PlatformReference[] {
-  const found = new Map<string, { kinds: Set<string>; usedBy: PlatformReference['usedBy'] }>();
+  // per reference: the kinds each check or output using it accepts (one of them; empty lists – any platform – left out)
+  const found = new Map<string, { kinds: string[][]; usedBy: PlatformReference['usedBy'] }>();
   const visit = (items: unknown, isOutput: boolean) => {
     if (!Array.isArray(items)) return;
     for (const raw of items) {
@@ -354,9 +361,9 @@ export function platformReferences(definition: Record<string, unknown>): Platfor
       const item = raw as Record<string, unknown>;
       const ref = item.platform;
       if (typeof ref !== 'string' || !ref.trim() || ref.includes('{{')) continue;
-      const entry = found.get(ref) ?? { kinds: new Set<string>(), usedBy: [] };
-      const kind = expectedKind(item, isOutput);
-      if (kind) entry.kinds.add(kind);
+      const entry = found.get(ref) ?? { kinds: [], usedBy: [] };
+      const kinds = expectedKinds(item, isOutput);
+      if (kinds.length) entry.kinds.push(kinds);
       const id = String(item.id ?? '');
       entry.usedBy.push({ type: isOutput ? 'output' : 'check', id, name: String(item.name ?? id) });
       found.set(ref, entry);
@@ -367,18 +374,19 @@ export function platformReferences(definition: Record<string, unknown>): Platfor
   if (!found.size) return [];
   const usable = listPlatforms().filter((p) => p.permissions.includes('use'));
   return [...found].map(([ref, e]) => {
-    // one kind in practice; a reference used with two different kinds has no candidate
-    const kinds = [...e.kinds];
-    const candidates = usable.filter((p) => kinds.every((k) => p.kind === k)).map((p) => ({ id: p.id, name: p.name, kind: p.kind }));
+    // the kinds every use accepts; a reference used with kinds that do not overlap has no candidate
+    const kinds = e.kinds.length ? e.kinds.reduce((a, b) => a.filter((k) => b.includes(k))) : [];
+    const fits = (kind: string) => e.kinds.every((ks) => ks.includes(kind));
+    const candidates = usable.filter((p) => fits(p.kind)).map((p) => ({ id: p.id, name: p.name, kind: p.kind }));
     let resolved: PlatformReference['resolved'] = null;
     try {
-      const r = resolvePlatformRef(ref, kinds[0]);
+      const r = resolvePlatformRef(ref, kinds.length === 1 ? kinds[0] : undefined);
       const c = candidates.find((x) => x.id === r.id);
       if (c) resolved = { id: c.id, name: c.name };
     } catch {
       /* not unique – the user chooses */
     }
-    return { ref, kind: kinds[0] ?? null, usedBy: e.usedBy, resolved, candidates };
+    return { ref, kind: kinds.length === 1 ? kinds[0]! : null, kinds, usedBy: e.usedBy, resolved, candidates };
   });
 }
 
@@ -408,13 +416,15 @@ export function applyPlatformMap(definition: Record<string, unknown>, map: Recor
       if (!p || !p.permissions.length) throw new HttpError(400, `Platform ${id} chosen for "${ref}" does not exist`, 'PLATFORM_CHOICE_NOT_FOUND', { ref, id });
       if (!p.permissions.includes('use'))
         throw new HttpError(403, `You are not allowed to use platform "${p.name}"`, 'PLATFORM_USE_FORBIDDEN', { name: p.name });
-      const kind = expectedKind(item, isOutput);
-      if (kind && p.kind !== kind)
-        throw new HttpError(400, `Platform "${p.name}" chosen for "${ref}" is of kind ${p.kind}, not ${kind}`, 'PLATFORM_CHOICE_KIND', {
-          ref,
-          name: p.name,
-          kind,
-        });
+      // before the save: only a platform of a kind the check or output reads (the candidates of platformReferences)
+      const kinds = expectedKinds(item, isOutput);
+      if (kinds.length && !kinds.includes(p.kind))
+        throw new HttpError(
+          400,
+          `Platform "${p.name}" chosen for "${ref}" is of kind ${p.kind}, not ${orList(kinds)}`,
+          'PLATFORM_CHOICE_KIND',
+          kinds.length === 1 ? { ref, name: p.name, kind: kinds[0]! } : { ref, name: p.name, kinds, context: 'several' },
+        );
       item.platform = p.id;
     }
   };
@@ -483,6 +493,8 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
         throw new HttpError(400, `Output "${o.id}": a Teams card goes to a "Microsoft Teams channel" platform, not to a URL`, 'OUTPUT_TEAMS_PLATFORM', {
           output: o.id,
         });
+      // an output type tied to platform kinds (Gatus, Zabbix): a platform of one of them
+      validateOutputPlatform(o, p);
       o.platform = p.id;
     }
     if (o.type === 'process') {

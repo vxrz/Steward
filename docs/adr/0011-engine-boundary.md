@@ -216,3 +216,5 @@ interface StepExecutor<T extends StepType> {
 - **ESLint.** A second `no-restricted-imports` rule stops step modules from importing `runner.ts`, `engine/index.ts` (which hands the engine out) and the debug gate. The rule for code outside `engine/` is unchanged.
 
 A step type added later is a new module and one line in the registry; for a step with the usual ports the engine does not change ([ARCHITECTURE.md](../ARCHITECTURE.md#adding-a-step-type)).
+
+**Imports.** The engine imports no compliance, reports or monitors: the access-change step loads `compliance/run-entries.ts` lazily when it records, as the query and contract-test steps load their modules. `npm run check:imports` keeps it so ([ARCHITECTURE.md](../ARCHITECTURE.md#import-rules)).

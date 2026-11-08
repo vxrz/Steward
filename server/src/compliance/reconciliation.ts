@@ -313,21 +313,20 @@ function checkIgnoreRights(u: AuthUser, next: string[], cur: string[]): void {
 const changed = (from: string[], to: string[]) => (JSON.stringify(from) === JSON.stringify(to) ? {} : { from, to });
 
 /** The answer when a source's platform is of another kind (dataset: every kind fits). */
-const WRONG_KIND: Record<Exclude<AccessCheckSource, 'dataset'>, [message: string, code: string]> = {
-  'insights-hub': ['The Insights Hub source needs an Insights Hub platform – use a dataset for other platforms', 'ACCESS_CHECK_SOURCE'],
-  git: ['The Git source needs a GitHub, GitLab or Forgejo/Gitea platform', 'ACCESS_CHECK_GIT_SOURCE'],
-  snowflake: ['The Snowflake source needs a Snowflake platform', 'ACCESS_CHECK_SNOWFLAKE_SOURCE'],
-  aws: ['The AWS source needs an AWS account platform', 'ACCESS_CHECK_AWS_SOURCE'],
-  confluent: ['The Confluent source needs a Confluent Cloud API platform', 'ACCESS_CHECK_CONFLUENT_SOURCE'],
-  entra: ['The Entra ID source needs a Microsoft Graph platform', 'ACCESS_CHECK_ENTRA_SOURCE'],
-  'privilege-vault': ['The vault source needs an IBM Verify Privilege Vault platform', 'ACCESS_CHECK_PVAULT_SOURCE'],
+const WRONG_KIND: Record<Exclude<AccessCheckSource, 'dataset'>, () => HttpError> = {
+  'insights-hub': () => new HttpError(400, 'The Insights Hub source needs an Insights Hub platform – use a dataset for other platforms', 'ACCESS_CHECK_SOURCE'),
+  git: () => new HttpError(400, 'The Git source needs a GitHub, GitLab or Forgejo/Gitea platform', 'ACCESS_CHECK_GIT_SOURCE'),
+  snowflake: () => new HttpError(400, 'The Snowflake source needs a Snowflake platform', 'ACCESS_CHECK_SNOWFLAKE_SOURCE'),
+  aws: () => new HttpError(400, 'The AWS source needs an AWS account platform', 'ACCESS_CHECK_AWS_SOURCE'),
+  confluent: () => new HttpError(400, 'The Confluent source needs a Confluent Cloud API platform', 'ACCESS_CHECK_CONFLUENT_SOURCE'),
+  entra: () => new HttpError(400, 'The Entra ID source needs a Microsoft Graph platform', 'ACCESS_CHECK_ENTRA_SOURCE'),
+  'privilege-vault': () => new HttpError(400, 'The vault source needs an IBM Verify Privilege Vault platform', 'ACCESS_CHECK_PVAULT_SOURCE'),
 };
 
 /** A source that reads its platform directly needs one of the kinds whose descriptor names it. */
 function requireSourceKind(source: AccessCheckSource, kind: string): void {
   if (source === 'dataset' || accessSourceKinds(source).includes(kind)) return;
-  const [message, code] = WRONG_KIND[source];
-  throw new HttpError(400, message, code);
+  throw WRONG_KIND[source]();
 }
 
 function validatePlatform(u: AuthUser, input: CheckInput): void {
@@ -546,6 +545,8 @@ async function collectInsightsHub(c: CheckRow): Promise<{ subjects: AccessSubjec
       context: 'platform',
       name: platform.name,
     });
+  // as the other sources: a platform whose kind changed since the check was saved is not called
+  requireSourceKind('insights-hub', platform.kind);
   const secrets = getSecrets(c.platform_id);
   const idm = String(platform.config.variables?.idmPath || '/api/identitymanagement/v3').replace(/\/$/, '');
   const raw: { id: string; name?: string; type?: string; rights: unknown[] }[] = [];

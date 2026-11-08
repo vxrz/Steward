@@ -21,6 +21,6 @@ export function seedPlantDemo(): number {
     name,
     content: fs.readFileSync(path.join(config.examplesDir, 'plant', name), 'utf8'),
   }));
-  const r = applyImport({ files, mode: 'add', missing: 'mark', replaces: null });
+  const r = applyImport({ files, mode: 'add', missing: 'mark', replaces: null, removeMissing: false, cascade: false });
   return r.counts.add;
 }

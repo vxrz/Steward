@@ -34,6 +34,8 @@ import {
   TRANSFER_MODES,
   VLAN_RANGE_TYPES,
   ZONE_CRITICALITIES,
+  PLANT_BULK,
+  PLANT_REMOVABLE_KINDS,
 } from '@sm/shared';
 import { ID_HINT } from './model.js';
 import { NAME_HINT, NAME_RE } from './data-model.js';
@@ -712,6 +714,19 @@ export const assetNetworkSchema = z
   .strict()
   .meta({ id: 'AssetNetwork', description: 'The OT network of an asset: its devices, data paths and live-status checks' });
 
+// 0.11.0 (docs/PLANT.md#changing-many-entries-at-once): entries the import removes, by kind and id
+export const removeSchema = z
+  .object({
+    kind: z
+      .enum(PLANT_REMOVABLE_KINDS)
+      .describe('site, building, node (area, work center, work unit), asset, profile, kpi, vlan, zone, conduit, device or data_path'),
+    id: z.string().min(1).max(120).describe('Its id'),
+    site: id.optional().describe('The site of a building, node, VLAN, zone or conduit'),
+    asset: id.optional().describe('The asset of a device or data path'),
+  })
+  .strict()
+  .meta({ id: 'Removal', description: 'An entry the import removes (with what belongs to it only when the person asks for it)' });
+
 export const plantFileSchema = z
   .object({
     $schema: z.string().max(500).optional(),
@@ -733,6 +748,7 @@ export const plantFileSchema = z
     ot_networks: z.array(otNetworkSchema).max(PLANT_LIMITS.sites).optional().describe('The OT networks of sites'),
     asset_network: assetNetworkSchema.optional().describe('The OT network of one asset'),
     asset_networks: z.array(assetNetworkSchema).max(PLANT_LIMITS.assets).optional().describe('The OT networks of assets'),
+    remove: z.array(removeSchema).max(PLANT_BULK.maxItems).optional().describe('Entries to remove (since 0.11.0)'),
   })
   .strict()
   .refine((f) => !(f.site && f.sites), { message: 'Use either site (one) or sites (several), not both', path: ['site'] })
@@ -754,6 +770,7 @@ export type AssignmentFile = z.infer<typeof assignmentSchema>;
 export type OtNetworkFile = z.infer<typeof otNetworkSchema>;
 export type AssetNetworkFile = z.infer<typeof assetNetworkSchema>;
 export type StatusCheckFile = z.infer<typeof statusCheckSchema>;
+export type RemoveFile = z.infer<typeof removeSchema>;
 
 /** The published JSON Schema (2020-12) of the format. */
 export function plantJsonSchema(): Record<string, unknown> {

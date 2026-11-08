@@ -44,6 +44,7 @@ The architecture – C4 diagrams, a module map of `server/src` and the decision 
 | `npm run typecheck`                | TypeScript in all workspaces                                                                                                                                                         |
 | `npm run lint`                     | ESLint (`eslint.config.js`): no errors and no warnings. `npm run lint:fix` fixes what it can.                                                                                        |
 | `npm run format:check`             | Prettier formatting (`.prettierrc.json`). `npm run format` formats all files.                                                                                                        |
+| `npm run check:imports`            | No new import cycles, the layer rules ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#import-rules)); `-- --update` after removing one                                                  |
 | `npm test`                         | API, engine and integration tests (vitest, SQLite), several test files at once ([docs/TESTING.md](docs/TESTING.md#running-the-server-tests))                                         |
 | `npm run test:coverage`            | The same suite with coverage (v8): a summary in the terminal, the HTML report in `server/coverage/`; fails below the minimums in `server/vitest.config.ts` (CI does this on Node 24) |
 | `npm run test:pg`                  | The same suite on PostgreSQL (`SM_TEST_DATABASE_URL`, see [docs/TESTING.md](docs/TESTING.md)). Needed when you touch SQL or migrations.                                              |
@@ -133,7 +134,7 @@ Example:
   - Platform credentials only go to the platform's own origins.
 - **Database:**
   - SQL must work on SQLite and PostgreSQL: use `?` placeholders, `lower(x) LIKE lower(?)`, `db().jsonText()` for JSON fields, and quoted camelCase aliases.
-  - Schema changes are named migrations in `server/src/migrations/`, registered in `server/src/db.ts`. Never edit an existing migration.
+  - Schema changes are named migrations in `server/src/migrations/`, run in the order of `server/src/migrations/index.ts` (new lists and migrations go at the end). Never edit an existing migration.
   - `server/test/db.test.ts` scans for SQLite-only SQL.
 - **Audit:** every state change a user makes is audited with `audit()`.
 - **UI:**

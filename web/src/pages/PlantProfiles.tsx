@@ -11,6 +11,7 @@ import { QueryState, useCreateParam } from '../components/common';
 import { ListPage, useStoredListView } from '../components/page/ListPage';
 import { plantKeys } from '../queryKeys';
 import { NotInSourceBadge, PreviewBadge, usePlantConfig } from '../components/plant/common';
+import { BulkBar, SelectAllBox, SelectBox, useSelection } from '../components/plant/bulk';
 import { ProtocolBadge } from '../components/plant/data';
 import { ProfileFormModal } from '../components/plant/dataForms';
 
@@ -60,6 +61,10 @@ export function PlantProfilesPage() {
       {t('profiles.new')}
     </Button>
   );
+  // Edit selected / Remove selected (0.11.0)
+  const canBulk = !!canManage;
+  const shownIds = list.map((p) => p.id);
+  const sel = useSelection(shownIds);
   return (
     <ListPage
       testId="plant-profiles"
@@ -138,11 +143,15 @@ export function PlantProfilesPage() {
           {t('profiles.noMatch')}
         </Text>
       )}
+      {canBulk && list.length > 0 && (
+        <BulkBar kind="profile" sel={sel} visible={shownIds} selectAll={view.cards} entries={list.map((x) => ({ id: x.id, name: x.name }))} />
+      )}
       {list.length > 0 && view.cards && (
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} data-testid="plant-profile-cards">
           {list.map((p) => (
             <Paper key={p.id} withBorder p="md" component="article" aria-labelledby={`profile-${p.id}`}>
               <Stack gap={6}>
+                {canBulk && <SelectBox sel={sel} id={p.id} name={p.name} />}
                 <Anchor id={`profile-${p.id}`} component={Link} to={to(p)} fw={600} style={{ overflowWrap: 'anywhere' }}>
                   {p.name}
                 </Anchor>
@@ -162,6 +171,11 @@ export function PlantProfilesPage() {
           <Table highlightOnHover fz="sm" aria-label={t('profiles.title')} data-testid="plant-profile-table">
             <Table.Thead>
               <Table.Tr>
+                {canBulk && (
+                  <Table.Th w={36}>
+                    <SelectAllBox sel={sel} ids={shownIds} />
+                  </Table.Th>
+                )}
                 <Table.Th>{t('form.name')}</Table.Th>
                 <Table.Th>{t('asset.manufacturerModel')}</Table.Th>
                 <Table.Th>{t('profile.category')}</Table.Th>
@@ -173,6 +187,11 @@ export function PlantProfilesPage() {
             <Table.Tbody>
               {list.map((p) => (
                 <Table.Tr key={p.id} className="clickable" onClick={() => navigate(to(p))}>
+                  {canBulk && (
+                    <Table.Td onClick={(e) => e.stopPropagation()}>
+                      <SelectBox sel={sel} id={p.id} name={p.name} />
+                    </Table.Td>
+                  )}
                   <Table.Td>
                     <Anchor component={Link} to={to(p)} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
                       {p.name}

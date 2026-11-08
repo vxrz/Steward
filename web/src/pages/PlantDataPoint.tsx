@@ -8,10 +8,11 @@ import { useTranslation } from 'react-i18next';
 import { unitSymbol, type PlantDataPointDetail } from '@sm/shared';
 import { get } from '../api';
 import { DetailState } from '../components/common';
+import { useAliasRedirect, useChangeId } from '../components/plant/ids';
 import { DetailHeader } from '../components/page/DetailPage';
 import { Field } from '../components/records/common';
 import { plantKeys } from '../queryKeys';
-import { PreviewBadge, useNameOf, usePlantLabel } from '../components/plant/common';
+import { PreviewBadge, useNameOf, usePlantConfig, usePlantLabel } from '../components/plant/common';
 import { AssetBriefLink, Breakable, ProtocolBadge, rateText, useAddressHint } from '../components/plant/data';
 import { PointCollections } from '../components/plant/CollectorCollections';
 
@@ -35,6 +36,15 @@ export function PlantDataPointPage() {
     queryFn: () => get<PlantDataPointDetail>(`/plant/profiles/${encodeURIComponent(profileId!)}/points/${encodeURIComponent(pointId!)}`),
   });
   const profileCrumb = { to: `/plant/profiles/${encodeURIComponent(profileId ?? '')}`, label: q.data?.profile.name ?? profileId ?? '' };
+  useAliasRedirect([
+    [profileId, q.data?.profile.id],
+    [pointId, q.data?.point.id],
+  ]);
+  const canManageCatalogue = !!usePlantConfig().data?.canManageCatalogue;
+  const changeId = useChangeId(
+    q.data ? { kind: 'data_point', scope: q.data.profile.id, id: q.data.point.id, name: q.data.point.name || q.data.point.id } : null,
+    canManageCatalogue,
+  );
   if (!q.data) return <DetailState query={q} back={['plantProfiles', profileCrumb]} />;
   const d = q.data;
   const p = d.point;
@@ -85,7 +95,9 @@ export function PlantDataPointPage() {
             {t('point.assetList', { type: label('asset', true, true) })}
           </Button>
         }
+        menu={changeId.item ? { items: [changeId.item] } : undefined}
       />
+      {changeId.modal}
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">

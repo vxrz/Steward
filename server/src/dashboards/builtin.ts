@@ -1,6 +1,3 @@
-import { currentUser } from '../auth/context.js';
-import { capabilities } from '../auth/permissions.js';
-import { monitorDatasetVisible } from '../monitors/datasets.js';
 import { MODULES } from '@sm/shared';
 import { moduleEnabled } from '../modules/registry.js';
 
@@ -11,19 +8,30 @@ export function datasetOfSwitchedOffModule(processId: string): boolean {
 }
 
 /**
- * Datasets that no process publishes (their "process id" names who does): `monitor:<id>` / `monitor:*` from the
- * monitor engine (monitors/datasets.ts) and `ai:usage` – the usage of AI models (0.6.0, ai/dataset.ts), visible to
- * administrators and auditors like the usage log, and `catalogue:versions` – the version watch's component versions
- * (#241), administrators and auditors as well – and `costs:model`, the costs (#226, costs/dataset.ts), the same.
- * Undefined for a dataset of a process: its process decides.
+ * Datasets that no process publishes: their "process id" names who does – `monitor:<id>` / `monitor:*` from the
+ * monitor engine (monitors/datasets.ts), `ai:usage` (ai/dataset.ts), `catalogue:versions` (versions/dataset.ts),
+ * `costs:model` (costs/dataset.ts). The features bring them in their manifests (features/), with who may read them.
+ */
+export interface BuiltinDataset {
+  /** The feature that publishes it */
+  name: string;
+  /** Whether a dataset's process id is one of these */
+  owns: (processId: string) => boolean;
+  /** Whether the signed-in person may read it */
+  visible: (processId: string) => boolean;
+}
+
+const DATASETS: BuiltinDataset[] = [];
+/** features/index.ts registers the built-in datasets of the features. */
+export function registerBuiltinDataset(d: BuiltinDataset): void {
+  DATASETS.push(d);
+}
+
+/**
+ * Whether the signed-in person may read a built-in dataset; undefined for a dataset of a process: its process decides.
+ * Not registered (yet) means undefined too, so the process rules apply – and no process has such an id: hidden.
  */
 export function builtinDatasetVisible(processId: string): boolean | undefined {
   if (datasetOfSwitchedOffModule(processId)) return false;
-  if (processId.startsWith('monitor:')) return monitorDatasetVisible(processId);
-  if (processId.startsWith('ai:')) return capabilities(currentUser()).viewAudit;
-  // the version watch's "Component versions" (#241) names every application, also those of teams others may not see
-  if (processId === 'catalogue:versions') return capabilities(currentUser()).viewAudit;
-  // the built-in dataset "Costs" (#226): its rows name every service, application, team and platform
-  if (processId.startsWith('costs:')) return capabilities(currentUser()).viewAudit;
-  return undefined;
+  return DATASETS.find((d) => d.owns(processId))?.visible(processId);
 }

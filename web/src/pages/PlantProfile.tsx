@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import type { PlantDataPoint, PlantInterface, PlantModelOrigin, PlantProfileDetail, PlantProfileSummary, PlantProfileValues } from '@sm/shared';
 import { apiUrl, del, get, notifyError, put } from '../api';
 import { DetailState, EmptyState } from '../components/common';
+import { useAliasRedirect, useChangeId } from '../components/plant/ids';
 import { DetailHeader } from '../components/page/DetailPage';
 import { Field } from '../components/records/common';
 import { confirmDanger } from '../components/confirm';
@@ -83,6 +84,8 @@ export function PlantProfilePage() {
       setSearch({}, { replace: true });
     }
   }, [p?.canManage, search, setSearch]);
+  useAliasRedirect([[profileId, p?.id]]);
+  const changeId = useChangeId(p ? { kind: 'profile', id: p.id, name: p.name } : null, !!p?.canManage);
   if (!p) return <DetailState query={q} back="plantProfiles" />;
   const base = `/plant/profiles/${encodeURIComponent(p.id)}`;
   const save = async (next: PlantProfileValues) => {
@@ -179,10 +182,16 @@ export function PlantProfilePage() {
         }
         menu={
           p.canManage
-            ? { items: [{ label: t('profile.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'profile-delete' }] }
+            ? {
+                items: [
+                  ...(changeId.item ? [changeId.item] : []),
+                  { label: t('profile.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'profile-delete' },
+                ],
+              }
             : undefined
         }
       />
+      {changeId.modal}
       <CopiedFromNote kind="device-profile" id={p.id} pathOf={(id) => `/plant/profiles/${encodeURIComponent(id)}`} />
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>

@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { PLANT_LIMITS, type PlantAssetDetail } from '@sm/shared';
 import { apiUrl, del, get, notifyError, patch, post, put } from '../api';
 import { DetailState } from '../components/common';
+import { useAliasRedirect, useChangeId } from '../components/plant/ids';
 import { DetailHeader } from '../components/page/DetailPage';
 import { Field, LinksPanel } from '../components/records/common';
 import { confirmDanger } from '../components/confirm';
@@ -46,6 +47,8 @@ export function PlantAssetPage() {
       setSearch({}, { replace: true });
     }
   }, [a?.canManage, search, setSearch]);
+  useAliasRedirect([[assetId, a?.id]]);
+  const changeId = useChangeId(a ? { kind: 'asset', id: a.id, name: a.name } : null, !!a?.canManage);
   if (!a) return <DetailState query={q} back="plantAssets" />;
   // the other tabs (#230): the data flow as a picture
   if (tab) return <PlantAssetTabPage asset={a} tab={tab} />;
@@ -138,11 +141,17 @@ export function PlantAssetPage() {
         }
         menu={
           a.canManage
-            ? { items: [{ label: t('asset.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'asset-delete' }] }
+            ? {
+                items: [
+                  ...(changeId.item ? [changeId.item] : []),
+                  { label: t('asset.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'asset-delete' },
+                ],
+              }
             : undefined
         }
         tabs={<AssetTabs asset={a} active="" />}
       />
+      {changeId.modal}
       <CopiedFromNote kind="asset" id={a.id} pathOf={(id) => `/plant/assets/${encodeURIComponent(id)}`} />
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>

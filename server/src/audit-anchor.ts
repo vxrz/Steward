@@ -356,4 +356,4 @@ export function verificationResult(r: VerifyOutcome, checkpoint: AuditCheckpoint
   return publicResult(r, checkpoint ? { checkpoint } : {});
 }
 
-// Interval checkpoints are a background job (jobs/builtin.ts, job "audit-checkpoint").
+// Interval checkpoints are a background job (features/audit.ts, job "audit-checkpoint").

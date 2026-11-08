@@ -14,6 +14,7 @@ import {
   type PlantSiteSummary,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { refuseAliasId } from './ids.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import { assignCreatorTeams } from '../auth/policy.js';
@@ -231,6 +232,8 @@ export function createSite(input: z.infer<typeof siteInput>): PlantSiteDetail {
   const u = me();
   if (!canCreateSites(u)) throw new HttpError(403, 'You are not allowed to add sites', 'FORBIDDEN', { context: 'createSites' });
   if (siteRowOf(input.id)) throw new HttpError(409, `A site with the id ${input.id} exists already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('site', '', input.id);
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_sites')!.n) >= PLANT_LIMITS.sites)
     throw new HttpError(409, `At most ${PLANT_LIMITS.sites} sites`, 'PLANT_LIMIT', { max: PLANT_LIMITS.sites });
   const v = siteValues(input.id, input);
@@ -319,6 +322,8 @@ export function createNode(siteId: string, input: z.infer<typeof nodeInput>): Pl
   manageableSite(siteId, 'change this site');
   const index = loadIndex(siteId);
   if (index.nodes.has(input.id)) throw new HttpError(409, `The site has a node "${input.id}" already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('node', siteId, input.id);
   if (index.nodes.size >= PLANT_LIMITS.nodesPerSite)
     throw new HttpError(409, `At most ${PLANT_LIMITS.nodesPerSite} nodes per site`, 'PLANT_LIMIT', { max: PLANT_LIMITS.nodesPerSite });
   nodeRules(index, input);
@@ -413,6 +418,8 @@ export function createBuilding(siteId: string, input: z.infer<typeof buildingInp
   manageableSite(siteId, 'change this site');
   const index = loadIndex(siteId);
   if (index.buildings.has(input.id)) throw new HttpError(409, `The site has a building "${input.id}" already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('building', siteId, input.id);
   if (index.buildings.size >= PLANT_LIMITS.buildingsPerSite)
     throw new HttpError(409, `At most ${PLANT_LIMITS.buildingsPerSite} buildings per site`, 'PLANT_LIMIT', { max: PLANT_LIMITS.buildingsPerSite });
   const p = buildingProblem(index, input);
@@ -691,6 +698,8 @@ export function createAsset(input: z.infer<typeof assetInput>): PlantAssetDetail
   requirePlant();
   const u = me();
   if (assetRowOf(input.id)) throw new HttpError(409, `An asset with the id ${input.id} exists already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('asset', '', input.id);
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_assets')!.n) >= PLANT_LIMITS.assets)
     throw new HttpError(409, `At most ${PLANT_LIMITS.assets} assets`, 'PLANT_LIMIT', { max: PLANT_LIMITS.assets });
   const v = assetValues(input.id, input);

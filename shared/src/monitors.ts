@@ -1057,11 +1057,13 @@ export function fillPlaceholders(text: string, ctx: Record<string, Record<string
 export interface MonitorPlatformReference {
   /** The value in the file: a platform name or id */
   ref: string;
-  /** Kind the checks and outputs need; null: any platform */
+  /** Kind the checks and outputs need; null: any platform, or one of several (kinds) */
   kind: string | null;
+  /** The kinds the checks and outputs accept, one of them (the repository check: GitHub, GitLab or Forgejo); empty: any platform */
+  kinds: string[];
   usedBy: { type: 'check' | 'output'; id: string; name: string }[];
   /** What the reference resolves to without a choice (only a platform the user may use) */
   resolved: { id: string; name: string } | null;
-  /** Platforms of that kind the user may use */
+  /** Platforms of those kinds the user may use */
   candidates: { id: string; name: string; kind: string }[];
 }

@@ -21,9 +21,9 @@ import {
   AWS_KIND,
   BRAND,
   CHANGEDETECTION_KIND,
+  CHECK_TYPE_INFO,
   DATABASE_KIND,
   PVAULT_KIND,
-  checkPlatformKinds,
   isActiveCheckType,
   isGitPlatformKind,
   validMqttFilter,
@@ -35,6 +35,7 @@ import { readNamespace } from '../catalogue/kubernetes.js';
 import { assertRepositoryPath, gitHost } from '../catalogue/repositories.js';
 import { checkmkFetch, checkmkServiceKey, gatusFetch, ihFetch, ihKey, SourceError } from './batch.js';
 import { CheckSetupError, platformFor } from './platforms.js';
+import { kindName, kindNames, storedKindProblem, wrongKind } from './kinds.js';
 import { endpointState, metricsEnabled, sourceRow } from '../gatus/metrics.js';
 
 /**
@@ -1220,17 +1221,7 @@ export const CHECK_RUNNERS: { [T in ActiveType]: CheckRunner<T> } = {
   checkmk: { run: checkCheckmk, plan: planCheckmk },
   prometheus: { run: checkPrometheus },
   kubernetes: { run: checkKubernetes },
-  git: {
-    run: checkGit,
-    // one of several kinds: the platform reference alone does not say which (monitors/service.ts)
-    validate: (c, p) => {
-      if (!checkPlatformKinds(c).includes(p.kind))
-        throw new HttpError(400, `Check "${c.id}": "${p.name}" is not a GitHub, GitLab or Forgejo/Gitea platform`, 'CHECK_GIT_PLATFORM', {
-          check: c.id,
-          name: p.name,
-        });
-    },
-  },
+  git: { run: checkGit },
   snowflake: { run: checkSnowflake },
   database: { run: checkDatabase },
   dynamodb: { run: checkDynamoDb },
@@ -1259,9 +1250,15 @@ export const CHECK_RUNNERS: { [T in ActiveType]: CheckRunner<T> } = {
 // the record's key is the check's type: its runner takes this check
 const runnerOf = (c: Active): CheckRunner<ActiveType> => CHECK_RUNNERS[c.type] as unknown as CheckRunner<ActiveType>;
 
+/** A stored check whose platform is of another kind (kinds.ts): the reason it does not run, before it runs or is planned. */
+const storedPlatformKindProblem = (c: CheckDef, owner: string): string | null =>
+  storedKindProblem({ ...c, platform: 'platform' in c ? c.platform : undefined }, false, owner);
+
 /** Runs an active check; heartbeat and sub-monitor checks are evaluated by the engine from stored state. */
 export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawResult> {
   try {
+    const wrong = storedPlatformKindProblem(c, ctx.owner);
+    if (wrong) return { status: 'unknown', message: `Check could not run: ${wrong}`.slice(0, 500) };
     return await runnerOf(c).run(c, ctx);
   } catch (e) {
     if (e instanceof CheckSetupError) return { status: 'unknown', message: `Check could not run: ${e.message}` };
@@ -1274,10 +1271,21 @@ export const isActive = (c: { type: string }): c is Active => isActiveCheckType(
 
 /** Registers the shared reads of due checks (Insights Hub, Gatus, CheckMk) before any of them starts. */
 export function planCheck(c: CheckDef, owner: string): void {
-  if (isActive(c)) runnerOf(c).plan?.(c, owner);
+  if (isActive(c) && !storedPlatformKindProblem(c, owner)) runnerOf(c).plan?.(c, owner);
 }
 
-/** The rules of a check type that need its resolved platform (monitors/service.ts, when a monitor is saved). */
+/**
+ * The rules of a check type that need its resolved platform (monitors/service.ts, when a monitor is saved): a type tied
+ * to platform kinds needs a platform of one of them (CHECK_PLATFORM_KIND), then the type's own rules.
+ */
 export function validateCheckPlatform(c: CheckDef, platform: { name: string; kind: string }): void {
+  const kinds = wrongKind(c, false, platform);
+  if (kinds)
+    throw new HttpError(
+      400,
+      `Check "${c.id}": "${platform.name}" is a platform of kind ${kindName(platform.kind)}, but a ${CHECK_TYPE_INFO[c.type].label} check reads ${kindNames(kinds)}`,
+      'CHECK_PLATFORM_KIND',
+      { check: c.id, type: c.type, name: platform.name, kind: platform.kind, kinds, kindNames: kinds.map(kindName) },
+    );
   if (isActive(c)) runnerOf(c).validate?.(c, platform);
 }

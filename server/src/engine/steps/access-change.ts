@@ -1,5 +1,5 @@
 import type { NodeOf } from '@sm/shared';
-import { recordStepAccessChanges, type AccessChangeInput } from '../../compliance/run-entries.js';
+import type { AccessChangeInput } from '../../compliance/run-entries.js';
 import { stringify } from '../expr.js';
 import type { LeafResult, StepContext, StepExecutor } from './context.js';
 
@@ -50,6 +50,8 @@ async function execAccessChange(step: NodeOf<'accessChange'>, ctx: StepContext, 
   if (ctx.dryRun) {
     return { status: 'dryrun', output: { ...output, dryRun: true }, summary: `DRY RUN – would document ${entries.length} access change(s) (${step.kind})` };
   }
+  // loaded when needed: compliance (and through it the reports) is not part of the engine's own imports (ADR 0011)
+  const { recordStepAccessChanges } = await import('../../compliance/run-entries.js');
   recordStepAccessChanges(ctx.runId, key, b.platform.id, output.entries);
   return { output, summary: `${entries.length} access change(s) (${step.kind}) on ${b.platform.name} – documented when the run ends` };
 }

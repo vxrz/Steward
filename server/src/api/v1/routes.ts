@@ -9,20 +9,10 @@ import { config } from '../../config.js';
 import { vault } from '../../vault.js';
 import { currentUser } from '../../auth/context.js';
 import { capabilities } from '../../auth/permissions.js';
-import { monitorApiRoutes } from '../../monitors/api-v1.js';
-import { credentialApiRoutes } from '../../credentials/api-v1.js';
-import { recordApiRoutes } from '../../records/api-v1.js';
-import { ticketApiRoutes } from '../../tickets/api-v1.js';
-import { complianceApiRoutes } from '../../compliance/api-v1.js';
-import { serviceApiRoutes } from '../../catalogue/api-v1.js';
-import { dutyApiRoutes } from '../../duties/api-v1.js';
-import { scorecardApiRoutes } from '../../scorecard/api-v1.js';
-import { plantApiRoutes } from '../../plant/api-v1.js';
-import { dbSchemaApiRoutes } from '../../dbschema/api-v1.js';
-import { costApiRoutes } from '../../costs/api-v1.js';
 import { API_VERSION } from './config.js';
 import * as S from './schemas.js';
 import type { ApiPrincipal } from './auth.js';
+import type { ApiV1Plugin } from '../../features/define.js';
 import { processRoutes } from './routes-processes.js';
 import { scheduleRoutes } from './routes-schedules.js';
 import { semanticModelRoutes } from './routes-semantic.js';
@@ -87,7 +77,11 @@ export function schemaOf(op: Op) {
   };
 }
 
-export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<string, unknown> }): Promise<void> {
+/**
+ * The public API: its own endpoints (meta, processes and runs, schedules, the semantic model, platforms, dashboards,
+ * audit, users), then those of the features (their manifests, features/; api/index.ts passes them in).
+ */
+export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<string, unknown>; features: readonly ApiV1Plugin[] }): Promise<void> {
   const get = <R>(url: string, op: Op, handler: (req: FastifyRequest, reply: FastifyReply) => Promise<R> | R, smAuth: 'token' | 'none' | 'spec' = 'token') =>
     app.get(url, { schema: schemaOf(op), config: { smAuth } }, async (req, reply) => handler(req, reply));
 
@@ -146,25 +140,6 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
   auditRoutes(get);
   userRoutes(get);
 
-  // ---------- monitors ----------
-  await monitorApiRoutes(app, get);
-
-  // ---------- credentials register ----------
-  credentialApiRoutes(get);
-  // ---------- records ----------
-  await recordApiRoutes(app, get);
-  // ---------- service catalogue ----------
-  serviceApiRoutes(get);
-  dutyApiRoutes(get);
-  scorecardApiRoutes(get);
-  // ---------- ticket references ----------
-  ticketApiRoutes(get);
-  // ---------- compliance ----------
-  complianceApiRoutes(get);
-  // ---------- plant registry (opt-in module, #218) ----------
-  plantApiRoutes(get);
-  // ---------- database schemas (#222) ----------
-  dbSchemaApiRoutes(get);
-  // ---------- platform costs (#226) ----------
-  costApiRoutes(get);
+  // ---------- the features: monitors, credentials register, records, service catalogue, … (features/index.ts) ----------
+  for (const routes of opts.features) await routes(get, app);
 }
