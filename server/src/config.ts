@@ -120,8 +120,9 @@ export const config = {
     ? check('SM_DATABASE_URL', () => parseDatabaseTarget(env.SM_DATABASE_URL!, { schema: env.SM_DATABASE_SCHEMA, ca: env.SM_DATABASE_CA }))
     : { kind: 'sqlite', file: path.join(dataDir, 'service-manager.db') }) as DatabaseTarget,
   demo: env.SM_DEMO,
-  /** SQLite: automatic copies of the database made before migrations, kept in <data dir>/backups (0 = none). */
+  /** Automatic copies of the database made before migrations (SQLite file or pg_dump), kept in upgradeBackupDir (0 = none). */
   upgradeBackups: env.SM_UPGRADE_BACKUPS,
+  upgradeBackupDir: path.resolve(env.SM_UPGRADE_BACKUP_DIR ?? path.join(dataDir, 'backups')),
   /** Runs at the same time (SM_MAX_CONCURRENT_RUNS, 0 = no limit): further runs wait in status queued, first come first served (engine/runner.ts). */
   maxConcurrentRuns: env.SM_MAX_CONCURRENT_RUNS,
   /** On SIGTERM/SIGINT: how long running steps may still finish before their runs are marked interrupted (bootstrap.ts). */

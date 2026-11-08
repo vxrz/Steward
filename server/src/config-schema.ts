@@ -321,8 +321,24 @@ export const VARS = {
     group: 'Database and data',
     default: '3',
     description:
-      'SQLite: automatic copies of the database made before an update migrates it, kept in `<data dir>/backups` (`0` = none). See [Updating](docs/INSTALL.md#6-updating)',
+      'Automatic copies of the database made before an update migrates it, kept in `SM_UPGRADE_BACKUP_DIR` (`0` = none): a SQLite copy, or a `pg_dump` of the PostgreSQL schema (`SM_PG_DUMP`). See [Updating](docs/INSTALL.md#6-updating)',
     readme: true,
+  }),
+  SM_UPGRADE_BACKUP_DIR: v(text(), {
+    group: 'Database and data',
+    default: '`<data dir>/backups`',
+    description: 'Folder of the automatic copies made before an update migrates the database (e.g. another volume for a large PostgreSQL dump)',
+  }),
+  SM_UPGRADE_BACKUP_REQUIRED: v(flag(true), {
+    group: 'Database and data',
+    default: 'on',
+    description:
+      'When the copy before migrating fails (no disk space, no `pg_dump`, a `pg_dump` older than the PostgreSQL server), the start stops without changing the database. `0` logs a warning and migrates without the copy',
+  }),
+  SM_UPGRADE_BACKUP_TIMEOUT_SECONDS: v(int(3600, 0, 7 * 24 * 3600), {
+    group: 'Database and data',
+    default: '3600',
+    description: 'PostgreSQL: longest time the `pg_dump` before migrating may take (`0` = no limit); a dump that takes longer counts as failed',
   }),
   SM_METRIC_RETENTION_DAYS: v(int(400, 1), {
     group: 'Database and data',

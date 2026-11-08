@@ -6,6 +6,7 @@ import { db } from '../db.js';
 import { flushPendingAudit, verifyAuditAsync } from '../audit.js';
 import { ZipReader, ZipWriter, type WrittenEntry } from '../compliance/zip.js';
 import { openSqliteFile } from '../database/sqlite-file.js';
+import { explainPgToolError, pgDumpArgs } from '../database/pg-dump.js';
 import { env } from '../config.js';
 
 /**
@@ -51,19 +52,9 @@ function run(bin: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<
     let err = '';
     child.stdout.on('data', (b: Buffer) => (out = (out + b.toString('utf8')).slice(-1024 * 1024)));
     child.stderr.on('data', (b: Buffer) => (err = (err + b.toString('utf8')).slice(-4000)));
-    child.on('error', (e: NodeJS.ErrnoException) =>
-      reject(new Error(e.code === 'ENOENT' ? `${bin} is not installed (set SM_PG_DUMP / SM_PG_RESTORE to its path)` : `${bin}: ${e.message}`)),
-    );
-    child.on('close', (code) => (code === 0 ? resolve(out) : reject(new Error(`${path.basename(bin)} failed (exit ${code}): ${err.trim().slice(-1000)}`))));
+    child.on('error', (e: NodeJS.ErrnoException) => reject(new Error(explainPgToolError(bin, '', null, e))));
+    child.on('close', (code) => (code === 0 ? resolve(out) : reject(new Error(explainPgToolError(bin, err, code)))));
   });
-}
-
-/** A connection string without the password (that goes in PGPASSWORD, never on the command line). */
-function pgConnection(url: string): { dbname: string; env: NodeJS.ProcessEnv } {
-  const u = new URL(url);
-  const password = decodeURIComponent(u.password);
-  u.password = '';
-  return { dbname: u.toString(), env: password ? { PGPASSWORD: password } : {} };
 }
 
 type AuditHead = { seq: number; hash: string } | null;
@@ -94,8 +85,8 @@ async function snapshotDatabase(dir: string): Promise<{ file: string; entry: str
   const file = path.join(dir, 'database.pgdump');
   // read before the dump starts: the dump has at least these entries
   const audit = headOf(db().get<{ seq: number; hash: string }>(HEAD_SQL));
-  const c = pgConnection(target.url);
-  await run(pgDumpBin(), ['--format=custom', `--schema=${target.schema}`, `--file=${file}`, `--dbname=${c.dbname}`], c.env);
+  const c = pgDumpArgs(target, file);
+  await run(pgDumpBin(), c.args, c.env);
   if (process.platform !== 'win32') fs.chmodSync(file, 0o600);
   return { file, entry: 'database/steward.pgdump', kind: 'postgres', schema: target.schema, audit };
 }

@@ -16,7 +16,7 @@ import '../warnings.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config, env } from '../config.js';
-import { Db } from '../db.js';
+import { Db, upgradeBackupOptions } from '../db.js';
 import { describeTarget, parseDatabaseTarget, quoteIdent, type DatabaseTarget } from '../database/sql.js';
 import { lockForCommand, type SqliteInstanceLock } from '../database/sqlite-lock.js';
 import { EVIDENCE_TABLES, noDeleteTrigger } from '../migrations/compliance.js';
@@ -138,9 +138,9 @@ export function copyDatabase(opts: CopyOptions): CopyResult {
   if (opts.from.kind === 'sqlite' && !fs.existsSync(opts.from.file)) throw new Error(`SQLite database not found: ${opts.from.file}`);
   // Statements on large tables may take a while.
   const slow = <T extends DatabaseTarget>(t: T): T => (t.kind === 'postgres' ? { ...t, timeoutMs: t.timeoutMs ?? 600000 } : t);
-  // an older source is migrated in place first: SQLite keeps a copy next to it, as at app start-up
-  const backup = opts.from.kind === 'sqlite' ? { dir: path.join(path.dirname(opts.from.file), 'backups'), keep: config.upgradeBackups } : undefined;
   const src = new Db(slow(opts.from), { backup });
+  // an older source is migrated in place first, with a copy as at app start-up: SQLite next to it, PostgreSQL a pg_dump
+  const backup = upgradeBackupOptions(opts.from.kind === 'sqlite' ? path.join(path.dirname(opts.from.file), 'backups') : undefined);
   let dst: Db | undefined;
   try {
     dst = new Db(slow(opts.to));
