@@ -136,4 +136,6 @@ export interface BackgroundJob {
   failures: number;
   /** Starts skipped because the previous run had not ended yet */
   skipped: number;
+  /** Its module is switched off (Settings → Modules): the job does not run */
+  switchedOff?: boolean;
 }

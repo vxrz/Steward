@@ -54,6 +54,7 @@ Every action that can require four-eyes and/or a step-up is a **control point** 
 | `migration.export`       | system    | –         | on       | `exportMigration`                                          | –            | POST /api/migration/export                                                                                                                                                                |
 | `migration.apply`        | system    | –         | on       | `applyMigration`                                           | –            | POST /api/migration/imports/staged/:id/apply                                                                                                                                              |
 | `plant.mapSource`        | system    | –         | on       | `changeMapSource`                                          | –            | PUT /api/settings/plant/map when it changes where the map's tiles come from (a source, URL, key or file; not _Off_) ([PLANT.md](PLANT.md#map))                                            |
+| `modules.switch`         | system    | –         | on       | `changeModules`                                            | –            | PUT /api/settings/modules/:id, and PUT /api/settings/plant when it turns the plant registry on or off ([MODULES.md](MODULES.md))                                                          |
 
 <!-- control-points:end -->
 

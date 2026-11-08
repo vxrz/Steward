@@ -1,3 +1,4 @@
+import type { ModuleStates } from './modules.js';
 import type { LibraryOrigin } from './libraries.js';
 import type { AiGatewaySettings } from './ai.js';
 import type { DatabaseSettings } from './database.js';
@@ -350,6 +351,8 @@ export interface Capabilities {
   plantManage?: boolean;
   /** A plant viewer: role "plant" and no other working role – the web app shows the Plant area and the profile only. Missing means false. */
   plantOnly?: boolean;
+  /** The modules (0.11.0, ADR 0016) and whether each is on; a module missing here is on. Only in GET /auth/status. */
+  modules?: ModuleStates;
 }
 
 export interface Me {
@@ -428,6 +431,8 @@ export const STEP_UP_ACTIONS = [
   'changeMapSource',
   // 0.10.0 (#238): trusting a library publisher or key, removing one, widening its libraries, lifting an expiry
   'changeTrustedPublishers',
+  // 0.11.0 (ADR 0016): switching a module on or off
+  'changeModules',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 

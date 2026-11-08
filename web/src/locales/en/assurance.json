@@ -316,6 +316,12 @@
         "label": "Decide with the Teams bot",
         "description": "The Teams bot (preview) takes decisions in cards at all; the Teams switches of the decision points say which ones."
       }
+    },
+    "modules": {
+      "switch": {
+        "label": "Switch a module on or off",
+        "description": "Turning an optional area (costs, data contracts, compliance, status pages and others) on or off for everyone: its pages, routes and background jobs come or go. Its data stays."
+      }
     }
   },
   "teamsLabel": "May be decided in Microsoft Teams",

@@ -16,6 +16,7 @@ import { mockPlatform } from './mock/mockPlatform.js';
 import { currentUser, requestContext, type AuthUser } from './auth/context.js';
 import { ACCESS, hasRole, isStatusViewer, type ResolvedAccess, type RouteAccess } from './auth/access.js';
 import { plantOnly } from './auth/policy.js';
+import { moduleOff, switchedOffModuleOfRoute } from './modules/registry.js';
 import { sessionUser, toAuthUser } from './auth/users.js';
 import { LINK_PARAM, readCookie, SESSION_COOKIE, SESSION_HEADER } from './auth/cookies.js';
 import { connectVaultToDatabase } from './vault-rotation.js';
@@ -395,6 +396,21 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     const user = (req as unknown as { smAuthUser?: AuthUser | null }).smAuthUser ?? null;
     const apiToken = (req as unknown as { smToken?: string }).smToken;
     requestContext.run({ user, ip: req.ip, ...(apiToken ? { apiToken } : {}) }, done);
+  });
+
+  // A switched-off module (0.11.0, ADR 0016): its routes answer 404 as if they did not exist – after authentication
+  // (a caller who is not signed in learns nothing about the modules), before step-up and the route's own code.
+  app.addHook('preHandler', (req, reply, done) => {
+    const url = req.routeOptions.url;
+    const off = url ? switchedOffModuleOfRoute(url) : undefined;
+    if (!off) return done();
+    const err = moduleOff(off);
+    if (isPublicApiPath(url!))
+      return void reply
+        .code(404)
+        .type('application/problem+json')
+        .send(JSON.stringify({ type: 'about:blank', title: 'Not Found', status: 404, detail: err.message, code: err.code }));
+    return void reply.code(404).send({ error: err.message, code: err.code, params: err.params });
   });
 
   // Sensitive actions need a recent confirmation of the session's owner (auth/step-up.ts); API tokens never do them.

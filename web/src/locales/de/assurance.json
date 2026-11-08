@@ -316,6 +316,12 @@
         "label": "Mit dem Teams-Bot entscheiden",
         "description": "Der Teams-Bot (Vorschau) nimmt überhaupt Entscheidungen in Karten entgegen; die Teams-Schalter der Entscheidungspunkte sagen, welche."
       }
+    },
+    "modules": {
+      "switch": {
+        "label": "Ein Modul ein- oder ausschalten",
+        "description": "Einen optionalen Bereich (Kosten, Datenverträge, Compliance, Statusseiten und andere) für alle ein- oder ausschalten: seine Seiten, Routen und Hintergrundaufgaben kommen oder gehen. Seine Daten bleiben."
+      }
     }
   },
   "teamsLabel": "Darf in Microsoft Teams entschieden werden",

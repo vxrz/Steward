@@ -22,6 +22,7 @@ import { scrubForModel } from './scrub.js';
 import { finishCall, refusalText, refuseCall, reserveCall, type CallFacts } from './usage.js';
 import { gatewaySettings, modelCost } from './gateway.js';
 import { DATASET, INPUT, resultVars } from './provenance.js';
+import { requireModule } from '../modules/registry.js';
 
 /**
  * "Ask an AI model" (docs/AI.md): assemble the context the step names, check it against the gateway's allowed data,
@@ -212,6 +213,8 @@ export function parseJsonAnswer(text: string, schema: Record<string, unknown>): 
 const jsonInstruction = (schema: unknown) => `Answer with JSON only – no other text, no code fence – that matches this JSON Schema:\n${JSON.stringify(schema)}`;
 
 export async function runAiStep(step: NodeOf<'ai'>, io: AiStepIo): Promise<{ output: AiStepOutput; summary: string }> {
+  // the AI models module switched off (ADR 0016): the step fails with a clear message, nothing is sent
+  requireModule('ai');
   const { platform, secrets } = io.gateway;
   if (platform.kind !== LLM_GATEWAY_KIND)
     throw new AiStepError(
