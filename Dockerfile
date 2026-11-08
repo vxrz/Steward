@@ -85,6 +85,8 @@ EXPOSE 4310
 # Follows SM_PORT, the base path (SM_BASE_PATH / SM_PUBLIC_URL) and SM_TLS_CERT like the server does
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s \
   CMD ["node", "server/dist/healthcheck.js"]
-# node directly (not npm) so SIGTERM reaches the server and it shuts down cleanly; the source maps make stack traces
-# in the log point at server/src. The CLIs are next to it: node server/dist/admin.js, migrate.js, backup.js, db-copy.js …
-CMD ["node", "--enable-source-maps", "server/dist/index.js"]
+# node directly (not npm) so SIGTERM reaches the server and it shuts down cleanly. The CLIs are next to it:
+# node server/dist/admin.js, migrate.js, backup.js, db-copy.js … Source maps are in the image but off: they cost about
+# 80 MB of memory (measured, 0.11.0: 340 MB instead of 262 MB after start-up) and make every stack trace slower;
+# NODE_OPTIONS=--enable-source-maps turns them on, so stack traces in the log point at server/src (docs/INSTALL.md).
+CMD ["node", "server/dist/index.js"]
