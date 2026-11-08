@@ -160,7 +160,7 @@ The check type **DynamoDB table** (`dynamodb`, #233) watches whether the data in
 - **Values for trends:** the result value holds the ages (`ageSeconds`, `keys[].ageSeconds`), the write capacity units (`writes`), or `itemCount` and `tableSizeBytes` (AWS updates these about every six hours). The dataset `monitor.<key>` carries them as metrics – `<check>.ageSeconds`, `<check>.ageSeconds.<value>`, `<check>.writes`, `<check>.itemCount`, `<check>.tableSizeBytes` – for KPI and trend widgets.
 - **IAM:** the read-only statements are in [AWS.md](AWS.md#dynamodb-monitor-checks).
 
-**Trying checks without the platform.** _Test with recorded responses_ (monitor page) runs the monitor's platform checks against the [recorded responses](../README.md#recorded-responses-and-test-runs) of their platforms and shows the results; nothing is stored. Other check types are skipped.
+**Trying checks without the platform.** _Test with recorded responses_ (monitor page) runs the monitor's platform checks against the [recorded responses](PLATFORMS.md#recorded-responses-and-test-runs) of their platforms and shows the results; nothing is stored. Other check types are skipped.
 
 ## Heartbeat API for gateways
 

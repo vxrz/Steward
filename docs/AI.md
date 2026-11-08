@@ -113,7 +113,7 @@ A step that would send something else fails before anything is sent: `AI_DATA_NO
 - **Settings:** a fixed model, temperature (0–2; empty: the model's default) and the most output tokens.
 - **Result** (`vars.<saveAs>`): `answer` (the text or the checked JSON), `text`, `model`, `modelLabel`, `aiGenerated: true`, `marking` (_AI-generated with … – check it before you rely on it_), `usage` (`inputTokens`, `outputTokens`, `estimatedInputTokens`, `cost`), `durationMs`, `finishReason`, `truncated` (the answer stopped at the output limit), `promptFingerprint`, `inputFingerprint`, `removedSecrets`. The step's input in the run shows the filled-in prompt, the context sizes and the limits. Prompts and answers stay in the run like every step's data.
 - **Errors:** every refusal and failure names its reason code first (`AI_BUDGET_EXHAUSTED: …`). Connect the step's **error** output to handle it, or let the run fail.
-- **Dry runs and test runs never call the model.** A dry run uses the step's _sample answer_ (or says _the model was not asked_), a test run a [recorded response](../README.md#recorded-responses-and-test-runs) of the gateway for `POST <the model's path>` (in the model's format; else the sample answer). Both still check the input size and the allowed data; nothing is logged as a call.
+- **Dry runs and test runs never call the model.** A dry run uses the step's _sample answer_ (or says _the model was not asked_), a test run a [recorded response](PLATFORMS.md#recorded-responses-and-test-runs) of the gateway for `POST <the model's path>` (in the model's format; else the sample answer). Both still check the input size and the allowed data; nothing is logged as a call.
 
 ### Marking and approval
 
