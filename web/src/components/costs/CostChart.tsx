@@ -81,7 +81,7 @@ export function CostChart({ c, budget, height = 220 }: { c: CostCurrencySummary;
             </g>
           ))}
           {months.map((mo, i) => {
-            const v = values[i];
+            const v = values[i] ?? null;
             return (
               <g key={mo.month} onPointerEnter={() => setHover(i)} onPointerDown={() => setHover(i)}>
                 {/* the hit target is the whole column, larger than the bar */}

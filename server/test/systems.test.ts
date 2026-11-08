@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -41,9 +41,6 @@ beforeAll(async () => {
 
 /** Reads the end-of-life data of the products in use from the demo's endoflife.date mock (newest cycle supported, the second ending, older ones past). */
 const refresh = () => dana('POST', '/catalogue/lifecycle/refresh');
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('systems', () => {
   it('designers create systems, owners change them, everyone reads them', async () => {

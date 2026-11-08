@@ -20,12 +20,13 @@ import {
   type StateRow,
 } from './model.js';
 import { analyze, applyResult, freshnessStatus, freshnessWindowSeconds, fmtAge, nextDue, phaseOffset } from './logic.js';
-import { isActive, planFreshness, planCheckmk, planGatus, runActiveCheck, toMillis, type RawResult } from './checks.js';
+import { isActive, planCheck, runActiveCheck, toMillis, type RawResult } from './checks.js';
 import { ihKey } from './batch.js';
 import { dispatchOutputs, heldMonitors, type Subject } from './outputs.js';
 import { markDatasetsDirty, publishDirtyDatasets } from './datasets.js';
 import { countEvaluation } from './metrics.js';
 import { subMonitorMessage } from './redact.js';
+import { catalogueMaintenance, type ActiveMaintenance } from './maintenance-hook.js';
 
 /**
  * The monitor engine: a light scheduler, separate from process runs.
@@ -225,11 +226,7 @@ export function tick(now = clock()): number {
     }
   }
   // register the shared reads before any check starts, so one call serves them all
-  for (const [m, c] of start) {
-    if (c.type === 'freshness') planFreshness(c, m.owner);
-    else if (c.type === 'gatus') planGatus(c, m.owner);
-    else if (c.type === 'checkmk') planCheckmk(c, m.owner);
-  }
+  for (const [m, c] of start) planCheck(c, m.owner);
   for (const [m, c] of start) void evaluateCheck(m.id, c.id, now);
   for (const mid of heldMonitors()) scheduleRecompute(mid);
   if (now - lastPublish >= 60000) {
@@ -248,9 +245,7 @@ export async function evaluateMonitorNow(mid: string): Promise<void> {
   const m = monitors.get(mid);
   if (!m) return;
   const now = clock();
-  for (const c of m.def.checks) if (c.type === 'freshness') planFreshness(c, m.owner);
-  for (const c of m.def.checks) if (c.type === 'gatus') planGatus(c, m.owner);
-  for (const c of m.def.checks) if (c.type === 'checkmk') planCheckmk(c, m.owner);
+  for (const c of m.def.checks) planCheck(c, m.owner);
   await Promise.all(m.def.checks.filter(checkEnabled).map((c) => evaluateCheck(m.id, c.id, now)));
   await settle();
 }
@@ -482,22 +477,23 @@ function pruneResults(mid: string, cid: string): void {
 
 // ---------- maintenance ----------
 
-export function activeMaintenance(mid: string, now = clock()): { id: string; ends_at: string; reason: string } | undefined {
+/**
+ * The maintenance window a monitor is in now: a catalogue window (#108) that lists the monitor or reaches a platform
+ * it checks (0.11, ADR 0018: the one maintenance-window concept). A monitor's own window from before 0.11 that was not
+ * copied yet (the copy is made once the vault is open) still counts until it is.
+ */
+export function activeMaintenance(mid: string, now = clock()): ActiveMaintenance | undefined {
   const ts = iso(now);
   return (
-    db().get<{ id: string; ends_at: string; reason: string }>(
-      'SELECT id, ends_at, reason FROM monitor_maintenance WHERE monitor_id = ? AND starts_at <= ? AND ends_at > ? ORDER BY ends_at DESC LIMIT 1',
+    catalogueMaintenance(mid, now) ??
+    db().get<ActiveMaintenance>(
+      `SELECT id, starts_at, ends_at, reason, created_by, created_at FROM monitor_maintenance
+       WHERE monitor_id = ? AND migrated_at IS NULL AND starts_at <= ? AND ends_at > ? ORDER BY ends_at DESC LIMIT 1`,
       mid,
       ts,
       ts,
-    ) ?? catalogueMaintenance?.(mid, now)
+    )
   );
-}
-
-/** Maintenance windows of the catalogue (#108) on a platform the monitor checks – set by catalogue/maintenance.ts. */
-let catalogueMaintenance: ((mid: string, now: number) => { id: string; starts_at: string; ends_at: string; reason: string } | undefined) | null = null;
-export function setCatalogueMaintenance(fn: typeof catalogueMaintenance): void {
-  catalogueMaintenance = fn;
 }
 
 // ---------- graph evaluation ----------

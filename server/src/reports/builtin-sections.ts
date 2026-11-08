@@ -1,8 +1,9 @@
 import { z, type ZodType } from 'zod';
-import type { MonitorStatus } from '@sm/shared';
 import { db } from '../db.js';
 import { currentUser } from '../auth/context.js';
 import { permissionsOfRow } from '../monitors/model.js';
+import { statusPoints, upAndDown, uptimeHundredths } from '../monitors/stats.js';
+import { objectiveTargetForMonitor } from '../scorecard/objectives.js';
 import * as processes from '../processes/service.js';
 import * as platforms from '../platforms/service.js';
 import { listCredentials } from '../credentials/service.js';
@@ -39,42 +40,29 @@ const p95 = (values: number[]): number | null => {
   return s[Math.min(s.length - 1, Math.ceil(0.95 * s.length) - 1)]!;
 };
 
-/** Time-weighted uptime of a monitor in [from, to) from its status changes, with the down intervals. */
-export function monitorAvailability(monitorId: string, from: number, to: number): Omit<MonitorAvail, 'id' | 'key' | 'name'> {
+/**
+ * Time-weighted uptime of a monitor in [from, to) from its status changes, with the down intervals. The same reading
+ * and arithmetic as the monitor's own uptime and objectives with the monitor as source (monitors/stats.ts).
+ */
+export function monitorAvailability(monitorId: string, from: number, to: number): Omit<MonitorAvail, 'id' | 'key' | 'name' | 'target'> {
   const fromIso = new Date(from).toISOString();
   const toIso = new Date(to).toISOString();
-  const before = db().get<{ ts: string; status: MonitorStatus }>(
-    "SELECT ts, status FROM monitor_history WHERE monitor_id = ? AND check_id = '' AND ts < ? ORDER BY ts DESC, id DESC LIMIT 1",
-    monitorId,
-    fromIso,
-  );
-  const changes = db().all<{ ts: string; status: MonitorStatus }>(
-    "SELECT ts, status FROM monitor_history WHERE monitor_id = ? AND check_id = '' AND ts >= ? AND ts < ? ORDER BY ts, id",
-    monitorId,
-    fromIso,
-    toIso,
-  );
-  const points = [...(before ? [{ t: from, status: before.status }] : []), ...changes.map((c) => ({ t: Date.parse(c.ts), status: c.status }))];
+  const points = statusPoints(monitorId, from, to);
   const end = Math.min(to, Date.now());
-  let ok = 0;
-  let down = 0;
   const outages: MonitorAvail['outages'] = [];
   let downSince: number | null = null;
-  points.forEach((p, i) => {
+  points.forEach((p) => {
     const a = Math.max(p.t, from);
-    const b = Math.min(points[i + 1]?.t ?? end, end);
     if (p.status === 'down') {
       if (downSince === null) downSince = a;
     } else if (downSince !== null) {
       outages.push({ from: new Date(downSince).toISOString(), to: new Date(a).toISOString(), durationMs: a - downSince });
       downSince = null;
     }
-    if (b <= a) return;
-    if (p.status === 'up' || p.status === 'degraded') ok += b - a;
-    else if (p.status === 'down') down += b - a;
   });
   if (downSince !== null)
     outages.push({ from: new Date(downSince).toISOString(), to: end < to ? null : new Date(to).toISOString(), durationMs: end - downSince });
+  const { ok, down } = upAndDown(points, from, end);
   const durations = db()
     .all<{ d: number }>(
       'SELECT duration_ms AS d FROM monitor_results WHERE monitor_id = ? AND ts >= ? AND ts < ? AND duration_ms IS NOT NULL',
@@ -84,7 +72,7 @@ export function monitorAvailability(monitorId: string, from: number, to: number)
     )
     .map((r) => Number(r.d));
   return {
-    uptime: ok + down > 0 ? Math.round((ok / (ok + down)) * 10000) / 100 : null,
+    uptime: ((h) => (h === null ? null : h / 100))(uptimeHundredths({ ok, down })),
     outages,
     downtimeMs: down,
     avgMs: durations.length ? Math.round(durations.reduce((s, x) => s + x, 0) / durations.length) : null,
@@ -92,9 +80,27 @@ export function monitorAvailability(monitorId: string, from: number, to: number)
   };
 }
 
-const availabilitySchema = z.object({ monitorIds: z.array(z.string().min(1).max(100)).max(500).nullable().default(null), slaTarget });
-
+/**
+ * slaTarget: one target for every monitor (deprecated in 0.11, ADR 0018). slaFromObjectives: each monitor is judged by
+ * the availability objective that has it as source, when there is one (the target of the objective window closest to
+ * the report period; several objectives: the strictest), and by slaTarget otherwise. Schedules saved before 0.11 keep
+ * slaTarget only.
+ */
+const availabilitySchema = z.object({
+  monitorIds: z.array(z.string().min(1).max(100)).max(500).nullable().default(null),
+  slaTarget,
+  slaFromObjectives: z.boolean().optional(),
+});
 type AvailabilityConfig = z.infer<typeof availabilitySchema>;
+
+/** The target a monitor is judged by in the section (and where it comes from). */
+function targetOf(c: AvailabilityConfig, monitorId: string, periodMs: number): Pick<MonitorAvail, 'target' | 'targetFrom' | 'objective'> {
+  const o = c.slaFromObjectives ? objectiveTargetForMonitor(monitorId, periodMs) : null;
+  if (o) return { target: o.target, targetFrom: 'objective', objective: o.name };
+  return c.slaTarget !== null && c.slaTarget !== undefined
+    ? { target: c.slaTarget, targetFrom: 'section', objective: null }
+    : { target: null, targetFrom: null, objective: null };
+}
 
 function visibleMonitorRows(): { id: string; key: string; name: string; owner: string; acl: string }[] {
   const u = currentUser();
@@ -151,7 +157,14 @@ export const availabilitySection = defineReportSection<AvailabilityConfig, Avail
     const rows = visibleMonitorRows().filter((m) => !c.monitorIds || c.monitorIds.includes(m.id) || c.monitorIds.includes(m.key));
     return {
       slaTarget: c.slaTarget ?? null,
-      monitors: rows.map((m) => ({ id: m.id, key: m.key, name: m.name, ...monitorAvailability(m.id, ctx.from, ctx.to) })),
+      slaFromObjectives: !!c.slaFromObjectives,
+      monitors: rows.map((m) => ({
+        id: m.id,
+        key: m.key,
+        name: m.name,
+        ...targetOf(c, m.id, ctx.to - ctx.from),
+        ...monitorAvailability(m.id, ctx.from, ctx.to),
+      })),
     };
   },
 });

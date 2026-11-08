@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { STEP_UP_ACTIONS, type AuthStatus, type Me, BRAND, isSsoErrorCode, SSO_REFERENCE, type SsoErrorCode } from '@sm/shared';
 import { config } from '../config.js';
@@ -35,12 +35,14 @@ import {
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { logger } from '../log.js';
 import { auditPendingUpgrades } from '../upgrades.js';
+import { migrateMonitorWindows } from '../catalogue/maintenance.js';
 import { ACCESS, isStatusViewer, me } from '../auth/access.js';
 import { plantEnabled } from '../plant/settings.js';
 import { moduleStates } from '../modules/registry.js';
 import { plantManagesSome } from '../plant/access.js';
 import { plantOnly } from '../auth/policy.js';
 import { assuranceStepUpStatus, ssoMfaAsk } from '../auth/assurance.js';
+import { params } from './params.js';
 
 /** Things that need the decrypted vault: pending audit entries, scheduler, recovery of waiting runs. */
 async function onUnlocked(): Promise<void> {
@@ -59,6 +61,8 @@ async function onUnlocked(): Promise<void> {
   sealPlatformConfigs();
   // identities (0.9.0, ADR 0009): credentials and MCP mode move to each intact platform's sealed default identity, once
   createPlatformIdentities();
+  // one maintenance-window concept (0.11, ADR 0018): the monitors' own windows become catalogue windows, once
+  migrateMonitorWindows();
   sso.sealProviderConfigs();
   // Steward's example library as a disabled Git sync source, once per installation
   seedExamplesSource();
@@ -104,8 +108,6 @@ function meInfo(): Me | null {
   };
   return { user, capabilities: { ...capabilities(u), ...nav }, ...(u.emergency ? { emergency: { expiresAt: u.emergency.expiresAt } } : {}) };
 }
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
 /** Health, sign-in, vault, single sign-on and step-up re-authentication (mounted under /api). */
 export async function authRoutes(app: FastifyInstance): Promise<void> {

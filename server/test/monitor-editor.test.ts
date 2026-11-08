@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { definitionIssues, issueLabel, monitorDefinitionSchema } from '@sm/shared';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
@@ -22,9 +22,6 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   await s.api('POST', '/demo/setup', {});
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('monitor editor: problems and trying a card', () => {

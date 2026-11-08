@@ -499,8 +499,10 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       if (auth.type === 'oauth2_client_credentials') {
         if (!auth.tokenUrl) throw new Error('OAuth2 token URL is not configured');
         // a signed client assertion instead of the secret (certificate credentials, v0.5.0): chosen, or no secret but a private key
-        const assertion = auth.clientAuth === 'assertion' || (!secrets.clientSecret && !!secrets.privateKey?.trim());
-        if (!secrets.clientId || (!assertion && !secrets.clientSecret))
+        // '' when not set
+        const clientSecret = secrets.clientSecret ?? '';
+        const assertion = auth.clientAuth === 'assertion' || (!clientSecret && !!secrets.privateKey?.trim());
+        if (!secrets.clientId || (!assertion && !clientSecret))
           throw new Error('Secrets "clientId" and "clientSecret" (or "privateKey" with "certificate" for a client assertion) are required');
         const url = await renderString(auth.tokenUrl, scope);
         const form: Record<string, string> = { grant_type: 'client_credentials' };
@@ -515,10 +517,10 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
           form.client_assertion_type = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
           form.client_assertion = clientAssertion(key, { clientId: secrets.clientId, tokenUrl: url, thumbprints });
         } else if ((auth.clientAuth ?? 'basic') === 'basic') {
-          headers.authorization = 'Basic ' + Buffer.from(`${secrets.clientId}:${secrets.clientSecret}`).toString('base64');
+          headers.authorization = 'Basic ' + Buffer.from(`${secrets.clientId}:${clientSecret}`).toString('base64');
         } else {
           form.client_id = secrets.clientId;
-          form.client_secret = secrets.clientSecret;
+          form.client_secret = clientSecret;
         }
         const r = await rawRequest(p, { method: 'POST', url, headers, body: form, bodyType: 'form' }, signal);
         const b = r.body as { access_token?: string; expires_in?: number } | null;

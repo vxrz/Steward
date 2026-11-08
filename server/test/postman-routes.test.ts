@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { authHeaders, loginCookie, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 import { ZipReader } from '../src/compliance/zip.js';
 
@@ -47,9 +47,6 @@ beforeAll(async () => {
   iem = platforms.find((p: { kind: string }) => p.kind === 'industrial-edge-management').id;
   [olivia, vera] = await Promise.all(['olivia', 'vera'].map((u) => s.as(u, PW)));
 }, 180_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('process export', () => {
   it('a ZIP with the collection and the environment, without secrets, audited', async () => {

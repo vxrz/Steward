@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { linkInput, linkUpdate } from '../records/links.js';
 import { getPlatform } from '../platforms/service.js';
@@ -18,8 +18,7 @@ import { LARGE_BODIES } from '../bodyLimits.js';
 import { getService } from './service.js';
 import * as status from './status-pages.js';
 import { ACCESS } from '../auth/access.js';
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
+import { params } from '../routes/params.js';
 
 /**
  * Applications of the service catalogue, the applications of services, protection needs and the CIA scale, and the
@@ -197,7 +196,7 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
     to: z.string().datetime({ offset: true }).optional(),
     target: z
       .string()
-      .regex(/^(platform|system|application|service):[\w-]{1,80}$/)
+      .regex(/^(platform|system|application|service|monitor):[\w-]{1,80}$/)
       .optional(),
     cancelled: z.enum(['true', 'false']).optional(),
   });
@@ -224,9 +223,9 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
 
   // the application a platform belongs to (platform page; 404 for platforms the user may not see)
   app.get('/platforms/:id/application', async (req) => {
-    if (!getPlatform(params(req).id!).permissions.length)
-      throw new HttpError(404, `Platform ${params(req).id} not found`, 'PLATFORM_NOT_FOUND', { id: params(req).id });
-    return { application: apps.applicationOfPlatform(params(req).id!) };
+    const id = params(req).id!;
+    if (!getPlatform(id).permissions.length) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
+    return { application: apps.applicationOfPlatform(id) };
   });
 
   // ---------- services → applications, protection need ----------

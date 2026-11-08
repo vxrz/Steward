@@ -320,6 +320,7 @@ Do this on a machine with internet access and copy the file over. Mind the data'
 - **Pins** are buttons in list order (Tab moves through them, Enter opens the card) with an icon and an accessible name that says the state (_Riverside Works, RVS, 1 check failing_); never colour alone. A legend under the map names every state.
 - **State of a site**: the worst of its assets' linked monitors and its failing plant checks – _Offline_ wins, then _Warning_ (a degraded monitor or a failing check), _Unknown_ (never shown as online), _Online_; a site nothing watches is _Not watched_ (neutral).
 - **Clusters** when sites are closer than about 56 px, also buttons (_2 sites, worst: Warning – zoom in_), counting only the sites the reader sees. At most 2,000 positions are drawn; the list names all.
+- **Pins follow the map** in the frame it is drawn in, while panning and zooming. Only pins in view are shown and focusable; the sites half a view around it are drawn hidden, so pins do not appear late. Clusters are made anew when the zoom level changes or new sites come near the view.
 - **The card**: name, code, state, assets by status, KPI coverage, open checks, and links to the site, its structure and its OT network.
 - **Show on map** on the site page (and in the list) opens the map at the site with its own zoom. `prefers-reduced-motion` and _Animation off_ turn the fly-to into a jump.
 - **Position picker**: in the site form, a click on the map sets latitude and longitude (typing them stays possible, also with the map off).

@@ -19,7 +19,7 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
-import { isAdmin, matches } from '../auth/permissions.js';
+import { hasRole, isAdmin, matches } from '../auth/permissions.js';
 import { listTeams, listUsers } from '../auth/users.js';
 import { readSetting, writeSetting } from '../settings.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
@@ -130,7 +130,7 @@ const sourceOf = (key: string, settings = ticketSettings()): TicketSource => set
 
 // ---------- permissions ----------
 
-const isEditorRole = (u: AuthUser | null) => !!u && u.roles.some((r) => TICKET_EDITOR_ROLES.includes(r));
+const isEditorRole = (u: AuthUser | null) => hasRole(u, TICKET_EDITOR_ROLES);
 export const isResponsible = (u: AuthUser | null, r: Pick<TicketRow, 'responsible'>): boolean =>
   !!u && parseJson<string[]>(r.responsible, []).some((s) => matches(u, s));
 export const canCreateTickets = (u: AuthUser | null = currentUser()): boolean => isEditorRole(u);

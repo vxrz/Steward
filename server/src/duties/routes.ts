@@ -1,8 +1,7 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import * as duties from './service.js';
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
+import { params } from '../routes/params.js';
 
 const listQuery = z.object({
   serviceId: z.string().max(200).optional(),

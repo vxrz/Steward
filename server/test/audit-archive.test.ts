@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { authHeaders, loginCookie, setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -43,9 +43,6 @@ beforeAll(async () => {
   pem = (await s.api('GET', '/audit/anchoring')).publicKeyPem;
   pemFile = path.join(s.dataDir, 'public-key.pem');
   fs.writeFileSync(pemFile, pem);
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('incremental and full verification', () => {

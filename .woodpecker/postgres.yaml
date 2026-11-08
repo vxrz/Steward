@@ -7,8 +7,9 @@ variables:
   - &node_image node:24-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea
   # postgres:16.15-bookworm (same major version as docker-compose.postgres.yml)
   - &postgres_image postgres:16.15-bookworm@sha256:d81f7b51697014367236d07ec58b54153fc28f828b72bf247fe5c7487520bcb0
+  # as in ci.yaml: server tests read README.md and files in docs/
   - &code_paths
-    exclude: ['**/*.md', 'LICENSE', 'NOTICE', '.github/**', 'docs/*.svg']
+    exclude: ['docs/**/*.png', 'docs/**/*.svg', '.github/**']
   - &pg_env
     SM_TEST_DATABASE_URL: postgres://postgres:postgres@postgres:5432/postgres
     npm_config_fund: 'false'
@@ -35,7 +36,9 @@ steps:
     image: *node_image
     environment: *pg_env
     commands:
-      - npm ci --no-audit
+      # as in GitHub CI: no install script runs during the install, then only the reviewed ones (package.json "allowScripts")
+      - npm ci --ignore-scripts --no-audit
+      - node scripts/install-scripts.mjs --check --run
 
   - name: test-postgres
     image: *node_image

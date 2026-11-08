@@ -1,12 +1,12 @@
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
-import { animationsDone, expectAccessible } from './support/axe';
+import { animationsDone, expectAccessible, settle } from './support/axe';
 import { json, uniq } from './support/helpers';
 
 /**
  * Maintenance windows (#108): a designer plans a weekly window for an application from its page, sees it on the
- * Maintenance page (list and calendar) and in the details with the calendar file, and cancels it; a viewer reads it
- * without the buttons to change it.
+ * Maintenance page (list and calendar) and in the details with the calendar file, and cancels it; a monitor's
+ * maintenance is planned with the same form (0.11); a viewer reads it without the buttons to change it.
  */
 
 test.describe('as a designer', () => {
@@ -70,6 +70,62 @@ test.describe('as a designer', () => {
       await expect(page.getByRole('dialog', { name: title }).getByText('Cancelled', { exact: true })).toBeVisible();
     } finally {
       await api.put(`/api/applications/${app.id}`, { data: { name: appName, owners: [], archived: true } });
+    }
+  });
+});
+
+test.describe('a monitor’s maintenance (0.11: catalogue windows)', () => {
+  test.use({ storageState: authFile('dana') });
+
+  test('plans a window for a monitor on its page with the catalogue form; the monitor is in maintenance', async ({ page, apiAs }) => {
+    const api = await apiAs('dana');
+    const name = uniq('E2E maintained monitor');
+    const title = uniq('Gateway swap');
+    const created = await json<{ monitor: { id: string } }>(
+      await api.post('/api/monitors', {
+        data: { definition: { name, checks: [{ id: 'hb', name: 'Gateway report', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }] } },
+      }),
+    );
+    const id = created.monitor.id;
+    try {
+      await page.goto(`/monitors/${id}`);
+      await page.getByRole('tab', { name: 'Maintenance' }).click();
+      const tab = page.getByTestId('monitor-maintenance');
+      await expect(tab).toContainText('No maintenance windows.');
+      await tab.getByRole('button', { name: 'Plan maintenance' }).click();
+      const form = page.getByRole('dialog', { name: 'Plan maintenance' });
+      await form.getByRole('textbox', { name: 'Title' }).fill(title);
+      // the monitor is already listed
+      await expect(form.getByText(name)).toBeVisible();
+      // now, for an hour – in the browser's time zone, which the form uses
+      const [start, end] = await page.evaluate(() => {
+        const local = (t: number) => {
+          const d = new Date(t);
+          const p = (n: number) => String(n).padStart(2, '0');
+          return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+        };
+        return [local(Date.now() - 5 * 60_000), local(Date.now() + 3_600_000)];
+      });
+      await form.getByLabel(/^Start/).fill(start);
+      await form.getByLabel(/^End/).fill(end);
+      await form.getByRole('button', { name: 'Save' }).click();
+      await expect(form).toBeHidden();
+      const item = tab.getByTestId('monitor-maintenance-window').filter({ hasText: title });
+      await expect(item).toContainText('Lists this monitor');
+      await expect
+        .poll(async () => (await json<{ maintenance: { id: string } | null }>(await api.get(`/api/monitors/${id}`))).maintenance?.id ?? null)
+        .not.toBeNull();
+      await settle(page);
+      await expectAccessible(page, 'monitor maintenance tab');
+      // the details are the catalogue window's: cancel it there
+      await item.getByRole('button', { name: title }).click();
+      const detail = page.getByRole('dialog', { name: title });
+      await detail.getByRole('button', { name: 'Cancel maintenance' }).click();
+      await page.getByTestId('confirm-dialog-confirm').click();
+      await expect(detail.getByText('Cancelled', { exact: true })).toBeVisible();
+      await expect.poll(async () => (await json<{ maintenance: unknown }>(await api.get(`/api/monitors/${id}`))).maintenance).toBeNull();
+    } finally {
+      await api.delete(`/api/monitors/${id}`);
     }
   });
 });

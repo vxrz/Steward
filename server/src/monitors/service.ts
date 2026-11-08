@@ -25,8 +25,8 @@ import {
   type MonitorStatus,
   type MonitorSummary,
   type TemplateParam,
-  isGitPlatformKind,
-  validMqttFilter,
+  checkPlatformKinds,
+  outputTypeKinds,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -55,6 +55,7 @@ import {
   type StateRow,
 } from './model.js';
 import { requireVisiblePlatform, resolvePlatformRef } from './platforms.js';
+import { validateCheckPlatform } from './checks.js';
 import { requireVisibleSystem } from '../dbschema/check.js';
 import { requireVisibleApplication } from '../versions/check.js';
 import { requireVisibleCostScope } from '../costs/check.js';
@@ -63,6 +64,7 @@ import { checkUptimes, monitorUptime } from './stats.js';
 import { coerceParams, renderTemplate } from './templates.js';
 import { checkExpressions, parseDefinitionInput, validateTemplate } from './validation.js';
 import * as engine from './engine.js';
+import { endMonitorWindow, forgetMonitorInWindows, monitorWindows, planMonitorWindow } from '../catalogue/maintenance.js';
 import { checkMessage, monitorVisibility, redactCauses, redactDefinition, rootCauseMessage, type MonitorVisibility } from './redact.js';
 import { me } from '../auth/access.js';
 import { assignCreatorTeams, forgetOwningTeams } from '../auth/policy.js';
@@ -113,14 +115,20 @@ interface Joined extends MonitorRow {
 const SELECT = `SELECT m.*, s.status, s.since, s.root_causes, s.last_evaluated_at, s.ack_by, s.ack_at, s.ack_comment
   FROM monitors m LEFT JOIN monitor_state s ON s.monitor_id = m.id`;
 
+/** The maintenance window the monitor is in now (a catalogue window that lists it or reaches a platform it checks). */
 function maintenanceOf(mid: string, now = engine.monitorNow()): MaintenanceWindow | null {
   const w = engine.activeMaintenance(mid, now);
   if (!w) return null;
-  const own = listMaintenanceRows(mid).find((x) => x.id === w.id);
-  if (own) return own;
-  // a maintenance window of the catalogue on one of the monitor's platforms (#108)
-  const c = w as typeof w & { starts_at?: string };
-  return { id: w.id, monitorId: mid, startsAt: c.starts_at ?? '', endsAt: w.ends_at, reason: w.reason, createdBy: '', createdAt: '', active: true };
+  return {
+    id: w.id,
+    monitorId: mid,
+    startsAt: w.starts_at,
+    endsAt: w.ends_at,
+    reason: w.reason,
+    createdBy: w.created_by,
+    createdAt: w.created_at,
+    active: true,
+  };
 }
 
 function summary(r: Joined, counts: Partial<Record<MonitorStatus, number>> | undefined, canView: MonitorVisibility): MonitorSummary {
@@ -324,31 +332,14 @@ export function listResults(idOrKey: string, checkId: string, limit = 50): Check
 
 // ---------- validation ----------
 
-const PLATFORM_KIND: Partial<Record<string, string>> = {
-  freshness: 'insights-hub',
-  gatus: 'gatus',
-  checkmk: 'checkmk',
-  prometheus: 'prometheus',
-  kubernetes: 'kubernetes',
-  kafka: 'kafka',
-  'kafka-connect': 'kafka-connect',
-  mqtt: 'mqtt',
-  snowflake: 'snowflake',
-  database: 'database',
-  dynamodb: 'aws',
-  'db-schema': 'database',
-  'dependency-track': 'dependency-track',
-  entra: 'microsoft-graph',
-  'privilege-vault': 'privilege-vault',
-  'page-watch': 'changedetection',
-  zabbix: 'zabbix',
-};
-
-/** The platform kind a check or output needs (undefined: any platform). */
-function expectedKind(item: Record<string, unknown>, isOutput: boolean): string | undefined {
+/**
+ * The one platform kind a check or output needs (the kind descriptors, shared/src/platformKinds.ts); undefined: any
+ * platform – or one of several kinds (the repository check), which is checked when the monitor is saved.
+ */
+function expectedKind(item: { type?: unknown; source?: unknown }, isOutput: boolean): string | undefined {
   const type = String(item.type ?? '');
-  if (!isOutput && type === 'freshness') return 'insights-hub';
-  return PLATFORM_KIND[type];
+  const kinds = isOutput ? outputTypeKinds(type) : checkPlatformKinds({ type, source: item.source });
+  return kinds.length === 1 ? kinds[0] : undefined;
 }
 
 export type PlatformReference = MonitorPlatformReference;
@@ -450,19 +441,12 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
       continue;
     }
     if ('platform' in c && c.platform) {
-      const kind = c.type === 'freshness' && c.source === 'insightsHub' ? 'insights-hub' : PLATFORM_KIND[c.type];
+      const kind = expectedKind(c, false);
       const p = resolvePlatformRef(c.platform, kind);
       // before anything below names the platform or its kind
       requirePlatformUse(p.id, c.platform, kind);
-      if (c.type === 'mqtt' && !validMqttFilter(c.topic))
-        throw new HttpError(400, `Check "${c.id}": "${c.topic}" is no MQTT topic or pattern (+ and # only as whole levels, # last)`, 'CHECK_MQTT_TOPIC', {
-          check: c.id,
-        });
-      if (c.type === 'git' && !isGitPlatformKind(p.kind))
-        throw new HttpError(400, `Check "${c.id}": "${p.name}" is not a GitHub, GitLab or Forgejo/Gitea platform`, 'CHECK_GIT_PLATFORM', {
-          check: c.id,
-          name: p.name,
-        });
+      // the type's own rules (checks.ts): an MQTT topic pattern, one of the Git kinds …
+      validateCheckPlatform(c, p);
       c.platform = p.id;
     }
     // the system of a schema check: one the editor may not see answers like a missing one
@@ -492,7 +476,7 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
         output: o.id,
       });
     if ('platform' in o && o.platform) {
-      const kind = teams ? 'teams' : PLATFORM_KIND[o.type];
+      const kind = teams ? 'teams' : expectedKind(o, true);
       const p = resolvePlatformRef(o.platform, kind);
       requirePlatformUse(p.id, o.platform, kind);
       if (teams && p.kind !== 'teams')
@@ -904,6 +888,8 @@ export function deleteMonitor(idOrKey: string): void {
     ]) {
       db().run(`DELETE FROM ${t} WHERE monitor_id = ?`, r.id);
     }
+    // maintenance windows that listed only this monitor go with it (0.11: they replaced its own windows)
+    forgetMonitorInWindows(r.id);
     db().run('DELETE FROM datasets WHERE process_id = ?', `monitor:${r.id}`);
     db().run('UPDATE monitors SET template_id = NULL WHERE template_id = ?', r.id);
     db().run('DELETE FROM monitors WHERE id = ?', r.id);
@@ -963,29 +949,14 @@ export function rotateHeartbeatSecret(idOrKey: string, checkId: string): { secre
   return { secret: s.secret, path: heartbeatPath(row.hook_id) };
 }
 
-// ---------- maintenance & acknowledgement ----------
+// ---------- maintenance (deprecated since 0.11: the catalogue's maintenance windows) & acknowledgement ----------
 
-function listMaintenanceRows(mid: string): MaintenanceWindow[] {
-  const now = engine.monitorNow();
-  return db()
-    .all<{ id: string; monitor_id: string; starts_at: string; ends_at: string; reason: string; created_by: string; created_at: string }>(
-      'SELECT * FROM monitor_maintenance WHERE monitor_id = ? ORDER BY starts_at DESC LIMIT 100',
-      mid,
-    )
-    .map((w) => ({
-      id: w.id,
-      monitorId: w.monitor_id,
-      startsAt: w.starts_at,
-      endsAt: w.ends_at,
-      reason: w.reason,
-      createdBy: w.created_by,
-      createdAt: w.created_at,
-      active: Date.parse(w.starts_at) <= now && Date.parse(w.ends_at) > now,
-    }));
-}
-
+/**
+ * The monitor API's maintenance routes (deprecated in 0.11, ADR 0018; removed in a later release): they read and write
+ * catalogue maintenance windows that list the monitor, in the old shape. Planning still needs the acknowledge right.
+ */
 export function listMaintenance(idOrKey: string): MaintenanceWindow[] {
-  return listMaintenanceRows(requireMonitor(idOrKey).id);
+  return monitorWindows(requireMonitor(idOrKey).id, engine.monitorNow());
 }
 
 export function addMaintenance(idOrKey: string, input: { startsAt?: string; endsAt: string; reason: string }): MaintenanceWindow {
@@ -995,51 +966,27 @@ export function addMaintenance(idOrKey: string, input: { startsAt?: string; ends
   if (Number.isNaN(start) || Number.isNaN(end)) throw new HttpError(400, 'Invalid start or end time', 'PERIOD_INVALID');
   if (end <= start) throw new HttpError(400, 'The end must be after the start', 'PERIOD_END_BEFORE_START');
   if (end - start > 31 * 86400000) throw new HttpError(400, 'A maintenance window can last at most 31 days', 'MAINTENANCE_TOO_LONG', { days: 31 });
-  const id = newId('mw_');
-  db().tx(() => {
-    db().run(
-      'INSERT INTO monitor_maintenance (id, monitor_id, starts_at, ends_at, reason, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      id,
-      r.id,
-      new Date(start).toISOString(),
-      new Date(end).toISOString(),
-      input.reason.trim().slice(0, 500),
-      me().username,
-      nowIso(),
-    );
-    audit({
-      action: 'monitor.maintenance_added',
-      entityType: 'monitor',
-      entityId: r.id,
-      summary: `Maintenance for monitor "${r.name}" from ${new Date(start).toISOString()} to ${new Date(end).toISOString()}: ${input.reason.trim().slice(0, 200)}`,
-      details: { windowId: id, startsAt: new Date(start).toISOString(), endsAt: new Date(end).toISOString(), reason: input.reason },
-    });
+  const w = planMonitorWindow({ id: r.id, name: r.name }, { start, end, reason: input.reason });
+  audit({
+    action: 'monitor.maintenance_added',
+    entityType: 'monitor',
+    entityId: r.id,
+    summary: `Maintenance for monitor "${r.name}" from ${w.startsAt} to ${w.endsAt}: ${input.reason.trim().slice(0, 200)} (maintenance window ${w.id})`,
+    details: { windowId: w.id, startsAt: w.startsAt, endsAt: w.endsAt, reason: input.reason },
   });
   engine.scheduleRecompute(r.id);
-  return listMaintenanceRows(r.id).find((w) => w.id === id)!;
+  return w;
 }
 
 export function endMaintenance(idOrKey: string, windowId: string): void {
   const r = requireMonitor(idOrKey, 'acknowledge', 'change maintenance of this monitor');
-  const w = db().get<{ starts_at: string; ends_at: string }>(
-    'SELECT starts_at, ends_at FROM monitor_maintenance WHERE id = ? AND monitor_id = ?',
-    windowId,
-    r.id,
-  );
-  if (!w) throw new HttpError(404, 'Maintenance window not found', 'MAINTENANCE_NOT_FOUND');
-  const now = engine.monitorNow();
-  db().tx(() => {
-    // a running window ends now (history stays); a future one is removed
-    if (Date.parse(w.starts_at) <= now)
-      db().run('UPDATE monitor_maintenance SET ends_at = ? WHERE id = ?', new Date(Math.min(now, Date.parse(w.ends_at))).toISOString(), windowId);
-    else db().run('DELETE FROM monitor_maintenance WHERE id = ?', windowId);
-    audit({
-      action: 'monitor.maintenance_ended',
-      entityType: 'monitor',
-      entityId: r.id,
-      summary: `Maintenance window of monitor "${r.name}" ended or removed`,
-      details: { windowId },
-    });
+  if (!endMonitorWindow(r.id, windowId)) throw new HttpError(404, 'Maintenance window not found', 'MAINTENANCE_NOT_FOUND');
+  audit({
+    action: 'monitor.maintenance_ended',
+    entityType: 'monitor',
+    entityId: r.id,
+    summary: `Maintenance window of monitor "${r.name}" ended or removed`,
+    details: { windowId },
   });
   engine.scheduleRecompute(r.id);
 }

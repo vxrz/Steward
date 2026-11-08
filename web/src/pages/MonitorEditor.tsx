@@ -36,6 +36,8 @@ import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import {
   CHECK_TYPES,
+  CHECK_TYPE_DEFS,
+  isActiveCheckType,
   issueLabel,
   type CheckDef,
   type CheckType,
@@ -62,15 +64,6 @@ import { monitorKeys, platformKeys, processKeys } from '../queryKeys';
 import { SaveAsTemplateModal } from '../components/monitors/SaveAsTemplate';
 import { useMe } from '../auth';
 import { moduleOn } from '../modules';
-import type { ModuleId } from '@sm/shared';
-
-/** Check kinds of a module (ADR 0016): not offered while it is switched off (existing checks stay as they are). */
-const CHECK_MODULES: Partial<Record<CheckType, ModuleId>> = {
-  cost: 'costs',
-  'data-contract': 'dataContracts',
-  'page-watch': 'changedetection',
-  'version-behind': 'versionWatch',
-};
 
 const EMPTY: MonitorDefinition = {
   name: '',
@@ -95,33 +88,6 @@ let keySeq = 0;
 const newKey = () => `card-${++keySeq}`;
 const draftOf = (def: MonitorDefinition): Draft => ({ def, keys: def.checks.map(newKey) });
 const isEmpty = (v: unknown) => v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
-/** Checks that make a call and can be tried before saving */
-const TRYABLE = new Set<CheckType>([
-  'ping',
-  'tcp',
-  'http',
-  'platform',
-  'freshness',
-  'gatus',
-  'checkmk',
-  'prometheus',
-  'kubernetes',
-  'git',
-  'kafka',
-  'kafka-connect',
-  'mqtt',
-  'snowflake',
-  'database',
-  'dynamodb',
-  'db-schema',
-  'cost',
-  'data-contract',
-  'dependency-track',
-  'version-behind',
-  'entra',
-  'privilege-vault',
-  'page-watch',
-]);
 
 /**
  * A new monitor from a link (#233): ?dynamodb=<platform id>&region=…&table=… – the AWS inventory of a cloud account
@@ -505,7 +471,8 @@ export function MonitorEditorPage() {
                 </Button>
               </Group>
               <Group gap={6} mb="xs" aria-label={t('editor.palette')}>
-                {CHECK_TYPES.filter((type) => !CHECK_MODULES[type] || moduleOn(caps, CHECK_MODULES[type]!)).map((type) => {
+                {/* check types of a module (ADR 0016) are not offered while it is off; existing checks stay as they are */}
+                {CHECK_TYPES.filter((type) => !CHECK_TYPE_DEFS[type].module || moduleOn(caps, CHECK_TYPE_DEFS[type].module!)).map((type) => {
                   const Icon = CHECK_ICONS[type];
                   return (
                     <Tooltip key={type} label={checkTypeHelp(type)} multiline w={260} withArrow>
@@ -552,7 +519,8 @@ export function MonitorEditorPage() {
                     <Group justify="space-between" gap={4}>
                       <Title order={4}>{t('detail.check')}</Title>
                       <Group gap={4}>
-                        {TRYABLE.has(sel.type) && (
+                        {/* checks that make a call can be tried before saving */}
+                        {isActiveCheckType(sel.type) && (
                           <Button
                             size="compact-xs"
                             variant="default"

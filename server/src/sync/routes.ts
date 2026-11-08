@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { boundedRecord, SYNC_KINDS, SYNC_UPDATE_STATUSES, SYNC_WEBHOOK_MAX_BODY_BYTES } from '@sm/shared';
 import { currentActor } from '../auth/context.js';
@@ -8,8 +8,7 @@ import { fetchSource } from './fetch.js';
 import { handleSyncHook } from './hook.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS } from '../auth/access.js';
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
+import { params } from '../routes/params.js';
 
 const listQuery = z.object({
   status: z

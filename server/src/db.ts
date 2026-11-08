@@ -364,6 +364,15 @@ export function namedMigrations(dialect: 'sqlite' | 'postgres'): { name: string;
  * functions or PRAGMAs, quoted camelCase aliases (`AS "runId"`), `lower(x) LIKE lower(?)`
  * for case-insensitive search. server/test/db.test.ts checks the sources for common slips.
  */
+/** A value that is not a promise: what a transaction callback may return (Db.tx). */
+export type Synchronous<T> = T extends PromiseLike<unknown> ? never : T;
+
+function notAPromise<T>(out: T): T {
+  if (out && typeof (out as { then?: unknown }).then === 'function')
+    throw new Error('A database transaction must be synchronous: its callback returned a promise');
+  return out;
+}
+
 export class Db {
   readonly driver: Driver;
   /** What was opened (undefined when a driver was passed in): the PostgreSQL copy before migrating needs its URL. */
@@ -394,6 +403,13 @@ export class Db {
   jsonText(column: string, key: string): string {
     if (!/^[a-zA-Z_][\w.]*$/.test(column) || !/^\w+$/.test(key)) throw new Error('invalid JSON field reference');
     return this.dialect === 'postgres' ? `(${column}::jsonb ->> '${key}')` : `json_extract(${column}, '$.${key}')`;
+  }
+  /** SQL expression for the milliseconds between two ISO timestamp columns (portable julianday / EXTRACT(EPOCH)). */
+  durationMs(startColumn: string, endColumn: string): string {
+    if (!/^[a-zA-Z_][\w.]*$/.test(startColumn) || !/^[a-zA-Z_][\w.]*$/.test(endColumn)) throw new Error('invalid column reference');
+    return this.dialect === 'postgres'
+      ? `CAST(ROUND(EXTRACT(EPOCH FROM (${endColumn}::timestamptz - ${startColumn}::timestamptz)) * 1000) AS BIGINT)`
+      : `CAST(ROUND((julianday(${endColumn}) - julianday(${startColumn})) * 86400000) AS INTEGER)`;
   }
   /** Where the data lives, without credentials (for logs and the UI). */
   get label(): string {
@@ -623,16 +639,20 @@ export class Db {
     timedStatement(this.driver.dialect, sql, () => this.driver.exec(sql));
   }
   private depth = 0;
-  /** Run fn in a transaction (nested calls join the outer transaction). */
-  tx<T>(fn: () => T): T {
-    if (this.depth > 0) return fn();
+  /**
+   * Run fn in a transaction (nested calls join the outer transaction). A transaction is one synchronous function
+   * (ADR 0001): an async callback would commit at its first `await` and run the rest outside the transaction, so
+   * the type refuses a callback that returns a promise, and one that slips through rolls back and throws.
+   */
+  tx<T>(fn: () => Synchronous<T>): T {
+    if (this.depth > 0) return notAPromise(fn());
     return timedTransaction(this.driver.dialect, () => this.runTx(fn));
   }
-  private runTx<T>(fn: () => T): T {
+  private runTx<T>(fn: () => Synchronous<T>): T {
     this.driver.begin();
     this.depth++;
     try {
-      const out = fn();
+      const out = notAPromise(fn());
       this.driver.commit();
       return out;
     } catch (e) {

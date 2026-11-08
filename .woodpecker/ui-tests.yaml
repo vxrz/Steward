@@ -10,8 +10,9 @@
 
 variables:
   - &node_image node:24-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea
+  # documentation only: the UI tests read none of it (ci.yaml checks the documents)
   - &code_paths
-    exclude: ['**/*.md', 'LICENSE', 'NOTICE', '.github/**', 'docs/*.svg']
+    exclude: ['**/*.md', 'docs/**', 'LICENSE', 'NOTICE', '.github/**']
 
 when:
   - event: push
@@ -28,7 +29,9 @@ steps:
       npm_config_fund: 'false'
       npm_config_update_notifier: 'false'
     commands:
-      - npm ci --no-audit
+      # as in GitHub CI: no install script runs during the install, then only the reviewed ones (package.json "allowScripts")
+      - npm ci --ignore-scripts --no-audit
+      - node scripts/install-scripts.mjs --check --run
       - npx playwright install --with-deps chromium
       - npm run build # the tests use the built UI in web/dist
       - npm run test:ui

@@ -1,4 +1,4 @@
-import { type Platform } from '@sm/shared';
+import { costSourceOfKind, type Platform } from '@sm/shared';
 import { db } from '../db.js';
 import { logger } from '../log.js';
 import { audit } from '../audit.js';
@@ -8,7 +8,7 @@ import { platformFor } from '../monitors/platforms.js';
 import { HttpError } from '../util.js';
 import { costSettings, requireScope } from './access.js';
 import { aiLines, awsLines, awsWindow, confluentLines, confluentRanges, readFrom, snowflakeCosts, type ConfluentCost } from './readers.js';
-import { noteRead, sourceOfKind, sourceRow } from './service.js';
+import { noteRead, sourceRow } from './service.js';
 import { ingest, remap, type IngestResult } from './store.js';
 
 /**
@@ -50,7 +50,7 @@ export interface ReadOutcome {
 /** Reads one platform's costs now (the job, or "Read now" by who may manage it). */
 export async function readSource(platformId: string, actor: string, now = Date.now()): Promise<ReadOutcome> {
   const { platform, secrets } = platformFor(actor, platformId);
-  const source = sourceOfKind(platform.kind);
+  const source = costSourceOfKind(platform.kind);
   const at = new Date(now).toISOString();
   try {
     if (source === 'aws') {
@@ -165,7 +165,7 @@ export async function runCostJob(now = Date.now()): Promise<{ read: number; fail
     `SELECT s.platform_id, p.kind, s.updated_by, s.last_read_at FROM cost_sources s JOIN platforms p ON p.id = s.platform_id WHERE s.enabled = 1 ORDER BY s.platform_id`,
   );
   for (const r of rows) {
-    const source = sourceOfKind(r.kind);
+    const source = costSourceOfKind(r.kind);
     const every = INTERVAL[source];
     if (!every) continue;
     if (r.last_read_at && now - Date.parse(r.last_read_at) < every && Date.parse(r.last_read_at) <= now) continue;

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import YAML from 'yaml';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -48,9 +48,6 @@ beforeAll(async () => {
   const path = await import('node:path');
   const content = fs.readFileSync(path.resolve(__dirname, '../../examples/plant/brightwater-ot-network.plant.yaml'), 'utf8');
   await s.api('POST', '/plant/import', { files: [{ name: 'n.plant.yaml', content }], mode: 'add' });
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('a dataset the reader may not see', () => {

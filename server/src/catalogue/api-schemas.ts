@@ -374,7 +374,7 @@ export const CiaScaleEntry = z.object({
 const MaintenanceTargetEntry = z.object({
   kind: z.enum(MAINTENANCE_TARGET_KINDS),
   id: z.string(),
-  name: z.string().nullable().describe('Null for a platform the token owner may not see, or something deleted'),
+  name: z.string().nullable().describe('Null for a platform or monitor the token owner may not see, or something deleted'),
 });
 
 export const MaintenanceEntry = z.object({
@@ -420,7 +420,7 @@ export const MaintenanceListQuery = z.object({
   to: ts().optional().describe('End of the range (default: 60 days ahead; at most 400 days after from)'),
   target: z
     .string()
-    .regex(/^(platform|system|application|service):[\w-]{1,80}$/)
+    .regex(/^(platform|system|application|service|monitor):[\w-]{1,80}$/)
     .optional()
     .describe('Only windows that list or reach this item: kind:id, e.g. service:svc_…'),
 });

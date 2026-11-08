@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import i18n, { type BackendModule, type ReadCallback } from 'i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { initReactI18next } from 'react-i18next';
@@ -49,7 +50,7 @@ void i18n
       order: ['localStorage', 'navigator'],
       lookupLocalStorage: LANGUAGE_STORAGE_KEY,
       // "de-DE" → "de": the UI language is language-only; regional formats come from formatLocale().
-      convertDetectedLanguage: (lng: string) => lng.split('-')[0].toLowerCase(),
+      convertDetectedLanguage: (lng: string) => (lng.split('-')[0] ?? lng).toLowerCase(),
       // The detector's own localStorage cache guards against blocked storage.
       caches: ['localStorage'],
     },

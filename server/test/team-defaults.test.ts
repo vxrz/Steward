@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { tinyPng } from './png.js';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -45,9 +45,6 @@ beforeAll(async () => {
   [tara, dave] = await Promise.all(['tara', 'dave'].map((u) => s.as(u, PW)));
   orders = (await s.api('POST', '/teams', { name: 'Orders', members: ['tara'] })).id;
   payments = (await s.api('POST', '/teams', { name: 'Payments', members: ['tara'] })).id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('new resources of members', () => {

@@ -1,9 +1,6 @@
 import {
-  AWS_KIND,
-  CONFLUENT_KIND,
   COST_LIMITS,
-  LLM_GATEWAY_KIND,
-  SNOWFLAKE_KIND,
+  costSourceOfKind,
   costImportInput,
   costSourceInput,
   fromMicros,
@@ -11,7 +8,6 @@ import {
   type CostImport,
   type CostImportMode,
   type CostImportPreview,
-  type CostSource,
   type CostSourceSettings,
 } from '@sm/shared';
 import { db } from '../db.js';
@@ -26,15 +22,6 @@ import { ingest, mapLines, mapper, remap, tagKeyOf, type IngestResult } from './
  * Cost sources per platform and FOCUS file imports (#226, docs/COSTS.md#sources). Who may manage a platform sets how
  * its costs are read and imports files for it; who may see its costs sees the settings.
  */
-
-/** The source of a platform's costs: its connector, or FOCUS files for every other kind. */
-export function sourceOfKind(kind: string): CostSource {
-  if (kind === AWS_KIND) return 'aws';
-  if (kind === SNOWFLAKE_KIND) return 'snowflake';
-  if (kind === CONFLUENT_KIND) return 'confluent';
-  if (kind === LLM_GATEWAY_KIND) return 'ai';
-  return 'focus';
-}
 
 interface SourceRow {
   platform_id: string;
@@ -66,7 +53,7 @@ export function getSource(platformId: string): CostSourceSettings {
     platformId,
     platformName: p.name,
     platformKind: p.kind,
-    source: sourceOfKind(p.kind),
+    source: costSourceOfKind(p.kind),
     enabled: !!r?.enabled,
     tagKey: tagKeyOf(platformId),
     creditPrice: r?.credit_price ?? null,
@@ -129,7 +116,7 @@ export function setSource(platformId: string, body: unknown): CostSourceSettings
     });
   });
   // a new tag key links the lines anew
-  if (before?.tag_key !== x.tagKey) remap(platformId, sourceOfKind(p.kind));
+  if (before?.tag_key !== x.tagKey) remap(platformId, costSourceOfKind(p.kind));
   return getSource(platformId);
 }
 

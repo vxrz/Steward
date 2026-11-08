@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -44,9 +44,6 @@ beforeAll(async () => {
       secrets: { apiKey: SECRET },
     })
   ).id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const add = (r: Record<string, unknown>) => s.api('POST', `/platforms/${platformId}/recordings`, { status: 200, ...r });

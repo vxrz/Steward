@@ -69,8 +69,12 @@ export function platformPermissions(u: AuthUser | null, p: { id: string; acl: Ac
   return platformAccess(u, p).permissions;
 }
 
+/** Whether `u` has any of `roles` – the one role check (also exported by auth/access.ts). */
+// eslint-disable-next-line no-restricted-syntax -- the definition the rule points to
+export const hasRole = (u: AuthUser | null, roles: readonly string[]): boolean => !!u && u.roles.some((r) => roles.includes(r));
+
 export function capabilities(u: AuthUser | null): Capabilities {
-  const has = (...r: Role[]) => !!u && u.roles.some((x) => r.includes(x));
+  const has = (...r: Role[]) => hasRole(u, r);
   return {
     manageUsers: has('admin'),
     manageSettings: has('admin'),

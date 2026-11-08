@@ -32,8 +32,8 @@ import * as packs from './evidence-pack.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ensureDefaultTypes } from '../records/types.js';
+import { params } from '../routes/params.js';
 
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const iso = z.string().datetime({ offset: true });
 const csv = (v: string | undefined) =>
   v

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /** The platform list carries each platform's latest connection test (v0.3.1), taken from the audit log. */
@@ -13,9 +13,6 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   await s.api('POST', '/demo/setup', {});
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const list = async () => (await s.api('GET', '/platforms')) as { id: string; name: string; lastTest: { at: string; ok: boolean } | null }[];

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 import { derivePathPrefix, pathPrefixProblem, serverUrlPath } from '../src/platforms/pathPrefix.js';
 
@@ -12,9 +12,6 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   demoPassword = (await s.api('POST', '/demo/setup', {})).password;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const platform = async (baseUrl: string, variables: Record<string, string> = {}) =>

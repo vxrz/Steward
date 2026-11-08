@@ -17,7 +17,7 @@ import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
-import { capabilities, isAdmin, matches } from '../auth/permissions.js';
+import { capabilities, hasRole, isAdmin, matches } from '../auth/permissions.js';
 import { findUserByName, listTeams, listUsers, toAuthUser } from '../auth/users.js';
 import { notify, titleName } from '../notifications/service.js';
 import { assertEmailsAllowed } from '../notifications/domains.js';
@@ -151,7 +151,7 @@ const validTz = (tz: string): boolean => {
 
 // ---------- permissions ----------
 
-export const canCreateReportSchedules = (u: AuthUser | null = currentUser()): boolean => !!u && u.roles.some((r) => CREATE_ROLES.includes(r));
+export const canCreateReportSchedules = (u: AuthUser | null = currentUser()): boolean => hasRole(u, CREATE_ROLES);
 const isScheduleOwner = (u: AuthUser, r: { owner: string }) => r.owner.toLowerCase() === u.username.toLowerCase();
 const canEdit = (u: AuthUser | null, r: Row) => !!u && (isAdmin(u) || isScheduleOwner(u, r));
 const isRecipient = (u: AuthUser, rec: ReportRecipients) =>

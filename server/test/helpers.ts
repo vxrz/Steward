@@ -54,11 +54,15 @@ export interface TestServer {
  * test-only routes, added before the server listens.
  */
 /**
- * Data folders this test file created, removed after its last hook (registered at import, so with vitest's stacked
- * hooks it runs after the file's own afterAll that closes the server; a test may start a second server on a folder).
+ * Servers this test file started and has not closed yet, and the data folders it created: after the file's last hook
+ * the servers are closed and the folders removed. Registered at import, so with vitest's stacked hooks this runs after
+ * the file's own afterAll hooks: a file needs no afterAll of its own for its server, and one that closes a server
+ * early (or starts a second server on a folder) keeps working.
  */
+const openServers = new Set<FastifyInstance>();
 const createdDataDirs: string[] = [];
-afterAll(() => {
+afterAll(async () => {
+  for (const app of [...openServers]) await app.close();
   for (const dir of createdDataDirs.splice(0)) {
     try {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -81,6 +85,13 @@ export async function startTestServer(opts: { dataDir?: string; routes?: (app: F
   ensureDataDirs();
   const { buildApp } = await import('../src/app.js');
   const app = await buildApp();
+  // Close every connection before the server waits for them: a raw fetch whose body is never read keeps its keep-alive
+  // socket busy, and app.close() would wait for it up to the hook timeout (seen in CI on plant-map.test.ts).
+  app.addHook('preClose', async () => app.server.closeAllConnections());
+  app.addHook('onClose', async () => {
+    openServers.delete(app);
+  });
+  openServers.add(app);
   opts.routes?.(app);
   await app.listen({ host: '127.0.0.1', port: 0 });
   const port = (app.server.address() as AddressInfo).port;

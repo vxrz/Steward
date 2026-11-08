@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { allowEmailDomains, authHeaders, loginCookie, quiesce, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
 import { selfSignedCertificate } from '../../e2e/support/selfsigned.js';
 
@@ -84,9 +84,6 @@ beforeAll(async () => {
   await quiesce(); // no late demo run may send check e-mails into the tests that compare the sent mails
   await allowEmailDomains(s, ['example.com']);
   [dana, olivia, adam, audrey, vera] = await Promise.all(['dana', 'olivia', 'adam', 'audrey', 'vera'].map((u) => s.as(u, PW)));
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('secret heuristics', () => {

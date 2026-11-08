@@ -253,7 +253,8 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: StepContext, key: strin
   await refusedRedirects(ctx, page, 50).catch((e: Error) => {
     throw new Error(`Browser step: ${e.message} – ${blockedNow().join('; ')}`);
   });
-  store.updateStepInput(ctx.runId, key, { actions: done });
+  // the done list carries rendered URLs and selectors: a secret put into one stays out of the stored input
+  store.updateStepInput(ctx.runId, key, ctx.redactor.apply({ actions: done }));
   const blocked = blockedNow();
   return {
     output: { ...extracted, url: page.url(), title: await page.title(), screenshots: shots, ...(blocked.length ? { blockedByPolicy: blocked } : {}) },

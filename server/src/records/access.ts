@@ -5,7 +5,7 @@ import { isAdmin } from '../auth/permissions.js';
 import { sameIdentity } from '../auth/aliases.js';
 import { canReadAccessEntry } from '../compliance/access.js';
 import { parseJson, type ErrorParam } from '../util.js';
-import { forbid, me } from '../auth/access.js';
+import { forbid, me, hasRole } from '../auth/access.js';
 import { catalogueAccess, recordAccess, type CatalogueKind } from '../auth/policy.js';
 export { forbid, me };
 
@@ -16,7 +16,6 @@ export { forbid, me };
  * of the roles below, checked on the server for every route.
  */
 
-const has = (u: AuthUser | null, roles: Role[]) => !!u && u.roles.some((r) => roles.includes(r));
 const same = (a: string | null | undefined, b: string) => !!a && a.toLowerCase() === b.toLowerCase();
 
 /** Create records, edit drafts, run the non-approval transitions. */
@@ -40,8 +39,8 @@ export function canReadRecordRow(u: AuthUser | null, r: { id: string; type_id: s
   if (r.type_id !== ACCESS_TYPE_ID) return true;
   return canReadAccessEntry(u, parseJson<Record<string, string>>(r.fields, {}).platform ?? '', r.owner);
 }
-export const canCreateRecords = (u: AuthUser | null = currentUser()): boolean => has(u, RECORD_EDITOR_ROLES);
-export const canApproveRecords = (u: AuthUser | null = currentUser()): boolean => has(u, RECORD_APPROVER_ROLES);
+export const canCreateRecords = (u: AuthUser | null = currentUser()): boolean => hasRole(u, RECORD_EDITOR_ROLES);
+export const canApproveRecords = (u: AuthUser | null = currentUser()): boolean => hasRole(u, RECORD_APPROVER_ROLES);
 export const canManageRecordTypes = (u: AuthUser | null = currentUser()): boolean => isAdmin(u);
 
 export interface RecordRoleInfo {
@@ -99,7 +98,7 @@ export const fieldParam = (typeKey: string | undefined, f: Pick<RecordFieldDef, 
 export const canEditService = (u: AuthUser | null, r: { kind: CatalogueKind; id: string; owners: string[] }): boolean => catalogueAccess(u, r).edit;
 /** Seeing a service, application or system (#131): without owning teams everybody signed in. */
 export const canViewCatalogue = (u: AuthUser | null, r: { kind: CatalogueKind; id: string; owners: string[] }): boolean => catalogueAccess(u, r).view;
-export const canCreateServices = (u: AuthUser | null = currentUser()): boolean => has(u, SERVICE_EDITOR_ROLES);
+export const canCreateServices = (u: AuthUser | null = currentUser()): boolean => hasRole(u, SERVICE_EDITOR_ROLES);
 
 /**
  * Whether the current reader may see a catalogue item (#131); jobs without a reader see everything. For lists and

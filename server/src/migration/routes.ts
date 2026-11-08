@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { ImportedHistoryEntry, InstanceImport, MigrationPlan } from '@sm/shared';
 import { config } from '../config.js';
@@ -19,6 +19,7 @@ import { applyImport, buildPlan, mappingSchema, readPackage, type OpenedPackage 
 import { verifyImportedHistory } from './history.js';
 import { ACCESS, requireAdmin } from '../auth/access.js';
 import { env } from '../config.js';
+import { params } from '../routes/params.js';
 
 /**
  * Settings → Migration (administrators, signed-in sessions only – config.access, see auth/access.ts):
@@ -74,7 +75,6 @@ const mover = (): AuthUser => {
   if (u.emergency) throw new HttpError(403, 'Not in an emergency access session', 'EMERGENCY_NOT_ALLOWED');
   return u;
 };
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
 function stagedFor(id: string, u: AuthUser): Staged {
   sweep();

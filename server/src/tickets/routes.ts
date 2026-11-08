@@ -1,9 +1,10 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { TICKET_LINK_KINDS, TICKET_STATUSES, type TicketList } from '@sm/shared';
 import { currentUser } from '../auth/context.js';
 import { HttpError } from '../util.js';
 import * as svc from './service.js';
+import { params } from '../routes/params.js';
 
 /**
  * Ticket references (mounted under /api). Every route checks permissions in the service.
@@ -19,7 +20,6 @@ import * as svc from './service.js';
  *   DELETE /ticket-references/:id             administrators
  */
 
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const signedIn = () => {
   if (!currentUser()) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
 };

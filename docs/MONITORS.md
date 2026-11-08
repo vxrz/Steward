@@ -2,6 +2,7 @@
 
 Monitors are Steward's composable, dependency-aware health checks: **combined, branched and cascaded** uptime checks for machines, gateways and platforms. A monitor is a small graph of checks. Some checks Steward runs itself (ping, TCP, HTTP, platform API calls, data freshness in Insights Hub), some it reads from Gatus, and some are **pushed** to Steward by another system, for example an IoT gateway. Results go to people (notifications) and to other monitoring systems (Zabbix, Gatus, webhooks, Prometheus, the public API).
 
+- [Steward monitors, Gatus and Prometheus](#steward-monitors-gatus-and-prometheus)
 - [Concepts](#concepts)
 - [Example: a machine with a PowerMeter](#example-a-machine-with-a-powermeter)
 - [Check types](#check-types)
@@ -11,6 +12,10 @@ Monitors are Steward's composable, dependency-aware health checks: **combined, b
 - [Permissions and audit](#permissions-and-audit)
 - [Engine, storage and limits](#engine-storage-and-limits)
 - [Protocol facts and sources](#protocol-facts-and-sources)
+
+## Steward monitors, Gatus and Prometheus
+
+Steward's monitors cover the checks that belong to its procedures and services: a check that a runbook answers, a platform a service depends on, a data feed a duty relies on. They have 26 check types, root-cause graphs, maintenance windows and status pages, and their uptime can be the source of an availability objective ([SCORECARD.md](SCORECARD.md#availability-objectives)). For broad infrastructure monitoring – every host, port and endpoint of an estate, checked every few seconds – Gatus or Prometheus remain good choices. Their figures can feed objectives too, and monitors can read Gatus endpoints and Prometheus queries as checks ([GATUS.md](GATUS.md), [PROMETHEUS.md](PROMETHEUS.md)).
 
 ## Concepts
 
@@ -43,7 +48,11 @@ Monitors are Steward's composable, dependency-aware health checks: **combined, b
 - `critical`: checks with `critical: false` can only degrade the monitor;
 - `quorum` with `quorum: k`: up while at least _k_ critical checks are up or degraded (degraded when some are not).
 
-**Maintenance windows** (start, end, reason) and **acknowledgements** (a comment; until the monitor is up again) are set per monitor by everyone with the _acknowledge_ right.
+**Maintenance windows** are the catalogue's maintenance windows ([APPLICATIONS.md](APPLICATIONS.md#maintenance-windows)): once or repeating, planned under _Operate → Maintenance_ or from the monitor page (_Plan maintenance_ opens the same form with the monitor filled in). A window affects a monitor when it lists the monitor, or a platform, system, application or service that reaches a platform the monitor checks. While it lasts (with _Monitors stay quiet_ on) the monitor shows `maintenance`, sends no alerts, and the time does not count against its uptime. A window that lists monitors needs the _acknowledge_ right on each of them. The monitor's _Maintenance_ tab shows the windows that list or reach it.
+
+**Acknowledgements** (a comment; until the monitor is up again) are set by everyone with the _acknowledge_ right.
+
+**Before 0.11** a monitor had maintenance windows of its own (start, end, reason). The update copies each of them into a catalogue window that lists the monitor (audit entry `maintenance.migrated`; the old row keeps a reference to the copy). The copies send no announcements, as the old windows did not. The monitor API's maintenance routes (`GET`/`POST /api/monitors/{id}/maintenance`, `DELETE /api/monitors/{id}/maintenance/{windowId}`) still work in 0.11 and read and write such windows. They are **deprecated** and will be removed in a later release; use `/api/maintenance-windows` with a target `{ "kind": "monitor", "id": "…" }`.
 
 ## Example: a machine with a PowerMeter
 
@@ -389,13 +398,13 @@ A process can create instances too: `POST /api/monitors/<template id>/instances`
 
 **Sub-monitors you may not view.** A monitor can include a sub-monitor that some of its viewers may not view. They see the sub-monitor node with its status, but not which monitor it is: root causes, _likely caused by_, the node's link, messages, history, the YAML export, the definition, the `monitor.<key>` dataset, the public API, the MCP tools and notifications show "a monitor you cannot view" instead of its id, key, name and check names. The sub-monitor check's own message never names the monitor ("The sub-monitor is down"). An editor who may not view the sub-monitor can still save the monitor; the reference stays as it is (`(hidden)` in the definition).
 
-Designers and administrators create monitors and gateways; the creator becomes the owner. An access list (users, teams, roles) narrows the rights like for processes. Checks and outputs that use a platform need the _use_ right of the editor when saving and of the **owner** when they run (checked again at least once a minute). The audit log records `monitor.created`, `monitor.updated` (with added, removed and changed checks), `monitor.deleted`, `monitor.access_changed`, `monitor.secret_rotated`, `monitor.maintenance_added`/`_ended`, `monitor.acknowledged`, `monitor.resynced`, `monitor.gateway_*`, `monitor.report_rejected`, `monitor.test_run` and `monitor.check_previewed`.
+Designers and administrators create monitors and gateways; the creator becomes the owner. An access list (users, teams, roles) narrows the rights like for processes. Checks and outputs that use a platform need the _use_ right of the editor when saving and of the **owner** when they run (checked again at least once a minute). The audit log records `monitor.created`, `monitor.updated` (with added, removed and changed checks), `monitor.deleted`, `monitor.access_changed`, `monitor.secret_rotated`, `monitor.maintenance_added`/`_ended` (deprecated maintenance routes), `monitor.acknowledged`, `monitor.resynced`, `monitor.gateway_*`, `monitor.report_rejected`, `monitor.test_run` and `monitor.check_previewed`.
 
 ## Engine, storage and limits
 
 - **Scheduler.** A light scheduler next to the process engine (monitor checks do **not** create process runs). Each check runs on a fixed grid of its interval with a stable phase per check, so shared reads land in the same cycle and restarts keep the rhythm. Active checks run with a global concurrency limit (`SM_MONITOR_CONCURRENCY`, default 8), a timeout each and the platform's own concurrency limit; OpenTelemetry spans `monitor check <type>` are recorded when tracing is on.
 - **State.** Status, counters, the latest result and heartbeat reports live in the database, so a restart continues where it stopped. Status **changes** are kept as history, uptime comes from **hourly samples** (evaluations that were ok vs. down) for checks and from the time-weighted history for monitors; the latest 50 raw results per check are kept.
-- **Retention.** _Settings → Data retention → Monitor history_ (`retentionMonitorDays`, default 30) – history, samples, results and past maintenance windows are removed by the daily cleanup; the newest status change per check is kept.
+- **Retention.** _Settings → Data retention → Monitor history_ (`retentionMonitorDays`, default 30) – history, samples, results and the monitors' own maintenance windows from before 0.11 are removed by the daily cleanup; the newest status change per check is kept. Catalogue maintenance windows stay.
 - **Database.** SQLite or PostgreSQL, like everything else. One Steward instance per database (enforced), which is also why rate-limit counters may live in memory.
 - **Sizes.** Up to 100 checks and 30 outputs per monitor; heartbeat bodies up to 64 KB; at most 500 reports per gateway call. Designed for dozens of monitors with a handful of checks each and intervals of 30 s or more.
 

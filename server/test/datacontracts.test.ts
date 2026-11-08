@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import YAML from 'yaml';
 import { DATA_CONTRACT_SERVICE_KIND, DATABASE_KIND } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
@@ -82,9 +82,6 @@ beforeAll(async () => {
   orders = list.find((c: { key: string }) => c.key === 'shop-orders');
   customers = list.find((c: { key: string }) => c.key === 'shop-customers');
 }, 120_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('the demo', () => {
   it('has a data contract service and two contracts, tested once: orders hold, customers do not', async () => {

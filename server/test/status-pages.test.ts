@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -57,9 +57,6 @@ beforeAll(async () => {
     vendor: 'Vendor A',
     links: [{ kind: 'service', id: svc }],
   });
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('status pages', () => {

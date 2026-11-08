@@ -6,9 +6,11 @@ import type { VersionBehind, VersionLag } from './versions.js';
 /**
  * Availability objectives and the service scorecard (#86).
  *
- * An availability objective names one Gatus endpoint and targets for the windows Gatus reports (1 h, 24 h, 7 d,
- * 30 d; each optional). The values are Gatus' own uptime figures, which Steward reads once an hour when a Gatus
- * platform's metrics mode has "read Gatus' uptime figures" on – no service hours, no calculation of its own.
+ * An availability objective names one source and targets for the windows 1 h, 24 h, 7 d and 30 d (each optional).
+ * Sources: a Gatus endpoint (Gatus' own uptime figures, which Steward reads once an hour when a Gatus platform's
+ * metrics mode has "read Gatus' uptime figures" on), a PromQL query on a Prometheus platform (#110), or one of
+ * Steward's own monitors (0.11, ADR 0018: the time-weighted uptime from the monitor's recorded states – the same
+ * figure the monitor and the availability section of scheduled reports show).
  *
  * The scorecard shows, per service, its parts side by side – duties, availability, documentation, protection need, and
  * the tech stack (#104) and vulnerabilities (#119) – each with its own status. There is no weighting: "attention needed" when any part needs attention.
@@ -27,8 +29,15 @@ export type ObjectiveStatus = (typeof OBJECTIVE_STATUSES)[number];
  * read, the figures are older than OBJECTIVE_LIMITS.staleHours, Gatus does not report the endpoint (any more), or it
  * reported no value for the window.
  */
-export const OBJECTIVE_NO_DATA_REASONS = ['noSource', 'uptimesOff', 'stale', 'noEndpoint', 'noValue'] as const;
+export const OBJECTIVE_NO_DATA_REASONS = ['noSource', 'uptimesOff', 'stale', 'noEndpoint', 'noValue', 'monitorOff'] as const;
 export type ObjectiveNoDataReason = (typeof OBJECTIVE_NO_DATA_REASONS)[number];
+
+/**
+ * Where an objective's figures come from: a Gatus endpoint, a PromQL query on a Prometheus platform, or a Steward
+ * monitor (its recorded states; "monitorOff" when the monitor is disabled or was deleted).
+ */
+export const OBJECTIVE_SOURCE_KINDS = ['gatus', 'prometheus', 'monitor'] as const;
+export type ObjectiveSourceKind = (typeof OBJECTIVE_SOURCE_KINDS)[number];
 
 export const OBJECTIVE_LIMITS = {
   name: 160,
@@ -67,7 +76,7 @@ export interface ObjectiveWindowState {
   window: ObjectiveWindow;
   /** Target in percent */
   target: number;
-  /** Gatus' uptime in percent (null: no data) */
+  /** The source's uptime in percent (null: no data) */
   value: number | null;
   status: ObjectiveStatus;
   /**
@@ -100,11 +109,19 @@ export interface ObjectiveSummary {
   applicationName: string | null;
   name: string;
   description: string;
+  /** Where the figures come from */
+  sourceKind: ObjectiveSourceKind;
   /**
-   * The reader may see the Gatus platform. Readers who may not see it get the status and the values, but no
-   * platform, endpoint key or endpoint name (as duties hide the names of processes the reader may not view).
+   * The reader may see the source: the Gatus or Prometheus platform, or the monitor. Readers who may not see it get
+   * the status and the values, but no platform, endpoint, query or monitor (as duties hide the names of processes the
+   * reader may not view).
    */
+  sourceVisible: boolean;
+  /** Same as sourceVisible (kept for API clients from before monitors were a source) */
   platformVisible: boolean;
+  /** The Steward monitor (source "monitor"); null for other sources and for readers who may not see it */
+  monitorId: string | null;
+  monitorName: string | null;
   platformId: string | null;
   platformName: string | null;
   endpointKey: string | null;
@@ -223,7 +240,7 @@ export interface ScorecardObjectiveItem {
   name: string;
   status: ObjectiveStatus;
   applicationName: string | null;
-  /** "platform · endpoint" when the reader may see the platform; null: hidden */
+  /** "platform · endpoint", or the monitor's name, when the reader may see the source; null: hidden */
   source: string | null;
   noDataReason: ObjectiveNoDataReason | null;
   /** No data for longer than OBJECTIVE_LIMITS.noDataAttentionHours (needs attention) */

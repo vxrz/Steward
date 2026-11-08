@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -58,9 +58,6 @@ beforeAll(async () => {
     email: { enabled: true, host: 'smtp.example.com', port: 587, secure: false, from: 'steward@example.com' },
     allowedEmailDomains: ['example.com'],
   });
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('daily summary: settings', () => {

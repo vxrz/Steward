@@ -1,5 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 /**
  * Platform costs and the reader's rights (#226, security review of 0.9.0): what a service owner who may not see every
@@ -88,9 +89,6 @@ beforeAll(async () => {
   await s.api('PUT', `/services/${service}/applications/${visible}`, {});
   await s.api('PUT', `/services/${service}/applications/${secret}`, {});
 }, 240_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('FOCUS imports link by name only to applications the importer may change, or that the platform belongs to', () => {
   const probe = async (target: string, name: string) =>
@@ -319,13 +317,13 @@ describe('a large FOCUS file', () => {
       clearInterval(tick);
     }
     // measured: about 1.5 s and pauses of 0.2 s at most (before: 44 s in one piece)
-    expect(performance.now() - started).toBeLessThan(15_000);
-    expect(longest).toBeLessThan(1000);
+    expect(performance.now() - started).toBeLessThan(timeLimit(15_000));
+    expect(longest).toBeLessThan(timeLimit(1000));
     // the import itself: linked the same way, within a time budget
     const t0 = performance.now();
     const r = await s.api('POST', `/costs/platform/${big}/imports`, { csv: file, fileName: 'big.csv', mode: 'add' });
     expect(r.inserted).toBe(120_000);
-    expect(performance.now() - t0).toBeLessThan(60_000);
+    expect(performance.now() - t0).toBeLessThan(timeLimit(60_000));
     const linked = db().get<{ n: number }>('SELECT COUNT(*) AS n FROM cost_records WHERE source_platform_id = ? AND component_id IS NOT NULL', big)!;
     expect(Number(linked.n)).toBe(60_000);
   }, 180_000);

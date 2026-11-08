@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.10.0 (November 2026)._
+_Last reviewed for 0.10.1 (November 2026)._
 
 ## What Steward is for
 
@@ -40,6 +40,7 @@ Steward stays a tool for procedures and their evidence. These are **out of scope
 - **No on-call or paging.** Steward notifies (e-mail, Teams, webhooks) and links to the run or monitor; rotations, escalation and acknowledgement belong to PagerDuty, Opsgenie or your ITSM tool, which a webhook can feed.
 - **No CMDB or discovery.** The service catalogue and the plant registry describe what a team runs, maintained by people, procedures and imports; they do not scan networks or reconcile configuration items. Read your CMDB with a procedure if you need its data.
 - **No metrics stack or time-series database.** Monitors check, datasets keep the history a procedure publishes; long-term metrics, PromQL and alerting rules stay in Prometheus, Grafana and friends (Steward reads them and exposes its own `/api/metrics`).
+- **No broad infrastructure monitoring.** Steward has its own monitors (26 check types, root-cause graphs, maintenance windows, status pages) for the checks that belong to its procedures and services. Watching every host, port and endpoint of an estate stays with Gatus, Prometheus or a similar tool; their figures can feed Steward's availability objectives ([MONITORS.md](MONITORS.md#steward-monitors-gatus-and-prometheus)).
 - **No secret storage or rotation for others.** The vault protects the credentials Steward itself needs ([ADR 0004](adr/0004-vault-with-master-passphrase.md)); it is not a secret manager for other applications and does not rotate platform credentials on its own. The credentials register documents where secrets live and when they expire.
 - **No full GRC suite.** Control catalogues, mappings, coverage and evidence packs support audits of what Steward runs; risk registers, policy management, vendor questionnaires and audit planning stay in a GRC tool.
 - **No AI changes without human approval.** AI assistants may read, propose and prepare (MCP); every write they request is confirmed by a person, and proposals (such as a control catalogue) are reviewed before anything applies. There is no autonomous agent mode.
@@ -67,10 +68,11 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.8.0:** plant registry part 3 – the OT network ([#220](https://github.com/vxrz/Steward/issues/220)) – with visualizations ([#230](https://github.com/vxrz/Steward/issues/230)), database schemas step 1 ([#222](https://github.com/vxrz/Steward/issues/222)) and the DynamoDB freshness check ([#233](https://github.com/vxrz/Steward/issues/233)).
 - **0.9.0:** data contracts ([#221](https://github.com/vxrz/Steward/issues/221)), platform costs ([#226](https://github.com/vxrz/Steward/issues/226)), Kafka Connect and Debezium ([#223](https://github.com/vxrz/Steward/issues/223)), the version watch ([#241](https://github.com/vxrz/Steward/issues/241)), changedetection.io ([#242](https://github.com/vxrz/Steward/issues/242)), the outbound policy on every redirect ([#243](https://github.com/vxrz/Steward/issues/243)) and platform identities step 1 ([#228](https://github.com/vxrz/Steward/issues/228), [ADR 0009](adr/0009-platform-identities.md)).
 - **0.10.0:** the engine boundary ([#239](https://github.com/vxrz/Steward/issues/239), [ADR 0011](adr/0011-engine-boundary.md)), debugging procedures ([#235](https://github.com/vxrz/Steward/issues/235)), quiet hours and digests ([#236](https://github.com/vxrz/Steward/issues/236)), approvals from Microsoft Teams ([#237](https://github.com/vxrz/Steward/issues/237)), shared procedure libraries ([#238](https://github.com/vxrz/Steward/issues/238)) and the map of sites ([#234](https://github.com/vxrz/Steward/issues/234)), each with its decision record (ADRs 0010–0015).
+- **0.10.1:** the fixes from a whole-application review of 0.10.0: single sign-on bound to the browser, secrets that outlive an API token kept to signed-in sessions, one instance per SQLite database, a readiness probe for routing, and a crash fix for browser locales such as `en-US@posix`.
 
 ## Next
 
-The next release is not planned yet; the candidates are under _Later_.
+**0.11.0 – consolidation.** No new feature areas: switching off unused areas, navigation focused by role, a clearer catalogue, a demo that fills every area, a docs index, safer PostgreSQL upgrades and backups, and pseudonymising and exporting a person's data. The candidates for later releases are under _Later_.
 
 ## Later
 

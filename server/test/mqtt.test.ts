@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { mqttMatches, validMqttFilter } from '@sm/shared';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
@@ -27,9 +27,6 @@ beforeAll(async () => {
   broker = await import('../src/mock/mockMqtt.js');
   listener = await import('../src/mqtt/listener.js');
   eng = await import('../src/monitors/engine.js');
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('topics and patterns', () => {

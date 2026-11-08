@@ -10,10 +10,12 @@ import type { ReportSectionDraw } from './section-draw.js';
  * data in, PDF out – they run in the PDF worker (section-draw.ts).
  */
 
-const slaCell = (lang: ReportLang, uptime: number | null, target: number | null | undefined): CellInput => {
+/** "met" or "missed"; with `showTarget` (targets differ per row) the target follows, e.g. "met (99.5 %)". */
+const slaCell = (lang: ReportLang, uptime: number | null, target: number | null | undefined, showTarget = false): CellInput => {
   if (target === null || target === undefined) return '–';
-  if (uptime === null) return { text: st(lang, 'noData'), tone: 'muted' };
-  return uptime >= target ? { text: st(lang, 'slaMet'), tone: 'success' } : { text: st(lang, 'slaMissed'), tone: 'danger', bold: true };
+  const suffix = showTarget ? ` (${pctText(lang, target)})` : '';
+  if (uptime === null) return { text: st(lang, 'noData') + suffix, tone: 'muted' };
+  return uptime >= target ? { text: st(lang, 'slaMet') + suffix, tone: 'success' } : { text: st(lang, 'slaMissed') + suffix, tone: 'danger', bold: true };
 };
 
 /** Horizontal bars drawn with PDFKit vector primitives (no images, PDF/A-safe). */
@@ -65,6 +67,12 @@ export interface MonitorAvail {
   id: string;
   key: string;
   name: string;
+  /** The SLA target this monitor is judged by (null: none) */
+  target?: number | null;
+  /** Where the target comes from: the availability objective with this monitor as source, or the section's own target */
+  targetFrom?: 'objective' | 'section' | null;
+  /** The objective's name when the target comes from one */
+  objective?: string | null;
   uptime: number | null;
   outages: { from: string; to: string | null; durationMs: number }[];
   downtimeMs: number;
@@ -74,8 +82,12 @@ export interface MonitorAvail {
 
 export interface AvailabilityData {
   slaTarget: number | null;
+  slaFromObjectives?: boolean;
   monitors: MonitorAvail[];
 }
+
+/** The target of one monitor row; reports made before 0.11 have only the section's target. */
+const rowTarget = (d: AvailabilityData, m: MonitorAvail): number | null => (m.target === undefined ? d.slaTarget : m.target);
 
 function outageTable(
   w: ReportWriter,
@@ -136,7 +148,8 @@ export const availabilitySectionDraw: ReportSectionDraw<AvailabilityData> = {
   title: (l) => st(l, 'availability'),
   glance: (d, l) => {
     const ups = d.monitors.map((m) => m.uptime).filter((x): x is number => x !== null);
-    const missed = d.slaTarget !== null ? d.monitors.filter((m) => m.uptime !== null && m.uptime < d.slaTarget!).length : null;
+    const judged = d.monitors.filter((m) => rowTarget(d, m) !== null);
+    const missed = judged.length ? judged.filter((m) => m.uptime !== null && m.uptime < rowTarget(d, m)!).length : null;
     return [
       { label: `${st(l, 'avgUptime')} (${st(l, 'monitor')})`, value: ups.length ? pctText(l, ups.reduce((s, x) => s + x, 0) / ups.length) : '–' },
       {
@@ -155,17 +168,21 @@ export const availabilitySectionDraw: ReportSectionDraw<AvailabilityData> = {
       return;
     }
     const min = chartMin(d.monitors.map((m) => m.uptime));
+    // one target for all (as before 0.11), or per monitor (from its objective)
+    const targets = new Set(d.monitors.map((m) => rowTarget(d, m)));
+    const single = targets.size === 1 ? [...targets][0]! : null;
+    if (d.monitors.some((m) => m.targetFrom === 'objective')) w.paragraph(st(lang, 'slaFromObjectives'), { tone: 'muted', size: 8 });
     uptimeBars(
       w,
       st(lang, 'chartMonitors', { min }),
-      d.monitors.map((m) => ({ label: m.name, value: m.uptime, target: d.slaTarget })),
+      d.monitors.map((m) => ({ label: m.name, value: m.uptime, target: rowTarget(d, m) })),
       min,
     );
     w.table(
       [
         { header: st(lang, 'monitor'), width: 3 },
         { header: st(lang, 'uptime'), width: 1.4, align: 'right' },
-        { header: d.slaTarget !== null ? `${st(lang, 'sla')} ${pctText(lang, d.slaTarget)}` : st(lang, 'sla'), width: 1.4 },
+        { header: single !== null ? `${st(lang, 'sla')} ${pctText(lang, single)}` : st(lang, 'sla'), width: 1.4 },
         { header: st(lang, 'incidents'), width: 1.1, align: 'right' },
         { header: st(lang, 'downtime'), width: 1.4, align: 'right' },
         { header: st(lang, 'avgMs'), width: 1.1, align: 'right' },
@@ -174,7 +191,7 @@ export const availabilitySectionDraw: ReportSectionDraw<AvailabilityData> = {
       d.monitors.map((m): CellInput[] => [
         { text: m.name, bold: true },
         pctText(lang, m.uptime),
-        slaCell(lang, m.uptime, d.slaTarget),
+        slaCell(lang, m.uptime, rowTarget(d, m), single === null),
         String(m.outages.length),
         m.downtimeMs ? tr.duration(m.downtimeMs) : '–',
         m.avgMs === null ? '–' : String(m.avgMs),

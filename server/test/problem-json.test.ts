@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /** Errors of the internal API (/api) are problem details (RFC 9457) with the old members as extensions. */
@@ -14,9 +14,6 @@ beforeAll(async () => {
     },
   });
   await setup(s);
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const raw = (path: string, init: RequestInit = {}) => fetch(`${s.base}/api${path}`, { ...init, headers: { 'x-sm-client': '1', ...(init.headers ?? {}) } });

@@ -14,6 +14,7 @@ import {
   themeCssVariables,
 } from '@sm/shared';
 import { ADMIN, authHeaders, loginCookie, setup, startTestServer, type Client, type TestServer, setEnv } from './helpers.js';
+import { timeLimit } from './time.js';
 
 let s: TestServer;
 let viewer: Client;
@@ -335,7 +336,7 @@ describe('header logo', () => {
     const evil = Buffer.from('<!--' + '--><!--'.repeat(290));
     const t = performance.now();
     expect(looksLikeSvg(evil)).toBe(false);
-    expect(performance.now() - t).toBeLessThan(100);
+    expect(performance.now() - t).toBeLessThan(timeLimit(100));
     const res = await upload(evil).catch((e: Error) => JSON.parse(e.message.replace(/^[^{]*/, '')));
     expect(res.code).toBe('THEME_LOGO_TYPE');
   });

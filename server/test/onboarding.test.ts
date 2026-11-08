@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -25,9 +25,6 @@ beforeAll(async () => {
   platforms = await s.api('GET', '/platforms');
   olivia = await s.as('olivia', PW);
   dana = await s.as('dana', PW);
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 /** The demo set up every template: archive the processes and remove the dashboards and monitors, so a setup creates them anew. */

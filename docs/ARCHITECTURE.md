@@ -146,6 +146,7 @@ Rules that hold across modules:
 - **Route access is declared on the route** and checked before the body is read; object rights are checked in the services ([ADR 0005](adr/0005-route-access-declared-on-routes.md)).
 - **Team scope is decided in one module** (`auth/policy.ts`) ([ADR 0006](adr/0006-owning-teams-policy-module.md)).
 - **Optional areas are modules** in one registry (`shared/src/modules.ts`, `modules/`): switched off, their routes answer 404, their jobs do not run and the web app leaves them out ([ADR 0016](adr/0016-module-registry.md), [MODULES.md](MODULES.md)).
+- **One maintenance-window concept**: catalogue windows (`catalogue/maintenance.ts`) can list monitors, and the monitor engine asks only them; a Steward monitor is a source of availability objectives, with the same uptime arithmetic as the monitor and the reports (`monitors/stats.ts`) ([ADR 0018](adr/0018-one-maintenance-window-concept.md)).
 - **Every change of state is audited**, attributed to the signed-in user (`audit()`).
 - **Configuration comes from `env`** (`config.ts`), never from `process.env` (ESLint checks it).
 - **The internal API is private**; integrations use `/api/v1` ([API.md](API.md#the-internal-api)).
@@ -184,6 +185,30 @@ flowchart LR
 4. **Register it** in `STEPS` (`server/src/engine/steps/index.ts`). The compiler reports a step type that has no module.
 5. **The editor** (`web/src/components/flow/meta.ts`) and, where they apply, the Postman export (`server/src/export/postman.ts`) and library installs (`server/src/libraries/install.ts`).
 6. **Tests**: the step's own test file, and the engine contract tests (`engine-contract*.test.ts`) unchanged.
+
+## Platform kinds and check types
+
+What a connector is and what a monitor check needs is written down once (since 0.11), in two descriptor tables in `shared/`. Everything else derives from them: the "Get started" panel, the platform pickers of the monitor editor, the kind a monitor import or Git sync expects, the groups of the setup wizard, the maturity badges, the hints of a failing connection test, which access check source and cost source read a platform. `server/test/descriptors.test.ts` checks that every kind and every check type has a complete descriptor and that the lists they replaced are gone.
+
+- **Platform kinds**: `PLATFORM_KINDS` in `shared/src/platformKinds.ts`, one entry per built-in kind (`PlatformKindDef`): its product name, the wizard group, whether it has an HTTP API of its own and whether its test path answers JSON, the check, output and step types that read it, its access check source and cost source, its maturity. The wire keeps `kind: string`: an own connector type has no descriptor and gets the generic behaviour. The code of a connector that does more than HTTP is in `server/src/platforms/drivers.ts` (`DRIVERS`: today its own connection test), imported lazily.
+- **Check types**: `CHECK_TYPE_DEFS` in `shared/src/checkTypes.ts`, one entry per check type (`CheckTypeDef`): name and help, the name and fields of a new check, whether it reads a platform, whether it makes a call itself, the module it belongs to. Its config schema stays its entry of `checkSchema` (`shared/src/monitors.ts`). The server's evaluator is in `CHECK_RUNNERS` (`server/src/monitors/checks.ts`), the web form in `CHECK_FIELDS` (`web/src/components/monitors/checks/`, one component per type). Both are typed records: a type missing there does not compile.
+
+### Adding a platform kind
+
+1. **The descriptor**: an entry in `PLATFORM_KINDS` (`shared/src/platformKinds.ts`). Name the check, output and step types that read it, its access and cost source if it has one, and start at maturity `preview`.
+2. **The preset** in `server/src/platforms/presets.ts`: base URL, authentication, variables and credential fields, and its texts in `web/src/locales/en|de/platforms.json` (`presets.<key>`).
+3. **A driver**, only if "Test connection" is more than `GET` on the test path: an entry in `DRIVERS` (`server/src/platforms/drivers.ts`) and `connectionTest: 'own'` in the descriptor.
+4. **An access source** (optional): its name in `ACCESS_CHECK_SOURCES` (`shared/src/compliance.ts`), its collector in `COLLECTORS` and its answer for a platform of another kind in `WRONG_KIND` (`server/src/compliance/reconciliation.ts`). **A cost reader** (optional): its source in `COST_SOURCES` and its read in `server/src/costs/sources.ts`.
+5. **A module** (optional): if the kind only makes sense with a module, add it to the module's `platformKinds` (`shared/src/modules.ts`).
+6. **Docs and tests**: the maturity table in [MODULES.md](MODULES.md), a test against the mock server (`server/src/mock`). `descriptors.test.ts` fails until the preset and the descriptor exist together.
+
+### Adding a check type
+
+1. **The schema**: its entry in `checkSchema` and its name in `CHECK_TYPES` (`shared/src/monitors.ts`).
+2. **The descriptor**: an entry in `CHECK_TYPE_DEFS` (`shared/src/checkTypes.ts`) with the fields of a new check. A check that reads a platform of a kind: `platform: 'kind'`, and the type in that kind's `checkTypes`.
+3. **The evaluator**: a function returning a `RawResult`, registered in `CHECK_RUNNERS` (`server/src/monitors/checks.ts`), with `plan` for a read shared by several checks and `validate` for rules that need the resolved platform.
+4. **The form**: a component `web/src/components/monitors/checks/<Type>Fields.tsx` taking `CheckFieldsProps<'<type>'>`, registered in `CHECK_FIELDS`; its icon in `CHECK_ICONS` (`checkMeta.ts`); its texts in `web/src/locales/en|de/monitors.json` (`checkTypes.<type>`, `newCheck.<type>`).
+5. **Tests**: the evaluator's own test file; `descriptors.test.ts` covers the descriptor, the evaluator and the form.
 
 ## How features are wired
 

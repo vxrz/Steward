@@ -130,6 +130,8 @@ const RULES = [
       /\/routes\.ts$/,
       /-routes\.ts$/,
       /\/routes-[^/]+\.ts$/,
+      // a feature's public API routes (the route layer of /api/v1)
+      /\/api-v1\.ts$/,
     ],
     to: ['server/src/routes/'],
     toPattern: [/\/routes\.ts$/, /-routes\.ts$/],

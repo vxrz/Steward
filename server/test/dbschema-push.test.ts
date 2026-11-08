@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DATABASE_KIND } from '@sm/shared';
 import { setEnv, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -55,9 +55,6 @@ beforeAll(async () => {
 }, 120_000);
 beforeEach(async () => {
   (await import('../src/dbschema/push.js')).resetPushState();
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('push tokens', () => {

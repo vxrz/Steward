@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -36,9 +36,6 @@ beforeAll(async () => {
   await s.api('POST', '/demo/setup', {});
   [dana, olivia, vera] = await Promise.all(['dana', 'olivia', 'vera'].map((u) => s.as(u, PW)));
   svc = await dana('POST', '/services', { name: 'Reviewed service', owners: ['user:olivia'] });
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('incident reviews', () => {
