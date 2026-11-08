@@ -80,6 +80,7 @@ Rules of thumb:
 - Tests that change installation-wide state (e.g. the theme) start their own empty server with `startIsolatedServer()` from `e2e/support/server.ts` instead of using the shared demo server (see `theme.spec.ts`, which also runs axe with a bright yellow primary colour in light and dark mode).
 - Do not match the product name literally. Import `BRAND` from `shared/src/brand.ts` if you need it.
 - Read-only checks of server state are faster through `apiAs('<user>')` than through the UI.
+- The map of sites exposes its MapLibre map for tests only: `page.addInitScript(() => Object.assign(window, { __stewardTestHooks: true }))` before `page.goto`, then the map element (`data-testid="sites-map"`) has a non-enumerable `__steward` property with `map` and `commits()` (how often the component rendered). `e2e/plant-map.spec.ts` uses it to check that the pins move in the same frame as the map.
 - Put "real" writes on data that only your test uses. For example, the real-run test flags users into the empty demo group `mdsp_usergroup:LegacyProjects`.
 
 ### Upgrade tests

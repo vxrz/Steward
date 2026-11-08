@@ -131,6 +131,68 @@ test.describe('the map of sites', () => {
     await expect(page.getByTestId('map-pins').getByRole('button')).toHaveCount(2);
   });
 
+  test('the pins move with the map in the same frame, and React does not render per move', async ({ page, apiAs }) => {
+    const all = (await json(await (await apiAs('admin')).get('/api/plant/map/sites'))) as { sites: { id: string; geo: { lat: number; lon: number } | null }[] };
+    const geo = Object.fromEntries(all.sites.filter((s) => s.geo).map((s) => [s.id, s.geo!]));
+    await page.addInitScript(() => Object.assign(window, { __stewardTestHooks: true }));
+    await page.goto('/plant/map');
+    await mapReady(page);
+    await expect(page.getByTestId('map-pins').getByRole('button')).toHaveCount(2);
+    const r = await page.evaluate(async (geo) => {
+      type M = import('maplibre-gl').Map;
+      const wrap = document.querySelector('[data-testid="sites-map"]') as HTMLElement & { __steward: { map: M; commits: () => number } };
+      const m = wrap.__steward.map;
+      const box = wrap.querySelector('.pm-map')!.getBoundingClientRect();
+      /** The largest distance between a pin in view (its tip: bottom centre) and where the map puts its site – now */
+      const offset = () => {
+        let max = 0;
+        for (const [id, g] of Object.entries(geo)) {
+          const el = wrap.querySelector(`[data-testid="map-pin-${id}"]`);
+          const p = m.project([g.lon, g.lat]);
+          if (!el || p.x < 0 || p.y < 0 || p.x > box.width || p.y > box.height) continue;
+          const b = el.getBoundingClientRect();
+          max = Math.max(max, Math.hypot(b.left + b.width / 2 - box.left - p.x, b.bottom - box.top - p.y));
+        }
+        return max;
+      };
+      // without animation: read in the same task as the move, before any frame or React render could catch up
+      const jumps: number[] = [];
+      m.panBy([40, -30], { animate: false });
+      jumps.push(offset());
+      m.jumpTo({ center: [m.getCenter().lng - 0.02, m.getCenter().lat + 0.01] });
+      jumps.push(offset());
+      m.jumpTo({ zoom: m.getZoom() + 0.4 });
+      jumps.push(offset());
+      m.jumpTo({ zoom: m.getZoom() - 0.4 });
+      jumps.push(offset());
+      // an animated pan, sampled every frame; React commits during it: none per move
+      const before = wrap.__steward.commits();
+      const frames: number[] = [];
+      await new Promise<void>((done) => {
+        let ended = false;
+        m.once('moveend', () => (ended = true));
+        const tick = () => {
+          frames.push(offset());
+          if (ended) return done();
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+        m.panBy([-60, 20], { duration: 800 });
+      });
+      // a pin whose site leaves the view is hidden at once (not focusable, not announced)
+      const [id, g] = Object.entries(geo)[0]!;
+      m.panBy([m.project([g.lon, g.lat]).x + 40, 0], { animate: false });
+      const off = wrap.querySelector(`[data-testid="map-pin-${id}"]`)?.hasAttribute('data-off');
+      return { jumps, frames: frames.length, panned: Math.max(...frames), commits: wrap.__steward.commits() - before, off, id };
+    }, geo);
+    for (const d of r.jumps) expect(d).toBeLessThanOrEqual(1.5);
+    expect(r.frames).toBeGreaterThan(3);
+    expect(r.panned).toBeLessThanOrEqual(1.5);
+    expect(r.commits).toBeLessThanOrEqual(2);
+    expect(r.off).toBe(true);
+    await expect(page.getByTestId(`map-pin-${r.id}`)).toBeHidden();
+  });
+
   test('light and dark vector styles: vector tiles through the worker, the dark style follows the theme', async ({ page, apiAs }) => {
     await mapSource(await apiAs('admin'), { source: 'openfreemap' });
     const seen = watchRequests(page);
