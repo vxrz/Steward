@@ -40,7 +40,7 @@ interface Belongings {
   details: PlantReferenceCount[];
 }
 
-const DETAILS = new Set(['external_ref', 'owning_team', 'image']);
+const DETAILS = new Set(['external_ref', 'owning_team', 'image', 'collection_mapping']);
 const part = (what: string, count: number): PlantReferenceCount[] => (count ? [{ what, count }] : []);
 
 function belongings(t: Target): Belongings {
@@ -87,6 +87,8 @@ function belongings(t: Target): Belongings {
         parts: [
           ...part('assignment', a ? 1 : 0),
           ...part('kpi_instance', a?.kpis.length ?? 0),
+          // its data collections (0.11.0) belong to it: they go with it, and refuse it without "also remove"
+          ...part('collection', n('SELECT COUNT(*) AS n FROM plant_collections WHERE asset_id = ?', t.id)),
           ...part(
             'asset_checks',
             parseJson<unknown[]>(db().get<{ checks: string }>('SELECT checks FROM plant_asset_checks WHERE asset_id = ?', t.id)?.checks ?? '[]', []).length,
@@ -99,9 +101,18 @@ function belongings(t: Target): Belongings {
         details: [
           ...part('external_ref', n("SELECT COUNT(*) AS n FROM plant_refs WHERE kind = 'asset' AND item_id = ?", t.id)),
           ...part('image', n('SELECT COUNT(*) AS n FROM plant_asset_images WHERE asset_id = ?', t.id)),
+          // the gateway names remembered for it go with it
+          ...part('collection_mapping', n('SELECT COUNT(*) AS n FROM plant_collection_mappings WHERE asset_id = ?', t.id)),
         ],
       };
     }
+    case 'data_path':
+      // collections of the asset that belong to it lose that link (with "also remove"), else they refuse it
+      return {
+        entries: [],
+        parts: part('collection', n('SELECT COUNT(*) AS n FROM plant_collections WHERE asset_id = ? AND data_path_id = ?', s, t.id)),
+        details: [],
+      };
     case 'node':
       return {
         entries: [
@@ -159,7 +170,6 @@ function belongings(t: Target): Belongings {
     case 'profile':
     case 'vlan':
     case 'device':
-    case 'data_path':
       return { entries: [], parts: [], details: [] };
   }
 }
@@ -176,7 +186,11 @@ function referrers(t: Target): { what: string; keys: string[] }[] {
         { what: 'asset', keys: keys('asset', () => '', all('SELECT id FROM plant_assets WHERE site_id = ? AND building_id = ?', s, t.id)) },
       ];
     case 'profile':
-      return [{ what: 'assignment', keys: keys('asset', () => '', all('SELECT asset_id AS id FROM plant_assignments WHERE profile_id = ?', t.id)) }];
+      return [
+        { what: 'assignment', keys: keys('asset', () => '', all('SELECT asset_id AS id FROM plant_assignments WHERE profile_id = ?', t.id)) },
+        // a base that another profile extends stays unless that one goes too (0.11.0)
+        { what: 'profile', keys: keys('profile', () => '', all('SELECT id FROM plant_profiles WHERE base_id = ? AND id <> ?', t.id, t.id)) },
+      ];
     case 'vlan':
       return [
         {
@@ -345,6 +359,7 @@ export function removeEntries(entries: Target[]): void {
     const s = e.scope;
     switch (e.kind) {
       case 'data_path':
+        db().run('UPDATE plant_collections SET data_path_id = NULL WHERE asset_id = ? AND data_path_id = ?', s, e.id);
         db().run('DELETE FROM plant_data_paths WHERE asset_id = ? AND id = ?', s, e.id);
         break;
       case 'device':
