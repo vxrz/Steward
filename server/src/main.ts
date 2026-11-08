@@ -21,6 +21,7 @@ import { warnEmailVerifiedProviders } from './auth/sso.js';
 import { flushFailedLoginAudit } from './auth/login-audit.js';
 import { shutdown, startBackground } from './bootstrap.js';
 import { InstanceLease, type LeaseWait } from './database/lease.js';
+import { describeHolder, SqliteInstanceLock } from './database/sqlite-lock.js';
 import { engine } from './engine/index.js';
 import { stopScheduler } from './scheduler.js';
 
@@ -52,11 +53,11 @@ function describeWait(w: LeaseWait): Record<string, unknown> {
 }
 
 /**
- * While another instance holds the database lease: a minimal server on the configured address, so probes see this
- * instance alive (/api/health 200) but not ready (/api/ready and /api/ready/traffic 503), instead of a process that
- * exits and restarts.
+ * While another instance holds the database lease (PostgreSQL) or the instance lock (SQLite): a minimal server on the
+ * configured address, so probes see this instance alive (/api/health 200) but not ready (/api/ready and
+ * /api/ready/traffic 503), instead of a process that exits and restarts.
  */
-function waitingServer(): Promise<http.Server> {
+function waitingServer(message: string): Promise<http.Server> {
   const handler: http.RequestListener = (req, res) => {
     const path = (req.url ?? '/').split('?')[0]!;
     const json = (status: number, body: unknown) => {
@@ -64,7 +65,6 @@ function waitingServer(): Promise<http.Server> {
       res.end(JSON.stringify(body));
     };
     if (path === `${config.basePath}/api/health`) return json(200, { ok: true, version: config.version });
-    const message = 'Waiting for the database: another instance uses this database schema';
     if (path === `${config.basePath}/api/ready`)
       return json(503, { ready: false, checks: { vault: { ok: false, message }, database: { ok: false, message }, scheduler: { ok: false, message } } });
     // not this one yet: the instance that holds the database gets the traffic
@@ -109,24 +109,73 @@ async function acquireLease(): Promise<InstanceLease | null> {
             : 'waiting for the database lease: another instance uses this database schema; this one takes over when it stops or its lease expires',
       );
     }
-    serverStarting ??= waitingServer().then(
+    serverStarting ??= waitingServer('Waiting for the database: another instance uses this database schema').then(
       (s) => void (server = s),
       (err) => logger.warn({ err }, 'could not answer health probes while waiting for the database lease'),
     );
   });
   process.off('SIGINT', onSignal);
   process.off('SIGTERM', onSignal);
-  await serverStarting;
-  if (server) {
-    server.closeAllConnections();
-    await new Promise((r) => server!.close(r));
-  }
+  await closeWaitingServer(serverStarting, () => server);
   if (got.takeover)
     logger.warn({ previous: got.takeover, lingeringSession: got.terminated }, 'took over the database lease of an instance that stopped renewing it');
   else logger.info({ schema: target.schema }, 'database lease acquired');
   // the lease worker holds the advisory lock; the app's own connection must not ask for it again
   config.database = { ...target, lock: false };
   return lease;
+}
+
+async function closeWaitingServer(starting: Promise<void> | undefined, server: () => http.Server | undefined): Promise<void> {
+  await starting;
+  const s = server();
+  if (!s) return;
+  s.closeAllConnections();
+  await new Promise((r) => s.close(r));
+}
+
+/**
+ * SQLite: the single-instance lock (database/sqlite-lock.ts) before the database is opened and migrated. Waits as
+ * long as another process holds it (logging every minute), serving /api/health and /api/ready meanwhile, as on
+ * PostgreSQL; the lock of a stopped or crashed process is free at once.
+ */
+async function acquireSqliteLock(): Promise<SqliteInstanceLock | null> {
+  const target = config.database;
+  if (target.kind !== 'sqlite' || target.file === ':memory:') return null;
+  const lock = new SqliteInstanceLock({ file: target.file, version: config.version });
+  if (lock.tryAcquire()) {
+    logger.info({ lockFile: lock.lockFile }, 'database lock acquired');
+    return lock;
+  }
+  let server: http.Server | undefined;
+  let serverStarting: Promise<void> | undefined;
+  let lastLog = 0;
+  const onSignal = () => {
+    logger.info('stopped while waiting for the database lock');
+    lock.release();
+    void closeWaitingServer(serverStarting, () => server).finally(() => process.exit(0));
+  };
+  process.once('SIGINT', onSignal);
+  process.once('SIGTERM', onSignal);
+  const got = await lock.acquire((holder) => {
+    if (Date.now() - lastLog >= WAIT_LOG_EVERY_MS) {
+      lastLog = Date.now();
+      logger.warn(
+        { lockFile: lock.lockFile, holder: describeHolder(holder), holderPid: holder?.pid, holderHost: holder?.host, holderVersion: holder?.version },
+        'waiting for the database lock: another instance uses this SQLite database; this one takes over when it stops',
+      );
+    }
+    serverStarting ??= waitingServer('Waiting for the database: another instance uses this SQLite database').then(
+      (s) => void (server = s),
+      (err) => logger.warn({ err }, 'could not answer health probes while waiting for the database lock'),
+    );
+  });
+  process.off('SIGINT', onSignal);
+  process.off('SIGTERM', onSignal);
+  // stopped while waiting: the signal handler exits; never go on to open the database
+  if (!got) return new Promise<never>(() => undefined);
+  await closeWaitingServer(serverStarting, () => server);
+  logger.info({ lockFile: lock.lockFile }, 'database lock acquired: the other instance has stopped');
+  return lock;
 }
 
 /** Starts the server (used by `npm start` and by the desktop executable). */
@@ -136,10 +185,11 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   const permissionProblems = ensureDataDirs();
   for (const p of permissionProblems) logger.warn({ problem: p }, 'could not restrict permissions in the data directory');
   for (const w of securityWarnings()) logger.warn({ security: true }, w);
-  const lease = await acquireLease();
+  // one instance per database (ADR 0002): the lease on PostgreSQL, a file lock on SQLite
+  const lease: { onLost(fn: (reason: string) => void): void; release(): unknown } | null = (await acquireLease()) ?? (await acquireSqliteLock());
   lease?.onLost((reason) => {
     // another instance may run now: stop at once, without writing (no drain – the other one recovers the runs)
-    logger.fatal({ reason }, 'lost the database lease: stopping now');
+    logger.fatal({ reason }, config.database.kind === 'sqlite' ? 'lost the database lock: stopping now' : 'lost the database lease: stopping now');
     try {
       engine().stopAccepting();
       stopScheduler();

@@ -103,6 +103,10 @@ describe.skipIf(!PG_TEST_URL)('single-instance lease on PostgreSQL', () => {
     const ready = await fetch(`http://127.0.0.1:${port}/api/ready`);
     expect(ready.status).toBe(503);
     expect(await ready.json()).toMatchObject({ ready: false, checks: { database: { ok: false, message: expect.stringMatching(/another instance/) } } });
+    // not ready for traffic either: the instance that holds the lease gets it
+    const traffic = await fetch(`http://127.0.0.1:${port}/api/ready/traffic`);
+    expect(traffic.status).toBe(503);
+    expect(await traffic.json()).toMatchObject({ ready: false, message: expect.stringMatching(/another instance/) });
     expect((await fetch(`http://127.0.0.1:${port}/api/processes`)).status).toBe(503);
     // still waiting a while later (it does not exit)
     await wait(2000);
