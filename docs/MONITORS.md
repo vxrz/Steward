@@ -2,6 +2,7 @@
 
 Monitors are Steward's composable, dependency-aware health checks: **combined, branched and cascaded** uptime checks for machines, gateways and platforms. A monitor is a small graph of checks. Some checks Steward runs itself (ping, TCP, HTTP, platform API calls, data freshness in Insights Hub), some it reads from Gatus, and some are **pushed** to Steward by another system, for example an IoT gateway. Results go to people (notifications) and to other monitoring systems (Zabbix, Gatus, webhooks, Prometheus, the public API).
 
+- [Steward monitors, Gatus and Prometheus](#steward-monitors-gatus-and-prometheus)
 - [Concepts](#concepts)
 - [Example: a machine with a PowerMeter](#example-a-machine-with-a-powermeter)
 - [Check types](#check-types)
@@ -11,6 +12,10 @@ Monitors are Steward's composable, dependency-aware health checks: **combined, b
 - [Permissions and audit](#permissions-and-audit)
 - [Engine, storage and limits](#engine-storage-and-limits)
 - [Protocol facts and sources](#protocol-facts-and-sources)
+
+## Steward monitors, Gatus and Prometheus
+
+Steward's monitors cover the checks that belong to its procedures and services: a check that a runbook answers, a platform a service depends on, a data feed a duty relies on. They have 26 check types, root-cause graphs, maintenance windows and status pages, and their uptime can be the source of an availability objective ([SCORECARD.md](SCORECARD.md#availability-objectives)). For broad infrastructure monitoring – every host, port and endpoint of an estate, checked every few seconds – Gatus or Prometheus remain good choices. Their figures can feed objectives too, and monitors can read Gatus endpoints and Prometheus queries as checks ([GATUS.md](GATUS.md), [PROMETHEUS.md](PROMETHEUS.md)).
 
 ## Concepts
 
