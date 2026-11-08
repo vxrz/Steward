@@ -30,3 +30,10 @@ under the BSD 3-Clause License (licence text next to the files); layers that nee
 a sprite are left out. The web app bundles MapLibre GL JS (BSD 3-Clause,
 Copyright MapLibre contributors), the server reads PMTiles files with pmtiles
 (BSD 3-Clause); both are listed in the SBOM with their dependencies.
+
+The tech stack of applications uses data of endoflife.date: the product list
+(server/assets/endoflife/products.json, built from the project's product files;
+the file names the commit) and the API description (server/assets/endoflife/openapi.yml,
+front matter removed, site address filled in), Copyright 2020 endoflife.date
+contributors (https://github.com/endoflife-date/endoflife.date), licensed under
+the MIT License (licence text next to the files).
