@@ -74,7 +74,7 @@ steps:
     environment:
       npm_config_update_notifier: 'false'
     commands:
-      # npm's own SBOM command: nothing is downloaded at release time (see docs/SECURITY-PIPELINE.md)
+      # npm's own SBOM command: nothing is downloaded at release time (see docs/ci/SECURITY-PIPELINE.md)
       - npm sbom --sbom-format=cyclonedx --omit=dev > out/sbom.cdx.json
     when:
       - event: [tag, manual]

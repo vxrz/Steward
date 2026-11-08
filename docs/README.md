@@ -32,6 +32,7 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 | [BACKUPS.md](BACKUPS.md)                 | Encrypted backups to S3, retention, restore tests and restoring                       |
 | [MIGRATION.md](MIGRATION.md)             | Moving an instance, e.g. from the desktop app to a server, with a user mapping        |
 | [ERROR-REPORTING.md](ERROR-REPORTING.md) | Sending unexpected errors to Sentry, GlitchTip or Bugsink                             |
+| [METRICS.md](METRICS.md)                 | Prometheus metrics, the shipped alert rules and the renamed metric names              |
 
 ## Administer
 

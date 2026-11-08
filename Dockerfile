@@ -67,7 +67,7 @@ COPY --from=app /app /app
 # of the pinned base image's Debian release (17 on trixie), kept current with the base image instead of a pin here
 # apt-get upgrade: Debian's security fixes published after the pinned base image (e.g. CVE-2026-109518 in apt),
 # so a release does not wait for a new base image digest (Trivy and Grype in the Container workflow check the result).
-# It makes the image depend on the day of the build, not only on the commit (docs/SECURITY-PIPELINE.md): build with
+# It makes the image depend on the day of the build, not only on the commit (docs/ci/SECURITY-PIPELINE.md): build with
 # --build-arg APT_UPGRADE=0 for an image made from the pinned base image's packages alone.
 ARG APT_UPGRADE=1
 # hadolint ignore=DL3008
