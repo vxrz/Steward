@@ -100,8 +100,13 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     const q = quietNow(me().id);
     return q.active ? { ...list, quiet: { until: q.until, held: q.held } } : list;
   });
-  app.post('/notifications/read-all', { config: { access: ACCESS.plantViewer } }, async () => {
-    markAllRead(me().id);
+  app.post('/notifications/read-all', { config: { access: ACCESS.plantViewer } }, async (req) => {
+    // { events: [...] }: only the notifications of these events (one group of the bell, U9)
+    const b = z
+      .object({ events: z.array(z.enum(NOTIFICATION_EVENTS)).max(NOTIFICATION_EVENTS.length).optional() })
+      .strict()
+      .parse(req.body ?? {});
+    markAllRead(me().id, b.events);
     return { ok: true };
   });
   app.post('/notifications/:id/read', { config: { access: ACCESS.plantViewer } }, async (req) => {

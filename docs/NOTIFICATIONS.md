@@ -2,9 +2,18 @@
 
 Steward notifies people in the app (the bell in the header) and – depending on _Settings → Notifications_ – by e-mail, Microsoft Teams or a webhook. Administrators choose per event which channels are used. People choose their language and whether they get e-mails on their profile page.
 
+- [The bell](#the-bell)
 - [Events](#events)
 - [E-mail addresses outside Steward](#e-mail-addresses-outside-steward)
 - [Daily summary](#daily-summary)
+
+## The bell
+
+The bell in the header lists the newest 50 notifications, grouped by event. Groups of decision requests (_Decision_, _Request from an AI assistant_, _Duty exception asked for_) come first and always show every entry; other groups show three entries and _Show all_. An unread decision request stays in the list however many alerts arrive after it.
+
+- **Show:** _All_, _Decisions_, _Alerts_ (failed runs and checks, monitors, stale data, failing platforms, backups, budgets, broken objectives and contracts, undocumented access changes) or _Updates_ (reminders and news).
+- **Unread only** hides what you have read.
+- **Mark read** next to a group marks that group read; _Mark all read_ marks everything read. The API takes `POST /api/notifications/read-all` with `{ "events": ["check.failed"] }` for one group, or no body for all.
 
 ## Events
 
