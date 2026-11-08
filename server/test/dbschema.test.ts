@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { DATABASE_KIND } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -61,9 +61,6 @@ beforeAll(async () => {
   tokens.full = (await s.api('POST', '/me/tokens', { name: 'schema ci', scope: 'full' })).token;
   tokens.vera = (await vera('POST', '/me/tokens', { name: 'vera', scope: 'full' })).token;
 }, 120_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('reading a database platform', () => {
   it('starts without snapshots, with the default settings', async () => {

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -55,9 +55,6 @@ beforeAll(async () => {
   const a = await dana('GET', `/applications/${app.id}`);
   await olivia('POST', `/applications/${app.id}/components/${a.components.find((c: any) => c.name === 'shop-prod').id}/cluster`, {});
   await dana('POST', '/catalogue/lifecycle/refresh');
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('version watch', () => {

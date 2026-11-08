@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import YAML from 'yaml';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 /**
  * YAML import and export of the plant registry (#218): the round trip with the invented two-site enterprise
@@ -61,9 +62,6 @@ beforeAll(async () => {
   const imports = await s.api('GET', '/plant/imports');
   expect(imports).toHaveLength(1);
   demoImport = imports[0].id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('round trip', () => {
@@ -322,7 +320,7 @@ describe('problems', () => {
     const keys = Array.from({ length: 30000 }, (_, i) => `  k${i}: 1`).join('\n');
     const t = Date.now();
     const r = await preview([file('keys.yaml', `version: 1\nx:\n${keys}\n`)]);
-    expect(Date.now() - t).toBeLessThan(3000);
+    expect(Date.now() - t).toBeLessThan(timeLimit(3000));
     expect(r.problems[0].message).toMatch(/Unknown key "x"/);
   });
 

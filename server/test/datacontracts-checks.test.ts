@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import YAML from 'yaml';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -51,9 +51,6 @@ beforeAll(async () => {
   const shop = (await s.api('GET', '/platforms')).find((p: { name: string }) => p.name === 'Shop database (demo)').id;
   await s.api('POST', `/db-schemas/platform/${shop}/read`);
 }, 120_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('monitors, processes and reports', () => {
   it('the monitor check tests the contract with the owner’s rights and judges Steward’s findings', async () => {

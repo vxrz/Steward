@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -35,9 +35,6 @@ beforeAll(async () => {
   await setup(s);
   await s.api('POST', '/demo/setup', {});
   [dana, adam, vera] = await Promise.all(['dana', 'adam', 'vera'].map((u) => s.as(u, PW)));
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 async function makeOverdue(recordId: string) {

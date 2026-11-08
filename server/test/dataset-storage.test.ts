@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { DatasetRow } from '@sm/shared';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
@@ -67,9 +67,6 @@ beforeAll(async () => {
   processId = id;
   await fakeRun('run_a', 'plt_a');
   await fakeRun('run_b', 'plt_b');
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('dataset rows stored once', () => {

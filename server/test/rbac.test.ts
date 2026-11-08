@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 let s: TestServer;
@@ -18,9 +18,6 @@ beforeAll(async () => {
   await s.api('POST', '/demo/setup', {}); // creates dana/olivia/adam/audrey/vera + team "Service Desk" (olivia, adam)
   hub = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'insights-hub').id;
   [olivia, adam, dana, vera, audrey] = await Promise.all(['olivia', 'adam', 'dana', 'vera', 'audrey'].map((u) => s.as(u, PW)));
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('authentication', () => {

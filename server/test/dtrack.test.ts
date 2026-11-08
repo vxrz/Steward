@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -19,9 +19,6 @@ beforeAll(async () => {
   await setup(s);
   await s.api('POST', '/demo/setup');
   dt = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'dependency-track').id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const read = async (appId: string, componentId: string) =>

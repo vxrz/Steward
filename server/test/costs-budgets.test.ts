@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -27,9 +27,6 @@ beforeAll(async () => {
   service = (await s.api('POST', '/services', { name: 'Online shop', owners: ['user:olivia'] })).id;
   await s.api('PUT', `/services/${service}/applications/${shop}`, {});
 }, 240_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('budgets', () => {
   it('are set by who may change the service; raising one needs a step-up and is audited', async () => {

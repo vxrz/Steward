@@ -3,16 +3,19 @@
 name: UI tests
 
 on:
+  # branches are tested through their pull request: a push to a branch would run everything a second time
   push:
-    branches: [main, 'claude/**']
+    branches: [main]
+  # no paths filter: the branch rules require "playwright", and a required check that never runs blocks a pull request
   pull_request:
 
 permissions:
   contents: read
 
+# a new push to a pull request cancels its running UI tests; every commit on main is tested to the end
 concurrency:
   group: ui-tests-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   playwright:

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { dashboardDefinitionSchema, dashboardWidgetSchema, isMutating, validateProcess, type ProcessDefinition } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -22,9 +22,6 @@ beforeAll(async () => {
   for (const p of await s.api('GET', '/platforms')) platformByKind[p.kind] = p.id;
   // the diagnosis runbook probes an URL below the "Web probe (demo)" platform
   INPUTS['gatus-diagnose-outage'] = { endpointUrl: `${s.base}/mock/gatus-apps/historian/health`, errors: '[STATUS] (503) == 200' };
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

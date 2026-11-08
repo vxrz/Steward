@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -44,9 +44,6 @@ beforeAll(async () => {
   const lc = await s.api('GET', '/catalogue/lifecycle');
   await s.api('PUT', '/catalogue/lifecycle', { ...lc.settings, scorecard: true });
 }, 240_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('hidden systems', () => {
   it('are hidden from olivia and vera', async () => {

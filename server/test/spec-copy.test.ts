@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -13,9 +13,6 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   demoPassword = (await s.api('POST', '/demo/setup', {})).password;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const platform = async (kind = 'generic', baseUrl = 'https://gateway.eu1.mindsphere.io') =>

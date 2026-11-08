@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -29,9 +29,6 @@ beforeAll(async () => {
     secrets: { accessKeyId: 'AKIADEMOEXAMPLE', secretAccessKey: 'demoSecretKey' },
   });
   platformId = p.id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 async function client() {

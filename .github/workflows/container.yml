@@ -20,8 +20,9 @@
 name: Container
 
 on:
+  # branches are tested through their pull request: a push to a branch would run everything a second time
   push:
-    branches: [main, 'claude/**']
+    branches: [main]
     tags: ['v*']
   pull_request:
   schedule:

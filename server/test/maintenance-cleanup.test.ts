@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -15,9 +15,6 @@ const db = async () => (await import('../src/db.js')).db();
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('retention cleanup in batches', () => {

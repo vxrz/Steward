@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { sessionSetCookie, setup, ssoBinding, startTestServer, withRefusalReason, type TestServer } from './helpers.js';
 
 let s: TestServer;
@@ -9,9 +9,6 @@ beforeAll(async () => {
   await setup(s);
   await s.api('POST', '/demo/setup', {}); // adds "Microsoft Entra ID (simulated)" backed by /mock/oidc
   providerId = (await s.api('GET', '/auth/status')).ssoProviders[0].id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 /** Walk the browser redirects: app → identity provider (pick account) → callback. */

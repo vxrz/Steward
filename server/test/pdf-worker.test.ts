@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 /**
  * PDFs are drawn in a worker thread (#13): one at a time, stopped after the time limit, refused when too many wait,
@@ -57,7 +58,7 @@ describe('the PDF worker', () => {
       expect(res.status).toBe(200);
       times.push(Date.now() - t0);
     }
-    expect(Math.max(...times)).toBeLessThan(500);
+    expect(Math.max(...times)).toBeLessThan(timeLimit(500));
     await drawing;
   });
 

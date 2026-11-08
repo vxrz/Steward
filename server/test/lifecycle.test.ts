@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -54,9 +54,6 @@ beforeAll(async () => {
     name: 'ghcr.io/acme/worker',
     stack: [{ product: 'nodejs', version: 'v26.1.0' }],
   });
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('matching versions to release cycles', () => {

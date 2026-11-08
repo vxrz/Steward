@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 // "Test connection" says which request it made, and a failed login says where it went – a 401 from a
@@ -8,7 +8,6 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
 });
-afterAll(async () => s?.app.close());
 
 const platform = (name: string, config: Record<string, unknown>) =>
   s.api('POST', '/platforms', {

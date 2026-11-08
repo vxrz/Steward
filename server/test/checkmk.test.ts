@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -43,9 +43,6 @@ beforeAll(async () => {
   eng = await import('../src/monitors/engine.js');
   mock = await import('../src/mock/mockCheckmk.js');
   batch = await import('../src/monitors/batch.js');
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('CheckMk check', () => {

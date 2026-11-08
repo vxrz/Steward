@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { setup, startTestServer, type TestServer, allowEmailDomains } from './helpers.js';
 
 // Capture e-mails instead of talking to an SMTP server.
@@ -18,9 +18,6 @@ let s: TestServer;
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('audit checkpoints leave the system (SIEM line, e-mail)', () => {

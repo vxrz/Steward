@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { nthStart, occurrencesBetween } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -50,9 +50,6 @@ beforeAll(async () => {
   await s.api('POST', `/applications/${app.id}/platforms`, { platformId });
   svc = await dana('POST', '/services', { name: 'Maintained service', owners: ['user:olivia'] });
   await dana('PUT', `/services/${svc.id}/applications/${app.id}`, { role: 'primary' });
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const windowOf = (over: Record<string, unknown> = {}) => ({

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -16,9 +16,6 @@ beforeAll(async () => {
   await s.api('POST', '/demo/setup', {});
   vera = await s.as('vera', 'Demo-password-1');
   dbm = await import('../src/db.js');
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('runs list paging', () => {

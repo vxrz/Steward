@@ -5,6 +5,7 @@ import { lintContract, parseContract } from '../src/datacontracts/odcs.js';
 import { diffContracts } from '../src/datacontracts/diff.js';
 import { assertSqlRules, sqlRuleProblem, sqlRules, withoutPlaceholders } from '../src/datacontracts/sqlrules.js';
 import { assertPathAllowed, deniedOwnCall, ownCall } from '../src/platforms/deniedPaths.js';
+import { timeLimit } from './time.js';
 
 /**
  * Regression tests of the 0.9.0 security review of data contracts (#221), without a server: lint and comparison in
@@ -22,7 +23,7 @@ const timed = <T>(f: () => T): [T, number] => {
   return [r, performance.now() - t];
 };
 /** Generous for a shared, slow machine – the quadratic code took 22 s and 5.5 s for these inputs */
-const BUDGET_MS = 3_000;
+const BUDGET_MS = timeLimit(3_000);
 
 describe('H1: lint and compare in linear time, within caps', () => {
   it('refuses the reviewer’s 80,000 empty quality rules (240 KB) at once, by the cap', () => {

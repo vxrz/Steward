@@ -1,6 +1,6 @@
 # Woodpecker CI: build and test (counterpart of .github/workflows/ci.yml).
-# Typecheck, lint and formatting, example validation, i18n and OpenAPI checks, the vitest suite (incl. browser
-# automation, so Chromium is installed), the web UI build and npm audit of the production
+# Typecheck, lint and formatting, example validation, i18n and OpenAPI checks, the vitest suite with coverage and
+# its minimums (incl. browser automation, so Chromium is installed), the web UI build and npm audit of the production
 # dependencies. Steps run in parallel after "install" and share the workspace.
 # Setup and secrets: docs/WOODPECKER.md. This workflow needs no secrets.
 
@@ -8,9 +8,10 @@ variables:
   # node:24-trixie-slim – the same digest as the Dockerfile (Dependabot updates the Dockerfile;
   # keep both in sync, see docs/WOODPECKER.md "Updating pinned images")
   - &node_image node:24-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea
-  # documentation-only changes don't need a test run (docs/openapi.json is not excluded: it is checked)
+  # as in GitHub CI: only images in the documentation are left out – Markdown is checked (Prettier, the configuration
+  # tables) and server tests read README.md and files in docs/; .github/** is GitHub's own
   - &code_paths
-    exclude: ['**/*.md', 'LICENSE', 'NOTICE', '.github/**', 'docs/*.svg']
+    exclude: ['docs/**/*.png', 'docs/**/*.svg', '.github/**']
   - &npm_env
     npm_config_fund: 'false'
     npm_config_update_notifier: 'false'
@@ -30,7 +31,9 @@ steps:
     environment: *npm_env
     commands:
       - node --version && npm --version
-      - npm ci --no-audit
+      # as in GitHub CI: no install script runs during the install, then only the reviewed ones (package.json "allowScripts")
+      - npm ci --ignore-scripts --no-audit
+      - node scripts/install-scripts.mjs --check --run
 
   - name: typecheck
     image: *node_image
@@ -56,6 +59,7 @@ steps:
     depends_on: [install]
     commands:
       - npm run i18n:check
+      - npm run i18n:literals # no untranslated texts in the web UI
 
   - name: openapi
     image: *node_image
@@ -72,7 +76,8 @@ steps:
       # browser automation tests need Chromium and its system libraries (apt, as root);
       # the libraries only exist in this step's container, so install and test in one step
       - npx playwright install --with-deps chromium
-      - npm test
+      # with coverage and its minimums (server/vitest.config.ts), as the Node 24 tests in GitHub CI
+      - npm run test:coverage
 
   - name: build
     image: *node_image

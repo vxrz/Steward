@@ -4,8 +4,9 @@
  * service findings without a server (parser, engine, scans) are in
  * records-dos.test.ts.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { ADMIN, authHeaders, loginCookie, setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 let s: TestServer;
 const PW = 'Demo-password-1';
@@ -62,9 +63,6 @@ beforeAll(async () => {
   cookies.admin = await loginCookie(s.base, ADMIN.username, ADMIN.password);
   cookies.dana = await loginCookie(s.base, 'dana', PW);
 });
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('R1: record PDFs with long words', () => {
   for (const [name, body] of [
@@ -77,7 +75,7 @@ describe('R1: record PDFs with long words', () => {
       await dana('PUT', `/records/${rec.id}`, { body, fields: { ...CR_FIELDS, impact: 'i'.repeat(5000) } });
       const t = performance.now();
       const att = await dana('POST', `/records/${rec.id}/pdf`, {});
-      expect(performance.now() - t).toBeLessThan(10000); // was minutes; generous so a loaded CI runner does not flake
+      expect(performance.now() - t).toBeLessThan(timeLimit(10000)); // was minutes; generous so a loaded CI runner does not flake
       expect(att.kind).toBe('generated');
     });
   }

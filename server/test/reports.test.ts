@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
 
 let s: TestServer;
@@ -71,9 +71,6 @@ beforeAll(async () => {
   const dw = await s.waitRun(dry.id);
   await s.api('POST', `/tasks/${dw.tasks[0].id}/complete`, { approved: true, selectedKeys: dw.tasks[0].items.map((i: any) => i.key) });
   dryRun = await s.waitRun(dry.id, ['succeeded', 'failed']);
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('run report', () => {

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { authHeaders, loginCookie, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -36,9 +36,6 @@ beforeAll(async () => {
   await s.api('POST', '/demo/setup', {});
   [dana, olivia, adam, vera] = await Promise.all(['dana', 'olivia', 'adam', 'vera'].map((u) => s.as(u, PW)));
   platforms = await s.api('GET', '/platforms');
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const APP = {

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -45,9 +45,6 @@ beforeAll(async () => {
   hub = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'insights-hub').id;
   check = (await s.api('GET', '/compliance/access-checks')).find((c: any) => c.platformId === hub);
 }, 120_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('access change entries', () => {
   it('are a built-in record type with the access workflow', async () => {

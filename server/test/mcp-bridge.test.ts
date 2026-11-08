@@ -4,7 +4,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /** The stdio bridge (npm run mcp / steward mcp) against a running test server. */
@@ -60,7 +60,6 @@ beforeAll(async () => {
   const { writeInstanceFile } = await import('../src/instance.js');
   writeInstanceFile(s.base);
 });
-afterAll(async () => s?.app.close());
 
 describe('MCP stdio bridge', () => {
   it('legacy client: initialize, initialized, tools/list and a tool call', async () => {

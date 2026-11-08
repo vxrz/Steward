@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -52,9 +52,6 @@ beforeAll(async () => {
   // a platform only administrators and dana may see
   hidden = platforms[1];
   await s.api('PUT', `/platforms/${hidden.id}/access`, { acl: [{ subject: 'user:dana', permissions: ['use'] }] });
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('ticket references: permissions', () => {

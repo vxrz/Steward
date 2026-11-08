@@ -1,6 +1,6 @@
 import http from 'node:http';
 import net from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -50,9 +50,6 @@ beforeAll(async () => {
       srv.close(() => resolve(p));
     });
   });
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('MCP tool calls that do not finish', () => {
