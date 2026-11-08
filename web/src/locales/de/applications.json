@@ -739,12 +739,13 @@
     "untilHelp": "Leer: ohne Ende",
     "monthEndHint": "Am 29. bis 31.: kürzere Monate nehmen ihren letzten Tag.",
     "targets": "Betrifft",
-    "targetsHelp": "Plattformen, Systeme, Anwendungen und Dienste. Was darauf läuft, ist mit betroffen.",
+    "targetsHelp": "Plattformen, Systeme, Anwendungen, Dienste und Monitore. Was darauf läuft, ist mit betroffen.",
     "targetKinds": {
       "platform": "Plattformen",
       "system": "Systeme",
       "application": "Anwendungen",
-      "service": "Dienste"
+      "service": "Dienste",
+      "monitor": "Monitore"
     },
     "responsible": "Verantwortlich",
     "responsibleHelp": "Werden zusammen mit den Verantwortlichen des Betroffenen informiert.",

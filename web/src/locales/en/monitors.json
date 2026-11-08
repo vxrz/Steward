@@ -525,16 +525,14 @@
     "window": "Maintenance window",
     "until": "Until {{date}}: {{reason}} (by {{user}})",
     "noReason": "no reason given",
-    "endNow": "End now",
     "none": "No maintenance windows.",
     "active": "active",
-    "notPlanned": "Maintenance not planned",
-    "title": "Maintenance – {{name}}",
     "intro": "Checks keep running and their results are recorded, but the monitor shows \"maintenance\", notifications and runbooks are silenced, and the time does not count against uptime.",
-    "start": "Start",
-    "duration": "Duration (hours)",
-    "reason": "Reason",
-    "vsPause": "To stop the checks altogether, pause the monitor at the top of the page."
+    "vsPause": "To stop the checks altogether, pause the monitor at the top of the page.",
+    "open": "Show the window",
+    "catalogue": "Maintenance windows are planned under Maintenance; a window can list the monitor itself or reach it through a platform it checks.",
+    "listsMonitor": "Lists this monitor",
+    "reachesMonitor": "Reaches this monitor through a platform"
   },
   "outputs": {
     "title": "Outputs",

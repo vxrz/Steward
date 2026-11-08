@@ -35,6 +35,7 @@ import {
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { logger } from '../log.js';
 import { auditPendingUpgrades } from '../upgrades.js';
+import { migrateMonitorWindows } from '../catalogue/maintenance.js';
 import { ACCESS, isStatusViewer, me } from '../auth/access.js';
 import { plantEnabled } from '../plant/settings.js';
 import { moduleStates } from '../modules/registry.js';
@@ -59,6 +60,8 @@ async function onUnlocked(): Promise<void> {
   sealPlatformConfigs();
   // identities (0.9.0, ADR 0009): credentials and MCP mode move to each intact platform's sealed default identity, once
   createPlatformIdentities();
+  // one maintenance-window concept (0.11, ADR 0018): the monitors' own windows become catalogue windows, once
+  migrateMonitorWindows();
   sso.sealProviderConfigs();
   // Steward's example library as a disabled Git sync source, once per installation
   seedExamplesSource();

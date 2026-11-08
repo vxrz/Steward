@@ -1,10 +1,13 @@
 /**
- * Maintenance windows (#108): planned work on platforms, systems, applications and services – once or repeating
- * weekly or monthly. During a window the affected monitors stay quiet (still recorded), check messages of affected
- * runs can be paused, and availability figures show the planned minutes next to them.
+ * Maintenance windows (#108): planned work on platforms, systems, applications, services and monitors – once or
+ * repeating weekly or monthly. During a window the affected monitors stay quiet (still recorded), check messages of
+ * affected runs can be paused, and availability figures show the planned minutes next to them.
+ *
+ * Since 0.11 (ADR 0018) this is the one maintenance-window concept: a window can list monitors directly, and the
+ * monitors' own windows of earlier versions were copied into such windows.
  */
 
-export const MAINTENANCE_TARGET_KINDS = ['platform', 'system', 'application', 'service'] as const;
+export const MAINTENANCE_TARGET_KINDS = ['platform', 'system', 'application', 'service', 'monitor'] as const;
 export type MaintenanceTargetKind = (typeof MAINTENANCE_TARGET_KINDS)[number];
 
 export const MAINTENANCE_FREQS = ['weekly', 'monthly'] as const;

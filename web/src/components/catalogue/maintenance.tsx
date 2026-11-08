@@ -14,6 +14,7 @@ import {
   type MaintenanceTargetKind,
   type MaintenanceWindowDetail,
   type MaintenanceWindowSummary,
+  type MonitorSummary,
   type Platform,
   type RecordSummary,
   type ServiceSummary,
@@ -24,11 +25,14 @@ import { useFieldErrors } from '../common';
 import { SubjectsInput } from '../SubjectsInput';
 import { confirmDialog } from '../confirm';
 import { fmtDate, fmtDay } from '../../format';
-import { platformKeys } from '../../queryKeys';
+import { monitorKeys, platformKeys } from '../../queryKeys';
 import { useMe } from '../../auth';
 import { CopiedFromNote, DuplicateButton } from '../duplicate/DuplicateButton';
 
-/** Maintenance windows (#108): forms, details and the panel on platform, system, application and service pages. */
+/**
+ * Maintenance windows (#108): forms, details and the panel on platform, system, application, service and monitor pages.
+ * Since 0.11 (ADR 0018) the one maintenance-window concept: a window can list monitors directly.
+ */
 
 const HOUR = 3_600_000;
 
@@ -44,14 +48,14 @@ const fromLocal = (v: string): string | null => {
   return v && Number.isFinite(ms) ? new Date(ms).toISOString() : null;
 };
 
-export const targetLink = (t: { kind: MaintenanceTargetKind; id: string }) =>
-  t.kind === 'platform'
-    ? `/platforms/${t.id}`
-    : t.kind === 'system'
-      ? `/systems/${t.id}`
-      : t.kind === 'application'
-        ? `/applications/${t.id}`
-        : `/services/${t.id}`;
+const TARGET_PATHS: Record<MaintenanceTargetKind, string> = {
+  platform: '/platforms',
+  system: '/systems',
+  application: '/applications',
+  service: '/services',
+  monitor: '/monitors',
+};
+export const targetLink = (t: { kind: MaintenanceTargetKind; id: string }) => `${TARGET_PATHS[t.kind]}/${t.id}`;
 
 /** "Weekly", "Every 2 months until 1 Mar 2027", or "Once". */
 export function useRepeatLabel() {
@@ -105,7 +109,7 @@ export function WhenLine({ w }: { w: Pick<MaintenanceWindowSummary, 'current' | 
   );
 }
 
-/** Create or change a window. `preset`: a target to start with (from a platform, system, application or service page). */
+/** Create or change a window. `preset`: a target to start with (from a platform, system, application, service or monitor page). */
 export function MaintenanceFormModal({
   window: w,
   preset,
@@ -140,6 +144,7 @@ export function MaintenanceFormModal({
   const systems = useQuery({ queryKey: ['systems'], queryFn: () => getOptional<SystemSummary[]>('/systems', []) });
   const apps = useQuery({ queryKey: ['applications'], queryFn: () => getOptional<ApplicationSummary[]>('/applications', []) });
   const services = useQuery({ queryKey: ['services', false], queryFn: () => getOptional<ServiceSummary[]>('/services', []) });
+  const monitors = useQuery({ queryKey: monitorKeys.all, queryFn: () => getOptional<MonitorSummary[]>('/monitors', []) });
   const records = useQuery({ queryKey: ['records', 'maintenance'], queryFn: () => getOptional<RecordSummary[]>('/records', []) });
 
   const options = useMemo(() => {
@@ -148,6 +153,7 @@ export function MaintenanceFormModal({
       system: (systems.data ?? []).map((s) => ({ id: s.id, name: s.name })),
       application: (apps.data ?? []).filter((a) => !a.archived).map((a) => ({ id: a.id, name: a.name })),
       service: (services.data ?? []).map((s) => ({ id: s.id, name: s.name })),
+      monitor: (monitors.data ?? []).filter((m) => !m.isTemplate).map((m) => ({ id: m.id, name: m.name })),
     };
     const known = new Set(MAINTENANCE_TARGET_KINDS.flatMap((k) => names[k].map((x) => `${k}:${x.id}`)));
     // targets of the window that are not in the lists (a platform the user may not see): kept with their name
@@ -159,7 +165,7 @@ export function MaintenanceFormModal({
         ...extra.filter((x) => x.kind === k).map((x) => ({ value: `${k}:${x.id}`, label: x.name ?? t('maintenance.hiddenTarget') })),
       ],
     })).filter((g) => g.items.length);
-  }, [platforms.data, systems.data, apps.data, services.data, w, t]);
+  }, [platforms.data, systems.data, apps.data, services.data, monitors.data, w, t]);
 
   const startIso = fromLocal(start);
   const endIso = fromLocal(end);
@@ -492,7 +498,7 @@ export function MaintenanceDetailModal({ id, onClose, startEditing }: { id: stri
 
 /**
  * Maintenance of one item (platform, system, application, service page): the window going on now and the next ones
- * that list or reach it, with a button to plan one for it.
+ * that list or reach it, with a button to plan one for it. (The monitor page lists its windows as a table: MonitorDetail.)
  */
 export function MaintenancePanel({ kind, id, canPlan }: { kind: MaintenanceTargetKind; id: string; canPlan?: boolean }) {
   const { t } = useTranslation('applications');
