@@ -38,7 +38,8 @@ const runsQuery = z.object({
   status: z.string().max(200).optional(),
   scheduleId: z.string().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(1000).optional(),
-  before: z.string().max(64).optional(),
+  /** `<startedAt>,<id>` of the last run shown (a bare `<startedAt>` still works) */
+  before: z.string().max(200).optional(),
   /** Runs started after this time (ISO), e.g. the start page's "Failed runs (24 h)" */
   since: z
     .string()
