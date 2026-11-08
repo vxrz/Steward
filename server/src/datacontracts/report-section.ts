@@ -7,7 +7,7 @@ import type { CellInput, Tone } from '../reports/pdf/engine.js';
 import { currentDoc, findingsOf, linkRows, permissionsOf, type ContractRow, type RunRow } from './service.js';
 
 /**
- * "Data contracts" section of scheduled summary reports (#221, docs/DATA-CONTRACTS.md#reports): per contract the
+ * "Data contracts" section of scheduled summary reports (#221, docs/DATA-CONTRACTS.md#monitors-processes-scorecard-and-reports): per contract the
  * owner may see, its current version, the tests of the report period (passed, warnings, failed – from monitors,
  * processes and by hand; dry runs left out), the last test and Steward's own findings, and the versions saved in the
  * period with their breaking changes. The full test reports stay with the contracts (evidence).

@@ -62,18 +62,18 @@ The sidebar has sections, ordered by how often a service team needs them:
 - Pages without the right are left out, as before; a section without pages disappears.
 - Code: `web/src/components/AppNav.tsx` (`NAV_GROUPS`).
 
-![Grouped sidebar](images/ux/nav-after.png)
+![Grouped sidebar](../images/ux/nav-after.png)
 
-Before: [nav-before.png](images/ux/nav-before.png).
+Before: [nav-before.png](../images/ux/nav-before.png).
 
 ### Page header, breadcrumbs, 404
 
 - `PageHeader` takes `back` (a sidebar page key, a link, or several). Detail pages show it as a _Breadcrumb_ navigation above the title: Run, record, record editor (Records › CR-2026-0001), record types, monitor, monitor editor, service, dashboard, process editor, platform, system status.
 - The title keeps at least 18 rem; the actions wrap below it on narrow screens instead of covering it.
 
-| Before                                                      | After                                                     |
-| ----------------------------------------------------------- | --------------------------------------------------------- |
-| ![Run detail before](images/ux/run-detail-phone-before.png) | ![Run detail after](images/ux/run-detail-phone-after.png) |
+| Before                                                         | After                                                        |
+| -------------------------------------------------------------- | ------------------------------------------------------------ |
+| ![Run detail before](../images/ux/run-detail-phone-before.png) | ![Run detail after](../images/ux/run-detail-phone-after.png) |
 
 ### Empty, loading and error states
 
@@ -81,9 +81,9 @@ Before: [nav-before.png](images/ux/nav-before.png).
 - Filtered lists without matches keep a short "No … match the filter" line, so people do not mistake a filter for an empty register.
 - `QueryState`: skeleton rows while a list loads, an error message with _Try again_ when it fails.
 
-| Before                                                  | After                                                 |
-| ------------------------------------------------------- | ----------------------------------------------------- |
-| ![Monitors before](images/ux/empty-monitors-before.png) | ![Monitors after](images/ux/empty-monitors-after.png) |
+| Before                                                     | After                                                    |
+| ---------------------------------------------------------- | -------------------------------------------------------- |
+| ![Monitors before](../images/ux/empty-monitors-before.png) | ![Monitors after](../images/ux/empty-monitors-after.png) |
 
 ### Getting-started checklist
 
@@ -91,7 +91,7 @@ Administrators see a checklist on the start page until every step is done or the
 
 `GET /api/dashboard` returns the counts (`setup`) only to administrators; other users still see the simple 3-step hint while there is no platform.
 
-![Getting-started checklist](images/ux/getting-started.png)
+![Getting-started checklist](../images/ux/getting-started.png)
 
 ### Command palette
 

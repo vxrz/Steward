@@ -1,6 +1,6 @@
 # AI models
 
-A process can ask an AI model a **predefined question** with context from earlier steps – CheckMk data, other platforms, Steward datasets – and use the answer in later steps, for example in a report, a check message or an e-mail and Teams notification (0.6.0, #216). Every call is limited, logged and can be reported.
+A process can ask an AI model a **predefined question** with context from earlier steps – CheckMk data, other platforms, Steward datasets – and use the answer in later steps, for example in a report, a check message or an e-mail and Teams notification. Every call is limited, logged and can be reported.
 
 **The AI does not act on its own.** It answers; actions stay explicit process steps, and an answer can wait for a person's approval before it leaves Steward. There are no tool calls from the model to platforms and no chat. The other direction – an AI assistant using Steward – is the [MCP server](MCP.md).
 
@@ -113,7 +113,7 @@ A step that would send something else fails before anything is sent: `AI_DATA_NO
 - **Settings:** a fixed model, temperature (0–2; empty: the model's default) and the most output tokens.
 - **Result** (`vars.<saveAs>`): `answer` (the text or the checked JSON), `text`, `model`, `modelLabel`, `aiGenerated: true`, `marking` (_AI-generated with … – check it before you rely on it_), `usage` (`inputTokens`, `outputTokens`, `estimatedInputTokens`, `cost`), `durationMs`, `finishReason`, `truncated` (the answer stopped at the output limit), `promptFingerprint`, `inputFingerprint`, `removedSecrets`. The step's input in the run shows the filled-in prompt, the context sizes and the limits. Prompts and answers stay in the run like every step's data.
 - **Errors:** every refusal and failure names its reason code first (`AI_BUDGET_EXHAUSTED: …`). Connect the step's **error** output to handle it, or let the run fail.
-- **Dry runs and test runs never call the model.** A dry run uses the step's _sample answer_ (or says _the model was not asked_), a test run a [recorded response](../README.md#recorded-responses-and-test-runs) of the gateway for `POST <the model's path>` (in the model's format; else the sample answer). Both still check the input size and the allowed data; nothing is logged as a call.
+- **Dry runs and test runs never call the model.** A dry run uses the step's _sample answer_ (or says _the model was not asked_), a test run a [recorded response](PLATFORMS.md#recorded-responses-and-test-runs) of the gateway for `POST <the model's path>` (in the model's format; else the sample answer). Both still check the input size and the allowed data; nothing is logged as a call.
 
 ### Marking and approval
 

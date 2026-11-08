@@ -1,4 +1,4 @@
-# gitleaks configuration (secret scanning, see docs/SECURITY-PIPELINE.md).
+# gitleaks configuration (secret scanning, see docs/ci/SECURITY-PIPELINE.md).
 # The default rules apply; the allow-lists below only cover values that are
 # fake on purpose. Keep them narrow: an exact value, limited to test paths.
 # Do NOT allow-list whole folders – a real secret pasted into a test must still be found.

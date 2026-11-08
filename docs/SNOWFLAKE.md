@@ -67,7 +67,7 @@ Access reviews (_Compliance → Access reviews_) take the source **Snowflake**:
 
 Rights read like `SELECT TABLE SHOP.SALES.ORDERS`, `USAGE SCHEMA SHOP.SALES`, `OWNERSHIP DATABASE SHOP`. **Technical users** (`TYPE = SERVICE` or `LEGACY_SERVICE`) are marked _technical_, disabled users _disabled_. Each run is a snapshot; the next run shows what was granted or removed, as for every other source.
 
-Where the account's `USERS` view has them, Steward also reads `EMAIL`, `LAST_SUCCESS_LOGIN`, `HAS_PASSWORD`, `HAS_MFA` and `EXT_AUTHN_DUO` (0.3.1; without them – an older account – the four columns of before). The **e-mail address** is kept as an alias of the user when it differs from the login name, so a **person review** finds users whose names are employee ids (`Z003ABCD`) by their e-mail address. Person reviews show the **last login** (and "password without MFA") next to each right as a hint for the reviewer; the hint is read live and never part of a snapshot, so it does not create new snapshots every day.
+Where the account's `USERS` view has them, Steward also reads `EMAIL`, `LAST_SUCCESS_LOGIN`, `HAS_PASSWORD`, `HAS_MFA` and `EXT_AUTHN_DUO` (without them – an older account – the four columns of before). The **e-mail address** is kept as an alias of the user when it differs from the login name, so a **person review** finds users whose names are employee ids (`Z003ABCD`) by their e-mail address. Person reviews show the **last login** (and "password without MFA") next to each right as a hint for the reviewer; the hint is read live and never part of a snapshot, so it does not create new snapshots every day.
 
 Not counted: future grants (they apply to objects created later and show up once those exist), database roles, and grants to shares.
 
@@ -104,7 +104,7 @@ checks:
 
 ## Costs
 
-The platform's costs in money (0.9.0, [COSTS.md](COSTS.md#sources)): turned on under _Costs → the platform → Source_, Steward reads `SNOWFLAKE.ORGANIZATION_USAGE.USAGE_IN_CURRENCY_DAILY` once a day for the platform's account (`ACCOUNT_LOCATOR` or the name after `ORG-` in the variable `account`) – the organisation's usage views must be readable (`IMPORTED PRIVILEGES` on the `SNOWFLAKE` database in an account that has `ORGANIZATION_USAGE`; not for reseller contracts). Without them it reads the credits of `ACCOUNT_USAGE.METERING_DAILY_HISTORY` and multiplies them by the **price per credit** set on the source. The costs belong to the platform's application, else they are unassigned.
+The platform's costs in money ([COSTS.md](COSTS.md#sources)): turned on under _Costs → the platform → Source_, Steward reads `SNOWFLAKE.ORGANIZATION_USAGE.USAGE_IN_CURRENCY_DAILY` once a day for the platform's account (`ACCOUNT_LOCATOR` or the name after `ORG-` in the variable `account`) – the organisation's usage views must be readable (`IMPORTED PRIVILEGES` on the `SNOWFLAKE` database in an account that has `ORGANIZATION_USAGE`; not for reseller contracts). Without them it reads the credits of `ACCOUNT_USAGE.METERING_DAILY_HISTORY` and multiplies them by the **price per credit** set on the source. The costs belong to the platform's application, else they are unassigned.
 
 ## Templates
 

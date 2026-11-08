@@ -2,11 +2,31 @@
 
 Steward produces three kinds of PDF/A-2b reports. All of them are archived the same way: the file is written once and never changed, its SHA-256 is recorded in the audit log (`report.generated`), and _Audit log → Verify PDF report_ checks a copy, also a signed one.
 
-| Kind                 | What                                                    | Where                                                         |
-| -------------------- | ------------------------------------------------------- | ------------------------------------------------------------- |
-| Run report           | One run: what was done, decisions, checks, evidence     | Run page → _PDF reports_ ([README](../README.md#pdf-reports)) |
-| Summary report       | Runs of one or more processes in a period               | _Runs → Summary report_ ([README](../README.md#pdf-reports))  |
-| **Scheduled report** | Availability and SLA, credentials, runs – on a schedule | _Reports_ (this page)                                         |
+| Kind                 | What                                                    | Where                                                        |
+| -------------------- | ------------------------------------------------------- | ------------------------------------------------------------ |
+| Run report           | One run: what was done, decisions, checks, evidence     | Run page → _PDF reports_ ([below](#run-and-summary-reports)) |
+| Summary report       | Runs of one or more processes in a period               | _Runs → Summary report_ ([below](#run-and-summary-reports))  |
+| **Scheduled report** | Availability and SLA, credentials, runs – on a schedule | _Reports_ (this page)                                        |
+
+## Run and summary reports
+
+Steward creates PDF reports without a browser, also in the desktop executable.
+
+- **Run report.** On a run page, open _PDF reports → Generate PDF report_ (or _Run report → Generate PDF report…_). Choose English or German and add a reviewer comment if you like. The report contains:
+  - a summary: process, version and definition hash, who started the run, when and how, the time zone, the status and a prominent _dry run_ banner;
+  - the platforms used (names and kinds only, never credentials) and the inputs;
+  - every step in order, the write operations (simulated ones are marked), decisions and approvals (who, when, selection, comment, four-eyes rule), checks, the process's own report sections, evidence with thumbnails and errors;
+  - the reviewer comment, an integrity section with the sealed protocol hash and the run's audit trail, and a sign-off block (_Prepared / Reviewed / Approved by_) with empty digital signature fields.
+- **Interim reports.** Runs that wait for a decision can be reported too. These reports are marked _interim_.
+- **Summary report.** _Runs → Summary report_ lists all runs of one or more processes in a period, e.g. "Access reviews Q3", with totals.
+- **Automatic reports.** In the process editor, _Settings → PDF report_ (YAML: `report: { auto: true, lang: de }`) generates the report whenever a run finishes, e.g. for scheduled reviews.
+- **Branding.** _Settings → Report branding_ (administrators) sets the company name, logo (PNG/JPEG, max. 1 MB; default: the Steward logo), accent colour, default classification (e.g. _Internal_) and a footer note, with a sample preview ([Branding](#branding)).
+
+**Archiving and signing.** The files are PDF/A-2b with embedded fonts and metadata (run ID, process, protocol hash, content hash), validated with veraPDF (PDF/A-2b). They are written once to `data/reports/<run>/<report>.pdf` and never overwritten; generating again creates a new version. Each generation is recorded as `report.generated` with the file's SHA-256 in the audit log, and data retention removes a run's reports together with the run. The signature fields can be signed later in Adobe Acrobat or another PDF signing tool.
+
+**Verifying a copy.** _Audit log → Verify PDF report_ (or `POST /api/reports/verify`) checks a file against the audit log. It also recognizes signed copies: a signature is appended as an incremental update, so the first bytes of a signed copy are still the original report.
+
+API: `POST /api/runs/:id/reports` `{ lang, comment, classification, timeZone }`, `GET /api/runs/:id/reports`, `GET /api/reports/:id/download`, `POST /api/reports/summary` `{ processIds, from, to, lang, comment, title }`. `GET /api/runs/:id/report.pdf?lang=de` generates, stores and returns a report in one step. Generating and downloading needs view rights on the process; branding needs the _settings_ capability.
 
 ## Branding
 

@@ -1,5 +1,5 @@
 /**
- * Removing secrets from what a step sends to a model (docs/AI.md#data): the run's known secrets (platform
+ * Removing secrets from what a step sends to a model (docs/AI.md#allowed-data): the run's known secrets (platform
  * credentials, secret inputs, tokens seen in answers) in their usual encodings, values under keys that name
  * credentials, and strings that look like credentials (bearer and basic values, JSON Web Tokens, private keys,
  * Steward API tokens, well-known token formats, credentials in URLs, key=value secrets). Unlike error reports

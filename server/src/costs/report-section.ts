@@ -7,7 +7,7 @@ import { coverOf, coverWhere, scopeInfo, visibleScopes } from './access.js';
 import { budgetOf } from './query.js';
 
 /**
- * "Costs" section of scheduled summary reports (#226, docs/COSTS.md#reports): per service, application, team or
+ * "Costs" section of scheduled summary reports (#226, docs/COSTS.md#dashboards-and-the-api): per service, application, team or
  * platform the costs of the report period against the period before (a monthly schedule: the last month against the
  * month before), per currency, with the budget's state. Collected with the rights of the schedule's owner: scopes they
  * may not see are neither named nor counted; amounts they may not see are left out (only the change in percent).

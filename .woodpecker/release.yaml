@@ -5,7 +5,7 @@
 # releasing. Runs after ci.yaml passed.
 #
 # Windows and macOS executables are built by GitHub Actions only (Woodpecker agents are
-# usually Linux); docs/WOODPECKER.md "Releases" shows how to add them to the Forgejo release.
+# usually Linux); docs/ci/WOODPECKER.md "Releases" shows how to add them to the Forgejo release.
 
 variables:
   # ── Optional: publish a Forgejo release ('true' after creating the secret forgejo_token –

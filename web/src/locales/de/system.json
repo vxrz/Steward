@@ -95,7 +95,7 @@
     "development": "Entwicklungs-Build",
     "linksTitle": "Dokumentation und Links",
     "links": {
-      "docs": "Dokumentation (README)",
+      "docs": "Dokumentation (Übersicht)",
       "guides": "Anleitungen (Ordner docs)",
       "changelog": "Änderungsprotokoll",
       "security": "Sicherheitslücke melden (SECURITY.md)",

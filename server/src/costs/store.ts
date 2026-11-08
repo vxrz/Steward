@@ -8,7 +8,7 @@ import { canEditService } from '../records/access.js';
 import { newId, nowIso, parseJson } from '../util.js';
 
 /**
- * The cost model's store (#226, docs/COSTS.md#the-cost-model): writing the lines of a source and linking them to
+ * The cost model's store (#226, docs/COSTS.md#the-cost-model-focus): writing the lines of a source and linking them to
  * platforms, components and applications.
  *
  * A read of a source hands over every line of a window (the last days or months it re-reads). Lines are identified by

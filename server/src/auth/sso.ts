@@ -830,7 +830,7 @@ function freshAuthentication(
     return {
       refusal: {
         code: 'STEP_UP_NO_AUTH_TIME',
-        message: `${p.displayName} did not say when you signed in (claim auth_time) – an administrator has to set the provider up to send it (docs/SSO.md#step-up)`,
+        message: `${p.displayName} did not say when you signed in (claim auth_time) – an administrator has to set the provider up to send it (docs/SSO.md#step-up-re-authentication)`,
       },
     };
   }

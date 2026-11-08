@@ -66,7 +66,16 @@ This works for `localhost` and for HTTPS addresses. The app shell is cached, but
 
 ## 3. Node.js
 
-See _Quick start_ and _Everyday use_ in the [README](../README.md). `npm run desktop` starts the desktop launcher from source, i.e. per-user data folder and app window.
+Requirements: **Node.js 24 (LTS)**, the primary version, or Node.js 26 (Current, tested in CI). Steward uses the built-in SQLite. Windows, macOS and Linux are supported.
+
+```bash
+npm install
+npx playwright install chromium   # only needed for browser automation
+npm run build                      # builds the web UI once (again after updates)
+npm start                          # http://127.0.0.1:4310
+```
+
+All data lives in `./data`: the SQLite database, encrypted credentials, screenshots, uploaded docs and the vault file. Back it up ([BACKUPS.md](BACKUPS.md)). Use `SM_DATA_DIR` to keep it somewhere else; all variables are in [CONFIGURATION.md](CONFIGURATION.md). A shared installation can keep the database in PostgreSQL instead ([below](#5-database-sqlite-or-postgresql)). `npm run demo` starts with simulated platforms, as in the README's quick start. `npm run desktop` starts the desktop launcher from source, i.e. per-user data folder and app window.
 
 `npm start` runs the server from its TypeScript sources (with `tsx`, a development dependency). `npm run build` also compiles the server to plain JavaScript in `server/dist/` (`npm run build:server`, esbuild); `npm run start:dist` runs that – what the container image runs (`node --enable-source-maps server/dist/index.js`), without a TypeScript loader. The command-line tools are compiled next to it: `node server/dist/admin.js`, `migrate.js`, `backup.js`, `db-copy.js`, `evidence-verify.js`, `audit-verify-export.js`, `mcp.js` and `healthcheck.js`.
 

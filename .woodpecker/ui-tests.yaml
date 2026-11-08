@@ -6,7 +6,7 @@
 #
 # Woodpecker has no artifact store: on failure the "report" step prints the server log and
 # the list of failed tests with their traces. To keep the HTML report and traces, enable the
-# commented "upload-report" step (S3/MinIO) – see docs/WOODPECKER.md "Test reports".
+# commented "upload-report" step (S3/MinIO) – see docs/ci/WOODPECKER.md "Test reports".
 
 variables:
   - &node_image node:24-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea

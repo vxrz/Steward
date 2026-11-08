@@ -1,9 +1,9 @@
 /**
- * Writes the environment-variable tables from the configuration schema (server/src/config-schema.ts):
- * the short table in README.md (variables marked `readme`) and the full reference docs/CONFIGURATION.md.
+ * Writes the environment-variable reference docs/CONFIGURATION.md from the configuration schema
+ * (server/src/config-schema.ts).
  *
- *   npm run config:docs               write both
- *   npm run config:docs -- --check    exit 1 when one of them is outdated (CI)
+ *   npm run config:docs               write it
+ *   npm run config:docs -- --check    exit 1 when it is outdated (CI)
  *
  * The output is formatted with the project's Prettier settings, so `npm run format:check` agrees with it.
  */
@@ -14,10 +14,10 @@ import { GROUPS, VARS, type VarDoc } from '../config-schema.js';
 
 const HELP = `Usage: npm run config:docs -- [options]
 
-Generates the environment-variable tables in README.md and docs/CONFIGURATION.md from server/src/config-schema.ts.
+Generates the environment-variable reference docs/CONFIGURATION.md from server/src/config-schema.ts.
 
 Options:
-  --check         Compare with the files instead of writing them; exit 1 when one is outdated
+  --check         Compare with the file instead of writing it; exit 1 when it is outdated
   -h, --help      Show this help
 
 Exit codes: 0 success (or up to date), 1 outdated (--check), 2 usage error.
@@ -43,28 +43,20 @@ const END = '<!-- config-table:end -->';
 const entries = Object.entries(VARS) as [string, { doc: VarDoc }][];
 const cell = (s: string) => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
 
-/** Links in the descriptions are relative to the repository root (README); docs/ files need them one level up. */
-function relink(text: string, fromDocs: boolean): string {
-  if (!fromDocs) return text;
+/** Links in the descriptions are relative to the repository root; docs/CONFIGURATION.md needs them one level up. */
+function relink(text: string): string {
   return text.replace(/\]\((?!https?:|#)([^)]+)\)/g, (_m, target: string) => `](${target.startsWith('docs/') ? target.slice(5) : `../${target}`})`);
 }
 
 /** A literal default in code style; a phrase ("modern list", "– (the setting)") as it is. */
 const defaultCell = (d: string | undefined) => (!d ? '–' : /^[^\s`–]+$/.test(d) ? `\`${d}\`` : d);
 
-function table(rows: [string, { doc: VarDoc }][], fromDocs: boolean): string {
+function table(rows: [string, { doc: VarDoc }][]): string {
   const lines = ['| Variable | Default | Purpose |', '| --- | --- | --- |'];
   for (const [name, { doc }] of rows) {
-    lines.push(`| \`${name}\` | ${cell(defaultCell(doc.default))} | ${cell(relink(doc.description, fromDocs))} |`);
+    lines.push(`| \`${name}\` | ${cell(defaultCell(doc.default))} | ${cell(relink(doc.description))} |`);
   }
   return lines.join('\n');
-}
-
-function readmeTable(): string {
-  return `${table(
-    entries.filter(([, x]) => x.doc.readme),
-    false,
-  )}\n\nAll variables, grouped, with their limits: [docs/CONFIGURATION.md](docs/CONFIGURATION.md). An invalid value refuses to start, with one line per bad variable.`;
 }
 
 function configurationDoc(): string {
@@ -88,7 +80,7 @@ function configurationDoc(): string {
   for (const g of GROUPS) {
     const rows = entries.filter(([, x]) => x.doc.group === g);
     if (!rows.length) continue;
-    parts.push('', `## ${g}`, '', table(rows, true));
+    parts.push('', `## ${g}`, '', table(rows));
   }
   parts.push('', END, '');
   return parts.join('\n');
@@ -99,16 +91,7 @@ async function format(text: string, file: string): Promise<string> {
   return prettier.format(text, { ...options, filepath: file });
 }
 
-async function readmeContent(file: string): Promise<string> {
-  const current = fs.readFileSync(file, 'utf8');
-  const a = current.indexOf(START);
-  const b = current.indexOf(END);
-  if (a < 0 || b < a) throw new Error(`${path.relative(ROOT, file)}: the markers ${START} … ${END} are missing`);
-  return format(`${current.slice(0, a)}${START}\n\n${readmeTable()}\n\n${current.slice(b)}`, file);
-}
-
 const targets: { file: string; content: () => Promise<string> }[] = [
-  { file: path.join(ROOT, 'README.md'), content: () => readmeContent(path.join(ROOT, 'README.md')) },
   { file: path.join(ROOT, 'docs', 'CONFIGURATION.md'), content: () => format(configurationDoc(), path.join(ROOT, 'docs', 'CONFIGURATION.md')) },
 ];
 

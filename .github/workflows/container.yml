@@ -1,7 +1,7 @@
 # Builds the container image, creates SBOMs with Syft, scans the image with Grype and
 # Trivy and – for release tags – publishes it to the GitHub Container Registry, signed
 # and attested. Runs weekly as well: new advisories for the base image appear without
-# code changes. Details: docs/SECURITY-PIPELINE.md ("Container image").
+# code changes. Details: docs/ci/SECURITY-PIPELINE.md ("Container image").
 #
 #   pull request, branch push   build + scan linux/amd64 (both variants), nothing is pushed
 #   weekly, manual run          build + scan linux/amd64 and linux/arm64, nothing is pushed

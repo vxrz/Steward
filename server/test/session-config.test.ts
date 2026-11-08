@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
-// Session cookie and lifetime behind an https:// public URL (OWASP ASVS V3.3, V3.4); see docs/REVIEW-2026-10.md.
+// Session cookie and lifetime behind an https:// public URL (OWASP ASVS V3.3, V3.4); see docs/reviews/REVIEW-2026-10.md.
 let s: TestServer;
 beforeAll(async () => {
   process.env.SM_PUBLIC_URL = 'https://steward.example.com';

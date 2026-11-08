@@ -10,7 +10,7 @@
 #   image → only if the scans pass: add the branch/version tags (main; 1.2.3, 1.2, 1, latest)
 #   → optional cosign signature → SBOMs (image + npm) to Dependency-Track
 #
-# Setup (docs/WOODPECKER.md): set the two values below, create the secrets harbor_username,
+# Setup (docs/ci/WOODPECKER.md): set the two values below, create the secrets harbor_username,
 # harbor_password and dependency_track_api_key, and allow the buildx plugin to run privileged
 # (server setting WOODPECKER_PLUGINS_PRIVILEGED – it runs its own Docker daemon).
 
@@ -25,7 +25,7 @@ variables:
   #    cosign_key and cosign_password – a missing secret would fail the pipeline) ──────────
   - &cosign_enabled 'false'
 
-  # images (pinned by digest; update: docs/WOODPECKER.md "Updating pinned images")
+  # images (pinned by digest; update: docs/ci/WOODPECKER.md "Updating pinned images")
   # woodpeckerci/plugin-docker-buildx:6.1.2
   - &buildx_plugin woodpeckerci/plugin-docker-buildx:6.1.2@sha256:d26b69cbe748b8a219c707e7889d5ffb3f9214bc3c480c30fe857ff85954267c
   # buildpack-deps:bookworm-scm (bash, curl, git) – runs the scanners from install-tools.sh

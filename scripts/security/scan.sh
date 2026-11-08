@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the checks of .github/workflows/security.yml (and, with --image, container.yml)
-# locally. Reports go to .tools/reports/. See docs/SECURITY-PIPELINE.md.
+# locally. Reports go to .tools/reports/. See docs/ci/SECURITY-PIPELINE.md.
 #
 #   scripts/security/scan.sh [--image] [--only <check,...>]
 #   checks: gitleaks audit osv trivy hadolint actionlint zizmor semgrep image

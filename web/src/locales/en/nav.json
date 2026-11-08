@@ -170,7 +170,7 @@
     "checklist": "Getting-started checklist",
     "docs": "Documentation",
     "doc": {
-      "guide": "User guide (README)",
+      "guide": "Getting started",
       "install": "Installation and operation",
       "mcp": "AI assistants (MCP)",
       "api": "Public REST API",

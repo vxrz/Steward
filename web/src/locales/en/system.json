@@ -95,7 +95,7 @@
     "development": "development build",
     "linksTitle": "Documentation and links",
     "links": {
-      "docs": "Documentation (README)",
+      "docs": "Documentation (index)",
       "guides": "Guides (docs folder)",
       "changelog": "Changelog",
       "security": "Report a vulnerability (SECURITY.md)",

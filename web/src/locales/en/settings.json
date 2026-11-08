@@ -105,7 +105,7 @@
         "hint": "It contains the database, encrypted credentials, evidence files and the audit log."
       }
     },
-    "readme": "See the <readme>README</readme> for details."
+    "readme": "See the <readme>getting-started guide</readme> for details."
   },
   "maintenance": {
     "confirm": "Delete runs and notifications older than the saved retention periods now? This cannot be undone.",

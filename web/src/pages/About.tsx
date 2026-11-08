@@ -193,7 +193,7 @@ export function AboutPage() {
             {t('about.linksTitle')}
           </Title>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
-            <LinkItem href={`${BRAND.repoUrl}#readme`} icon={<IconBook size={16} aria-hidden />}>
+            <LinkItem href={repo('docs/README.md')} icon={<IconBook size={16} aria-hidden />}>
               {t('about.links.docs')}
             </LinkItem>
             <LinkItem href={`${BRAND.repoUrl}/tree/HEAD/docs`} icon={<IconFileText size={16} aria-hidden />}>

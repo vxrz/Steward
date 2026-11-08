@@ -5,36 +5,33 @@
 <p align="center"><em>Repeatable, auditable service procedures for your platforms.</em><br>
 Open source under the <a href="LICENSE">Apache License 2.0</a> · Made in Erlangen, Germany</p>
 
-Steward is a local tool for running standard service and platform procedures against **Siemens Insights Hub**, **Industrial Edge Management** and any other REST platform. Examples are onboarding users, access reviews and housekeeping, attribute-consumption optimization, health checks and status tests. Each procedure becomes a repeatable, versioned process. You can run it on demand or on a schedule, a person can approve or select items where needed, and every run leaves a tamper-evident protocol.
+Steward runs the standard procedures of a service team against **Siemens Insights Hub**, **Industrial Edge Management** and any other REST platform: onboarding users, access reviews and housekeeping, attribute-consumption checks, health checks and status tests. Each procedure becomes a versioned process. You run it on demand or on a schedule, a person approves or selects items where needed, and every run leaves a tamper-evident protocol.
 
-- **Platform-agnostic.** You add platforms (base URL, credentials, OpenAPI specs, documentation). Processes refer to _connection slots_, so the same process runs against test and production tenants. A configured platform can be saved as a reusable **connector type**, exported and imported, so adding a new tool is a one-time job.
-- **Flow editor (Node-RED style).** Drag nodes from a palette onto a canvas and wire them together. Node types: API call (with pagination and OpenAPI operation picker), database query, set variables, for each, if, user task / approval, check, report, browser automation, publish dataset, document access change, AI model, data contract test, sub-process, wait, fail, comment ([all node types](#node-types)). Outputs are labelled (true/false, each item/done, approved/rejected, error). You can also edit the YAML source directly.
-- **Single sign-on.** Sign in with Microsoft Entra ID or any OpenID Connect provider (Okta, Keycloak, Google, ADFS …). Roles and teams can be assigned from Entra app roles or groups.
-- **Users and access control.** Sign-in with roles (admin, designer, operator, approver, auditor, viewer) and teams. Per-process and per-platform access lists narrow who may view, run, edit, approve or manage, e.g. only the Service Desk team may use the production tenant. Decisions can be assigned to people, teams or roles, with an optional four-eyes rule.
-- **AI models, within limits.** A process step asks an AI model through an LLM gateway (OpenAI Chat Completions and Responses, Anthropic Messages, Bedrock Converse on one base URL) a predefined question with the context it chooses – secrets removed, the input estimated before sending, token budgets per day and month, every call logged without its content and reported. Answers are marked as AI-generated. See [docs/AI.md](docs/AI.md).
-- **Human in the loop.** A run can pause and ask you to pick items from a list, e.g. "untick the users who still need access", or to approve a change. The decision, who made it and when are all recorded.
-- **Dry runs.** Read calls run, write calls (POST/PUT/PATCH/DELETE) are only recorded. You see exactly what _would_ change.
-- **Scheduling.** Cron schedules with time zones. Scheduled runs that need a decision wait in _My tasks_.
-- **Webhook triggers.** An inbound URL with its own secret (static token or HMAC signature) starts a process with inputs mapped from the request, e.g. a [Gatus](docs/GATUS.md) alert starts a diagnosis runbook. Runs use the owner's rights; calls are rate-limited, de-duplicated and audited.
-- **Monitors.** Composable, dependency-aware health checks: ping, TCP, HTTP, platform API calls, data freshness in Insights Hub (cadence or maximum age), Gatus endpoints, sub-monitors and **heartbeats pushed by an IoT gateway** (one call per check or one batch call). Links between checks name the root cause and keep follow-up alerts quiet, without making one check depend on another. Status goes to notifications, runbooks, webhooks, Gatus, **Zabbix** (trapper protocol or `history.push`), Prometheus, dashboards and the public API (incl. Zabbix low-level discovery). Templates with CSV import for many machines, maintenance windows, a status wall. See [docs/MONITORS.md](docs/MONITORS.md); PromQL checks against Prometheus, Thanos, Mimir or VictoriaMetrics: [docs/PROMETHEUS.md](docs/PROMETHEUS.md).
-- **Auditability.** There is a hash-chained, HMAC-signed audit log and a per-run protocol (HTML/JSON) with inputs, every request, decisions, checks, reports and screenshots. Each protocol has a sealed fingerprint, so later changes are detected.
-- **PDF reports for the archive.** Branded PDF/A-2b reports of finished runs (what was done, when, results, decisions, comments) and periodic summaries, ready to be archived and signed later. Every PDF is stored unchanged and its SHA-256 is recorded in the audit log. **Scheduled reports** (daily, weekly, monthly) cover availability and SLA of monitors and Gatus endpoints, the credentials register and runs, and are sent to their recipients. See [PDF reports](#pdf-reports) and [docs/REPORTS.md](docs/REPORTS.md).
-- **Credentials register.** Document the credentials your services use – API clients, technical users, tokens, certificates, agent certificates – without storing a secret: where they are kept (e.g. the KeePass entry), who owns and uses them, expiry, rotation and review dates. Certificates are read from the uploaded public certificate; owners get reminders before anything expires or is due. See [docs/CREDENTIALS.md](docs/CREDENTIALS.md).
-- **Dashboards.** Flows publish datasets: a snapshot of rows with a status per row, plus metric history. Dashboards show them as KPI tiles, trends, status distributions and tables, with no live API calls when someone opens a dashboard.
-- **Example library.** [`examples/`](examples/README.md) contains service-management and housekeeping procedures for Insights Hub and Industrial Edge, plus dashboards, all importable.
-- **Sub-processes and parallel loops.** A _Run sub-process_ node calls another process as a reusable building block (inputs in, outputs back, linked child runs). _For each_ can process items in parallel. Platform calls retry on 429/5xx with backoff and honour `Retry-After`.
-- **Editor help.** Expression autocomplete with a live preview using the data of the last run, a _Last run_ inspector per node, undo/redo, copy/paste between processes, and a YAML diff between versions.
-- **Notifications.** In-app notification centre, plus e-mail (SMTP), Microsoft Teams and generic webhooks for decisions waiting, failed runs and checks, stale dashboard data and skipped schedules. E-mails and Teams cards carry your name, colour and logo. Optional browser notifications.
-- **Automation API.** Personal API tokens (read-only, full, or MCP client) for scripts, CI and AI assistants.
-- **Public REST API.** A versioned, read-only API under `/api/v1` with an OpenAPI 3.1 description and an optional Swagger UI (`/api/docs/`): processes and versions, runs with steps, logs, decisions and checks, tasks, schedules, webhook triggers, platform metadata (never credentials), dashboard datasets, the audit log, users and teams. Token-only, rate-limited, cursor pagination, RFC 9457 errors. E.g. `curl -H "Authorization: Bearer smt_…" http://127.0.0.1:4310/api/v1/runs`. See [docs/API.md](docs/API.md).
-- **AI assistants (MCP).** A [Model Context Protocol](https://modelcontextprotocol.io) server at `/api/mcp` (off by default) lets Claude Desktop, VS Code and other MCP clients search processes, runs, monitors, schedules, dashboards and the audit log with the rights of the person's own _MCP client_ token; a stdio bridge (`steward mcp`) serves desktop clients. Per platform, an administrator can open a **gateway** to the platform's API: GET operations from its OpenAPI specification, called by Steward with the stored credentials and audited. An assistant changes nothing by itself: where it is turned on, a changing gateway call, a run start or a control proposal becomes a request that a person approves under _AI requests_. See [docs/MCP.md](docs/MCP.md#approved-writes).
-- **Postman export.** A process becomes a Postman collection – its requests in step order, values passed between steps, checks as tests – and a platform an environment with a collection of its API operations, signed in like Steward signs in. No secret is ever exported. See [docs/POSTMAN.md](docs/POSTMAN.md).
-- **Semantic model.** Steward's data model as an [Apache Ossie](https://github.com/apache/ossie) (formerly OSI) semantic model at `/api/v1/semantic-model` (JSON or YAML): datasets, fields, relationships and metrics such as the run success rate and monitor availability, for BI tools, catalogs and AI agents. See [docs/SEMANTIC-MODEL.md](docs/SEMANTIC-MODEL.md).
-- **Observability.** Structured JSON logs, optional OpenTelemetry tracing, Prometheus metrics (`/api/metrics`), readiness probes (`/api/ready/traffic` for routing, `/api/ready` for alerts), and a **System status** page for administrators (components, integrations, runtime, health-check URLs).
-- **Your look.** Administrators set the primary and accent colour, default colour scheme, corner radius, a display name such as "ACME Steward" and a header logo, for everyone and already on the sign-in page. Contrast is kept at WCAG AA automatically. An **About** page shows version, build, licences and links. See [docs/BRANDING.md](docs/BRANDING.md#theming-settings--appearance).
-- **Runs anywhere.** A single-file desktop executable (no Node.js needed), an installable web app (PWA), Node.js, or a container. See [docs/INSTALL.md](docs/INSTALL.md).
-- **Durable.** Runs are journaled step by step. If the app stops while a run waits for a decision, it resumes after a restart without repeating finished steps.
-- **Local and safe.** The server binds to `127.0.0.1` and stores credentials AES-256-GCM encrypted with your master passphrase. It has CSRF and DNS-rebinding protection.
+It runs on a laptop as a desktop app, or as a shared team server (container, PostgreSQL, single sign-on). Around the procedures it keeps what a service team needs to run them well: a service catalogue, monitors, documents and the evidence for audits.
+
+## The core idea
+
+Every change goes the same way:
+
+1. **Dry run.** Read calls run; write calls are only recorded. You see exactly what _would_ change.
+2. **Decision.** A person picks the items or approves the change – with a four-eyes rule where it matters.
+3. **Write.** Only the approved changes are sent, with the platform's stored credentials.
+4. **Re-read.** The run reads the result back and records checks that pass or fail.
+5. **Sealed protocol.** The run protocol (inputs, every request, decisions, checks, evidence) is sealed with a fingerprint in the HMAC-chained audit log, so a later change is detected. PDF/A reports and evidence packs can be verified outside Steward.
+
+## What it does
+
+- **Procedures.** A flow editor and YAML for versioned processes: API calls with OpenAPI help, database queries, approvals and selections, checks, reports, browser steps, manual steps, sub-processes and AI steps. Runs are journaled and resume after a restart. [Writing processes](docs/PROCESSES.md)
+- **Platforms.** Any REST API with its OpenAPI specs, credentials in an encrypted vault, connector types to share a set-up, and recorded responses for test runs. [Platforms](docs/PLATFORMS.md)
+- **Schedules and triggers.** Cron schedules with time zones, and webhook triggers that start a process from an alert. [Users and access](docs/USERS.md#who-may-do-what), [Gatus](docs/GATUS.md)
+- **Monitors.** Dependency-aware health checks that name the root cause and keep follow-up alerts quiet, maintenance windows, availability objectives and status pages. [Monitors](docs/MONITORS.md)
+- **Catalogue and registers.** Services, applications, systems with their tech stack, end of life and version watch, data contracts, documents (change requests, decision records, incident reviews), credentials, ticket references, duties and costs. [Applications](docs/APPLICATIONS.md), [Documents](docs/RECORDS.md)
+- **Compliance and evidence.** Access changes, reconciliation, control catalogues, firewall changes and signed evidence packs for ISO/IEC 27001, IEC 62443 and NIS2 audits. [Compliance](docs/COMPLIANCE.md)
+- **Dashboards and reports.** Datasets published by processes, dashboards with trends and forecasts, PDF/A reports of runs and scheduled reports. [Dashboards](docs/DASHBOARDS.md), [Reports](docs/REPORTS.md)
+- **Notifications.** In the app, by e-mail, Microsoft Teams and webhooks, with daily summaries, quiet hours and approvals from Teams. [Notifications](docs/NOTIFICATIONS.md)
+- **APIs and AI.** A read-only REST API (`/api/v1`), an MCP server for AI assistants whose writes a person approves, and AI model steps within budgets. [API](docs/API.md), [MCP](docs/MCP.md), [AI models](docs/AI.md)
+
+All pages, grouped by task: **[documentation index](docs/README.md)**.
 
 ## Quick start (demo with simulated platforms)
 
@@ -60,501 +57,30 @@ Then:
 
 3. Open **Processes → "Insights Hub – Access review 1"** and click _Run_. Keep _Dry run_ on the first time.
 
+To set up a real installation step by step – unlock, single sign-on, teams, the first platform and process, monitors, notifications and backups – follow **[Getting started](docs/GETTING-STARTED.md)**.
+
 ## Ways to run it
 
-- **Desktop executable:** download, double-click; it opens as an app window. `npm run build && npm run build:exe` builds it yourself.
-- **Installed web app:** in Edge/Chrome choose _Install_ (or _Install app_ in the user menu).
-- **Node.js:** see below.
-- **Container:** `docker compose up -d` with the signed image `ghcr.io/vxrz/steward` (linux/amd64 and linux/arm64; `…-browser` tags include Chromium for browser steps), or build it yourself from the `Dockerfile`.
+- **Desktop executable:** download, double-click; it opens as an app window. [Desktop executable](docs/INSTALL.md#1-desktop-executable)
+- **Installed web app:** in Edge or Chrome choose _Install_. [PWA](docs/INSTALL.md#2-installed-web-app-pwa)
+- **Node.js:** `npm install && npm run build && npm start`. [Node.js](docs/INSTALL.md#3-nodejs)
+- **Container:** `docker compose up -d` with the signed image `ghcr.io/vxrz/steward` (linux/amd64 and linux/arm64). [Container](docs/INSTALL.md#4-container)
+- **Database:** SQLite by default, PostgreSQL for a shared installation. [Database](docs/INSTALL.md#5-database-sqlite-or-postgresql)
 
-Details, autostart for schedules and code-signing notes are in [docs/INSTALL.md](docs/INSTALL.md). Naming ideas and how to rebrand are in [docs/BRANDING.md](docs/BRANDING.md). Languages (English, German) and how to add one: [docs/I18N.md](docs/I18N.md).
+Every setting is an environment variable: [docs/CONFIGURATION.md](docs/CONFIGURATION.md). Updates: [Updating](docs/INSTALL.md#6-updating); which versions get fixes: [docs/RELEASES.md](docs/RELEASES.md).
 
-## Everyday use
+## Security
 
-```bash
-npm install
-npm run build      # builds the web UI once (again after updates)
-npm start          # http://127.0.0.1:4310
-```
+- The server binds to `127.0.0.1` by default. Credentials are encrypted with AES-256-GCM under a key that your master passphrase unlocks, and they are sent only to the platform they belong to.
+- Every API call is checked against roles and access lists on the server. Sessions are bound to the browser; state-changing requests are protected against CSRF and DNS rebinding.
+- The audit log is HMAC-chained with signed checkpoints, so edits, removals and re-orderings are detected.
+- AI assistants change nothing by themselves: a changing call, a run start or a proposal becomes a request a person approves.
 
-All data lives in `./data`: the SQLite database, encrypted credentials, screenshots, uploaded docs and the vault file. Back it up. Use `SM_DATA_DIR` to keep it somewhere else. A shared installation can keep the database in PostgreSQL instead; see [Database](docs/INSTALL.md#5-database-sqlite-or-postgresql). To update, replace the app and start it on the same data folder: see [Updating](docs/INSTALL.md#6-updating). To move from the desktop app to a server (PostgreSQL, single sign-on), export a migration package and import it there with a mapping of every user: see [docs/MIGRATION.md](docs/MIGRATION.md).
-
-<!-- config-table:start – generated by "npm run config:docs" from server/src/config-schema.ts; do not edit by hand -->
-
-| Variable                       | Default                          | Purpose                                                                                                                                                                                                                                                                                                                                                          |
-| ------------------------------ | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SM_PORT`                      | `4310`                           | HTTP port (`0`: any free port, shown in the start log)                                                                                                                                                                                                                                                                                                           |
-| `SM_HOST`                      | `127.0.0.1`                      | Bind address. Keep it local unless you know what you are doing.                                                                                                                                                                                                                                                                                                  |
-| `SM_ALLOWED_HOSTS`             | –                                | Extra allowed `Host` headers (comma-separated), e.g. the machine's DNS name when colleagues use it                                                                                                                                                                                                                                                               |
-| `SM_TLS_CERT`                  | –                                | Path to a certificate (PEM). With `SM_TLS_KEY` Steward serves HTTPS, which is recommended when others connect over the network.                                                                                                                                                                                                                                  |
-| `SM_TLS_KEY`                   | –                                | Path to the private key of `SM_TLS_CERT` (PEM)                                                                                                                                                                                                                                                                                                                   |
-| `SM_TLS_CIPHERS`               | modern list                      | OpenSSL cipher list for TLS 1.2 with the built-in HTTPS (TLS 1.3 suites are always on; TLS 1.0/1.1 are off)                                                                                                                                                                                                                                                      |
-| `SM_PUBLIC_URL`                | –                                | External URL (e.g. `https://steward.corp.example`, or `https://apps.corp.example/steward`) behind a reverse proxy. Used for the SSO redirect URI and links; `https://` makes the session cookie `Secure` and turns on HSTS. Its path is the base path.                                                                                                           |
-| `SM_BASE_PATH`                 | – (the root)                     | Path prefix behind a reverse proxy, e.g. `/steward`: everything (UI, `/api`, health) moves below it; the proxy must not strip it. Must match the path of `SM_PUBLIC_URL`. An own subdomain is safer: [INSTALL.md](docs/INSTALL.md#behind-a-reverse-proxy)                                                                                                        |
-| `SM_SHUTDOWN_GRACE_SECONDS`    | `25`                             | On SIGTERM/SIGINT: how long running steps may still finish before their runs are marked interrupted. Give the container a little more (Docker `stop_grace_period`, Kubernetes `terminationGracePeriodSeconds`), see [docs/INSTALL.md](docs/INSTALL.md)                                                                                                           |
-| `SM_TRUST_PROXY`               | – (off)                          | Behind a reverse proxy: the proxies' addresses/CIDRs (`10.0.0.5,10.1.0.0/16`, `loopback`) or the number of proxies (`1`, only for a proxy on a loopback/private address) whose `X-Forwarded-For/-Proto/-Host` are believed. Client addresses in the audit log, sign-in lockouts and webhook CIDR checks then are the real ones.                                  |
-| `HTTPS_PROXY`                  | –                                | Corporate proxy (also `HTTP_PROXY`, `NO_PROXY`), used for platform calls unless a platform overrides it                                                                                                                                                                                                                                                          |
-| `SM_DATASET_CACHE_ROWS`        | `100000`                         | Parsed dataset rows kept in memory between reads (dashboards, API pages); `0` turns the cache off                                                                                                                                                                                                                                                                |
-| `SM_DEMO`                      | `off`                            | `1` mounts the mock platforms under `/mock` and offers the demo data                                                                                                                                                                                                                                                                                             |
-| `SM_DATA_DIR`                  | `./data`                         | Data directory                                                                                                                                                                                                                                                                                                                                                   |
-| `SM_DATABASE_URL`              | – (SQLite in the data directory) | Use PostgreSQL: `postgres://user:password@host:5432/database`. Not available in the desktop executable. See [Database](docs/INSTALL.md#5-database-sqlite-or-postgresql).                                                                                                                                                                                         |
-| `SM_DATABASE_SCHEMA`           | `public`                         | PostgreSQL schema (created if missing)                                                                                                                                                                                                                                                                                                                           |
-| `SM_DATABASE_CA`               | –                                | CA certificate (PEM file) for verifying the PostgreSQL server's TLS certificate                                                                                                                                                                                                                                                                                  |
-| `SM_UPGRADE_BACKUPS`           | `3`                              | SQLite: automatic copies of the database made before an update migrates it, kept in `<data dir>/backups` (`0` = none). See [Updating](docs/INSTALL.md#6-updating)                                                                                                                                                                                                |
-| `SM_METRIC_RETENTION_DAYS`     | `400`                            | How long dashboard metric history is kept                                                                                                                                                                                                                                                                                                                        |
-| `SM_MASTER_PASSPHRASE_FILE`    | –                                | File with the master passphrase: unlock automatically at start-up, so schedules run after a reboot. Use a Docker secret, a systemd credential (`%d/…`) or a file only the service account can read.                                                                                                                                                              |
-| `SM_MASTER_PASSPHRASE`         | –                                | The same, as a variable (prefer the file). Both are removed from the environment at start, so child processes never see them.                                                                                                                                                                                                                                    |
-| `SM_PASSWORD_LOGIN`            | – (the setting)                  | Who may sign in with a password: `all`, `adminsOnly` or `none` (single sign-on only, from an admin's first SSO). Wins over **Settings → Sign-in**, which then shows it read-only. Emergency access from the server's command line works in every mode ([docs/INSTALL.md](docs/INSTALL.md#locked-out-of-single-sign-on)).                                         |
-| `SM_SESSION_IDLE_MINUTES`      | `30`                             | A session ends after this many minutes without a request (an open Steward tab keeps it alive), 5–10080                                                                                                                                                                                                                                                           |
-| `SM_SESSION_MAX_HOURS`         | `12`                             | A session ends this many hours after sign-in, used or not (OWASP ASVS level 2), 1–720                                                                                                                                                                                                                                                                            |
-| `SM_STEP_UP_MINUTES`           | `5`                              | How long a confirmation for sensitive actions lasts (step-up: the password again or a fresh single sign-on), 1–15; also the oldest `auth_time` accepted. The longest age: the assurance policy can set a shorter one per action ([docs/ASSURANCE.md](docs/ASSURANCE.md)). See [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#step-up-re-authentication) |
-| `SM_RATE_LIMIT_PER_MINUTE`     | `600`                            | Requests per minute and signed-in user (otherwise per client address) on the web app's API, webhooks and web UI files; expensive actions have lower limits of their own; `0` = off. See [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#request-rate-limits)                                                                                             |
-| `SM_MAX_CONCURRENT_RUNS`       | `20`                             | Runs at the same time; more wait in status _queued_ (first come, first served) until one ends or waits for a decision. `0`: no limit                                                                                                                                                                                                                             |
-| `SM_EVENT_LOOP_WARN_MS`        | `1000`                           | A warning is logged when the event loop was blocked longer (at most once a minute); `sm_event_loop_lag_seconds` has the p99                                                                                                                                                                                                                                      |
-| `SM_API_V1`                    | `on`                             | `off` turns the public REST API (`/api/v1`) and its documentation off                                                                                                                                                                                                                                                                                            |
-| `SM_API_DOCS`                  | – (the setting)                  | Who may open the API documentation (`/api/docs/`, `openapi.json` without a token): `off`, `authenticated` (signed-in users, the default) or `public`. Overrides the setting under **Settings → REST API**.                                                                                                                                                       |
-| `SM_API_RATE_LIMIT`            | `600`                            | Requests per minute and API token on `/api/v1`; `0` = unlimited                                                                                                                                                                                                                                                                                                  |
-| `SM_MCP`                       | – (the setting)                  | `off` turns the MCP server (`/api/mcp`) off, whatever **Settings → MCP server** says (`on` has no effect: the setting decides)                                                                                                                                                                                                                                   |
-| `SM_MCP_RATE_LIMIT`            | `120`                            | MCP requests per minute and token                                                                                                                                                                                                                                                                                                                                |
-| `SM_MCP_GATEWAY_RATE_LIMIT`    | `30`                             | MCP platform gateway calls per minute, user and platform                                                                                                                                                                                                                                                                                                         |
-| `SM_MCP_ALLOWED_ORIGINS`       | –                                | Origins of browser-based MCP clients allowed to call `/api/mcp` (comma-separated)                                                                                                                                                                                                                                                                                |
-| `SM_METRICS_PUBLIC`            | `off`                            | `1` serves `/api/metrics` without sign-in (otherwise admins, auditors or an API token)                                                                                                                                                                                                                                                                           |
-| `SM_AUDIT_ANCHOR`              | –                                | A signed audit checkpoint kept outside Steward. Every verification fails if the log is shorter than it or differs. See [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#audit-log-as-evidence).                                                                                                                                                           |
-| `SM_AUDIT_ANCHOR_FILE`         | –                                | A file with a signed audit checkpoint (e.g. on a write-once share); checked like `SM_AUDIT_ANCHOR`                                                                                                                                                                                                                                                               |
-| `SM_AUDIT_CHECKPOINT_MINUTES`  | `60`                             | Interval of signed audit checkpoints (at least 5)                                                                                                                                                                                                                                                                                                                |
-| `SM_AUDIT_FULL_VERIFY_DAYS`    | `7`                              | Days between automatic full verifications of the audit chain in the background (`0`: only by hand). _Verify chain_ itself is incremental, from the newest signed checkpoint                                                                                                                                                                                      |
-| `SM_CHROMIUM_SANDBOX`          | `auto`                           | `1`/`0` forces Chromium's sandbox for browser steps on/off (default: on, except as root)                                                                                                                                                                                                                                                                         |
-| `SM_CHROMIUM_PATH`             | –                                | Use a specific Chromium/Chrome binary for browser steps                                                                                                                                                                                                                                                                                                          |
-| `SM_LOG_LEVEL`                 | `info`                           | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. Logs are JSON lines on stdout.                                                                                                                                                                                                                                                                   |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`  | –                                | Turns on OpenTelemetry tracing (OTLP/HTTP). Standard `OTEL_*` variables apply, e.g. `OTEL_SERVICE_NAME` and `OTEL_EXPORTER_OTLP_HEADERS`.                                                                                                                                                                                                                        |
-| `SM_OTEL_PROPAGATE`            | `on`                             | `0` stops adding `traceparent` headers to platform calls                                                                                                                                                                                                                                                                                                         |
-| `SM_SENTRY_DSN`                | –                                | Report unexpected errors to Sentry, GlitchTip or Bugsink (off by default; scrubbed, no personal data). More variables and exactly what is sent: [docs/ERROR-REPORTING.md](docs/ERROR-REPORTING.md). An invalid DSN only logs a warning.                                                                                                                          |
-| `SM_MIGRATION_MAX_MB`          | `2048`                           | Largest migration package the web UI accepts for an import ([docs/MIGRATION.md](docs/MIGRATION.md))                                                                                                                                                                                                                                                              |
-| `SM_MIGRATION_MAX_UNPACKED_MB` | `20480`                          | Most a migration package may unpack to (tables, files, audit log); the import also checks for free disk space first ([docs/MIGRATION.md](docs/MIGRATION.md))                                                                                                                                                                                                     |
-| `SM_TRANSFER_PASSPHRASE`       | –                                | Transfer passphrase for `steward migrate` (automation only; prefer `--transfer-passphrase-file` or the prompt)                                                                                                                                                                                                                                                   |
-
-All variables, grouped, with their limits: [docs/CONFIGURATION.md](docs/CONFIGURATION.md). An invalid value refuses to start, with one line per bad variable.
-
-<!-- config-table:end -->
-
-Retention of runs and notifications, and the notification channels, are set under **Settings**. New installations keep runs for 400 days; installations that existed before 0.2.4 keep them until an administrator sets a period (_Settings → System status_ points this out once the database grows past 1 GB).
-
-## Concepts
-
-|                     |                                                                                                                                                                                                                                                                                                                                                                                                                |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Platform**        | One instance of a system: an Insights Hub tenant, an IEM, any REST API. It holds the base URL, authentication, non-secret variables (tenant, region, API paths), encrypted credentials, OpenAPI specs (searchable operations, used by the editor and the API explorer; import by file, paste or URL) and docs (notes, links, files).                                                                           |
-| **Connector type**  | A reusable template for a kind of platform: auth, variables, HTTP options, credential field names, doc links and API specs, but never credential values. Create one from a configured platform with _Save as connector type_. Export it as JSON to share, import it elsewhere, and new platforms created from it get the specs automatically.                                                                  |
-| **Process**         | A versioned flow of nodes and wires. It declares connection slots (e.g. `hub`, kind `insights-hub`), inputs (number, text, list, CSV table, …) and constants (e.g. group bundles). Every save creates a new version with author, comment and hash.                                                                                                                                                             |
-| **Run**             | One execution of a pinned process version, manual or scheduled, real or dry. It has a full step journal, logs, decisions, checks, reports and evidence. Whether it executed and what it found are kept apart: a run that executed every step but whose checks failed shows **Completed with findings** (amber) – its status stays `succeeded` – and its failed checks are its _findings_, with their severity. |
-| **Task**            | A decision a run is waiting for: select items or approve/reject. Tasks are listed in **My tasks** and on the run page.                                                                                                                                                                                                                                                                                         |
-| **Schedule**        | Cron plus time zone, with preset inputs and connections. It skips a new run while the previous one is still waiting, unless overlap is allowed. The editor shows the next runs and warns when day of month and day of week are both set: cron then runs when **either** matches, so “the first Monday” is `0 6 * * 1#1`, not `0 6 1-7 * 1`.                                                                    |
-| **Webhook trigger** | `POST /api/hooks/<id>` with a secret starts a process as the trigger's owner; inputs are mapped from the JSON body, allow-listed headers and the query with JSONata. See [docs/GATUS.md](docs/GATUS.md#webhook-trigger-reference).                                                                                                                                                                             |
-| **Monitor**         | A graph of checks (ping, TCP, HTTP, platform API, data freshness, heartbeat, Gatus, sub-monitor) with soft or hard links. Every check runs on its own interval; links explain failures (root cause) and suppress follow-up alerts. See [docs/MONITORS.md](docs/MONITORS.md).                                                                                                                                   |
-| **Audit log**       | Everything that changed anything, attributed to the signed-in user: sign-ins, user/role/access changes, platform/credential changes, process versions, runs, every write call, skipped (dry-run) writes, decisions, failed checks, screenshots, exports.                                                                                                                                                       |
-
-### API specifications and path prefixes
-
-Import OpenAPI 3.x or Swagger 2.0 specifications under _Platforms → (platform) → API specs_, by file, paste or URL. Their operations appear in the editor's _Pick from API spec_, the API explorer, the contract check and the MCP gateway.
-
-Many specifications put part of the path in their server URL. The Insights Hub Identity Management spec has the server URL `https://gateway.{region}.mindsphere.io/api/identitymanagement/v3` and the path `/Groups`; the API needs `/api/identitymanagement/v3/Groups`. Steward keeps that part as the spec's **path prefix** and puts it in front of every operation path:
-
-- On import, the prefix is the path of the server URL: OpenAPI 3 `servers[0].url` (server variables take their default) or Swagger 2 `basePath`. A spec without a server URL has no prefix.
-- If the platform's base URL already ends with that path, the prefix stays empty, so the path is not doubled.
-- The list of specs shows each prefix and where requests go (_Requests go to: base URL + prefix/…_). Click the pencil to change it. A prefix is empty or `/segment/segment` (letters, digits and `. _ ~ -`); it can never change the host or leave the base URL.
-- Specs imported before Steward had path prefixes get their prefix from the stored server URL when they are read. HTTP steps that were saved with the short path keep it: open the step and pick the operation again.
-
-**Copying to other platforms.** A spec can be copied to other platforms of the same kind (API specs → _Copy to other platforms_, or `POST /api/platforms/{id}/specs/{specId}/copy` with `targets`), e.g. from one Insights Hub tenant to the next. Each platform gets its own, independent copy, since platforms of one kind can run different API versions. The path prefix comes along, unless the target's base URL already ends with it. A target that already has a spec with the same title and version is skipped, or – with _Replace_ – gets the new content under the same spec id, so processes using it keep working. Needs `manage` on the source and every target; audited as `platform.spec_added` / `platform.spec_updated` with `copiedFrom`.
-
-### Recorded responses and test runs
-
-While you model a process, the platform is often not reachable yet, or you do not want to call it. **Recorded responses** stand in for it: _Platforms → (platform) → Recorded responses_ keeps answers per operation – method and path, optionally query parameters and parts of a JSON body the request must have – with status, headers and body.
-
-- **Record** one in the API explorer (_Save as recorded response_ under the answer), or enter or paste it by hand, e.g. from Swagger or Postman.
-- **Match**: `{id}` in a path matches one segment, a trailing `*` the rest (`/users/{id}`, `/files/*`). When several fit, the most specific wins: more fixed path segments, then more query parameters, then a body to match, then the newest.
-- **Test run**: in _Run_, turn on _Use recorded responses (test run)_ (API: `POST /api/runs` with `recorded: true`). A test run is a dry run whose platform calls are answered by the recordings – nothing is sent. A read without a recording fails its step and names the call (_Test run: no recorded response for GET /users?active=true on "…"_). A write with a recording gets that answer; without one it is skipped as in a dry run. Paged reads stop when the same recording would answer the next page. Browser steps are skipped. Sub-processes run as test runs too. Runs show _Test run_; the public API has `recorded` on runs.
-- **Monitors**: _Test with recorded responses_ on a monitor runs its platform checks against the recordings and shows the results – nothing is stored, no status changes, no messages. Other check types need the network and are skipped (`POST /api/monitors/{id}/test-run`).
-- **Never** used by real runs, dry runs or monitors that run on their schedule.
-- Recordings can hold **personal data**: everyone who may use the platform reads them (a run would fetch the same data); changing them needs `manage`. When a recording is saved, the platform's credentials and cached tokens are replaced by `***`, and headers with credentials or cookies (`Authorization`, `Cookie`, `Set-Cookie`, `X-API-Key` …) are dropped. At most 500 per platform, 1 MB body each. Audited as `platform.recording_added` / `_changed` / `_removed`; they move with migration packages and are removed with their platform.
-
-### Debugging a process
-
-**Run this node** (a tab beside a node's properties in the editor) tries one node with variables from an earlier run, sample data or run inputs – offline, with recorded responses or as a live read. **Debug** in the editor steps through a run of the saved version, pausing before each node or at breakpoints; decisions are answered in the panel, simulated. **Compare with the last good run** on a failed run shows what changed between two runs, step by step. Debug runs are never live, never publish, alert, create tasks or notify, and are seen only by their starter, the process's managers, administrators and auditors. See [docs/DEBUGGING.md](docs/DEBUGGING.md).
-
-## Users, roles and access
-
-| Role     | Default rights                                                                                        |
-| -------- | ----------------------------------------------------------------------------------------------------- |
-| admin    | Everything: users and teams, platforms and credentials, settings, all processes, unlocking the vault. |
-| designer | Create processes. Edit and run all processes unless an access list says otherwise.                    |
-| operator | Run and schedule processes.                                                                           |
-| approver | Decide approvals and user tasks.                                                                      |
-| auditor  | Read-only access to everything, including the audit log and all protocols.                            |
-| viewer   | Read processes and their runs.                                                                        |
-| status   | Only the service status pages ([docs/STATUS-PAGES.md](docs/STATUS-PAGES.md)) – nothing else.          |
-
-- **Settings** are personal (your profile), per team (_Users → Teams_) or for the whole instance (_Settings_, one area per topic). See [docs/SETTINGS.md](docs/SETTINGS.md).
-- **Teams and owning teams.** Resources can belong to one or more teams: members have their roles in the team on them, everyone else does not see them (administrators and auditors see everything). A resource without an owning team behaves as before, so upgrades keep every instance's visibility. See [docs/TEAMS.md](docs/TEAMS.md).
-- **Process access list.** Rights are `view`, `run` (start, schedule, make selection decisions), `edit`, `approve` and `manage` (change access, archive). An empty list means the role defaults apply. As soon as entries exist, only the listed `user:…`, `team:…` or `role:…` subjects get the listed rights. Admins and the process owner (its creator) always keep full rights.
-- **Platform access list.** Rights are `use` (bind it in runs; read-only explorer calls) and `manage` (configuration, credentials, access, write calls in the explorer). Use this to restrict e.g. the production tenant to one team.
-- **Decisions.** A user task can name `assignees` (users, teams, roles). Otherwise everyone with `run` or `approve` on the process may decide. With `fourEyes: true`, the person who started the run may not decide.
-- **Schedules.** A schedule runs with the rights of its owner (the person who created it). If the owner loses the rights or is deactivated, the run is skipped and recorded in the audit log.
-- **Webhook triggers** follow the same rules as schedules: creating one needs run rights on the process, runs use the owner's rights (checked on every call), and the owner, an admin or a process manager can change it.
-- **Owners and responsibles** (services, applications, systems, duties, credentials, tickets) are picked from the users and teams, so a typo cannot become an owner nobody is; the server refuses users and teams that do not exist (owners stored before stay). A person who has not signed in through single sign-on yet is added by an administrator as an account without a password for that provider. Renaming a team keeps it the owner everywhere; deleting a team removes it from owner and responsible lists (access lists keep the entry, so access never widens); before a team is deleted or an account is deactivated, the Users page lists where it is still named.
-- New accounts get a temporary password and must change it at first sign-in. Passwords are hashed with scrypt. Five failed sign-ins lock the account for five minutes.
-- Forgotten admin password: `steward admin reset-password <user>` on the server (needs the master passphrase; audited). To reset a demo, delete its data folder. See [docs/INSTALL.md](docs/INSTALL.md#resetting-a-demo-and-recovering-access).
-
-### Single sign-on (Microsoft Entra ID / OpenID Connect)
-
-Any OpenID Connect provider works: presets pre-fill Microsoft Entra ID, Keycloak, Okta, Google Workspace and Authentik. You choose which claims give the user name, first and last name, e-mail, read-only profile fields (department, job title …) and the stable identifier, how each field is kept in sync, and which existing accounts a first sign-in may link. A **test sign-in** in the provider editor shows the claims a provider sends and the account a sign-in would get – without signing in. See [docs/SSO.md](docs/SSO.md).
-
-Sign-in uses the OpenID Connect authorization code flow with PKCE, through the [openid-client](https://github.com/panva/openid-client) library. Tokens are checked for issuer, audience, signature (JWKS), expiry, nonce and state. The client secret is stored encrypted with the master passphrase.
-
-**Set it up in Microsoft Entra ID:**
-
-1. **Register the app.** In the Entra admin center go to _App registrations → New registration_. Name it e.g. "Steward" and choose single tenant.
-2. **Add the redirect URI.** Platform _Web_. Copy the exact value from **Users & teams → Single sign-on**; it looks like `https://<your host>/api/auth/oidc/callback`. For purely local use, `http://localhost:4310/api/auth/oidc/callback` works, because Entra only allows plain http for `localhost`. In that case open the tool via `http://localhost:4310`.
-3. **Create a client secret.** Under _Certificates & secrets_, create a new client secret and copy its value.
-4. **Define app roles.** Under _App roles_, create e.g. `SM.Admins`, `SM.Designers`, `SM.Operators`, `SM.Approvers`, `SM.Auditors`, `SM.Viewers`, with member types _Users/Groups_.
-5. **Assign people.** Under _Enterprise applications → Steward → Users and groups_, assign users or groups to these roles. Optionally set _Assignment required = Yes_ so that only assigned people can sign in at all.
-6. **Add the provider in Steward.** Go to **Users & teams → Single sign-on → Add provider → Microsoft Entra ID**. Enter the tenant ID, client ID and secret, then click _Test discovery_.
-7. **Map the role values.** Map each app role to Steward roles and teams (claim `roles`). Alternatively let Entra emit the `groups` claim and map group object IDs; tokens carry at most 200 groups, so app roles are the better choice.
-
-**How accounts are handled:**
-
-- **Auto-provision.** New users get an account on their first sign-in.
-- **Role sync.** Roles, and the teams named in the mappings, are updated from the token at every sign-in.
-- **Mapping required.** Users without a mapped role are rejected.
-- **Pre-created accounts.** An account created for the provider, or a local account an administrator bound to it, is linked on its first SSO sign-in by its user name (e.g. the UPN). Linking any local account by name is a setting per provider ([linking existing accounts](docs/SSO.md#linking-existing-accounts)). After that, the account is found by the identity's stable identifier (issuer + `sub`, or Entra `tid` + `oid`), not by its name.
-- **No passwords.** SSO accounts have no password in Steward.
-- **SSO only.** Under **Settings → Sign-in**, password sign-in can be limited to administrators. Local admin accounts stay as break-glass access, e.g. to unlock the vault after a restart.
-
-Any other OIDC provider works the same way with its preset or _Generic OIDC_: issuer URL, client ID and secret (or a public client with PKCE), and claim names – the steps per provider are in [docs/SSO.md](docs/SSO.md#presets). In demo mode a simulated Entra ID is preconfigured. Its accounts (Max Admin, Erik Engineer, Oskar Operator, Sofia Approver, Nina Nobody) show the mappings in action.
-
-### Using it as a team
-
-It still runs locally. Make it reachable on your network:
-
-1. Set `SM_HOST=0.0.0.0` and `SM_ALLOWED_HOSTS=<machine name>`.
-2. Provide a certificate with `SM_TLS_CERT` / `SM_TLS_KEY`, or run it behind your reverse proxy.
-3. Create accounts under **Users & teams**.
-
-One person (an admin) unlocks the vault after a restart, or you provide the passphrase in a file (`SM_MASTER_PASSPHRASE_FILE`) for unattended start-up. Before using it at work, go through [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md).
-
-### Supported authentication
-
-`none`, `basic`, `bearer`, `apiKey` (header or query), `oauth2_client_credentials` (e.g. Insights Hub service credentials), and `token_request`. `token_request` is a configurable login call whose response contains a token, e.g. the IEM `/portal/api/v1/login/direct` or the Insights Hub Technical Token Manager. Per platform you can also set a proxy, a custom CA, _accept self-signed certificates_ (common for on-prem IEM), a timeout and default headers.
-
-Tokens from `oauth2_client_credentials` and `token_request` are kept in memory until shortly before they expire (`expires_in`). A new one is fetched when the platform's settings or credentials are saved, when Steward restarts, or once after a 401. Roles granted to the technical user in the meantime only appear in a new token, so the platform answers 403 until then: _Test connection_ shows how old the token is, and **Get a new token** (platform → … menu, `POST /api/platforms/{id}/token/renew`, needs `manage`, audited as `platform.token_renewed`) fetches a new one right away.
-
-## Dashboards
-
-1. **Publish data from a flow.** Add a **Publish to dashboard** node. Give it a dataset key such as `iem.devices`, the rows (an expression), optionally compact `columns`, a `status` expression per row (good / warning / serious / critical / unknown), a reason text, and `metrics` (numbers kept as history).
-2. **What a run stores.** A dataset has one **partition per source** – the platform the rows were read from: the process's only connection, the publish step's `source` connection, or all bound platforms together (a process without connections: the instance). A run replaces only its own partition and appends its metrics, so the same inventory scheduled against three tenants keeps all three. Rows carry `_source` (`platformId`, `platform`, `environment`, `run`), metrics are kept per source, and existing datasets became one partition of their last run's platform.
-3. **Keep it fresh.** Schedule the publishing flow, e.g. hourly inventories or a health check every 15 minutes. A partition written by a scheduled run (or by a sub-process of one) is stale after 2.5 × the interval of that schedule – read from the schedule as it is now, at least 15 minutes. The step's `staleAfterMinutes` is the limit for runs without a schedule (default 24 hours); with `staleAfterFixed: true` it applies to scheduled runs too, e.g. for a tighter limit. The freshness widget shows every source with _Fresh_, _Due_ (a scheduled run is overdue) or _Stale since …_, the interval in words, the limit and where it comes from ("stale after 2 h 30 min (from the schedule “Inventory EU”)", "via the “Nightly checks” schedule"), and the next run of that source's own schedule; the dashboard header gives the age of the oldest source. Stale messages go out when the step sets the limit or a schedule feeds the partition.
-4. **Build the dashboard.** _Dashboards → New / From template / Import YAML_. Widget types:
-   - `kpi`: value, change and sparkline;
-   - `trend`: up to three metrics;
-   - `status`: distribution of row statuses;
-   - `table`: rows with status, search and a problems-only filter;
-   - `checks`: the latest checks of a process;
-   - `freshness`;
-   - `markdown`;
-   - `vega`: a chart from a [Vega-Lite](https://vega.github.io/vega-lite/) spec, for the few views the others do not cover (below).
-5. **Sources.** When a dashboard's data comes from several sources, a _Sources_ filter appears (part of the URL, remembered per person); every widget follows it, or pins its own sources in the editor. Tables get a _Source_ column, trends one line per source, KPIs a value per source – or, with _With several sources → Sum of all sources_ (`combine: sum`), one total such as the users of all tenants, with the values per source below it. The change of a sum runs from its first to its latest point, so a source added in that period counts as growth. `GET /api/v1/datasets/{key}/rows` and `…/metrics` take `source` (repeat it) and return `_source` and `source` per series.
-6. **Refresh.** _Refresh data_ re-runs the feeding processes with the inputs of their last run, provided you have run rights.
-7. **Trends and forecasts.** A KPI shows the change of the **trend line** over its days instead of first point → latest value, with what it is based on ("Based on 28 points over 30 days · stable"). Give the publish step `limits` (an upper limit per metric: a quota, a contract) or `floors` (a lower limit: free storage), or a KPI its own _Limit_, and the KPI says when the trend reaches it at this rate ("Limit 1,130 reached in about 23 days (Nov 22)"). A trend widget can draw dashed trend lines. Details below.
-
-**How the trend is computed.** A robust straight line through the points of the window (Theil–Sen: the median of the slopes between all pairs of points), so one outlier or a gap does not tilt it. A counter that was reset (it drops by more than half of its range while it otherwise only rises, e.g. a monthly quota) is followed from its last reset. Fewer than 5 points, or points covering less than a fifth of the window, give no trend: _too few points for a forecast_. The trend is _stable_ when the points stay close to the line (their median distance is under a quarter of the change), else _rough_. A forecast says _reached_, _in about N days_, _not heading for the limit_ (flat or moving away), or _not within two years_. The same math runs on the server and in the browser ([`shared/src/trends.ts`](shared/src/trends.ts)). `GET /api/v1/datasets/{key}/metrics?trend=7d` returns `trend`, `limit` and `forecast` per series; checks use `$trend` and `$daysUntil` (below), the daily summary a _Trends_ section ([docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#daily-summary)).
-
-**Vega-Lite charts.** A `vega` widget draws its `spec` (Vega-Lite JSON, or YAML in the dashboard file) from the widget's dataset – nothing else:
-
-- The data is the dataset's rows under the name `dataset` (at most 5,000), with the publish step's column labels as fields, plus `_status`, `_statusText` and `_source` (the platform's name). Leave `data` out, or write `{ name: dataset }` (e.g. in a layer).
-- Refused when saving, from the editor, YAML, bundles and Git sync alike: `url` anywhere (no loading data or images), `href` (no links), `values` or other inline data, `datasets`, full Vega specs, specs over 64 kB.
-- In the browser, expressions run in [vega-interpreter](https://github.com/vega/vega/tree/main/packages/vega-interpreter) instead of being compiled to code, so the Content Security Policy keeps `script-src 'self'` without `unsafe-eval`, and the chart's loader refuses every request. Vega is loaded only on dashboards that have such a widget.
-- Colours, fonts and lines follow the light or dark theme. The schemes `steward` (series colours) and `steward-status` (good, warning, serious, critical, unknown – give that `domain`) can be used in `scale.scheme`; the spec's own `config` wins.
-- _Chart / Table_ switches to a table of the fields the chart encodes, as for the other charts; the spec's `description` (default: the title) labels the chart for screen readers.
-- Examples: _Devices per firmware version_ on _Edge fleet_ and _Used share of each limit_ on _Tenant usage_.
-
-Who can see what: a dataset is visible to everyone who may view the process that publishes it. A partition is left out – from rows, counts, metrics, the API and MCP, without a hint – when one of its platforms has an access list that does not include the reader; administrators and auditors see all. Platforms without an access list keep their data visible to everyone who sees the dataset. (A separate "view data" right on platforms is planned with team permissions in 0.3.0.)
-
-## Bundled templates
-
-| Template                                            | What it does                                                                                                                                                                                                          |
-| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Insights Hub – Access review 1: flag inactive users | Lists users and finds those inactive for N days, with an exempt list. You confirm the selection, then they are added to a review group.                                                                               |
-| Insights Hub – Access review 2: decide and clean up | Lists the review group. You tick who still needs access (recently active users are preselected). Kept users are un-flagged; for the rest, after a final approval, all memberships are removed or the user is deleted. |
-| Insights Hub – Onboard users with group bundles     | Takes a CSV of users and a _bundle_ per user (e.g. Operator → StandardUser + Operators group). It checks that all groups exist, asks for approval, creates missing users and adds only the missing memberships.       |
-| Insights Hub – Asset attribute optimization check   | Counts attributes per asset type, samples the latest time-series records and reports variables that never get data, assets without data and stale aspects, with the potential attribute savings.                      |
-| Insights Hub – Platform health check                | Calls the core services and records pass/fail checks with latency limits.                                                                                                                                             |
-| Industrial Edge – Device status check               | Flags devices that are not online and reports a device overview.                                                                                                                                                      |
-| Browser – Portal login and status screenshot        | Signs in to a portal, reads a status text, checks it and stores a screenshot as evidence.                                                                                                                             |
-| Generic – Endpoint availability check               | Calls a list of endpoints and records one check per endpoint.                                                                                                                                                         |
-
-Templates are YAML files in [`examples/processes/`](examples/README.md); example dashboards are in `examples/dashboards/`. Adding a file there makes it available in _From template_. The examples README lists the whole library, including privileged-access review, offboarding, group hygiene, inventories, data freshness, firmware and app compliance, stale device clean-up, a weekly service report and an Insights Hub tenant usage and licence check with its dashboard ([docs/INSIGHTS-HUB-USAGE.md](docs/INSIGHTS-HUB-USAGE.md)). Check files with `npm run validate`, which runs in CI too.
-
-**Gatus.** Steward works alongside the [Gatus](https://github.com/TwiN/gatus) uptime monitor instead of re-implementing monitoring: Gatus monitors Steward's `/api/health` and `/api/ready`, Steward shows the Gatus endpoint status on the _Uptime_ dashboard, pushes its own check results to Gatus external endpoints, and a Gatus alert can start a runbook through a webhook trigger. In **metrics mode** Steward scrapes Gatus' Prometheus endpoint and keeps its own history (uptime, outages, response times, certificate expiry) for monitors, scheduled reports and the credentials register. Configuration snippets and security notes: [docs/GATUS.md](docs/GATUS.md).
-
-Where Steward is heading, and what it deliberately does not do: [`docs/ROADMAP.md`](docs/ROADMAP.md). How it is built (C4 diagrams, module map, decision records): [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). The current UI/UX review, its fixes and the UX backlog are in [`docs/UX-REVIEW.md`](docs/UX-REVIEW.md).
-
-### Notes on the Siemens APIs (please verify on your tenant)
-
-- **Domain migration.** Insights Hub is moving from `gateway.{region}.mindsphere.io` (`/api/{service}/v3`) to the Xcelerator gateway `api.{region}.siemens.app` with tenant-specific paths (`/api/identitymanagement-{coreTenantId}/v3`). The templates therefore read their API paths from platform variables (`idmPath`, `assetPath`, `tsPath`) and fall back to the classic paths. Set these variables on the platform when you move.
-- **Last login.** The Identity Management user list returns `resources` (lowercase), `totalResults` and paging via `startIndex`/`count`. The last-login attribute `lastLogonTime` is used by Siemens' own `mdsp` CLI but is **not part of the official spec**. Do a dry run of _Access review 1_ first and check the _List all users_ step output.
-- **Asset attributes.** These are billed per asset: the asset type's variables plus the variables of its aspects. The optimization template estimates potential from sampled latest values. Cross-check with the Asset Manager attribute calculator before changing models.
-- **IEM device fields.** Field names for connection state differ between IEM versions, so the device template takes the field name and the "online" value as inputs. Use the platform's **API explorer** to look at a real response.
-- Import the official OpenAPI specs from the Siemens developer portal into each platform. The editor's _Pick from API spec_ and the explorer then list all operations.
-
-## Git sync (optional)
-
-Keep processes, dashboards, monitors and document types in a Git repository (Forgejo/Gitea, GitHub or GitLab) and bring changes into Steward after a review. An administrator adds a source under _Settings → Git sync_; Steward fetches it by hand, on a schedule or after a push webhook. Steward only reads the repository, validates every file and stages it in **Updates from Git**, where a designer reviews the diff and accepts it as a new version or rejects it. Local edits show as conflicts instead of being overwritten. Setup, token scopes and webhooks: [docs/GIT-SYNC.md](docs/GIT-SYNC.md).
-
-**Shared libraries (0.10.0):** a signed, versioned set of procedures from a publisher you trust – from a Git source in library mode or an uploaded `.zip` – reviewed as a whole, with what each process can do, and installed in one transaction; Steward checks the OpenSSH signature itself. See [docs/LIBRARIES.md](docs/LIBRARIES.md).
-
-## PDF reports
-
-Steward creates PDF reports without a browser, also in the desktop executable.
-
-- **Run report.** On a run page, open _PDF reports → Generate PDF report_ (or _Run report → Generate PDF report…_). Choose English or German and add a reviewer comment if you like. The report contains:
-  - a summary: process, version and definition hash, who started the run, when and how, the time zone, the status and a prominent _dry run_ banner;
-  - the platforms used (names and kinds only, never credentials) and the inputs;
-  - every step in order, the write operations (simulated ones are marked), decisions and approvals (who, when, selection, comment, four-eyes rule), checks, the process's own report sections, evidence with thumbnails and errors;
-  - the reviewer comment, an integrity section with the sealed protocol hash and the run's audit trail, and a sign-off block (_Prepared / Reviewed / Approved by_) with empty digital signature fields.
-- **Interim reports.** Runs that wait for a decision can be reported too. These reports are marked _interim_.
-- **Summary report.** _Runs → Summary report_ lists all runs of one or more processes in a period, e.g. "Access reviews Q3", with totals.
-- **Automatic reports.** In the process editor, _Settings → PDF report_ (YAML: `report: { auto: true, lang: de }`) generates the report whenever a run finishes, e.g. for scheduled reviews.
-- **Branding.** _Settings → Report branding_ (administrators) sets the company name, logo (PNG/JPEG, max. 1 MB; default: the Steward logo), accent colour, default classification (e.g. _Internal_) and a footer note, with a sample preview.
-
-- **Scheduled reports.** _Reports → New report schedule_: availability and SLA per monitor and Gatus endpoint, credentials that expired or are due, runs per process – daily, weekly, monthly or on your own cron schedule, generated with the owner's rights, archived like every report and sent to users, teams and e-mail addresses. See [docs/REPORTS.md](docs/REPORTS.md).
-
-**Archiving and signing.** The files are PDF/A-2b with embedded fonts and metadata (run ID, process, protocol hash, content hash), validated with veraPDF (PDF/A-2b). They are written once to `data/reports/<run>/<report>.pdf` and never overwritten; generating again creates a new version. Each generation is recorded as `report.generated` with the file's SHA-256 in the audit log, and data retention removes a run's reports together with the run. The signature fields can be signed later in Adobe Acrobat or another PDF signing tool.
-
-**Verifying a copy.** _Audit log → Verify PDF report_ (or `POST /api/reports/verify`) checks a file against the audit log. It also recognizes signed copies: a signature is appended as an incremental update, so the first bytes of a signed copy are still the original report.
-
-API: `POST /api/runs/:id/reports` `{ lang, comment, classification, timeZone }`, `GET /api/runs/:id/reports`, `GET /api/reports/:id/download`, `POST /api/reports/summary` `{ processIds, from, to, lang, comment, title }`. `GET /api/runs/:id/report.pdf?lang=de` generates, stores and returns a report in one step. Generating and downloading needs view rights on the process; branding needs the _settings_ capability.
-
-## Manual procedures
-
-Work people do outside Steward can be documented step by step: **manual steps** have Markdown instructions, a checklist, fields (text, number, date and time, link, ticket reference) and evidence files, and a second person can verify them before the run continues (maker–checker). Work done earlier can be entered after the fact with its real time. _Processes → New manual procedure_ starts one; the run protocol PDF and the audit log record everything. See [docs/MANUAL-STEPS.md](docs/MANUAL-STEPS.md).
-
-<a id="records-and-services"></a>
-
-## Documents and services
-
-_Documents_ holds the team's **change requests** and **decision records** (ADR, DR, SDR), numbered per type and year (`CR-2026-0001`):
-
-- a workflow per type (change: draft → submitted → approved/rejected → implemented → closed; decision: draft → proposed → accepted/rejected → superseded/deprecated), with four-eyes approval by approvers;
-- versions with a diff; leaving the draft status freezes the content and records its SHA-256 – changes need an audited new revision;
-- Markdown text (rendered without HTML), structured fields, comments, attachments (documents and e-mails, content-checked) and links to processes, runs, monitors, platforms, dashboards, services and external pages, shown on both sides;
-- import of existing ADRs from Markdown (MADR, Nygard, YAML frontmatter) and export back to Markdown;
-- a PDF/A-2b document with signature blocks and empty digital signature fields for people outside Steward; the signed PDF is uploaded back and checked to be derived from the generated one (structure only, not a cryptographic validation).
-- **living documents** (type `DOC – Service documentation`: operations manuals, access and authorization concepts): approved **editions** (1.0, 1.1, 2.0, minor or major) with a document changelog and diff, the current edition valid while the next one is drafted, and **periodic reviews** with reminders, a start page tile and evidence for the compliance controls ([docs/RECORDS.md](docs/RECORDS.md#living-documents));
-
-_Services_ is a minimal service catalogue: contacts, criticality, the entry in your CMDB and links. See [docs/RECORDS.md](docs/RECORDS.md).
-
-_Applications_ are what services consist of – Insights Hub, Industrial Edge and smaller applications – with the Steward platforms mapped to them, a CIA rating (BSI protection needs normal / high / very high, or your own scale) and the documents that apply to them. Services derive their protection need with the maximum principle, overridable with a reason. Applications list their components and run on shared _systems_ (servers, clusters, cloud services) per environment, each with a tech stack checked against its end of life. See [docs/APPLICATIONS.md](docs/APPLICATIONS.md).
-
-_Duties_ say which recurring tasks a service must have done – an access review every quarter, a restore test every month – with a process, an interval of calendar periods, a level (mandatory, recommended, optional) and a grace period. Each period is judged by the real runs of the process (done, late, failed, missed) or skipped with an exception a second person approves; closed periods are stored for good. Owners get a reminder before a period ends and a message when one was missed; the start page shows mandatory duties due or missed. See [docs/DUTIES.md](docs/DUTIES.md).
-
-The _Scorecard_ shows per service whether it is in good shape – duties met, availability on target, documentation current, protection need rated – each part with its own status and _attention needed_ when one is not met, rolled up overall and per owner with the trend of the stored days. _Availability objectives_ set targets per Gatus endpoint for the windows Gatus reports (1 h, 24 h, 7 days, 30 days) from Gatus' own uptime figures, with hourly samples and a message once per breach. See [docs/SCORECARD.md](docs/SCORECARD.md).
-
-_Costs_ shows what services, applications, teams and platforms cost per month – showback, not FinOps – from AWS Cost Explorer, Snowflake's usage in currency, Confluent Cloud's Costs API, the AI gateways' usage log and imported or pushed FOCUS files, in one cost model with the FinOps FOCUS columns: 12 months, the current month so far, trend and forecast per currency, monthly budgets with notices at 80 % and 100 %, the monitor check _Cost change_, a scorecard part, a report section, a dataset and `/api/v1/costs`. See [docs/COSTS.md](docs/COSTS.md).
-
-_Tickets_ documents tickets that live elsewhere – incidents users reported through ServiceNow and cases opened with vendors: source, number and link, status, who looks after it on our side, and the affected services, platforms, credentials and records. No workflow, just tracking with a history, optional "not checked for N days" reminders, a report section and a badge of open vendor tickets in the service catalogue. See [docs/TICKETS.md](docs/TICKETS.md).
-
-Everyone can turn on an optional **daily summary** on their profile page (failed runs, decisions waiting, monitor changes, credentials due, their open tickets, documents, reports – only what they may see), in the app or by e-mail. See [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#daily-summary).
-
-**Quiet hours and digests** hold e-mails and Teams posts at night and collect them in one message – nothing is dropped, the app gets everything at once, and emergency access, urgent sources and expiring requests still break through ([docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#quiet-hours-and-digests)). **Decisions from Microsoft Teams**: cards with Approve / Reject that open the decision in Steward, and – as a preview behind a setting – deciding inside the card through a Teams bot ([docs/TEAMS-APPROVALS.md](docs/TEAMS-APPROVALS.md)).
-
-## Compliance: access governance evidence
-
-For ISO/IEC 27001, IEC 62443-2-1 and NIS2 audits, _Compliance_ collects the evidence of how access is managed – Steward provides evidence, it does not make you compliant:
-
-- **Access changes**: documented grants, revocations and changes of access rights (a document type with four-eyes verification), also created automatically by runs of processes that change access;
-- **Access reconciliation**: scheduled snapshots of who has which access, compared with the documented changes; changes made outside Steward show up as findings and are documented after the fact with one click;
-- **Controls**: catalogues (identifiers and short topic names only) with the mapped Steward items and the evidence coverage per period, gaps highlighted;
-- **Evidence packs**: signed ZIP exports for auditors, checked offline with `npm run evidence:verify -- pack.zip --public-key <the installation's key>`.
-- **Assurance policy**: one page for where four-eyes and step-up (with MFA) are required, a baseline that cannot be lowered, loosening only with a second administrator, and an assurance report of how each event met the rules ([docs/ASSURANCE.md](docs/ASSURANCE.md)).
-
-See [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
-
-## Writing processes
-
-Processes are built on the canvas or as YAML (_Source_ tab, or _Import YAML_).
-
-**How a flow runs.** Execution starts at the _Start_ node and follows the wires, depth first. When an output has several wires, the targets run one after another, top to bottom as placed on the canvas.
-
-- **Outputs.** A node fires one of its outputs:
-  - _if_ fires `true` or `false`.
-  - _for each_ runs everything wired to `each item` once per item, then continues on `done`. Leave the last node of the loop body unconnected.
-  - An approval fires `approved` or `rejected`. If `rejected` is not connected, a rejection fails the run.
-  - A manual step (user task in mode _manual_) fires `out` once it is done – and verified by a second person when it asks for that. See [docs/MANUAL-STEPS.md](docs/MANUAL-STEPS.md).
-  - API call and browser nodes fire `error` instead of failing the run if that output is connected.
-- **Joins and cycles.** A node reached from both branches of an _if_ runs once. Wires may not form cycles; use _for each_ for repetition.
-- **Skipped nodes.** A node whose _Only run when_ condition is false is skipped and passes the flow on.
-- **Restarts.** Every executed node is journaled, so runs survive restarts.
-
-Stored processes use `nodes` and `wires`:
-
-```yaml
-nodes:
-  - { id: start, type: start, x: 0, y: 0 }
-  - { id: check, type: if, condition: 'inputs.days > 30', x: 250, y: 0 }
-  - { id: warn, type: log, level: warn, message: 'long period', x: 500, y: -60 }
-wires:
-  - { from: start, port: out, to: check }
-  - { from: check, port: 'true', to: warn }
-```
-
-For hand-written YAML the compact sequential format is easier to read. It is converted into a graph (with automatic layout) on import:
-
-```yaml
-name: List inactive users
-connections:
-  - slot: hub
-    kind: insights-hub
-inputs:
-  - { name: days, type: number, default: 90 }
-steps:
-  - id: users
-    type: http
-    connection: hub
-    method: GET
-    path: /api/identitymanagement/v3/Users
-    paginate: { mode: scim, pageSize: 100 }
-    saveAs: users
-  - id: inactive
-    type: set
-    values:
-      inactive: '{{ vars.users.body[$daysSince(lastLogonTime) > $inputs.days][] }}'
-  - id: pick
-    type: userTask
-    mode: select
-    title: 'Remove {{ $count(vars.inactive) }} users from group X?'
-    items: vars.inactive
-    itemKey: id
-    columns: [{ label: User, value: userName }]
-    saveAs: decision
-  - id: remove
-    type: forEach
-    items: vars.decision.selected
-    as: user
-    steps:
-      - id: del
-        type: http
-        connection: hub
-        method: DELETE
-        path: '/api/identitymanagement/v3/Groups/<groupId>/members/{{ vars.user.id }}'
-```
-
-### Expressions and templates
-
-- Expressions use **[JSONata](https://jsonata.org)**. Fields such as _condition_, _items_ or _rows_ take an expression. Text fields accept templates of the form `{{ expression }}`. A field that contains only `{{ … }}` keeps the value's type (list, object, number).
-- In scope: `inputs.*`, `vars.*` (step results, `saveAs`), `const.*` (process constants), `run.*` (`id`, `dryRun`, `actor`), and `conn.<slot>.*` (`name`, `baseUrl`, `vars`).
-- Inside filters `[...]` a plain name refers to the current item. Use `$inputs`, `$vars` and `$const` there instead.
-- Extra functions:
-  - `$daysSince(ts)`
-  - `$daysAgo(n)`
-  - `$ts(ts)`
-  - `$uuid()`
-  - `$pvar(slot, name, default)` reads a platform variable.
-  - `$trend('dataset/metric', '7d')` is the trend of a dataset metric (`perDay`, `change`, `changePct`, `points`, `confidence`; `null` with too few points), and `$daysUntil('dataset/metric', limit, '30d')` the days until the trend reaches the limit (default: the metric's limit or floor from its publish step; `0` when reached, `null` when not heading for it). Windows: `24h`, `7d`, `30d`. A run reads only datasets it may see; with several sources it uses the run's own source. Example check: `$daysUntil('ih.usage/attributes') = null or $daysUntil('ih.usage/attributes') > 30`.
-  - `$secret(slot, key)` reads a credential for use in a request to _its own platform_ (e.g. a custom auth header or a portal login). The value is redacted everywhere in logs (including base64/URL-encoded forms) and may only be sent to the platform's allowed origins — a step that would send it elsewhere fails. See the security model below.
-- Append `[]` to force a list, e.g. `vars.users.body[active][]`.
-- Per-item fields (task columns, preselect, report columns) are evaluated against the item, which is also available as `$item`.
-
-### Node types
-
-| Type           | Outputs                  | Use                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| -------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `start`        | out                      | Entry point (exactly one).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `http`         | out, error               | API call on a connection. `query`, `headers` and `body` are templated. `expectStatus` sets the accepted status codes. `paginate` modes: `scim` (startIndex/count), `page` (page/size + `page.totalPages`), `offset`, `nextLink`. The result is `{status, headers, body, durationMs}`; with pagination, `body` is the concatenated item list. Writes are skipped in dry runs. An answer (each page) may be at most `maxResponseMb` large (default 20 MB, at most 200); outputs above 4 MB are kept in the run as a shortened copy. On an AWS platform, `aws: { service, region }` calls another AWS service of the account, signed with the platform ([docs/AWS.md](docs/AWS.md#aws-calls-in-processes)). _Pick from API spec_ fills method, path, parameters and an example body from the platform's OpenAPI spec. |
-| `query`        | out, error               | One read-only SQL statement or catalog query on a database platform. See [docs/DATABASES.md](docs/DATABASES.md#the-step-query-a-database).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `set`          | out                      | Compute variables (evaluated in order).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `forEach`      | each item, done          | Loop over a list (`as` names the item variable, `<as>Index` holds the index). Supports `delayMs` and a `maxItems` safety limit.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `group`        | –                        | YAML only: a list of `steps` with one shared `when`. Import turns it into its steps.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `if`           | true, false              | Branch on a condition.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `userTask`     | out / approved, rejected | `select` lets someone pick items; the result has `selected`, `unselected`, `comment`, `decidedBy`. `approve` asks for approval. Optional `assignees` and `fourEyes`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `check`        | out                      | Pass/fail with a severity. Shown on the dashboard and in the protocol. `failRun` stops the run.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `report`       | out                      | Text (markdown subset) and/or a table section in the protocol.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `browser`      | out, error               | Playwright actions: `goto`, `click`, `fill`, `press`, `select`, `check`, `waitFor`, `expectText`, `extract`, `screenshot`, `wait`, `evaluate`. The session is shared across browser nodes of a run, and a failure screenshot is captured automatically. Mark it `mutating` so it is skipped in dry runs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `publish`      | out                      | Writes rows and metrics to a dataset for dashboards. See [Dashboards](#dashboards).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `accessChange` | out                      | Documents an access change (grant, revoke, onboarding …) as an evidence entry. See [docs/COMPLIANCE.md](docs/COMPLIANCE.md#automatic-entries-from-runs).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `ai`           | out, error               | Asks an AI model on an LLM gateway platform, with a budget and an optional JSON answer. See [docs/AI.md](docs/AI.md#the-step-ask-an-ai-model).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `contractTest` | out, error               | Tests a data contract and marks the step failed when it does not pass. See [docs/DATA-CONTRACTS.md](docs/DATA-CONTRACTS.md#monitors-processes-scorecard-and-reports).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `subprocess`   | out, error               | Runs another process as a child run (inputs in, its outputs back as the result).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `wait`, `log`  | out                      | Self-explanatory.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `fail`         | –                        | Stops the run with a message.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `note`         | –                        | Comment on the canvas, not executed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-
-Common options for all nodes:
-
-- `when` (condition)
-- `saveAs`
-- `onError: continue`
-- `retry: { attempts, delayMs }`
-
-Tip: `npx playwright codegen https://your-portal` records clicks and gives you selectors.
-
-## Security model
-
-- Everyone signs in. Sessions are HttpOnly, SameSite=Strict cookies (`__Host-` prefixed over HTTPS; they end after 30 minutes without use and 12 hours after sign-in) **bound to a per-session key**: the web app keeps it in `localStorage` of its own origin and sends it with every request, so a cookie that leaks to another program on the same host (cookies are not isolated by port) is useless on its own. Every API call is checked against roles and access lists on the server; `server/test/route-matrix.test.ts` calls every route with every role. API tokens cannot manage users, teams, single sign-on, sign-in settings or the master passphrase, and cannot create or rotate secrets that would outlive them (webhook triggers, push tokens, heartbeat and gateway secrets, status page links) or switch the MCP server: that needs a signed-in session.
-- Credentials are encrypted at rest (AES-256-GCM) with a random data key. The vault file wraps it (and the audit, integrity and signing keys) with a key derived by scrypt (N=2^17) from your master passphrase; keys are only kept in memory. The passphrase can be changed, optionally rotating the data key. The API never returns secret values, and they are redacted from logs, protocols and audit entries. Process inputs of type _secret_ are stored encrypted and shown as `***`.
-- Platform credentials only go to the platform: the auth header, API keys and default headers are attached when a request targets the origin of the platform's base URL (or an origin listed under _Trusted origins_). An API call with an absolute URL to any other host is sent without them. The connection settings themselves are sealed (HMAC with a vault key): changed directly in the database, the platform is refused until an administrator confirms them.
-- Secrets stay inside the platform they belong to. `$secret(slot, key)` is available to process authors with `use` (it is needed for legitimate custom auth, e.g. a per-endpoint token or a portal login), but a resolved secret value may only leave Steward towards that platform's own allowed origins. Before every process-controlled request the URL, headers and body are scanned for any bound platform's secret value (also base64- and URL-encoded), and the step fails if a secret would reach an origin the platform does not allow. Secrets are also masked in their encoded forms in logs and protocols. This is why `use` does not require `manage`: the confidentiality boundary is enforced on egress, not by hiding `$secret`.
-- **Outbound access policy (SSRF).** Requests a process or monitor controls — the `http` node, pagination, browser navigation and its sub-requests, OpenAPI import by URL, and the monitor **http/tcp/ping checks** and **webhook/Zabbix outputs** — are limited to an allow policy, set under _Settings → Outbound access_: `platforms` (default — the origins of configured platforms and their trusted origins, plus an admin allow-list of origins, host globs or CIDRs), `allowList` (only the allow-list) or `open` (any host, for labs, with a warning). Cloud-metadata and link-local addresses (`169.254.0.0/16`, `100.100.100.200`, `fd00:ec2::254`, `fe80::/10`) and the Steward server's own API port are always blocked, and the resolved IP is pinned for the connection so a name cannot be rebound after the check. `SM_OUTBOUND_POLICY` overrides the stored policy. Admin-configured notification webhooks are not process-controlled and keep working. On-prem platforms on private IPs are reached normally — only the metadata ranges are denied, not RFC1918. A monitor that checks an internal host by raw address — e.g. a plant PowerMeter on `10.20.0.5` — needs that IP (or a CIDR such as `10.20.0.0/16`) on the allow-list; raw `host:port` checks are not inferred from platform origins, so they cannot be used to port-scan a platform host. Monitor http checks follow redirects manually and drop their custom headers on any cross-origin redirect, and a check's error message never echoes the upstream response body. Which rule checks which call, and when an allow-list entry is needed: [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#which-rule-checks-which-call).
-- The audit log is HMAC-chained. _Audit log → Verify chain_ detects modified, removed, inserted or re-ordered entries. Every hour, on each verification and before each export a checkpoint of the chain is **signed with the installation's Ed25519 key** and kept outside the database (log line for your SIEM, file in the data folder, optional e-mail): with it, removing entries at the end or rewriting the log is detected too, and an export can be checked offline (`npm run audit:verify-export`). Each finished run seals a fingerprint of its protocol in the chain; PDF reports are registered with their SHA-256, and only authentic entries count when a PDF or a protocol is verified.
-- By default the server listens on `127.0.0.1` only. It rejects foreign `Host` headers (DNS rebinding) and can serve HTTPS (`SM_TLS_CERT` / `SM_TLS_KEY`, TLS 1.2+, forward-secret ciphers). Behind a reverse proxy set `SM_TRUST_PROXY` and an `https://` `SM_PUBLIC_URL`. Every state-changing request needs a custom header that browsers cannot send cross-site (CSRF). Pages cannot be framed; API responses are not cached.
-- Dry runs, approval steps and the explorer's "I understand this changes data" confirmation guard against accidental changes. Dry runs skip steps marked _changes data_; a browser step can be set _read-only in dry runs_ so that clicks/fills are skipped while navigation and reads still run.
-- Datasets published to dashboards are owned by the process that first published a key; another process cannot overwrite it or take over its dashboard visibility (an administrator deletes the dataset to reset ownership).
-- Every process expression is evaluated under guard rails — a per-expression time limit (`SM_EXPR_TIMEOUT_MS`, default 5 s), a stack-depth and a sequence-size limit (`SM_EXPR_MAX_DEPTH`, `SM_EXPR_MAX_SEQUENCE`), a heap watchdog, and regular expressions that cannot block the server (patterns that could backtrack run in a worker thread with a time limit) — and long evaluations yield to the event loop, so no single expression can freeze the server.
-- The public REST API (`/api/v1`) is read-only and accepts only API tokens (no session cookies, no tokens in URLs). Tokens are stored as hashes, act with their owner's rights and are rate-limited. Responses are serialised from strict schemas, so credentials, secret variables, password hashes and tokens never leave the server. See [docs/API.md](docs/API.md#security-notes).
-- The MCP server (`/api/mcp`, off by default) accepts only tokens with the scope _MCP client_, which work nowhere else. Its tools read only, except a few that create a request a person must approve in Steward (changing gateway calls, run starts, control proposals; each off by default); an assistant cannot decide tasks or approve anything. Tools run with the token owner's rights, results are size-capped JSON that clients should treat as untrusted data, requests with a foreign `Origin` are refused, and every call is logged. The per-platform gateway runs only GET/HEAD operations from the platform's API specification (or allow-listed GET path prefixes) directly and changing operations from the specification only as an approved request, goes through the outbound policy, never follows redirects, masks credentials in responses and audits every call. See [docs/MCP.md](docs/MCP.md#security-model).
-- Webhook triggers (`/api/hooks/…`) are the only state-changing routes without a session: they authenticate with a per-trigger secret (constant-time comparison or HMAC-SHA256 signature), accept at most 64 KB of JSON, can be limited to source CIDRs, are rate-limited and de-duplicated, and answer unknown, disabled and address-blocked triggers with the same 404. Secrets are shown once and stored encrypted.
-- Running it at work: follow the checklist in [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md). Personal data and retention: [docs/PRIVACY.md](docs/PRIVACY.md).
-- Reporting vulnerabilities: see [SECURITY.md](SECURITY.md). The CI security and supply-chain checks (secret scanning, dependency and container scans, SAST, SBOMs, enforced install-script allow-list, signed build provenance) are described in [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md). Woodpecker CI pipelines for a self-hosted Forgejo mirror with Harbor and Dependency-Track: [docs/WOODPECKER.md](docs/WOODPECKER.md).
-
-## Development
-
-```bash
-npm install
-npm run dev:demo   # API with auto-reload + Vite UI on http://127.0.0.1:5173 (with mock platforms)
-npm test           # end-to-end tests against the mock platforms (incl. browser + crash/resume)
-npm run test:pg    # the same suite on PostgreSQL (SM_TEST_DATABASE_URL, default postgres://postgres@127.0.0.1:5432/postgres)
-npm run typecheck
-npm run lint       # ESLint; npm run format formats the code with Prettier
-npm run test:ui    # Playwright browser tests (after npm run build), see docs/TESTING.md
-```
-
-Code layout:
-
-```
-shared/   process model (zod schemas), step metadata for the editor, API types
-server/   Fastify API, SQLite (node:sqlite) or PostgreSQL (server/src/database), engine, platforms, audit, scheduler, reports, mock platforms, templates
-web/      React + Mantine UI
-```
-
-Where things live:
-
-- **Engine:** `server/src/engine/runner.ts`. Every node execution is journaled in `run_steps` (key = loop scope + node id), so a resumed run replays finished nodes from the journal instead of calling the APIs again.
-- **Access control:** `server/src/auth/`.
-- **Process model, conversion and validation:** `shared/src/process.ts` and `shared/src/graph.ts`.
-
-### Ideas for next steps
-
-- SCIM provisioning (deactivate accounts automatically when people leave).
-- Import a Postman collection as a platform spec.
-- See [docs/ROADMAP.md](docs/ROADMAP.md).
-
-Public REST API: the OpenAPI document [`docs/openapi.json`](docs/openapi.json) is generated from the route schemas with `npm run openapi`; `npm run openapi -- --check` fails when it is outdated (run it in CI). Details in [docs/API.md](docs/API.md).
-
-Contract checks against a sandbox tenant (for CI): `STEWARD_TOKEN=smt_… npm run contract -- --url http://127.0.0.1:4310 --platform <id>` calls every documented GET operation without required parameters and compares the responses with the OpenAPI spec. Pass the token via `STEWARD_TOKEN` (or `--token-file`) rather than `--token`, so it does not end up in your shell history.
-
-The command-line tools (`npm run validate`, `npm run contract`, the desktop executable, `npm run build:exe`) all take `--help`, exit with `0` (ok), `1` (failure or findings) or `2` (usage error), and `validate`/`contract` print machine-readable results with `--json` (use `npm run --silent …` to keep npm's own header out of the output).
+How it works in detail: [docs/SECURITY-MODEL.md](docs/SECURITY-MODEL.md). Before using it at work: [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md). Personal data: [docs/PRIVACY.md](docs/PRIVACY.md). Reporting a vulnerability: [SECURITY.md](SECURITY.md).
 
 ## Contributing
 
-Contributions are welcome – see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions (Conventional Commits, squash merges) and checks. Changes are listed in [CHANGELOG.md](CHANGELOG.md). Security issues: [SECURITY.md](SECURITY.md).
+Contributions are welcome – see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions and checks. How it is built: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Where it is heading and what it deliberately does not do: [docs/ROADMAP.md](docs/ROADMAP.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

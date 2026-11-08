@@ -1,4 +1,4 @@
-# Grype configuration (see docs/SECURITY-PIPELINE.md). Every ignore needs a reason; remove it when the fix lands.
+# Grype configuration (see docs/ci/SECURITY-PIPELINE.md). Every ignore needs a reason; remove it when the fix lands.
 ignore:
   # @azure/msal-node 6.0.1, only via tedious → @azure/identity 4.14.0 (SQL Server driver of database platforms): Steward
   # signs in to SQL Server with a SQL login only, so MSAL is loaded but never asked for a token. Fixed by

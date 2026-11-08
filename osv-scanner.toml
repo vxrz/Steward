@@ -1,4 +1,4 @@
-# OSV-Scanner configuration (see docs/SECURITY-PIPELINE.md).
+# OSV-Scanner configuration (see docs/ci/SECURITY-PIPELINE.md).
 # Every ignore needs a reason and an expiry date; after that date the finding fails CI again.
 
 [[IgnoredVulns]]

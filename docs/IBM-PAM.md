@@ -1,6 +1,6 @@
 # IBM Security Verify Privilege Vault
 
-Steward uses **IBM Security Verify Privilege Vault 12.0** (the IBM edition of Delinea Secret Server; on premises or in the cloud) as a source of evidence: who may use which privileged account, whether rotation works, and who used a secret (v0.5.0, #205).
+Steward uses **IBM Security Verify Privilege Vault 12.0** (the IBM edition of Delinea Secret Server; on premises or in the cloud) as a source of evidence: who may use which privileged account, whether rotation works, and who used a secret.
 
 **Steward never reads a secret value.** It reads metadata only – names, folders, templates, permissions, heartbeat and rotation state, audit records – and it refuses the value endpoints for this kind of platform, whoever asks ([below](#what-steward-never-calls)).
 

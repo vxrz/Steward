@@ -2,7 +2,7 @@
 
 What runs where, how to read the results, how to run the checks locally and
 what to do with a finding. The vulnerability disclosure policy is in
-[SECURITY.md](../SECURITY.md).
+[SECURITY.md](../../SECURITY.md).
 
 ## Overview
 
@@ -75,7 +75,7 @@ Semgrep runs in its official container (Docker). Reports land in `.tools/reports
 
 With gitleaks installed (on `PATH` or in `.tools/bin`), the pre-commit hook also scans the
 staged changes before each commit (`scripts/gitleaks-staged.sh`, see
-[CONTRIBUTING.md](../CONTRIBUTING.md#pre-commit-hooks)). Without it the hook skips this step
+[CONTRIBUTING.md](../../CONTRIBUTING.md#pre-commit-hooks)). Without it the hook skips this step
 with a notice; the full-history scan in CI still runs.
 
 ## Handling a finding
@@ -184,7 +184,7 @@ linux/amd64 and linux/arm64, and the same tags with `-browser` (`WITH_BROWSER=1`
    index and both platform images; `actions/attest-build-provenance` attests the
    index and both platform images; `actions/attest-sbom` attaches the CycloneDX
    SBOM of each platform image. The attestations are stored in GitHub and pushed
-   to the registry. Verify: [SECURITY-HARDENING.md](SECURITY-HARDENING.md#verifying-downloads).
+   to the registry. Verify: [SECURITY-HARDENING.md](../SECURITY-HARDENING.md#verifying-downloads).
 
 Only `publish` gets `packages: write`, `id-token: write` and `attestations: write`,
 and it only runs for tags and for manual runs with _push_. It uses no secret but
