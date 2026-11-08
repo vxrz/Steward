@@ -23,7 +23,7 @@ import {
 } from '@sm/shared';
 import { PRESETS } from '../src/platforms/presets.js';
 import { DRIVERS } from '../src/platforms/drivers.js';
-import { CHECK_RUNNERS } from '../src/monitors/checks.js';
+import { CHECK_RUNNERS, validateCheckPlatform } from '../src/monitors/checks.js';
 
 // One descriptor per platform kind and per check type (0.11.0, docs/ARCHITECTURE.md#adding-a-platform-kind): every
 // kind and type has a complete one, the server and web records cover them, and the lists they replaced are gone.
@@ -112,6 +112,48 @@ describe('check type descriptors', () => {
     for (const type of CHECK_TYPES) expect(fields, type).toMatch(new RegExp(`^  '?${type}'?: \\w+,$`, 'm'));
   });
 
+  it('refuse a platform of another kind for every type tied to platform kinds, and accept each kind it reads', () => {
+    const codeOf = (fn: () => void) => {
+      try {
+        fn();
+        return '';
+      } catch (e) {
+        return (e as { code?: string }).code ?? String(e);
+      }
+    };
+    const kindTypes = CHECK_TYPES.filter((t) => CHECK_TYPE_DEFS[t].platform === 'kind');
+    expect(kindTypes).toEqual(expect.arrayContaining(['gatus', 'checkmk', 'prometheus', 'kubernetes', 'git', 'freshness', 'db-schema']));
+    for (const type of kindTypes) {
+      const c = { id: 'c', name: 'c', type, ...CHECK_TYPE_DEFS[type].defaults } as unknown as Parameters<typeof validateCheckPlatform>[0];
+      const kinds = checkPlatformKinds(c);
+      expect(kinds.length, type).toBeGreaterThan(0);
+      expect(
+        codeOf(() => validateCheckPlatform(c, { name: 'Other', kind: 'generic' })),
+        type,
+      ).toBe('CHECK_PLATFORM_KIND');
+      expect(
+        codeOf(() => validateCheckPlatform(c, { name: 'Own', kind: 'my-own-connector' })),
+        type,
+      ).toBe('CHECK_PLATFORM_KIND');
+      // a kind the type reads passes the kind rule (the type's own rules may still refuse the empty defaults)
+      for (const kind of kinds)
+        expect(
+          codeOf(() => validateCheckPlatform(c, { name: 'Fits', kind })),
+          `${type} on ${kind}`,
+        ).not.toBe('CHECK_PLATFORM_KIND');
+    }
+    // types that read any platform, or none, have no kind rule; nor the freshness check with an API request as its source
+    for (const type of CHECK_TYPES.filter((t) => CHECK_TYPE_DEFS[t].platform !== 'kind')) {
+      const c = { id: 'c', name: 'c', type, ...CHECK_TYPE_DEFS[type].defaults } as unknown as Parameters<typeof validateCheckPlatform>[0];
+      expect(
+        codeOf(() => validateCheckPlatform(c, { name: 'Other', kind: 'generic' })),
+        type,
+      ).not.toBe('CHECK_PLATFORM_KIND');
+    }
+    const api = { id: 'c', name: 'c', type: 'freshness', source: 'platform' } as unknown as Parameters<typeof validateCheckPlatform>[0];
+    expect(codeOf(() => validateCheckPlatform(api, { name: 'Other', kind: 'gatus' }))).toBe('');
+  });
+
   it('replace the lists that were kept by hand before 0.11', () => {
     const gone = [
       'MONITOR_TYPE_KINDS',
@@ -123,6 +165,8 @@ describe('check type descriptors', () => {
       'CHECK_MODULES',
       'TRYABLE',
       'DEFAULT_NAMES',
+      // one kind rule for every check type tied to platform kinds (0.11.0)
+      'CHECK_GIT_PLATFORM',
     ];
     const files: string[] = [];
     const walk = (dir: string) => {
