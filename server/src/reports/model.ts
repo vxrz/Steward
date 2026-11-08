@@ -149,8 +149,7 @@ export function person(username: string | null | undefined): Person {
   return { username: u, displayName: info?.displayName || (u === 'system' ? 'System' : u) };
 }
 
-export const personLabel = (p: Person | null | undefined): string =>
-  !p ? '–' : p.displayName && p.displayName !== p.username ? `${p.displayName} (${p.username})` : p.username;
+export { personLabel } from './labels.js';
 
 const SECRET_KEY = /pass(word)?|secret|token|api[-_]?key|credential|private/i;
 

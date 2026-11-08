@@ -113,6 +113,13 @@ describe('the PDF worker', () => {
     expect(pool.pdfWorkerStatus()).toMatchObject({ mode: 'off', worker: 'off' });
   });
 
+  it('knows the draw half of every section of scheduled reports (drawers.ts), so each report is drawn in the worker', async () => {
+    const { reportSection, reportSectionIds } = await import('../src/reports/sections.js');
+    const { SECTION_DRAWERS } = await import('../src/reports/pdf/drawers.js');
+    expect(SECTION_DRAWERS.map((d) => d.id)).toEqual(reportSectionIds());
+    for (const d of SECTION_DRAWERS) expect(reportSection(d.id)!.render, d.id).toBe(d.render);
+  });
+
   it('an error of the drawing keeps its status and code (a record too large for a PDF)', async () => {
     const { reviveBuffers, toWorkerError } = await import('../src/reports/pdf/pool.js');
     const { HttpError } = await import('../src/util.js');

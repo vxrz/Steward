@@ -10,6 +10,7 @@ import { openDriver, type Driver, type Row } from './database/drivers.js';
 import { describeTarget, pgDdl, PG_CREATE_NOCASE, type DatabaseTarget } from './database/sql.js';
 import { pgDumpSync } from './database/pg-dump.js';
 import { timedStatement, timedTransaction } from './database/timing.js';
+import { databaseForbidden } from './database/forbid.js';
 import { REPORT_MIGRATIONS } from './migrations/reports.js';
 import { MONITOR_MIGRATIONS } from './migrations/monitors.js';
 import { SECURITY_MIGRATIONS } from './migrations/security.js';
@@ -781,14 +782,12 @@ export function openAppDb(target: DatabaseTarget = databaseTarget(), extra: Pick
 }
 
 let instance: Db | undefined;
-let noDatabase: string | null = null;
 /** Threads that must not read the database (the PDF worker, #13) call this: db() then throws instead of opening it. */
-export function forbidDatabase(reason: string): void {
-  noDatabase = reason;
-}
+export { forbidDatabase } from './database/forbid.js';
 
 export function db(): Db {
-  if (noDatabase) throw new Error(`No database here: ${noDatabase}`);
+  const forbidden = databaseForbidden();
+  if (forbidden) throw new Error(`No database here: ${forbidden}`);
   if (!instance) instance = openAppDb();
   return instance;
 }

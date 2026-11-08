@@ -83,6 +83,35 @@ const RULES = [
   { name: 'web-not-server', why: 'the web app reaches the server over HTTP only', from: ['web/src/'], to: ['server/'] },
   { name: 'server-not-web', why: 'the server serves web/dist, it does not import the web sources', from: ['server/src/'], to: ['web/'] },
   {
+    name: 'pdf-worker-draws-only',
+    why: 'the PDF worker draws from collected data: no database, no engine, no services (reports/pdf/pool.ts)',
+    from: [PDF_WORKER],
+    reach: true,
+    // config.ts parses the database address (database/sql.ts) – text only; the guard is what keeps db() shut
+    toExcept: ['server/src/database/sql.ts', 'server/src/database/forbid.ts'],
+    to: [
+      'server/src/db.ts',
+      'server/src/database/',
+      'server/src/engine/',
+      'server/src/scheduler.ts',
+      'server/src/routes/',
+      'server/src/migrations/',
+      'server/src/platforms/',
+      'server/src/features/',
+    ],
+    toPattern: [/\/service\.ts$/, /\/routes\.ts$/, /\/report-section\.ts$/],
+  },
+  {
+    name: 'draw-is-pure',
+    why: 'the draw half of a report section takes collected data and draws it: it reads no database (docs/REPORTS.md)',
+    from: [/-draw\.ts$/, 'server/src/reports/pdf/'],
+    except: ['server/src/reports/pdf/pool.ts'],
+    reach: true,
+    toExcept: ['server/src/database/sql.ts', 'server/src/database/forbid.ts'],
+    to: ['server/src/db.ts', 'server/src/database/', 'server/src/engine/', 'server/src/features/'],
+    toPattern: [/\/service\.ts$/, /\/routes\.ts$/, /\/report-section\.ts$/],
+  },
+  {
     name: 'routes-are-leaves',
     why: 'routes call services; services never import routes (only the composition root and app.ts register them)',
     from: ['server/src/'],
@@ -400,6 +429,8 @@ const stats = () => {
   );
 };
 if (args.stats) stats();
+// with lazy imports followed the graph is not the one the rules are about
+if (args.lazy) process.exit(0);
 
 if (args.update) {
   const body = {

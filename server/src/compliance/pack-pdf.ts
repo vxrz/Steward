@@ -2,8 +2,6 @@ import type { ReportLang } from '@sm/shared';
 import { ReportWriter } from '../reports/pdf/engine.js';
 import { translator } from '../reports/i18n.js';
 import { PRODUCT, chrome, langTag, type BrandingInput } from '../reports/common.js';
-import { drawPdf } from '../reports/pdf/pool.js';
-import { getBranding, logo } from '../reports/branding.js';
 import { CIA_DIMENSIONS } from '@sm/shared';
 import type { PackCatalogue, PackRating } from '../catalogue/evidence.js';
 
@@ -172,11 +170,6 @@ export interface PackPdfModel {
 }
 
 const MAX_ROWS = 400;
-
-/** The summary PDF of an evidence pack: the instance branding collected here, drawn in the PDF worker (#13). */
-export async function renderPackPdf(m: PackPdfModel, o: { compress?: boolean } = {}): Promise<Buffer> {
-  return drawPdf('pack', m, { branding: getBranding(), logo: logo().data }, o);
-}
 
 export async function drawPackPdf(m: PackPdfModel, brand: BrandingInput, o: { compress?: boolean } = {}): Promise<Buffer> {
   const L = TEXTS[m.lang] ?? TEXTS.en;

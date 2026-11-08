@@ -1,14 +1,16 @@
 import { parentPort } from 'node:worker_threads';
-import { forbidDatabase } from '../../db.js';
-import { PDF_DRAWERS } from './drawers.js';
-import { reviveBuffers, toWorkerError } from './pool.js';
-import { reportSectionIds } from '../sections.js';
+import { forbidDatabase } from '../../database/forbid.js';
+import { PDF_DRAWERS, SECTION_DRAWERS } from './drawers.js';
+import { reviveBuffers, toWorkerError } from './wire.js';
+import { registerSectionDrawer, sectionDrawerIds } from '../section-draw.js';
 
 /**
- * The PDF worker (#13, see pool.ts): draws one PDF per message from data collected in the main thread. It has no
- * database – a drawer that tries to read one fails instead of opening a second connection.
+ * The PDF worker (#13, see pool.ts): draws one PDF per message from data collected in the main thread. It loads
+ * drawing code only (drawers.ts) and has no database – a drawer that tries to read one fails instead of opening a
+ * second connection.
  */
 forbidDatabase('PDFs are drawn from collected data (reports/pdf/pool.ts)');
+for (const d of SECTION_DRAWERS) registerSectionDrawer(d);
 
 parentPort!.on('message', async (m: { id: number; kind: keyof typeof PDF_DRAWERS; args: unknown[] }) => {
   try {
@@ -21,4 +23,4 @@ parentPort!.on('message', async (m: { id: number; kind: keyof typeof PDF_DRAWERS
   }
 });
 // the sections of scheduled reports this thread knows (one registered later in the main thread is drawn there)
-parentPort!.postMessage({ type: 'ready', sections: reportSectionIds() });
+parentPort!.postMessage({ type: 'ready', sections: sectionDrawerIds() });

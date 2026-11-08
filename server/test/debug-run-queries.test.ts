@@ -48,7 +48,7 @@ describe('queries on runs outside engine/', () => {
       'notifications/summary.ts': 1,
       'compliance/evidence-pack.ts': 1,
       'compliance/controls.ts': 1,
-      'reports/sections.ts': 1,
+      'reports/builtin-sections.ts': 1,
       'reports/summary-report.ts': 1,
       'routes/dashboard-home.ts': 2,
       'duties/evaluate.ts': 1,
