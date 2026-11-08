@@ -10,6 +10,7 @@ import type {
   PlantLive,
   PlantLiveStatus,
   PlantSiteNetwork,
+  ZoneLevelOf,
 } from '@sm/shared';
 
 /**
@@ -34,8 +35,10 @@ export interface NetworkWords {
   collectorKind: (k: string) => string;
   mode: (m: string) => string;
   on: (host: string) => string;
+  /** A zone's level: its own, or derived for the diagram */
+  level: (l: ZoneLevelOf) => string;
   /** info labels */
-  label: Record<'devices' | 'subnets' | 'owner' | 'vlans' | 'protocols' | 'controls' | 'assessment' | 'managedBy' | 'segment' | 'restricted', string>;
+  label: Record<'devices' | 'subnets' | 'owner' | 'vlans' | 'protocols' | 'controls' | 'assessment' | 'managedBy' | 'segment' | 'restricted' | 'level', string>;
   yes: string;
   hidden: string;
   noVlan: string;
@@ -58,9 +61,14 @@ export function liveOf(l: PlantLiveStatus): PlantLive | null {
   };
 }
 
-export function networkGraph(n: PlantSiteNetwork, placement: PlantHostPlacement | undefined, w: NetworkWords): PlantFlowGraph {
+export function networkGraph(
+  n: PlantSiteNetwork,
+  placement: PlantHostPlacement | undefined,
+  w: NetworkWords,
+  levels?: Map<string, ZoneLevelOf>,
+): PlantFlowGraph {
   const nodes = new Map<string, PlantFlowNode>();
-  const edges = new Map<string, PlantFlowEdge & { via: Set<string> }>();
+  const edges = new Map<string, PlantFlowEdge & { via: Set<string>; labels?: string[] }>();
   const paths: PlantFlowPath[] = [];
   const site = encodeURIComponent(n.site.id);
   const node = (x: Omit<PlantFlowNode, 'checks' | 'live' | 'inactive'> & Partial<Pick<PlantFlowNode, 'checks' | 'live' | 'inactive'>>) => {
@@ -88,6 +96,7 @@ export function networkGraph(n: PlantSiteNetwork, placement: PlantHostPlacement 
       group: true,
       tags: [z.criticality ? w.criticality(z.criticality) : '', w.sl(z.slTarget)].filter(Boolean),
       info: [
+        ...(levels?.has(z.id) ? [{ label: w.label.level, value: w.level(levels.get(z.id)!) }] : []),
         { label: w.label.vlans, value: z.vlans.map((v) => vlanById.get(v)?.name ?? v).join(', ') || '–' },
         ...(z.owner ? [{ label: w.label.owner, value: z.owner }] : []),
         ...(z.riskAssessment ? [{ label: w.label.assessment, value: [z.riskAssessment, z.assessedAt].filter(Boolean).join(' · ') }] : []),
@@ -219,7 +228,12 @@ export function networkGraph(n: PlantSiteNetwork, placement: PlantHostPlacement 
       edges.set(id, e);
     } else e.live = worst(e.live, state);
     e.via.add(via);
-    if (label && !(e.label ?? '').split(' · ').includes(label)) e.label = [e.label, label].filter(Boolean).slice(0, 2).join(' · ');
+    // the first two different transfers name the way ("opc-ua:4840 · pull, mqtt:8883 · push"), however many paths take it
+    const labels = (e.labels ??= []);
+    if (label && !labels.includes(label) && labels.length < 2) {
+      labels.push(label);
+      e.label = labels.join(', ');
+    }
     return id;
   };
   for (const dp of n.dataPaths as PlantDataPathView[]) {
@@ -302,7 +316,7 @@ export function networkGraph(n: PlantSiteNetwork, placement: PlantHostPlacement 
   }
   return {
     nodes: [...nodes.values()],
-    edges: [...edges.values()].map(({ via, ...e }) => ({ ...e, paths: via.size })),
+    edges: [...edges.values()].map(({ via, labels: _labels, ...e }) => ({ ...e, paths: via.size })),
     paths,
     grouped: false,
     empty: nodes.size ? null : 'no_assets',

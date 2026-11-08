@@ -112,7 +112,7 @@ describe('the registry of reference columns', () => {
       'notes',
       'position',
     ],
-    plant_zones: ['name', 'description', 'criticality', 'owner', 'sl_target', 'risk_assessment', 'assessed_at', 'notes', 'position'],
+    plant_zones: ['name', 'description', 'criticality', 'level', 'owner', 'sl_target', 'risk_assessment', 'assessed_at', 'notes', 'position'],
     plant_conduits: ['name', 'description', 'direction', 'protocols', 'controls', 'notes', 'position'],
     plant_devices: [
       'hostname',

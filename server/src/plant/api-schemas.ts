@@ -29,6 +29,7 @@ import {
   TRANSFER_MODES,
   VLAN_RANGE_TYPES,
   ZONE_CRITICALITIES,
+  ZONE_LEVELS,
 } from '@sm/shared';
 import { RecordLink } from '../records/api-schemas.js';
 
@@ -519,6 +520,7 @@ const Zone = z.object({
   name: z.string(),
   description: z.string(),
   criticality: z.enum(ZONE_CRITICALITIES).nullable(),
+  level: z.enum(ZONE_LEVELS).nullable().describe('Where the zone sits in the Purdue levels (field … external); null: not set'),
   vlans: z.array(z.string()),
   owner: z.string(),
   slTarget: z.number().int().min(1).max(4).nullable().describe('IEC 62443-3-2 target security level (SL-T); null: open until a risk assessment sets it'),

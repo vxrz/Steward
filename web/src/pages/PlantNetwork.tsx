@@ -417,6 +417,7 @@ export function PlantNetworkPage() {
                           </Group>
                           {z.description && <Text size="sm">{z.description}</Text>}
                           <Group gap="lg" wrap="wrap" style={{ rowGap: 6 }}>
+                            <NetField label={t('zone.level')}>{z.level ? t(`levels.${z.level}`) : t('zone.levelNotSet')}</NetField>
                             <NetField label={t('zone.vlans')}>{z.vlans.map(vlanName).join(', ') || '–'}</NetField>
                             <NetField label={t('owner')}>{z.owner || '–'}</NetField>
                             <NetField label={t('device.title')}>{z.deviceCount}</NetField>

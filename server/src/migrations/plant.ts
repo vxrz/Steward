@@ -414,4 +414,9 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // 0.11: where a zone sits in the Purdue levels (field … external); null: the OT network diagram derives one
+    name: 'plant-007-zone-level',
+    sql: `ALTER TABLE plant_zones ADD COLUMN level TEXT;`,
+  },
 ];
