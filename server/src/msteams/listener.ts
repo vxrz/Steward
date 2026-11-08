@@ -1,6 +1,6 @@
-import fs from 'node:fs';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { config } from '../config.js';
+import { tlsServerOptions } from '../tls.js';
 import { logger } from '../log.js';
 import { BOT_BODY_LIMIT, handleBotRequest } from './bot.js';
 
@@ -17,7 +17,8 @@ export async function buildBotApp(): Promise<FastifyInstance> {
     logger: false,
     // a little above the limit, so a larger body is answered 413 by the handler's own check (not a parser error)
     bodyLimit: BOT_BODY_LIMIT + 1024,
-    ...(config.tls ? { https: { cert: fs.readFileSync(config.tls.cert), key: fs.readFileSync(config.tls.key), minVersion: 'TLSv1.2' as const } } : {}),
+    // the same TLS settings as the main server (TLS 1.2+, forward-secret AEAD suites, SM_TLS_CIPHERS): this port faces the internet
+    ...(config.tls ? { https: tlsServerOptions()! } : {}),
   }) as unknown as FastifyInstance;
   // the body is read as text: the handler checks size and JSON itself (415 for anything else)
   app.removeAllContentTypeParsers();

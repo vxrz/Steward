@@ -1,5 +1,4 @@
 import './warnings.js';
-import fs from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
 import type { AddressInfo } from 'node:net';
@@ -12,6 +11,7 @@ import { vault } from './vault.js';
 import { BRAND } from '@sm/shared';
 import { flushNotifications } from './notifications/service.js';
 import { db } from './db.js';
+import { tlsServerOptions } from './tls.js';
 import { passwordLoginPending } from './settings.js';
 import { closeErrorReporting, initErrorReporting, isUnexpected, reportError } from './errorReporting.js';
 import { listPlatforms, allSecretsUnchecked } from './platforms/service.js';
@@ -71,9 +71,7 @@ function waitingServer(message: string): Promise<http.Server> {
     if (path === `${config.basePath}/api/ready/traffic`) return json(503, { ready: false, message });
     json(503, { error: `${BRAND.name} is starting. ${message}.`, code: 'WAITING_FOR_DATABASE_LEASE' });
   };
-  const server = config.tls
-    ? https.createServer({ cert: fs.readFileSync(config.tls.cert), key: fs.readFileSync(config.tls.key), minVersion: 'TLSv1.2' }, handler)
-    : http.createServer(handler);
+  const server = config.tls ? https.createServer(tlsServerOptions()!, handler) : http.createServer(handler);
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen({ host: config.host, port: config.port }, () => resolve(server));

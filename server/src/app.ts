@@ -9,6 +9,7 @@ import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
 import { config, env } from './config.js';
 import { internalProblemJson } from './problem-json.js';
+import { tlsServerOptions } from './tls.js';
 import { vault } from './vault.js';
 import { HttpError } from './util.js';
 import { registerRoutes } from './routes/index.js';
@@ -116,12 +117,8 @@ function webUiRequest(req: FastifyRequest): boolean {
   return WEB_UI_API.includes(url) || !url.startsWith('/api/');
 }
 
-/**
- * TLS settings for the built-in HTTPS server: TLS 1.2 or newer, forward-secret AEAD cipher suites
- * only (TLS 1.3 suites are always on). SM_TLS_CIPHERS overrides the TLS 1.2 list.
- */
-export const TLS_CIPHERS =
-  'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305';
+/** The cipher list of the built-in HTTPS servers (tls.ts). */
+export { TLS_CIPHERS } from './tls.js';
 
 /** Loopback and private networks (RFC 1918, RFC 4193, link-local): where a reverse proxy in front of Steward lives. */
 const PRIVATE_PEERS = (() => {
@@ -231,17 +228,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     ...(BASE ? { rewriteUrl: (req: Parameters<typeof stripBasePath>[0]) => stripBasePath(req, BASE) } : {}),
     // Behind a reverse proxy: believe X-Forwarded-For/-Proto/-Host only from the configured proxies (SM_TRUST_PROXY)
     ...(config.trustProxy !== undefined ? { trustProxy: trustProxyFn(config.trustProxy) } : {}),
-    ...(config.tls
-      ? {
-          https: {
-            cert: fs.readFileSync(config.tls.cert),
-            key: fs.readFileSync(config.tls.key),
-            minVersion: 'TLSv1.2' as const,
-            ciphers: env.SM_TLS_CIPHERS || TLS_CIPHERS,
-            honorCipherOrder: true,
-          },
-        }
-      : {}),
+    ...(config.tls ? { https: tlsServerOptions()! } : {}),
   }) as unknown as FastifyInstance;
   // every answer names its request id (errors, rate limits and 404s included), so it can be quoted and looked up
   app.addHook('onSend', async (req, reply, payload) => {
