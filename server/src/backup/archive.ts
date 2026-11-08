@@ -117,7 +117,8 @@ export function dataFiles(root = config.dataDir): { rel: string; abs: string }[]
 export async function createArchive(out: string, o: { now?: Date } = {}): Promise<BackupManifest> {
   const dir = workDir();
   const snap = await snapshotDatabase(dir);
-  const zip = await ZipWriter.create(out);
+  // ZIP64 where needed: backups past 4 GB or 65,535 files (an archive within those limits is plain PKZIP 2.0)
+  const zip = await ZipWriter.create(out, undefined, { zip64: true });
   try {
     const files: WrittenEntry[] = [];
     files.push(await zip.addFile(snap.entry, snap.file));
@@ -166,7 +167,7 @@ export async function checkArchive(file: string, o: { deep?: boolean } = {}): Pr
   const step = (name: string, ok: boolean, message: string) => (steps.push({ name, ok, message }), ok);
   let zip: ZipReader;
   try {
-    zip = await ZipReader.open(file);
+    zip = await ZipReader.open(file, { zip64: true });
   } catch (e) {
     step('archive', false, `The archive cannot be read: ${(e as Error).message}`);
     return { ok: false, steps };

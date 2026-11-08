@@ -623,7 +623,7 @@ export const VARS = {
   SM_BACKUP_PART_BYTES: v(int(16 * 1024 * 1024, 1024), {
     group: 'Backups and migration',
     default: '16777216',
-    description: 'S3 backups: size of one part of a multipart upload',
+    description: 'S3 backups: size of one part of a multipart upload (larger for archives that would need more than 10,000 parts)',
   }),
   SM_MIGRATION_MAX_MB: v(int(2048, 1), {
     group: 'Backups and migration',

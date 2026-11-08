@@ -40,6 +40,18 @@ afterAll(async () => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
+describe('S3 multipart uploads', () => {
+  it('give a large archive larger parts, never more than 10,000', async () => {
+    const { partSize, MAX_PARTS } = await import('../src/backup/s3.js');
+    const MiB = 1024 * 1024;
+    expect(partSize(100 * MiB, 16 * MiB)).toBe(16 * MiB);
+    expect(partSize(16 * MiB * 10_000, 16 * MiB)).toBe(16 * MiB);
+    const big = 500 * 1024 * MiB; // 500 GB
+    expect(Math.ceil(big / partSize(big, 16 * MiB))).toBeLessThanOrEqual(MAX_PARTS);
+    expect(partSize(big, 16 * MiB) % MiB).toBe(0);
+  });
+});
+
 describe('encrypted backup file', () => {
   it('round-trips, and detects a wrong key, changed, re-ordered, cut-off and appended data', async () => {
     const { encryptFile, decryptFile, deriveBackupKey, newKdf, readHeader } = await import('../src/backup/crypto.js');
