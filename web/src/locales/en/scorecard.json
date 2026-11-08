@@ -45,7 +45,8 @@
     "uptimesOff": "No data: Steward does not read Gatus' uptime figures for this platform. Turn on “Also read Gatus' uptime figures” in its metrics mode.",
     "stale": "No data: Gatus' uptime figures were last read more than 3 hours ago.",
     "noEndpoint": "No data: Gatus does not report this endpoint any more.",
-    "noValue": "No data: Gatus reported no value for a window."
+    "noValue": "No data: Gatus reported no value for a window.",
+    "monitorOff": "No data: the monitor is disabled or was deleted."
   },
   "form": {
     "add": "Add objective",
@@ -60,16 +61,23 @@
     "application": "Application",
     "wholeService": "The whole service",
     "targets": "Targets",
-    "targetsHint": "Minimum uptime in percent, as Gatus reports it, for each window you want to judge. Leave a window empty to ignore it.",
+    "targetsHint": "Minimum uptime in percent for each window you want to judge. Leave a window empty to ignore it.",
     "targetOf": "Target for {{window}}",
     "targetsRequired": "Set a target for at least one window.",
     "description": "Description",
     "notify": "Send a message when it falls below target",
     "notifyHint": "To the service owners (administrators when it has none), once per breach.",
-    "platformHidden": "You may not see the Gatus platform of this objective. You can change its name and targets; the endpoint stays.",
+    "platformHidden": "You may not see the source (platform or monitor) of this objective. You can change its name and targets; the source stays.",
     "promQuery": "PromQL query",
     "promQueryHint": "Returns the availability as a fraction (0–1); $window becomes 1h, 24h, 7d and 30d, e.g. avg_over_time(up{job=\"shop\"}[$window]). With several series the lowest counts. Read hourly.",
-    "promWindowMissing": "Use $window for the time window, e.g. [$window]."
+    "promWindowMissing": "Use $window for the time window, e.g. [$window].",
+    "source": "Source of the figures",
+    "sourceMonitor": "Steward monitor",
+    "sourcePlatform": "Gatus or Prometheus",
+    "monitor": "Monitor",
+    "monitorHint": "The monitors you may see. The figures are the monitor’s own uptime from its recorded states; time in maintenance does not count.",
+    "monitorDisabled": "{{name}} (disabled)",
+    "noMonitors": "No monitors"
   },
   "objectives": {
     "title": "Availability objectives",
@@ -82,7 +90,7 @@
     "planned": "Planned maintenance: {{list}} (shown next to Gatus’ figures, which it does not change)",
     "breachSince": "Below target since {{date}}",
     "valuesAt": "Gatus' figures read {{when}}",
-    "hint": "Values are Gatus' own uptime figures, read once an hour. Steward keeps an hourly sample for 90 days.",
+    "hint": "Values come from the source: a monitor’s recorded states, or Gatus’ and Prometheus’ figures read once an hour. Steward keeps an hourly sample for 90 days.",
     "showHistory": "Show history",
     "hideHistory": "Hide history",
     "historySummary_one": "{{count}} hourly sample in the last 30 days, {{below}} below target, breaches: {{breaches}} – the line shows {{window}}",
@@ -97,7 +105,11 @@
     "archivedList_one": "{{count}} archived objective",
     "archivedList_other": "{{count}} archived objectives",
     "breachRecovered": "Below target {{from}} – {{to}} (met again)",
-    "breachArchived": "Below target {{from}} – {{to}} (ended by archiving, not recovered)"
+    "breachArchived": "Below target {{from}} – {{to}} (ended by archiving, not recovered)",
+    "monitor": "Monitor",
+    "monitorHidden": "Monitor hidden",
+    "plannedMonitor": "Planned maintenance: {{list}} (time in maintenance does not count in the monitor’s figures)",
+    "hintMonitor": "Values are the monitors’ own uptime from their recorded states. Steward keeps an hourly sample for 90 days."
   },
   "duties": {
     "none": "No duties.",

@@ -45,7 +45,8 @@
     "uptimesOff": "Keine Daten: Steward liest die Verfügbarkeitswerte von Gatus für diese Plattform nicht. Schalten Sie in ihrem Metrik-Modus „Auch die Verfügbarkeitswerte von Gatus lesen“ ein.",
     "stale": "Keine Daten: Die Verfügbarkeitswerte von Gatus wurden zuletzt vor mehr als 3 Stunden gelesen.",
     "noEndpoint": "Keine Daten: Gatus meldet diesen Endpunkt nicht mehr.",
-    "noValue": "Keine Daten: Gatus meldete für ein Zeitfenster keinen Wert."
+    "noValue": "Keine Daten: Gatus meldete für ein Zeitfenster keinen Wert.",
+    "monitorOff": "Keine Daten: Der Monitor ist ausgeschaltet oder wurde gelöscht."
   },
   "form": {
     "add": "Ziel hinzufügen",
@@ -60,16 +61,23 @@
     "application": "Anwendung",
     "wholeService": "Der ganze Service",
     "targets": "Zielwerte",
-    "targetsHint": "Mindestverfügbarkeit in Prozent, wie Gatus sie meldet, für jedes Zeitfenster, das Sie bewerten möchten. Lassen Sie ein Zeitfenster leer, um es nicht zu bewerten.",
+    "targetsHint": "Mindestverfügbarkeit in Prozent für jedes Zeitfenster, das Sie bewerten möchten. Lassen Sie ein Zeitfenster leer, um es nicht zu bewerten.",
     "targetOf": "Zielwert für {{window}}",
     "targetsRequired": "Legen Sie für mindestens ein Zeitfenster einen Zielwert fest.",
     "description": "Beschreibung",
     "notify": "Nachricht senden, wenn das Ziel unterschritten wird",
     "notifyHint": "An die Verantwortlichen des Service (Administratoren, wenn er keine hat), einmal je Unterschreitung.",
-    "platformHidden": "Sie dürfen die Gatus-Plattform dieses Ziels nicht sehen. Sie können Name und Zielwerte ändern; der Endpunkt bleibt.",
+    "platformHidden": "Sie dürfen die Quelle (Plattform oder Monitor) dieses Ziels nicht sehen. Sie können Name und Zielwerte ändern; die Quelle bleibt.",
     "promQuery": "PromQL-Abfrage",
     "promQueryHint": "Liefert die Verfügbarkeit als Anteil (0–1); $window wird zu 1h, 24h, 7d und 30d, z. B. avg_over_time(up{job=\"shop\"}[$window]). Bei mehreren Serien zählt die niedrigste. Stündlich gelesen.",
-    "promWindowMissing": "Verwenden Sie $window für den Zeitraum, z. B. [$window]."
+    "promWindowMissing": "Verwenden Sie $window für den Zeitraum, z. B. [$window].",
+    "source": "Quelle der Werte",
+    "sourceMonitor": "Steward-Monitor",
+    "sourcePlatform": "Gatus oder Prometheus",
+    "monitor": "Monitor",
+    "monitorHint": "Die Monitore, die Sie sehen dürfen. Die Werte sind die eigene Verfügbarkeit des Monitors aus seinen aufgezeichneten Zuständen; Zeit in Wartung zählt nicht.",
+    "monitorDisabled": "{{name}} (ausgeschaltet)",
+    "noMonitors": "Keine Monitore"
   },
   "objectives": {
     "title": "Verfügbarkeitsziele",
@@ -82,7 +90,7 @@
     "planned": "Geplante Wartung: {{list}} (neben den Gatus-Werten, die sie nicht ändert)",
     "breachSince": "Unterschritten seit {{date}}",
     "valuesAt": "Werte von Gatus gelesen {{when}}",
-    "hint": "Die Werte sind die eigenen Verfügbarkeitswerte von Gatus, einmal pro Stunde gelesen. Steward speichert 90 Tage lang einen Wert pro Stunde.",
+    "hint": "Die Werte kommen aus der Quelle: den aufgezeichneten Zuständen eines Monitors oder den Werten von Gatus und Prometheus, einmal pro Stunde gelesen. Steward speichert 90 Tage lang einen Wert pro Stunde.",
     "showHistory": "Verlauf anzeigen",
     "hideHistory": "Verlauf ausblenden",
     "historySummary_one": "{{count}} stündlicher Wert in den letzten 30 Tagen, {{below}} unterschritten, Unterschreitungen: {{breaches}} – die Linie zeigt {{window}}",
@@ -97,7 +105,11 @@
     "archivedList_one": "{{count}} archiviertes Ziel",
     "archivedList_other": "{{count}} archivierte Ziele",
     "breachRecovered": "Unterschritten {{from}} – {{to}} (wieder erfüllt)",
-    "breachArchived": "Unterschritten {{from}} – {{to}} (durch Archivieren beendet, nicht wieder erfüllt)"
+    "breachArchived": "Unterschritten {{from}} – {{to}} (durch Archivieren beendet, nicht wieder erfüllt)",
+    "monitor": "Monitor",
+    "monitorHidden": "Monitor verborgen",
+    "plannedMonitor": "Geplante Wartung: {{list}} (Zeit in Wartung zählt in den Werten des Monitors nicht)",
+    "hintMonitor": "Die Werte sind die eigene Verfügbarkeit der Monitore aus ihren aufgezeichneten Zuständen. Steward speichert 90 Tage lang einen Wert pro Stunde."
   },
   "duties": {
     "none": "Keine Pflichten.",

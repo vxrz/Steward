@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Badge, Button, Checkbox, Group, Modal, NumberInput, Select, SimpleGrid, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { Badge, Button, Checkbox, Group, Modal, NumberInput, SegmentedControl, Select, SimpleGrid, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
@@ -7,6 +7,7 @@ import {
   OBJECTIVE_WINDOWS,
   type GatusEndpointState,
   type GatusMetricsSource,
+  type MonitorSummary,
   type ObjectiveDetail,
   type ObjectiveStatus,
   type ObjectiveSummary,
@@ -20,7 +21,7 @@ import {
 import { get, getOptional, notifyError, notifyOk, post, put } from '../../api';
 import { TONE, useFieldErrors } from '../common';
 import { fmtNumber } from '../../format';
-import { platformKeys } from '../../queryKeys';
+import { monitorKeys, platformKeys } from '../../queryKeys';
 
 /** Colours of the part statuses (the label always says the status, too). */
 /**
@@ -114,8 +115,12 @@ export function ObjectiveFormModal({
   onSaved: (o: ObjectiveDetail) => void;
 }) {
   const { t } = useTranslation(['scorecard', 'common']);
-  // an editor who may not see the objective's platform keeps it as it is and changes the targets only
-  const hiddenPlatform = !!objective && !objective.platformVisible;
+  // an editor who may not see the objective's platform or monitor keeps it as it is and changes the targets only
+  const hiddenPlatform = !!objective && !(objective.sourceVisible ?? objective.platformVisible);
+  // where the figures come from: one of Steward's monitors (0.11), or a Gatus endpoint / PromQL query
+  const [kind, setKind] = useState<'monitor' | 'platform'>(objective && objective.sourceKind !== 'monitor' ? 'platform' : 'monitor');
+  const monitors = useQuery({ queryKey: monitorKeys.all, queryFn: () => get<MonitorSummary[]>('/monitors'), enabled: !hiddenPlatform });
+  const [monitorId, setMonitorId] = useState<string | null>(objective?.monitorId ?? null);
   const sources = useQuery({ queryKey: ['gatus-sources'], queryFn: () => getOptional<GatusMetricsSource[]>('/gatus/sources', []) });
   // Prometheus platforms (#110): the figures come from a PromQL query with $window
   const proms = useQuery({
@@ -143,9 +148,10 @@ export function ObjectiveFormModal({
   const [busy, setBusy] = useState(false);
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
-    platform: !hiddenPlatform && !platformId && t('common:validation.required'),
-    endpoint: !hiddenPlatform && !endpointKey && t('common:validation.required'),
-    query: !hiddenPlatform && isProm && !!endpointKey && !endpointKey.includes('$window') && t('form.promWindowMissing'),
+    monitor: !hiddenPlatform && kind === 'monitor' && !monitorId && t('common:validation.required'),
+    platform: !hiddenPlatform && kind === 'platform' && !platformId && t('common:validation.required'),
+    endpoint: !hiddenPlatform && kind === 'platform' && !endpointKey && t('common:validation.required'),
+    query: !hiddenPlatform && kind === 'platform' && isProm && !!endpointKey && !endpointKey.includes('$window') && t('form.promWindowMissing'),
     targets: OBJECTIVE_WINDOWS.every((w) => targets[w] === '') && t('form.targetsRequired'),
   });
   const source = (sources.data ?? []).find((x) => x.platformId === platformId);
@@ -156,7 +162,7 @@ export function ObjectiveFormModal({
       name: name.trim(),
       description,
       applicationId,
-      ...(hiddenPlatform ? {} : { platformId, endpointKey }),
+      ...(hiddenPlatform ? {} : kind === 'monitor' ? { monitorId } : { platformId, endpointKey }),
       targets: Object.fromEntries(OBJECTIVE_WINDOWS.map((w) => [w, targets[w] === '' ? null : targets[w]])) as ObjectiveTargets,
       notify,
     };
@@ -187,6 +193,43 @@ export function ObjectiveFormModal({
               {t('form.platformHidden')}
             </Text>
           ) : (
+            <Stack gap={4}>
+              <Text size="sm" fw={500} id="objective-source">
+                {t('form.source')}
+              </Text>
+              <SegmentedControl
+                aria-labelledby="objective-source"
+                value={kind}
+                onChange={(x) => setKind(x as typeof kind)}
+                data={[
+                  { value: 'monitor', label: t('form.sourceMonitor') },
+                  { value: 'platform', label: t('form.sourcePlatform') },
+                ]}
+                fullWidth
+                data-testid="objective-source-kind"
+              />
+            </Stack>
+          )}
+          {!hiddenPlatform && kind === 'monitor' && (
+            <Select
+              label={t('form.monitor')}
+              description={t('form.monitorHint')}
+              data={(monitors.data ?? [])
+                .filter((m) => !m.isTemplate)
+                .map((m) => ({ value: m.id, label: m.enabled ? m.name : t('form.monitorDisabled', { name: m.name }) }))}
+              value={monitorId}
+              onChange={(x) => {
+                setMonitorId(x);
+                const m = (monitors.data ?? []).find((y) => y.id === x);
+                if (m && !name.trim()) setName(m.name);
+              }}
+              searchable
+              nothingFoundMessage={t('form.noMonitors')}
+              required
+              error={v.error('monitor')}
+            />
+          )}
+          {!hiddenPlatform && kind === 'platform' && (
             <>
               <Select
                 label={t('form.platform')}
