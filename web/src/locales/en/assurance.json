@@ -303,6 +303,14 @@
       "mapSource": {
         "label": "Change where the map of sites fetches its tiles",
         "description": "A new tile source for the map of sites: OpenStreetMap, Light/Dark, an own URL or API key, a self-hosted file, or the own style read again. Turning the map off needs no confirmation."
+      },
+      "renameId": {
+        "label": "Change the id of a plant entry",
+        "description": "A plant registry entry gets a new id; every reference follows and the old id keeps leading to it. Off by default: whoever may change the entry renames it."
+      },
+      "bulkChange": {
+        "label": "Change many plant entries at once",
+        "description": "Renaming or removing more than one entry of the plant registry at once (in the lists or with an import), or editing more than 25."
       }
     },
     "library": {
