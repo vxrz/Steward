@@ -8,7 +8,7 @@ what to do with a finding. The vulnerability disclosure policy is in
 
 | Workflow        | Job          | Tool                                                                                                                                   | When                                            | Fails the build on                                                               |
 | --------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------- |
-| `ci.yml`        | build-test   | `scripts/security/npm-audit.mjs --audit-level=moderate` (`npm audit --omit=dev` + accepted risks)                                      | push, PR                                        | moderate+ advisory in a production dependency                                    |
+| `ci.yml`        | build        | `scripts/security/npm-audit.mjs --audit-level=moderate` (`npm audit --omit=dev` + accepted risks)                                      | push to main, PR                                | moderate+ advisory in a production dependency                                    |
 | `security.yml`  | secrets      | [gitleaks](https://github.com/gitleaks/gitleaks) over the **full git history**                                                         | push, PR, weekly                                | any secret not allow-listed in `.gitleaks.toml`                                  |
 |                 | dependencies | `scripts/security/npm-audit.mjs --audit-level=high`                                                                                    | push, PR, weekly                                | high/critical advisory in a production dependency                                |
 |                 |              | [OSV-Scanner](https://google.github.io/osv-scanner/) on `package-lock.json`                                                            | push, PR, weekly                                | any known vulnerability (dev dependencies too) not ignored in `osv-scanner.toml` |
@@ -135,7 +135,7 @@ with a notice; the full-history scan in CI still runs.
   does not delay security updates.
 - **Install scripts are enforced, not just listed**: npm 11 only _warns_ about
   packages missing from `allowScripts`. CI, the release builds and the
-  `Dockerfile` therefore run `npm ci --ignore-scripts` and then
+  `Dockerfile` (and the Woodpecker pipelines) therefore run `npm ci --ignore-scripts` and then
   `node scripts/install-scripts.mjs --check --run`: the check fails when
   `package-lock.json` contains a package with an install script that is not
   reviewed in `package.json` → `allowScripts` (`"name@version": true` = run,
