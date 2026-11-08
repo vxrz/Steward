@@ -37,7 +37,7 @@ import { parseYaml } from '../yaml-safe.js';
 
 /** Largest monitor file (the import route accepts 512 KB). */
 export const MONITOR_YAML_BYTES = 1024 * 1024;
-import { currentUser } from '../auth/context.js';
+import { currentUser, viaApiToken } from '../auth/context.js';
 import { cleanAcl } from '../auth/permissions.js';
 import { getPlatform, listPlatforms } from '../platforms/service.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
@@ -600,6 +600,12 @@ function newSecret(): { secret: string; enc: string; hash: string; prefix: strin
   return { secret, enc: vault().encrypt(secret), hash: sha256(secret), prefix: secret.slice(0, HEARTBEAT_SECRET_PREFIX.length + 4) };
 }
 
+/**
+ * The heartbeat secrets a save hands out: none to an API token – a secret would outlive the token's revocation. The
+ * check is created all the same; a signed-in person gets its secret with _Rotate secret_ in the web app.
+ */
+const shownSecrets = (secrets: MonitorSaveResult['secrets']): MonitorSaveResult['secrets'] => (viaApiToken() ? [] : secrets);
+
 /** Creates/removes check state rows to match the definition; returns secrets of new heartbeat checks. */
 function syncCheckRows(mid: string, key: string, def: MonitorDefinition, before: MonitorDefinition | null): MonitorSaveResult['secrets'] {
   const secrets: MonitorSaveResult['secrets'] = [];
@@ -754,7 +760,7 @@ export function createMonitorNow(
       },
     });
   });
-  return { monitor: getMonitor(id), secrets };
+  return { monitor: getMonitor(id), secrets: shownSecrets(secrets) };
 }
 
 export async function updateMonitor(idOrKey: string, input: MonitorInput & { version?: number }): Promise<MonitorSaveResult> {
@@ -846,7 +852,7 @@ export function updateMonitorNow(idOrKey: string, input: MonitorInput & { versio
       },
     });
   });
-  return { monitor: getMonitor(r.id), secrets };
+  return { monitor: getMonitor(r.id), secrets: shownSecrets(secrets) };
 }
 
 export function setEnabled(idOrKey: string, enabled: boolean): MonitorDetail {

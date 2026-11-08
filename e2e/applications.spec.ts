@@ -121,7 +121,10 @@ test('an application with a platform and a CIA rating gives its service a protec
     // the list filters by service and protection need
     await page.goto('/applications');
     await chooseOption(page, /^Service/, serviceName);
-    await expect(page.getByRole('table', { name: 'Applications' }).getByRole('link', { name })).toBeVisible();
+    const nameLink = page.getByRole('table', { name: 'Applications' }).getByRole('link', { name });
+    await expect(nameLink).toBeVisible();
+    // the name link is a target of at least 24 px height (WCAG 2.2, 2.5.8: the tag buttons are close by)
+    expect((await nameLink.boundingBox())!.height).toBeGreaterThanOrEqual(24);
     await settle(page);
     await expectAccessible(page, 'applications list');
 

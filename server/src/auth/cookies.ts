@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { FastifyReply } from 'fastify';
 import { config } from '../config.js';
 import type { SessionKeys } from './users.js';
@@ -9,7 +10,8 @@ import type { SessionKeys } from './users.js';
  * __Secure-sm_session with Path=<base path> – still Secure and host-only, but other applications on the
  * same host share Steward's origin (docs/INSTALL.md recommends an own subdomain).
  */
-export const SESSION_COOKIE = config.secureCookies ? (config.basePath ? '__Secure-sm_session' : '__Host-sm_session') : 'sm_session';
+export const COOKIE_PREFIX = config.secureCookies ? (config.basePath ? '__Secure-' : '__Host-') : '';
+export const SESSION_COOKIE = `${COOKIE_PREFIX}sm_session`;
 /** Path attribute of Steward's cookies: the base path, or / at the root. */
 export const COOKIE_PATH = config.basePath || '/';
 /** Header with the per-session key (see users.ts SessionBinding). */
@@ -44,6 +46,20 @@ export function sessionCookie(token: string | null): string {
   return token
     ? `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=${COOKIE_PATH}; HttpOnly; SameSite=Strict${secure}; Max-Age=${Math.round(config.session.maxMs / 1000)}`
     : `${SESSION_COOKIE}=; Path=${COOKIE_PATH}; HttpOnly; SameSite=Strict${secure}; Max-Age=0`;
+}
+
+/**
+ * The cookie that binds a single sign-on to the browser that started it (RFC 9700 §4.7.1, login CSRF): set when the
+ * sign-in starts, checked and cleared at the callback. One cookie per sign-in in progress – its name carries a hash
+ * of the state – so sign-ins in several tabs do not overwrite each other. SameSite=Lax: the identity provider's
+ * redirect back is a top-level navigation from another site, and Strict would leave the cookie out.
+ */
+export function ssoBindingCookieName(state: string): string {
+  return `${COOKIE_PREFIX}sm_sso_${crypto.createHash('sha256').update(state).digest('base64url').slice(0, 16)}`;
+}
+export function ssoBindingCookie(state: string, value: string | null, maxAgeSeconds = 0): string {
+  const secure = config.secureCookies ? '; Secure' : '';
+  return `${ssoBindingCookieName(state)}=${value ?? ''}; Path=${COOKIE_PATH}; HttpOnly; SameSite=Lax${secure}; Max-Age=${value ? maxAgeSeconds : 0}`;
 }
 
 /** Hands the session key and link key to the web app (response headers, read by web/src/api.ts). */

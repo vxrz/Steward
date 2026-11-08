@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, withRefusalReason, type Client, type TestServer, setEnv } from './helpers.js';
+import { setup, ssoBinding, startTestServer, withRefusalReason, type Client, type TestServer, setEnv } from './helpers.js';
 
 /**
  * Who may claim an account at its first single sign-on: accounts without a password belong to one provider, a local
@@ -31,7 +31,7 @@ async function signIn(provider: string, login: string): Promise<{ client?: Clien
   authorize.pathname += '/approve';
   authorize.searchParams.set('login', login);
   const approve = await fetch(authorize, { redirect: 'manual' });
-  const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' });
+  const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual', headers: { cookie: ssoBinding(start) } });
   if (res.status !== 200) return { error: await withRefusalReason(s, res.headers.get('location') ?? String(res.status)) };
   const cookie = res.headers.get('set-cookie')!.split(';')[0]!;
   const key = /localStorage\.setItem\("sm\.sessionKey","([^"]+)"\)/.exec(await res.text())![1]!;

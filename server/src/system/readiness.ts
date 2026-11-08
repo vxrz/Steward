@@ -21,6 +21,17 @@ function failed(check: string, e: unknown, publicMessage: string, detail: boolea
 }
 
 /**
+ * GET /api/ready/traffic: may a load balancer or a Kubernetes readinessProbe send people here? Yes whenever this
+ * process serves the web UI and the API – also with a locked vault or before the first set-up, because only through
+ * the UI can someone unlock or set it up. No only while it shuts down; a waiting instance (database lease or SQLite
+ * instance lock, main.ts) answers no from its own minimal server. "Needs someone to unlock the vault" is GET
+ * /api/ready, for alerts.
+ */
+export function trafficReadiness(): { ready: boolean; message?: string } {
+  return shuttingDown() ? { ready: false, message: 'Shutting down' } : { ready: true };
+}
+
+/**
  * The checks behind GET /api/ready (also shown on the System status page). `detail`: the error messages of failed
  * checks (administrators only); otherwise a generic reason, and the detail goes to the log.
  */

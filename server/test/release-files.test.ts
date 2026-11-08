@@ -19,6 +19,14 @@ describe('release files', () => {
     const text = fs.readFileSync(path.join(repo, file), 'utf8');
     const images = [...text.matchAll(/^\s*image:\s*(\S+)/gm)].map((m) => m[1]).filter((i) => i.includes('steward'));
     expect(images).toEqual([`ghcr.io/vxrz/steward:${version}`]);
+    // the comments too ("with Chromium: …:<version>-browser")
+    const tags = [...text.matchAll(/(?:steward|…):(\d[\w.-]*)/g)].map((m) => m[1]);
+    expect(tags.filter((t) => t !== version && t !== `${version}-browser`)).toEqual([]);
+  });
+
+  it.each(['docs/INSTALL.md', 'docs/SECURITY-HARDENING.md'])('%s shows image tags as <version>, not a release that gets old', (file) => {
+    const text = fs.readFileSync(path.join(repo, file), 'utf8');
+    expect(text.match(/vxrz\/steward:\d[\w.-]*|refs\/tags\/v\d[\w.-]*/g) ?? []).toEqual([]);
   });
 });
 

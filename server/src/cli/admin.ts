@@ -76,6 +76,8 @@ export class Failure extends Error {}
 
 /** Set once the database is open, so it is closed again (PostgreSQL: releases the lock). */
 let closeDb: (() => void) | undefined;
+/** Gives the SQLite instance lock back when the command ends (tests run several commands in one process). */
+let releaseLock: (() => void) | undefined;
 
 /** Reads a line without echoing it (the terminal shows nothing while typing). */
 export function promptHidden(question: string): Promise<string> {
@@ -168,6 +170,8 @@ export async function runAdmin(argv: string[], command = 'steward admin'): Promi
     return EXIT_FAILURE;
   } finally {
     closeDb?.();
+    releaseLock?.();
+    releaseLock = undefined;
   }
 }
 
@@ -273,6 +277,17 @@ async function execute(sub: Command, username: string | undefined, values: Value
     return EXIT_OK;
   }
 
+  // SQLite: the instance lock (database/sqlite-lock.ts), held until the command ends – refused while Steward runs with
+  // this database where this command cannot reach it (another container, still starting), and Steward waits meanwhile
+  if (config.database.kind === 'sqlite') {
+    const { lockForCommand } = await import('../database/sqlite-lock.js');
+    try {
+      const lock = lockForCommand(config.database.file, config.version);
+      releaseLock = () => lock.release();
+    } catch (e) {
+      throw new Failure((e as Error).message);
+    }
+  }
   const { db } = await import('../db.js');
   const d = db(); // opens the database and applies pending migrations; on PostgreSQL this fails while the server holds its lock
   closeDb = () => d.close();

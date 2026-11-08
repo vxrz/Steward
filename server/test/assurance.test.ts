@@ -14,7 +14,7 @@ import {
   policyChanges,
   splitPolicyChange,
 } from '@sm/shared';
-import { authHeaders, loginCookie, setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { authHeaders, loginCookie, sessionClient, setup, ssoBinding, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
  * Assurance policy (#210, auth/assurance.ts, docs/ASSURANCE.md): one catalogue of control points, an instance policy
@@ -402,21 +402,11 @@ describe('assurance policy (server)', () => {
     authorize.pathname += '/approve';
     authorize.searchParams.set('login', login);
     const approve = await fetch(authorize, { redirect: 'manual' });
-    const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' });
+    const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual', headers: { cookie: ssoBinding(start) } });
     expect(res.status).toBe(200);
     const cookie = res.headers.get('set-cookie')!.split(';')[0]!;
     const key = /localStorage\.setItem\("sm\.sessionKey","([^"]+)"\)/.exec(await res.text())![1]!;
-    return (async (method: string, url: string, body?: unknown) => {
-      const r = await fetch(s.base + '/api' + url, {
-        method,
-        headers: { 'x-sm-client': '1', cookie, 'x-sm-session': key, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-      });
-      const text = await r.text();
-      const data = text ? JSON.parse(text) : null;
-      if (!r.ok) throw Object.assign(new Error(`${method} ${url} → ${r.status}: ${text}`), { status: r.status, body: data });
-      return data;
-    }) as Client;
+    return sessionClient(s.base, cookie, key);
   }
   async function ssoStepUp(c: Client, login: string, actions: string[]) {
     const start = await c('POST', '/auth/step-up/sso', { actions });
@@ -425,7 +415,7 @@ describe('assurance policy (server)', () => {
     url.pathname += '/approve';
     url.searchParams.set('login', login);
     const approve = await fetch(url, { redirect: 'manual' });
-    const callback = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' });
+    const callback = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual', headers: { cookie: c.cookies!() } });
     const html = await callback.text();
     return { asked, html, ticket: /ticket:"([^"]+)"/.exec(html)?.[1] };
   }

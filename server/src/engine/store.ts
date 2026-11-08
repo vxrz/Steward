@@ -200,6 +200,10 @@ export function listRuns(f: {
   status?: string;
   scheduleId?: string;
   limit?: number;
+  /**
+   * Continue after this run (exclusive): `<startedAt>,<id>` of the last run shown. A bare `<startedAt>`
+   * (before 0.10.1) still works, but skips runs that started in the same millisecond as that run.
+   */
   before?: string;
   since?: string;
   /** `failed`: only runs with a failed check step */
@@ -221,7 +225,15 @@ export function listRuns(f: {
     ),
       params.push(...f.status.split(',')));
   if (f.scheduleId) (where.push('schedule_id = ?'), params.push(f.scheduleId));
-  if (f.before) (where.push('started_at < ?'), params.push(f.before));
+  if (f.before) {
+    // keyset (started_at, id) like listRunsPage: runs started in the same millisecond are neither skipped nor repeated
+    const cut = f.before.indexOf(',');
+    if (cut < 0) (where.push('started_at < ?'), params.push(f.before));
+    else {
+      const startedAt = f.before.slice(0, cut);
+      (where.push('(started_at < ? OR (started_at = ? AND id < ?))'), params.push(startedAt, startedAt, f.before.slice(cut + 1)));
+    }
+  }
   if (f.since) (where.push('started_at > ?'), params.push(f.since));
   const failedCheck = `EXISTS (SELECT 1 FROM run_steps s WHERE s.run_id = runs.id AND s.type = 'check' AND s.status = 'failed')`;
   if (f.checks === 'failed') where.push(failedCheck);
@@ -231,7 +243,7 @@ export function listRuns(f: {
     db()
       .all<RunRow & { open_tasks: number }>(
         `SELECT runs.*, (SELECT COUNT(*) FROM run_tasks t WHERE t.run_id = runs.id AND t.status = 'open') AS open_tasks
-       FROM runs WHERE ${where.join(' AND ')} ORDER BY started_at DESC LIMIT ?`,
+       FROM runs WHERE ${where.join(' AND ')} ORDER BY started_at DESC, id DESC LIMIT ?`,
         ...params,
       )
       .map(toSummary),

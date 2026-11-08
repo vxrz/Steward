@@ -161,7 +161,8 @@ export function ApplicationsPage() {
               <Paper key={a.id} withBorder p="sm" role="listitem">
                 <Group justify="space-between" wrap="nowrap" align="flex-start">
                   <Stack gap={4} style={{ minWidth: 0 }}>
-                    <Anchor component={Link} to={`/applications/${a.id}`} fw={600} size="sm">
+                    {/* inline-block with a 24 px line: a target of at least 24 × 24 px (WCAG 2.2, 2.5.8) */}
+                    <Anchor component={Link} to={`/applications/${a.id}`} fw={600} size="sm" display="inline-block" lh="24px">
                       {a.name}
                     </Anchor>
                     <RatingBadges rating={a.rating} />
@@ -191,7 +192,15 @@ export function ApplicationsPage() {
                 {list.map((a) => (
                   <Table.Tr key={a.id} className="clickable" onClick={() => navigate(`/applications/${a.id}`)} data-inactive={a.archived || undefined}>
                     <Table.Td>
-                      <Anchor component={Link} to={`/applications/${a.id}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
+                      <Anchor
+                        component={Link}
+                        to={`/applications/${a.id}`}
+                        fw={500}
+                        size="sm"
+                        display="inline-block"
+                        lh="24px"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {a.name}
                       </Anchor>
                       {a.archived && (

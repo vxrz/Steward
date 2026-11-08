@@ -5,7 +5,10 @@ import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import type { FastifyInstance } from 'fastify';
 
-export type Client = <T = any>(method: string, url: string, body?: unknown) => Promise<T>;
+export type Client = (<T = any>(method: string, url: string, body?: unknown) => Promise<T>) & {
+  /** The client's cookies as a Cookie header (session cookie, single sign-on binding cookies) */
+  cookies?: () => string;
+};
 export interface ClientOptions {
   /** Confirm with the sign-in password when a route asks for a step-up (default: true) */
   autoStepUp?: boolean;
@@ -98,6 +101,8 @@ export async function startTestServer(opts: { dataDir?: string; routes?: (app: F
   // under a path prefix (SM_BASE_PATH) everything lives below it
   const base = `http://127.0.0.1:${port}${config.basePath}`;
   const client = (opts: ClientOptions = {}): Client => {
+    // a small cookie jar, like a browser's: the session cookie and the single sign-on binding cookies (auth/cookies.ts)
+    const jar = new Map<string, string>();
     let cookie = '';
     // the session cookie plus the session key the web app keeps in localStorage (session binding)
     let sessionKey = '';
@@ -114,8 +119,8 @@ export async function startTestServer(opts: { dataDir?: string; routes?: (app: F
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
       });
-      const set = res.headers.get('set-cookie');
-      if (set) cookie = set.split(';')[0]!;
+      storeCookies(jar, res);
+      cookie = [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
       const key = res.headers.get('x-sm-session-key');
       if (key !== null) sessionKey = key;
       const text = await res.text();
@@ -138,7 +143,7 @@ export async function startTestServer(opts: { dataDir?: string; routes?: (app: F
         password = (body as { password: string }).password;
       return data;
     };
-    return ((method: string, url: string, body?: unknown) => call(method, url, body)) as Client;
+    return Object.assign((method: string, url: string, body?: unknown) => call(method, url, body), { cookies: () => cookie }) as Client;
   };
   const api = client();
   const as = async (username: string, password: string, opts?: ClientOptions) => {
@@ -155,6 +160,57 @@ export async function startTestServer(opts: { dataDir?: string; routes?: (app: F
     throw new Error(`Run ${id} did not reach ${statuses}`);
   };
   return { app, base, api, as, client, waitRun, dataDir };
+}
+
+/**
+ * A client for a session from a single sign-on (cookie and session key from the callback page). It keeps the cookies
+ * the answers set, like a browser: a step-up through single sign-on sets a binding cookie (`cookies()` for the callback).
+ */
+export function sessionClient(base: string, sessionCookie: string, sessionKey: string): Client {
+  const at = sessionCookie.indexOf('=');
+  const jar = new Map([[sessionCookie.slice(0, at), sessionCookie.slice(at + 1)]]);
+  const cookies = () => [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
+  const call = async (method: string, url: string, body?: unknown) => {
+    const res = await fetch(base + '/api' + url, {
+      method,
+      headers: { 'x-sm-client': '1', cookie: cookies(), 'x-sm-session': sessionKey, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    storeCookies(jar, res);
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : null;
+    if (!res.ok) throw Object.assign(new Error(`${method} ${url} → ${res.status}: ${text}`), { status: res.status, body: data });
+    return data;
+  };
+  return Object.assign(call, { cookies }) as Client;
+}
+
+/** Keeps the cookies a response sets in `jar` (a cookie set with Max-Age=0 is removed). */
+export function storeCookies(jar: Map<string, string>, res: Response): void {
+  for (const set of res.headers.getSetCookie()) {
+    const [pair = '', ...attributes] = set.split(';');
+    const at = pair.indexOf('=');
+    const name = pair.slice(0, at).trim();
+    if (attributes.some((a) => /^\s*max-age=0\s*$/i.test(a))) jar.delete(name);
+    else jar.set(name, pair.slice(at + 1));
+  }
+}
+
+/**
+ * The single sign-on binding cookie(s) a start response sets (auth/cookies.ts ssoBindingCookie), as a Cookie header:
+ * the browser that started the sign-in sends it with the callback.
+ */
+export function ssoBinding(res: Response): string {
+  return res.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0]!)
+    .filter((c) => /^(__Host-|__Secure-)?sm_sso_/.test(c))
+    .join('; ');
+}
+
+/** The Set-Cookie header of the session cookie in a response, or null (other cookies, such as a cleared binding cookie, are left out). */
+export function sessionSetCookie(res: Response): string | null {
+  return res.headers.getSetCookie().find((c) => /^(__Host-|__Secure-)?sm_session=/.test(c)) ?? null;
 }
 
 const sessionKeys = new Map<string, string>();

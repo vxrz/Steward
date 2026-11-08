@@ -52,7 +52,7 @@ Web UI API (signed-in users):
 
 - `GET /api/status-pages`, `GET /api/status-pages/{id}/view` – status viewers too
 - `POST /api/status-pages`, `GET`/`PUT`/`DELETE /api/status-pages/{id}` – designers and administrators (GET: every role but status viewers)
-- `POST`/`DELETE /api/status-pages/{id}/link` – make or revoke the link without sign-in
+- `POST`/`DELETE /api/status-pages/{id}/link` – make or revoke the link without sign-in (making it needs a signed-in session, not an API token)
 - `GET /api/public/status-page` with `X-Status-Token: <secret>` – no sign-in
 
 Status pages are not moved by migration packages (they name services by id and carry the link's secret): set them up again on the target.

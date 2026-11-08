@@ -14,6 +14,7 @@ import { parseCsv } from './templates.js';
 import { validateMonitorFile } from './validation.js';
 import { db } from '../db.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { ACCESS } from '../auth/access.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { monitorAccess } from '../auth/step-up-rules.js';
@@ -165,7 +166,10 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
   );
   // test run (#105): the platform checks against recorded responses; nothing is stored
   app.post('/monitors/:id/test-run', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => testRunMonitor(params(req).id!));
-  app.post('/monitors/:id/checks/:checkId/rotate', async (req) => svc.rotateHeartbeatSecret(params(req).id!, params(req).checkId!));
+  // a heartbeat or gateway secret outlives the API token that would get it: sessions only (saves give tokens none)
+  app.post('/monitors/:id/checks/:checkId/rotate', { config: { access: ACCESS.session } }, async (req) =>
+    svc.rotateHeartbeatSecret(params(req).id!, params(req).checkId!),
+  );
 
   /** Sends a sample report through the real heartbeat endpoint (secret added server-side). */
   app.post('/monitors/:id/checks/:checkId/test-report', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
@@ -237,9 +241,9 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- gateways ----------
   app.get('/monitor-gateways', async () => gateways.listGateways());
-  app.post('/monitor-gateways', async (req) => gateways.createGateway(gateways.gatewaySchema.parse(req.body)));
+  app.post('/monitor-gateways', { config: { access: ACCESS.session } }, async (req) => gateways.createGateway(gateways.gatewaySchema.parse(req.body)));
   app.put('/monitor-gateways/:id', async (req) => gateways.updateGateway(params(req).id!, gateways.gatewaySchema.parse(req.body)));
-  app.post('/monitor-gateways/:id/rotate', async (req) => gateways.rotateGatewaySecret(params(req).id!));
+  app.post('/monitor-gateways/:id/rotate', { config: { access: ACCESS.session } }, async (req) => gateways.rotateGatewaySecret(params(req).id!));
   app.delete('/monitor-gateways/:id', async (req) => {
     gateways.deleteGateway(params(req).id!);
     return { ok: true };

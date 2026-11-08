@@ -285,9 +285,10 @@ Errors are _problem details_ ([RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)
 ## Security notes
 
 - **A token acts as its owner.** For integrations, create a dedicated service account (e.g. `svc-reporting`) with the **viewer** role – or **auditor** if it needs the audit log – and create a _read only_ token for it, with an expiry. Never use an administrator's token for an integration.
-- **Treat tokens like passwords.** Store them in your secret store / CI secrets, never in source code, never in URLs (the API refuses them there), never in tickets or chats. Revoke a token immediately on the profile page (or as an admin under _Settings → API tokens_) when it may have leaked.
+- **Treat tokens like passwords.** Store them in your secret store / CI secrets, never in source code, never in URLs (the API refuses them there), never in tickets or chats. Revoke a token immediately on the profile page (or as an admin under _Settings → API tokens_) when it may have leaked. Then check what the token's owner set up while the token was out: schedules, webhook triggers, push tokens and monitors that a token created keep working after the revocation (the audit log names the token's owner as the actor).
 - Tokens are stored only as SHA-256 hashes; Steward cannot show a token again.
 - Deactivating a user stops all their tokens at once (`403`).
+- **Nothing a token creates outlives it as a credential.** Creating or rotating a secret – a webhook trigger, a cost or schema push token, a heartbeat or gateway secret of a monitor, a status page link without sign-in – needs a signed-in session, and so does switching the MCP server on or off (`PUT /api/mcp-server`). API tokens get `403 SESSION_REQUIRED` there, whatever their scope. A token that saves a monitor with a new heartbeat check gets no secret for it (`secrets: []`); rotate the secret in the web app. Revoking stays open to tokens.
 - The API never returns platform credentials, secret variables, authentication settings, password hashes or tokens. A platform's identities ([ADR 0009](adr/0009-platform-identities.md)) appear with names and flags only. Responses are serialised strictly from the documented schemas, so fields that are not documented cannot leak. Base URLs are returned without user info and query string.
 - Run step inputs contain the resolved request with secrets redacted, exactly like the run page in the web UI.
 - Use HTTPS (`SM_TLS_CERT`/`SM_TLS_KEY` or a reverse proxy) whenever the API is reached over the network. The host allow-list (`SM_ALLOWED_HOSTS`) also applies to the API.
@@ -333,7 +334,7 @@ In the single-file desktop executable the Swagger UI files are embedded and unpa
 
 ## The internal API
 
-Everything under `/api` except `/api/v1` and the MCP endpoint (`/api/mcp`) is the web UI's internal API. It is not documented in the OpenAPI document, needs the web UI's session (cookie, session key and the `x-sm-client` header; API tokens work only where a route allows them) and **may change in any release**. Use `/api/v1` for anything that has to keep working.
+Everything under `/api` except `/api/v1` and the MCP endpoint (`/api/mcp`) is the web UI's internal API. It is not documented in the OpenAPI document, needs the web UI's session (cookie, session key and the `x-sm-client` header; API tokens work only where a route allows them – never where a route creates or rotates a secret, see [Security notes](#security-notes)) and **may change in any release**. Use `/api/v1` for anything that has to keep working.
 
 Its errors are problem details too ([RFC 9457](https://www.rfc-editor.org/rfc/rfc9457), `Content-Type: application/problem+json`), with the members the web UI reads as extension members:
 

@@ -89,7 +89,7 @@ const isPublicApiPath = (url: string) => url === '/api/v1' || url.startsWith('/a
 /** The MCP endpoint: bearer tokens only, own Origin check, size limit and errors (see mcp/http.ts). */
 const isMcpEndpoint = (url: string) => url === MCP_PATH;
 /** Liveness and readiness probes: a probe refused for someone else's traffic from its address would restart a healthy server. */
-const PROBE_PATHS = ['/api/health', '/api/ready'];
+const PROBE_PATHS = ['/api/health', '/api/ready', '/api/ready/traffic'];
 /**
  * Requests the general rate limits (rateLimits.ts) never count: the public API and the MCP endpoint
  * (own per-token limiters), the probes and the demo's mock platforms.
@@ -393,7 +393,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // available to all services; set here, after the body was read, so the context reaches the handler).
   app.addHook('preHandler', (req, _reply, done) => {
     const user = (req as unknown as { smAuthUser?: AuthUser | null }).smAuthUser ?? null;
-    requestContext.run({ user, ip: req.ip }, done);
+    const apiToken = (req as unknown as { smToken?: string }).smToken;
+    requestContext.run({ user, ip: req.ip, ...(apiToken ? { apiToken } : {}) }, done);
   });
 
   // Sensitive actions need a recent confirmation of the session's owner (auth/step-up.ts); API tokens never do them.

@@ -53,7 +53,7 @@ Steward limits how many requests one client can send, so a script or a stuck bro
   | 600                                 | The map of sites' tiles, glyphs and sprites, per user and route (`/api/plant/map/tiles/…`, `…/glyphs/…`, `…/sprites/…`; [PLANT.md](PLANT.md#map)): enough to look at maps, too few to download a tile source through Steward                                                                                                                                                                        |
   | 10 × the general limit, per address | Inbound webhooks (`/api/hooks/…`); triggers, heartbeats and monitor gateways keep their own limits on top. The web UI's files and its start-up reads before sign-in (page, built assets, manifest, theme, logo, error reporting set-up): a browser with an empty cache fetches dozens of them per page, and several people may share an address                                                     |
 
-- **Not counted here:** the public REST API `/api/v1` (its own per-token limit, `SM_API_RATE_LIMIT`, see [API.md](API.md#rate-limits)) and the MCP endpoint (`SM_MCP_RATE_LIMIT`), so their requests are not counted twice; `/api/health` and `/api/ready`, so probes keep working while someone else from the same address is limited; the demo's mock platforms.
+- **Not counted here:** the public REST API `/api/v1` (its own per-token limit, `SM_API_RATE_LIMIT`, see [API.md](API.md#rate-limits)) and the MCP endpoint (`SM_MCP_RATE_LIMIT`), so their requests are not counted twice; `/api/health`, `/api/ready` and `/api/ready/traffic`, so probes keep working while someone else from the same address is limited; the demo's mock platforms.
 - **Above a limit** Steward answers `429 Too Many Requests` with `Retry-After` (seconds) and the error code `RATE_LIMITED`; the web app shows how long to wait. Counted answers carry `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`. A limited user or address is logged once per minute as `rate limit reached` (with the key, the limit and the route, never cookies or tokens); it is not written to the audit log. Failed sign-ins keep their own, stricter lockout (see [Sign-in](#sign-in)).
 - **One server process:** the counters are kept in memory and reset on restart. Several Steward instances behind a load balancer would each count on their own (Steward runs as one instance today); a shared store such as Redis would be needed then.
 
@@ -85,8 +85,8 @@ Steward limits how many requests one client can send, so a script or a stuck bro
 - Map roles from IdP groups (`requireMapping` for production) – leavers lose access when the IdP account is disabled.
 - **Who claims an account at the first single sign-on:** an account created without a password (_Users & teams → New user → Signs in with_, or a new single sign-on account from a migration) belongs to one provider; only that provider links it, by its exact user name. A linked account is never handed to another identity of the same provider: after the first sign-in it is found by the identity's **stable identifier** (the issuer plus `sub`, or Entra ID `tid` + `oid`), never by its name, and a change of the identifier claims re-links each account only through its own earlier issuer + `sub` (audited `user.sso_relinked`). Whether a **local account** with the same user name is linked is a setting per provider – _only accounts an administrator bound to this provider_ (the default for new providers; bind under _Edit user → Signs in with_, which removes the password), _any local account by name_ (providers from before this setting; the editor warns), or _never_. A local **administrator** is never linked by its name. Whenever the e-mail claim names or identifies an account, the provider must confirm the address (`email_verified`) unless it is marked as verifying every address. **Every claim that names, identifies or links accounts must be controlled by your organisation** (nOAuth): use an immutable identifier, never `email`/`upn`/`preferred_username` of a multi-tenant issuer (Entra `common`/`organizations` – add the required claim `tid`), never `name`; restrict Google sign-in to your domain with the required claim `hd`. The stable identifier must include `sub` or `oid` (or a claim you confirm as unique per person); claims many people share such as `tid` are refused. Stripping `@domain` from user names works only for the domains you list – any other domain is refused. A refused sign-in shows the person only a reference; the reason is in the audit log. The provider editor warns about each of these, and every change of the claim settings is audited with the former values. Group overage (too many groups for the token) never grants roles and is audited. Check a provider with the **test sign-in** before enabling it: it shows the claims and the resulting account without signing in or changing anything. See [SSO.md](SSO.md).
 - Sessions are bound to a per-session key in the browser (origin-isolated `localStorage`), not only to the cookie. Scripts use API tokens (`Authorization: Bearer smt_…`), never copied cookies.
-- Sessions end after 30 minutes without a request and 12 hours after sign-in (OWASP ASVS level 2). An open Steward tab keeps a session alive. Change it with `SM_SESSION_IDLE_MINUTES` and `SM_SESSION_MAX_HOURS`; longer values are logged as a warning at startup. Over HTTPS the cookie is called `__Host-sm_session`, so a neighbouring subdomain cannot plant or overwrite it.
-- API tokens act as their owner, but they cannot manage users, teams, single sign-on providers, the sign-in and outbound settings, the master passphrase or other tokens, and they never do a [step-up action](#step-up-re-authentication). Do that signed in. Give tokens an expiry date and the `read` scope where possible.
+- Sessions end after 30 minutes without a request and 12 hours after sign-in (OWASP ASVS level 2). An open Steward tab keeps a session alive. Change it with `SM_SESSION_IDLE_MINUTES` and `SM_SESSION_MAX_HOURS`; longer values are logged as a warning at startup. Over HTTPS the cookie is called `__Host-sm_session`, so a neighbouring subdomain cannot plant or overwrite it. A single sign-on is bound to the browser that started it by a short-lived cookie (`__Host-sm_sso_…`, SameSite=Lax): a callback link opened in another browser signs nobody in (login CSRF).
+- API tokens act as their owner, but they cannot manage users, teams, single sign-on providers, the sign-in and outbound settings, the master passphrase or other tokens, and they never do a [step-up action](#step-up-re-authentication). Nor can they create or rotate a secret that would outlive them – webhook trigger secrets, cost and schema push tokens, heartbeat and gateway secrets of monitors, status page links – or switch the MCP server on or off (`403 SESSION_REQUIRED`; a monitor saved by a token gets no heartbeat secret). So revoking a leaked token ends its access. Do that signed in. Give tokens an expiry date and the `read` scope where possible.
 - Steward logs a warning at startup for risky settings: reachable under another host name without HTTPS, demo mode on a network address, the passphrase in `SM_MASTER_PASSPHRASE` instead of a file, public metrics, long sessions.
 - Failed sign-ins are rate-limited per account, per account and address, and per address, and audited in bounded form (see [PRIVACY.md](PRIVACY.md)).
 
@@ -281,33 +281,33 @@ gh attestation verify steward-linux-x64.tar.gz --repo vxrz/Steward
 sha256sum -c SHA256SUMS.txt
 ```
 
-**Container image** (`ghcr.io/vxrz/steward`). The Container workflow signs every published image with [cosign](https://docs.sigstore.dev/cosign/) – keyless: the certificate names the workflow, the release tag and the commit – and attaches SLSA build provenance and the CycloneDX SBOM (from Syft) as attestations. Check that an image comes from a release tag of this repository before you run it (cosign 3 or later, a current GitHub CLI):
+**Container image** (`ghcr.io/vxrz/steward`). The Container workflow signs every published image with [cosign](https://docs.sigstore.dev/cosign/) – keyless: the certificate names the workflow, the release tag and the commit – and attaches SLSA build provenance and the CycloneDX SBOM (from Syft) as attestations. Check that an image comes from a release tag of this repository before you run it (cosign 3 or later, a current GitHub CLI). `<version>` is the release, e.g. the one in the `image:` line of `docker-compose.yml`:
 
 ```bash
 # signature: built by .github/workflows/container.yml for a v* tag of vxrz/Steward
-cosign verify ghcr.io/vxrz/steward:0.2.1 \
+cosign verify ghcr.io/vxrz/steward:<version> \
   --certificate-identity-regexp '^https://github\.com/vxrz/Steward/\.github/workflows/container\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
 # for one exact release, compare the whole identity instead of a pattern
-cosign verify ghcr.io/vxrz/steward:0.2.1 \
-  --certificate-identity https://github.com/vxrz/Steward/.github/workflows/container.yml@refs/tags/v0.2.1 \
+cosign verify ghcr.io/vxrz/steward:<version> \
+  --certificate-identity https://github.com/vxrz/Steward/.github/workflows/container.yml@refs/tags/v<version> \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
 # build provenance (SLSA) of the multi-platform image
-gh attestation verify oci://ghcr.io/vxrz/steward:0.2.1 --repo vxrz/Steward \
-  --signer-workflow vxrz/Steward/.github/workflows/container.yml --source-ref refs/tags/v0.2.1
+gh attestation verify oci://ghcr.io/vxrz/steward:<version> --repo vxrz/Steward \
+  --signer-workflow vxrz/Steward/.github/workflows/container.yml --source-ref refs/tags/v<version>
 ```
 
 Each platform image (linux/amd64, linux/arm64) is signed too and has its own provenance and SBOM attestation. Look up its digest and check it:
 
 ```bash
-docker buildx imagetools inspect ghcr.io/vxrz/steward:0.2.1          # lists the platform digests
+docker buildx imagetools inspect ghcr.io/vxrz/steward:<version>       # lists the platform digests
 gh attestation verify oci://ghcr.io/vxrz/steward@sha256:<platform digest> --repo vxrz/Steward \
   --predicate-type https://cyclonedx.org/bom                          # the SBOM attestation
 ```
 
-Run what you verified: pin the digest (`image: ghcr.io/vxrz/steward:0.2.1@sha256:…` in the compose file) or at least the version, so a later push to the tag cannot replace it unnoticed. The same commands work for the `-browser` tags.
+Run what you verified: pin the digest (`image: ghcr.io/vxrz/steward:<version>@sha256:…` in the compose file) or at least the version, so a later push to the tag cannot replace it unnoticed. The same commands work for the `-browser` tags.
 
 ## Shared procedure libraries
 

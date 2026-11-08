@@ -133,9 +133,12 @@ describe('general rate limit', () => {
     await limit('2');
     const ip = freshIp();
     expect(await statuses(5, () => call('GET', '/api/health', { ip }))).toEqual(Array(5).fill(200));
-    const ready = await call('GET', '/api/ready', { ip });
-    expect(ready.status).not.toBe(429);
-    expect(ready.headers.get('ratelimit-limit')).toBeNull();
+    for (const path of ['/api/ready', '/api/ready/traffic']) {
+      const ready = await call('GET', path, { ip });
+      expect(ready.status).not.toBe(429);
+      expect(ready.headers.get('ratelimit-limit')).toBeNull();
+    }
+    expect(await statuses(5, () => call('GET', '/api/ready/traffic', { ip }))).toEqual(Array(5).fill(200));
   });
 
   it('logs a limited key once per window, without secrets', async () => {

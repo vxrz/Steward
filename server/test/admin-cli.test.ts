@@ -111,6 +111,21 @@ describe('admin recovery CLI', () => {
     }
   });
 
+  it('refuses while another process holds the SQLite instance lock (Steward in another container, or starting)', async () => {
+    const { config } = await import('../src/config.js');
+    if (config.database.kind !== 'sqlite') return;
+    const { SqliteInstanceLock } = await import('../src/database/sqlite-lock.js');
+    const lock = new SqliteInstanceLock({ file: config.database.file, version: '9.9.9' });
+    expect(lock.tryAcquire()).toBe(true);
+    try {
+      const r = await adminAsync(['reset-password', 'admin', '--passphrase-stdin'], PASSPHRASE);
+      expect(r.code, r.stdout + r.stderr).toBe(1);
+      expect(r.stderr).toMatch(/Steward is running with this database .*version 9\.9\.9.* – stop it first/);
+    } finally {
+      lock.release();
+    }
+  });
+
   it('resets a password with the master passphrase, signs out sessions and audits it', async () => {
     // stop the in-process server (PostgreSQL: releases its lock on the schema)
     await s.app.close();
