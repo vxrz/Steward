@@ -23,4 +23,16 @@ describe('the feature manifests', () => {
     const moduleJobs = new Set(MODULES.flatMap((m) => m.jobs));
     for (const f of FEATURES.filter((x) => !x.module)) for (const j of f.jobs ?? []) expect(moduleJobs.has(j.name), j.name).toBe(false);
   });
+
+  it('a built-in dataset of a module is brought by a feature of that module', () => {
+    for (const m of MODULES)
+      for (const prefix of m.datasets ?? []) {
+        const id = prefix.endsWith(':') ? `${prefix}example` : prefix;
+        const owners = FEATURES.filter((f) => (f.datasets ?? []).some((d) => d.owns(id)));
+        expect(
+          owners.map((f) => f.module),
+          prefix,
+        ).toEqual([m.id]);
+      }
+  });
 });

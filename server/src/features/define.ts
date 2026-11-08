@@ -3,6 +3,7 @@ import type { ModuleId } from '@sm/shared';
 import type { JobDefinition } from '../jobs/registry.js';
 import type { Get } from '../api/v1/helpers.js';
 import type { ToolDef } from '../mcp/tooling.js';
+import type { BuiltinDataset } from '../dashboards/builtin.js';
 import type { ReportSectionDef } from '../reports/sections.js';
 
 /**
@@ -26,6 +27,8 @@ export interface FeatureManifest {
    * also listed for the PDF worker (reports/pdf/drawers.ts)
    */
   reportSections?: readonly ReportSectionDef[];
+  /** Datasets no process publishes, with who may read them (dashboards/builtin.ts) */
+  datasets?: readonly BuiltinDataset[];
   /** Tools of the MCP server (mcp/tools.ts), after Steward's own */
   mcpTools?: readonly ToolDef[];
 }
