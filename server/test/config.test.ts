@@ -192,7 +192,7 @@ describe('start-up', () => {
 });
 
 describe('generated documentation', () => {
-  it('README.md and docs/CONFIGURATION.md match the schema (npm run config:docs -- --check)', () => {
+  it('docs/CONFIGURATION.md matches the schema (npm run config:docs -- --check)', () => {
     const r = spawnSync(process.execPath, ['--import', 'tsx', 'server/src/cli/config-docs.ts', '--check'], { cwd: ROOT, encoding: 'utf8', timeout: 60_000 });
     expect(r.stderr).toBe('');
     expect(r.status).toBe(0);
