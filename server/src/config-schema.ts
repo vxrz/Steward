@@ -307,7 +307,6 @@ export const VARS = {
     default: '3',
     description:
       'Automatic copies of the database made before an update migrates it, kept in `SM_UPGRADE_BACKUP_DIR` (`0` = none): a SQLite copy, or a `pg_dump` of the PostgreSQL schema (`SM_PG_DUMP`). See [Updating](docs/INSTALL.md#6-updating)',
-
   }),
   SM_UPGRADE_BACKUP_DIR: v(text(), {
     group: 'Database and data',
@@ -557,7 +556,6 @@ export const VARS = {
     description:
       'Report unexpected errors to Sentry, GlitchTip or Bugsink (off by default; scrubbed, no personal data). More variables and exactly what is sent: [docs/ERROR-REPORTING.md](docs/ERROR-REPORTING.md). An invalid DSN only logs a warning. Or `SM_SENTRY_DSN_FILE`',
     secret: true,
-
   }),
   SM_SENTRY_DSN_WEB: v(text(), {
     group: 'Logging, tracing and error reporting',
