@@ -15,6 +15,7 @@ import { startUnlocked, stopUnlocked } from '../bootstrap.js';
 import { seedExamplesSource } from '../sync/service.js';
 import { currentUser, runAs } from '../auth/context.js';
 import * as users from '../auth/users.js';
+import { checkPasswordPolicy } from '../auth/passwords.js';
 import * as sso from '../auth/sso.js';
 import * as emergency from '../auth/emergency.js';
 import * as stepUp from '../auth/step-up.js';
@@ -135,6 +136,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       })
       .parse(req.body);
     if (users.countUsers() > 0) throw new HttpError(409, 'Setup has already been completed');
+    // the administrator's password first: a refused one must not leave a vault behind that is set up without an account
+    checkPasswordPolicy(b.password);
     if (vault().initialized) await vault().unlock(b.passphrase);
     else await vault().setup(b.passphrase);
     const { user } = users.createUser({ username: b.username, displayName: b.displayName, roles: ['admin'], password: b.password });

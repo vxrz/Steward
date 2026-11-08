@@ -16,7 +16,17 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { checkPasswordPolicy, dummyHash, hashPassword, temporaryPassword, verifyPasswordAsync } from './passwords.js';
+import {
+  checkPasswordPolicy,
+  dummyHash,
+  hashPassword,
+  hashPasswordAsync,
+  needsRehash,
+  normalizePassword,
+  temporaryPassword,
+  verifyPasswordAsync,
+} from './passwords.js';
+import { logger } from '../log.js';
 import { recordFailedLogin } from './login-audit.js';
 import type { AuthUser, SessionMeta, StepUpDetail } from './context.js';
 import { passwordLoginMode } from '../settings.js';
@@ -195,8 +205,7 @@ export function createUser(input: {
   } else if (!password) {
     password = temp = temporaryPassword();
   } else {
-    const err = checkPasswordPolicy(password);
-    if (err) throw new HttpError(400, err, 'PASSWORD_POLICY');
+    checkPasswordPolicy(password);
   }
   const id = newId('usr_');
   const ts = nowIso();
@@ -428,11 +437,11 @@ export async function changePassword(id: string, current: string, next: string, 
     throw new HttpError(400, 'Current password is wrong', 'WRONG_CURRENT_PASSWORD');
   }
   passwordChangeFailures.delete(id);
-  const err = checkPasswordPolicy(next);
-  if (err) throw new HttpError(400, err, 'PASSWORD_POLICY');
-  if (current === next) throw new HttpError(400, 'Choose a new password', 'SAME_PASSWORD');
+  checkPasswordPolicy(next);
+  if (normalizePassword(current) === normalizePassword(next)) throw new HttpError(400, 'Choose a new password', 'SAME_PASSWORD');
+  const hash = await hashPasswordAsync(next);
   db().tx(() => {
-    db().run('UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = ? WHERE id = ?', hashPassword(next), nowIso(), id);
+    db().run('UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = ? WHERE id = ?', hash, nowIso(), id);
     const signedOut = db().run('DELETE FROM sessions WHERE user_id = ? AND id <> ?', id, keepSession ? hashToken(keepSession) : '').changes;
     audit({
       action: 'user.password_changed',
@@ -616,6 +625,7 @@ export async function login(username: string, password: string, meta: { ip?: str
   }
   failures.delete(key);
   accountFailures.delete(account);
+  await upgradeHash(r.id, password, r.password_hash);
   const roles = parseJson<Role[]>(r.roles, []);
   if (mode === 'adminsOnly' && !roles.includes('admin')) {
     throw new HttpError(403, 'Password sign-in is disabled – please use single sign-on', 'PASSWORD_LOGIN_DISABLED');
@@ -655,7 +665,24 @@ export async function verifyStepUpPassword(userId: string, password: string, met
   }
   failures.delete(key);
   accountFailures.delete(account);
+  await upgradeHash(r.id, password, r.password_hash);
   return { username };
+}
+
+/**
+ * A password hash from before 0.11 (scrypt N=2^15, of the password as typed) is replaced by one with the current cost
+ * (N=2^17, of the NFKC form) once the password was checked: at a sign-in or a step-up. Only if nobody changed the hash
+ * in the meantime; a failure is logged and the old hash keeps working.
+ */
+async function upgradeHash(userId: string, password: string, stored: string): Promise<void> {
+  if (!needsRehash(stored)) return;
+  try {
+    const next = await hashPasswordAsync(password);
+    if (db().run('UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?', next, userId, stored).changes)
+      logger.info({ userId }, 'password hash upgraded to the current scrypt cost');
+  } catch (err) {
+    logger.warn({ err, userId }, 'could not upgrade the password hash – the old one keeps working');
+  }
 }
 
 /** The link key belonging to a binding (derived, so it needs no storage of its own). */

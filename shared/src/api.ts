@@ -408,6 +408,14 @@ export interface AuthStatus {
 export type StepUpMethod = 'password' | 'sso' | 'emergency' | 'none';
 
 /** What a step-up confirms (each sensitive route names its action; shown in the dialog and on the callback page). */
+/**
+ * The rule for local passwords (0.11.0, NIST SP 800-63B, ASVS 5.0 V6.2): a length in characters of the Unicode NFKC
+ * form – any characters, spaces too, no composition rules – and not on the bundled list of common passwords (server).
+ */
+export const PASSWORD_RULES = { minLength: 12, maxLength: 256 } as const;
+/** The length of a password as the rule counts it: characters (code points) of its NFKC form. */
+export const passwordLength = (password: string): number => [...password.normalize('NFKC')].length;
+
 export const STEP_UP_ACTIONS = [
   'createToken',
   'changeVaultPassphrase',

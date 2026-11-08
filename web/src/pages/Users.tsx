@@ -28,7 +28,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconCheck, IconCopy, IconEdit, IconKey, IconPlus, IconSettings, IconTrash, IconUsersGroup } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { ROLES, ROLE_INFO, TEAM_ROLES, type AuthStatus, type Role, type Team, type UserInfo } from '@sm/shared';
+import { PASSWORD_RULES, ROLES, ROLE_INFO, TEAM_ROLES, type AuthStatus, type Role, type Team, type UserInfo } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { useFieldErrors } from '../components/common';
 import { DataTable, type DataColumn } from '../components/DataTable';
@@ -530,7 +530,7 @@ function UserModal({
         {!user && !passwordsOff && !provider && (
           <PasswordInput
             label={t('userModal.initialPassword')}
-            description={t('userModal.initialPasswordHint')}
+            description={t('userModal.initialPasswordHint', { min: PASSWORD_RULES.minLength })}
             value={password}
             onChange={(e) => setPassword(e.currentTarget.value)}
             autoComplete="new-password"
