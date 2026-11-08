@@ -27,12 +27,12 @@ The words Steward uses, in English and German. The web app has the same list und
 
 ## Watching
 
-| Term               | German          | Meaning                                                                                              |
-| ------------------ | --------------- | ---------------------------------------------------------------------------------------------------- |
-| Monitor            | Monitor         | A graph of checks that runs on a schedule and reports a status (up, degraded, down).                 |
-| Check              | Prüfung         | One test inside a monitor or a process step: an HTTP status, a query value, a heartbeat.             |
-| Objective          | Ziel            | An availability target of a service, measured over time. Shown on the scorecard (a tab of Services). |
-| Maintenance window | Wartungsfenster | Planned work: affected monitors stay quiet and messages pause. _Operate → Maintenance_.              |
+| Term               | German          | Meaning                                                                                                                                                                                                                       |
+| ------------------ | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monitor            | Monitor         | A graph of checks that runs on a schedule and reports a status (up, degraded, down).                                                                                                                                          |
+| Check              | Prüfung         | One test inside a monitor or a process step: an HTTP status, a query value, a heartbeat.                                                                                                                                      |
+| Objective          | Ziel            | An availability target of a service, measured over time from one source: a Steward monitor, a Gatus endpoint or a PromQL query. Shown on the scorecard (a tab of Services); scheduled reports take their SLA targets from it. |
+| Maintenance window | Wartungsfenster | Planned work on platforms, systems, applications, services or monitors: affected monitors stay quiet and messages pause. The only kind of maintenance window since 0.11. _Operate → Maintenance_.                             |
 
 ## Registers and people
 
