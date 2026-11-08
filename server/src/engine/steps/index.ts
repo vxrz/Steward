@@ -1,5 +1,6 @@
 import type { FlowNode } from '@sm/shared';
 import type { StepExecutor, StepRegistry, StepType } from './context.js';
+import { browserStep } from './browser.js';
 import { subprocessStep } from './subprocess.js';
 import { userTaskStep } from './user-task.js';
 import { httpStep } from './http.js';
@@ -25,6 +26,7 @@ let registry: Partial<StepRegistry> | undefined;
 /** Built on first use: step modules import modules that import the engine again (an import cycle), so not at load time. */
 export function steps(): Partial<StepRegistry> {
   return (registry ??= {
+    browser: browserStep,
     subprocess: subprocessStep,
     userTask: userTaskStep,
     http: httpStep,

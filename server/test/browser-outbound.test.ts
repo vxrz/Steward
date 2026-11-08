@@ -60,7 +60,7 @@ describe('browser steps and the outbound policy', () => {
   });
 
   it('names the origin and the fix', async () => {
-    const { blockedNavigation } = await import('../src/engine/runner.js');
+    const { blockedNavigation } = await import('../src/engine/steps/browser.js');
     expect(blockedNavigation('https://sso.example.com', new Error('Blocked by the outbound policy: https://sso.example.com is not …'))).toBe(
       "blocked by the outbound policy: https://sso.example.com – add it to the platform's trusted origins or the allow-list (Settings → Security & sign-in → Outbound access)",
     );
