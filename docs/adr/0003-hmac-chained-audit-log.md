@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-23
 - **Since:** 0.1.0 (chain); signed checkpoints and anchors since 0.1.2
+- **Update:** the last consequence (no retention) no longer holds since 0.4.0: archived entries can be deleted from the database while the chain stays verifiable – see [0017](0017-audit-retention.md).
 
 ## Context
 
